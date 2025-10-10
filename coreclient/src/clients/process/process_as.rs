@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::ClientSigningKey,
     crypto::{hpke::HpkeDecryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{QualifiedGroupId, UserHandle},
     messages::{
@@ -92,7 +91,6 @@ impl CoreUser {
                 &mut connection,
                 eci,
                 &cep_payload,
-                self.signing_key(),
                 aad,
                 connection_offer_hash,
             )
@@ -274,7 +272,6 @@ impl CoreUser {
         connection: &mut SqliteConnection,
         eci: ExternalCommitInfoIn,
         cep_payload: &ConnectionOfferPayload,
-        leaf_signer: &ClientSigningKey,
         aad: AadMessage,
         connection_offer_hash: ConnectionOfferHash,
     ) -> Result<(Group, MlsMessageOut, MlsMessageOut, Vec<ProfileInfo>)> {
@@ -282,14 +279,13 @@ impl CoreUser {
             &mut *connection,
             &self.inner.api_clients,
             eci,
-            leaf_signer,
+            self.signing_key(),
             cep_payload.connection_group_ear_key.clone(),
             cep_payload
                 .connection_group_identity_link_wrapper_key
                 .clone(),
             aad,
-            self.inner.key_store.signing_key.credential(),
-            connection_offer_hash,
+            Some(connection_offer_hash),
         )
         .await?;
         Ok((group, commit, group_info, member_profile_info))
