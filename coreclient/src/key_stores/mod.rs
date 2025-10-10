@@ -6,7 +6,8 @@ use std::{fmt, ops::Deref};
 
 use aircommon::{
     crypto::hpke::{ClientIdEncryptionKey, HpkeEncryptable},
-    identifiers::{ClientConfig, QS_CLIENT_REFERENCE_EXTENSION_TYPE, QsClientId, QsReference},
+    identifiers::{ClientConfig, QsClientId, QsReference},
+    mls_group_config::{QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_capabilities},
 };
 use anyhow::Result;
 use openmls::prelude::{
@@ -18,7 +19,7 @@ use tls_codec::Serialize as TlsSerializeTrait;
 
 use crate::{
     clients::{CIPHERSUITE, api_clients::ApiClients},
-    groups::{default_capabilities, openmls_provider::AirOpenMlsProvider},
+    groups::openmls_provider::AirOpenMlsProvider,
 };
 
 use aircommon::{

@@ -24,7 +24,7 @@ use aircommon::{
         ear::keys::{EncryptedUserProfileKey, GroupStateEarKey},
         hpke::{HpkeEncryptable, JoinerInfoEncryptionKey},
     },
-    identifiers::{QS_CLIENT_REFERENCE_EXTENSION_TYPE, QsReference},
+    identifiers::QsReference,
     messages::{
         client_ds::{
             AadMessage, AadPayload, AddUsersInfo, DsJoinerInformation, GroupOperationParams,
@@ -32,6 +32,7 @@ use aircommon::{
         },
         welcome_attribution_info::EncryptedWelcomeAttributionInfo,
     },
+    mls_group_config::QS_CLIENT_REFERENCE_EXTENSION_TYPE,
     time::{Duration, TimeStamp},
 };
 use tls_codec::DeserializeBytes;

@@ -30,7 +30,7 @@ use aircommon::{
         indexed_aead::keys::UserProfileKey,
         signatures::signable::{Signable, Verifiable},
     },
-    identifiers::{QS_CLIENT_REFERENCE_EXTENSION_TYPE, QsReference, QualifiedGroupId, UserId},
+    identifiers::{QsReference, QualifiedGroupId, UserId},
     messages::{
         client_as::ConnectionOfferHash,
         client_ds::{
@@ -44,6 +44,10 @@ use aircommon::{
         welcome_attribution_info::{
             WelcomeAttributionInfo, WelcomeAttributionInfoPayload, WelcomeAttributionInfoTbs,
         },
+    },
+    mls_group_config::{
+        GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, default_capabilities,
+        default_required_capabilities,
     },
     time::TimeStamp,
 };
@@ -73,12 +77,11 @@ use openmls::{
     group::{ExternalCommitBuilder, Member, ProcessedWelcome},
     key_packages::KeyPackageBundle,
     prelude::{
-        BasicCredentialError, Capabilities, Ciphersuite, CredentialType, CredentialWithKey,
-        Extension, ExtensionType, Extensions, GroupId, KeyPackage, LeafNodeIndex,
-        LeafNodeParameters, MlsGroup, MlsGroupJoinConfig, MlsMessageOut, OpenMlsProvider,
-        PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal, ProposalType,
-        ProtocolVersion, QueuedProposal, RequiredCapabilitiesExtension, Sender, SignaturePublicKey,
-        StagedCommit, UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
+        BasicCredentialError, CredentialWithKey, Extension, Extensions, GroupId, KeyPackage,
+        LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsGroupJoinConfig, MlsMessageOut,
+        OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal,
+        ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
+        UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
     treesync::RatchetTree,
@@ -88,47 +91,6 @@ use self::{
     client_auth_info::{ClientAuthInfo, GroupMembership, StorableClientCredential},
     diff::StagedGroupDiff,
 };
-
-pub const FRIENDSHIP_PACKAGE_PROPOSAL_TYPE: u16 = 0xff00;
-pub const GROUP_DATA_EXTENSION_TYPE: u16 = 0xff01;
-
-pub const DEFAULT_MLS_VERSION: ProtocolVersion = ProtocolVersion::Mls10;
-pub const DEFAULT_CIPHERSUITE: Ciphersuite =
-    Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
-
-pub const REQUIRED_EXTENSION_TYPES: [ExtensionType; 3] = [
-    ExtensionType::Unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE),
-    ExtensionType::Unknown(GROUP_DATA_EXTENSION_TYPE),
-    ExtensionType::LastResort,
-];
-pub const REQUIRED_PROPOSAL_TYPES: [ProposalType; 1] =
-    [ProposalType::Custom(FRIENDSHIP_PACKAGE_PROPOSAL_TYPE)];
-pub const REQUIRED_CREDENTIAL_TYPES: [CredentialType; 1] = [CredentialType::Basic];
-
-pub fn default_required_capabilities() -> RequiredCapabilitiesExtension {
-    RequiredCapabilitiesExtension::new(
-        &REQUIRED_EXTENSION_TYPES,
-        &REQUIRED_PROPOSAL_TYPES,
-        &REQUIRED_CREDENTIAL_TYPES,
-    )
-}
-
-// Default capabilities for every leaf node we create.
-pub const SUPPORTED_PROTOCOL_VERSIONS: [ProtocolVersion; 1] = [DEFAULT_MLS_VERSION];
-pub const SUPPORTED_CIPHERSUITES: [Ciphersuite; 1] = [DEFAULT_CIPHERSUITE];
-pub const SUPPORTED_EXTENSIONS: [ExtensionType; 3] = REQUIRED_EXTENSION_TYPES;
-pub const SUPPORTED_PROPOSALS: [ProposalType; 1] = REQUIRED_PROPOSAL_TYPES;
-pub const SUPPORTED_CREDENTIALS: [CredentialType; 1] = REQUIRED_CREDENTIAL_TYPES;
-
-pub fn default_capabilities() -> Capabilities {
-    Capabilities::new(
-        Some(&SUPPORTED_PROTOCOL_VERSIONS),
-        Some(&SUPPORTED_CIPHERSUITES),
-        Some(&SUPPORTED_EXTENSIONS),
-        Some(&SUPPORTED_PROPOSALS),
-        Some(&SUPPORTED_CREDENTIALS),
-    )
-}
 
 pub(crate) struct PartialCreateGroupParams {
     pub(crate) group_id: GroupId,
@@ -236,6 +198,7 @@ impl Group {
             .with_group_id(group_id.clone())
             .with_capabilities(leaf_node_capabilities)
             .with_group_context_extensions(gc_extensions)?
+            .max_past_epochs(MAX_PAST_EPOCHS)
             .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
             .build(provider, signer, credential_with_key)
             .map_err(|e| anyhow!("Error while creating group: {:?}", e))?;

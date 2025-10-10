@@ -32,8 +32,6 @@ mod mimi_id;
 mod tls_codec_impls;
 mod user_handle;
 
-pub const QS_CLIENT_REFERENCE_EXTENSION_TYPE: u16 = 0xff00;
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Fqdn {
     domain: Host<String>,

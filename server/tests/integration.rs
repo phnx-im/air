@@ -18,11 +18,12 @@ use aircommon::{
     assert_matches,
     identifiers::{UserHandle, UserId},
     messages::QueueMessage,
+    mls_group_config::MAX_PAST_EPOCHS,
 };
 use aircoreclient::{
     Asset, BlockedContactError, ChatId, ChatMessage, DisplayName, DownloadProgressEvent,
     UserProfile,
-    clients::{CoreUser, queue_event},
+    clients::{CoreUser, process::process_qs::ProcessedQsMessages, queue_event},
     store::Store,
 };
 use airserver::RateLimitsConfig;
@@ -1279,4 +1280,69 @@ async fn delete_account() {
     // Adding a user handle to the new user should work, because the previous user handle was
     // deleted.
     new_alice.add_user_handle().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Max past epochs", skip_all)]
+async fn max_past_epochs() {
+    let mut setup = TestBackend::single().await;
+
+    setup.add_user(&ALICE).await;
+    setup.get_user_mut(&ALICE).add_user_handle().await.unwrap();
+
+    setup.add_user(&BOB).await;
+
+    let contact_chat_id = setup.connect_users(&ALICE, &BOB).await;
+
+    // To test proper handling of application messages from past epochs, we have
+    // Alice locally create updates without sending them to the server. Bob can then
+    // send messages based on his (old) epoch for Alice to process.
+
+    // Create MAX_PAST_EPOCHS updates and send a message from Bob to Alice after
+    // each update.
+    for _ in 0..MAX_PAST_EPOCHS {
+        let result = update_and_send_message(&mut setup, contact_chat_id, &ALICE, &BOB).await;
+        assert!(
+            result.errors.is_empty(),
+            "Alice should process Bob's message without errors"
+        );
+    }
+
+    // Repeat one more time, this time we expect an error
+    let result = update_and_send_message(&mut setup, contact_chat_id, &ALICE, &BOB).await;
+    let error = &result.errors[0].to_string();
+    assert_eq!(
+        error.to_string(),
+        "Generation is too old to be processed.".to_string(),
+        "Alice should fail to process Bob's message with a TooDistantInThePast error"
+    );
+}
+
+async fn update_and_send_message(
+    setup: &mut TestBackend,
+    contact_chat_id: ChatId,
+    alice: &UserId,
+    bob: &UserId,
+) -> ProcessedQsMessages {
+    let get_user_mut = setup.get_user_mut(alice);
+    let alice_test_user = get_user_mut;
+    let alice_user = &mut alice_test_user.user;
+    // alice creates an update and sends it to the ds
+    alice_user.update_key(contact_chat_id).await.unwrap();
+    // bob creates a message based on his (old) epoch for alice
+    let bob = setup.get_user_mut(bob);
+    let bob_user = &mut bob.user;
+    let msg = MimiContent::simple_markdown_message("message".to_owned(), [0; 16]);
+    bob_user
+        .send_message(contact_chat_id, msg, None)
+        .await
+        .unwrap();
+    // alice fetches and processes bob's message
+    let alice = setup.get_user_mut(alice);
+    let alice_user = &mut alice.user;
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    alice_user
+        .fully_process_qs_messages(qs_messages)
+        .await
+        .unwrap()
 }
