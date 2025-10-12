@@ -12,6 +12,7 @@ import 'package:air/l10n/app_localizations.dart';
 import 'package:air/message_list/message_list.dart';
 import 'package:air/navigation/navigation_cubit.dart';
 import 'package:air/theme/theme_data.dart';
+import 'package:air/ui/colors/palette.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -54,9 +55,11 @@ void main() {
   });
 
   group('Chat List Product Shots', () {
-    const backgroundColor = Color.fromARGB(255, 221, 227, 234);
-    const header = 'Easy private messaging.';
-    const subheader = 'Every message encrypted.';
+    final backgroundColor = AppColors.neutral[50]!;
+    final titleColor = AppColors.neutral[800]!;
+    final subtitleColor = AppColors.neutral[600]!;
+    const title = 'Easy private messaging.';
+    const subtitle = 'Everything in Air is\nend-to-end encrypted.';
 
     late MockNavigationCubit navigationCubit;
     late MockChatListCubit chatListCubit;
@@ -92,8 +95,10 @@ void main() {
           final shot = ProductShot(
             size: shotSize,
             backgroundColor: backgroundColor,
-            header: header,
-            subheader: subheader,
+            titleColor: titleColor,
+            subtitleColor: subtitleColor,
+            title: title,
+            subtitle: subtitle,
             device: ProductShotDevices.forPlatform(platform),
             child: const ChatListView(scaffold: true),
           );
@@ -152,9 +157,11 @@ void main() {
   });
 
   group("Private Chat", () {
-    const backgroundColor = Color.fromARGB(255, 236, 226, 215);
-    const header = 'Connect with friends.';
-    const subheader = 'Send messages in private chats.';
+    final backgroundColor = AppColors.orange[50]!;
+    final titleColor = AppColors.orange[800]!;
+    final subtitleColor = AppColors.orange[600]!;
+    const title = 'Connect with friends.';
+    const subtitle = 'Send messages in private chats.';
 
     late MockNavigationCubit navigationCubit;
     late MockUserCubit userCubit;
@@ -226,8 +233,10 @@ void main() {
                 final shot = ProductShot(
                   size: shotSize,
                   backgroundColor: backgroundColor,
-                  header: header,
-                  subheader: subheader,
+                  titleColor: titleColor,
+                  subtitleColor: subtitleColor,
+                  title: title,
+                  subtitle: subtitle,
                   device: ProductShotDevices.forPlatform(platform),
                   child: const ChatScreenView(
                     createMessageCubit: createMockMessageCubit,
@@ -294,9 +303,11 @@ void main() {
   });
 
   group("Group Chat", () {
-    const backgroundColor = Color.fromARGB(255, 219, 231, 217);
-    const header = 'Create groups to chat.';
-    const subheader = 'Chat in groups with multiple people.';
+    final backgroundColor = AppColors.blue[50]!;
+    final titleColor = AppColors.blue[800]!;
+    final subtitleColor = AppColors.blue[600]!;
+    const title = 'Create groups to chat.';
+    const subtitle = 'Chat in groups with multiple people.';
 
     late MockNavigationCubit navigationCubit;
     late MockUserCubit userCubit;
@@ -362,8 +373,10 @@ void main() {
                 final shot = ProductShot(
                   size: shotSize,
                   backgroundColor: backgroundColor,
-                  header: header,
-                  subheader: subheader,
+                  titleColor: titleColor,
+                  subtitleColor: subtitleColor,
+                  title: title,
+                  subtitle: subtitle,
                   device: ProductShotDevices.forPlatform(platform),
                   child: const ChatScreenView(
                     createMessageCubit: createMockMessageCubit,
