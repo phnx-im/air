@@ -426,7 +426,7 @@ final gardeningPartyMessages = [
         content: UiMimiContent(
           plainBody: "",
           topicId: Uint8List(0),
-          content: _simpleMessage('I don’t know, I’ve never tried it.'),
+          content: _simpleMessage("I don't know, I've never tried it."),
           attachments: [],
         ),
       ),
