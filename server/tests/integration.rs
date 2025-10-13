@@ -1346,3 +1346,102 @@ async fn update_and_send_message(
         .await
         .unwrap()
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Resync", skip_all)]
+async fn resync() {
+    let mut setup = TestBackend::single().await;
+
+    setup.add_user(&ALICE).await;
+    setup.get_user_mut(&ALICE).add_user_handle().await.unwrap();
+
+    setup.add_user(&BOB).await;
+    setup.add_user(&CHARLIE).await;
+
+    setup.connect_users(&ALICE, &BOB).await;
+    setup.connect_users(&ALICE, &CHARLIE).await;
+
+    let chat_id = setup.create_group(&ALICE).await;
+    setup.invite_to_group(chat_id, &ALICE, vec![&BOB]).await;
+
+    // To trigger resync, we have Alice add Charlie to the group and Bob
+    // fetching, but not processing the commit.
+
+    let alice = setup.get_user_mut(&ALICE);
+    let alice_user = &mut alice.user;
+
+    // Alice creates an update and sends it to the DS
+    alice_user
+        .invite_users(chat_id, std::slice::from_ref(&*CHARLIE))
+        .await
+        .unwrap();
+
+    // Bob fetches the update, but does not process it
+    let bob = setup.get_user_mut(&BOB);
+    let bob_user = &mut bob.user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    // Make sure the ratchet advances
+    for m in qs_messages {
+        bob_user.decrypt_qs_queue_message(m).await.unwrap();
+    }
+
+    // Alice does an update, which should trigger a resync on Bob's side
+    let alice = setup.get_user_mut(&ALICE);
+    let alice_user = &mut alice.user;
+    alice_user.update_key(chat_id).await.unwrap();
+
+    // Bob fetches and processes the update and the message
+    let bob = setup.get_user_mut(&BOB);
+    let bob_user = &mut bob.user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user
+        .fully_process_qs_messages(qs_messages)
+        .await
+        .unwrap();
+    // Instead of throwing an error, Bob should have re-synced as part of processing the update.
+    assert!(
+        result.errors.is_empty(),
+        "Bob should process Alice's update and message without errors"
+    );
+    match result.rejoined_chats.as_slice() {
+        [id] if *id == chat_id => {}
+        _ => panic!("Bob should have rejoined the group"),
+    }
+
+    let alice = setup.get_user_mut(&ALICE);
+    let alice_user = &mut alice.user;
+
+    // Alice processes Bob's rejoin
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    let result = alice_user
+        .fully_process_qs_messages(qs_messages)
+        .await
+        .unwrap();
+
+    assert!(
+        result.errors.is_empty(),
+        "Alice should process Bob's rejoin without errors"
+    );
+
+    // When Alice sends another message, Bob should be able to process it without errors.
+    alice_user
+        .send_message(
+            chat_id,
+            MimiContent::simple_markdown_message("message".to_owned(), [0; 16]),
+            None,
+        )
+        .await
+        .unwrap();
+
+    let bob = setup.get_user_mut(&BOB);
+    let bob_user = &mut bob.user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user
+        .fully_process_qs_messages(qs_messages)
+        .await
+        .unwrap();
+    assert!(
+        result.errors.is_empty(),
+        "Bob should process Alice's message without errors"
+    );
+}

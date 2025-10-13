@@ -525,6 +525,11 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .as_ref()
             .ok_or_missing_field("signature")?;
 
+        let sender_index: LeafNodeIndex = request
+            .sender_index
+            .ok_or_missing_field("sender_index")?
+            .into();
+
         let LeafVerificationData {
             ear_key,
             group_data,
@@ -532,7 +537,9 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             sender_index,
             message: external_commit,
             ..
-        } = self.leaf_verify::<_, ResyncPayload>(request).await?;
+        } = self
+            .leaf_verify_with_sender::<_, ResyncPayload>(request, Some(sender_index))
+            .await?;
 
         let destination_clients: Vec<_> = group_state
             .other_destination_clients(sender_index)

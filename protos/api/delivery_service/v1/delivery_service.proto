@@ -192,6 +192,8 @@ message JoinConnectionGroupResponse {
 message ResyncRequest {
   ResyncPayload payload = 1;
   common.v1.Signature signature = 2;
+  // Index of the sender before processing the commit
+  LeafNodeIndex sender_index = 3; 
 }
 
 message ResyncPayload {

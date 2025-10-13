@@ -20,10 +20,7 @@ use sqlx::SqliteConnection;
 use tls_codec::DeserializeBytes as TlsDeserializeBytes;
 use tracing::debug;
 
-use crate::{
-    clients::api_clients::ApiClients,
-    key_stores::as_credentials::AsCredentials,
-};
+use crate::{clients::api_clients::ApiClients, key_stores::as_credentials::AsCredentials};
 
 use openmls::{
     group::{ProcessMessageError, QueuedAddProposal, ValidationError},
@@ -138,6 +135,11 @@ impl Group {
                 // Before we process the AAD payload, we first process the
                 // proposals by value. Currently only removes are allowed.
                 for remove_proposal in staged_commit.remove_proposals() {
+                    if matches!(remove_proposal.sender(), Sender::NewMemberCommit) {
+                        // This can only happen if the removed member is rejoining
+                        // as part of the commit. No need to process the removal.
+                        continue;
+                    }
                     let removed_index = remove_proposal.remove_proposal().removed();
 
                     let removed_id = self

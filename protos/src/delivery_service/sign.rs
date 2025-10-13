@@ -338,6 +338,7 @@ const RESYNC_PAYLOAD_LABEL: &str = "ResyncPayload";
 impl SignedStruct<ResyncPayload, ClientKeyType> for ResyncRequest {
     fn from_payload(payload: ResyncPayload, signature: ClientSignature) -> Self {
         Self {
+            sender_index: payload.sender,
             payload: Some(payload),
             signature: Some(signature.into()),
         }

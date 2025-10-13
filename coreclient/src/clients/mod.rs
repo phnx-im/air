@@ -410,16 +410,22 @@ impl CoreUser {
     ///
     /// Must *not* be used outside of integration tests, because the messages are not acked.
     pub async fn qs_fetch_messages(&self) -> Result<Vec<QueueMessage>> {
-        let (stream, _responder) = self.listen_queue().await?;
-        let messages = stream
-            .take_while(|message| !matches!(message.event, Some(queue_event::Event::Empty(_))))
-            .filter_map(|message| match message.event? {
-                queue_event::Event::Empty(_) => unreachable!(),
-                queue_event::Event::Message(queue_message) => queue_message.try_into().ok(),
-                queue_event::Event::Payload(_) => None,
-            })
-            .collect()
-            .await;
+        let (mut stream, _responder) = self.listen_queue().await?;
+        let mut messages: Vec<QueueMessage> = Vec::new();
+
+        while let Some(message) = stream.next().await {
+            match message.event {
+                Some(queue_event::Event::Empty(_)) => break,
+                Some(queue_event::Event::Message(queue_message)) => {
+                    if let Ok(queue_message) = queue_message.try_into() {
+                        messages.push(queue_message);
+                    }
+                }
+                Some(queue_event::Event::Payload(_)) => {}
+                None => {}
+            }
+        }
+
         Ok(messages)
     }
 

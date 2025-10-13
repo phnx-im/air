@@ -16,7 +16,7 @@ use aircommon::{
     },
     time::TimeStamp,
 };
-use anyhow::{Context,  Result, bail, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use mimi_content::{
     Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPartContent,
 };
@@ -61,6 +61,7 @@ pub struct ProcessedQsMessages {
     pub changed_chats: Vec<ChatId>,
     pub new_messages: Vec<ChatMessage>,
     pub errors: Vec<anyhow::Error>,
+    pub rejoined_chats: Vec<ChatId>,
 }
 
 impl ProcessedQsMessages {
@@ -81,7 +82,7 @@ struct ApplicationMessagesHandlerResult {
 
 impl CoreUser {
     /// Decrypt a `QueueMessage` received from the QS queue.
-    pub(crate) async fn decrypt_qs_queue_message(
+    pub async fn decrypt_qs_queue_message(
         &self,
         qs_message_ciphertext: QueueMessage,
     ) -> Result<ExtractedQsQueueMessage> {
@@ -696,6 +697,7 @@ impl CoreUser {
         let mut changed_chats = vec![];
         let mut new_messages = vec![];
         let mut errors = vec![];
+        let mut rejoined_chats = vec![];
 
         for qs_message in qs_messages {
             let qs_message_plaintext = self.decrypt_qs_queue_message(qs_message).await?;
@@ -725,7 +727,14 @@ impl CoreUser {
                 ProcessQsMessageResult::RejoinRequired(group_id) => {
                     // This should be scheduled to be run after message
                     // processing is done.
-                    self.resync_group(group_id).await?;
+                    let chat_id = ChatId::try_from(&group_id)?;
+                    if let Err(e) = self.resync_group(group_id).await {
+                        error!(%e, "Failed to rejoin group");
+                        errors.push(e);
+                    } else {
+                        rejoined_chats.push(chat_id);
+                        info!(%chat_id, "Successfully rejoined group");
+                    }
                 }
             }
         }
@@ -735,6 +744,7 @@ impl CoreUser {
             changed_chats,
             new_messages,
             errors,
+            rejoined_chats,
         })
     }
 
@@ -748,30 +758,48 @@ impl CoreUser {
 
         // Phase 1: Prepare the group for resync
         let mut connection = self.pool().acquire().await?;
-        let old_group = Group::load_clean(&mut connection, &group_id).await?.context("No group found")?;
+        let old_group = Group::load_clean(&mut connection, &group_id)
+            .await?
+            .context("No group found")?;
         let resync_info = old_group.prepare_for_resync(&mut connection).await?;
         // TODO: We should somehow mark the group as "resyncing" in the DB and
         // reflect that in the UI.
 
         // Phase 2: Load external commit info
         // TODO: Rename that endpoint into ds_external_join_info
-        let external_join_info = self.api_client()?.ds_connection_group_info(group_id, &resync_info.group_state_ear_key).await?;
+        let external_join_info = self
+            .api_client()?
+            .ds_connection_group_info(group_id, &resync_info.group_state_ear_key)
+            .await?;
 
         let api_clients = self.inner.api_clients.clone();
 
         // TODO: When we turn this into a process, resync info should be stored.
-        let (new_group, commit, group_info) = resync_info.clone().resync(
-            &mut connection,
-            &api_clients,
-            external_join_info,
-            self.signing_key(),
-        ).await?;
-        
+        let (new_group, commit, group_info) = resync_info
+            .clone()
+            .resync(
+                &mut connection,
+                &api_clients,
+                external_join_info,
+                self.signing_key(),
+            )
+            .await?;
+
         let own_leaf_index = new_group.own_index();
 
         // Phase 3: Send the commit and group info to the DS
         let mut retry_count = 0;
-        while let Err(e) = self.api_client()?.ds_resync(commit.clone(), group_info.clone(), self.signing_key(), &resync_info.group_state_ear_key, own_leaf_index).await {
+        while let Err(e) = self
+            .api_client()?
+            .ds_resync(
+                commit.clone(),
+                group_info.clone(),
+                self.signing_key(),
+                &resync_info.group_state_ear_key,
+                own_leaf_index,
+            )
+            .await
+        {
             warn!(%e, "Resync failed; retrying");
             retry_count += 1;
             if retry_count > 5 {

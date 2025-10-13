@@ -530,8 +530,7 @@ impl Group {
             LeafNodeIndex::new(own_index as u32),
         );
 
-        let own_auth_info =
-            ClientAuthInfo::new(own_credential, own_group_membership);
+        let own_auth_info = ClientAuthInfo::new(own_credential, own_group_membership);
         client_information.push(own_auth_info);
 
         // Phase 4: Store the client credentials.
@@ -1082,8 +1081,16 @@ impl TimestampedMessage {
         // Collect the remover/removed pairs into a set to avoid duplicates.
         let mut removed_set = HashSet::new();
         for remove_proposal in staged_commit.remove_proposals() {
-            let Sender::Member(sender_index) = remove_proposal.sender() else {
-                bail!("Only member proposals are supported for now")
+            let sender_index = match remove_proposal.sender() {
+                Sender::Member(leaf_node_index) => leaf_node_index,
+                Sender::External(_) | Sender::NewMemberProposal => {
+                    bail!("Only member proposals are supported for now")
+                }
+                Sender::NewMemberCommit => {
+                    // This can only happen if the removed member is rejoining
+                    // as part of the commit. No need to create a message.
+                    continue;
+                }
             };
             let remover = if let Some(remover) =
                 ClientAuthInfo::load(&mut *connection, group_id, *sender_index).await?
