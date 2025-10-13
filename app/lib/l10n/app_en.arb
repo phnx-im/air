@@ -56,7 +56,7 @@
 
   "signUpScreen_title": "Create an Air Account",
   "signUpScreen_actionButton": "Sign Up",
-  "signUpScreen_displayNameLabel": "Add a Profle Picture and Display Name.",
+  "signUpScreen_displayNameLabel": "Add a Profile Picture and Display Name.",
   "signUpScreen_displayNameHint": "Display Name",
   "signUpScreen_serverLabel": "Choose a server where you want to create your account.",
   "signUpScreen_serverHint": "DOMAIN NAME",
