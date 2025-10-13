@@ -22,7 +22,7 @@ use mimi_content::{
 };
 use mimi_room_policy::RoleIndex;
 use openmls::{
-    group::QueuedProposal,
+    group::{GroupId, QueuedProposal},
     prelude::{
         ApplicationMessage, MlsMessageBodyIn, MlsMessageIn, ProcessedMessageContent, Proposal,
         ProtocolMessage, Sender,
@@ -52,6 +52,7 @@ pub enum ProcessQsMessageResult {
     NewChat(ChatId),
     ChatChanged(ChatId, Vec<ChatMessage>),
     Messages(Vec<ChatMessage>),
+    RejoinRequired(GroupId),
 }
 
 #[derive(Debug)]
@@ -60,6 +61,7 @@ pub struct ProcessedQsMessages {
     pub changed_chats: Vec<ChatId>,
     pub new_messages: Vec<ChatMessage>,
     pub errors: Vec<anyhow::Error>,
+    pub rejoined_chats: Vec<ChatId>,
 }
 
 impl ProcessedQsMessages {
@@ -80,7 +82,7 @@ struct ApplicationMessagesHandlerResult {
 
 impl CoreUser {
     /// Decrypt a `QueueMessage` received from the QS queue.
-    pub(crate) async fn decrypt_qs_queue_message(
+    pub async fn decrypt_qs_queue_message(
         &self,
         qs_message_ciphertext: QueueMessage,
     ) -> Result<ExtractedQsQueueMessage> {
@@ -248,7 +250,7 @@ impl CoreUser {
         // MLSMessage Phase 1: Load the chat and the group.
         let group_id = protocol_message.group_id().clone();
 
-        let (messages, chat_changed, chat_id, profile_infos) = self
+        let Some((messages, chat_changed, chat_id, profile_infos)) = self
             .with_transaction_and_notifier(async |txn, notifier| {
                 let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
                     .await?
@@ -260,14 +262,18 @@ impl CoreUser {
                     .ok_or_else(|| anyhow!("No group found for group ID {:?}", group_id))?;
 
                 // MLSMessage Phase 2: Process the message
-                let ProcessMessageResult {
+
+                let Some(ProcessMessageResult {
                     processed_message,
                     we_were_removed,
                     sender_client_credential,
                     profile_infos,
-                } = group
+                }) = group
                     .process_message(txn, &self.inner.api_clients, protocol_message)
-                    .await?;
+                    .await?
+                else {
+                    return Ok(None);
+                };
 
                 let sender = processed_message.sender().clone();
                 let aad = processed_message.aad().to_vec();
@@ -336,9 +342,13 @@ impl CoreUser {
                     messages.push(updated_message);
                 }
 
-                Ok((messages, chat_changed, chat_id, profile_infos))
+                Ok(Some((messages, chat_changed, chat_id, profile_infos)))
             })
-            .await?;
+            .await?
+        else {
+            // Processing indicated that we need to re-join the group
+            return Ok(ProcessQsMessageResult::RejoinRequired(group_id));
+        };
 
         // Send delivery receipts for incoming messages
         // TODO: Queue this and run the network requests batched together in a background task
@@ -687,6 +697,7 @@ impl CoreUser {
         let mut changed_chats = vec![];
         let mut new_messages = vec![];
         let mut errors = vec![];
+        let mut rejoined_chats = vec![];
 
         for qs_message in qs_messages {
             let qs_message_plaintext = self.decrypt_qs_queue_message(qs_message).await?;
@@ -713,7 +724,19 @@ impl CoreUser {
                 }
                 ProcessQsMessageResult::NewChat(chat_id) => new_chats.push(chat_id),
                 ProcessQsMessageResult::None => {}
-            };
+                ProcessQsMessageResult::RejoinRequired(group_id) => {
+                    // This should be scheduled to be run after message
+                    // processing is done.
+                    let chat_id = ChatId::try_from(&group_id)?;
+                    if let Err(e) = self.resync_group(group_id).await {
+                        error!(%e, "Failed to rejoin group");
+                        errors.push(e);
+                    } else {
+                        rejoined_chats.push(chat_id);
+                        info!(%chat_id, "Successfully rejoined group");
+                    }
+                }
+            }
         }
 
         Ok(ProcessedQsMessages {
@@ -721,7 +744,70 @@ impl CoreUser {
             changed_chats,
             new_messages,
             errors,
+            rejoined_chats,
         })
+    }
+
+    async fn resync_group(&self, group_id: GroupId) -> anyhow::Result<()> {
+        // The epoch might change during our rejoin operation, in which case
+        // we'll have to try again.
+        //
+        // TODO: Optimize this by maintaining a public group first and then try
+        // to rejoin based on that. That saves us having to fetch the group
+        // state every time a commit lands while we're trying to rejoin.
+
+        // Phase 1: Prepare the group for resync
+        let mut connection = self.pool().acquire().await?;
+        let old_group = Group::load_clean(&mut connection, &group_id)
+            .await?
+            .context("No group found")?;
+        let resync_info = old_group.prepare_for_resync(&mut connection).await?;
+        // TODO: We should somehow mark the group as "resyncing" in the DB and
+        // reflect that in the UI.
+
+        // Phase 2: Load external commit info
+        // TODO: Rename that endpoint into ds_external_join_info
+        let external_join_info = self
+            .api_client()?
+            .ds_connection_group_info(group_id, &resync_info.group_state_ear_key)
+            .await?;
+
+        let api_clients = self.inner.api_clients.clone();
+
+        // TODO: When we turn this into a process, resync info should be stored.
+        let (new_group, commit, group_info) = resync_info
+            .clone()
+            .resync(
+                &mut connection,
+                &api_clients,
+                external_join_info,
+                self.signing_key(),
+            )
+            .await?;
+
+        let own_leaf_index = new_group.own_index();
+
+        // Phase 3: Send the commit and group info to the DS
+        let mut retry_count = 0;
+        while let Err(e) = self
+            .api_client()?
+            .ds_resync(
+                commit.clone(),
+                group_info.clone(),
+                self.signing_key(),
+                &resync_info.group_state_ear_key,
+                own_leaf_index,
+            )
+            .await
+        {
+            warn!(%e, "Resync failed; retrying");
+            retry_count += 1;
+            if retry_count > 5 {
+                bail!("Resync failed after 5 retries: {e}");
+            }
+        }
+
+        Ok(())
     }
 }
 

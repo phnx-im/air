@@ -11,6 +11,7 @@ pub(crate) mod error;
 pub(crate) mod openmls_provider;
 pub(crate) mod persistence;
 pub(crate) mod process;
+pub(crate) mod resync;
 
 use client_auth_info::ClientVerificationInfo;
 pub(crate) use error::*;
@@ -423,8 +424,8 @@ impl Group {
         group_state_ear_key: GroupStateEarKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         aad: AadMessage,
-        own_client_credential: &ClientCredential,
-        connection_offer_hash: ConnectionOfferHash,
+        // Should be Some if this join is in response to a connection offer.
+        connection_offer_hash: Option<ConnectionOfferHash>,
     ) -> Result<(Self, MlsMessageOut, MlsMessageOut, Vec<ProfileInfo>)> {
         let mls_group_config = Self::default_mls_group_join_config();
         let credential_with_key = CredentialWithKey {
@@ -442,29 +443,36 @@ impl Group {
         // Phase 1: Create and store the group
         let (mls_group, commit, group_info) = {
             let provider = AirOpenMlsProvider::new(&mut *connection);
-            let psk_value = connection_offer_hash.into_bytes();
-            // Since the value is public information, we can also use it as an ID
-            let psk_id = PreSharedKeyId::new(
-                verifiable_group_info.ciphersuite(),
-                provider.rand(),
-                Psk::External(ExternalPsk::new(psk_value.to_vec())),
-            )?;
-            psk_id.store(&provider, &psk_value)?;
-            let psk_proposal = PreSharedKeyProposal::new(PreSharedKeyId::new(
-                verifiable_group_info.ciphersuite(),
-                provider.rand(),
-                Psk::External(ExternalPsk::new(psk_value.to_vec())),
-            )?);
+            // Prepare PSK proposal if we have a connection offer hash.
+            let psk_proposal = match connection_offer_hash {
+                Some(co_hash) => {
+                    let psk_value = co_hash.into_bytes();
+                    let psk_id = PreSharedKeyId::new(
+                        verifiable_group_info.ciphersuite(),
+                        provider.rand(),
+                        Psk::External(ExternalPsk::new(psk_value.to_vec())),
+                    )?;
+                    psk_id.store(&provider, &psk_value)?;
+                    Some(PreSharedKeyProposal::new(psk_id))
+                }
+                None => None,
+            };
+
             let leaf_node_parameters = LeafNodeParameters::builder()
                 .with_capabilities(default_capabilities())
                 .build();
-            let (mls_group, commit) = ExternalCommitBuilder::new()
+            let mut builder = ExternalCommitBuilder::new()
                 .with_aad(aad.tls_serialize_detached()?)
                 .with_config(mls_group_config)
                 .with_ratchet_tree(ratchet_tree_in)
                 .build_group(&provider, verifiable_group_info, credential_with_key)?
-                .leaf_node_parameters(leaf_node_parameters)
-                .add_psk_proposal(psk_proposal)
+                .leaf_node_parameters(leaf_node_parameters);
+
+            if let Some(psk_proposal) = psk_proposal {
+                builder = builder.add_psk_proposal(psk_proposal);
+            }
+
+            let (mls_group, commit) = builder
                 .create_group_info(true)
                 .load_psks(provider.storage())?
                 .build(provider.rand(), provider.crypto(), signer, |_| true)?
@@ -515,14 +523,14 @@ impl Group {
 
         // We still have to add ourselves to the encrypted client credentials.
         let own_index = mls_group.own_leaf_index().usize();
+        let own_credential = signer.credential().clone();
         let own_group_membership = GroupMembership::new(
-            own_client_credential.identity().clone(),
+            own_credential.identity().clone(),
             mls_group.group_id().clone(),
             LeafNodeIndex::new(own_index as u32),
         );
 
-        let own_auth_info =
-            ClientAuthInfo::new(own_client_credential.clone(), own_group_membership);
+        let own_auth_info = ClientAuthInfo::new(own_credential, own_group_membership);
         client_information.push(own_auth_info);
 
         // Phase 4: Store the client credentials.
@@ -1073,8 +1081,16 @@ impl TimestampedMessage {
         // Collect the remover/removed pairs into a set to avoid duplicates.
         let mut removed_set = HashSet::new();
         for remove_proposal in staged_commit.remove_proposals() {
-            let Sender::Member(sender_index) = remove_proposal.sender() else {
-                bail!("Only member proposals are supported for now")
+            let sender_index = match remove_proposal.sender() {
+                Sender::Member(leaf_node_index) => leaf_node_index,
+                Sender::External(_) | Sender::NewMemberProposal => {
+                    bail!("Only member proposals are supported for now")
+                }
+                Sender::NewMemberCommit => {
+                    // This can only happen if the removed member is rejoining
+                    // as part of the commit. No need to create a message.
+                    continue;
+                }
             };
             let remover = if let Some(remover) =
                 ClientAuthInfo::load(&mut *connection, group_id, *sender_index).await?

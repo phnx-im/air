@@ -94,6 +94,7 @@ impl BackgroundStreamContext<QueueEvent> for QueueContext {
                         changed_chats: _,
                         new_messages,
                         errors: _,
+                        rejoined_chats: _,
                     }) => {
                         let mut notifications =
                             Vec::with_capacity(new_chats.len() + new_messages.len());
