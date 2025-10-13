@@ -106,7 +106,7 @@ class _Licenses extends StatelessWidget {
       onTap: () {
         Navigator.of(
           context,
-        ).push(MaterialPageRoute(builder: (context) => const LicensesScreen()));
+        ).push(MaterialPageRoute(builder: (context) => const LicensePage()));
       },
     );
   }
