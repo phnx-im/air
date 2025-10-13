@@ -97,9 +97,6 @@
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blocked",
 
-  "settings_profile": "Profile",
-  "settings_developerSettings": "Settings (developer)",
-
   "newChatDialog_newChatTitle": "New chat",
   "newChatDialog_newChatDescription": "Choose a name for the new chat",
   "newChatDialog_chatNamePlaceholder": "Chat name",
