@@ -29,7 +29,7 @@
 
   "memberDetailsScreen_title": "Member details",
   "removeUserDialog_title": "Remove user",
-  "removeUserDialog_content": "Are you sure you want to remove this {displayName} from the group?",
+  "removeUserDialog_content": "Are you sure you want to remove {displayName} from the group?",
   "removeUserDialog_cancel": "Cancel",
   "removeUserDialog_removeUser": "Remove user",
   "removeUserButton_text": "Remove",
