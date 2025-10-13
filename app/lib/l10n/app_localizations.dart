@@ -574,18 +574,6 @@ abstract class AppLocalizations {
   /// **'Blocked'**
   String get chatList_blocked;
 
-  /// No description provided for @settings_profile.
-  ///
-  /// In en, this message translates to:
-  /// **'Profile'**
-  String get settings_profile;
-
-  /// No description provided for @settings_developerSettings.
-  ///
-  /// In en, this message translates to:
-  /// **'Settings (developer)'**
-  String get settings_developerSettings;
-
   /// No description provided for @newChatDialog_newChatTitle.
   ///
   /// In en, this message translates to:

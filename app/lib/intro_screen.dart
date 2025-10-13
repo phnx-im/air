@@ -9,10 +9,9 @@ import 'package:air/navigation/navigation.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
 import 'package:air/theme/theme.dart';
-import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_svg/svg.dart';
 
-class IntroScreen extends HookWidget {
+class IntroScreen extends StatelessWidget {
   const IntroScreen({super.key});
 
   @override
@@ -20,8 +19,6 @@ class IntroScreen extends HookWidget {
     final isUserLoading = context.select((LoadableUserCubit cubit) {
       return cubit.state is LoadingUser;
     });
-
-    final devSettingsVisible = useState(false);
 
     final loc = AppLocalizations.of(context);
 
@@ -37,7 +34,9 @@ class IntroScreen extends HookWidget {
             children: [
               const Spacer(),
               GestureDetector(
-                onLongPress: () => devSettingsVisible.value = true,
+                onLongPress: () {
+                  context.read<NavigationCubit>().openDeveloperSettings();
+                },
                 child: SizedBox(
                   width: 64,
                   height: 64,
@@ -68,17 +67,6 @@ class IntroScreen extends HookWidget {
                       child: Text(loc.introScreen_signUp),
                     ),
                   ],
-                ),
-              if (!isUserLoading) const SizedBox(height: Spacings.xs),
-              if (devSettingsVisible.value)
-                TextButton(
-                  onPressed: () {
-                    context.read<NavigationCubit>().openDeveloperSettings();
-                  },
-                  child: Text(
-                    loc.settings_developerSettings,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
                 ),
             ],
           ),
