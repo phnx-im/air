@@ -1313,7 +1313,7 @@ async fn max_past_epochs() {
     let error = &result.errors[0].to_string();
     assert_eq!(
         error.to_string(),
-        "Generation is too old to be processed.".to_string(),
+        "Could not process message: ValidationError(UnableToDecrypt(SecretTreeError(TooDistantInThePast)))".to_string(),
         "Alice should fail to process Bob's message with a TooDistantInThePast error"
     );
 }
