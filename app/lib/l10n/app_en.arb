@@ -10,7 +10,7 @@
   "userSettingsScreen_deleteAccount": "Delete Air Account",
 
   "removeUsernameDialog_title": "Remove Username",
-  "removeUsernameDialog_content": "If you continue, this Username will be unlinked from your Air Account and may be claimed by someone else.",
+  "removeUsernameDialog_content": "People won't be able to send you a Contact Request using this Username, and it may be claimed by someone else.",
   "removeUsernameDialog_cancel": "Cancel",
   "removeUsernameDialog_remove": "Remove",
   "userSettingsScreen_noUserHandles": "no usernames yet",
