@@ -1,5 +1,1 @@
-• Connect with friends and send texts, photos, videos, and documents.
-• Create groups to chat with different circles of friends.
-• Your privacy comes first. We don’t collect any sensitive information like your phone number or email address. Because of our MLS protocol, we can’t read your messages or find out who your contacts are, and neither can anyone else.
-• Unlike traditional messaging apps that were primarily designed for one-to-one communication and later adapted for groups, Air leverages MLS's native group messaging capabilities to offer robust security guarantees, including protection against eavesdropping, tampering, and message forgery, while maintaining both Forward Secrecy and Post-Compromise Security.
-• Everything in Air is free. Air is created by a social impact tech company called Phoenix R&D, making messaging more secure and private for everyone. We’re not supported by advertisers or investors, and you can see our funders on our website at https://phnx.im.
+../../../common/long_description.txt
