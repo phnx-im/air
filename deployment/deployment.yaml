@@ -18,7 +18,7 @@ spec:
       containers:
       - env:
         - name: AIR_APPLICATION_DOMAIN
-          value: prod.air.ms
+          value: air.ms
         - name: AIR_DATABASE_HOST
           value: db-dev-homadadsybgo.db.upclouddatabases.com
         - name: AIR_DATABASE_PORT
