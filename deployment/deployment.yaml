@@ -1,0 +1,88 @@
+# SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: airserver
+  template:
+    metadata:
+      labels:
+        app: airserver
+    spec:
+      containers:
+      - env:
+        - name: AIR_APPLICATION_DOMAIN
+          value: prod.air.ms
+        - name: AIR_DATABASE_HOST
+          value: db-dev-homadadsybgo.db.upclouddatabases.com
+        - name: AIR_DATABASE_PORT
+          value: "11569"
+        - name: AIR_DATABASE_CACERTPATH
+          value: /etc/db-ca-cert/ca.crt
+        - name: AIR_DATABASE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              key: username
+              name: postgres-credentials
+        - name: AIR_DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: postgres-credentials
+        - name: AIR_DATABASE_NAME
+          value: air_server_db
+        - name: AIR_APNS_KEYID
+          valueFrom:
+            secretKeyRef:
+              key: key-id
+              name: apns-credentials
+        - name: AIR_APNS_TEAMID
+          valueFrom:
+            secretKeyRef:
+              key: team-id
+              name: apns-credentials
+        - name: AIR_APNS_PRIVATEKEYPATH
+          value: /etc/apns-key/apns-key.p8
+        - name: AIR_FCM_PATH
+          value: /etc/fcm-service-account/fcm-service-account.json
+        - name: RUST_LOG
+          value: info
+        image: ghcr.io/phnx-im/airserver@sha256:d850fae06ac833038dfd19032b009bd28fb527d8e198054e91fc9f4703c89e5e
+        name: airserver
+        volumeMounts:
+        - mountPath: /etc/db-ca-cert
+          name: ca-cert-volume
+          readOnly: true
+        - mountPath: /etc/apns-key
+          name: apns-key-volume
+          readOnly: true
+        - mountPath: /etc/fcm-service-account
+          name: fcm-service-account-volume
+          readOnly: true
+        - mountPath: server/configuration/production.yaml
+          name: configuration
+          readOnly: true
+          subPath: production.yaml
+      volumes:
+      - name: ca-cert-volume
+        secret:
+          defaultMode: 420
+          secretName: db-ca-cert
+      - name: apns-key-volume
+        secret:
+          defaultMode: 420
+          secretName: apns-key
+      - name: fcm-service-account-volume
+        secret:
+          defaultMode: 420
+          secretName: fcm-service-account
+      - name: configuration
+        secret:
+          defaultMode: 420
+          secretName: air-backend-config

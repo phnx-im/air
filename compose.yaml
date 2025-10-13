@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: phnx_db
+      POSTGRES_DB: air_db
     userns_mode: "keep-id:uid=999,gid=999"
     command: >
       postgres
