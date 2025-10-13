@@ -12,6 +12,7 @@ import 'package:air/l10n/app_localizations.dart';
 import 'package:air/message_list/message_list.dart';
 import 'package:air/navigation/navigation_cubit.dart';
 import 'package:air/theme/theme_data.dart';
+import 'package:air/ui/colors/palette.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -50,12 +51,15 @@ void main() {
   setUpAll(() {
     registerFallbackValue(0.messageId());
     registerFallbackValue(0.userId());
+    registerFallbackValue(0.attachmentId());
   });
 
   group('Chat List Product Shots', () {
-    const backgroundColor = Color.fromARGB(255, 221, 227, 234);
-    const header = 'Easy private messaging.';
-    const subheader = 'Every message encrypted.';
+    final backgroundColor = AppColors.neutral[50]!;
+    final titleColor = AppColors.neutral[800]!;
+    final subtitleColor = AppColors.neutral[600]!;
+    const title = 'Easy private messaging.';
+    const subtitle = 'Everything in Air is\nend-to-end encrypted.';
 
     late MockNavigationCubit navigationCubit;
     late MockChatListCubit chatListCubit;
@@ -91,8 +95,10 @@ void main() {
           final shot = ProductShot(
             size: shotSize,
             backgroundColor: backgroundColor,
-            header: header,
-            subheader: subheader,
+            titleColor: titleColor,
+            subtitleColor: subtitleColor,
+            title: title,
+            subtitle: subtitle,
             device: ProductShotDevices.forPlatform(platform),
             child: const ChatListView(scaffold: true),
           );
@@ -121,6 +127,9 @@ void main() {
       physicalSize: iosPhysicalSize,
       (tester) async {
         await tester.pumpWidget(buildSubject(ProductShotPlatform.ios));
+        await _precacheImages(tester);
+        await tester.pumpAndSettle();
+
         await expectLater(
           find.byType(ProductShot),
           // Do not change the file name, as it is referenced in stores/ios/en-US/screenshots
@@ -135,8 +144,12 @@ void main() {
       physicalSize: androidPhysicalSize,
       (tester) async {
         await tester.pumpWidget(buildSubject(ProductShotPlatform.android));
+        await _precacheImages(tester);
+        await tester.pumpAndSettle();
+
         await expectLater(
           find.byType(ProductShot),
+          // Do not change the file name, as it is referenced in stores/android/metadata/en-US/images/phone-screenshots
           matchesGoldenFile("goldens/chat_list.android.png"),
         );
       },
@@ -144,9 +157,11 @@ void main() {
   });
 
   group("Private Chat", () {
-    const backgroundColor = Color.fromARGB(255, 236, 226, 215);
-    const header = 'Connect with friends.';
-    const subheader = 'Send messages in private chats.';
+    final backgroundColor = AppColors.orange[50]!;
+    final titleColor = AppColors.orange[800]!;
+    final subtitleColor = AppColors.orange[600]!;
+    const title = 'Connect with friends.';
+    const subtitle = 'Send messages in private chats.';
 
     late MockNavigationCubit navigationCubit;
     late MockUserCubit userCubit;
@@ -192,6 +207,12 @@ void main() {
       when(
         () => messageListCubit.state,
       ).thenReturn(MockMessageListState(fredMessages));
+      when(
+        () => attachmentsRepository.loadImageAttachment(
+          attachmentId: any(named: "attachmentId"),
+          chunkEventCallback: any(named: "chunkEventCallback"),
+        ),
+      ).thenAnswer((_) => Future.value(jupiterAttachmentImage.data));
     });
 
     Widget buildSubject(ProductShotPlatform platform) =>
@@ -212,8 +233,10 @@ void main() {
                 final shot = ProductShot(
                   size: shotSize,
                   backgroundColor: backgroundColor,
-                  header: header,
-                  subheader: subheader,
+                  titleColor: titleColor,
+                  subtitleColor: subtitleColor,
+                  title: title,
+                  subtitle: subtitle,
                   device: ProductShotDevices.forPlatform(platform),
                   child: const ChatScreenView(
                     createMessageCubit: createMockMessageCubit,
@@ -248,6 +271,9 @@ void main() {
         VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
         await tester.pumpWidget(buildSubject(ProductShotPlatform.ios));
+        await _precacheImages(tester);
+        await tester.pumpAndSettle();
+
         await expectLater(
           find.byType(ProductShot),
           // Do not change the file name, as it is referenced in stores/ios/en-US/screenshots
@@ -264,8 +290,12 @@ void main() {
         VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
         await tester.pumpWidget(buildSubject(ProductShotPlatform.android));
+        await _precacheImages(tester);
+        await tester.pumpAndSettle();
+
         await expectLater(
           find.byType(ProductShot),
+          // Do not change the file name, as it is referenced in stores/android/metadata/en-US/screenshots
           matchesGoldenFile("goldens/private_chat.android.png"),
         );
       },
@@ -273,9 +303,11 @@ void main() {
   });
 
   group("Group Chat", () {
-    const backgroundColor = Color.fromARGB(255, 219, 231, 217);
-    const header = 'Create groups to chat.';
-    const subheader = 'Chat in groups with multiple people.';
+    final backgroundColor = AppColors.blue[50]!;
+    final titleColor = AppColors.blue[800]!;
+    final subtitleColor = AppColors.blue[600]!;
+    const title = 'Create groups to chat.';
+    const subtitle = 'Chat in groups with multiple people.';
 
     late MockNavigationCubit navigationCubit;
     late MockUserCubit userCubit;
@@ -341,8 +373,10 @@ void main() {
                 final shot = ProductShot(
                   size: shotSize,
                   backgroundColor: backgroundColor,
-                  header: header,
-                  subheader: subheader,
+                  titleColor: titleColor,
+                  subtitleColor: subtitleColor,
+                  title: title,
+                  subtitle: subtitle,
                   device: ProductShotDevices.forPlatform(platform),
                   child: const ChatScreenView(
                     createMessageCubit: createMockMessageCubit,
@@ -377,6 +411,9 @@ void main() {
         VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
         await tester.pumpWidget(buildSubject(ProductShotPlatform.ios));
+        await _precacheImages(tester);
+        await tester.pumpAndSettle();
+
         await expectLater(
           find.byType(ProductShot),
           // Do not change the file name, as it is referenced in stores/ios/en-US/screenshots
@@ -393,8 +430,12 @@ void main() {
         VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
         await tester.pumpWidget(buildSubject(ProductShotPlatform.android));
+        await _precacheImages(tester);
+        await tester.pumpAndSettle();
+
         await expectLater(
           find.byType(ProductShot),
+          // Do not change the file name, as it is referenced in stores/android/metadata/en-US/screenshots
           matchesGoldenFile("goldens/group_chat.android.png"),
         );
       },
@@ -424,4 +465,29 @@ void testProductShot(
       debugDisableShadows = true;
     }
   }, skip: Platform.operatingSystem != hostPlatform);
+}
+
+/// Preload all images in the widget tree.
+///
+/// This is necessary in tests, otherwise the images will not be rendered.
+///
+/// Will be called inside `tester.runAsync`. Otherwise, `precacheImage` will never complete due
+/// to fake-async.
+Future<void> _precacheImages(WidgetTester tester) async {
+  await tester.runAsync(() async {
+    final elements = tester.elementList(find.byType(DecoratedBox));
+    for (Element element in elements) {
+      DecoratedBox widget = element.widget as DecoratedBox;
+      BoxDecoration decoration = widget.decoration as BoxDecoration;
+      if (decoration.image != null) {
+        await precacheImage(decoration.image!.image, element);
+      }
+    }
+
+    final attachmentElements = tester.elementList(find.byType(Image));
+    for (Element element in attachmentElements) {
+      final image = element.widget as Image;
+      await precacheImage(image.image, element);
+    }
+  });
 }

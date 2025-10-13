@@ -65,6 +65,7 @@ platform :android do
         sh "flutter build #{build_target} --release --target-platform android-arm64"
 
         if upload_to_play_store
+          metadata_path = File.expand_path("../stores/android/metadata", __dir__)
           # Upload to Google Play Store
           supply(
             validate_only: false,
@@ -74,6 +75,7 @@ platform :android do
             aab: "build/app/outputs/bundle/release/app-release.aab",
             json_key: "fastlane/" + playstore_key_path,
             package_name: package_name,
+            metadata_path: metadata_path,
           )
         end
 

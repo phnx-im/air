@@ -18,7 +18,6 @@ class ProductShotFrame extends StatelessWidget {
     this.borderWidth = 32,
     this.cornerRadius = 80,
     this.frameColor = Colors.black,
-    this.screenBackgroundColor = Colors.black,
   });
 
   final Widget child;
@@ -30,7 +29,6 @@ class ProductShotFrame extends StatelessWidget {
   final double borderWidth;
   final double cornerRadius;
   final Color frameColor;
-  final Color screenBackgroundColor;
 
   @override
   Widget build(BuildContext context) {
@@ -68,27 +66,24 @@ class ProductShotFrame extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(innerRadius),
               clipBehavior: Clip.antiAlias,
-              child: ColoredBox(
-                color: screenBackgroundColor,
-                child: SizedBox(
-                  width: screenSize.width,
-                  height: screenSize.height,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      MediaQuery(data: mediaQuery, child: child),
-                      if (statusBarHeight > 0)
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          child: SizedBox(
-                            height: statusBarHeight,
-                            child: statusBar,
-                          ),
+              child: SizedBox(
+                width: screenSize.width,
+                height: screenSize.height,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    MediaQuery(data: mediaQuery, child: child),
+                    if (statusBarHeight > 0)
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: SizedBox(
+                          height: statusBarHeight,
+                          child: statusBar,
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
               ),
             ),

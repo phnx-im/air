@@ -2,10 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
+import 'package:crypto/crypto.dart';
 
 import '../helpers.dart';
 
@@ -34,18 +36,69 @@ final scienceClubId = 10.chatId();
 final gardeningPartyId = 11.chatId();
 final dinnerPartyId = 12.chatId();
 
-final ownProfile = UiUserProfile(userId: ownId, displayName: 'Ellie');
-final samProfile = UiUserProfile(userId: samId, displayName: 'Sam');
-final fredProfile = UiUserProfile(userId: fredId, displayName: 'Fred');
-final jessicaProfile = UiUserProfile(userId: jessicaId, displayName: 'Jessica');
-final daveProfile = UiUserProfile(userId: daveId, displayName: 'Dave');
-final frankProfile = UiUserProfile(userId: frankId, displayName: 'Frank');
-final alexProfile = UiUserProfile(userId: alexId, displayName: 'Alex');
-final ireneProfile = UiUserProfile(userId: ireneId, displayName: 'Irene');
-final kamalProfile = UiUserProfile(userId: kamalId, displayName: 'Kamal');
+final samProfilePicture = _loadImageSync('test/assets/images/sam.jpg');
+final fredProfilePicture = _loadImageSync('test/assets/images/fred.jpg');
+final jessicaProfilePicture = _loadImageSync('test/assets/images/jessica.jpg');
+final daveProfilePicture = _loadImageSync('test/assets/images/dave.jpg');
+final frankProfilePicture = _loadImageSync('test/assets/images/frank.jpg');
+final alexProfilePicture = _loadImageSync('test/assets/images/alex.jpg');
+final ireneProfilePicture = _loadImageSync('test/assets/images/irene.jpg');
+final kamalProfilePicture = _loadImageSync('test/assets/images/kamal.jpg');
+
+final scienceClubProfilePicture = _loadImageSync(
+  'test/assets/images/science-club.jpg',
+);
+final gardeningPartyProfilePicture = _loadImageSync(
+  'test/assets/images/gardening-group.jpg',
+);
+final dinnerPartyProfilePicture = _loadImageSync(
+  'test/assets/images/dinner-party.jpg',
+);
+
+final jupiterAttachmentImage = _loadImageSync('test/assets/images/jupiter.jpg');
+
+final samProfile = UiUserProfile(
+  userId: samId,
+  displayName: 'Sam',
+  profilePicture: samProfilePicture,
+);
+final fredProfile = UiUserProfile(
+  userId: fredId,
+  displayName: 'Fred',
+  profilePicture: fredProfilePicture,
+);
+final jessicaProfile = UiUserProfile(
+  userId: jessicaId,
+  displayName: 'Jessica',
+  profilePicture: jessicaProfilePicture,
+);
+final daveProfile = UiUserProfile(
+  userId: daveId,
+  displayName: 'Dave',
+  profilePicture: daveProfilePicture,
+);
+final frankProfile = UiUserProfile(
+  userId: frankId,
+  displayName: 'Frank',
+  profilePicture: frankProfilePicture,
+);
+final alexProfile = UiUserProfile(
+  userId: alexId,
+  displayName: 'Alex',
+  profilePicture: alexProfilePicture,
+);
+final ireneProfile = UiUserProfile(
+  userId: ireneId,
+  displayName: 'Irene',
+  profilePicture: ireneProfilePicture,
+);
+final kamalProfile = UiUserProfile(
+  userId: kamalId,
+  displayName: 'Kamal',
+  profilePicture: kamalProfilePicture,
+);
 
 final userProfiles = [
-  ownProfile,
   samProfile,
   fredProfile,
   jessicaProfile,
@@ -73,7 +126,7 @@ final chats = [
     lastMessage: _lastChatMessage(
       fredChatId,
       fredId,
-      'My favorite planet is Saturn. It has such cool rings. But I also like Venus a lot.',
+      'My favorite planet is Jupiter. But I also like Venus a lot.',
     ),
   ),
   // Jessica
@@ -98,7 +151,10 @@ final chats = [
     chatType: const UiChatType_Group(),
     unreadMessages: 0,
     messagesCount: 0,
-    attributes: const UiChatAttributes(title: 'Science club', picture: null),
+    attributes: UiChatAttributes(
+      title: 'Science club',
+      picture: scienceClubProfilePicture,
+    ),
     lastUsed: now.subtract(const Duration(minutes: 10)).toIso8601String(),
     lastMessage: _lastChatMessage(
       scienceClubId,
@@ -128,7 +184,10 @@ final chats = [
     chatType: const UiChatType_Group(),
     unreadMessages: 0,
     messagesCount: 1,
-    attributes: const UiChatAttributes(title: 'Gardening club', picture: null),
+    attributes: UiChatAttributes(
+      title: 'Gardening club',
+      picture: gardeningPartyProfilePicture,
+    ),
     lastUsed: now.subtract(const Duration(minutes: 20)).toIso8601String(),
     lastMessage: _lastChatMessage(
       gardeningPartyId,
@@ -184,7 +243,10 @@ final chats = [
     chatType: const UiChatType_Group(),
     unreadMessages: 0,
     messagesCount: 1,
-    attributes: const UiChatAttributes(title: 'Dinner party', picture: null),
+    attributes: UiChatAttributes(
+      title: 'Dinner party',
+      picture: dinnerPartyProfilePicture,
+    ),
     lastUsed: now.subtract(const Duration(days: 1)).toIso8601String(),
     lastMessage: _lastChatMessage(
       dinnerPartyId,
@@ -283,7 +345,7 @@ final fredMessages = [
           plainBody: "",
           topicId: Uint8List(0),
           content: _simpleMessage(
-            "My favorite planet is Saturn. It has such cool rings. But I also like Venus a lot.",
+            "My favorite planet is Jupiter. But I also like Venus a lot.",
           ),
           attachments: [],
         ),
@@ -308,14 +370,14 @@ final fredMessages = [
           attachments: [
             UiAttachment(
               attachmentId: 1.attachmentId(),
-              filename: "saturn.png",
-              contentType: "application/png",
-              size: 1024,
-              description: "Saturn",
+              filename: "jupiter.jpg",
+              contentType: "image/jpeg",
+              size: jupiterAttachmentImage.data.length,
+              description: "Jupiter",
               imageMetadata: const UiImageMetadata(
-                blurhash: "LEHLk~WB2yk8pyo0adR*.7kCMdnj",
-                width: 400,
-                height: 300,
+                blurhash: "LGDv.p%L00kC~qjF4nWCIARjIVj[",
+                width: 1080,
+                height: 800,
               ),
             ),
           ],
@@ -364,7 +426,7 @@ final gardeningPartyMessages = [
         content: UiMimiContent(
           plainBody: "",
           topicId: Uint8List(0),
-          content: _simpleMessage('I don’t know, I’ve never tried it.'),
+          content: _simpleMessage("I don't know, I've never tried it."),
           attachments: [],
         ),
       ),
@@ -395,3 +457,19 @@ final gardeningPartyMessages = [
     status: UiMessageStatus.sent,
   ),
 ];
+
+ImageData _loadImageSync(String path) {
+  final bytes = _getProjectFile(path).readAsBytesSync();
+  final hash = sha256.convert(bytes).toString();
+  return ImageData(data: bytes, hash: hash);
+}
+
+File _getProjectFile(String path) {
+  var dir = Directory.current;
+  while (!dir.listSync().any(
+    (entity) => entity.path.endsWith('pubspec.yaml'),
+  )) {
+    dir = dir.parent;
+  }
+  return File('${dir.path}/$path');
+}
