@@ -9,7 +9,7 @@ spec:
   revisionHistoryLimit: 10
   selector:
     matchLabels:
-      app: air-prod
+      app: airserver
   strategy:
     rollingUpdate:
       maxSurge: 25%
@@ -55,7 +55,7 @@ spec:
           value: /etc/fcm-service-account/fcm-service-account.json
         - name: RUST_LOG
           value: info
-        image: ghcr.io/phnx-im/airserver@sha256:d850fae06ac833038dfd19032b009bd28fb527d8e198054e91fc9f4703c89e5e
+        image: ghcr.io/phnx-im/airserver
         imagePullPolicy: Always
         name: airserver
         resources: {}

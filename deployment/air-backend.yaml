@@ -16,4 +16,4 @@ spec:
     protocol: TCP
     targetPort: 50051
   selector:
-    app: prod-air-ms
+    app: airserver
