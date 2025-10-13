@@ -25,7 +25,7 @@ sealed class RegistrationState with _$RegistrationState {
 
   const factory RegistrationState({
     // Domain choice screen data
-    @Default('prod.air.ms') String domain,
+    @Default('air.ms') String domain,
 
     // Display name/avatar screen data
     ImageData? avatar,

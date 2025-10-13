@@ -20,7 +20,7 @@ controller:
                       "tls_configs": [
                         {
                           "name": "prod-air-ms-cert",
-                          "certificate_bundle_uuid": "0a60fc75-2e82-4bc9-b0e8-f51c1c245cee"
+                          "certificate_bundle_uuid": "0ab632f5-8c8f-40f5-bc85-9881e9564a6d"
                         }
                       ],
                       "properties": {
@@ -41,7 +41,7 @@ controller:
                       "tls_configs": [
                         {
                           "name": "prod-air-ms-cert",
-                          "certificate_bundle_uuid": "0a60fc75-2e82-4bc9-b0e8-f51c1c245cee"
+                          "certificate_bundle_uuid": "0ab632f5-8c8f-40f5-bc85-9881e9564a6d"
                         }
                       ],
                       "properties": {
