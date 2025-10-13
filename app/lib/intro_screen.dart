@@ -9,9 +9,10 @@ import 'package:air/navigation/navigation.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
 import 'package:air/theme/theme.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_svg/svg.dart';
 
-class IntroScreen extends StatelessWidget {
+class IntroScreen extends HookWidget {
   const IntroScreen({super.key});
 
   @override
@@ -19,6 +20,8 @@ class IntroScreen extends StatelessWidget {
     final isUserLoading = context.select((LoadableUserCubit cubit) {
       return cubit.state is LoadingUser;
     });
+
+    final devSettingsVisible = useState(false);
 
     final loc = AppLocalizations.of(context);
 
@@ -32,16 +35,23 @@ class IntroScreen extends StatelessWidget {
         child: Center(
           child: Column(
             children: [
-              Expanded(
-                child: SvgPicture.asset(
-                  'assets/images/tilde.svg',
+              const Spacer(),
+              GestureDetector(
+                onLongPress: () => devSettingsVisible.value = true,
+                child: SizedBox(
                   width: 64,
-                  colorFilter: ColorFilter.mode(
-                    CustomColorScheme.of(context).text.primary,
-                    BlendMode.srcIn,
+                  height: 64,
+                  child: SvgPicture.asset(
+                    'assets/images/tilde.svg',
+                    width: 64,
+                    colorFilter: ColorFilter.mode(
+                      CustomColorScheme.of(context).text.primary,
+                      BlendMode.srcIn,
+                    ),
                   ),
                 ),
               ),
+              const Spacer(),
               if (!isUserLoading)
                 Column(
                   crossAxisAlignment:
@@ -60,15 +70,16 @@ class IntroScreen extends StatelessWidget {
                   ],
                 ),
               if (!isUserLoading) const SizedBox(height: Spacings.xs),
-              TextButton(
-                onPressed:
-                    () =>
-                        context.read<NavigationCubit>().openDeveloperSettings(),
-                child: Text(
-                  loc.settings_developerSettings,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+              if (devSettingsVisible.value)
+                TextButton(
+                  onPressed: () {
+                    context.read<NavigationCubit>().openDeveloperSettings();
+                  },
+                  child: Text(
+                    loc.settings_developerSettings,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
-              ),
             ],
           ),
         ),
