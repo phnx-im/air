@@ -18,9 +18,6 @@ For security, the protocol relies mainly on the strong security guarantees
 provided by the underlying MLS protocol. The authentication service required by
 the MLS protocol is a simple signature-based PKI.
 
-The documentation including the full specification for the Air Protocol can
-be found [here](https://docs.phnx.im).
-
 ## Code structure
 
 The implementation spans client, server and test-specific components. It is
