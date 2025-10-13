@@ -92,7 +92,7 @@ class GroupDetails extends StatelessWidget {
             const SizedBox(height: Spacings.s),
 
             OutlinedButton(
-              onPressed: () => _leave(context, chat.id),
+              onPressed: () => _leave(context, chat),
               child: Text(
                 loc.groupDetails_leaveChat,
                 style: TextStyle(
@@ -129,18 +129,18 @@ class GroupDetails extends StatelessWidget {
     chatDetailsCubit.setChatPicture(bytes: bytes);
   }
 
-  void _leave(BuildContext context, ChatId id) async {
+  void _leave(BuildContext context, UiChatDetails chatDetails) async {
     final userCubit = context.read<UserCubit>();
     final navigationCubit = context.read<NavigationCubit>();
     final loc = AppLocalizations.of(context);
     if (await showConfirmationDialog(
       context,
       title: loc.leaveChatDialog_title,
-      message: loc.leaveChatDialog_content,
+      message: loc.leaveChatDialog_content(chatDetails.title),
       positiveButtonText: loc.leaveChatDialog_leave,
       negativeButtonText: loc.leaveChatDialog_cancel,
     )) {
-      userCubit.leaveChat(id);
+      userCubit.leaveChat(chatDetails.id);
       navigationCubit.closeChat();
     }
   }
