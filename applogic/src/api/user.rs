@@ -20,7 +20,7 @@ use flutter_rust_bridge::frb;
 use tracing::error;
 
 pub(crate) use aircommon::messages::push_token::PushToken;
-use url::Url;
+use url::{Host, Url};
 use uuid::Uuid;
 
 use super::types::{UiClientRecord, UiUserId, UiUserProfile};
@@ -64,13 +64,15 @@ impl User {
         display_name: String,
         profile_picture: Option<Vec<u8>>,
     ) -> Result<User> {
-        let server_url: Url = address.parse()?;
-        let domain = server_url
-            .host()
-            .context("missing host in server url")?
-            .to_owned()
-            .into();
-        let user_id = UserId::new(Uuid::new_v4(), domain);
+        let mut server_url: Url = address.parse()?;
+        let domain = server_url.host().context("missing host in server url")?;
+
+        let user_id = UserId::new(Uuid::new_v4(), domain.to_owned().into());
+
+        if domain == Host::Domain("air.ms") {
+            // TODO: For now, we redirect to the production server manually.
+            server_url.set_host(Some("prod.air.ms"))?;
+        }
 
         let user = CoreUser::new(
             user_id,
