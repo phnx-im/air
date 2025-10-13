@@ -19,7 +19,7 @@ controller:
                       ],
                       "tls_configs": [
                         {
-                          "name": "phnx-infra-dev-cert",
+                          "name": "prod-air-ms-cert",
                           "certificate_bundle_uuid": "0a60fc75-2e82-4bc9-b0e8-f51c1c245cee"
                         }
                       ],
@@ -40,7 +40,7 @@ controller:
                       ],
                       "tls_configs": [
                         {
-                          "name": "phnx-infra-dev-cert",
+                          "name": "prod-air-ms-cert",
                           "certificate_bundle_uuid": "0a60fc75-2e82-4bc9-b0e8-f51c1c245cee"
                         }
                       ],

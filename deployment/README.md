@@ -32,7 +32,7 @@ kubectl apply -f ingress-grpc.yaml
 ### Service
 
 ```
-kubectl apply -f phnx-backend.yaml
+kubectl apply -f air-backend.yaml
 ```
 
 [ingress-nginx-values.yaml]: ./ingress-nginx-values.yaml
