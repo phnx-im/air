@@ -108,7 +108,11 @@ class MemberDetails extends StatelessWidget {
           if (!isSelf && canKick)
             Padding(
               padding: const EdgeInsets.only(bottom: Spacings.s),
-              child: _RemoveUserButton(chatId: chatId, userId: profile.userId),
+              child: _RemoveUserButton(
+                chatId: chatId,
+                userId: profile.userId,
+                displayName: profile.displayName,
+              ),
             ),
 
           if (!isSelf)
@@ -123,10 +127,15 @@ class MemberDetails extends StatelessWidget {
 }
 
 class _RemoveUserButton extends StatelessWidget {
-  const _RemoveUserButton({required this.chatId, required this.userId});
+  const _RemoveUserButton({
+    required this.chatId,
+    required this.userId,
+    required this.displayName,
+  });
 
   final ChatId chatId;
   final UiUserId userId;
+  final String displayName;
 
   @override
   Widget build(BuildContext context) {
@@ -146,7 +155,7 @@ class _RemoveUserButton extends StatelessWidget {
 
         return AlertDialog(
           title: Text(loc.removeUserDialog_title),
-          content: Text(loc.removeUserDialog_content),
+          content: Text(loc.removeUserDialog_content(displayName)),
           actions: [
             TextButton(
               onPressed: () {
