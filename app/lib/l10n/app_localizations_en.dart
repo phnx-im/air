@@ -273,12 +273,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatList_blocked => 'Blocked';
 
   @override
-  String get settings_profile => 'Profile';
-
-  @override
-  String get settings_developerSettings => 'Settings (developer)';
-
-  @override
   String get newChatDialog_newChatTitle => 'New chat';
 
   @override

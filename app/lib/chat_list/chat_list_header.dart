@@ -52,7 +52,6 @@ class _AvatarState extends State<_Avatar> {
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
     final profile = context.select((UsersCubit cubit) => cubit.state.profile());
 
     return Padding(
@@ -61,31 +60,17 @@ class _AvatarState extends State<_Avatar> {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          ContextMenu(
-            direction: ContextMenuDirection.right,
-            width: 280,
-            controller: contextMenuController,
-            menuItems: [
-              ContextMenuItem(
-                label: loc.settings_profile,
-                onPressed: () {
-                  context.read<NavigationCubit>().openUserSettings();
-                },
-              ),
-              ContextMenuItem(
-                label: loc.settings_developerSettings,
-                onPressed: () {
-                  context.read<NavigationCubit>().openDeveloperSettings();
-                },
-              ),
-            ],
+          GestureDetector(
+            onTap: () {
+              context.read<NavigationCubit>().openUserSettings();
+            },
+            onLongPress: () {
+              context.read<NavigationCubit>().openDeveloperSettings();
+            },
             child: UserAvatar(
               displayName: profile.displayName,
               image: profile.profilePicture,
               size: Spacings.l,
-              onPressed: () {
-                contextMenuController.show();
-              },
             ),
           ),
         ],
