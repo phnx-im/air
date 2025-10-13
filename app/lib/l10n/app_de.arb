@@ -64,9 +64,6 @@
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
 
-  "settings_profile": "Profil",
-  "settings_developerSettings": "Einstellungen (Entwickler)",
-
   "newChatDialog_newChatTitle": "Neue Unterhaltung",
   "newChatDialog_newChatDescription": "Wähle einen Namen für die neue Unterhaltung",
   "newChatDialog_chatNamePlaceholder": "Unterhaltungsname",
