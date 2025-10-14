@@ -23,13 +23,18 @@ use aircommon::{
 use aircoreclient::{
     Asset, BlockedContactError, ChatId, ChatMessage, DisplayName, DownloadProgressEvent,
     UserProfile,
-    clients::{CoreUser, process::process_qs::ProcessedQsMessages, queue_event},
+    clients::{
+        CoreUser,
+        process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
+        queue_event,
+    },
     store::Store,
 };
 use airserver::RateLimitsConfig;
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use png::Encoder;
 use sha2::{Digest, Sha256};
+use tokio::task::JoinSet;
 use tokio_stream::StreamExt;
 use tonic::transport::Channel;
 use tonic_health::pb::{
@@ -500,7 +505,7 @@ async fn exchange_user_profiles() {
 
     let bob = &mut setup.users.get_mut(&BOB).unwrap().user;
     let qs_messages = bob.qs_fetch_messages().await.unwrap();
-    bob.fully_process_qs_messages(qs_messages).await.unwrap();
+    bob.fully_process_qs_messages(qs_messages).await;
     let alice_user_profile = bob.user_profile(&ALICE).await;
 
     assert_eq!(alice_user_profile, new_user_profile);
@@ -597,7 +602,7 @@ async fn mark_as_read() {
 
     // All messages should be unread
     let qs_messages = bob.qs_fetch_messages().await.unwrap();
-    bob.fully_process_qs_messages(qs_messages).await.unwrap();
+    bob.fully_process_qs_messages(qs_messages).await;
     let expected_unread_message_count = number_of_messages;
     let unread_message_count = bob.unread_messages_count(alice_bob_chat).await;
     assert_eq!(expected_unread_message_count, unread_message_count);
@@ -626,7 +631,7 @@ async fn mark_as_read() {
     .await
     .unwrap();
     assert_eq!(qs_messages.len(), number_of_messages);
-    alice.fully_process_qs_messages(qs_messages).await.unwrap();
+    alice.fully_process_qs_messages(qs_messages).await;
     let last_message = alice.last_message(alice_bob_chat).await.unwrap().unwrap();
     assert_eq!(last_message.status(), MessageStatus::Delivered);
 
@@ -642,7 +647,7 @@ async fn mark_as_read() {
     let alice_test_user = setup.users.get_mut(&ALICE).unwrap();
     let alice = &mut alice_test_user.user;
     let qs_messages = alice.qs_fetch_messages().await.unwrap();
-    alice.fully_process_qs_messages(qs_messages).await.unwrap();
+    alice.fully_process_qs_messages(qs_messages).await;
     let last_message = alice.last_message(alice_bob_chat).await.unwrap().unwrap();
     assert_eq!(last_message.status(), MessageStatus::Read);
 
@@ -656,7 +661,7 @@ async fn mark_as_read() {
     let bob = &mut bob_test_user.user;
 
     let qs_messages = bob.qs_fetch_messages().await.unwrap();
-    let bob_messages_sent = bob.fully_process_qs_messages(qs_messages).await.unwrap();
+    let bob_messages_sent = bob.fully_process_qs_messages(qs_messages).await;
 
     // Let's mark all but the last two messages as read (we subtract 3, because
     // the vector is 0-indexed).
@@ -801,8 +806,7 @@ async fn update_user_profile_on_group_join() {
     charlie
         .user
         .fully_process_qs_messages(charlie_qs_messages)
-        .await
-        .unwrap();
+        .await;
 
     // Bob now invites Alice
     let bob = setup.users.get_mut(&BOB).unwrap();
@@ -818,8 +822,7 @@ async fn update_user_profile_on_group_join() {
     let result = charlie
         .user
         .fully_process_qs_messages(charlie_qs_messages)
-        .await
-        .unwrap();
+        .await;
 
     assert!(result.changed_chats.is_empty());
     assert!(result.new_chats.is_empty());
@@ -837,8 +840,7 @@ async fn update_user_profile_on_group_join() {
     alice
         .user
         .fully_process_qs_messages(alice_qs_messages)
-        .await
-        .unwrap();
+        .await;
 
     // While processing her messages, Alice should have issued a profile update
 
@@ -848,8 +850,7 @@ async fn update_user_profile_on_group_join() {
     charlie
         .user
         .fully_process_qs_messages(charlie_qs_messages)
-        .await
-        .unwrap();
+        .await;
     // Charlie should now have Alice's new profile.
     let charlie_user_profile = charlie.user.user_profile(&ALICE).await;
     assert_eq!(charlie_user_profile.display_name, alice_display_name);
@@ -1145,11 +1146,7 @@ async fn blocked_contact() {
     // We get the message but it is dropped
     let messages = alice.user.qs_fetch_messages().await.unwrap();
     assert_eq!(messages.len(), 1);
-    let res = alice
-        .user
-        .fully_process_qs_messages(messages)
-        .await
-        .unwrap();
+    let res = alice.user.fully_process_qs_messages(messages).await;
     assert!(res.is_empty(), "message is dropped");
 
     // Messages from bob are dropped
@@ -1157,11 +1154,7 @@ async fn blocked_contact() {
     // We get the message but it is dropped
     let messages = alice.user.qs_fetch_messages().await.unwrap();
     assert_eq!(messages.len(), 1);
-    let res = alice
-        .user
-        .fully_process_qs_messages(messages)
-        .await
-        .unwrap();
+    let res = alice.user.fully_process_qs_messages(messages).await;
     assert!(res.is_empty(), "message is dropped");
 
     // Bob cannot establish a new connection with Alice
@@ -1254,7 +1247,7 @@ async fn delete_account() {
     let bob_test_user = setup.users.get_mut(&BOB).unwrap();
     let bob = &mut bob_test_user.user;
     let qs_messages = bob.qs_fetch_messages().await.unwrap();
-    bob.fully_process_qs_messages(qs_messages).await.unwrap();
+    bob.fully_process_qs_messages(qs_messages).await;
 
     let participants = setup
         .get_user(&BOB)
@@ -1341,8 +1334,102 @@ async fn update_and_send_message(
     let alice = setup.get_user_mut(alice);
     let alice_user = &mut alice.user;
     let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    alice_user
-        .fully_process_qs_messages(qs_messages)
-        .await
-        .unwrap()
+    alice_user.fully_process_qs_messages(qs_messages).await
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Client sequence number race", skip_all)]
+async fn client_sequence_number_race() {
+    let mut setup = TestBackend::single().await;
+
+    setup.add_user(&ALICE).await;
+    setup.get_user_mut(&ALICE).add_user_handle().await.unwrap();
+
+    setup.add_user(&BOB).await;
+
+    let chat_id = setup.connect_users(&ALICE, &BOB).await;
+
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    let bob = setup.get_user(&BOB);
+    let qs_messages = bob.user.qs_fetch_messages().await.unwrap();
+    bob.user.fully_process_qs_messages(qs_messages).await;
+
+    info!("Alice sending messages to queue");
+
+    let alice = setup.get_user(&ALICE);
+
+    const NUM_SENDERS: usize = 5;
+    const NUM_MESSAGES: usize = 10;
+    let alice_user = alice.user.clone();
+    for _ in 0..NUM_SENDERS {
+        let alice_user = alice_user.clone();
+        tokio::spawn(async move {
+            for _ in 0..NUM_MESSAGES {
+                const SALT: [u8; 16] = [0; 16];
+                let message = MimiContent::simple_markdown_message("Hello bob".into(), SALT);
+                alice_user
+                    .send_message(chat_id, message, None)
+                    .await
+                    .unwrap();
+            }
+        });
+    }
+
+    info!("Bob getting messages from queue");
+
+    const NUM_CLIENTS: usize = 2;
+    let mut join_set = JoinSet::new();
+
+    let bob_user = setup.get_user(&BOB).user.clone();
+    let (processed, processed_rx) = tokio::sync::watch::channel(0);
+
+    for _ in 0..NUM_CLIENTS {
+        let bob_user = bob_user.clone();
+        let processed = processed.clone();
+        let mut processed_rx = processed_rx.clone();
+        join_set.spawn(async move {
+            loop {
+                if *processed.borrow() == NUM_SENDERS * NUM_MESSAGES {
+                    break;
+                }
+
+                let Ok((mut stream, responder)) = bob_user.listen_queue().await else {
+                    continue;
+                };
+
+                let mut handler = QsStreamProcessor::with_responder(bob_user.clone(), responder);
+
+                loop {
+                    let finished =
+                        processed_rx.wait_for(|processed| *processed == NUM_SENDERS * NUM_MESSAGES);
+                    let event = tokio::select! {
+                        _ = finished => break,
+                        event = stream.next() => event
+                    };
+                    let Some(event) = event else {
+                        break;
+                    };
+
+                    let result = handler
+                        .process_event(event, &mut NoopNotificationProcessor)
+                        .await;
+                    processed.send_modify(|processed| {
+                        *processed += result.processed;
+                    });
+                    if result.dropped > 0 {
+                        break;
+                    }
+                }
+            }
+        });
+    }
+    join_set.join_all().await; // panics on error
+
+    assert_eq!(*processed.borrow(), NUM_SENDERS * NUM_MESSAGES);
+}
+
+struct NoopNotificationProcessor;
+
+impl QsNotificationProcessor for NoopNotificationProcessor {
+    async fn show_notifications(&mut self, _: ProcessedQsMessages) {}
 }
