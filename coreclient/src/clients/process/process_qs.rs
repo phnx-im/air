@@ -974,14 +974,6 @@ impl QsStreamProcessor {
     }
 }
 
-pub enum ProcessedQsMessagesResult {
-    Fully(ProcessedQsMessages),
-    Partially {
-        processed: ProcessedQsMessages,
-        num_processed: usize,
-    },
-}
-
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct QsStreamProcessorResult {
     pub accumulated: usize,
