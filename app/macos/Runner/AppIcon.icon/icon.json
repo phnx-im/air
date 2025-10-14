@@ -1,9 +1,20 @@
 {
-  "fill" : {
-    "automatic-gradient" : "display-p3:0.97118,0.99878,1.00000,1.00000"
-  },
+  "fill-specializations" : [
+    {
+      "value" : {
+        "solid" : "extended-gray:1.00000,1.00000"
+      }
+    },
+    {
+      "appearance" : "dark",
+      "value" : {
+        "solid" : "extended-gray:0.00000,1.00000"
+      }
+    }
+  ],
   "groups" : [
     {
+      "blur-material" : null,
       "layers" : [
         {
           "fill-specializations" : [
