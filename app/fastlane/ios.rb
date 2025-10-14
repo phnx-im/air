@@ -29,10 +29,10 @@ platform :ios do
     team_id = @app_store_params[:team_id]
     app_identifier = @app_store_params[:app_identifier]
     app_identifier_nse = @app_store_params[:app_identifier_nse]
-  
+
     # Load the app store connect API key
     api_key = @app_store_api_key
-  
+
     # Read app version from pubspec.yaml
     pubspec = YAML.load_file("../pubspec.yaml")
     app_version = (pubspec['version'] || '').to_s.split('+').first
@@ -47,12 +47,12 @@ platform :ios do
                       app_identifier: app_identifier
                     ) + 1
                   end
-  
+
     increment_build_number(
       xcodeproj: "ios/Runner.xcodeproj",
       build_number: build_number,
     )
-  
+
     # Use match for code signing
     ["development", "appstore"].each do |i|
       match(
@@ -66,9 +66,19 @@ platform :ios do
         readonly: is_ci,
       )
     end
-  
+
+    screenshots_dir = "./stores/ios/screenshots"
+    Dir.glob("#{screenshots_dir}/**/*.{png,jpg}").each do |f|
+      if File.symlink?(f)
+        resolved = File.realpath(f)
+        FileUtils.cp(resolved, f) # overwrite the symlink with the actual file
+      end
+    end
+
+
     # Build the app with signing
     build_ios(with_signing: upload_to_test_flight)
+
 
     # Upload the app to TestFlight if the parameter is set
     if upload_to_test_flight
@@ -98,7 +108,7 @@ platform :ios do
     # The following is false when "with_signing" is not provided in the option
     # and true otherwise
     skip_signing = !options[:with_signing]
-  
+
     # Set up CI
     setup_ci()
 
@@ -107,7 +117,7 @@ platform :ios do
 
     # Build the app with flutter first to create the necessary ephemeral files
     sh "flutter build ios --config-only #{skip_signing ? '--debug' : '--release'}"
-  
+
     # Install CocoaPods dependencies
     cocoapods(
       podfile: "ios/Podfile"
@@ -115,7 +125,7 @@ platform :ios do
 
     # Build the app
     build_app(
-      workspace: "ios/Runner.xcworkspace", 
+      workspace: "ios/Runner.xcworkspace",
       scheme: "Runner",
       configuration: skip_signing ? "Debug" : "Release",
       skip_codesigning: skip_signing,
