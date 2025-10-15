@@ -5,13 +5,13 @@
 use aircommon::{
     codec::PersistenceCodec,
     credentials::ClientCredential,
-    crypto::{ear::EarDecryptable, errors::DecryptionError, indexed_aead::keys::UserProfileKey},
+    crypto::{ear::EarDecryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{MimiId, QualifiedGroupId, UserHandle, UserId},
     messages::{
         QueueMessage,
         client_ds::{
             AadMessage, AadPayload, ExtractedQsQueueMessage, ExtractedQsQueueMessagePayload,
-            QsQueueMessagePayload, UserProfileKeyUpdateParams, WelcomeBundle,
+            UserProfileKeyUpdateParams, WelcomeBundle,
         },
     },
     time::TimeStamp,
@@ -42,14 +42,13 @@ use crate::{
     },
     contacts::HandleContact,
     groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
-    key_stores::indexed_keys::StorableIndexedKey,
+    key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     store::StoreNotifier,
 };
 
 use super::{
     Chat, ChatAttributes, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow,
 };
-use crate::key_stores::queue_ratchets::StorableQsQueueRatchet;
 
 pub enum ProcessQsMessageResult {
     None,
@@ -83,49 +82,7 @@ struct ApplicationMessagesHandlerResult {
     chat_changed: bool,
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum DecryptQsQueueMessageError {
-    #[error(transparent)]
-    Db(#[from] sqlx::Error),
-    #[error(
-        "Failed to decrypt: \
-            error = {error}, \
-            message seq nr {message_seq_nr}, \
-            ratchet seq nr {ratchet_seq_nr}"
-    )]
-    Decrypt {
-        error: DecryptionError,
-        ratchet_seq_nr: u64,
-        message_seq_nr: u64,
-    },
-}
-
 impl CoreUser {
-    /// Decrypt a `QueueMessage` received from the QS queue.
-    pub(crate) async fn decrypt_qs_queue_message(
-        &self,
-        qs_message_ciphertext: QueueMessage,
-    ) -> Result<QsQueueMessagePayload, DecryptQsQueueMessageError> {
-        let mut txn = self.pool().begin_with("BEGIN IMMEDIATE").await?;
-
-        let mut qs_queue_ratchet = StorableQsQueueRatchet::load(txn.as_mut()).await?;
-
-        let message_seq_nr = qs_message_ciphertext.sequence_number;
-        let ratchet_seq_nr = qs_queue_ratchet.sequence_number();
-
-        let payload = qs_queue_ratchet
-            .decrypt(qs_message_ciphertext)
-            .map_err(|error| DecryptQsQueueMessageError::Decrypt {
-                error,
-                ratchet_seq_nr,
-                message_seq_nr,
-            })?;
-        qs_queue_ratchet.update_ratchet(txn.as_mut()).await?;
-
-        txn.commit().await?;
-        Ok(payload)
-    }
-
     /// Process a decrypted message received from the QS queue.
     ///
     /// Returns the [`ChatId`] of newly created chats and any
@@ -711,14 +668,17 @@ impl CoreUser {
 
         // Process each qs message individually
         for (idx, qs_message) in qs_messages.into_iter().enumerate() {
-            let qs_message_payload = match self.decrypt_qs_queue_message(qs_message).await {
-                Ok(plaintext) => plaintext,
-                Err(error) => {
-                    error!(%error, "Decrypting message failed");
-                    result.processed = idx;
-                    return result;
-                }
-            };
+            let qs_message_payload =
+                match StorableQsQueueRatchet::decrypt_qs_queue_message(self.pool(), qs_message)
+                    .await
+                {
+                    Ok(plaintext) => plaintext,
+                    Err(error) => {
+                        error!(%error, "Decrypting message failed");
+                        result.processed = idx;
+                        return result;
+                    }
+                };
             let qs_message_plaintext = match qs_message_payload.extract() {
                 Ok(extracted) => extracted,
                 Err(error) => {
@@ -849,8 +809,10 @@ pub struct QsStreamProcessor {
     responder: Option<QsListenResponder>,
     /// Accumulated but not yet processed messages
     ///
-    /// Note: It is safe to keep messages in memory here, because they are not yet acked. In case,
-    /// the app is shut down, the messages will be received again.
+    /// Note: It is safe to keep messages in memory here, because they are not yet decrypted.
+    /// Decryption increases the locally stored ratchet sequence number, which is used to determine
+    /// which messages should be fetched from the server. In case, the app is shut down, the
+    /// messages will be received again.
     messages: Vec<QueueMessage>,
 }
 
