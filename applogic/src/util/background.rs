@@ -139,12 +139,12 @@ where
                 match event {
                     NextEvent::Event(Some(event)) => {
                         debug!(name = %self.name, id = %self.id, ?event, "received event");
-                        let should_continue = self.context.handle_event(event).await;
-                        if !should_continue {
-                            State::Stopped { started_at }
-                        } else {
+                        if self.context.handle_event(event).await {
+                            // Continue processing
                             self.backoff.reset();
                             State::Running { stream, started_at }
+                        } else {
+                            State::Stopped { started_at }
                         }
                     }
                     // stream exhausted

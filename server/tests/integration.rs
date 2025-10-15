@@ -1413,11 +1413,12 @@ async fn client_sequence_number_race() {
                     let result = handler
                         .process_event(event, &mut NoopNotificationProcessor)
                         .await;
+
                     processed.send_modify(|processed| {
-                        *processed += result.processed;
+                        *processed += result.processed();
                     });
-                    if result.dropped > 0 {
-                        break;
+                    if result.is_partially_processed() {
+                        break; // stop the stream when only partially processed
                     }
                 }
             }

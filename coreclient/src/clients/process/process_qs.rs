@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::ops::{Add, AddAssign};
-
 use aircommon::{
     codec::PersistenceCodec,
     credentials::ClientCredential,
@@ -33,7 +31,7 @@ use openmls::{
 };
 use sqlx::{Acquire, SqliteTransaction};
 use tls_codec::DeserializeBytes;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     ChatMessage, ChatStatus, ContentMessage, Message, SystemMessage,
@@ -890,49 +888,35 @@ impl QsStreamProcessor {
         &mut self,
         event: QueueEvent,
         notification_processor: &mut impl QsNotificationProcessor,
-    ) -> QsStreamProcessorResult {
-        // info!(?event.sequence_number, "processing QS listen event");
+    ) -> QsProcessEventResult {
+        debug!(?event, "processing QS listen event");
 
         match event.event {
             None => {
                 error!("received an empty event");
-                QsStreamProcessorResult {
-                    dropped: 1,
-                    ..Default::default()
-                }
+                QsProcessEventResult::Ignored
             }
             Some(queue_event::Event::Payload(_)) => {
                 // currently, we don't handle payload events
                 warn!("ignoring QS listen payload event");
-                QsStreamProcessorResult {
-                    dropped: 1,
-                    ..Default::default()
-                }
+                QsProcessEventResult::Ignored
             }
             Some(queue_event::Event::Message(message)) => match message.try_into() {
                 Ok(message) => {
                     // Invariant: after a message there is always an Empty event as sentinel
                     // => accumulated messages will be processed there
                     self.messages.push(message);
-                    QsStreamProcessorResult {
-                        accumulated: 1,
-                        ..Default::default()
-                    }
+                    QsProcessEventResult::Accumulated
                 }
                 Err(error) => {
                     error!(%error, "failed to convert QS message; dropping");
-                    QsStreamProcessorResult {
-                        dropped: 1,
-                        ..Default::default()
-                    }
+                    QsProcessEventResult::Ignored
                 }
             },
             // Empty event indicates that the queue is empty
             Some(queue_event::Event::Empty(_)) => {
-                let mut result = QsStreamProcessorResult::default();
-
                 if self.messages.is_empty() {
-                    return result; // no messages to process
+                    return QsProcessEventResult::FullyProcessed { processed: 0 }; // no messages to process
                 }
 
                 let max_sequence_number = self.messages.last().map(|m| m.sequence_number);
@@ -941,11 +925,20 @@ impl QsStreamProcessor {
                 let num_messages = messages.len();
                 let processed_messages = self.core_user.fully_process_qs_messages(messages).await;
 
-                result.processed = processed_messages.processed;
-                result.dropped = num_messages - processed_messages.processed;
-                if result.dropped > 0 {
-                    error!(result.dropped, "failed to fully process messages");
-                }
+                let result = if processed_messages.processed < num_messages {
+                    error!(
+                        processed_messages.processed,
+                        num_messages, "failed to fully process messages"
+                    );
+                    QsProcessEventResult::PartiallyProcessed {
+                        processed: processed_messages.processed,
+                        dropped: num_messages - processed_messages.processed,
+                    }
+                } else {
+                    QsProcessEventResult::FullyProcessed {
+                        processed: processed_messages.processed,
+                    }
+                };
 
                 notification_processor
                     .show_notifications(processed_messages)
@@ -974,29 +967,28 @@ impl QsStreamProcessor {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct QsStreamProcessorResult {
-    pub accumulated: usize,
-    pub processed: usize,
-    pub dropped: usize,
+pub enum QsProcessEventResult {
+    /// Event was accumulated to be processed later
+    Accumulated,
+    /// Event was ignored
+    Ignored,
+    /// All accumulated events where fully processed
+    FullyProcessed { processed: usize },
+    /// Accumulated events were partially processed, some events were dropped
+    PartiallyProcessed { processed: usize, dropped: usize },
 }
 
-impl Add<QsStreamProcessorResult> for QsStreamProcessorResult {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self {
-            accumulated: self.accumulated + rhs.accumulated,
-            processed: self.processed + rhs.processed,
-            dropped: self.dropped + rhs.dropped,
+impl QsProcessEventResult {
+    pub fn processed(&self) -> usize {
+        match self {
+            Self::Accumulated => 0,
+            Self::Ignored => 0,
+            Self::FullyProcessed { processed } => *processed,
+            Self::PartiallyProcessed { processed, .. } => *processed,
         }
     }
-}
 
-impl AddAssign<QsStreamProcessorResult> for QsStreamProcessorResult {
-    fn add_assign(&mut self, rhs: Self) {
-        self.accumulated += rhs.accumulated;
-        self.processed += rhs.processed;
-        self.dropped += rhs.dropped;
+    pub fn is_partially_processed(&self) -> bool {
+        matches!(self, Self::PartiallyProcessed { .. })
     }
 }

@@ -57,7 +57,10 @@ impl BackgroundStreamContext<QueueEvent> for QueueContext {
             .handler
             .process_event(event, &mut self.cubit_context)
             .await;
-        result.dropped == 0
+        // Stop stream if partially processed
+        // => There is a hole in the sequence of the messages, therefore we cannot continue
+        // processing them.
+        !result.is_partially_processed()
     }
 
     async fn in_foreground(&self) {
