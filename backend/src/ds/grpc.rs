@@ -178,24 +178,22 @@ impl<Qep: QsConnector> GrpcDs<Qep> {
             error!(%error, "Failed to start transaction");
             Status::internal("Failed to start transaction")
         })?;
-        let (mut group_state, mut group_data) = match self
-            .load_group_state::<true>(&mut txn, &qgid, &ear_key)
-            .await
-        {
-            Ok((group_data, group_state)) => (group_state, group_data),
-            Err(LoadGroupStateError::Expired) => {
-                // The group state has expired and has already been deleted.
-                // Commit the transaction and return not found.
-                txn.commit().await.map_err(|error| {
-                    error!(%error, "Failed to commit transaction");
-                    Status::internal("Failed to commit transaction")
-                })?;
-                return Err(Status::not_found("Group state expired"));
-            }
-            Err(LoadGroupStateError::Status(status)) => {
-                return Err(status);
-            }
-        };
+        let (mut group_state, mut group_data) =
+            match self.load_group_state::<true>(&mut txn, qgid, ear_key).await {
+                Ok((group_data, group_state)) => (group_state, group_data),
+                Err(LoadGroupStateError::Expired) => {
+                    // The group state has expired and has already been deleted.
+                    // Commit the transaction and return not found.
+                    txn.commit().await.map_err(|error| {
+                        error!(%error, "Failed to commit transaction");
+                        Status::internal("Failed to commit transaction")
+                    })?;
+                    return Err(Status::not_found("Group state expired"));
+                }
+                Err(LoadGroupStateError::Status(status)) => {
+                    return Err(status);
+                }
+            };
 
         let value = f(&mut group_state, &mut group_data).await?;
         self.encrypt_and_persist(&mut txn, group_data, group_state, ear_key)
@@ -848,7 +846,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
                     .collect();
 
                 let (group_message, welcome_bundles) =
-                    group_state.group_operation(params, &ear_key).await?;
+                    group_state.group_operation(params, ear_key).await?;
 
                 let timestamp = self
                     .fan_out_message(group_message, destination_clients)
