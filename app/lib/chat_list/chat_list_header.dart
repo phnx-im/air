@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:flutter/material.dart';
+import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
 import 'package:air/chat_list/chat_list_cubit.dart';
 import 'package:air/chat_list/create_chat_view.dart';
@@ -123,10 +124,9 @@ class _PlusButtonState extends State<_PlusButton> {
             borderRadius: BorderRadius.circular(16),
           ),
           child: Center(
-            child: Icon(
-              Icons.add_rounded,
-              size: 22,
+            child: iconoir.Plus(
               color: CustomColorScheme.of(context).text.primary,
+              width: 22,
             ),
           ),
         ),
