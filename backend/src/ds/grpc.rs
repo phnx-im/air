@@ -854,10 +854,14 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
                 // TODO: Should we fan out the welcome bundles concurrently?
                 for message in welcome_bundles {
-                    self.qs_connector
+                    if let Err(e) = self
+                        .qs_connector
                         .dispatch(message)
                         .await
-                        .map_err(DistributeMessageError::Connector)?;
+                        .map_err(DistributeMessageError::Connector)
+                    {
+                        error!(%e, "Failed to dispatch welcome bundle");
+                    };
                 }
 
                 Ok(timestamp)
