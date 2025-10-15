@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT chat_id AS \"chat_id: _\"\n                    FROM receipt_queue\n                    WHERE locked_at IS NULL OR locked_at < ?\n                    ORDER BY created_at ASC\n                    LIMIT 1\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "chat_id: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9b950789c883116ed891e8bfe73001777217c9a05d676b716d07f09d1b7dabcf"
+}

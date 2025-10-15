@@ -15,12 +15,14 @@ use mimi_content::{
 };
 use openmls::storage::OpenMlsProvider;
 use sqlx::{SqliteConnection, SqliteTransaction};
+use tracing::error;
 use uuid::Uuid;
 
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, ContentMessage, Message, MessageId,
-    chats::{StatusRecord, messages::edit::MessageEdit},
+    chats::{StatusRecord, messages::edit::MessageEdit, status::ReceiptQueue},
     clients::block_contact::BlockedContactError,
+    store::StoreEntityId,
 };
 
 use super::{AirOpenMlsProvider, ApiClients, CoreUser, Group, StoreNotifier};
@@ -138,45 +140,103 @@ impl CoreUser {
         Ok(())
     }
 
-    pub(crate) async fn send_delivery_receipts(
+    /// Schedules receipts for messages in a chat.
+    pub(crate) async fn schedule_receipts(
         &self,
         chat_id: ChatId,
-        statuses: impl IntoIterator<Item = (&MimiId, MessageStatus)> + Send,
+        statuses: impl Iterator<Item = (MessageId, &MimiId, MessageStatus)> + Send,
     ) -> anyhow::Result<()> {
-        if let Some(task) = self.send_delivery_receipts_task(chat_id, statuses).await? {
-            task.await?;
-        }
-        Ok(())
-    }
+        let mut connection = self.pool().acquire().await?;
 
-    /// Creates a task which sends delivery receipts for statuses in a chat.
-    ///
-    /// Note that the MLS message corresponding to the delivery receipts is created immediately.
-    /// The task sends the MLS message to the DS and stores the delivery receipts in the local
-    /// database.
-    ///
-    /// The returned future is `Send` and can be executed as a background task.
-    ///
-    /// If there nothing to send, `Ok(None)` is returned.
-    pub(crate) async fn send_delivery_receipts_task(
-        &self,
-        chat_id: ChatId,
-        statuses: impl IntoIterator<Item = (&MimiId, MessageStatus)>,
-    ) -> anyhow::Result<Option<impl Future<Output = anyhow::Result<()>> + Send + 'static>> {
-        let Some(unsent_receipt) = UnsentReceipt::new(statuses)? else {
-            return Ok(None); // Nothing to send
-        };
-
-        let chat = Chat::load(self.pool().acquire().await?.as_mut(), &chat_id)
+        let chat = Chat::load(&mut connection, &chat_id)
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
         if let ChatStatus::Blocked = chat.status() {
-            return Ok(None);
+            return Ok(());
         }
+
+        let mut notifier = self.store_notifier();
+
+        for (message_id, mimi_id, status) in statuses {
+            let receipt_queue = ReceiptQueue::new(message_id, status);
+            receipt_queue
+                .enqueue(&mut *connection, chat_id, mimi_id)
+                .await?;
+            notifier.add(StoreEntityId::Status(chat_id, status.into()));
+        }
+
+        notifier.notify();
+
+        Ok(())
+    }
+
+    pub(crate) async fn send_scheduled_receipts(&self) -> anyhow::Result<()> {
+        // Used to identify locked receipts by this task
+        let task_id = Uuid::new_v4();
+        loop {
+            let Some((chat_id, statuses)) = ReceiptQueue::dequeue(self.pool(), task_id).await?
+            else {
+                return Ok(());
+            };
+
+            match UnsentReceipt::new(statuses.iter().map(|(mimi_id, status)| (mimi_id, *status))) {
+                Ok(Some(receipt)) => match self.send_chat_receipt(chat_id, receipt).await {
+                    Ok(_) => {
+                        ReceiptQueue::remove(self.pool(), task_id).await?;
+                    }
+                    Err(SendChatReceiptError::Fatal(error)) => {
+                        error!(%error, "Failed to send scheduled receipt; dropping");
+                        ReceiptQueue::remove(self.pool(), task_id).await?;
+                        return Err(error);
+                    }
+                    Err(SendChatReceiptError::Recoverable(error)) => {
+                        error!(%error, "Failed to send scheduled receipt; will retry later");
+                        // Don't unlock the receipts now; they will be unlocked after a threshold.
+                        continue;
+                    }
+                },
+                Ok(None) => {
+                    // Nothing to send => Remove from the queue
+                    ReceiptQueue::remove(self.pool(), task_id).await?;
+                }
+                Err(error) => {
+                    error!(%error, "Failed to create delivery receipt; dropping");
+                    // There is no chance we will be able to create a receipt next time
+                    // => Remove from the queue
+                    ReceiptQueue::remove(self.pool(), task_id).await?;
+                }
+            };
+        }
+    }
+
+    async fn send_chat_receipt(
+        &self,
+        chat_id: ChatId,
+        unsent_receipt: UnsentReceipt,
+    ) -> Result<(), SendChatReceiptError> {
+        tracing::info!(%chat_id, ?unsent_receipt, "Sending receipt");
+
+        // load chat
+        let chat = {
+            let mut connection = self
+                .pool()
+                .acquire()
+                .await
+                .map_err(SendChatReceiptError::recoverable)?;
+            let chat = Chat::load(&mut connection, &chat_id)
+                .await
+                .map_err(SendChatReceiptError::recoverable)?
+                .with_context(|| format!("Can't find chat with id {chat_id}"))
+                .map_err(SendChatReceiptError::fatal)?;
+            if let ChatStatus::Blocked = chat.status() {
+                return Ok(());
+            }
+            chat
+        };
 
         // load group and create MLS message
         let (group_state_ear_key, params) = self
-            .with_transaction(async |txn| {
+            .with_transaction(async |txn| -> anyhow::Result<_> {
                 let group_id = chat.group_id();
                 let mut group = Group::load_clean(txn.as_mut(), group_id)
                     .await?
@@ -189,33 +249,51 @@ impl CoreUser {
                 group.store_update(txn.as_mut()).await?;
                 Ok((group.group_state_ear_key().clone(), params))
             })
+            .await
+            .map_err(SendChatReceiptError::fatal)?;
+
+        // send MLS message to DS
+        self.inner
+            .api_clients
+            .get(&chat.owner_domain())
+            .map_err(SendChatReceiptError::fatal)?
+            .ds_send_message(params, self.signing_key(), &group_state_ear_key)
+            .await
+            .map_err(SendChatReceiptError::recoverable)?;
+
+        // store delivery receipt report
+        self.with_transaction_and_notifier(async |txn, notifier| -> anyhow::Result<_> {
+            StatusRecord::borrowed(
+                &self.user_id().clone(),
+                unsent_receipt.report,
+                TimeStamp::now(),
+            )
+            .store_report(txn, notifier)
             .await?;
-
-        let client = self.inner.api_clients.get(&chat.owner_domain())?;
-        let signing_key = self.signing_key().clone();
-
-        let user_id = self.user_id().clone();
-        let pool = self.pool().clone();
-        let mut notifier = self.store_notifier();
-
-        let task = async move {
-            // send MLS message to DS
-            client
-                .ds_send_message(params, &signing_key, &group_state_ear_key)
-                .await?;
-
-            // store delivery receipt report
-            let mut txn = pool.begin().await?;
-            StatusRecord::borrowed(&user_id, unsent_receipt.report, TimeStamp::now())
-                .store_report(&mut txn, &mut notifier)
-                .await?;
-            txn.commit().await?;
-            notifier.notify();
-
             Ok(())
-        };
+        })
+        .await
+        .map_err(SendChatReceiptError::fatal)?;
 
-        Ok(Some(task))
+        Ok(())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum SendChatReceiptError {
+    #[error("Fatal error: {0}")]
+    Fatal(anyhow::Error),
+    #[error("Recoverable error: {0}")]
+    Recoverable(anyhow::Error),
+}
+
+impl SendChatReceiptError {
+    fn fatal(error: impl Into<anyhow::Error>) -> Self {
+        Self::Fatal(error.into())
+    }
+
+    fn recoverable(error: impl Into<anyhow::Error>) -> Self {
+        Self::Recoverable(error.into())
     }
 }
 
@@ -511,6 +589,7 @@ impl SentMessage {
 
 /// Not yet sent receipt message consisting of the content to send and a local message status
 /// report.
+#[derive(Debug)]
 struct UnsentReceipt {
     report: MessageStatusReport,
     content: MimiContent,

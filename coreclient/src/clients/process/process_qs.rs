@@ -321,30 +321,19 @@ impl CoreUser {
             })
             .await?;
 
-        // Send delivery receipts for incoming messages
-        // TODO: Queue this and run the network requests batched together in a background task
-
-        let delivered_receipts = messages.iter().filter_map(|message| {
+        // Schedule delivery receipts for incoming messages
+        let delivery_receipts = messages.iter().filter_map(|message| {
             if let Message::Content(content_message) = message.message()
                 && let Disposition::Render | Disposition::Attachment =
                     content_message.content().nested_part.disposition
                 && let Some(mimi_id) = content_message.mimi_id()
             {
-                Some((mimi_id, MessageStatus::Delivered))
+                Some((message.id(), mimi_id, MessageStatus::Delivered))
             } else {
                 None
             }
         });
-        let task = self
-            .send_delivery_receipts_task(chat_id, delivered_receipts)
-            .await?;
-        if let Some(task) = task {
-            tokio::spawn(async move {
-                if let Err(error) = task.await {
-                    error!(%error, "Failed to send delivery receipts");
-                }
-            });
-        }
+        self.schedule_receipts(chat_id, delivery_receipts).await?;
 
         let res = match (messages, chat_changed) {
             (messages, true) => ProcessQsMessageResult::ChatChanged(chat_id, messages),
@@ -352,7 +341,7 @@ impl CoreUser {
         };
 
         // MLSMessage Phase 4: Fetch user profiles of new clients and store them.
-        self.with_transaction_and_notifier(async |txn, notifier| {
+        self.with_transaction_and_notifier(async |txn, notifier| -> anyhow::Result<_> {
             for client in profile_infos {
                 self.fetch_and_store_user_profile(&mut *txn, notifier, client)
                     .await?;
@@ -875,14 +864,11 @@ impl QsStreamProcessor {
             },
             // Empty event indicates that the queue is empty
             Some(queue_event::Event::Empty(_)) => {
-                if self.messages.is_empty() {
-                    return QsProcessEventResult::FullyProcessed { processed: 0 }; // no messages to process
-                }
-
                 let max_sequence_number = self.messages.last().map(|m| m.sequence_number);
 
                 let messages = std::mem::take(&mut self.messages);
                 let num_messages = messages.len();
+
                 let processed_messages = self.core_user.fully_process_qs_messages(messages).await;
 
                 let result = if processed_messages.processed < num_messages {
@@ -919,6 +905,11 @@ impl QsStreamProcessor {
                     } else {
                         error!("logic error: no responder to ack QS messages");
                     }
+                }
+
+                // Scheduled tasks to execute after the queue was fully processed
+                if let Err(error) = self.core_user.send_scheduled_receipts().await {
+                    error!(%error, "Failed to send scheduled receipts");
                 }
 
                 result

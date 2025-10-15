@@ -6,6 +6,7 @@ use std::{collections::BTreeMap, mem, sync::Arc};
 
 use aircommon::identifiers::{AttachmentId, UserId};
 use enumset::{EnumSet, EnumSetType};
+use mimi_content::MessageStatus;
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
 use tokio_stream::{Stream, StreamExt};
@@ -204,6 +205,56 @@ pub enum StoreOperation {
     Remove,
 }
 
+// TODO: Can be removed when MessageStatus from mimi is hashable and comparable
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(u8)]
+pub enum StoreMessageStatus {
+    Unread = 0,
+    Delivered = 1,
+    Read = 2,
+    Expired = 3,
+    Deleted = 4,
+    Hidden = 5,
+    Error = 6,
+    Custom(u8),
+}
+
+impl StoreMessageStatus {
+    pub fn repr(&self) -> u8 {
+        match self {
+            Self::Unread => 0,
+            Self::Delivered => 1,
+            Self::Read => 2,
+            Self::Expired => 3,
+            Self::Deleted => 4,
+            Self::Hidden => 5,
+            Self::Error => 6,
+            Self::Custom(value) => *value,
+        }
+    }
+}
+
+impl From<u8> for StoreMessageStatus {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::Unread,
+            1 => Self::Delivered,
+            2 => Self::Read,
+            3 => Self::Expired,
+            4 => Self::Deleted,
+            5 => Self::Hidden,
+            6 => Self::Error,
+            _ => Self::Custom(value),
+        }
+    }
+}
+
+impl From<MessageStatus> for StoreMessageStatus {
+    fn from(status: MessageStatus) -> Self {
+        Self::from(status.repr())
+    }
+}
+
 /// Identifier of an enitity of a [`super::Store`].
 ///
 /// Used to identify added, updated or removed entites in a [`StoreNotification`].
@@ -215,6 +266,8 @@ pub enum StoreEntityId {
     Chat(ChatId),
     Message(MessageId),
     Attachment(AttachmentId),
+    #[from(ignore)]
+    Status(ChatId, StoreMessageStatus),
 }
 
 impl StoreEntityId {
@@ -224,6 +277,7 @@ impl StoreEntityId {
             StoreEntityId::Chat(_) => StoreEntityKind::Chat,
             StoreEntityId::Message(_) => StoreEntityKind::Message,
             StoreEntityId::Attachment(_) => StoreEntityKind::Attachment,
+            StoreEntityId::Status(..) => StoreEntityKind::Status,
         }
     }
 }
@@ -234,6 +288,7 @@ pub(crate) enum StoreEntityKind {
     Chat = 1,
     Message = 2,
     Attachment = 3,
+    Status = 4,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -249,6 +304,7 @@ impl TryFrom<i64> for StoreEntityKind {
             1 => Ok(StoreEntityKind::Chat),
             2 => Ok(StoreEntityKind::Message),
             3 => Ok(StoreEntityKind::Attachment),
+            4 => Ok(StoreEntityKind::Status),
             _ => Err(InvalidStoreEntityKind(value)),
         }
     }

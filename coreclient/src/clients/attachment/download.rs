@@ -49,7 +49,7 @@ impl CoreUser {
 
         // Load the pending attachment record and update the status to `Downloading`.
         let Some((pending_record, group)) = self
-            .with_transaction(async |txn| {
+            .with_transaction(async |txn| -> Result<_, anyhow::Error> {
                 let Some(pending_record) =
                     PendingAttachmentRecord::load_pending(txn.as_mut(), attachment_id).await?
                 else {
@@ -149,7 +149,7 @@ impl CoreUser {
         ensure!(hash.as_slice() == pending_record.hash, "hash mismatch");
 
         // Store the attachment and mark it as downloaded
-        self.with_transaction_and_notifier(async move |txn, notifier| {
+        self.with_transaction_and_notifier(async move |txn, notifier| -> anyhow::Result<()> {
             AttachmentRecord::set_content(
                 txn.as_mut(),
                 notifier,

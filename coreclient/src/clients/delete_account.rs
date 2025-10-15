@@ -73,7 +73,7 @@ impl CoreUser {
         info!(num_chats = chats.len(), "Leaving all chats");
 
         let removals = self
-            .with_transaction(async |txn| {
+            .with_transaction(async |txn| -> anyhow::Result<_> {
                 let mut removals = Vec::with_capacity(chats.len());
                 for chat in chats {
                     let group_id = chat.group_id();

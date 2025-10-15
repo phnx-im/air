@@ -672,10 +672,10 @@ impl CoreUser {
     ///
     /// The transaction is committed if the function returns `Ok`, and rolled
     /// back if the function returns `Err`.
-    pub(crate) async fn with_transaction<T: Send>(
+    pub(crate) async fn with_transaction<T: Send, E: From<sqlx::Error>>(
         &self,
-        f: impl AsyncFnOnce(&mut sqlx::SqliteTransaction<'_>) -> anyhow::Result<T>,
-    ) -> anyhow::Result<T> {
+        f: impl AsyncFnOnce(&mut sqlx::SqliteTransaction<'_>) -> Result<T, E>,
+    ) -> Result<T, E> {
         let mut txn = self.pool().begin_with("BEGIN IMMEDIATE").await?;
         let value = f(&mut txn).await?;
         txn.commit().await?;
@@ -687,10 +687,10 @@ impl CoreUser {
     /// The transaction is committed if the function returns `Ok`, and rolled
     /// back if the function returns `Err`. The [`StoreNotifier`] is notified
     /// after the transaction is committed successfully.
-    pub(crate) async fn with_transaction_and_notifier<T: Send>(
+    pub(crate) async fn with_transaction_and_notifier<T: Send, E: From<sqlx::Error>>(
         &self,
-        f: impl AsyncFnOnce(&mut sqlx::SqliteTransaction<'_>, &mut StoreNotifier) -> anyhow::Result<T>,
-    ) -> anyhow::Result<T> {
+        f: impl AsyncFnOnce(&mut sqlx::SqliteTransaction<'_>, &mut StoreNotifier) -> Result<T, E>,
+    ) -> Result<T, E> {
         let mut txn = self.pool().begin_with("BEGIN IMMEDIATE").await?;
         let mut notifier = self.store_notifier();
         let value = f(&mut txn, &mut notifier).await?;
@@ -756,7 +756,7 @@ impl CoreUser {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct QsListenResponder {
     responder: ListenResponder,
 }
@@ -765,13 +765,16 @@ pub struct QsListenResponder {
 pub enum QsListenResponderError {
     #[error(transparent)]
     Closed(#[from] ListenResponderClosedError),
-    #[error(transparent)]
-    Sqlx(#[from] sqlx::Error),
 }
 
 impl QsListenResponder {
     pub async fn ack(&self, up_to_sequence_number: u64) -> Result<(), QsListenResponderError> {
         self.responder.ack(up_to_sequence_number).await?;
+        Ok(())
+    }
+
+    pub async fn fetch(&self) -> Result<(), QsListenResponderError> {
+        self.responder.fetch().await?;
         Ok(())
     }
 }

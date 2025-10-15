@@ -8,6 +8,7 @@ use aircommon::{
     codec::PersistenceCodec,
     identifiers::{AttachmentId, UserId},
 };
+use anyhow::Context;
 use enumset::EnumSet;
 use serde::{Deserialize, Serialize};
 use sqlx::{
@@ -18,7 +19,7 @@ use tokio_stream::StreamExt;
 use tracing::error;
 use uuid::Uuid;
 
-use crate::{ChatId, MessageId};
+use crate::{ChatId, MessageId, store::notification::StoreMessageStatus};
 
 use super::{StoreEntityId, StoreNotification, StoreOperation, notification::StoreEntityKind};
 
@@ -47,6 +48,12 @@ impl<'q> Encode<'q, Sqlite> for StoreEntityId {
             }
             StoreEntityId::Attachment(attachment_id) => {
                 Encode::<Sqlite>::encode_by_ref(&attachment_id.uuid, buf)
+            }
+            StoreEntityId::Status(chat_id, status) => {
+                let mut bytes: Vec<u8> = Vec::with_capacity(17);
+                bytes.extend_from_slice(chat_id.uuid.as_bytes());
+                bytes.push(status.repr());
+                Encode::<Sqlite>::encode(bytes, buf)
             }
         }
     }
@@ -104,6 +111,13 @@ impl SqlStoreNotification {
             }
             StoreEntityKind::Attachment => {
                 StoreEntityId::Attachment(AttachmentId::new(Uuid::from_slice(&entity_id)?))
+            }
+            StoreEntityKind::Status => {
+                let entity_id: &[u8; 17] =
+                    entity_id.as_slice().try_into().context("invalid status")?;
+                let chat_id = ChatId::new(Uuid::from_slice(&entity_id[0..16])?);
+                let status = StoreMessageStatus::from(entity_id[16]);
+                StoreEntityId::Status(chat_id, status)
             }
         };
         let mut op: EnumSet<StoreOperation> = Default::default();

@@ -17,7 +17,7 @@ use crate::{
     MessageId, contacts::HandleContact, user_handles::UserHandleRecord, user_profiles::UserProfile,
 };
 
-pub use notification::{StoreEntityId, StoreNotification, StoreOperation};
+pub use notification::{StoreEntityId, StoreMessageStatus, StoreNotification, StoreOperation};
 pub(crate) use notification::{StoreNotificationsSender, StoreNotifier};
 
 mod r#impl;
@@ -90,13 +90,13 @@ pub trait Store {
 
     /// Mark the chat with the given [`ChatId`] as read until the given message id (including).
     ///
-    /// Returns whether the chat was marked as read and the mimi ids of the messages that were
+    /// Returns whether the chat was marked as read and the message ids of the messages that were
     /// marked as read.
     async fn mark_chat_as_read(
         &self,
         chat_id: ChatId,
         until: MessageId,
-    ) -> StoreResult<(bool, Vec<MimiId>)>;
+    ) -> StoreResult<(bool, Vec<(MessageId, MimiId)>)>;
 
     /// Delete the chat with the given [`ChatId`].
     ///
@@ -208,14 +208,17 @@ pub trait Store {
         replaces_id: Option<MessageId>,
     ) -> StoreResult<ChatMessage>;
 
-    /// Sends a delivery receipt for the message with the given MimiId.
-    ///
-    /// Also stores the message status report locally.
-    async fn send_delivery_receipts<'a>(
+    /// Schedules receipts for messages in a chat.
+    async fn schedule_receipts<'a>(
         &self,
         chat_id: ChatId,
-        statuses: impl IntoIterator<Item = (&'a MimiId, MessageStatus)> + Send,
+        statuses: impl Iterator<Item = (MessageId, &'a MimiId, MessageStatus)> + Send,
     ) -> StoreResult<()>;
+
+    /// Sends all previously scheduled receipts.
+    ///
+    /// See [`Self::schedule_receipts`].
+    async fn send_scheduled_receipts(&self) -> StoreResult<()>;
 
     async fn resend_message(&self, local_message_id: Uuid) -> StoreResult<()>;
 

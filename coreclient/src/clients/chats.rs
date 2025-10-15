@@ -137,8 +137,7 @@ impl CoreUser {
             // Phase 3: Merge the commit into the group
             leave
                 .store_update(txn, notifier, chat_id, self.user_id())
-                .await?;
-            Ok(())
+                .await
         })
         .await?;
         Ok(())

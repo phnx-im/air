@@ -2,13 +2,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircoreclient::clients::{
-    QueueEvent,
-    process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
+use aircoreclient::{
+    clients::{
+        QueueEvent,
+        process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
+    },
+    store::{Store, StoreEntityId, StoreMessageStatus, StoreOperation},
 };
 use flutter_rust_bridge::frb;
-use tokio_stream::Stream;
+use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
+use tracing::debug;
 
 use crate::{
     api::user::User,
@@ -48,7 +52,27 @@ impl QsNotificationProcessor for CubitContext {
 impl BackgroundStreamContext<QueueEvent> for QueueContext {
     async fn create_stream(&mut self) -> anyhow::Result<impl Stream<Item = QueueEvent> + 'static> {
         let (stream, responder) = self.cubit_context.core_user.listen_queue().await?;
-        self.handler.replace_responder(responder);
+        self.handler.replace_responder(responder.clone());
+
+        // Drive the processing loop on new read statuses
+        let mut store_notifications = self.cubit_context.core_user.subscribe();
+        tokio::spawn(async move {
+            while let Some(notification) = store_notifications.next().await {
+                let has_added_read_status = notification.ops.iter().any(|(entity_id, ops)| {
+                    matches!(
+                        entity_id,
+                        &StoreEntityId::Status(_, StoreMessageStatus::Read)
+                    ) && ops.contains(StoreOperation::Add)
+                });
+                if has_added_read_status {
+                    debug!("Asking server for more QS messages");
+                    if responder.fetch().await.is_err() {
+                        return;
+                    }
+                }
+            }
+        });
+
         Ok(stream)
     }
 

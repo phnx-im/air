@@ -44,7 +44,7 @@ impl CoreUser {
         path: &Path,
     ) -> anyhow::Result<ChatMessage> {
         let (chat, group) = self
-            .with_transaction(async |txn| {
+            .with_transaction(async |txn| -> anyhow::Result<_> {
                 let chat = Chat::load(txn, &chat_id)
                     .await?
                     .with_context(|| format!("Can't find chat with id {chat_id}"))?;
