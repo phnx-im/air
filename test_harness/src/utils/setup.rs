@@ -133,10 +133,8 @@ impl TestUser {
     pub async fn fetch_and_process_qs_messages(&self) -> usize {
         let qs_messages = self.user.qs_fetch_messages().await.unwrap();
         let n = qs_messages.len();
-        self.user
-            .fully_process_qs_messages(qs_messages)
-            .await
-            .unwrap();
+        let processed_messages = self.user.fully_process_qs_messages(qs_messages).await;
+        assert_eq!(processed_messages.processed, n);
         n
     }
 }
@@ -265,10 +263,7 @@ impl TestBackend {
                 HashSet::from_iter(group_member.pending_removes(chat_id).await.unwrap());
             let group_members_before = group_member.mls_chat_participants(chat_id).await.unwrap();
 
-            group_member
-                .fully_process_qs_messages(qs_messages)
-                .await
-                .expect("Error processing qs messages.");
+            group_member.fully_process_qs_messages(qs_messages).await;
 
             // If the group member in question is removed with this commit,
             // it should turn its chat inactive ...
@@ -316,10 +311,7 @@ impl TestBackend {
 
             let qs_messages = group_member.qs_fetch_messages().await.unwrap();
 
-            group_member
-                .fully_process_qs_messages(qs_messages)
-                .await
-                .expect("Error processing qs messages.");
+            group_member.fully_process_qs_messages(qs_messages).await;
 
             let group_members_after = group_member.chat_participants(chat_id).await.unwrap();
             assert_eq!(group_members_after, group_members_before);
@@ -444,7 +436,7 @@ impl TestBackend {
         info!("{user1_id:?} fetches QS messages");
         let qs_messages = user1.qs_fetch_messages().await.unwrap();
         info!("{user1_id:?} processes QS messages");
-        user1.fully_process_qs_messages(qs_messages).await.unwrap();
+        user1.fully_process_qs_messages(qs_messages).await;
 
         // User 1 should have added user 2 to its contacts now and a connection
         // group should have been created.
@@ -577,10 +569,7 @@ impl TestBackend {
 
         let sender_qs_messages = sender.qs_fetch_messages().await.unwrap();
 
-        sender
-            .fully_process_qs_messages(sender_qs_messages)
-            .await
-            .unwrap();
+        sender.fully_process_qs_messages(sender_qs_messages).await;
 
         let message = test_sender
             .user
@@ -610,8 +599,7 @@ impl TestBackend {
 
             let messages = recipient_user
                 .fully_process_qs_messages(recipient_qs_messages)
-                .await
-                .unwrap();
+                .await;
 
             let message = messages.new_messages.last().unwrap();
             let chat = recipient_user.chat(&message.chat_id()).await.unwrap();
@@ -653,10 +641,7 @@ impl TestBackend {
 
         let sender_qs_messages = sender.qs_fetch_messages().await.unwrap();
 
-        sender
-            .fully_process_qs_messages(sender_qs_messages)
-            .await
-            .unwrap();
+        sender.fully_process_qs_messages(sender_qs_messages).await;
 
         let message = test_sender
             .user
@@ -689,8 +674,7 @@ impl TestBackend {
 
             let messages = recipient_user
                 .fully_process_qs_messages(recipient_qs_messages)
-                .await
-                .unwrap();
+                .await;
 
             let message = messages.new_messages.last().unwrap();
             let chat = recipient_user.chat(&message.chat_id()).await.unwrap();
@@ -735,10 +719,7 @@ impl TestBackend {
 
         let sender_qs_messages = sender.qs_fetch_messages().await.unwrap();
 
-        sender
-            .fully_process_qs_messages(sender_qs_messages)
-            .await
-            .unwrap();
+        sender.fully_process_qs_messages(sender_qs_messages).await;
 
         let message = test_sender
             .user
@@ -773,8 +754,7 @@ impl TestBackend {
 
             let messages = recipient_user
                 .fully_process_qs_messages(recipient_qs_messages)
-                .await
-                .unwrap();
+                .await;
 
             let message = messages.new_messages.last().unwrap();
             let chat = recipient_user.chat(&message.chat_id()).await.unwrap();
@@ -807,10 +787,7 @@ impl TestBackend {
 
         // Before sending a message, the sender must first fetch and process its QS messages.
         let sender_qs_messages = sender.qs_fetch_messages().await.unwrap();
-        sender
-            .fully_process_qs_messages(sender_qs_messages)
-            .await
-            .unwrap();
+        sender.fully_process_qs_messages(sender_qs_messages).await;
 
         let tmp_dir = TempDir::new().unwrap();
         let path = tmp_dir.path().join(filename);
@@ -852,8 +829,7 @@ impl TestBackend {
             let recipient_qs_messages = recipient_user.qs_fetch_messages().await.unwrap();
             let messages = recipient_user
                 .fully_process_qs_messages(recipient_qs_messages)
-                .await
-                .unwrap();
+                .await;
 
             let mut attachment_found_once = false;
             messages
@@ -969,10 +945,7 @@ impl TestBackend {
         // process its QS messages.
         let qs_messages = inviter.qs_fetch_messages().await.unwrap();
 
-        inviter
-            .fully_process_qs_messages(qs_messages)
-            .await
-            .expect("Error processing qs messages.");
+        inviter.fully_process_qs_messages(qs_messages).await;
         let inviter_chat = inviter.chat(&chat_id).await.unwrap();
 
         info!(
@@ -1024,10 +997,7 @@ impl TestBackend {
 
             let qs_messages = invitee.qs_fetch_messages().await.unwrap();
 
-            invitee
-                .fully_process_qs_messages(qs_messages)
-                .await
-                .expect("Error processing qs messages.");
+            invitee.fully_process_qs_messages(qs_messages).await;
 
             let mut invitee_chats_after = invitee.chats().await.unwrap();
             let chat_uuid = chat_id.uuid();
@@ -1073,10 +1043,7 @@ impl TestBackend {
             let group_members_before = group_member.chat_participants(chat_id).await.unwrap();
             let qs_messages = group_member.qs_fetch_messages().await.unwrap();
 
-            let invite_messages = group_member
-                .fully_process_qs_messages(qs_messages)
-                .await
-                .expect("Error processing qs messages.");
+            let invite_messages = group_member.fully_process_qs_messages(qs_messages).await;
 
             let invite_messages = display_messages_to_string_map(invite_messages.new_messages);
 
@@ -1130,10 +1097,7 @@ impl TestBackend {
         // process its QS messages.
         let qs_messages = remover.qs_fetch_messages().await.unwrap();
 
-        remover
-            .fully_process_qs_messages(qs_messages)
-            .await
-            .expect("Error processing qs messages.");
+        remover.fully_process_qs_messages(qs_messages).await;
 
         info!(
             "{remover_id:?} removes {} from the group with id {}",
@@ -1189,10 +1153,7 @@ impl TestBackend {
 
             let qs_messages = removed.qs_fetch_messages().await.unwrap();
 
-            removed
-                .fully_process_qs_messages(qs_messages)
-                .await
-                .expect("Error processing qs messages.");
+            removed.fully_process_qs_messages(qs_messages).await;
 
             let removed_chats_after = removed
                 .chats()
@@ -1238,10 +1199,7 @@ impl TestBackend {
             let group_members_before = group_member.chat_participants(chat_id).await.unwrap();
             let qs_messages = group_member.qs_fetch_messages().await.unwrap();
 
-            let remove_messages = group_member
-                .fully_process_qs_messages(qs_messages)
-                .await
-                .expect("Error processing qs messages.");
+            let remove_messages = group_member.fully_process_qs_messages(qs_messages).await;
 
             let remove_messages = display_messages_to_string_map(remove_messages.new_messages);
             assert_eq!(remove_messages, expected_messages);
@@ -1288,10 +1246,7 @@ impl TestBackend {
                 let test_member = self.users.get_mut(member_id).unwrap();
                 let member = &mut test_member.user;
                 let qs_messages = member.qs_fetch_messages().await.unwrap();
-                member
-                    .fully_process_qs_messages(qs_messages)
-                    .await
-                    .expect("Error processing qs messages.");
+                member.fully_process_qs_messages(qs_messages).await;
             }
         }
 
@@ -1300,10 +1255,7 @@ impl TestBackend {
         let random_member = &mut test_random_member.user;
         let qs_messages = random_member.qs_fetch_messages().await.unwrap();
 
-        random_member
-            .fully_process_qs_messages(qs_messages)
-            .await
-            .expect("Error processing qs messages.");
+        random_member.fully_process_qs_messages(qs_messages).await;
 
         let mimi_members_after = random_member.chat_participants(chat_id).await.unwrap();
         let difference: HashSet<UserId> = mimi_members_before
@@ -1345,10 +1297,7 @@ impl TestBackend {
         // process its QS messages.
         let qs_messages = deleter.qs_fetch_messages().await.unwrap();
 
-        deleter
-            .fully_process_qs_messages(qs_messages)
-            .await
-            .expect("Error processing qs messages.");
+        deleter.fully_process_qs_messages(qs_messages).await;
 
         // Perform the remove operation and check that the removed are not in
         // the group anymore.
@@ -1381,10 +1330,7 @@ impl TestBackend {
 
             let qs_messages = group_member.qs_fetch_messages().await.unwrap();
 
-            group_member
-                .fully_process_qs_messages(qs_messages)
-                .await
-                .expect("Error processing qs messages.");
+            group_member.fully_process_qs_messages(qs_messages).await;
 
             let group_member_chat_after = group_member.chat(&chat_id).await.unwrap();
             if let ChatStatus::Inactive(inactive_status) = &group_member_chat_after.status() {
