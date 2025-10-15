@@ -333,7 +333,9 @@ impl CoreUser {
                 None
             }
         });
-        self.schedule_receipts(chat_id, delivery_receipts).await?;
+        self.outbound_service()
+            .enqueue_receipts(chat_id, delivery_receipts)
+            .await?;
 
         let res = match (messages, chat_changed) {
             (messages, true) => ProcessQsMessageResult::ChatChanged(chat_id, messages),
@@ -833,6 +835,11 @@ impl QsStreamProcessor {
         self.responder.replace(responder);
     }
 
+    pub fn on_stream_end(&mut self) {
+        self.messages.clear();
+        self.core_user.outbound_service().stop();
+    }
+
     pub async fn process_event(
         &mut self,
         event: QueueEvent,
@@ -855,6 +862,9 @@ impl QsStreamProcessor {
                     // Invariant: after a message there is always an Empty event as sentinel
                     // => accumulated messages will be processed there
                     self.messages.push(message);
+
+                    self.core_user.outbound_service().stop();
+
                     QsProcessEventResult::Accumulated
                 }
                 Err(error) => {
@@ -907,10 +917,7 @@ impl QsStreamProcessor {
                     }
                 }
 
-                // Scheduled tasks to execute after the queue was fully processed
-                if let Err(error) = self.core_user.send_scheduled_receipts().await {
-                    error!(%error, "Failed to send scheduled receipts");
-                }
+                self.core_user.outbound_service().start();
 
                 result
             }

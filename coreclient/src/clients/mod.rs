@@ -50,6 +50,7 @@ use crate::{
     contacts::HandleContact,
     groups::Group,
     key_stores::queue_ratchets::StorableQsQueueRatchet,
+    outbound_service::OutboundService,
     store::Store,
     utils::{image::resize_profile_image, persistence::delete_client_database},
 };
@@ -113,6 +114,7 @@ struct CoreUserInner {
     qs_client_id: QsClientId,
     key_store: MemoryUserKeyStore,
     store_notifications_tx: StoreNotificationsSender,
+    outbound_service: OutboundService,
 }
 
 impl CoreUser {
@@ -256,6 +258,10 @@ impl CoreUser {
 
     pub(crate) fn http_client(&self) -> reqwest::Client {
         self.inner.http_client.clone()
+    }
+
+    pub(crate) fn outbound_service(&self) -> &OutboundService {
+        &self.inner.outbound_service
     }
 
     pub(crate) fn send_store_notification(&self, notification: StoreNotification) {
