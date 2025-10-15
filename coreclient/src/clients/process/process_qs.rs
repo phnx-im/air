@@ -87,8 +87,6 @@ struct ApplicationMessagesHandlerResult {
 pub enum DecryptQsQueueMessageError {
     #[error(transparent)]
     Db(#[from] sqlx::Error),
-    #[error(transparent)]
-    Extract(#[from] tls_codec::Error),
     #[error(
         "Failed to decrypt: \
             error = {error}, \
