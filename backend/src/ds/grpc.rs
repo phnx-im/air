@@ -31,6 +31,7 @@ use mls_assist::{
     messages::AssistedMessageIn,
     openmls::prelude::{LeafNodeIndex, MlsMessageBodyIn, MlsMessageIn, RatchetTreeIn, Sender},
 };
+use sqlx::{PgConnection, PgTransaction};
 use thiserror::Error;
 use tls_codec::DeserializeBytes;
 use tokio::task::{JoinError, JoinSet};
@@ -54,6 +55,27 @@ pub struct GrpcDs<Qep: QsConnector> {
     qs_connector: Qep,
 }
 
+#[derive(Debug, thiserror::Error)]
+enum LoadGroupStateError {
+    #[error(transparent)]
+    Status(Status),
+    #[error("Group state expired")]
+    Expired,
+}
+
+impl<E: Into<Status>> From<E> for LoadGroupStateError {
+    fn from(error: E) -> Self {
+        Self::Status(error.into())
+    }
+}
+
+fn to_status(e: LoadGroupStateError) -> Status {
+    match e {
+        LoadGroupStateError::Status(status) => status,
+        LoadGroupStateError::Expired => Status::not_found("Group state expired"),
+    }
+}
+
 const MAX_CONCURRENT_FANOUTS: usize = 128;
 
 impl<Qep: QsConnector> GrpcDs<Qep> {
@@ -61,77 +83,27 @@ impl<Qep: QsConnector> GrpcDs<Qep> {
         Self { ds, qs_connector }
     }
 
-    /// Extract and verify the payload with leaf verifying key from an MLS message.
-    ///
-    /// Also loads the group data and group state from the database.
-    async fn leaf_verify<R, P>(&self, request: R) -> Result<LeafVerificationData<P>, Status>
-    where
-        R: WithGroupStateEarKey + WithMessage + Verifiable,
-        P: VerifiedStruct<R>,
-    {
-        self.leaf_verify_with_sender(request, None).await
-    }
-
-    /// Same as `leaf_verify` but allows to specify the sender index.
-    ///
-    /// If the sender index is not specified, the sender is extracted from the message.
-    async fn leaf_verify_with_sender<R, P>(
-        &self,
-        request: R,
-        sender_index: Option<LeafNodeIndex>,
-    ) -> Result<LeafVerificationData<P>, Status>
-    where
-        R: WithGroupStateEarKey + WithMessage + Verifiable,
-        P: VerifiedStruct<R>,
-    {
-        let ear_key = request.ear_key()?;
-        let message = request.message()?;
-        let qgid = message.validated_qgid(self.ds.own_domain())?;
-
-        let (group_data, group_state) = self.load_group_state(&qgid, &ear_key).await?;
-
-        // verify signature
-        let sender_index = sender_index.map(Ok).unwrap_or_else(|| {
-            match *message.sender().ok_or_missing_field("sender")? {
-                Sender::Member(sender_index) => Ok(sender_index),
-                _ => Err(Status::invalid_argument(
-                    "unexpected sender: expected member",
-                )),
-            }
-        })?;
-
-        let verifying_key: LeafVerifyingKeyRef = group_state
-            .group()
-            .leaf(sender_index)
-            .ok_or(Status::invalid_argument("unknown sender"))?
-            .signature_key()
-            .into();
-        let payload: P = request.verify(verifying_key).map_err(InvalidSignature)?;
-
-        Ok(LeafVerificationData {
-            ear_key,
-            group_data,
-            group_state,
-            sender_index,
-            payload,
-            message,
-        })
-    }
-
     /// Loads encrypted group state from the database and decrypts it.
     ///
     /// If the group state has expired, the group is deleted and not found is returned.
-    async fn load_group_state(
+    async fn load_group_state<const LOADED_FOR_UPDATE: bool>(
         &self,
+        connection: &mut PgConnection,
         qgid: &QualifiedGroupId,
         ear_key: &GroupStateEarKey,
-    ) -> Result<(StorableDsGroupData, DsGroupState), Status> {
-        let group_data = StorableDsGroupData::load(&self.ds.db_pool, qgid)
+    ) -> Result<(StorableDsGroupData<LOADED_FOR_UPDATE>, DsGroupState), LoadGroupStateError> {
+        let group_data = StorableDsGroupData::<LOADED_FOR_UPDATE>::load(&mut *connection, qgid)
             .await?
             .ok_or(GroupNotFoundError)?;
         if group_data.has_expired() {
-            StorableDsGroupData::delete(&self.ds.db_pool, qgid).await?;
-            return Err(GroupNotFoundError.into());
+            warn!(%qgid, "Group state has expired, deleting group");
+            StorableDsGroupData::<true>::delete(connection, qgid)
+                .await
+                .map_err(|error| {
+                    error!(%error, "Failed to delete expired group");
+                    Status::internal("Failed to delete expired group")
+                })?;
+            return Err(LoadGroupStateError::Expired);
         }
         let group_state = DsGroupState::decrypt(&group_data.encrypted_group_state, ear_key)?;
         Ok((group_data, group_state))
@@ -178,27 +150,167 @@ impl<Qep: QsConnector> GrpcDs<Qep> {
         timestamp
     }
 
-    async fn update_group_data(
+    async fn encrypt_and_persist(
         &self,
-        mut group_data: StorableDsGroupData,
+        txn: &mut PgTransaction<'_>,
+        mut group_data: StorableDsGroupData<true>,
         group_state: DsGroupState,
         ear_key: &GroupStateEarKey,
     ) -> Result<(), Status> {
         let encrypted_group_state = group_state.encrypt(ear_key)?;
         group_data.encrypted_group_state = encrypted_group_state;
-        group_data.update(&self.ds.db_pool).await.map_err(|error| {
+        group_data.update(txn).await.map_err(|error| {
             error!(%error, "Failed to update group state");
             Status::internal("Failed to update group state")
         })?;
         Ok(())
     }
+
+    /// The same as `update_group_state`, but does not perform any verification
+    /// of the request.
+    async fn update_group_state_without_verification<T: Send>(
+        &self,
+        qgid: &QualifiedGroupId,
+        ear_key: &GroupStateEarKey,
+        f: impl AsyncFnOnce(&mut DsGroupState, &mut StorableDsGroupData<true>) -> Result<T, Status>,
+    ) -> Result<T, Status> {
+        let mut txn = self.ds.db_pool.begin().await.map_err(|error| {
+            error!(%error, "Failed to start transaction");
+            Status::internal("Failed to start transaction")
+        })?;
+        let (mut group_state, mut group_data) = match self
+            .load_group_state::<true>(&mut txn, &qgid, &ear_key)
+            .await
+        {
+            Ok((group_data, group_state)) => (group_state, group_data),
+            Err(LoadGroupStateError::Expired) => {
+                // The group state has expired and has already been deleted.
+                // Commit the transaction and return not found.
+                txn.commit().await.map_err(|error| {
+                    error!(%error, "Failed to commit transaction");
+                    Status::internal("Failed to commit transaction")
+                })?;
+                return Err(Status::not_found("Group state expired"));
+            }
+            Err(LoadGroupStateError::Status(status)) => {
+                return Err(status);
+            }
+        };
+
+        let value = f(&mut group_state, &mut group_data).await?;
+        self.encrypt_and_persist(&mut txn, group_data, group_state, ear_key)
+            .await?;
+        txn.commit().await.map_err(|error| {
+            error!(%error, "Failed to commit transaction");
+            Status::internal("Failed to commit transaction")
+        })?;
+        Ok(value)
+    }
+
+    /// Verifies the given request and applies the necessary changes to the
+    /// group state.
+    ///
+    /// This function loads the group state for update, calls the provided async
+    /// function with the group state and the storable group data, and then
+    /// persists any changes to the database. The transaction is committed if
+    /// the function returns `Ok`, and rolled back if the function returns
+    /// `Err`.
+    ///
+    /// If the group state has expired, it is deleted and not found is returned.
+    async fn update_group_state<R, P, T: Send>(
+        &self,
+        request: R,
+        sender_index: Option<LeafNodeIndex>,
+        f: impl AsyncFnOnce(LeafVerificationData<P, true>) -> Result<T, Status>,
+    ) -> Result<T, Status>
+    where
+        R: WithGroupStateEarKey + WithMessage + Verifiable,
+        P: VerifiedStruct<R>,
+    {
+        let ear_key = request.ear_key()?;
+        let message = request.message()?;
+        let qgid = message.validated_qgid(self.ds.own_domain())?;
+
+        let mut txn = self.ds.db_pool.begin().await.map_err(|error| {
+            error!(%error, "Failed to start transaction");
+            Status::internal("Failed to start transaction")
+        })?;
+        let (mut group_state, group_data) = match self
+            .load_group_state::<true>(&mut txn, &qgid, &ear_key)
+            .await
+        {
+            Ok((group_data, group_state)) => (group_state, group_data),
+            Err(LoadGroupStateError::Expired) => {
+                // The group state has expired and has already been deleted.
+                // Commit the transaction and return not found.
+                txn.commit().await.map_err(|error| {
+                    error!(%error, "Failed to commit transaction");
+                    Status::internal("Failed to commit transaction")
+                })?;
+                return Err(Status::not_found("Group state expired"));
+            }
+            Err(LoadGroupStateError::Status(status)) => {
+                return Err(status);
+            }
+        };
+
+        let (payload, sender_index, message) = verify_message(request, &group_state, sender_index)?;
+
+        let verification_data = LeafVerificationData {
+            ear_key: &ear_key,
+            group_state: &mut group_state,
+            sender_index,
+            payload,
+            message,
+        };
+
+        let value = f(verification_data).await?;
+
+        self.encrypt_and_persist(&mut txn, group_data, group_state, &ear_key)
+            .await?;
+
+        txn.commit().await.map_err(|error| {
+            error!(%error, "Failed to commit transaction");
+            Status::internal("Failed to commit transaction")
+        })?;
+        Ok(value)
+    }
+}
+
+fn verify_message<R, P>(
+    request: R,
+    group_state: &DsGroupState,
+    sender_index: Option<LeafNodeIndex>,
+) -> Result<(P, LeafNodeIndex, AssistedMessageIn), Status>
+where
+    R: WithMessage + Verifiable,
+    P: VerifiedStruct<R>,
+{
+    let message = request.message()?;
+
+    let sender_index = sender_index.map(Ok).unwrap_or_else(|| {
+        match *message.sender().ok_or_missing_field("sender")? {
+            Sender::Member(sender_index) => Ok(sender_index),
+            _ => Err(Status::invalid_argument(
+                "unexpected sender: expected member",
+            )),
+        }
+    })?;
+
+    let verifying_key: LeafVerifyingKeyRef = group_state
+        .group()
+        .leaf(sender_index)
+        .ok_or(Status::invalid_argument("unknown sender"))?
+        .signature_key()
+        .into();
+    let payload: P = request.verify(verifying_key).map_err(InvalidSignature)?;
+    Ok((payload, sender_index, message))
 }
 
 /// Extracted data in leaf verification
-struct LeafVerificationData<P> {
-    ear_key: GroupStateEarKey,
-    group_data: StorableDsGroupData,
-    group_state: DsGroupState,
+struct LeafVerificationData<'a, P, const LOADED_FOR_UPDATE: bool> {
+    ear_key: &'a GroupStateEarKey,
+    group_state: &'a mut DsGroupState,
     sender_index: LeafNodeIndex,
     payload: P,
     message: AssistedMessageIn,
@@ -357,7 +469,11 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
         let qgid = payload.validated_qgid(&self.ds.own_domain)?;
         let ear_key = payload.ear_key()?;
-        let (_, mut group_state) = self.load_group_state(&qgid, &ear_key).await?;
+        let mut connection = self.ds.connection().await?;
+        let (_, mut group_state) = self
+            .load_group_state::<false>(&mut connection, &qgid, &ear_key)
+            .await
+            .map_err(to_status)?;
 
         let welcome_info_params = WelcomeInfoParams {
             sender: sender.clone(),
@@ -396,7 +512,11 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .ok_or_missing_field("group_state_ear_key")?
             .try_ref_into()?;
 
-        let (_, group_state) = self.load_group_state(&qgid, &ear_key).await?;
+        let mut connection = self.ds.connection().await?;
+        let (_, group_state) = self
+            .load_group_state::<false>(&mut connection, &qgid, &ear_key)
+            .await
+            .map_err(to_status)?;
 
         let commit_info = group_state.external_commit_info();
 
@@ -443,7 +563,11 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .ok_or_missing_field("group_state_ear_key")?
             .try_ref_into()?;
 
-        let (_, group_state) = self.load_group_state(&qgid, &ear_key).await?;
+        let mut connection = self.ds.connection().await?;
+        let (_, group_state) = self
+            .load_group_state::<false>(&mut connection, &qgid, &ear_key)
+            .await
+            .map_err(to_status)?;
         let commit_info = group_state.external_commit_info();
 
         let group_info = commit_info
@@ -489,25 +613,29 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .ok_or_missing_field("group_state_ear_key")?
             .try_ref_into()?;
 
-        let (group_data, mut group_state) = self.load_group_state(&qgid, &ear_key).await?;
-
-        let params = JoinConnectionGroupParams {
-            external_commit,
-            qs_client_reference: request
-                .qs_client_reference
-                .ok_or_missing_field("qs_client_reference")?
-                .try_into()?,
-        };
-
-        let destination_clients: Vec<_> = group_state.destination_clients().collect();
-        let group_message = group_state.join_connection_group(params)?;
-
-        self.update_group_data(group_data, group_state, &ear_key)
-            .await?;
-
         let timestamp = self
-            .fan_out_message(group_message, destination_clients)
-            .await;
+            .update_group_state_without_verification(
+                &qgid,
+                &ear_key,
+                async |group_state, _group_data| {
+                    let params = JoinConnectionGroupParams {
+                        external_commit,
+                        qs_client_reference: request
+                            .qs_client_reference
+                            .ok_or_missing_field("qs_client_reference")?
+                            .try_into()?,
+                    };
+
+                    let destination_clients: Vec<_> = group_state.destination_clients().collect();
+                    let group_message = group_state.join_connection_group(params)?;
+
+                    let timestamp = self
+                        .fan_out_message(group_message, destination_clients)
+                        .await;
+                    Ok(timestamp)
+                },
+            )
+            .await?;
 
         Ok(Response::new(JoinConnectionGroupResponse {
             fanout_timestamp: Some(timestamp.into()),
@@ -525,26 +653,39 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .as_ref()
             .ok_or_missing_field("signature")?;
 
-        let LeafVerificationData {
-            ear_key,
-            group_data,
-            mut group_state,
-            sender_index,
-            message: external_commit,
-            ..
-        } = self.leaf_verify::<_, ResyncPayload>(request).await?;
+        let sender_index: LeafNodeIndex = request
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?
+            .sender
+            .ok_or_missing_field("sender")?
+            .into();
 
-        let destination_clients: Vec<_> = group_state
-            .other_destination_clients(sender_index)
-            .collect();
-
-        let group_message = group_state.resync_client(external_commit, sender_index)?;
-        self.update_group_data(group_data, group_state, &ear_key)
-            .await?;
+        //let ear_key = request.ear_key()?;
+        //let message = request.message()?;
+        //let qgid = message.validated_qgid(self.ds.own_domain())?;
 
         let timestamp = self
-            .fan_out_message(group_message, destination_clients)
-            .await;
+            .update_group_state(request, Some(sender_index), async |verified_data| {
+                let LeafVerificationData::<'_, ResyncPayload, true> {
+                    group_state,
+                    sender_index,
+                    message: external_commit,
+                    ..
+                } = verified_data;
+
+                let destination_clients: Vec<_> = group_state
+                    .other_destination_clients(sender_index)
+                    .collect();
+
+                let group_message = group_state.resync_client(external_commit, sender_index)?;
+
+                let timestamp = self
+                    .fan_out_message(group_message, destination_clients)
+                    .await;
+                Ok(timestamp)
+            })
+            .await?;
 
         Ok(Response::new(ResyncResponse {
             fanout_timestamp: Some(timestamp.into()),
@@ -562,26 +703,27 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .as_ref()
             .ok_or_missing_field("signature")?;
 
-        let LeafVerificationData {
-            ear_key,
-            group_data,
-            mut group_state,
-            sender_index,
-            message: remove_proposal,
-            ..
-        } = self.leaf_verify::<_, SelfRemovePayload>(request).await?;
-
-        let destination_clients: Vec<_> = group_state
-            .other_destination_clients(sender_index)
-            .collect();
-
-        let group_message = group_state.self_remove_client(remove_proposal)?;
-        self.update_group_data(group_data, group_state, &ear_key)
-            .await?;
-
         let timestamp = self
-            .fan_out_message(group_message, destination_clients)
-            .await;
+            .update_group_state(request, None, async |verification_data| {
+                let LeafVerificationData::<'_, SelfRemovePayload, true> {
+                    group_state,
+                    sender_index,
+                    message: remove_proposal,
+                    ..
+                } = verification_data;
+
+                let destination_clients: Vec<_> = group_state
+                    .other_destination_clients(sender_index)
+                    .collect();
+
+                let group_message = group_state.self_remove_client(remove_proposal)?;
+
+                let timestamp = self
+                    .fan_out_message(group_message, destination_clients)
+                    .await;
+                Ok(timestamp)
+            })
+            .await?;
 
         Ok(Response::new(SelfRemoveResponse {
             fanout_timestamp: Some(timestamp.into()),
@@ -599,29 +741,33 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .as_ref()
             .ok_or_missing_field("signature")?;
 
-        let sender_index: LeafNodeIndex = request
+        let sender_index = request
             .payload
             .as_ref()
-            .ok_or_missing_field("sender")?
+            .ok_or_missing_field("payload")?
             .sender
             .ok_or_missing_field("sender")?
             .into();
 
-        let LeafVerificationData {
-            group_state,
-            message: mls_message,
-            ..
-        } = self
-            .leaf_verify_with_sender::<_, SendMessagePayload>(request, Some(sender_index))
-            .await?;
+        let ear_key = request.ear_key()?;
+        let message = request.message()?;
+        let qgid = message.validated_qgid(self.ds.own_domain())?;
+
+        // No transaction needed as we do not update the group state and
+        // application messages are out-of-order tolerant.
+        let mut connection = self.ds.db_pool.acquire().await.map_err(|error| {
+            error!(%error, "Failed to acquire DB connection");
+            Status::internal("Failed to acquire DB connection")
+        })?;
+        let (_, group_state) = self
+            .load_group_state::<false>(&mut connection, &qgid, &ear_key)
+            .await
+            .map_err(to_status)?;
 
         let destination_clients = group_state.other_destination_clients(sender_index);
 
         let timestamp = self
-            .fan_out_message(
-                mls_message.into_serialized_mls_message(),
-                destination_clients,
-            )
+            .fan_out_message(message.into_serialized_mls_message(), destination_clients)
             .await;
 
         Ok(Response::new(SendMessageResponse {
@@ -640,27 +786,27 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .as_ref()
             .ok_or_missing_field("signature")?;
 
-        let LeafVerificationData {
-            ear_key,
-            group_data,
-            mut group_state,
-            sender_index,
-            message: commit,
-            ..
-        } = self.leaf_verify::<_, DeleteGroupPayload>(request).await?;
-
-        let destination_clients: Vec<_> = group_state
-            .other_destination_clients(sender_index)
-            .collect();
-
-        let group_message = group_state.delete_group(commit)?;
-
-        self.update_group_data(group_data, group_state, &ear_key)
-            .await?;
-
         let timestamp = self
-            .fan_out_message(group_message, destination_clients)
-            .await;
+            .update_group_state(request, None, async |verification_data| {
+                let LeafVerificationData::<'_, DeleteGroupPayload, true> {
+                    group_state,
+                    sender_index,
+                    message: commit,
+                    ..
+                } = verification_data;
+
+                let destination_clients: Vec<_> = group_state
+                    .other_destination_clients(sender_index)
+                    .collect();
+
+                let group_message = group_state.delete_group(commit)?;
+
+                let timestamp = self
+                    .fan_out_message(group_message, destination_clients)
+                    .await;
+                Ok(timestamp)
+            })
+            .await?;
 
         Ok(Response::new(DeleteGroupResponse {
             fanout_timestamp: Some(timestamp.into()),
@@ -678,45 +824,47 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .as_ref()
             .ok_or_missing_field("signature")?;
 
-        let LeafVerificationData {
-            ear_key,
-            group_data,
-            mut group_state,
-            sender_index,
-            payload,
-            message: commit,
-            ..
-        }: LeafVerificationData<GroupOperationPayload> = self.leaf_verify(request).await?;
-
-        let params = GroupOperationParams {
-            commit,
-            add_users_info_option: payload
-                .add_users_info
-                .map(|info| info.try_into())
-                .transpose()?,
-        };
-
-        let destination_clients: Vec<_> = group_state
-            .other_destination_clients(sender_index)
-            .collect();
-
-        let (group_message, welcome_bundles) =
-            group_state.group_operation(params, &ear_key).await?;
-
-        self.update_group_data(group_data, group_state, &ear_key)
-            .await?;
-
         let timestamp = self
-            .fan_out_message(group_message, destination_clients)
-            .await;
+            .update_group_state(request, None, async |verification_data| {
+                let LeafVerificationData::<'_, GroupOperationPayload, true> {
+                    ear_key,
+                    group_state,
+                    sender_index,
+                    payload,
+                    message: commit,
+                    ..
+                } = verification_data;
 
-        // TODO: Should we fan out the welcome bundles concurrently?
-        for message in welcome_bundles {
-            self.qs_connector
-                .dispatch(message)
-                .await
-                .map_err(DistributeMessageError::Connector)?;
-        }
+                let params = GroupOperationParams {
+                    commit,
+                    add_users_info_option: payload
+                        .add_users_info
+                        .map(|info| info.try_into())
+                        .transpose()?,
+                };
+
+                let destination_clients: Vec<_> = group_state
+                    .other_destination_clients(sender_index)
+                    .collect();
+
+                let (group_message, welcome_bundles) =
+                    group_state.group_operation(params, &ear_key).await?;
+
+                let timestamp = self
+                    .fan_out_message(group_message, destination_clients)
+                    .await;
+
+                // TODO: Should we fan out the welcome bundles concurrently?
+                for message in welcome_bundles {
+                    self.qs_connector
+                        .dispatch(message)
+                        .await
+                        .map_err(DistributeMessageError::Connector)?;
+                }
+
+                Ok(timestamp)
+            })
+            .await?;
 
         Ok(Response::new(GroupOperationResponse {
             fanout_timestamp: Some(timestamp.into()),
@@ -740,42 +888,45 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         let qgid = payload.validated_qgid(self.ds.own_domain())?;
         let sender_index = payload.sender.ok_or_missing_field("sender")?.into();
 
-        let (group_data, mut group_state) = self.load_group_state(&qgid, &ear_key).await?;
+        self.update_group_state_without_verification(
+            &qgid,
+            &ear_key,
+            async |group_state, _group_data| {
+                // verify signature
+                let verifying_key: LeafVerifyingKeyRef = group_state
+                    .group()
+                    .leaf(sender_index)
+                    .ok_or_else(|| Status::invalid_argument("unknown sender"))?
+                    .signature_key()
+                    .into();
+                let payload: UpdateProfileKeyPayload =
+                    request.verify(verifying_key).map_err(InvalidSignature)?;
 
-        // verify signature
-        let verifying_key: LeafVerifyingKeyRef = group_state
-            .group()
-            .leaf(sender_index)
-            .ok_or_else(|| Status::invalid_argument("unknown sender"))?
-            .signature_key()
-            .into();
-        let payload: UpdateProfileKeyPayload =
-            request.verify(verifying_key).map_err(InvalidSignature)?;
+                let user_profile_key = payload
+                    .encrypted_user_profile_key
+                    .ok_or_missing_field("user_profile_key")?
+                    .try_into()?;
+                let params = UserProfileKeyUpdateParams {
+                    group_id: qgid.clone().into(),
+                    sender_index,
+                    user_profile_key,
+                };
 
-        let user_profile_key = payload
-            .encrypted_user_profile_key
-            .ok_or_missing_field("user_profile_key")?
-            .try_into()?;
-        let params = UserProfileKeyUpdateParams {
-            group_id: qgid.into(),
-            sender_index,
-            user_profile_key,
-        };
+                let fan_out_payload =
+                    QsQueueMessagePayload::try_from(&params).tls_failed("QsQueueMessagePayload")?;
 
-        let fan_out_payload =
-            QsQueueMessagePayload::try_from(&params).tls_failed("QsQueueMessagePayload")?;
+                group_state.update_user_profile_key(sender_index, params.user_profile_key)?;
 
-        group_state.update_user_profile_key(sender_index, params.user_profile_key)?;
+                let destination_clients: Vec<_> = group_state
+                    .other_destination_clients(sender_index)
+                    .collect();
 
-        let destination_clients: Vec<_> = group_state
-            .other_destination_clients(sender_index)
-            .collect();
-
-        self.update_group_data(group_data, group_state, &ear_key)
-            .await?;
-
-        self.fan_out_message(fan_out_payload, destination_clients)
-            .await;
+                self.fan_out_message(fan_out_payload, destination_clients)
+                    .await;
+                Ok(())
+            },
+        )
+        .await?;
 
         Ok(Response::new(UpdateProfileKeyResponse {}))
     }
@@ -797,7 +948,14 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         let qgid = payload.validated_qgid(self.ds.own_domain())?;
         let sender_index = payload.sender.ok_or_missing_field("sender")?.into();
 
-        let (_group_data, group_state) = self.load_group_state(&qgid, &ear_key).await?;
+        let mut connection = self.ds.db_pool.acquire().await.map_err(|error| {
+            error!(%error, "Failed to acquire DB connection");
+            Status::internal("Failed to acquire DB connection")
+        })?;
+        let (_group_data, group_state) = self
+            .load_group_state::<false>(&mut connection, &qgid, &ear_key)
+            .await
+            .map_err(to_status)?;
 
         // verify signature
         let verifying_key: LeafVerifyingKeyRef = group_state
@@ -828,7 +986,14 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         let qgid = payload.validated_qgid(self.ds.own_domain())?;
         let sender_index = payload.sender.ok_or_missing_field("sender")?.into();
 
-        let (_group_data, group_state) = self.load_group_state(&qgid, &ear_key).await?;
+        let mut connection = self.ds.db_pool.acquire().await.map_err(|error| {
+            error!(%error, "Failed to acquire DB connection");
+            Status::internal("Failed to acquire DB connection")
+        })?;
+        let (_group_data, group_state) = self
+            .load_group_state::<false>(&mut connection, &qgid, &ear_key)
+            .await
+            .map_err(to_status)?;
 
         // verify signature
         let verifying_key: LeafVerifyingKeyRef = group_state
