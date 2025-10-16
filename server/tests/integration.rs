@@ -605,7 +605,7 @@ async fn mark_as_read() {
 
     // Bob sends scheduled receipts
     let bob_test_user = setup.users.get(&BOB).unwrap();
-    bob_test_user.user.send_scheduled_receipts().await.unwrap();
+    bob_test_user.user.outbound_service().run_now().await;
 
     // Alice sees the delivery receipt
     let num_processed = alice_test_user.fetch_and_process_qs_messages().await;
@@ -619,13 +619,14 @@ async fn mark_as_read() {
     let last_message = bob.last_message(alice_bob_chat).await.unwrap().unwrap();
     let last_message_id = last_message.id();
     let last_message_mimi_id = last_message.message().mimi_id().unwrap();
-    bob.schedule_receipts(
-        alice_bob_chat,
-        [(last_message_id, last_message_mimi_id, MessageStatus::Read)].into_iter(),
-    )
-    .await
-    .unwrap();
-    bob.send_scheduled_receipts().await.unwrap();
+    bob.outbound_service()
+        .enqueue_receipts(
+            alice_bob_chat,
+            [(last_message_id, last_message_mimi_id, MessageStatus::Read)].into_iter(),
+        )
+        .await
+        .unwrap();
+    bob.outbound_service().run_now().await;
 
     // Alice sees the read receipt
     let num_processed = alice_test_user.fetch_and_process_qs_messages().await;

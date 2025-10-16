@@ -7,7 +7,7 @@ use std::{collections::HashSet, path::Path};
 
 use aircommon::identifiers::{AttachmentId, MimiId, UserHandle, UserId};
 use aircommon::messages::client_as_out::UserHandleDeleteResponse;
-use mimi_content::{MessageStatus, MimiContent};
+use mimi_content::MimiContent;
 use mimi_room_policy::VerifiedRoomState;
 use tokio_stream::Stream;
 use uuid::Uuid;
@@ -207,18 +207,6 @@ pub trait Store {
         content: MimiContent,
         replaces_id: Option<MessageId>,
     ) -> StoreResult<ChatMessage>;
-
-    /// Schedules receipts for messages in a chat.
-    async fn schedule_receipts<'a>(
-        &self,
-        chat_id: ChatId,
-        statuses: impl Iterator<Item = (MessageId, &'a MimiId, MessageStatus)> + Send,
-    ) -> StoreResult<()>;
-
-    /// Sends all previously scheduled receipts.
-    ///
-    /// See [`Self::schedule_receipts`].
-    async fn send_scheduled_receipts(&self) -> StoreResult<()>;
 
     async fn resend_message(&self, local_message_id: Uuid) -> StoreResult<()>;
 

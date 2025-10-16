@@ -241,6 +241,7 @@ dependencies = [
  "tls_codec",
  "tokio",
  "tokio-stream",
+ "tokio-util",
  "tracing",
  "tracing-subscriber",
  "trait-variant",

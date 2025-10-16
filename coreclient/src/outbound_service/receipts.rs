@@ -8,26 +8,25 @@ use mimi_content::{
     ByteBuf, Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPart,
     NestedPartContent, PerMessageStatus,
 };
-use sqlx::SqliteTransaction;
+use tokio_util::sync::CancellationToken;
 use tracing::error;
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatId, ChatMessage, ChatStatus, MessageId,
+    Chat, ChatId, ChatStatus, MessageId,
     chats::{StatusRecord, status::ReceiptQueue},
     groups::{Group, openmls_provider::AirOpenMlsProvider},
-    store::StoreNotifier,
 };
 
-use super::{OutboundService, OutboundServiceOp, OutboundServiceTask};
+use super::{OutboundService, OutboundServiceContext};
 
 impl OutboundService {
-    pub(crate) async fn enqueue_receipts<'a>(
+    pub async fn enqueue_receipts<'a>(
         &self,
         chat_id: ChatId,
         statuses: impl Iterator<Item = (MessageId, &'a MimiId, MessageStatus)> + Send,
     ) -> anyhow::Result<()> {
-        let mut connection = self.pool.acquire().await?;
+        let mut connection = self.context.pool.acquire().await?;
 
         let chat = Chat::load(&mut connection, &chat_id)
             .await?
@@ -43,17 +42,24 @@ impl OutboundService {
                 .await?;
         }
 
-        self.tx.send(OutboundServiceOp::Work).await?;
+        self.notify_task();
 
         Ok(())
     }
 }
 
-impl OutboundServiceTask {
-    pub(super) async fn send_queued_receipts(&self) -> anyhow::Result<()> {
+impl OutboundServiceContext {
+    pub(super) async fn send_queued_receipts(
+        &self,
+        run_token: CancellationToken,
+    ) -> anyhow::Result<()> {
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
         loop {
+            if run_token.is_cancelled() {
+                return Ok(()); // the task is being stopped
+            }
+
             let Some((chat_id, statuses)) = ReceiptQueue::dequeue(&self.pool, task_id).await?
             else {
                 return Ok(());

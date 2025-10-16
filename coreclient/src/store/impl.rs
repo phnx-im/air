@@ -8,7 +8,6 @@ use aircommon::{
     identifiers::{AttachmentId, MimiId, UserHandle, UserId},
     messages::client_as_out::UserHandleDeleteResponse,
 };
-use mimi_content::MessageStatus;
 use mimi_room_policy::VerifiedRoomState;
 use tokio_stream::Stream;
 use tracing::error;
@@ -256,18 +255,6 @@ impl Store for CoreUser {
         replaces_id: Option<MessageId>,
     ) -> StoreResult<ChatMessage> {
         self.send_message(chat_id, content, replaces_id).await
-    }
-
-    async fn schedule_receipts<'a>(
-        &self,
-        chat_id: ChatId,
-        statuses: impl Iterator<Item = (MessageId, &'a MimiId, MessageStatus)> + Send,
-    ) -> StoreResult<()> {
-        self.schedule_receipts(chat_id, statuses).await
-    }
-
-    async fn send_scheduled_receipts(&self) -> StoreResult<()> {
-        self.send_scheduled_receipts().await
     }
 
     async fn upload_attachment(&self, chat_id: ChatId, path: &Path) -> StoreResult<ChatMessage> {

@@ -320,7 +320,8 @@ impl ChatDetailsCubitBase {
         if let Err(error) = self
             .context
             .store
-            .schedule_receipts(self.context.chat_id, statuses)
+            .outbound_service()
+            .enqueue_receipts(self.context.chat_id, statuses)
             .await
         {
             error!(%error, "Failed to send read receipt");

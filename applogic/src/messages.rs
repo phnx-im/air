@@ -6,7 +6,6 @@ use aircommon::messages::QueueMessage;
 use aircoreclient::{
     ChatId,
     clients::{process::process_qs::ProcessedQsMessages, queue_event},
-    store::Store,
 };
 use anyhow::Result;
 use tokio_stream::StreamExt;
@@ -65,9 +64,7 @@ impl User {
         }
         drop(stream); // must be alive until the ack is sent
 
-        if let Err(error) = self.user.send_scheduled_receipts().await {
-            error!(%error, "Failed to send scheduled receipts");
-        }
+        self.user.outbound_service().run_now().await;
 
         Ok(processed_messages)
     }

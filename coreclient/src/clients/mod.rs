@@ -260,7 +260,7 @@ impl CoreUser {
         self.inner.http_client.clone()
     }
 
-    pub(crate) fn outbound_service(&self) -> &OutboundService {
+    pub fn outbound_service(&self) -> &OutboundService {
         &self.inner.outbound_service
     }
 
