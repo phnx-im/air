@@ -6,7 +6,7 @@ set windows-shell := ["C:\\Program Files\\Git\\bin\\sh.exe","-c"]
 
 # === Backend ===
 
-POSTGRES_DATABASE_URL := "postgres://postgres:password@localhost:5432/phnx_db"
+POSTGRES_DATABASE_URL := "postgres://postgres:password@localhost:5432/air_db"
 
 docker-is-podman := if `command -v podman || true` =~ ".*podman$" { "true" } else { "false" }
 

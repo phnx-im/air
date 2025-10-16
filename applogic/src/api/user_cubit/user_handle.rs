@@ -133,7 +133,7 @@ impl BackgroundStreamContext<HandleQueueMessage> for HandleContext {
         Ok(stream.filter_map(identity))
     }
 
-    async fn handle_event(&mut self, message: HandleQueueMessage) {
+    async fn handle_event(&mut self, message: HandleQueueMessage) -> bool {
         let message_id = message.message_id.map(From::from);
         match self
             .cubit_context
@@ -154,6 +154,7 @@ impl BackgroundStreamContext<HandleQueueMessage> for HandleContext {
         }
         // ack the message independently of the result of processing the message
         self.ack(message_id).await;
+        true // continue
     }
 }
 

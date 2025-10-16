@@ -74,6 +74,6 @@ fn get_configuration_impl(
         .add_source(environment)
         // Add in settings from environment variables (with a prefix of APP and '_' as separator)
         // E.g. `AIR_APPLICATION_PORT=5001 would set `Settings.application.port`
-        .add_source(config::Environment::with_prefix("PHNX").separator("_"));
+        .add_source(config::Environment::with_prefix("AIR").separator("_"));
     builder.build()?.try_deserialize()
 }

@@ -39,7 +39,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get userSettingsScreen_help => 'Aide';
 
   @override
-  String get userSettingsScreen_deleteAccount => 'Delete Account';
+  String get userSettingsScreen_deleteAccount => 'Delete Air Account';
 
   @override
   String get removeUsernameDialog_title => 'Supprimer le nom d\'utilisateur';
@@ -92,8 +92,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get removeUserDialog_title => 'Retirer l\'utilisateur';
 
   @override
-  String get removeUserDialog_content =>
-      'Êtes-vous sûr de vouloir retirer cet utilisateur du groupe ?';
+  String removeUserDialog_content(Object displayName) {
+    return 'Êtes-vous sûr de vouloir retirer cet utilisateur du groupe ?';
+  }
 
   @override
   String get removeUserDialog_cancel => 'Annuler';
@@ -140,7 +141,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get unblockContactDialog_cancel => 'Cancel';
 
   @override
-  String get unblockContactDialog_unblock => 'Unblock User';
+  String get unblockContactDialog_unblock => 'Unblock';
 
   @override
   String get deleteContactButton_text => 'Delete Air Contact';
@@ -163,17 +164,17 @@ class AppLocalizationsFr extends AppLocalizations {
   String get introScreen_signUp => 'S\'inscrire';
 
   @override
-  String get signUpScreen_title => 'Sign Up';
+  String get signUpScreen_title => 'Create an Air Account';
 
   @override
   String get signUpScreen_actionButton => 'Sign Up';
 
   @override
   String get signUpScreen_displayNameLabel =>
-      'Choose a picture and a display name.';
+      'Add a Profile Picture and Display Name.';
 
   @override
-  String get signUpScreen_displayNameHint => 'DISPLAY NAME';
+  String get signUpScreen_displayNameHint => 'Display Name';
 
   @override
   String get signUpScreen_serverLabel =>
@@ -187,7 +188,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get signUpScreen_error_emptyDisplayName =>
-      'Display name cannot be empty';
+      'Add a Display Name of at least one character';
 
   @override
   String signUpScreen_error_register(Object error) {
@@ -205,7 +206,8 @@ class AppLocalizationsFr extends AppLocalizations {
       'Le nom d\'utilisateur ne peut pas être vide';
 
   @override
-  String get userHandleScreen_error_alreadyExists => 'Username already exists';
+  String get userHandleScreen_error_alreadyExists =>
+      'Username is already in use';
 
   @override
   String get userHandleScreen_description =>
@@ -275,12 +277,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get chatList_blocked => 'Blocked';
-
-  @override
-  String get settings_profile => 'Profil';
-
-  @override
-  String get settings_developerSettings => 'Paramètres (développeur)';
 
   @override
   String get newChatDialog_newChatTitle => 'Nouvelle chat';
@@ -360,7 +356,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get textMessage_hiddenPlaceholder =>
-      'Blocked contact, tap to reveal message';
+      'Blocked user, tap to reveal message';
 
   @override
   String get textMessage_deleted => 'Deleted message';
@@ -447,20 +443,21 @@ class AppLocalizationsFr extends AppLocalizations {
   String get groupDetails_members => 'Members';
 
   @override
-  String get groupDetails_addMembers => 'Add Members';
+  String get groupDetails_addMembers => 'Add members';
 
   @override
-  String get groupDetails_leaveChat => 'Leave Chat';
+  String get groupDetails_leaveChat => 'Leave Group';
 
   @override
-  String get groupDetails_deleteChat => 'Delete Chat';
+  String get groupDetails_deleteChat => 'Delete Group Chat';
 
   @override
-  String get leaveChatDialog_title => 'Leave Chat';
+  String get leaveChatDialog_title => 'Leave Group';
 
   @override
-  String get leaveChatDialog_content =>
-      'Are you sure you want to leave this chat?';
+  String leaveChatDialog_content(Object chatName) {
+    return 'Are you sure you want to leave $chatName?';
+  }
 
   @override
   String get leaveChatDialog_cancel => 'Cancel';
@@ -473,7 +470,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get deleteChatDialog_content =>
-      'This chat will be deleted. There is no way to undo this.';
+      'This Chat will be deleted. There is no way to undo this.';
 
   @override
   String get deleteChatDialog_cancel => 'Cancel';
@@ -513,7 +510,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get deleteAccountScreen_explanatoryText =>
-      'This will delete your Air account and reset the application. You will not be able to recover your account.';
+      'This will delete your Air Account and reset the application. You will not be able to recover your account.';
 
   @override
   String get deleteAccountScreen_confirmationInputHint => 'Confirmation';
@@ -523,7 +520,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Type \'delete\' to confirm';
 
   @override
-  String get deleteAccountScreen_confirmButtonText => 'Delete Account';
+  String get deleteAccountScreen_confirmButtonText => 'Delete Air Account';
 
   @override
   String get deleteAccountScreen_cancelButtonText => 'Cancel';

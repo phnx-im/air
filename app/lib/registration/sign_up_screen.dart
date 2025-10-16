@@ -84,6 +84,8 @@ class _Form extends HookWidget {
           : const Size(300, 80),
     );
 
+    final serverFieldVisible = useState(false);
+
     return Form(
       key: formKey,
       autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -92,7 +94,10 @@ class _Form extends HookWidget {
           children: [
             const SizedBox(height: Spacings.s),
 
-            const _UserAvatarPicker(),
+            GestureDetector(
+              onLongPress: () => serverFieldVisible.value = true,
+              child: const _UserAvatarPicker(),
+            ),
             const SizedBox(height: Spacings.s),
 
             Text(loc.signUpScreen_displayNameLabel),
@@ -104,17 +109,21 @@ class _Form extends HookWidget {
                 onFieldSubmitted: () => _submit(context, formKey),
               ),
             ),
-            const SizedBox(height: Spacings.m),
 
-            Text(loc.signUpScreen_serverLabel),
-            const SizedBox(height: Spacings.s),
+            if (serverFieldVisible.value) ...[
+              const SizedBox(height: Spacings.m),
 
-            ConstrainedBox(
-              constraints: textFormContstraints,
-              child: _ServerTextField(
-                onFieldSubmitted: () => _submit(context, formKey),
+              Text(loc.signUpScreen_serverLabel),
+              const SizedBox(height: Spacings.s),
+
+              ConstrainedBox(
+                constraints: textFormContstraints,
+                child: _ServerTextField(
+                  onFieldSubmitted: () => _submit(context, formKey),
+                ),
               ),
-            ),
+            ],
+
             const SizedBox(height: Spacings.s),
           ],
         ),

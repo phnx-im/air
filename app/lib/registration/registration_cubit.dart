@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/core/core.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:logging/logging.dart';
-import 'package:air/core/core.dart';
 
 part 'registration_cubit.freezed.dart';
 
@@ -25,7 +25,7 @@ sealed class RegistrationState with _$RegistrationState {
 
   const factory RegistrationState({
     // Domain choice screen data
-    @Default('dev.phnx.im') String domain,
+    @Default('air.ms') String domain,
 
     // Display name/avatar screen data
     ImageData? avatar,

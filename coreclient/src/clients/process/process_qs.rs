@@ -16,6 +16,7 @@ use aircommon::{
     },
     time::TimeStamp,
 };
+use airprotos::queue_service::v1::{QueueEvent, queue_event};
 use anyhow::{Context, Result, bail, ensure};
 use mimi_content::{
     Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPartContent,
@@ -30,22 +31,24 @@ use openmls::{
 };
 use sqlx::{Acquire, SqliteTransaction};
 use tls_codec::DeserializeBytes;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     ChatMessage, ChatStatus, ContentMessage, Message, SystemMessage,
     chats::{ChatType, StatusRecord, messages::edit::MessageEdit},
-    clients::block_contact::{BlockedContact, BlockedContactError},
+    clients::{
+        QsListenResponder,
+        block_contact::{BlockedContact, BlockedContactError},
+    },
     contacts::HandleContact,
     groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
-    key_stores::indexed_keys::StorableIndexedKey,
+    key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     store::StoreNotifier,
 };
 
 use super::{
     Chat, ChatAttributes, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow,
 };
-use crate::key_stores::queue_ratchets::StorableQsQueueRatchet;
 
 pub enum ProcessQsMessageResult {
     None,
@@ -55,13 +58,14 @@ pub enum ProcessQsMessageResult {
     RejoinRequired(GroupId),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ProcessedQsMessages {
     pub new_chats: Vec<ChatId>,
     pub changed_chats: Vec<ChatId>,
     pub new_messages: Vec<ChatMessage>,
     pub errors: Vec<anyhow::Error>,
     pub rejoined_chats: Vec<ChatId>,
+    pub processed: usize,
 }
 
 impl ProcessedQsMessages {
@@ -81,29 +85,6 @@ struct ApplicationMessagesHandlerResult {
 }
 
 impl CoreUser {
-    /// Decrypt a `QueueMessage` received from the QS queue.
-    pub async fn decrypt_qs_queue_message(
-        &self,
-        qs_message_ciphertext: QueueMessage,
-    ) -> Result<ExtractedQsQueueMessage> {
-        self.with_transaction(async |txn| {
-            let mut qs_queue_ratchet = StorableQsQueueRatchet::load(txn.as_mut()).await?;
-            let seq_number = qs_message_ciphertext.sequence_number;
-            let qs_queue_ratchet_seq_number = qs_queue_ratchet.sequence_number();
-            let payload = qs_queue_ratchet
-                .decrypt(qs_message_ciphertext)
-                .with_context(|| {
-                    format!(
-                        "QS message with sequence number {seq_number}, \
-                        ratchet sequence number {qs_queue_ratchet_seq_number}"
-                    )
-                })?;
-            qs_queue_ratchet.update_ratchet(txn.as_mut()).await?;
-            Ok(payload.extract()?)
-        })
-        .await
-    }
-
     /// Process a decrypted message received from the QS queue.
     ///
     /// Returns the [`ChatId`] of newly created chats and any
@@ -691,16 +672,31 @@ impl CoreUser {
     pub async fn fully_process_qs_messages(
         &self,
         qs_messages: Vec<QueueMessage>,
-    ) -> Result<ProcessedQsMessages> {
-        // Process each qs message individually
-        let mut new_chats = vec![];
-        let mut changed_chats = vec![];
-        let mut new_messages = vec![];
-        let mut errors = vec![];
-        let mut rejoined_chats = vec![];
+    ) -> ProcessedQsMessages {
+        let mut result = ProcessedQsMessages::default();
+        let num_messages = qs_messages.len();
 
-        for qs_message in qs_messages {
-            let qs_message_plaintext = self.decrypt_qs_queue_message(qs_message).await?;
+        // Process each qs message individually
+        for (idx, qs_message) in qs_messages.into_iter().enumerate() {
+            let qs_message_payload =
+                match StorableQsQueueRatchet::decrypt_qs_queue_message(self.pool(), qs_message)
+                    .await
+                {
+                    Ok(plaintext) => plaintext,
+                    Err(error) => {
+                        error!(%error, "Decrypting message failed");
+                        result.processed = idx;
+                        return result;
+                    }
+                };
+            let qs_message_plaintext = match qs_message_payload.extract() {
+                Ok(extracted) => extracted,
+                Err(error) => {
+                    error!(%error, "Extracting message failed; dropping message");
+                    continue;
+                }
+            };
+
             let processed = match self.process_qs_message(qs_message_plaintext).await {
                 Ok(processed) => processed,
                 Err(e) if e.downcast_ref::<BlockedContactError>().is_some() => {
@@ -709,43 +705,41 @@ impl CoreUser {
                 }
                 Err(e) => {
                     error!(error = %e, "Processing message failed");
-                    errors.push(e);
+                    result.errors.push(e);
                     continue;
                 }
             };
 
             match processed {
                 ProcessQsMessageResult::Messages(messages) => {
-                    new_messages.extend(messages);
+                    result.new_messages.extend(messages);
                 }
                 ProcessQsMessageResult::ChatChanged(chat_id, messages) => {
-                    new_messages.extend(messages);
-                    changed_chats.push(chat_id)
+                    result.new_messages.extend(messages);
+                    result.changed_chats.push(chat_id)
                 }
-                ProcessQsMessageResult::NewChat(chat_id) => new_chats.push(chat_id),
+                ProcessQsMessageResult::NewChat(chat_id) => result.new_chats.push(chat_id),
                 ProcessQsMessageResult::None => {}
                 ProcessQsMessageResult::RejoinRequired(group_id) => {
                     // This should be scheduled to be run after message
                     // processing is done.
-                    let chat_id = ChatId::try_from(&group_id)?;
+                    let Ok(chat_id) = ChatId::try_from(&group_id) else {
+                        error!("Failed to convert group ID to chat ID");
+                        continue;
+                    };
                     if let Err(e) = self.resync_group(group_id).await {
                         error!(%e, "Failed to rejoin group");
-                        errors.push(e);
+                        result.errors.push(e);
                     } else {
-                        rejoined_chats.push(chat_id);
+                        result.rejoined_chats.push(chat_id);
                         info!(%chat_id, "Successfully rejoined group");
                     }
                 }
             }
         }
 
-        Ok(ProcessedQsMessages {
-            new_chats,
-            changed_chats,
-            new_messages,
-            errors,
-            rejoined_chats,
-        })
+        result.processed = num_messages;
+        result
     }
 
     async fn resync_group(&self, group_id: GroupId) -> anyhow::Result<()> {
@@ -889,4 +883,159 @@ async fn handle_message_edit(
     Chat::mark_as_unread(txn, notifier, message.chat_id(), message.id()).await?;
 
     Ok(message)
+}
+
+/// A processor for the streamed QS events.
+///
+/// This processor is meant to be used in the streaming context where the events are streamed one
+/// by one and this process never finishes until the stream is closed. Each event is processed by
+/// `[Self::process_event]`.
+#[derive(Debug)]
+pub struct QsStreamProcessor {
+    core_user: CoreUser,
+    responder: Option<QsListenResponder>,
+    /// Accumulated but not yet processed messages
+    ///
+    /// Note: It is safe to keep messages in memory here, because they are not yet decrypted.
+    /// Decryption increases the locally stored ratchet sequence number, which is used to determine
+    /// which messages should be fetched from the server. In case, the app is shut down, the
+    /// messages will be received again.
+    messages: Vec<QueueMessage>,
+}
+
+pub trait QsNotificationProcessor {
+    fn show_notifications(
+        &mut self,
+        messages: ProcessedQsMessages,
+    ) -> impl Future<Output = ()> + Send;
+}
+
+impl QsStreamProcessor {
+    pub fn new(core_user: CoreUser) -> Self {
+        Self {
+            core_user,
+            responder: None,
+            messages: Vec::new(),
+        }
+    }
+
+    pub fn with_responder(core_user: CoreUser, responder: QsListenResponder) -> Self {
+        Self {
+            core_user,
+            responder: Some(responder),
+            messages: Vec::new(),
+        }
+    }
+
+    pub fn replace_responder(&mut self, responder: QsListenResponder) {
+        self.responder.replace(responder);
+    }
+
+    pub async fn process_event(
+        &mut self,
+        event: QueueEvent,
+        notification_processor: &mut impl QsNotificationProcessor,
+    ) -> QsProcessEventResult {
+        debug!(?event, "processing QS listen event");
+
+        match event.event {
+            None => {
+                error!("received an empty event");
+                QsProcessEventResult::Ignored
+            }
+            Some(queue_event::Event::Payload(_)) => {
+                // currently, we don't handle payload events
+                warn!("ignoring QS listen payload event");
+                QsProcessEventResult::Ignored
+            }
+            Some(queue_event::Event::Message(message)) => match message.try_into() {
+                Ok(message) => {
+                    // Invariant: after a message there is always an Empty event as sentinel
+                    // => accumulated messages will be processed there
+                    self.messages.push(message);
+                    QsProcessEventResult::Accumulated
+                }
+                Err(error) => {
+                    error!(%error, "failed to convert QS message; dropping");
+                    QsProcessEventResult::Ignored
+                }
+            },
+            // Empty event indicates that the queue is empty
+            Some(queue_event::Event::Empty(_)) => {
+                if self.messages.is_empty() {
+                    return QsProcessEventResult::FullyProcessed { processed: 0 }; // no messages to process
+                }
+
+                let max_sequence_number = self.messages.last().map(|m| m.sequence_number);
+
+                let messages = std::mem::take(&mut self.messages);
+                let num_messages = messages.len();
+                let processed_messages = self.core_user.fully_process_qs_messages(messages).await;
+
+                let result = if processed_messages.processed < num_messages {
+                    error!(
+                        processed_messages.processed,
+                        num_messages, "failed to fully process messages"
+                    );
+                    QsProcessEventResult::PartiallyProcessed {
+                        processed: processed_messages.processed,
+                        dropped: num_messages - processed_messages.processed,
+                    }
+                } else {
+                    QsProcessEventResult::FullyProcessed {
+                        processed: processed_messages.processed,
+                    }
+                };
+
+                notification_processor
+                    .show_notifications(processed_messages)
+                    .await;
+
+                if let Some(max_sequence_number) = max_sequence_number {
+                    // We received some messages, so we can ack them *after* they were fully
+                    // processed. In particular, the queue ratchet sequence number has been already
+                    // written back into the database.
+                    if let Some(responder) = self.responder.as_ref() {
+                        responder
+                            .ack(max_sequence_number + 1)
+                            .await
+                            .inspect_err(|error| {
+                                error!(%error, "failed to ack QS messages");
+                            })
+                            .ok();
+                    } else {
+                        error!("logic error: no responder to ack QS messages");
+                    }
+                }
+
+                result
+            }
+        }
+    }
+}
+
+pub enum QsProcessEventResult {
+    /// Event was accumulated to be processed later
+    Accumulated,
+    /// Event was ignored
+    Ignored,
+    /// All accumulated events where fully processed
+    FullyProcessed { processed: usize },
+    /// Accumulated events were partially processed, some events were dropped
+    PartiallyProcessed { processed: usize, dropped: usize },
+}
+
+impl QsProcessEventResult {
+    pub fn processed(&self) -> usize {
+        match self {
+            Self::Accumulated => 0,
+            Self::Ignored => 0,
+            Self::FullyProcessed { processed } => *processed,
+            Self::PartiallyProcessed { processed, .. } => *processed,
+        }
+    }
+
+    pub fn is_partially_processed(&self) -> bool {
+        matches!(self, Self::PartiallyProcessed { .. })
+    }
 }

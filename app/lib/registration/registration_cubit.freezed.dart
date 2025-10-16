@@ -82,7 +82,7 @@ as bool,
 
 
 class _RegistrationState extends RegistrationState {
-  const _RegistrationState({this.domain = 'dev.phnx.im', this.avatar, this.displayName = '', this.isSigningUp = false}): super._();
+  const _RegistrationState({this.domain = 'air.ms', this.avatar, this.displayName = '', this.isSigningUp = false}): super._();
   
 
 // Domain choice screen data

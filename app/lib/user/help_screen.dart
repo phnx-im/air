@@ -11,7 +11,6 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'contact_us_screen.dart';
-import 'licenses_screen.dart';
 import 'user_settings_screen.dart';
 
 class HelpScreen extends StatelessWidget {
@@ -106,7 +105,7 @@ class _Licenses extends StatelessWidget {
       onTap: () {
         Navigator.of(
           context,
-        ).push(MaterialPageRoute(builder: (context) => const LicensesScreen()));
+        ).push(MaterialPageRoute(builder: (context) => const LicensePage()));
       },
     );
   }

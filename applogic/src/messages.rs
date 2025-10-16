@@ -43,7 +43,12 @@ impl User {
         // Invariant: messages are sorted by sequence number
         let max_sequence_number = messages.last().map(|m| m.sequence_number);
 
-        let processed_messages = self.user.fully_process_qs_messages(messages).await?;
+        let num_messages = messages.len();
+        let processed_messages = self.user.fully_process_qs_messages(messages).await;
+        if processed_messages.processed != num_messages {
+            let dropped = num_messages - processed_messages.processed;
+            error!(%dropped, "failed to fully process messages");
+        }
 
         if let Some(max_sequence_number) = max_sequence_number {
             // We received some messages, so we can ack them *after* they were fully
@@ -78,6 +83,7 @@ impl User {
             new_messages,
             errors: _,
             rejoined_chats: _,
+            processed: _,
         } = self.fetch_and_process_qs_messages().await?;
         self.new_chat_notifications(&new_chats, &mut notifications)
             .await;

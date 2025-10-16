@@ -211,7 +211,7 @@ pub struct AsIntermediateCredentialPayload {
     pub signer_fingerprint: Hash<AsCredentialBody>, // fingerprint of the signing AsCredential
 }
 
-const AS_INTERMEDIATE_CREDENTIAL_LABEL: &str = "MLS Infra AS Intermediate Credential";
+const AS_INTERMEDIATE_CREDENTIAL_LABEL: &str = "AS Intermediate Credential";
 
 impl Labeled for AsIntermediateCredentialBody {
     const LABEL: &'static str = AS_INTERMEDIATE_CREDENTIAL_LABEL;

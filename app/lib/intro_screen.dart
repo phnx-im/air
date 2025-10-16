@@ -32,16 +32,25 @@ class IntroScreen extends StatelessWidget {
         child: Center(
           child: Column(
             children: [
-              Expanded(
-                child: SvgPicture.asset(
-                  'assets/images/tilde.svg',
+              const Spacer(),
+              GestureDetector(
+                onLongPress: () {
+                  context.read<NavigationCubit>().openDeveloperSettings();
+                },
+                child: SizedBox(
                   width: 64,
-                  colorFilter: ColorFilter.mode(
-                    CustomColorScheme.of(context).text.primary,
-                    BlendMode.srcIn,
+                  height: 64,
+                  child: SvgPicture.asset(
+                    'assets/images/tilde.svg',
+                    width: 64,
+                    colorFilter: ColorFilter.mode(
+                      CustomColorScheme.of(context).text.primary,
+                      BlendMode.srcIn,
+                    ),
                   ),
                 ),
               ),
+              const Spacer(),
               if (!isUserLoading)
                 Column(
                   crossAxisAlignment:
@@ -59,16 +68,6 @@ class IntroScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-              if (!isUserLoading) const SizedBox(height: Spacings.xs),
-              TextButton(
-                onPressed:
-                    () =>
-                        context.read<NavigationCubit>().openDeveloperSettings(),
-                child: Text(
-                  loc.settings_developerSettings,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
             ],
           ),
         ),
