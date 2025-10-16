@@ -82,6 +82,7 @@ impl DsGrpcClient {
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
             message: Some(params.message.try_ref_into()?),
             sender: Some(params.sender.into()),
+            suppress_notifications: params.suppress_notifications,
         };
 
         let request = payload.sign(signing_key)?;

@@ -391,6 +391,8 @@ impl DsGroupState {
                         .map_err(|_| GroupOperationError::LibraryError)?,
                 ),
                 client_reference: client_queue_config,
+                // No notifications for welcome messages
+                suppress_notifications: true.into(),
             };
             fan_out_messages.push(fan_out_message);
         }

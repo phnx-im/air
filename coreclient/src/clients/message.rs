@@ -185,6 +185,7 @@ impl CoreUser {
                     &AirOpenMlsProvider::new(txn.as_mut()),
                     self.signing_key(),
                     unsent_receipt.content,
+                    true, // suppress notifications for delivery receipts
                 )?;
                 group.store_update(txn.as_mut()).await?;
                 Ok((group.group_state_ear_key().clone(), params))
@@ -394,7 +395,7 @@ impl<GroupUpdate> UnsentMessage<WithContent, GroupUpdate> {
             group_update,
         } = self;
 
-        let params = group.create_message(provider, signer, content)?;
+        let params = group.create_message(provider, signer, content, false)?;
 
         Ok(UnsentMessage {
             chat,

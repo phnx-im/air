@@ -872,6 +872,7 @@ impl Group {
         provider: &impl OpenMlsProvider,
         signer: &ClientSigningKey,
         content: MimiContent,
+        suppress_notifications: bool,
     ) -> Result<SendMessageParamsOut, GroupOperationError> {
         let mls_message = self
             .mls_group
@@ -882,6 +883,7 @@ impl Group {
         let send_message_params = SendMessageParamsOut {
             sender: self.mls_group.own_leaf_index(),
             message,
+            suppress_notifications,
         };
 
         Ok(send_message_params)
