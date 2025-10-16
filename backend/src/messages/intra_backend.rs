@@ -17,9 +17,29 @@ use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 pub type QsInputMessage = DsFanOutMessage;
 
 #[derive(Clone, TlsSerialize, TlsDeserializeBytes, TlsSize)]
+#[repr(u8)]
+pub enum TlsBool {
+    True = 1,
+    False = 0,
+}
+
+impl From<bool> for TlsBool {
+    fn from(value: bool) -> Self {
+        if value { TlsBool::True } else { TlsBool::False }
+    }
+}
+
+impl From<TlsBool> for bool {
+    fn from(value: TlsBool) -> Self {
+        matches!(value, TlsBool::True)
+    }
+}
+
+#[derive(Clone, TlsSerialize, TlsDeserializeBytes, TlsSize)]
 pub struct DsFanOutMessage {
     pub payload: DsFanOutPayload,
     pub client_reference: QsReference,
+    pub suppress_notifications: TlsBool,
 }
 
 #[derive(Clone, TlsSerialize, TlsDeserializeBytes, TlsSize)]
