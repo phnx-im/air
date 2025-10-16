@@ -76,7 +76,7 @@ dependencies = [
 
 [[package]]
 name = "airapiclient"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aircommon",
  "airprotos",
@@ -98,7 +98,7 @@ dependencies = [
 
 [[package]]
 name = "airapplogic"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aircommon",
  "aircoreclient",
@@ -137,7 +137,7 @@ dependencies = [
 
 [[package]]
 name = "airbackend"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aircommon",
  "airprotos",
@@ -173,7 +173,7 @@ dependencies = [
 
 [[package]]
 name = "aircommon"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -206,7 +206,7 @@ dependencies = [
 
 [[package]]
 name = "aircoreclient"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "airapiclient",
  "airbackend",
@@ -251,7 +251,7 @@ dependencies = [
 
 [[package]]
 name = "airprotos"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aircommon",
  "chrono",
@@ -272,7 +272,7 @@ dependencies = [
 
 [[package]]
 name = "airserver"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "airapiclient",
  "airbackend",
@@ -314,7 +314,7 @@ dependencies = [
 
 [[package]]
 name = "airserver_test_harness"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "airbackend",
  "aircommon",
@@ -3882,7 +3882,7 @@ dependencies = [
 
 [[package]]
 name = "mls-assist"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "openmls",

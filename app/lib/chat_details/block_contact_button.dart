@@ -9,6 +9,7 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:provider/provider.dart';
 
 class BlockContactButton extends StatelessWidget {
@@ -29,9 +30,9 @@ class BlockContactButton extends StatelessWidget {
       onPressed: () => _block(context),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        spacing: Spacings.xs,
         children: [
-          Icon(Icons.block, color: color),
-          const SizedBox(width: Spacings.xxxs),
+          iconoir.Prohibition(width: 20, color: color),
           Text(loc.blockContactButton_text, style: TextStyle(color: color)),
         ],
       ),
