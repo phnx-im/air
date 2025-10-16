@@ -153,7 +153,7 @@ impl StoreExt for OutboundServiceContext {
 
 #[cfg(test)]
 mod test {
-    use std::{future, time::Duration};
+    use std::time::Duration;
 
     use tokio::time::{sleep, timeout};
 
