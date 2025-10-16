@@ -5,6 +5,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:iconoir_flutter/regular/prohibition.dart';
 import 'package:intl/intl.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
@@ -180,7 +181,7 @@ class _BlockedBadge extends StatelessWidget {
     final color = CustomColorScheme.of(context).text.tertiary;
     return Row(
       children: [
-        Icon(Icons.block, color: color),
+        Prohibition(color: color),
         const SizedBox(width: Spacings.xxxs),
         Text(
           loc.chatList_blocked,

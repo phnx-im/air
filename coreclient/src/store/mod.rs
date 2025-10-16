@@ -17,7 +17,7 @@ use crate::{
     MessageId, contacts::HandleContact, user_handles::UserHandleRecord, user_profiles::UserProfile,
 };
 
-pub use notification::{StoreEntityId, StoreMessageStatus, StoreNotification, StoreOperation};
+pub use notification::{StoreEntityId, StoreNotification, StoreOperation};
 pub(crate) use notification::{StoreNotificationsSender, StoreNotifier};
 
 mod r#impl;

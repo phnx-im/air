@@ -13,6 +13,7 @@ use crate::{
     store::{StoreNotificationsSender, StoreNotifier},
 };
 
+mod receipt_queue;
 mod receipts;
 
 #[derive(Debug)]

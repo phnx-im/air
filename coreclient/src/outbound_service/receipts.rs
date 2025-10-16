@@ -14,11 +14,11 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatId, ChatStatus, MessageId,
-    chats::{StatusRecord, status::ReceiptQueue},
+    chats::StatusRecord,
     groups::{Group, openmls_provider::AirOpenMlsProvider},
 };
 
-use super::{OutboundService, OutboundServiceContext};
+use super::{OutboundService, OutboundServiceContext, receipt_queue::ReceiptQueue};
 
 impl OutboundService {
     pub async fn enqueue_receipts<'a>(
