@@ -89,14 +89,14 @@ class NotificationService: UNNotificationServiceExtension {
     clearProtectedBlockedNotifications()
 
     guard
-      let cachesDirectory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-        .first
+      let sharedContainer = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.ms.air")
     else {
       log.error("Could not find cache directory")
       contentHandler(request.content)
       return
     }
-    let logFilePath = cachesDirectory.appendingPathComponent("background.log").path
+    let sharedCaches = sharedContainer.appendingPathComponent("Caches")
+    let logFilePath = sharedCaches.appendingPathComponent("background.log").path
     log.info("Log file path: \(logFilePath, privacy: .public)")
 
     // Create IncomingNotificationContent object

@@ -2,30 +2,42 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
-import 'package:air/core/core.dart';
+import 'package:air/core/core.dart' as core;
 
-/// Initializes Dart and Rust logging
+/// Initializes Rust logging
+///
+/// On Android and iOS, the Rust logs additionally are printed to stdout.
+core.LogWriter initRustLogging({required String logFile}) {
+  if (Platform.isAndroid || Platform.isIOS) {
+    // First initialize printing of Rust logs to stdout; otherwise, the logs from
+    // `core.initRustLogging` will be lost.
+    core.createLogStream().listen((event) {
+      // ignore: avoid_print
+      print(
+        '${event.time} [Rust] ${event.level.asString} ${event.target}: ${event.msg}',
+      );
+    });
+  }
+  return core.initRustLogging(logFile: logFile);
+}
+
+/// Initializes Dart logging
 ///
 /// Also configures the format of the logs.
-void initLogging(LogWriter logWriter) {
+void initDartLogging(core.LogWriter logWriter) {
   // Dart logging
   Logger.root.level = kDebugMode ? Level.FINE : Level.INFO;
   Logger.root.onRecord.listen((record) {
+    final utcTime = record.time.toUtc();
     final message =
-        '${record.time} [Dart] ${record.level.asString} ${record.loggerName}: ${record.message}';
+        '$utcTime [Dart] ${record.level.asString} ${record.loggerName}: ${record.message}';
     // ignore: avoid_print
     print(message);
     logWriter.writeLine(message: message);
-  });
-
-  // Rust Logging
-  createLogStream().listen((event) {
-    // ignore: avoid_print
-    print(
-      '${event.time.toLocal()} [Rust] ${event.level.asString} ${event.target}: ${event.msg}',
-    );
   });
 }
 
@@ -45,12 +57,12 @@ extension on Level {
   };
 }
 
-extension on LogEntryLevel {
+extension on core.LogEntryLevel {
   String get asString => switch (this) {
-    LogEntryLevel.trace => 'TRACE',
-    LogEntryLevel.debug => 'DEBUG',
-    LogEntryLevel.info => ' INFO',
-    LogEntryLevel.warn => ' WARN',
-    LogEntryLevel.error => 'ERROR',
+    core.LogEntryLevel.trace => 'TRACE',
+    core.LogEntryLevel.debug => 'DEBUG',
+    core.LogEntryLevel.info => ' INFO',
+    core.LogEntryLevel.warn => ' WARN',
+    core.LogEntryLevel.error => 'ERROR',
   };
 }
