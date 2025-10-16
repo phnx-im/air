@@ -425,6 +425,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
                     .try_ref_into()
                     .invalid_tls("room_state")?,
             ),
+            proposals: commit_info.proposals.into_iter().map(From::from).collect(),
         }))
     }
 
@@ -469,6 +470,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
                     .try_ref_into()
                     .invalid_tls("room_state")?,
             ),
+            proposals: commit_info.proposals.into_iter().map(From::from).collect(),
         }))
     }
 
@@ -501,6 +503,9 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
         let destination_clients: Vec<_> = group_state.destination_clients().collect();
         let group_message = group_state.join_connection_group(params)?;
+
+        // Since this is a commit, clear out proposals.
+        group_state.proposals.clear();
 
         self.update_group_data(group_data, group_state, &ear_key)
             .await?;
@@ -546,6 +551,10 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .collect();
 
         let group_message = group_state.resync_client(external_commit, sender_index)?;
+
+        // Since this is a commit, clear out proposals.
+        group_state.proposals.clear();
+
         self.update_group_data(group_data, group_state, &ear_key)
             .await?;
 
@@ -583,6 +592,9 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .collect();
 
         let group_message = group_state.self_remove_client(remove_proposal)?;
+
+        group_state.proposals.push(group_message.0.clone());
+
         self.update_group_data(group_data, group_state, &ear_key)
             .await?;
 
@@ -662,6 +674,9 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
         let group_message = group_state.delete_group(commit)?;
 
+        // Since this is a commit, clear out proposals.
+        group_state.proposals.clear();
+
         self.update_group_data(group_data, group_state, &ear_key)
             .await?;
 
@@ -709,6 +724,9 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
         let (group_message, welcome_bundles) =
             group_state.group_operation(params, &ear_key).await?;
+
+        // Since this is a commit, clear out proposals.
+        group_state.proposals.clear();
 
         self.update_group_data(group_data, group_state, &ear_key)
             .await?;

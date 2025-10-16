@@ -760,17 +760,16 @@ impl CoreUser {
         // reflect that in the UI.
 
         // Phase 2: Load external commit info
-        // TODO: Rename that endpoint into ds_external_join_info
         let external_join_info = self
             .api_client()?
-            .ds_connection_group_info(group_id, &resync_info.group_state_ear_key)
+            .ds_external_commit_info(group_id, &resync_info.group_state_ear_key)
             .await?;
 
         let api_clients = self.inner.api_clients.clone();
 
         // TODO: When we turn this into a process, resync info should be stored.
+        let group_state_ear_key = resync_info.group_state_ear_key.clone();
         let (new_group, commit, group_info) = resync_info
-            .clone()
             .resync(
                 &mut connection,
                 &api_clients,
@@ -789,7 +788,7 @@ impl CoreUser {
                 commit.clone(),
                 group_info.clone(),
                 self.signing_key(),
-                &resync_info.group_state_ear_key,
+                &group_state_ear_key,
                 own_leaf_index,
             )
             .await

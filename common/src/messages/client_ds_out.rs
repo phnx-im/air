@@ -27,6 +27,7 @@ pub struct ExternalCommitInfoIn {
     pub ratchet_tree_in: RatchetTreeIn,
     pub encrypted_user_profile_keys: Vec<EncryptedUserProfileKey>,
     pub room_state: VerifiedRoomState,
+    pub proposals: Vec<Vec<u8>>,
 }
 
 #[derive(Debug)]
