@@ -872,13 +872,14 @@ impl Group {
         provider: &impl OpenMlsProvider,
         signer: &ClientSigningKey,
         content: MimiContent,
-        suppress_notifications: bool,
     ) -> Result<SendMessageParamsOut, GroupOperationError> {
         let mls_message = self
             .mls_group
             .create_message(provider, signer, &content.serialize()?)?;
 
         let message = AssistedMessageOut::new(mls_message, None)?;
+
+        let suppress_notifications = suppress_notifications(&content);
 
         let send_message_params = SendMessageParamsOut {
             sender: self.mls_group.own_leaf_index(),
@@ -1187,4 +1188,19 @@ fn extract_member_info(member: Member) -> Result<ClientVerificationInfo, BasicCr
         leaf_key: signature_public_key,
     };
     Ok(info)
+}
+
+/// Returns true if the QS should suppress notifications for this message.
+pub fn suppress_notifications(content: &MimiContent) -> bool {
+    if content.is_status_update() {
+        // Status updates should never trigger notifications.
+        return true;
+    }
+    if content.replaces.is_some() {
+        // Replaces indicates an edit or a deletion, which should not
+        // trigger notifications.
+        return true;
+    }
+    // All other messages should trigger notifications.
+    false
 }
