@@ -5,8 +5,10 @@
 use std::{collections::HashSet, sync::Arc};
 
 use aircommon::{identifiers::Fqdn, time::Duration};
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, pool::PoolConnection};
 use tokio::sync::Mutex;
+use tonic::Status;
+use tracing::error;
 use uuid::Uuid;
 
 use crate::{
@@ -76,5 +78,12 @@ impl Ds {
 
     fn own_domain(&self) -> &Fqdn {
         &self.own_domain
+    }
+
+    pub(crate) async fn connection(&self) -> Result<PoolConnection<Postgres>, Status> {
+        self.db_pool.acquire().await.map_err(|error| {
+            error!(%error, "Failed to acquire DB connection");
+            Status::internal("Failed to acquire DB connection")
+        })
     }
 }

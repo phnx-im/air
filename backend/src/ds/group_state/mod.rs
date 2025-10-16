@@ -231,14 +231,14 @@ pub type EncryptedDsGroupState = Ciphertext<EncryptedDsGroupStateCtype>;
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
-pub(super) struct StorableDsGroupData {
+pub(super) struct StorableDsGroupData<const LOADED_FOR_UPDATE: bool> {
     group_id: Uuid,
     pub(super) encrypted_group_state: EncryptedDsGroupState,
     last_used: TimeStamp,
     deleted_queues: Vec<SealedClientReference>,
 }
 
-impl StorableDsGroupData {
+impl StorableDsGroupData<false> {
     pub(super) async fn new_and_store<'a>(
         connection: impl PgExecutor<'a>,
         group_id: ReservedGroupId,
@@ -253,7 +253,9 @@ impl StorableDsGroupData {
         group_data.store(connection).await?;
         Ok(group_data)
     }
+}
 
+impl<const LOADED_FOR_UPDATE: bool> StorableDsGroupData<LOADED_FOR_UPDATE> {
     pub(super) fn has_expired(&self) -> bool {
         self.last_used.has_expired(GROUP_STATE_EXPIRATION)
     }
