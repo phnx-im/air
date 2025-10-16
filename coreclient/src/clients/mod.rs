@@ -37,7 +37,7 @@ use openmls::prelude::Ciphersuite;
 use own_client_info::OwnClientInfo;
 
 use serde::{Deserialize, Serialize};
-use sqlx::{Row, SqliteConnection, SqlitePool, SqliteTransaction, query};
+use sqlx::{Row, SqliteConnection, SqlitePool, query};
 use store::ClientRecord;
 use thiserror::Error;
 use tls_codec::DeserializeBytes;
