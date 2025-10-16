@@ -59,6 +59,7 @@ use openmls_provider::AirOpenMlsProvider;
 use openmls_traits::storage::StorageProvider;
 use serde::{Deserialize, Serialize};
 use sqlx::{SqliteConnection, SqliteExecutor, SqliteTransaction};
+use tls_codec::DeserializeBytes;
 use tracing::{debug, error};
 
 use crate::{
@@ -78,10 +79,11 @@ use openmls::{
     key_packages::KeyPackageBundle,
     prelude::{
         BasicCredentialError, CredentialWithKey, Extension, Extensions, GroupId, KeyPackage,
-        LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsGroupJoinConfig, MlsMessageOut,
-        OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal,
-        ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
-        UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
+        LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsGroupJoinConfig, MlsMessageBodyIn,
+        MlsMessageIn, MlsMessageOut, OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY,
+        PreSharedKeyProposal, Proposal, ProtocolVersion, QueuedProposal, Sender,
+        SignaturePublicKey, StagedCommit, UnknownExtension,
+        tls_codec::Serialize as TlsSerializeTrait,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
     treesync::RatchetTree,
@@ -437,7 +439,20 @@ impl Group {
             ratchet_tree_in,
             encrypted_user_profile_keys,
             room_state,
+            proposals,
         } = external_commit_info;
+
+        let proposals = proposals
+            .iter()
+            .filter_map(|b| {
+                let mls_message = MlsMessageIn::tls_deserialize_exact_bytes(b);
+                if let MlsMessageBodyIn::PublicMessage(pm) = mls_message.ok()?.extract() {
+                    Some(anyhow::Ok(pm))
+                } else {
+                    None
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         // Let's create the group first so that we can access the GroupId.
         // Phase 1: Create and store the group
@@ -462,6 +477,7 @@ impl Group {
                 .with_capabilities(default_capabilities())
                 .build();
             let mut builder = ExternalCommitBuilder::new()
+                .with_proposals(proposals)
                 .with_aad(aad.tls_serialize_detached()?)
                 .with_config(mls_group_config)
                 .with_ratchet_tree(ratchet_tree_in)
