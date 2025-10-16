@@ -19,7 +19,7 @@ import 'package:air/util/interface_scale.dart';
 import 'package:air/util/platform.dart';
 import 'package:provider/provider.dart';
 
-import 'chat_details/chat_details.dart';
+import 'chat/chat_details.dart';
 import 'registration/registration.dart';
 import 'theme/theme.dart';
 
