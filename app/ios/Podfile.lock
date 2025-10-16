@@ -55,16 +55,16 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/url_launcher_ios/ios"
 
 SPEC CHECKSUMS:
-  airapplogic: c15e278a4b7cbb213909d1aed160784c5fd7a62c
-  file_selector_ios: f0670c1064a8c8450e38145d8043160105d0b97c
+  airapplogic: c38782b11ec01d75116f99a220022c31a78ef7a4
+  file_selector_ios: f92e583d43608aebc2e4a18daac30b8902845502
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  image_picker_ios: c560581cceedb403a6ff17f2f816d7fea1421fc1
-  integration_test: 252f60fa39af5e17c3aa9899d35d908a0721b573
-  package_info_plus: c0502532a26c7662a62a356cebe2692ec5fe4ec4
-  path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
-  permission_handler_apple: 9878588469a2b0d0fc1e048d9f43605f92e6cec2
-  share_plus: 8b6f8b3447e494cca5317c8c3073de39b3600d1f
-  url_launcher_ios: 5334b05cef931de560670eeae103fd3e431ac3fe
+  image_picker_ios: 7fe1ff8e34c1790d6fff70a32484959f563a928a
+  integration_test: 4a889634ef21a45d28d50d622cf412dc6d9f586e
+  package_info_plus: af8e2ca6888548050f16fa2f1938db7b5a5df499
+  path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564
+  permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
+  share_plus: 50da8cb520a8f0f65671c6c6a99b3617ed10a58a
+  url_launcher_ios: 694010445543906933d732453a59da0a173ae33d
 
 PODFILE CHECKSUM: eaf81e234b54f737233ccd5bec4f97dfec586c5b
 
