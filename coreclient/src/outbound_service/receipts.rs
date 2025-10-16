@@ -9,7 +9,7 @@ use mimi_content::{
     NestedPartContent, PerMessageStatus,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{

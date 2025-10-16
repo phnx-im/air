@@ -18,13 +18,29 @@ use crate::{
 mod receipt_queue;
 mod receipts;
 
+/// A service which is responsible for processing outbound messages.
+///
+/// The service starts a background task which dequeues messages from the correspoding work queues.
+/// The initial state of the service is `Stopped`, that is, the background task is not running. The
+/// background task only runs when the service is started, and when there is a notification to run.
+/// After doing the work once, it wait for the next notification, or stops if it is stopped.
 #[derive(Debug)]
-pub struct OutboundService {
-    context: OutboundServiceContext,
+pub struct OutboundService<C: OutboundServiceWork = OutboundServiceContext> {
+    context: C,
     run_token_tx: watch::Sender<Option<CancellationToken>>,
 }
 
-impl OutboundService {
+pub trait OutboundServiceWork: Clone + Send + 'static {
+    fn work(&self, run_token: CancellationToken) -> impl Future<Output = ()> + Send;
+}
+
+impl OutboundServiceWork for OutboundServiceContext {
+    async fn work(&self, run_token: CancellationToken) {
+        OutboundServiceContext::work(self, run_token).await;
+    }
+}
+
+impl OutboundService<OutboundServiceContext> {
     pub(crate) fn new(
         pool: SqlitePool,
         api_clients: ApiClients,
@@ -37,17 +53,21 @@ impl OutboundService {
             signing_key: client_signing_key,
             store_notifications_tx,
         };
+        Self::with_context(context)
+    }
+}
 
+impl<C: OutboundServiceWork> OutboundService<C> {
+    fn with_context(context: C) -> Self {
         let (run_token_tx, run_token_rx) = watch::channel(None);
         let task = OutboundServiceTask {
             context: context.clone(),
             run_token_rx,
         };
         tokio::spawn(task.run());
-
         Self {
-            run_token_tx,
             context,
+            run_token_tx,
         }
     }
 
@@ -83,12 +103,12 @@ impl OutboundService {
     }
 }
 
-struct OutboundServiceTask {
-    context: OutboundServiceContext,
+struct OutboundServiceTask<C> {
+    context: C,
     run_token_rx: watch::Receiver<Option<CancellationToken>>,
 }
 
-impl OutboundServiceTask {
+impl<C: OutboundServiceWork> OutboundServiceTask<C> {
     async fn run(self) {
         let mut stream = WatchStream::new(self.run_token_rx.clone());
         while let Some(work_token) = stream.next().await {
@@ -102,7 +122,7 @@ impl OutboundServiceTask {
 }
 
 #[derive(Debug, Clone)]
-struct OutboundServiceContext {
+pub struct OutboundServiceContext {
     pool: SqlitePool,
     api_clients: ApiClients,
     signing_key: ClientSigningKey,
@@ -128,5 +148,102 @@ impl StoreExt for OutboundServiceContext {
 
     fn notifier(&self) -> StoreNotifier {
         StoreNotifier::new(self.store_notifications_tx.clone())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::{future, time::Duration};
+
+    use tokio::time::{sleep, timeout};
+
+    use super::*;
+
+    #[derive(Debug, Clone, Default)]
+    struct CounterContext {
+        tx: watch::Sender<usize>,
+    }
+
+    impl OutboundServiceWork for CounterContext {
+        async fn work(&self, _run_token: CancellationToken) {
+            self.tx.send_modify(|v| *v += 1);
+        }
+    }
+
+    #[tokio::test]
+    async fn start_triggers_work() {
+        let (tx, mut rx) = watch::channel(0);
+        let context = CounterContext { tx };
+        let service = OutboundService::with_context(context);
+
+        service.start();
+        sleep(Duration::from_millis(50)).await;
+
+        timeout(Duration::from_millis(100), rx.wait_for(|v| *v == 1))
+            .await
+            .unwrap()
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn stop_cancels_work() {
+        #[derive(Clone)]
+        struct TestContext {
+            tx: watch::Sender<bool>,
+        }
+
+        impl OutboundServiceWork for TestContext {
+            async fn work(&self, run_token: CancellationToken) {
+                run_token.cancelled_owned().await;
+                self.tx.send(true).unwrap();
+            }
+        }
+
+        let (tx, mut rx) = watch::channel(false);
+        let context = TestContext { tx };
+        let service = OutboundService::with_context(context);
+
+        service.start();
+        sleep(Duration::from_millis(50)).await;
+        service.stop();
+
+        timeout(Duration::from_millis(100), rx.wait_for(|v| !*v))
+            .await
+            .unwrap()
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn notify_triggers_another_run() {
+        let (tx, mut rx) = watch::channel(0);
+        let context = CounterContext { tx };
+        let service = OutboundService::with_context(context);
+
+        service.start();
+        sleep(Duration::from_millis(100)).await;
+
+        service.notify_task();
+        sleep(Duration::from_millis(100)).await;
+
+        timeout(Duration::from_millis(100), rx.wait_for(|v| *v == 2))
+            .await
+            .unwrap()
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn start_is_idempotent() {
+        let (tx, mut rx) = watch::channel(0);
+        let context = CounterContext { tx };
+        let service = OutboundService::with_context(context);
+
+        service.start();
+        service.start();
+        sleep(Duration::from_millis(100)).await;
+
+        timeout(Duration::from_millis(100), rx.wait_for(|v| *v == 1))
+            .await
+            .unwrap()
+            .unwrap();
     }
 }
