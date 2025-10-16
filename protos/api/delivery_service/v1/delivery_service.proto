@@ -231,7 +231,7 @@ message SendMessagePayload {
   GroupStateEarKey group_state_ear_key = 1;
   AssistedMessage message = 2;
   LeafNodeIndex sender = 3;
-  bool suppress_notifications = 4;
+  optional bool suppress_notifications = 4;
 }
 
 message SendMessageResponse {

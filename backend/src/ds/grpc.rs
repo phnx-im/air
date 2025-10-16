@@ -634,11 +634,14 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
         let destination_clients = group_state.other_destination_clients(sender_index);
 
+        // Messages from legacy clients won't have this field set. Default to false.
+        let suppress_notifications = payload.suppress_notifications.unwrap_or(false);
+
         let timestamp = self
             .fan_out_message(
                 mls_message.into_serialized_mls_message(),
                 destination_clients,
-                payload.suppress_notifications,
+                suppress_notifications,
             )
             .await;
 

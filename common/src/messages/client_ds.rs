@@ -284,13 +284,6 @@ pub struct SelfRemoveParams {
 }
 
 #[derive(Debug)]
-pub struct SendMessageParams {
-    pub message: AssistedMessageIn,
-    pub sender: LeafNodeIndex,
-    pub suppress_notifications: bool,
-}
-
-#[derive(Debug)]
 pub struct DeleteGroupParams {
     pub commit: AssistedMessageIn,
 }
