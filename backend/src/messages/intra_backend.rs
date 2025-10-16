@@ -25,11 +25,7 @@ pub enum TlsBool {
 
 impl From<bool> for TlsBool {
     fn from(value: bool) -> Self {
-        if value {
-            TlsBool::True
-        } else {
-            TlsBool::False
-        }
+        if value { TlsBool::True } else { TlsBool::False }
     }
 }
 
