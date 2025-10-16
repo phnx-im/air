@@ -9,7 +9,7 @@ use mimi_content::{
     NestedPartContent, PerMessageStatus,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::error;
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::{
@@ -65,6 +65,7 @@ impl OutboundServiceContext {
             else {
                 return Ok(());
             };
+            debug!(?chat_id, num_statuses = statuses.len(), "dequeued receipt");
 
             match UnsentReceipt::new(statuses.iter().map(|(mimi_id, status)| (mimi_id, *status))) {
                 Ok(Some(receipt)) => match self.send_chat_receipt(chat_id, receipt).await {
@@ -101,7 +102,7 @@ impl OutboundServiceContext {
         chat_id: ChatId,
         unsent_receipt: UnsentReceipt,
     ) -> Result<(), SendChatReceiptError> {
-        tracing::info!(%chat_id, ?unsent_receipt, "Sending receipt");
+        debug!(%chat_id, ?unsent_receipt, "sending receipt");
 
         // load chat
         let chat = {

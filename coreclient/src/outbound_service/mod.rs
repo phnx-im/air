@@ -5,8 +5,9 @@
 use aircommon::{credentials::keys::ClientSigningKey, identifiers::UserId};
 use sqlx::SqlitePool;
 use tokio::sync::watch;
+use tokio_stream::{StreamExt, wrappers::WatchStream};
 use tokio_util::sync::CancellationToken;
-use tracing::error;
+use tracing::{debug, error};
 
 use crate::{
     clients::api_clients::ApiClients,
@@ -54,6 +55,7 @@ impl OutboundService {
         self.run_token_tx.send_if_modified(|token| match token {
             Some(_) => false, // already running
             None => {
+                debug!("starting background task");
                 token.replace(CancellationToken::new());
                 true // start running
             }
@@ -61,8 +63,10 @@ impl OutboundService {
     }
 
     pub(crate) fn stop(&self) {
-        self.run_token_tx
+        let stopped = self
+            .run_token_tx
             .send_if_modified(|token| token.take().is_some());
+        debug!(stopped, "stopping background task");
     }
 
     /// Notify the background task about new work.
@@ -85,15 +89,14 @@ struct OutboundServiceTask {
 }
 
 impl OutboundServiceTask {
-    async fn run(mut self) {
-        loop {
-            let work_token = match self.run_token_rx.wait_for(|token| token.is_some()).await {
-                Ok(work_token) => work_token
-                    .clone()
-                    .expect("logic error: work token is some and locked"),
-                Err(_) => return, // The task is being stopped, so we can return
-            };
-            self.context.work(work_token).await;
+    async fn run(self) {
+        let mut stream = WatchStream::new(self.run_token_rx.clone());
+        while let Some(work_token) = stream.next().await {
+            if let Some(work_token) = work_token {
+                debug!("starting doing work in background task");
+                self.context.work(work_token).await;
+                debug!("finished work in background task");
+            }
         }
     }
 }
