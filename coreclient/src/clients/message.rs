@@ -24,7 +24,7 @@ use super::{AirOpenMlsProvider, ApiClients, CoreUser, Group, StoreNotifier};
 impl CoreUser {
     /// Send a message and return it.
     ///
-    /// The message unsent messages is stored, then sent to the DS and finally returned. The
+    /// The message is stored, then sent to the DS and finally returned. The
     /// chat is marked as read until this message.
     pub(crate) async fn send_message(
         &self,

@@ -71,13 +71,22 @@ impl Qs {
                 &[],
             )?;
 
+            // Since we only care about suppression of background push
+            // notifications, we can just opt to not to send the push token ear
+            // key.
+            let push_token_ear_key = if message.suppress_notifications.into() {
+                None
+            } else {
+                client_config.push_token_ear_key
+            };
+
             QsClientRecord::enqueue(
                 &self.db_pool,
                 client_config.client_id,
                 self.queues(),
                 push_notification_provider,
                 message.payload,
-                client_config.push_token_ear_key,
+                push_token_ear_key,
             )
             .await?;
         }
