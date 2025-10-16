@@ -9,6 +9,7 @@ use tracing::{error, info};
 
 use crate::{
     UserHandleRecord, clients::CoreUser, delete_client_database, groups::Group, store::Store,
+    utils::connection_ext::StoreExt,
 };
 
 impl CoreUser {

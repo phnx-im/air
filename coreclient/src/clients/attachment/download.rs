@@ -22,6 +22,7 @@ use crate::{
         },
     },
     groups::Group,
+    utils::connection_ext::StoreExt,
 };
 
 impl CoreUser {
@@ -49,7 +50,7 @@ impl CoreUser {
 
         // Load the pending attachment record and update the status to `Downloading`.
         let Some((pending_record, group)) = self
-            .with_transaction(async |txn| -> Result<_, anyhow::Error> {
+            .with_transaction(async |txn| {
                 let Some(pending_record) =
                     PendingAttachmentRecord::load_pending(txn.as_mut(), attachment_id).await?
                 else {
@@ -149,7 +150,7 @@ impl CoreUser {
         ensure!(hash.as_slice() == pending_record.hash, "hash mismatch");
 
         // Store the attachment and mark it as downloaded
-        self.with_transaction_and_notifier(async move |txn, notifier| -> anyhow::Result<()> {
+        self.with_transaction_and_notifier(async move |txn, notifier| {
             AttachmentRecord::set_content(
                 txn.as_mut(),
                 notifier,

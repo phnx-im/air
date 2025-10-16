@@ -22,6 +22,7 @@ use crate::{
         IndexedUserProfile, UserProfile, VerifiableUserProfile, process::ExistingUserProfile,
         update::UserProfileUpdate,
     },
+    utils::connection_ext::StoreExt,
 };
 
 use super::CoreUser;
@@ -35,7 +36,7 @@ impl CoreUser {
 
         // Phase 1: Store the new user profile key in the database
         let encryptable_user_profile = self
-            .with_transaction_and_notifier(async |txn, notifier| -> anyhow::Result<_> {
+            .with_transaction_and_notifier(async |txn, notifier| {
                 let current_profile = IndexedUserProfile::load(txn.as_mut(), self.user_id())
                     .await?
                     .context("Failed to load own user profile")?;

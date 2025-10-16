@@ -11,6 +11,7 @@ use tracing::error;
 use crate::{
     clients::api_clients::ApiClients,
     store::{StoreNotificationsSender, StoreNotifier},
+    utils::connection_ext::StoreExt,
 };
 
 mod receipt_queue;
@@ -115,35 +116,14 @@ impl OutboundServiceContext {
     fn user_id(&self) -> &UserId {
         self.signing_key.credential().identity()
     }
+}
 
-    /// Executes a function with a transaction.
-    ///
-    /// The transaction is committed if the function returns `Ok`, and rolled
-    /// back if the function returns `Err`.
-    pub(crate) async fn with_transaction<T: Send, E: From<sqlx::Error>>(
-        &self,
-        f: impl AsyncFnOnce(&mut sqlx::SqliteTransaction<'_>) -> Result<T, E>,
-    ) -> Result<T, E> {
-        let mut txn = self.pool.begin_with("BEGIN IMMEDIATE").await?;
-        let value = f(&mut txn).await?;
-        txn.commit().await?;
-        Ok(value)
+impl StoreExt for OutboundServiceContext {
+    fn pool(&self) -> &SqlitePool {
+        &self.pool
     }
 
-    /// Executes a function with a transaction and a [`StoreNotifier`].
-    ///
-    /// The transaction is committed if the function returns `Ok`, and rolled
-    /// back if the function returns `Err`. The [`StoreNotifier`] is notified
-    /// after the transaction is committed successfully.
-    pub(crate) async fn with_transaction_and_notifier<T: Send, E: From<sqlx::Error>>(
-        &self,
-        f: impl AsyncFnOnce(&mut sqlx::SqliteTransaction<'_>, &mut StoreNotifier) -> Result<T, E>,
-    ) -> Result<T, E> {
-        let mut txn = self.pool.begin_with("BEGIN IMMEDIATE").await?;
-        let mut notifier = StoreNotifier::new(self.store_notifications_tx.clone());
-        let value = f(&mut txn, &mut notifier).await?;
-        txn.commit().await?;
-        notifier.notify();
-        Ok(value)
+    fn notifier(&self) -> StoreNotifier {
+        StoreNotifier::new(self.store_notifications_tx.clone())
     }
 }

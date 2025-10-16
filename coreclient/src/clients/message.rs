@@ -16,6 +16,7 @@ use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, ContentMessage, Message, MessageId,
     chats::{StatusRecord, messages::edit::MessageEdit},
     clients::block_contact::BlockedContactError,
+    utils::connection_ext::StoreExt,
 };
 
 use super::{AirOpenMlsProvider, ApiClients, CoreUser, Group, StoreNotifier};

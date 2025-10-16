@@ -33,7 +33,10 @@ use crate::{
         },
     },
     groups::Group,
-    utils::image::{ReencodedAttachmentImage, reencode_attachment_image},
+    utils::{
+        connection_ext::StoreExt,
+        image::{ReencodedAttachmentImage, reencode_attachment_image},
+    },
 };
 
 impl CoreUser {
@@ -44,7 +47,7 @@ impl CoreUser {
         path: &Path,
     ) -> anyhow::Result<ChatMessage> {
         let (chat, group) = self
-            .with_transaction(async |txn| -> anyhow::Result<_> {
+            .with_transaction(async |txn| {
                 let chat = Chat::load(txn, &chat_id)
                     .await?
                     .with_context(|| format!("Can't find chat with id {chat_id}"))?;

@@ -44,6 +44,7 @@ use crate::{
     groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     store::StoreNotifier,
+    utils::connection_ext::StoreExt,
 };
 
 use super::{
@@ -343,7 +344,7 @@ impl CoreUser {
         };
 
         // MLSMessage Phase 4: Fetch user profiles of new clients and store them.
-        self.with_transaction_and_notifier(async |txn, notifier| -> anyhow::Result<_> {
+        self.with_transaction_and_notifier(async |txn, notifier| {
             for client in profile_infos {
                 self.fetch_and_store_user_profile(&mut *txn, notifier, client)
                     .await?;

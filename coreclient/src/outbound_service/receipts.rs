@@ -16,6 +16,7 @@ use crate::{
     Chat, ChatId, ChatStatus, MessageId,
     chats::StatusRecord,
     groups::{Group, openmls_provider::AirOpenMlsProvider},
+    utils::connection_ext::StoreExt,
 };
 
 use super::{OutboundService, OutboundServiceContext, receipt_queue::ReceiptQueue};
@@ -122,7 +123,7 @@ impl OutboundServiceContext {
 
         // load group and create MLS message
         let (group_state_ear_key, params) = self
-            .with_transaction(async |txn| -> anyhow::Result<_> {
+            .with_transaction(async |txn| {
                 let group_id = chat.group_id();
                 let mut group = Group::load_clean(txn.as_mut(), group_id)
                     .await?
@@ -147,7 +148,7 @@ impl OutboundServiceContext {
             .map_err(SendChatReceiptError::recoverable)?;
 
         // store delivery receipt report
-        self.with_transaction_and_notifier(async |txn, notifier| -> anyhow::Result<_> {
+        self.with_transaction_and_notifier(async |txn, notifier| {
             StatusRecord::borrowed(self.user_id(), unsent_receipt.report, TimeStamp::now())
                 .store_report(txn, notifier)
                 .await?;
