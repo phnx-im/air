@@ -5,7 +5,7 @@
 use aircommon::identifiers::UserId;
 use remove_users_flow::RemoveUsersData;
 
-use crate::{ChatId, ChatMessage};
+use crate::{ChatId, ChatMessage, utils::connection_ext::StoreExt};
 
 use super::CoreUser;
 

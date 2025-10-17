@@ -14,7 +14,7 @@ use crate::{
     MessageId,
     chats::{Chat, messages::ChatMessage},
     groups::{Group, openmls_provider::AirOpenMlsProvider},
-    utils::image::resize_profile_image,
+    utils::{connection_ext::StoreExt, image::resize_profile_image},
 };
 
 use super::{ChatId, CoreUser};
@@ -137,8 +137,7 @@ impl CoreUser {
             // Phase 3: Merge the commit into the group
             leave
                 .store_update(txn, notifier, chat_id, self.user_id())
-                .await?;
-            Ok(())
+                .await
         })
         .await?;
         Ok(())

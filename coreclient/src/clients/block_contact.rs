@@ -5,7 +5,10 @@
 use aircommon::identifiers::UserId;
 use chrono::{DateTime, Utc};
 
-use crate::{clients::CoreUser, user_profiles::display_name::BaseDisplayName};
+use crate::{
+    clients::CoreUser, user_profiles::display_name::BaseDisplayName,
+    utils::connection_ext::StoreExt,
+};
 
 impl CoreUser {
     pub(crate) async fn block_contact(&self, user_id: UserId) -> anyhow::Result<()> {

@@ -33,7 +33,10 @@ use crate::{
         },
     },
     groups::Group,
-    utils::image::{ReencodedAttachmentImage, reencode_attachment_image},
+    utils::{
+        connection_ext::StoreExt,
+        image::{ReencodedAttachmentImage, reencode_attachment_image},
+    },
 };
 
 impl CoreUser {

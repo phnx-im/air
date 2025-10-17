@@ -4,7 +4,10 @@
 
 use update_key_flow::UpdateKeyData;
 
-use crate::{ChatId, ChatMessage, utils::connection_ext::ConnectionExt};
+use crate::{
+    ChatId, ChatMessage,
+    utils::connection_ext::{ConnectionExt, StoreExt},
+};
 
 use super::CoreUser;
 

@@ -22,6 +22,7 @@ use crate::{
         IndexedUserProfile, UserProfile, VerifiableUserProfile, process::ExistingUserProfile,
         update::UserProfileUpdate,
     },
+    utils::connection_ext::StoreExt,
 };
 
 use super::CoreUser;

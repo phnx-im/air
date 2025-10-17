@@ -37,7 +37,7 @@ use openmls::prelude::Ciphersuite;
 use own_client_info::OwnClientInfo;
 
 use serde::{Deserialize, Serialize};
-use sqlx::{Row, SqliteConnection, SqlitePool, SqliteTransaction, query};
+use sqlx::{Row, SqliteConnection, SqlitePool, query};
 use store::ClientRecord;
 use thiserror::Error;
 use tls_codec::DeserializeBytes;
@@ -50,8 +50,11 @@ use crate::{
     contacts::HandleContact,
     groups::Group,
     key_stores::queue_ratchets::StorableQsQueueRatchet,
+    outbound_service::OutboundService,
     store::Store,
-    utils::{image::resize_profile_image, persistence::delete_client_database},
+    utils::{
+        connection_ext::StoreExt, image::resize_profile_image, persistence::delete_client_database,
+    },
 };
 use crate::{ChatId, key_stores::as_credentials::AsCredentials};
 use crate::{
@@ -113,6 +116,7 @@ struct CoreUserInner {
     qs_client_id: QsClientId,
     key_store: MemoryUserKeyStore,
     store_notifications_tx: StoreNotificationsSender,
+    outbound_service: OutboundService,
 }
 
 impl CoreUser {
@@ -256,6 +260,10 @@ impl CoreUser {
 
     pub(crate) fn http_client(&self) -> reqwest::Client {
         self.inner.http_client.clone()
+    }
+
+    pub fn outbound_service(&self) -> &OutboundService {
+        &self.inner.outbound_service
     }
 
     pub(crate) fn send_store_notification(&self, notification: StoreNotification) {
@@ -668,50 +676,9 @@ impl CoreUser {
         Ok(())
     }
 
-    /// Executes a function with a transaction.
-    ///
-    /// The transaction is committed if the function returns `Ok`, and rolled
-    /// back if the function returns `Err`.
-    pub(crate) async fn with_transaction<T: Send>(
-        &self,
-        f: impl AsyncFnOnce(&mut sqlx::SqliteTransaction<'_>) -> anyhow::Result<T>,
-    ) -> anyhow::Result<T> {
-        let mut txn = self.pool().begin_with("BEGIN IMMEDIATE").await?;
-        let value = f(&mut txn).await?;
-        txn.commit().await?;
-        Ok(value)
-    }
-
-    /// Executes a function with a transaction and a [`StoreNotifier`].
-    ///
-    /// The transaction is committed if the function returns `Ok`, and rolled
-    /// back if the function returns `Err`. The [`StoreNotifier`] is notified
-    /// after the transaction is committed successfully.
-    pub(crate) async fn with_transaction_and_notifier<T: Send>(
-        &self,
-        f: impl AsyncFnOnce(&mut sqlx::SqliteTransaction<'_>, &mut StoreNotifier) -> anyhow::Result<T>,
-    ) -> anyhow::Result<T> {
-        let mut txn = self.pool().begin_with("BEGIN IMMEDIATE").await?;
-        let mut notifier = self.store_notifier();
-        let value = f(&mut txn, &mut notifier).await?;
-        txn.commit().await?;
-        notifier.notify();
-        Ok(value)
-    }
-
-    pub(crate) async fn with_notifier<T: Send>(
-        &self,
-        f: impl AsyncFnOnce(&mut StoreNotifier) -> anyhow::Result<T>,
-    ) -> anyhow::Result<T> {
-        let mut notifier = self.store_notifier();
-        let value = f(&mut notifier).await?;
-        notifier.notify();
-        Ok(value)
-    }
-
     /// This function goes through all tables of the database and returns all columns that contain the query.
     pub async fn scan_database(&self, query: &str, strict: bool) -> anyhow::Result<Vec<String>> {
-        self.with_transaction(async |txn: &mut SqliteTransaction| {
+        self.with_transaction(async |txn| {
             let tables = query!("SELECT name FROM sqlite_schema WHERE type='table'")
                 .fetch_all(&mut **txn)
                 .await?;
@@ -756,7 +723,17 @@ impl CoreUser {
     }
 }
 
-#[derive(Debug)]
+impl StoreExt for CoreUser {
+    fn pool(&self) -> &SqlitePool {
+        &self.inner.pool
+    }
+
+    fn notifier(&self) -> StoreNotifier {
+        StoreNotifier::new(self.inner.store_notifications_tx.clone())
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct QsListenResponder {
     responder: ListenResponder,
 }
@@ -765,13 +742,16 @@ pub struct QsListenResponder {
 pub enum QsListenResponderError {
     #[error(transparent)]
     Closed(#[from] ListenResponderClosedError),
-    #[error(transparent)]
-    Sqlx(#[from] sqlx::Error),
 }
 
 impl QsListenResponder {
     pub async fn ack(&self, up_to_sequence_number: u64) -> Result<(), QsListenResponderError> {
         self.responder.ack(up_to_sequence_number).await?;
+        Ok(())
+    }
+
+    pub async fn fetch(&self) -> Result<(), QsListenResponderError> {
+        self.responder.fetch().await?;
         Ok(())
     }
 }

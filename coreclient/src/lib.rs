@@ -9,6 +9,7 @@ pub mod clients;
 mod contacts;
 mod groups;
 mod key_stores;
+pub mod outbound_service;
 pub mod store;
 mod user_handles;
 mod user_profiles;

@@ -292,7 +292,7 @@ impl ApiClient {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ListenResponder {
     tx: mpsc::Sender<ListenRequest>,
 }

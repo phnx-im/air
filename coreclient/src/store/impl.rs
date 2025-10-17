@@ -8,7 +8,6 @@ use aircommon::{
     identifiers::{AttachmentId, MimiId, UserHandle, UserId},
     messages::client_as_out::UserHandleDeleteResponse,
 };
-use mimi_content::MessageStatus;
 use mimi_room_policy::VerifiedRoomState;
 use tokio_stream::Stream;
 use tracing::error;
@@ -22,6 +21,7 @@ use crate::{
     store::UserSetting,
     user_handles::UserHandleRecord,
     user_profiles::UserProfile,
+    utils::connection_ext::StoreExt,
 };
 
 use super::{Store, StoreNotification, StoreResult};
@@ -240,7 +240,7 @@ impl Store for CoreUser {
         &self,
         chat_id: ChatId,
         until: MessageId,
-    ) -> StoreResult<(bool, Vec<MimiId>)> {
+    ) -> StoreResult<(bool, Vec<(MessageId, MimiId)>)> {
         self.with_transaction_and_notifier(async |txn, notifier| {
             Chat::mark_as_read_until_message_id(txn, notifier, chat_id, until, self.user_id())
                 .await
@@ -256,14 +256,6 @@ impl Store for CoreUser {
         replaces_id: Option<MessageId>,
     ) -> StoreResult<ChatMessage> {
         self.send_message(chat_id, content, replaces_id).await
-    }
-
-    async fn send_delivery_receipts<'a>(
-        &self,
-        chat_id: ChatId,
-        statuses: impl IntoIterator<Item = (&'a MimiId, MessageStatus)> + Send,
-    ) -> StoreResult<()> {
-        self.send_delivery_receipts(chat_id, statuses).await
     }
 
     async fn upload_attachment(&self, chat_id: ChatId, path: &Path) -> StoreResult<ChatMessage> {

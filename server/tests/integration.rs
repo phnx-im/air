@@ -17,7 +17,6 @@ use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
 use aircommon::{
     assert_matches,
     identifiers::{UserHandle, UserId},
-    messages::QueueMessage,
     mls_group_config::MAX_PAST_EPOCHS,
 };
 use aircoreclient::{
@@ -26,7 +25,6 @@ use aircoreclient::{
     clients::{
         CoreUser,
         process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
-        queue_event,
     },
     store::Store,
 };
@@ -564,12 +562,9 @@ async fn mark_as_read() {
     let alice_bob_chat = setup.connect_users(&ALICE, &BOB).await;
     let bob_charlie_chat = setup.connect_users(&BOB, &CHARLIE).await;
 
-    let charlie_test_user = setup.users.get_mut(&ALICE).unwrap();
-    let alice = &mut charlie_test_user.user;
-
     // Send a few messages
     async fn send_messages(
-        user: &mut CoreUser,
+        user: &CoreUser,
         chat_id: ChatId,
         number_of_messages: usize,
     ) -> Vec<ChatMessage> {
@@ -590,75 +585,60 @@ async fn mark_as_read() {
         messages_sent
     }
 
-    let number_of_messages = 10;
-    send_messages(alice, alice_bob_chat, number_of_messages).await;
+    let num_messages = 10;
+    let alice_test_user = setup.users.get(&ALICE).unwrap();
+    let alice = &alice_test_user.user;
+    send_messages(alice, alice_bob_chat, num_messages).await;
 
     // Message status starts at Unread
     let last_message = alice.last_message(alice_bob_chat).await.unwrap().unwrap();
     assert_eq!(last_message.status(), MessageStatus::Unread);
 
-    let bob_test_user = setup.users.get_mut(&BOB).unwrap();
-    let bob = &mut bob_test_user.user;
-
     // All messages should be unread
-    let qs_messages = bob.qs_fetch_messages().await.unwrap();
-    bob.fully_process_qs_messages(qs_messages).await;
-    let expected_unread_message_count = number_of_messages;
+    let bob_test_user = setup.users.get(&BOB).unwrap();
+    bob_test_user.fetch_and_process_qs_messages().await;
+    let bob = &bob_test_user.user;
     let unread_message_count = bob.unread_messages_count(alice_bob_chat).await;
-    assert_eq!(expected_unread_message_count, unread_message_count);
+    assert_eq!(unread_message_count, num_messages);
     let global_unread_message_count = bob.global_unread_messages_count().await.unwrap();
-    let expected_global_unread_message_count = expected_unread_message_count;
-    assert_eq!(
-        expected_global_unread_message_count,
-        global_unread_message_count
-    );
+    assert_eq!(global_unread_message_count, num_messages);
+
+    // Bob sends scheduled receipts
+    let bob_test_user = setup.users.get(&BOB).unwrap();
+    bob_test_user.user.outbound_service().run_once().await;
 
     // Alice sees the delivery receipt
-    let alice_test_user = setup.users.get_mut(&ALICE).unwrap();
-    let alice = &mut alice_test_user.user;
-    // Eventually collect 10 delivery receipts (delivery receipts are sent asynchronously)
-    let (alice_qs_stream, _responder) = alice.listen_queue().await.unwrap();
-    let qs_messages: Vec<QueueMessage> = tokio::time::timeout(
-        Duration::from_secs(1),
-        alice_qs_stream
-            .filter_map(|message| match message.event {
-                Some(queue_event::Event::Message(message)) => Some(message.try_into().unwrap()),
-                _ => None,
-            })
-            .take(number_of_messages)
-            .collect(),
-    )
-    .await
-    .unwrap();
-    assert_eq!(qs_messages.len(), number_of_messages);
-    alice.fully_process_qs_messages(qs_messages).await;
+    let num_processed = alice_test_user.fetch_and_process_qs_messages().await;
+    assert_eq!(num_processed, 1);
     let last_message = alice.last_message(alice_bob_chat).await.unwrap().unwrap();
     assert_eq!(last_message.status(), MessageStatus::Delivered);
 
     // Bob reads the messages
-    let bob_test_user = setup.users.get_mut(&BOB).unwrap();
-    let bob = &mut bob_test_user.user;
-    let last_message_id = last_message.message().mimi_id().unwrap();
-    bob.send_delivery_receipts(alice_bob_chat, [(last_message_id, MessageStatus::Read)])
+    let bob_test_user = setup.users.get(&BOB).unwrap();
+    let bob = &bob_test_user.user;
+    let last_message = bob.last_message(alice_bob_chat).await.unwrap().unwrap();
+    let last_message_id = last_message.id();
+    let last_message_mimi_id = last_message.message().mimi_id().unwrap();
+    bob.outbound_service()
+        .enqueue_receipts(
+            alice_bob_chat,
+            [(last_message_id, last_message_mimi_id, MessageStatus::Read)].into_iter(),
+        )
         .await
         .unwrap();
+    bob.outbound_service().run_once().await;
 
     // Alice sees the read receipt
-    let alice_test_user = setup.users.get_mut(&ALICE).unwrap();
-    let alice = &mut alice_test_user.user;
-    let qs_messages = alice.qs_fetch_messages().await.unwrap();
-    alice.fully_process_qs_messages(qs_messages).await;
+    let num_processed = alice_test_user.fetch_and_process_qs_messages().await;
+    assert_eq!(num_processed, 1);
     let last_message = alice.last_message(alice_bob_chat).await.unwrap().unwrap();
     assert_eq!(last_message.status(), MessageStatus::Read);
 
     // Let's send some messages between bob and charlie s.t. we can test the
     // global unread messages count.
-    let charlie_test_user = setup.users.get_mut(&CHARLIE).unwrap();
-    let charlie = &mut charlie_test_user.user;
-    let messages_sent = send_messages(charlie, bob_charlie_chat, number_of_messages).await;
-
-    let bob_test_user = setup.users.get_mut(&BOB).unwrap();
-    let bob = &mut bob_test_user.user;
+    let charlie_test_user = setup.users.get(&CHARLIE).unwrap();
+    let charlie = &charlie_test_user.user;
+    let messages_sent = send_messages(charlie, bob_charlie_chat, num_messages).await;
 
     let qs_messages = bob.qs_fetch_messages().await.unwrap();
     let bob_messages_sent = bob.fully_process_qs_messages(qs_messages).await;
@@ -672,20 +652,15 @@ async fn mark_as_read() {
         .unwrap();
 
     // Check if we were successful
-    let expected_unread_message_count = 2;
     let unread_message_count = bob.unread_messages_count(bob_charlie_chat).await;
-    assert_eq!(expected_unread_message_count, unread_message_count);
+    assert_eq!(unread_message_count, 2);
 
     // We expect the global unread messages count to be that of both
     // chats, i.e. the `expected_unread_message_count` plus
     // `number_of_messages`, because none of the messages between alice and
     // charlie had been read.
-    let expected_global_unread_message_count = expected_unread_message_count + number_of_messages;
     let global_unread_messages_count = bob.global_unread_messages_count().await.unwrap();
-    assert_eq!(
-        global_unread_messages_count,
-        expected_global_unread_message_count
-    );
+    assert_eq!(global_unread_messages_count, num_messages + 2);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
