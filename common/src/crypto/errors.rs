@@ -28,9 +28,12 @@ pub enum DecryptionError {
     /// Error serializing AAD.
     #[error("Error serializing AAD.")]
     SerializationError,
+    /// Error ratcheting forward
+    #[error("Error ratcheting forward")]
+    RatchetForwardError(#[from] LibraryError),
 }
 
-#[derive(Error, Debug, PartialEq, Eq, Clone)]
+#[derive(Error, Debug, Clone)]
 pub enum EncryptionError {
     /// Not enough randomness to generate Nonce
     #[error("Not enough randomness to generate Nonce")]
@@ -41,4 +44,7 @@ pub enum EncryptionError {
     /// Codec error
     #[error("Codec error")]
     SerializationError,
+    /// Error ratcheting forward
+    #[error("Error ratcheting forward")]
+    RatchetForwardError(#[from] LibraryError),
 }

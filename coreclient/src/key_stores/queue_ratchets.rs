@@ -130,6 +130,28 @@ impl StorableQsQueueRatchet {
         let message_seq_nr = qs_message_ciphertext.sequence_number;
         let ratchet_seq_nr = qs_queue_ratchet.sequence_number();
 
+        // In case the message sequence number is ahead of the ratchet, we need
+        // to ratchet forward to catch up. This really shouldn't happen, so we
+        // log an error in case it does.
+        if message_seq_nr > ratchet_seq_nr {
+            error!(
+                "QS queue ratchet is behind message sequence number: \
+                    ratchet_seq_nr = {}, \
+                    message_seq_nr = {}",
+                ratchet_seq_nr, message_seq_nr
+            );
+        }
+
+        while message_seq_nr > qs_queue_ratchet.sequence_number() {
+            qs_queue_ratchet.ratchet_forward().map_err(|error| {
+                DecryptQsQueueMessageError::Decrypt {
+                    error: error.into(),
+                    ratchet_seq_nr,
+                    message_seq_nr,
+                }
+            })?;
+        }
+
         let payload = qs_queue_ratchet
             .decrypt(qs_message_ciphertext)
             .map_err(|error| DecryptQsQueueMessageError::Decrypt {

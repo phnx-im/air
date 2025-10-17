@@ -66,11 +66,13 @@ impl<CT, Payload: RatchetPayload<CT>> QueueRatchet<CT, Payload> {
             .map_err(|_| RandomnessError::InsufficientRandomness)
     }
 
-    fn ratchet_forward(&mut self) -> Result<(), EncryptionError> {
-        let secret = RatchetSecret::derive(&self.secret, &Vec::new())
-            .map_err(|_| EncryptionError::SerializationError)?;
-        let key = RatchetKey::derive(&secret, &Vec::new())
-            .map_err(|_| EncryptionError::SerializationError)?;
+    /// Advance the ratchet by one step. This should be called from the outside
+    /// if messages are irrecoverably lost and the ratchet needs to be advanced
+    /// to catch up.
+    pub fn ratchet_forward(&mut self) -> Result<(), LibraryError> {
+        let secret = RatchetSecret::derive(&self.secret, &Vec::new())?;
+
+        let key = RatchetKey::derive(&secret, &Vec::new())?;
 
         self.secret = secret;
         self.key = key;
@@ -97,8 +99,7 @@ impl<CT, Payload: RatchetPayload<CT>> QueueRatchet<CT, Payload> {
     /// Decrypt the given payload.
     pub fn decrypt(&mut self, queue_message: QueueMessage) -> Result<Payload, DecryptionError> {
         let plaintext = Payload::decrypt(&self.key, &queue_message.ciphertext.into())?;
-        self.ratchet_forward()
-            .map_err(|_| DecryptionError::DecryptionError)?;
+        self.ratchet_forward()?;
         Ok(plaintext)
     }
 
