@@ -144,21 +144,21 @@ where
                             self.backoff.reset();
                             State::Running { stream, started_at }
                         } else {
-                            self.context.on_stream_end();
+                            self.context.on_stream_end().await;
                             State::Stopped { started_at }
                         }
                     }
                     // stream exhausted
                     NextEvent::Event(None) => {
-                        self.context.on_stream_end();
+                        self.context.on_stream_end().await;
                         State::Stopped { started_at }
                     }
                     NextEvent::InBackground => {
-                        self.context.on_stream_end();
+                        self.context.on_stream_end().await;
                         State::Initial
                     }
                     NextEvent::Cancelled => {
-                        self.context.on_stream_end();
+                        self.context.on_stream_end().await;
                         State::Finished
                     }
                 }
@@ -278,7 +278,9 @@ pub(crate) trait BackgroundStreamContext<Event>: Send {
     /// Called when the stream ends
     ///
     /// Default implementation does nothing.
-    fn on_stream_end(&mut self) {}
+    fn on_stream_end(&mut self) -> impl Future<Output = ()> + Send {
+        std::future::ready(())
+    }
 
     /// Handle a stream event
     ///

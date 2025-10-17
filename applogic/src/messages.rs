@@ -64,7 +64,7 @@ impl User {
         }
         drop(stream); // must be alive until the ack is sent
 
-        self.user.outbound_service().run_now().await;
+        self.user.outbound_service().run_once().await;
 
         Ok(processed_messages)
     }

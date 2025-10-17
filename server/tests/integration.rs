@@ -605,7 +605,7 @@ async fn mark_as_read() {
 
     // Bob sends scheduled receipts
     let bob_test_user = setup.users.get(&BOB).unwrap();
-    bob_test_user.user.outbound_service().run_now().await;
+    bob_test_user.user.outbound_service().run_once().await;
 
     // Alice sees the delivery receipt
     let num_processed = alice_test_user.fetch_and_process_qs_messages().await;
@@ -626,7 +626,7 @@ async fn mark_as_read() {
         )
         .await
         .unwrap();
-    bob.outbound_service().run_now().await;
+    bob.outbound_service().run_once().await;
 
     // Alice sees the read receipt
     let num_processed = alice_test_user.fetch_and_process_qs_messages().await;

@@ -43,7 +43,7 @@ impl OutboundService {
                 .await?;
         }
 
-        self.notify_task();
+        self.notify_work();
 
         Ok(())
     }

@@ -836,9 +836,9 @@ impl QsStreamProcessor {
         self.responder.replace(responder);
     }
 
-    pub fn on_stream_end(&mut self) {
+    pub async fn on_stream_end(&mut self) {
         self.messages.clear();
-        self.core_user.outbound_service().stop();
+        self.core_user.outbound_service().stop().await;
     }
 
     pub async fn process_event(
@@ -864,7 +864,8 @@ impl QsStreamProcessor {
                     // => accumulated messages will be processed there
                     self.messages.push(message);
 
-                    self.core_user.outbound_service().stop();
+                    // Stop the background task and wait until it is fully stopped
+                    self.core_user.outbound_service().stop().await;
 
                     QsProcessEventResult::Accumulated
                 }
@@ -918,7 +919,8 @@ impl QsStreamProcessor {
                     }
                 }
 
-                self.core_user.outbound_service().start();
+                // Start the background task, but don't wait for it to start
+                drop(self.core_user.outbound_service().start());
 
                 result
             }
