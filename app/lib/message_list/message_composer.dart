@@ -13,7 +13,7 @@ import 'package:iconoir_flutter/regular/send.dart';
 import 'package:iconoir_flutter/regular/xmark.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
-import 'package:air/chat_details/chat_details.dart';
+import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
 import 'package:air/main.dart';

@@ -4,7 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:air/chat_details/member_details_screen.dart';
+import 'package:air/chat/member_details_screen.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
 
