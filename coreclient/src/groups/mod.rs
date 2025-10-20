@@ -46,7 +46,8 @@ use aircommon::{
     },
     mls_group_config::{
         GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, default_capabilities,
-        default_required_capabilities,
+        default_mls_group_join_config, default_required_capabilities,
+        default_sender_ratchet_configuration,
     },
     time::TimeStamp,
 };
@@ -77,10 +78,10 @@ use openmls::{
     key_packages::KeyPackageBundle,
     prelude::{
         BasicCredentialError, CredentialWithKey, Extension, Extensions, GroupId, KeyPackage,
-        LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsGroupJoinConfig, MlsMessageOut,
-        OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal,
-        ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
-        UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
+        LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsMessageOut, OpenMlsProvider,
+        PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal, ProtocolVersion,
+        QueuedProposal, Sender, SignaturePublicKey, StagedCommit, UnknownExtension,
+        tls_codec::Serialize as TlsSerializeTrait,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
     treesync::RatchetTree,
@@ -161,12 +162,6 @@ impl Group {
         &self.mls_group
     }
 
-    fn default_mls_group_join_config() -> MlsGroupJoinConfig {
-        MlsGroupJoinConfig::builder()
-            .wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
-            .build()
-    }
-
     /// Create a group.
     pub(super) fn create_group(
         provider: &impl OpenMlsProvider,
@@ -197,6 +192,7 @@ impl Group {
             .with_group_id(group_id.clone())
             .with_capabilities(leaf_node_capabilities)
             .with_group_context_extensions(gc_extensions)?
+            .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
             .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
             .build(provider, signer, credential_with_key)
@@ -250,7 +246,7 @@ impl Group {
     ) -> Result<(Self, Vec<ProfileInfo>)> {
         let serialized_welcome = welcome_bundle.welcome.tls_serialize_detached()?;
 
-        let mls_group_config = Self::default_mls_group_join_config();
+        let mls_group_config = default_mls_group_join_config();
 
         let (processed_welcome, joiner_info) = {
             // Phase 1: Fetch the right KeyPackageBundle from storage
@@ -426,7 +422,7 @@ impl Group {
         own_client_credential: &ClientCredential,
         connection_offer_hash: ConnectionOfferHash,
     ) -> Result<(Self, MlsMessageOut, MlsMessageOut, Vec<ProfileInfo>)> {
-        let mls_group_config = Self::default_mls_group_join_config();
+        let mls_group_config = default_mls_group_join_config();
         let credential_with_key = CredentialWithKey {
             credential: signer.credential().try_into()?,
             signature_key: signer.credential().verifying_key().clone().into(),
@@ -879,9 +875,12 @@ impl Group {
 
         let message = AssistedMessageOut::new(mls_message, None)?;
 
+        let suppress_notifications = suppress_notifications(&content);
+
         let send_message_params = SendMessageParamsOut {
             sender: self.mls_group.own_leaf_index(),
             message,
+            suppress_notifications,
         };
 
         Ok(send_message_params)
@@ -1185,4 +1184,19 @@ fn extract_member_info(member: Member) -> Result<ClientVerificationInfo, BasicCr
         leaf_key: signature_public_key,
     };
     Ok(info)
+}
+
+/// Returns true if the QS should suppress notifications for this message.
+pub fn suppress_notifications(content: &MimiContent) -> bool {
+    if content.is_status_update() {
+        // Status updates should never trigger notifications.
+        return true;
+    }
+    if content.replaces.is_some() {
+        // Replaces indicates an edit or a deletion, which should not
+        // trigger notifications.
+        return true;
+    }
+    // All other messages should trigger notifications.
+    false
 }

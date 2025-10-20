@@ -111,12 +111,13 @@ impl<Qep: QsConnector> GrpcDs<Qep> {
 
     /// Fans out a message to the given clients (concurrently).
     ///
-    /// The parallelism is limited by a constant. Logs failures but does not fail the whole
-    /// operation.
+    /// The parallelism is limited by a constant. Logs failures but does not
+    /// fail the whole operation.
     async fn fan_out_message(
         &self,
         fan_out_payload: impl Into<DsFanOutPayload>,
         destination_clients: impl IntoIterator<Item = identifiers::QsReference>,
+        suppress_notifications: bool,
     ) -> TimeStamp {
         let fan_out_payload = fan_out_payload.into();
         let timestamp = fan_out_payload.timestamp();
@@ -136,6 +137,7 @@ impl<Qep: QsConnector> GrpcDs<Qep> {
             join_set.spawn(self.qs_connector.dispatch(DsFanOutMessage {
                 payload: fan_out_payload.clone(),
                 client_reference,
+                suppress_notifications: suppress_notifications.into(),
             }));
         }
 
@@ -148,6 +150,20 @@ impl<Qep: QsConnector> GrpcDs<Qep> {
         }
 
         timestamp
+    }
+
+    /// Fans out a message to the given clients (concurrently) without
+    /// triggering notifications.
+    ///
+    /// The parallelism is limited by a constant. Logs failures but does not
+    /// fail the whole operation.
+    async fn fan_out_message_without_notifications(
+        &self,
+        fan_out_payload: impl Into<DsFanOutPayload>,
+        destination_clients: impl IntoIterator<Item = identifiers::QsReference>,
+    ) -> TimeStamp {
+        self.fan_out_message(fan_out_payload, destination_clients, true)
+            .await
     }
 
     async fn encrypt_and_persist(
@@ -628,7 +644,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
                     let group_message = group_state.join_connection_group(params)?;
 
                     let timestamp = self
-                        .fan_out_message(group_message, destination_clients)
+                        .fan_out_message_without_notifications(group_message, destination_clients)
                         .await;
                     Ok(timestamp)
                 },
@@ -679,7 +695,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
                 let group_message = group_state.resync_client(external_commit, sender_index)?;
 
                 let timestamp = self
-                    .fan_out_message(group_message, destination_clients)
+                    .fan_out_message_without_notifications(group_message, destination_clients)
                     .await;
                 Ok(timestamp)
             })
@@ -717,7 +733,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
                 let group_message = group_state.self_remove_client(remove_proposal)?;
 
                 let timestamp = self
-                    .fan_out_message(group_message, destination_clients)
+                    .fan_out_message_without_notifications(group_message, destination_clients)
                     .await;
                 Ok(timestamp)
             })
@@ -739,13 +755,8 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .as_ref()
             .ok_or_missing_field("signature")?;
 
-        let sender_index = request
-            .payload
-            .as_ref()
-            .ok_or_missing_field("payload")?
-            .sender
-            .ok_or_missing_field("sender")?
-            .into();
+        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        let sender_index = payload.sender.ok_or_missing_field("sender")?.into();
 
         let ear_key = request.ear_key()?;
         let message = request.message()?;
@@ -764,8 +775,15 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
         let destination_clients = group_state.other_destination_clients(sender_index);
 
+        // Messages from legacy clients won't have this field set. Default to false.
+        let suppress_notifications = payload.suppress_notifications.unwrap_or(false);
+
         let timestamp = self
-            .fan_out_message(message.into_serialized_mls_message(), destination_clients)
+            .fan_out_message(
+                message.into_serialized_mls_message(),
+                destination_clients,
+                suppress_notifications,
+            )
             .await;
 
         Ok(Response::new(SendMessageResponse {
@@ -800,7 +818,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
                 let group_message = group_state.delete_group(commit)?;
 
                 let timestamp = self
-                    .fan_out_message(group_message, destination_clients)
+                    .fan_out_message_without_notifications(group_message, destination_clients)
                     .await;
                 Ok(timestamp)
             })
@@ -849,7 +867,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
                     group_state.group_operation(params, ear_key).await?;
 
                 let timestamp = self
-                    .fan_out_message(group_message, destination_clients)
+                    .fan_out_message_without_notifications(group_message, destination_clients)
                     .await;
 
                 // TODO: Should we fan out the welcome bundles concurrently?
@@ -923,7 +941,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
                     .other_destination_clients(sender_index)
                     .collect();
 
-                self.fan_out_message(fan_out_payload, destination_clients)
+                self.fan_out_message_without_notifications(fan_out_payload, destination_clients)
                     .await;
                 Ok(())
             },

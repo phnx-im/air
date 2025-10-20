@@ -7,6 +7,10 @@ import 'dart:async';
 import 'package:air/user/user_settings_cubit.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:iconoir_flutter/regular/edit_pencil.dart';
+import 'package:iconoir_flutter/regular/plus.dart';
+import 'package:iconoir_flutter/regular/send.dart';
+import 'package:iconoir_flutter/regular/xmark.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
 import 'package:air/chat_details/chat_details.dart';
@@ -161,7 +165,10 @@ class _MessageComposerState extends State<MessageComposer>
                   borderRadius: BorderRadius.circular(Spacings.m),
                 ),
                 child: IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: Xmark(
+                    color: CustomColorScheme.of(context).text.primary,
+                    width: 32,
+                  ),
                   color: CustomColorScheme.of(context).text.primary,
                   hoverColor: const Color(0x00FFFFFF),
                   onPressed: () {
@@ -179,7 +186,16 @@ class _MessageComposerState extends State<MessageComposer>
                 borderRadius: BorderRadius.circular(Spacings.m),
               ),
               child: IconButton(
-                icon: Icon(_inputIsEmpty ? Icons.add : Icons.send),
+                icon:
+                    _inputIsEmpty
+                        ? Plus(
+                          color: CustomColorScheme.of(context).text.primary,
+                          width: 32,
+                        )
+                        : Send(
+                          color: CustomColorScheme.of(context).text.primary,
+                          width: 32,
+                        ),
                 color: CustomColorScheme.of(context).text.primary,
                 hoverColor: const Color(0x00FFFFFF),
                 onPressed: () {
@@ -321,11 +337,7 @@ class _MessageInput extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(
-                  Icons.edit_outlined,
-                  size: 24,
-                  color: CustomColorScheme.of(context).text.tertiary,
-                ),
+                EditPencil(color: CustomColorScheme.of(context).text.tertiary),
                 const SizedBox(width: Spacings.xxs),
                 Text(
                   loc.composer_editMessage,

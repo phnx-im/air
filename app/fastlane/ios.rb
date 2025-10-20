@@ -72,6 +72,7 @@ platform :ios do
 
     # Upload the app to TestFlight if the parameter is set
     if upload_to_test_flight
+      # Upload the app to TestFlight
       upload_to_testflight(
         api_key: api_key,
         app_platform: "ios",
@@ -79,17 +80,32 @@ platform :ios do
         distribute_external: false,
       )
 
-      # Upload metadata and screenshots
-      upload_to_app_store(
-        api_key: api_key,
-        app_identifier: app_identifier,
-        metadata_path: "./stores/ios/metadata",
-        screenshots_path: "./stores/ios/screenshots",
-        precheck_include_in_app_purchases: false,
-        overwrite_screenshots: true,
-        skip_binary_upload: true,
-        force: true
-      )
+      # Find the app in ASC
+      app = Spaceship::ConnectAPI::App.find(app_identifier)
+      UI.user_error!("App not found: #{app_identifier}") unless app
+
+      # Check for any blocking store version states
+      pending_release = app.get_pending_release_app_store_version   # PENDING_APPLE_RELEASE / PENDING_DEVELOPER_RELEASE
+      in_review       = app.get_in_review_app_store_version         # IN_REVIEW
+      editable        = app.get_edit_app_store_version              # PREPARE_FOR_SUBMISSION / WAITING_FOR_REVIEW / etc.
+
+      blocking = [pending_release, in_review, editable].compact
+
+      if blocking.any?
+        UI.important("There is a pending App Store version in a blocking state. Skipping metadata upload.")
+      else
+        # Upload metadata and screenshots
+        upload_to_app_store(
+          api_key: api_key,
+          app_identifier: app_identifier,
+          metadata_path: "./stores/ios/metadata",
+          screenshots_path: "./stores/ios/screenshots",
+          precheck_include_in_app_purchases: false,
+          overwrite_screenshots: true,
+          skip_binary_upload: true,
+          force: true
+        )
+      end
     end
   end
 

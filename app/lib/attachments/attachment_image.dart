@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
+import 'package:iconoir_flutter/regular/warning_circle.dart';
 import 'package:logging/logging.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ui/colors/themes.dart';
@@ -48,7 +49,10 @@ class AttachmentImage extends StatelessWidget {
             alignment: Alignment.center,
             errorBuilder: (context, error, stackTrace) {
               _log.severe('Failed to load attachment', error, stackTrace);
-              return const Icon(Icons.error);
+              return WarningCircle(
+                width: 32,
+                color: CustomColorScheme.of(context).text.primary,
+              );
             },
           ),
         ],
