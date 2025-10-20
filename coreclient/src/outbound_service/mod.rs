@@ -84,14 +84,13 @@ impl<C: OutboundServiceWork> OutboundService<C> {
         self.run_token_tx.send_if_modified(|token| match token {
             Some(run_token) => {
                 done_token = Some(run_token.done_token());
-                true // already running
+                true // already running, but might be done
             }
             None => {
                 debug!("starting background task");
                 let run_token = RunToken::new();
                 done_token = Some(run_token.done_token());
                 token.replace(run_token);
-                dbg!(token);
                 true // start running
             }
         });
