@@ -107,7 +107,7 @@ impl<C: OutboundServiceWork> OutboundService<C> {
             if let Some(run_token) = token.take() {
                 run_token.cancel();
                 done_token = Some(run_token.done_token());
-                true // stop
+                false // no more work => no need to wake up the background task
             } else {
                 false // already stopped
             }
@@ -206,17 +206,19 @@ impl StoreExt for OutboundServiceContext {
 
 /// A token send to the background task as work permit.
 ///
-/// The token is stored in a [`tokio::sync::watch`] cell. Whenever, the token is updated or
-/// removed, the background task is woken up and uses the token to start work.
+/// The token is stored in a [`tokio::sync::watch`] cell. Whenever, the token is updated, the
+/// background task is woken up and uses the token to start work (if it is not running yet). When
+/// the token is removed, the the background work (if any) is cancelled. There is no need to wake
+/// up the background task in this case.
 ///
 /// The token also contains a `done_cell` which is *shared* between the callers and the background
 /// task. The background task uses it to mark the work as done. In case the run token is created
-/// but the work is immediately cancelled, such that, the background task never receives the token,
+/// but the work is immediately cancelled such that the background task never receives the token,
 /// the done cell is dropped (it has only a single reference), which marks the work as done.
 ///
 /// Note: Even though is is possible to make this type `Clone`, it is not implemented, because it
 /// makes it easier to argue about how many references of `done_cell` exist. Indeed, at any point
-/// in time, there are at most `done_cell` two references: one as part of the `RunToken` in a
+/// in time, there are at most two `done_cell` references: one as part of the `RunToken` in a
 /// `watch` cell, and another in the background task.
 #[derive(Debug, Default)]
 struct RunToken {

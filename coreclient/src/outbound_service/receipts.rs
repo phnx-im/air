@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{identifiers::MimiId, time::TimeStamp};
+use aircommon::{
+    crypto::ear::keys::GroupStateEarKey, identifiers::MimiId,
+    messages::client_ds_out::SendMessageParamsOut, time::TimeStamp,
+};
 use anyhow::Context;
 use mimi_content::{
     ByteBuf, Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPart,
@@ -123,22 +126,8 @@ impl OutboundServiceContext {
         };
 
         // load group and create MLS message
-        let (group_state_ear_key, params) = self
-            .with_transaction(async |txn| {
-                let group_id = chat.group_id();
-                let mut group = Group::load_clean(txn.as_mut(), group_id)
-                    .await?
-                    .with_context(|| format!("Can't find group with id {group_id:?}"))?;
-                let params = group.create_message(
-                    &AirOpenMlsProvider::new(txn.as_mut()),
-                    &self.signing_key,
-                    unsent_receipt.content,
-                )?;
-                group.store_update(txn.as_mut()).await?;
-                Ok((group.group_state_ear_key().clone(), params))
-            })
-            .await
-            .map_err(SendChatReceiptError::fatal)?;
+        let (group_state_ear_key, params) =
+            self.new_mls_message(&chat, unsent_receipt.content).await?;
 
         // send MLS message to DS
         self.api_clients
@@ -159,6 +148,28 @@ impl OutboundServiceContext {
         .map_err(SendChatReceiptError::fatal)?;
 
         Ok(())
+    }
+
+    async fn new_mls_message(
+        &self,
+        chat: &Chat,
+        mimi_content: MimiContent,
+    ) -> Result<(GroupStateEarKey, SendMessageParamsOut), SendChatReceiptError> {
+        self.with_transaction(async |txn| {
+            let group_id = chat.group_id();
+            let mut group = Group::load_clean(txn.as_mut(), group_id)
+                .await?
+                .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+            let params = group.create_message(
+                &AirOpenMlsProvider::new(txn.as_mut()),
+                &self.signing_key,
+                mimi_content,
+            )?;
+            group.store_update(txn.as_mut()).await?;
+            Ok((group.group_state_ear_key().clone(), params))
+        })
+        .await
+        .map_err(SendChatReceiptError::fatal)
     }
 }
 
