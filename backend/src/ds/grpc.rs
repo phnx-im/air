@@ -111,7 +111,7 @@ impl<Qep: QsConnector> GrpcDs<Qep> {
 
     async fn load_group_state_for_update(
         &self,
-        connection: &mut PgConnection,
+        connection: &mut PgTransaction<'_>,
         qgid: &QualifiedGroupId,
         ear_key: &GroupStateEarKey,
     ) -> Result<(StorableDsGroupData<true>, DsGroupState), LoadGroupStateError> {
