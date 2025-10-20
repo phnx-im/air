@@ -28,6 +28,7 @@ use crate::{
     groups::{Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider},
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
     store::StoreNotifier,
+    utils::connection_ext::StoreExt,
 };
 
 use super::{CoreUser, connection_offer::payload::ConnectionOfferPayload};

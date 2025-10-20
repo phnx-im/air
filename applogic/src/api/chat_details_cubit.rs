@@ -283,22 +283,23 @@ impl ChatDetailsCubitBase {
             return Ok(());
         }
 
-        let (_, read_mimi_ids) = self
+        let (_, read_message_ids) = self
             .context
             .store
             .mark_chat_as_read(self.context.chat_id, until_message_id)
             .await?;
 
-        let statuses = read_mimi_ids
+        let statuses = read_message_ids
             .iter()
-            .map(|mimi_id| (mimi_id, MessageStatus::Read));
+            .map(|(message_id, mimi_id)| (*message_id, mimi_id, MessageStatus::Read));
         if let Err(error) = self
             .context
             .store
-            .send_delivery_receipts(self.context.chat_id, statuses)
+            .outbound_service()
+            .enqueue_receipts(self.context.chat_id, statuses)
             .await
         {
-            error!(%error, "Failed to send delivery receipt");
+            error!(%error, "Failed to send read receipt");
         }
 
         Ok(())
