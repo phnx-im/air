@@ -4,13 +4,35 @@
 
 //! Configuration for MLS groups.
 
-use mls_assist::openmls::prelude::{
-    Capabilities, Ciphersuite, CredentialType, ExtensionType, ProposalType, ProtocolVersion,
-    RequiredCapabilitiesExtension,
+use mls_assist::openmls::{
+    group::{MlsGroupJoinConfig, PURE_PLAINTEXT_WIRE_FORMAT_POLICY},
+    prelude::{
+        Capabilities, Ciphersuite, CredentialType, ExtensionType, ProposalType, ProtocolVersion,
+        RequiredCapabilitiesExtension, SenderRatchetConfiguration,
+    },
 };
 
 /// Dictates for how many past epochs we want to keep around message secrets.
 pub const MAX_PAST_EPOCHS: usize = 5;
+
+/// Determines the out-of-order tolerance for the sender ratchet. See
+/// [`SenderRatchetConfiguration`].
+pub const OUT_OF_ORDER_TOLERANCE: u32 = 20;
+/// Determines the maximum forward distance for the sender ratchet. See
+/// [`SenderRatchetConfiguration`].
+pub const MAXIMUM_FORWARD_DISTANCE: u32 = 1000;
+
+pub fn default_sender_ratchet_configuration() -> SenderRatchetConfiguration {
+    SenderRatchetConfiguration::new(OUT_OF_ORDER_TOLERANCE, MAXIMUM_FORWARD_DISTANCE)
+}
+
+pub fn default_mls_group_join_config() -> MlsGroupJoinConfig {
+    MlsGroupJoinConfig::builder()
+        .max_past_epochs(MAX_PAST_EPOCHS)
+        .sender_ratchet_configuration(default_sender_ratchet_configuration())
+        .wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
+        .build()
+}
 
 /// Proposal type of the friendship package proposal.
 pub const FRIENDSHIP_PACKAGE_PROPOSAL_TYPE: u16 = 0xff00;
