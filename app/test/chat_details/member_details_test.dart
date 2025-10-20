@@ -17,7 +17,7 @@ void main() {
       theme: lightTheme,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       home: Scaffold(
-        body: MemberDetails(
+        body: MemberDetailsView(
           chatId: chats[0].id,
           profile: userProfiles[1],
           isSelf: false,

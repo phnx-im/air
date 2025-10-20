@@ -19,7 +19,6 @@ import 'package:air/util/interface_scale.dart';
 import 'package:air/util/platform.dart';
 import 'package:provider/provider.dart';
 
-import 'chat_details/chat_details.dart';
 import 'registration/registration.dart';
 import 'theme/theme.dart';
 
@@ -143,7 +142,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
           builder:
               (context, router) => LoadableUserCubitProvider(
                 appStateController: _appStateController,
-                child: ChatDetailsCubitProvider(child: router!),
+                child: router!,
               ),
         ),
       ),
@@ -246,39 +245,5 @@ void _requestNotificationPermissions() async {
       default:
         _log.info("Notification permission status: $status");
     }
-  }
-}
-
-/// Creates a [ChatDetailsCubit] for the current chat
-///
-/// This is used to mount the chat details cubit when the user
-/// navigates to a chat. The [ChatDetailsCubit] can be
-/// then used from any screen.
-class ChatDetailsCubitProvider extends StatelessWidget {
-  const ChatDetailsCubitProvider({required this.child, super.key});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<NavigationCubit, NavigationState>(
-      buildWhen: (previous, current) => current.chatId != previous.chatId,
-      builder: (context, state) {
-        final chatId = state.chatId;
-        if (chatId == null) {
-          return child;
-        }
-        return BlocProvider(
-          // rebuilds the cubit when a different chat is selected
-          key: ValueKey("chat-details-cubit-$chatId"),
-          create:
-              (context) => ChatDetailsCubit(
-                userCubit: context.read<UserCubit>(),
-                chatId: chatId,
-              ),
-          child: child,
-        );
-      },
-    );
   }
 }
