@@ -6863,13 +6863,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   MemberDetailsState dco_decode_member_details_state(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 2)
-      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    if (arr.length != 1)
+      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
     return MemberDetailsState(
-      members: dco_decode_list_ui_user_id(arr[0]),
       roomState:
           dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-            arr[1],
+            arr[0],
           ),
     );
   }
@@ -8999,12 +8998,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_members = sse_decode_list_ui_user_id(deserializer);
     var var_roomState =
         sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
           deserializer,
         );
-    return MemberDetailsState(members: var_members, roomState: var_roomState);
+    return MemberDetailsState(roomState: var_roomState);
   }
 
   @protected
@@ -11467,7 +11465,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_list_ui_user_id(self.members, serializer);
     sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
       self.roomState,
       serializer,

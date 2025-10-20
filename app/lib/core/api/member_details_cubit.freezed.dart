@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$MemberDetailsState {
 
- List<UiUserId> get members; UiRoomState? get roomState;
+ UiRoomState? get roomState;
 /// Create a copy of MemberDetailsState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $MemberDetailsStateCopyWith<MemberDetailsState> get copyWith => _$MemberDetailsS
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MemberDetailsState&&const DeepCollectionEquality().equals(other.members, members)&&(identical(other.roomState, roomState) || other.roomState == roomState));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MemberDetailsState&&(identical(other.roomState, roomState) || other.roomState == roomState));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(members),roomState);
+int get hashCode => Object.hash(runtimeType,roomState);
 
 @override
 String toString() {
-  return 'MemberDetailsState(members: $members, roomState: $roomState)';
+  return 'MemberDetailsState(roomState: $roomState)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $MemberDetailsStateCopyWith<$Res>  {
   factory $MemberDetailsStateCopyWith(MemberDetailsState value, $Res Function(MemberDetailsState) _then) = _$MemberDetailsStateCopyWithImpl;
 @useResult
 $Res call({
- List<UiUserId> members, UiRoomState? roomState
+ UiRoomState? roomState
 });
 
 
@@ -62,10 +62,9 @@ class _$MemberDetailsStateCopyWithImpl<$Res>
 
 /// Create a copy of MemberDetailsState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? members = null,Object? roomState = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? roomState = freezed,}) {
   return _then(_self.copyWith(
-members: null == members ? _self.members : members // ignore: cast_nullable_to_non_nullable
-as List<UiUserId>,roomState: freezed == roomState ? _self.roomState : roomState // ignore: cast_nullable_to_non_nullable
+roomState: freezed == roomState ? _self.roomState : roomState // ignore: cast_nullable_to_non_nullable
 as UiRoomState?,
   ));
 }
@@ -78,15 +77,8 @@ as UiRoomState?,
 
 
 class _MemberDetailsState extends MemberDetailsState {
-  const _MemberDetailsState({required final  List<UiUserId> members, this.roomState}): _members = members,super._();
+  const _MemberDetailsState({this.roomState}): super._();
   
-
- final  List<UiUserId> _members;
-@override List<UiUserId> get members {
-  if (_members is EqualUnmodifiableListView) return _members;
-  // ignore: implicit_dynamic_type
-  return EqualUnmodifiableListView(_members);
-}
 
 @override final  UiRoomState? roomState;
 
@@ -100,16 +92,16 @@ _$MemberDetailsStateCopyWith<_MemberDetailsState> get copyWith => __$MemberDetai
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MemberDetailsState&&const DeepCollectionEquality().equals(other._members, _members)&&(identical(other.roomState, roomState) || other.roomState == roomState));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MemberDetailsState&&(identical(other.roomState, roomState) || other.roomState == roomState));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_members),roomState);
+int get hashCode => Object.hash(runtimeType,roomState);
 
 @override
 String toString() {
-  return 'MemberDetailsState(members: $members, roomState: $roomState)';
+  return 'MemberDetailsState(roomState: $roomState)';
 }
 
 
@@ -120,7 +112,7 @@ abstract mixin class _$MemberDetailsStateCopyWith<$Res> implements $MemberDetail
   factory _$MemberDetailsStateCopyWith(_MemberDetailsState value, $Res Function(_MemberDetailsState) _then) = __$MemberDetailsStateCopyWithImpl;
 @override @useResult
 $Res call({
- List<UiUserId> members, UiRoomState? roomState
+ UiRoomState? roomState
 });
 
 
@@ -137,10 +129,9 @@ class __$MemberDetailsStateCopyWithImpl<$Res>
 
 /// Create a copy of MemberDetailsState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? members = null,Object? roomState = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? roomState = freezed,}) {
   return _then(_MemberDetailsState(
-members: null == members ? _self._members : members // ignore: cast_nullable_to_non_nullable
-as List<UiUserId>,roomState: freezed == roomState ? _self.roomState : roomState // ignore: cast_nullable_to_non_nullable
+roomState: freezed == roomState ? _self.roomState : roomState // ignore: cast_nullable_to_non_nullable
 as UiRoomState?,
   ));
 }

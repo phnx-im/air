@@ -7708,10 +7708,8 @@ impl SseDecode for crate::api::logging::LogEntryLevel {
 impl SseDecode for crate::api::member_details_cubit::MemberDetailsState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_members = <Vec<crate::api::types::UiUserId>>::sse_decode(deserializer);
         let mut var_roomState = <Option<UiRoomState>>::sse_decode(deserializer);
         return crate::api::member_details_cubit::MemberDetailsState {
-            members: var_members,
             room_state: var_roomState,
         };
     }
@@ -9450,11 +9448,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::logging::LogEntryLevel>
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::member_details_cubit::MemberDetailsState {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [
-            self.members.into_into_dart().into_dart(),
-            self.room_state.into_into_dart().into_dart(),
-        ]
-        .into_dart()
+        [self.room_state.into_into_dart().into_dart()].into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
@@ -11192,7 +11186,6 @@ impl SseEncode for crate::api::logging::LogEntryLevel {
 impl SseEncode for crate::api::member_details_cubit::MemberDetailsState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <Vec<crate::api::types::UiUserId>>::sse_encode(self.members, serializer);
         <Option<UiRoomState>>::sse_encode(self.room_state, serializer);
     }
 }

@@ -24,7 +24,6 @@ use crate::{
 #[frb(dart_metadata = ("freezed"))]
 #[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
 pub struct MemberDetailsState {
-    pub members: Vec<UiUserId>,
     pub room_state: Option<UiRoomState>,
 }
 
@@ -124,15 +123,6 @@ struct MemberDetailsContext {
 
 impl MemberDetailsContext {
     async fn load_and_emit_state(&self) {
-        let members = self
-            .store
-            .chat_participants(self.chat_id)
-            .await
-            .unwrap_or_default()
-            .into_iter()
-            .map(From::from)
-            .collect();
-
         let room_state = self
             .store
             .load_room_state(&self.chat_id)
@@ -141,10 +131,7 @@ impl MemberDetailsContext {
             .map(|(our_user, state)| UiRoomState { our_user, state })
             .ok();
 
-        let _ = self.state_tx.send(MemberDetailsState {
-            members,
-            room_state,
-        });
+        let _ = self.state_tx.send(MemberDetailsState { room_state });
     }
 
     async fn update_state_task(self) {

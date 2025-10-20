@@ -46,10 +46,8 @@ abstract class UiRoomState implements RustOpaqueInterface {
 @freezed
 sealed class MemberDetailsState with _$MemberDetailsState {
   const MemberDetailsState._();
-  const factory MemberDetailsState({
-    required List<UiUserId> members,
-    UiRoomState? roomState,
-  }) = _MemberDetailsState;
+  const factory MemberDetailsState({UiRoomState? roomState}) =
+      _MemberDetailsState;
   static Future<MemberDetailsState> default_() =>
       RustLib.instance.api
           .crateApiMemberDetailsCubitMemberDetailsStateDefault();
