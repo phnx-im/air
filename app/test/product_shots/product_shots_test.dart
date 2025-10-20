@@ -20,6 +20,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
+import '../chat_list/chat_list_content_test.dart'
+    show createMockChatDetailsCubitFactory;
 import '../helpers.dart';
 import '../message_list/message_list_test.dart';
 import '../mocks.dart';
@@ -79,47 +81,59 @@ void main() {
       when(() => usersCubit.state).thenReturn(
         MockUsersState(profiles: userProfiles, defaultUserId: ownId),
       );
-      when(() => chatListCubit.state).thenReturn(ChatListState(chats: chats));
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: chatIds));
     });
 
-    Widget buildSubject(ProductShotPlatform platform) => MultiBlocProvider(
-      providers: [
-        BlocProvider<NavigationCubit>.value(value: navigationCubit),
-        BlocProvider<UserCubit>.value(value: userCubit),
-        BlocProvider<UsersCubit>.value(value: usersCubit),
-        BlocProvider<ChatListCubit>.value(value: chatListCubit),
-      ],
-      child: Builder(
-        builder: (context) {
-          final shotSize = _productShotSizeFor(platform);
-          final shot = ProductShot(
-            size: shotSize,
-            backgroundColor: backgroundColor,
-            titleColor: titleColor,
-            subtitleColor: subtitleColor,
-            title: title,
-            subtitle: subtitle,
-            device: ProductShotDevices.forPlatform(platform),
-            child: const ChatListView(scaffold: true),
-          );
+    Widget buildSubject(ProductShotPlatform platform) =>
+        RepositoryProvider<ChatsRepository>.value(
+          value: MockChatsRepository(),
+          child: MultiBlocProvider(
+            providers: [
+              BlocProvider<NavigationCubit>.value(value: navigationCubit),
+              BlocProvider<UserCubit>.value(value: userCubit),
+              BlocProvider<UsersCubit>.value(value: usersCubit),
+              BlocProvider<ChatListCubit>.value(value: chatListCubit),
+            ],
+            child: Builder(
+              builder: (context) {
+                final shotSize = _productShotSizeFor(platform);
+                final shot = ProductShot(
+                  size: shotSize,
+                  backgroundColor: backgroundColor,
+                  titleColor: titleColor,
+                  subtitleColor: subtitleColor,
+                  title: title,
+                  subtitle: subtitle,
+                  device: ProductShotDevices.forPlatform(platform),
+                  child: ChatListView(
+                    scaffold: true,
+                    createChatDetailsCubit: createMockChatDetailsCubitFactory(
+                      chats,
+                    ),
+                  ),
+                );
 
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
-            theme: lightTheme,
-            themeMode: ThemeMode.light,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            home: Material(
-              child: MediaQuery(
-                data: MediaQuery.of(
-                  context,
-                ).copyWith(platformBrightness: Brightness.light),
-                child: shot,
-              ),
+                return MaterialApp(
+                  debugShowCheckedModeBanner: false,
+                  theme: lightTheme,
+                  themeMode: ThemeMode.light,
+                  localizationsDelegates:
+                      AppLocalizations.localizationsDelegates,
+                  home: Material(
+                    child: MediaQuery(
+                      data: MediaQuery.of(
+                        context,
+                      ).copyWith(platformBrightness: Brightness.light),
+                      child: shot,
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
-    );
+          ),
+        );
 
     testProductShot(
       "Chat List (iOS)",

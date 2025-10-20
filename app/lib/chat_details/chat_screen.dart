@@ -43,6 +43,8 @@ class ChatScreen extends StatelessWidget {
               (context) => ChatDetailsCubit(
                 userCubit: context.read<UserCubit>(),
                 chatId: chatId,
+                chatsRepository: context.read<ChatsRepository>(),
+                withMembers: false,
               ),
         ),
         BlocProvider(
@@ -131,12 +133,11 @@ class _ChatHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = context.select(
-      (ChatDetailsCubit cubit) => cubit.state.chat?.title,
-    );
-
-    final image = context.select(
-      (ChatDetailsCubit cubit) => cubit.state.chat?.picture,
+    final (title, image) = context.select(
+      (ChatDetailsCubit cubit) => (
+        cubit.state.chat?.title,
+        cubit.state.chat?.picture,
+      ),
     );
 
     return Container(

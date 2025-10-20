@@ -239,6 +239,29 @@ impl Chat {
         Ok(chat.convert(members))
     }
 
+    pub(crate) async fn load_ordered_ids(
+        executor: impl SqliteExecutor<'_>,
+    ) -> sqlx::Result<Vec<ChatId>> {
+        // Note: sqlite considers NULL values as the smallest value.
+        query_scalar!(
+            r#"SELECT
+                c.chat_id AS "chat_id: _"
+            FROM chat c
+            LEFT JOIN message_draft d ON d.chat_id = c.chat_id
+            ORDER BY
+                d.updated_at DESC,
+                (SELECT timestamp
+                    FROM message
+                    WHERE chat_id = c.chat_id
+                    ORDER BY timestamp DESC
+                    LIMIT 1
+                ) DESC;
+            "#,
+        )
+        .fetch_all(executor)
+        .await
+    }
+
     pub(crate) async fn load_by_group_id(
         connection: &mut SqliteConnection,
         group_id: &GroupId,

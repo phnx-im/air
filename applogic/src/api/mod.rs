@@ -19,6 +19,7 @@
 pub mod attachments_repository;
 pub mod chat_details_cubit;
 pub mod chat_list_cubit;
+pub mod chats_repository;
 pub mod logging;
 pub mod markdown;
 pub mod member_details_cubit;

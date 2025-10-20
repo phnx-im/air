@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                c.chat_id AS \"chat_id: _\"\n            FROM chat c\n            LEFT JOIN message_draft d ON d.chat_id = c.chat_id\n            ORDER BY\n                d.updated_at DESC,\n                (SELECT timestamp\n                    FROM message\n                    WHERE chat_id = c.chat_id\n                    ORDER BY timestamp DESC\n                    LIMIT 1\n                ) DESC;\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "chat_id: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b20879c18135bf36437ebb10dc1dac0cd33531fb392e876125a4297535bea3e3"
+}

@@ -5,6 +5,7 @@
 export 'api/attachments_repository.dart';
 export 'api/chat_details_cubit.dart';
 export 'api/chat_list_cubit.dart';
+export 'api/chats_repository.dart';
 export 'api/logging.dart';
 export 'api/member_details_cubit.dart';
 export 'api/message_content.dart';

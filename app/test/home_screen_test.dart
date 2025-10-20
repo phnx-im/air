@@ -66,28 +66,37 @@ void main() {
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
     });
 
-    Widget buildSubject() => MultiBlocProvider(
-      providers: [
-        BlocProvider<NavigationCubit>.value(value: navigationCubit),
-        BlocProvider<UserCubit>.value(value: userCubit),
-        BlocProvider<UsersCubit>.value(value: usersCubit),
-        BlocProvider<ChatListCubit>.value(value: chatListCubit),
-        BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
-        BlocProvider<MessageListCubit>.value(value: messageListCubit),
-        BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-      ],
-      child: Builder(
-        builder: (context) {
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
-            theme: themeData(MediaQuery.platformBrightnessOf(context)),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            home: const HomeScreenDesktopLayout(
-              chatList: ChatListView(),
-              chat: ChatScreenView(createMessageCubit: createMockMessageCubit),
-            ),
-          );
-        },
+    Widget buildSubject() => RepositoryProvider<ChatsRepository>.value(
+      value: MockChatsRepository(),
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<NavigationCubit>.value(value: navigationCubit),
+          BlocProvider<UserCubit>.value(value: userCubit),
+          BlocProvider<UsersCubit>.value(value: usersCubit),
+          BlocProvider<ChatListCubit>.value(value: chatListCubit),
+          BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
+          BlocProvider<MessageListCubit>.value(value: messageListCubit),
+          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+        ],
+        child: Builder(
+          builder: (context) {
+            return MaterialApp(
+              debugShowCheckedModeBanner: false,
+              theme: themeData(MediaQuery.platformBrightnessOf(context)),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              home: HomeScreenDesktopLayout(
+                chatList: ChatListView(
+                  createChatDetailsCubit: createMockChatDetailsCubitFactory(
+                    chats,
+                  ),
+                ),
+                chat: const ChatScreenView(
+                  createMessageCubit: createMockMessageCubit,
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
 
@@ -106,7 +115,7 @@ void main() {
       ).thenReturn(const NavigationState.home());
       when(
         () => chatListCubit.state,
-      ).thenReturn(const ChatListState(chats: []));
+      ).thenReturn(const ChatListState(chatIds: []));
       when(
         () => chatDetailsCubit.state,
       ).thenReturn(ChatDetailsState(chat: chats[2], members: members));
@@ -133,7 +142,9 @@ void main() {
       when(
         () => navigationCubit.state,
       ).thenReturn(const NavigationState.home());
-      when(() => chatListCubit.state).thenReturn(ChatListState(chats: chats));
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: chatIds));
       when(
         () => chatDetailsCubit.state,
       ).thenReturn(ChatDetailsState(chat: chats[2], members: members));
@@ -166,7 +177,9 @@ void main() {
           home: HomeNavigationState(chatOpen: true, chatId: chats[2].id),
         ),
       );
-      when(() => chatListCubit.state).thenReturn(ChatListState(chats: chats));
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: chatIds));
       when(
         () => chatDetailsCubit.state,
       ).thenReturn(ChatDetailsState(chat: chats[2], members: members));
@@ -199,7 +212,9 @@ void main() {
           home: HomeNavigationState(chatOpen: true, chatId: chats[4].id),
         ),
       );
-      when(() => chatListCubit.state).thenReturn(ChatListState(chats: chats));
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: chatIds));
       when(
         () => chatDetailsCubit.state,
       ).thenReturn(ChatDetailsState(chat: chats[4], members: members));

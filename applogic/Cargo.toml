@@ -52,6 +52,7 @@ mimi_content = { workspace = true }
 derive_more = { workspace = true }
 tls_codec = { workspace = true }
 url = "2.5.4"
+lru = "0.16.2"
 
 [target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
 notify-rust = "4"

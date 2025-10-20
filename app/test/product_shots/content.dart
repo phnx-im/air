@@ -271,6 +271,8 @@ final chats = [
   ),
 ];
 
+final chatIds = chats.map((chat) => chat.id).toList();
+
 UiChatMessage _lastChatMessage(ChatId chatId, UiUserId senderId, String body) =>
     UiChatMessage(
       id: (messageIdx++).messageId(),

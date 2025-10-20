@@ -35,6 +35,7 @@ class ChatDetailsScreen extends StatelessWidget {
         return ChatDetailsCubit(
           userCubit: context.read<UserCubit>(),
           chatId: chatId,
+          chatsRepository: context.read<ChatsRepository>(),
         );
       },
       child: const ChatDetailsScreenView(),
