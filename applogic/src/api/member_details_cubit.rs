@@ -27,7 +27,7 @@ pub struct MemberDetailsState {
     pub room_state: Option<UiRoomState>,
 }
 
-#[frb(dart_metadata = ("freezed"))]
+#[frb(opaque)]
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct UiRoomState {
     our_user: UserId,
