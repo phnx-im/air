@@ -33,6 +33,14 @@ impl StorableDsGroupData<false> {
         .await?;
         Ok(())
     }
+
+    #[cfg(test)]
+    pub(crate) async fn load_immutable(
+        connection: &mut PgConnection,
+        qgid: &QualifiedGroupId,
+    ) -> Result<Option<Self>, StorageError> {
+        Self::load(connection, qgid).await
+    }
 }
 
 impl<const LOADED_FOR_UPDATE: bool> StorableDsGroupData<LOADED_FOR_UPDATE> {
@@ -104,6 +112,14 @@ impl<const LOADED_FOR_UPDATE: bool> StorableDsGroupData<LOADED_FOR_UPDATE> {
 }
 
 impl StorableDsGroupData<true> {
+    #[cfg(test)]
+    pub(crate) async fn load_for_update(
+        connection: &mut PgConnection,
+        qgid: &QualifiedGroupId,
+    ) -> Result<Option<Self>, StorageError> {
+        Self::load(connection, qgid).await
+    }
+
     pub(crate) async fn update(&self, connection: &mut PgConnection) -> Result<(), StorageError> {
         query!(
             "UPDATE
@@ -192,7 +208,7 @@ mod test {
 
         // Load the group state again
         let mut connection = ds.connection().await.unwrap();
-        let loaded_group_state = StorableDsGroupData::<false>::load(&mut connection, &qgid)
+        let loaded_group_state = StorableDsGroupData::load_immutable(&mut connection, &qgid)
             .await
             .unwrap()
             .unwrap();
@@ -203,7 +219,7 @@ mod test {
         );
 
         // Load the group state for update
-        let mut storable_group_data = StorableDsGroupData::<true>::load(&mut connection, &qgid)
+        let mut storable_group_data = StorableDsGroupData::load_for_update(&mut connection, &qgid)
             .await
             .unwrap()
             .unwrap();
@@ -214,7 +230,7 @@ mod test {
         storable_group_data.update(&mut connection).await.unwrap();
 
         // Load the group state again
-        let loaded_group_state = StorableDsGroupData::<false>::load(&mut connection, &qgid)
+        let loaded_group_state = StorableDsGroupData::load_immutable(&mut connection, &qgid)
             .await
             .unwrap()
             .unwrap();
@@ -273,12 +289,12 @@ mod test {
         assert_eq!(loaded.unwrap(), group);
 
         random_group(group.group_id);
-        let updated_group = StorableDsGroupData::<true>::load(&mut connection, &qgid)
+        let updated_group = StorableDsGroupData::load_for_update(&mut connection, &qgid)
             .await?
             .unwrap();
         updated_group.update(&mut connection).await?;
 
-        let loaded = StorableDsGroupData::<false>::load(&mut connection, &qgid).await?;
+        let loaded = StorableDsGroupData::load_immutable(&mut connection, &qgid).await?;
         assert_eq!(loaded.unwrap(), updated_group.into());
 
         Ok(())
@@ -295,7 +311,7 @@ mod test {
 
         StorableDsGroupData::<true>::delete(&pool, &qgid).await?;
 
-        let loaded = StorableDsGroupData::<false>::load(&mut connection, &qgid).await?;
+        let loaded = StorableDsGroupData::load_immutable(&mut connection, &qgid).await?;
         assert!(loaded.is_none());
 
         Ok(())

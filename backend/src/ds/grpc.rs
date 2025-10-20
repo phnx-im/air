@@ -92,7 +92,7 @@ impl<Qep: QsConnector> GrpcDs<Qep> {
         qgid: &QualifiedGroupId,
         ear_key: &GroupStateEarKey,
     ) -> Result<(StorableDsGroupData<LOADED_FOR_UPDATE>, DsGroupState), LoadGroupStateError> {
-        let group_data = StorableDsGroupData::<LOADED_FOR_UPDATE>::load(&mut *connection, qgid)
+        let group_data = StorableDsGroupData::load(&mut *connection, qgid)
             .await?
             .ok_or(GroupNotFoundError)?;
         if group_data.has_expired() {
@@ -107,6 +107,26 @@ impl<Qep: QsConnector> GrpcDs<Qep> {
         }
         let group_state = DsGroupState::decrypt(&group_data.encrypted_group_state, ear_key)?;
         Ok((group_data, group_state))
+    }
+
+    async fn load_group_state_for_update(
+        &self,
+        connection: &mut PgConnection,
+        qgid: &QualifiedGroupId,
+        ear_key: &GroupStateEarKey,
+    ) -> Result<(StorableDsGroupData<true>, DsGroupState), LoadGroupStateError> {
+        self.load_group_state::<true>(connection, qgid, ear_key)
+            .await
+    }
+
+    async fn load_group_state_immutable(
+        &self,
+        connection: &mut PgConnection,
+        qgid: &QualifiedGroupId,
+        ear_key: &GroupStateEarKey,
+    ) -> Result<(StorableDsGroupData<false>, DsGroupState), LoadGroupStateError> {
+        self.load_group_state::<false>(connection, qgid, ear_key)
+            .await
     }
 
     /// Fans out a message to the given clients (concurrently).
@@ -194,22 +214,24 @@ impl<Qep: QsConnector> GrpcDs<Qep> {
             error!(%error, "Failed to start transaction");
             Status::internal("Failed to start transaction")
         })?;
-        let (mut group_state, mut group_data) =
-            match self.load_group_state::<true>(&mut txn, qgid, ear_key).await {
-                Ok((group_data, group_state)) => (group_state, group_data),
-                Err(LoadGroupStateError::Expired) => {
-                    // The group state has expired and has already been deleted.
-                    // Commit the transaction and return not found.
-                    txn.commit().await.map_err(|error| {
-                        error!(%error, "Failed to commit transaction");
-                        Status::internal("Failed to commit transaction")
-                    })?;
-                    return Err(Status::not_found("Group state expired"));
-                }
-                Err(LoadGroupStateError::Status(status)) => {
-                    return Err(status);
-                }
-            };
+        let (mut group_state, mut group_data) = match self
+            .load_group_state_for_update(&mut txn, qgid, ear_key)
+            .await
+        {
+            Ok((group_data, group_state)) => (group_state, group_data),
+            Err(LoadGroupStateError::Expired) => {
+                // The group state has expired and has already been deleted.
+                // Commit the transaction and return not found.
+                txn.commit().await.map_err(|error| {
+                    error!(%error, "Failed to commit transaction");
+                    Status::internal("Failed to commit transaction")
+                })?;
+                return Err(Status::not_found("Group state expired"));
+            }
+            Err(LoadGroupStateError::Status(status)) => {
+                return Err(status);
+            }
+        };
 
         let value = f(&mut group_state, &mut group_data).await?;
         self.encrypt_and_persist(&mut txn, group_data, group_state, ear_key)
@@ -250,7 +272,7 @@ impl<Qep: QsConnector> GrpcDs<Qep> {
             Status::internal("Failed to start transaction")
         })?;
         let (mut group_state, group_data) = match self
-            .load_group_state::<true>(&mut txn, &qgid, &ear_key)
+            .load_group_state_for_update(&mut txn, &qgid, &ear_key)
             .await
         {
             Ok((group_data, group_state)) => (group_state, group_data),
@@ -485,7 +507,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         let ear_key = payload.ear_key()?;
         let mut connection = self.ds.connection().await?;
         let (_, mut group_state) = self
-            .load_group_state::<false>(&mut connection, &qgid, &ear_key)
+            .load_group_state_immutable(&mut connection, &qgid, &ear_key)
             .await
             .map_err(to_status)?;
 
@@ -528,7 +550,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
         let mut connection = self.ds.connection().await?;
         let (_, group_state) = self
-            .load_group_state::<false>(&mut connection, &qgid, &ear_key)
+            .load_group_state_immutable(&mut connection, &qgid, &ear_key)
             .await
             .map_err(to_status)?;
 
@@ -579,7 +601,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
         let mut connection = self.ds.connection().await?;
         let (_, group_state) = self
-            .load_group_state::<false>(&mut connection, &qgid, &ear_key)
+            .load_group_state_immutable(&mut connection, &qgid, &ear_key)
             .await
             .map_err(to_status)?;
         let commit_info = group_state.external_commit_info();
@@ -769,7 +791,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             Status::internal("Failed to acquire DB connection")
         })?;
         let (_, group_state) = self
-            .load_group_state::<false>(&mut connection, &qgid, &ear_key)
+            .load_group_state_immutable(&mut connection, &qgid, &ear_key)
             .await
             .map_err(to_status)?;
 
@@ -973,7 +995,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             Status::internal("Failed to acquire DB connection")
         })?;
         let (_group_data, group_state) = self
-            .load_group_state::<false>(&mut connection, &qgid, &ear_key)
+            .load_group_state_immutable(&mut connection, &qgid, &ear_key)
             .await
             .map_err(to_status)?;
 
@@ -1011,7 +1033,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             Status::internal("Failed to acquire DB connection")
         })?;
         let (_group_data, group_state) = self
-            .load_group_state::<false>(&mut connection, &qgid, &ear_key)
+            .load_group_state_immutable(&mut connection, &qgid, &ear_key)
             .await
             .map_err(to_status)?;
 
