@@ -22,6 +22,7 @@ use crate::{
         },
     },
     groups::Group,
+    utils::connection_ext::StoreExt,
 };
 
 impl CoreUser {
