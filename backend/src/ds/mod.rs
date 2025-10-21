@@ -80,6 +80,7 @@ impl Ds {
         &self.own_domain
     }
 
+    #[cfg(test)]
     pub(crate) async fn connection(&self) -> Result<PoolConnection<Postgres>, Status> {
         self.db_pool.acquire().await.map_err(|error| {
             error!(%error, "Failed to acquire DB connection");

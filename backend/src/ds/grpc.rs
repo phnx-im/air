@@ -121,11 +121,14 @@ impl<Qep: QsConnector> GrpcDs<Qep> {
 
     async fn load_group_state_immutable(
         &self,
-        connection: &mut PgConnection,
         qgid: &QualifiedGroupId,
         ear_key: &GroupStateEarKey,
     ) -> Result<(StorableDsGroupData<false>, DsGroupState), LoadGroupStateError> {
-        self.load_group_state::<false>(connection, qgid, ear_key)
+        let mut connection = self.ds.db_pool.acquire().await.map_err(|error| {
+            error!(%error, "Failed to acquire DB connection");
+            Status::internal("Failed to acquire DB connection")
+        })?;
+        self.load_group_state::<false>(&mut connection, qgid, ear_key)
             .await
     }
 
@@ -505,9 +508,8 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
         let qgid = payload.validated_qgid(&self.ds.own_domain)?;
         let ear_key = payload.ear_key()?;
-        let mut connection = self.ds.connection().await?;
         let (_, mut group_state) = self
-            .load_group_state_immutable(&mut connection, &qgid, &ear_key)
+            .load_group_state_immutable(&qgid, &ear_key)
             .await
             .map_err(to_status)?;
 
@@ -548,9 +550,8 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .ok_or_missing_field("group_state_ear_key")?
             .try_ref_into()?;
 
-        let mut connection = self.ds.connection().await?;
         let (_, group_state) = self
-            .load_group_state_immutable(&mut connection, &qgid, &ear_key)
+            .load_group_state_immutable(&qgid, &ear_key)
             .await
             .map_err(to_status)?;
 
@@ -599,9 +600,8 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .ok_or_missing_field("group_state_ear_key")?
             .try_ref_into()?;
 
-        let mut connection = self.ds.connection().await?;
         let (_, group_state) = self
-            .load_group_state_immutable(&mut connection, &qgid, &ear_key)
+            .load_group_state_immutable(&qgid, &ear_key)
             .await
             .map_err(to_status)?;
         let commit_info = group_state.external_commit_info();
@@ -786,12 +786,8 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
         // No transaction needed as we do not update the group state and
         // application messages are out-of-order tolerant.
-        let mut connection = self.ds.db_pool.acquire().await.map_err(|error| {
-            error!(%error, "Failed to acquire DB connection");
-            Status::internal("Failed to acquire DB connection")
-        })?;
         let (_, group_state) = self
-            .load_group_state_immutable(&mut connection, &qgid, &ear_key)
+            .load_group_state_immutable(&qgid, &ear_key)
             .await
             .map_err(to_status)?;
 
@@ -990,12 +986,8 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         let qgid = payload.validated_qgid(self.ds.own_domain())?;
         let sender_index = payload.sender.ok_or_missing_field("sender")?.into();
 
-        let mut connection = self.ds.db_pool.acquire().await.map_err(|error| {
-            error!(%error, "Failed to acquire DB connection");
-            Status::internal("Failed to acquire DB connection")
-        })?;
         let (_group_data, group_state) = self
-            .load_group_state_immutable(&mut connection, &qgid, &ear_key)
+            .load_group_state_immutable(&qgid, &ear_key)
             .await
             .map_err(to_status)?;
 
@@ -1028,12 +1020,8 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         let qgid = payload.validated_qgid(self.ds.own_domain())?;
         let sender_index = payload.sender.ok_or_missing_field("sender")?.into();
 
-        let mut connection = self.ds.db_pool.acquire().await.map_err(|error| {
-            error!(%error, "Failed to acquire DB connection");
-            Status::internal("Failed to acquire DB connection")
-        })?;
         let (_group_data, group_state) = self
-            .load_group_state_immutable(&mut connection, &qgid, &ear_key)
+            .load_group_state_immutable(&qgid, &ear_key)
             .await
             .map_err(to_status)?;
 
