@@ -1313,6 +1313,42 @@ async fn update_and_send_message(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Ratchet tolerance", skip_all)]
+async fn ratchet_tolerance() {
+    let mut setup = TestBackend::single().await;
+
+    setup.add_user(&ALICE).await;
+    setup.get_user_mut(&ALICE).add_user_handle().await.unwrap();
+
+    setup.add_user(&BOB).await;
+
+    let contact_chat_id = setup.connect_users(&ALICE, &BOB).await;
+
+    // To test the tolerance of the ratchet, we have Alice send a bunch of
+    // messages and then give Bob only the last one to process.
+    let alice = setup.get_user_mut(&ALICE);
+    let alice_user = &mut alice.user;
+    for _ in 0..5 {
+        let msg = MimiContent::simple_markdown_message("message".to_owned(), [0; 16]);
+        alice_user
+            .send_message(contact_chat_id, msg, None)
+            .await
+            .unwrap();
+    }
+
+    let bob = setup.get_user_mut(&BOB);
+    let bob_user = &mut bob.user;
+    let mut qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    // Give Bob only the last message to process
+    let last_message = qs_messages.pop().unwrap();
+    let result = bob_user.fully_process_qs_messages(vec![last_message]).await;
+    assert!(
+        result.errors.is_empty(),
+        "Bob should process Alice's last message without errors"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Client sequence number race", skip_all)]
 async fn client_sequence_number_race() {
     let mut setup = TestBackend::single().await;
