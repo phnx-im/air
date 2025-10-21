@@ -5,7 +5,10 @@
 use aircommon::identifiers::UserId;
 use invite_users_flow::InviteUsersData;
 
-use crate::{ChatId, ChatMessage, utils::connection_ext::ConnectionExt as _};
+use crate::{
+    ChatId, ChatMessage,
+    utils::connection_ext::{ConnectionExt as _, StoreExt},
+};
 
 use super::CoreUser;
 

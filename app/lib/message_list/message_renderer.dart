@@ -36,6 +36,7 @@ Widget buildBlockElement(
         ),
       ),
       softWrap: true,
+      textWidthBasis: TextWidthBasis.longestLine,
     ),
     BlockElement_Heading(:final field0) => Text.rich(
       TextSpan(

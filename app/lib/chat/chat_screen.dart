@@ -174,7 +174,7 @@ class _ChatHeader extends StatelessWidget {
                   Text(
                     (title ?? "").toUpperCase(),
                     style: TextStyle(
-                      fontSize: LabelFontSize.base.size,
+                      fontSize: LabelFontSize.small1.size,
                       color: CustomColorScheme.of(context).text.tertiary,
                       fontFamily: getSystemMonospaceFontFamily(),
                       letterSpacing: 1,

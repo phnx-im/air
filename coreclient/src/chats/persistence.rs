@@ -474,7 +474,7 @@ impl Chat {
         chat_id: ChatId,
         until_message_id: MessageId,
         own_user: &UserId,
-    ) -> sqlx::Result<(bool, Vec<MimiId>)> {
+    ) -> sqlx::Result<(bool, Vec<(MessageId, MimiId)>)> {
         let (our_user_uuid, our_user_domain) = own_user.clone().into_parts();
 
         let timestamp: Option<DateTime<Utc>> = query_scalar!(
@@ -499,10 +499,17 @@ impl Chat {
         .await?
         .last_read;
 
+        struct Record {
+            message_id: MessageId,
+            mimi_id: MimiId,
+        }
+
         let unread_status = MessageStatus::Unread.repr();
         let delivered_status = MessageStatus::Delivered.repr();
-        let new_marked_as_read: Vec<MimiId> = query_scalar!(
+        let new_marked_as_read: Vec<(MessageId, MimiId)> = query_as!(
+            Record,
             r#"SELECT
+                m.message_id AS "message_id: _",
                 m.mimi_id AS "mimi_id!: _"
             FROM message m
             LEFT JOIN message_status s
@@ -521,7 +528,9 @@ impl Chat {
             unread_status,
             delivered_status,
         )
-        .fetch_all(txn.as_mut())
+        .fetch(txn.as_mut())
+        .map(|record| record.map(|record| (record.message_id, record.mimi_id)))
+        .collect::<sqlx::Result<Vec<_>>>()
         .await?;
 
         let updated = query!(

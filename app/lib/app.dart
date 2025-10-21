@@ -5,22 +5,21 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:air/background_service.dart';
+import 'package:air/core/core.dart';
+import 'package:air/l10n/l10n.dart';
+import 'package:air/navigation/navigation.dart';
+import 'package:air/registration/registration.dart';
+import 'package:air/theme/theme.dart';
+import 'package:air/user/user.dart';
+import 'package:air/util/interface_scale.dart';
+import 'package:air/util/platform.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:air/background_service.dart';
-import 'package:air/core/core.dart';
-import 'package:air/l10n/l10n.dart';
-import 'package:air/navigation/navigation.dart';
-import 'package:air/user/user.dart';
-import 'package:air/util/interface_scale.dart';
-import 'package:air/util/platform.dart';
 import 'package:provider/provider.dart';
-
-import 'registration/registration.dart';
-import 'theme/theme.dart';
 
 final _log = Logger('App');
 
