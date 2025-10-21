@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#![warn(clippy::large_futures)]
+
 pub use openmls;
 pub use openmls::prelude::tls_codec::{self, *};
 pub use openmls_rust_crypto;
