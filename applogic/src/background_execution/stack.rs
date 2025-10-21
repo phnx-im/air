@@ -1,5 +1,8 @@
-// src/stack.rs
-pub struct StackInfo {
+// SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+pub(crate) struct StackInfo {
     pub low: usize,
     pub high: usize,
 }
