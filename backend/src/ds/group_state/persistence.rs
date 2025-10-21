@@ -207,7 +207,7 @@ mod test {
                 .unwrap();
 
         // Load the group state again
-        let mut connection = ds.connection().await.unwrap();
+        let mut connection = ds.db_pool.acquire().await.unwrap();
         let loaded_group_state = StorableDsGroupData::load_immutable(&mut connection, &qgid)
             .await
             .unwrap()
