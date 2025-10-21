@@ -99,7 +99,7 @@ mod tests {
 
         let handle = tokio::spawn(async move {
             let mut file_lock = FileLock::new(&path)?;
-            file_lock.lock().await?;
+            let _ = file_lock.lock().await?;
             Ok::<(), anyhow::Error>(())
         });
 
