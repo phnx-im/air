@@ -34,6 +34,7 @@ flate2 = "1.1.0"
 tar = "0.4.44"
 tokio-util = { workspace = true }
 pin-project = "1.1.10"
+tempfile = "3.23.0"
 
 # Persistence
 serde = { version = "1", features = ["derive"] }
