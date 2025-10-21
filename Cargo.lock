@@ -110,6 +110,7 @@ dependencies = [
  "flate2",
  "flutter_rust_bridge",
  "jni",
+ "libc",
  "memmap2",
  "mimi-room-policy",
  "mimi_content",

@@ -2,16 +2,25 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircoreclient::store::Store;
 use std::panic::{self, AssertUnwindSafe};
 use tokio::runtime::Builder;
 use tracing::{error, info};
 
-use crate::{api::user::User, notifications::NotificationId};
+use crate::{
+    api::user::User,
+    background_execution::{IncomingNotificationContent, stack},
+    logging::init_logger,
+    notifications::NotificationId,
+};
+
+use aircoreclient::store::Store;
 
 use super::{NotificationBatch, NotificationContent};
 
-/// TODO: Debug code to be removed
+const SECOND_THREAD_STACK_SIZE: usize = 1024 * 1024; // 1 MB
+const TOKIO_THREAD_STACK_SIZE: usize = 1024 * 1024; // 1 MB
+const TOKIO_WORKER_THREADS: usize = 2; // Two threads for background tasks should be enough
+
 pub(crate) fn error_batch(title: String, body: String) -> NotificationBatch {
     NotificationBatch {
         badge_count: 0,
@@ -25,11 +34,77 @@ pub(crate) fn error_batch(title: String, body: String) -> NotificationBatch {
     }
 }
 
+pub(crate) fn init_environment(content: &str) -> Option<NotificationBatch> {
+    let incoming_content: IncomingNotificationContent = match serde_json::from_str(content) {
+        Ok(value) => value,
+        Err(error) => {
+            error!(%error, "Failed to parse incoming notification payload");
+            return None;
+        }
+    };
+
+    init_logger(incoming_content.log_file_path.clone());
+
+    // Log stack size and remaining bytes
+    info!(
+        stack_size = stack::size(),
+        remaining_bytes = stack::remaining(),
+        "Stack info in original thread"
+    );
+
+    // Create a new thread with a larger stack
+    let Ok(thread) = std::thread::Builder::new()
+        .stack_size(SECOND_THREAD_STACK_SIZE)
+        .spawn(move || {
+            info!(
+                stack_size = stack::size(),
+                remaining_bytes = stack::remaining(),
+                "Stack info in second thread"
+            );
+
+            init_tokio(incoming_content.path)
+        })
+    else {
+        error!("Failed to spawn thread with increased stack size");
+        return None;
+    };
+
+    thread
+        .join()
+        .map_err(|error| {
+            match error.downcast::<&str>() {
+                Ok(s) => {
+                    error!("Thread panicked while initializing logger: {}", s);
+                }
+                Err(error) => match error.downcast::<String>() {
+                    Ok(s) => {
+                        error!("Thread panicked while initializing logger: {}", s);
+                    }
+                    Err(_) => {
+                        error!("Thread panicked while initializing logger occurred with unknown payload type");
+                    }
+                },
+            }
+        })
+        .ok()
+}
+
 /// Wraps with a tokio runtime to block on the async functions
-pub(crate) fn retrieve_messages_sync(path: String) -> NotificationBatch {
+pub(crate) fn init_tokio(path: String) -> NotificationBatch {
     let result = Builder::new_multi_thread()
         .thread_name("nse-thread")
         .enable_all()
+        .thread_stack_size(TOKIO_THREAD_STACK_SIZE)
+        .worker_threads(TOKIO_WORKER_THREADS)
+        .on_thread_start(|| {
+            // Log stack size and remaining bytes
+            info!("Worker thread started");
+            info!(
+                stack_size = stack::size(),
+                remaining_bytes = stack::remaining(),
+                "Stack info in worker thread"
+            );
+        })
         .build()
         .map_err(|error| {
             error!(%error, "Failed to initialize tokio runtime");

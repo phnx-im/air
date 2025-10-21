@@ -53,6 +53,9 @@ derive_more = { workspace = true }
 tls_codec = { workspace = true }
 url = "2.5.4"
 
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+libc = "0.2" # required for stack size in background execution on Android/iOS
+
 [target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
 notify-rust = "4"
 
