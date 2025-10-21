@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO receipt_queue\n                    (message_id,  chat_id, mimi_id, status, created_at)\n                VALUES (?1, ?2, ?3, ?4, ?5)\n                ON CONFLICT DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "7ee7bd27d9fdd8f77b368a881d0fe101fa61aa7ced0b61bc11a7833e3fef90c4"
+}

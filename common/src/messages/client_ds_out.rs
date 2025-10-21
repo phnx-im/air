@@ -73,6 +73,7 @@ pub struct SelfRemoveParamsOut {
 pub struct SendMessageParamsOut {
     pub message: AssistedMessageOut,
     pub sender: LeafNodeIndex,
+    pub suppress_notifications: bool,
 }
 
 #[derive(Debug)]

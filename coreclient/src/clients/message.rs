@@ -3,16 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::ClientSigningKey,
-    identifiers::{MimiId, UserId},
-    messages::client_ds_out::SendMessageParamsOut,
-    time::TimeStamp,
+    credentials::keys::ClientSigningKey, identifiers::UserId,
+    messages::client_ds_out::SendMessageParamsOut, time::TimeStamp,
 };
 use anyhow::{Context, bail};
-use mimi_content::{
-    ByteBuf, Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPart,
-    NestedPartContent, PerMessageStatus,
-};
+use mimi_content::{MessageStatus, MimiContent, NestedPartContent};
 use openmls::storage::OpenMlsProvider;
 use sqlx::{SqliteConnection, SqliteTransaction};
 use uuid::Uuid;
@@ -21,6 +16,7 @@ use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, ContentMessage, Message, MessageId,
     chats::{StatusRecord, messages::edit::MessageEdit},
     clients::block_contact::BlockedContactError,
+    utils::connection_ext::StoreExt,
 };
 
 use super::{AirOpenMlsProvider, ApiClients, CoreUser, Group, StoreNotifier};
@@ -28,7 +24,7 @@ use super::{AirOpenMlsProvider, ApiClients, CoreUser, Group, StoreNotifier};
 impl CoreUser {
     /// Send a message and return it.
     ///
-    /// The message unsent messages is stored, then sent to the DS and finally returned. The
+    /// The message is stored, then sent to the DS and finally returned. The
     /// chat is marked as read until this message.
     pub(crate) async fn send_message(
         &self,
@@ -136,86 +132,6 @@ impl CoreUser {
         .await?;
 
         Ok(())
-    }
-
-    pub(crate) async fn send_delivery_receipts(
-        &self,
-        chat_id: ChatId,
-        statuses: impl IntoIterator<Item = (&MimiId, MessageStatus)> + Send,
-    ) -> anyhow::Result<()> {
-        if let Some(task) = self.send_delivery_receipts_task(chat_id, statuses).await? {
-            task.await?;
-        }
-        Ok(())
-    }
-
-    /// Creates a task which sends delivery receipts for statuses in a chat.
-    ///
-    /// Note that the MLS message corresponding to the delivery receipts is created immediately.
-    /// The task sends the MLS message to the DS and stores the delivery receipts in the local
-    /// database.
-    ///
-    /// The returned future is `Send` and can be executed as a background task.
-    ///
-    /// If there nothing to send, `Ok(None)` is returned.
-    pub(crate) async fn send_delivery_receipts_task(
-        &self,
-        chat_id: ChatId,
-        statuses: impl IntoIterator<Item = (&MimiId, MessageStatus)>,
-    ) -> anyhow::Result<Option<impl Future<Output = anyhow::Result<()>> + Send + 'static>> {
-        let Some(unsent_receipt) = UnsentReceipt::new(statuses)? else {
-            return Ok(None); // Nothing to send
-        };
-
-        let chat = Chat::load(self.pool().acquire().await?.as_mut(), &chat_id)
-            .await?
-            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
-        if let ChatStatus::Blocked = chat.status() {
-            return Ok(None);
-        }
-
-        // load group and create MLS message
-        let (group_state_ear_key, params) = self
-            .with_transaction(async |txn| {
-                let group_id = chat.group_id();
-                let mut group = Group::load_clean(txn.as_mut(), group_id)
-                    .await?
-                    .with_context(|| format!("Can't find group with id {group_id:?}"))?;
-                let params = group.create_message(
-                    &AirOpenMlsProvider::new(txn.as_mut()),
-                    self.signing_key(),
-                    unsent_receipt.content,
-                )?;
-                group.store_update(txn.as_mut()).await?;
-                Ok((group.group_state_ear_key().clone(), params))
-            })
-            .await?;
-
-        let client = self.inner.api_clients.get(&chat.owner_domain())?;
-        let signing_key = self.signing_key().clone();
-
-        let user_id = self.user_id().clone();
-        let pool = self.pool().clone();
-        let mut notifier = self.store_notifier();
-
-        let task = async move {
-            // send MLS message to DS
-            client
-                .ds_send_message(params, &signing_key, &group_state_ear_key)
-                .await?;
-
-            // store delivery receipt report
-            let mut txn = pool.begin().await?;
-            StatusRecord::borrowed(&user_id, unsent_receipt.report, TimeStamp::now())
-                .store_report(&mut txn, &mut notifier)
-                .await?;
-            txn.commit().await?;
-            notifier.notify();
-
-            Ok(())
-        };
-
-        Ok(Some(task))
     }
 }
 
@@ -506,47 +422,5 @@ impl SentMessage {
         .await?;
 
         Ok(message)
-    }
-}
-
-/// Not yet sent receipt message consisting of the content to send and a local message status
-/// report.
-struct UnsentReceipt {
-    report: MessageStatusReport,
-    content: MimiContent,
-}
-
-impl UnsentReceipt {
-    fn new<'a>(
-        statuses: impl IntoIterator<Item = (&'a MimiId, MessageStatus)>,
-    ) -> anyhow::Result<Option<Self>> {
-        let report = MessageStatusReport {
-            statuses: statuses
-                .into_iter()
-                .map(|(id, status)| PerMessageStatus {
-                    mimi_id: id.as_ref().to_vec().into(),
-                    status,
-                })
-                .collect(),
-        };
-
-        if report.statuses.is_empty() {
-            return Ok(None);
-        }
-
-        let content = MimiContent {
-            salt: ByteBuf::from(aircommon::crypto::secrets::Secret::<16>::random()?.secret()),
-            nested_part: NestedPart {
-                disposition: Disposition::Unspecified,
-                part: NestedPartContent::SinglePart {
-                    content_type: "application/mimi-message-status".to_owned(),
-                    content: report.serialize()?.into(),
-                },
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-
-        Ok(Some(Self { report, content }))
     }
 }

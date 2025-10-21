@@ -4,7 +4,7 @@
 
 [package]
 name = "aircoreclient"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
 edition = "2024"
 publish = false
@@ -32,6 +32,8 @@ derive_more = { workspace = true }
 mimi_content = { workspace = true }
 flate2 = "1.1.0"
 tar = "0.4.44"
+tokio-util = { workspace = true }
+pin-project = "1.1.10"
 
 # Persistence
 serde = { version = "1", features = ["derive"] }

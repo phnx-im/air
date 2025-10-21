@@ -33,7 +33,7 @@ pub const DEFAULT_PORT_GRPC: u16 = 50051;
 pub const ACCEPTED_API_VERSIONS_HEADER: &str = "x-accepted-api-versions";
 
 /// Unrecoverable error in this implementation.
-#[derive(Debug, Error, Serialize, Deserialize)]
+#[derive(Debug, Clone, Error, Serialize, Deserialize)]
 pub struct LibraryError;
 
 impl LibraryError {

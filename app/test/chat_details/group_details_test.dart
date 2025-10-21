@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/chat_details/chat_details.dart';
-import 'package:air/chat_details/group_details.dart';
+import 'package:air/chat/chat_details.dart';
+import 'package:air/chat/group_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';

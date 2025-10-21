@@ -117,6 +117,17 @@ private let kProtectedBlockedCategory = "protected-blocked"
             details: nil
           ))
       }
+    } else if call.method == "getSharedCacheDirectory" {
+      if let path = self.getSharedCacheDirectory() {
+        result(path)
+      } else {
+        result(
+          FlutterError(
+            code: "DIRECTORY_ERROR",
+            message: "Failed to get shared cache directory path",
+            details: nil
+          ))
+      }
     } else if call.method == "setBadgeCount" {
       if let args = call.arguments as? [String: Any], let count = args["count"] as? Int {
         self.setBadgeCount(count, result: result)
@@ -208,20 +219,44 @@ private let kProtectedBlockedCategory = "protected-blocked"
       .appendingPathComponent("Databases", isDirectory: true)
 
     do {
-      try FileManager.default.createDirectory(at: dbsURL, withIntermediateDirectories: true)
-      // exclude from backups
-      var vals = URLResourceValues()
-      vals.isExcludedFromBackup = true
-      var u = dbsURL
-      try? u.setResourceValues(vals)
-
-      // enforce protection class
-      applyProtection(dbsURL)
-
+      try createBackupExcludedDirectory(at: dbsURL)
       return dbsURL.path
     } catch {
       return nil
     }
+  }
+
+  // Get a cache directory path that is shared between the application and the
+  // background extension
+  private func getSharedCacheDirectory() -> String? {
+    guard
+      let sharedContainer = FileManager.default.containerURL(
+        forSecurityApplicationGroupIdentifier: "group.ms.air"
+      )
+    else {
+      return nil
+    }
+
+    let sharedCaches = sharedContainer.appendingPathComponent("Caches")
+
+    do {
+      try createBackupExcludedDirectory(at: sharedCaches)
+      return sharedCaches.path
+    } catch {
+      return nil
+    }
+  }
+
+  private func createBackupExcludedDirectory(at url: URL) throws {
+    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    // exclude from backups
+    var vals = URLResourceValues()
+    vals.isExcludedFromBackup = true
+    var u = url
+    try? u.setResourceValues(vals)
+
+    // enforce protection class
+    applyProtection(url)
   }
 
   // Set the badge count

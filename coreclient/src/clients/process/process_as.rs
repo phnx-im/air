@@ -30,7 +30,7 @@ use crate::{
     key_stores::indexed_keys::StorableIndexedKey,
     store::StoreNotifier,
     user_handles::connection_packages::StorableConnectionPackage,
-    utils::connection_ext::ConnectionExt,
+    utils::connection_ext::{ConnectionExt, StoreExt},
 };
 
 use super::{

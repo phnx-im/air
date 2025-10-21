@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
+import 'package:air/ui/typography/monospace.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/l10n/l10n.dart';
@@ -13,6 +14,7 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/user_avatar.dart';
+import 'package:iconoir_flutter/regular/more_horiz.dart';
 
 import 'chat_details_cubit.dart';
 import 'delete_contact_button.dart';
@@ -147,25 +149,29 @@ class _ChatHeader extends StatelessWidget {
             context.responsiveScreenType == ResponsiveScreenType.mobile
                 ? const _BackButton()
                 : const SizedBox.shrink(),
-            Row(
-              spacing: Spacings.xs,
-              children: [
-                UserAvatar(
-                  displayName: title ?? "",
-                  image: image,
-                  size: Spacings.l,
-                  onPressed: () {
-                    context.read<NavigationCubit>().openChatDetails();
-                  },
-                ),
-                Text(
-                  title ?? "",
-                  style: TextStyle(
-                    fontSize: LabelFontSize.base.size,
-                    fontWeight: FontWeight.w600,
+            GestureDetector(
+              onTap: () {
+                context.read<NavigationCubit>().openChatDetails();
+              },
+              child: Row(
+                spacing: Spacings.m,
+                children: [
+                  UserAvatar(
+                    displayName: title ?? "",
+                    image: image,
+                    size: Spacings.l,
                   ),
-                ),
-              ],
+                  Text(
+                    (title ?? "").toUpperCase(),
+                    style: TextStyle(
+                      fontSize: LabelFontSize.small1.size,
+                      color: CustomColorScheme.of(context).text.tertiary,
+                      fontFamily: getSystemMonospaceFontFamily(),
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ],
+              ),
             ),
             title != null ? const _DetailsButton() : const SizedBox.shrink(),
           ],
@@ -181,7 +187,10 @@ class _DetailsButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      icon: const Icon(Icons.more_horiz, size: 32),
+      icon: MoreHoriz(
+        width: 32,
+        color: CustomColorScheme.of(context).text.primary,
+      ),
       color: CustomColorScheme.of(context).text.primary,
       padding: const EdgeInsets.symmetric(horizontal: Spacings.xs),
       hoverColor: Colors.transparent,

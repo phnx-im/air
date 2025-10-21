@@ -9,6 +9,7 @@ use crate::{
         MemoryUserKeyStoreBase, as_credentials::AsCredentials, indexed_keys::StorableIndexedKey,
         queue_ratchets::StorableQsQueueRatchet,
     },
+    outbound_service,
     user_profiles::generate::NewUserProfile,
 };
 use aircommon::{
@@ -436,6 +437,13 @@ impl PersistedUserState {
             qs_user_id,
             qs_client_id,
         } = self.state;
+        let store_notifications_tx = StoreNotificationsSender::new();
+        let outbound_service = outbound_service::OutboundService::new(
+            pool.clone(),
+            api_clients.clone(),
+            key_store.signing_key.clone(),
+            store_notifications_tx.clone(),
+        );
         let inner = Arc::new(CoreUserInner {
             pool,
             key_store,
@@ -443,7 +451,8 @@ impl PersistedUserState {
             qs_client_id,
             api_clients: api_clients.clone(),
             http_client: reqwest::Client::new(),
-            store_notifications_tx: Default::default(),
+            store_notifications_tx,
+            outbound_service,
         });
         CoreUser { inner }
     }

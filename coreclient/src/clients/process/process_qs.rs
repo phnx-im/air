@@ -44,6 +44,7 @@ use crate::{
     groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     store::StoreNotifier,
+    utils::connection_ext::StoreExt,
 };
 
 use super::{
@@ -331,30 +332,21 @@ impl CoreUser {
             return Ok(ProcessQsMessageResult::RejoinRequired(group_id));
         };
 
-        // Send delivery receipts for incoming messages
-        // TODO: Queue this and run the network requests batched together in a background task
-
-        let delivered_receipts = messages.iter().filter_map(|message| {
+        // Schedule delivery receipts for incoming messages
+        let delivery_receipts = messages.iter().filter_map(|message| {
             if let Message::Content(content_message) = message.message()
                 && let Disposition::Render | Disposition::Attachment =
                     content_message.content().nested_part.disposition
                 && let Some(mimi_id) = content_message.mimi_id()
             {
-                Some((mimi_id, MessageStatus::Delivered))
+                Some((message.id(), mimi_id, MessageStatus::Delivered))
             } else {
                 None
             }
         });
-        let task = self
-            .send_delivery_receipts_task(chat_id, delivered_receipts)
+        self.outbound_service()
+            .enqueue_receipts(chat_id, delivery_receipts)
             .await?;
-        if let Some(task) = task {
-            tokio::spawn(async move {
-                if let Err(error) = task.await {
-                    error!(%error, "Failed to send delivery receipts");
-                }
-            });
-        }
 
         let res = match (messages, chat_changed) {
             (messages, true) => ProcessQsMessageResult::ChatChanged(chat_id, messages),
@@ -930,6 +922,11 @@ impl QsStreamProcessor {
         self.responder.replace(responder);
     }
 
+    pub async fn on_stream_end(&mut self) {
+        self.messages.clear();
+        self.core_user.outbound_service().stop().await;
+    }
+
     pub async fn process_event(
         &mut self,
         event: QueueEvent,
@@ -952,6 +949,10 @@ impl QsStreamProcessor {
                     // Invariant: after a message there is always an Empty event as sentinel
                     // => accumulated messages will be processed there
                     self.messages.push(message);
+
+                    // Stop the background task and wait until it is fully stopped
+                    self.core_user.outbound_service().stop().await;
+
                     QsProcessEventResult::Accumulated
                 }
                 Err(error) => {
@@ -961,14 +962,11 @@ impl QsStreamProcessor {
             },
             // Empty event indicates that the queue is empty
             Some(queue_event::Event::Empty(_)) => {
-                if self.messages.is_empty() {
-                    return QsProcessEventResult::FullyProcessed { processed: 0 }; // no messages to process
-                }
-
                 let max_sequence_number = self.messages.last().map(|m| m.sequence_number);
 
                 let messages = std::mem::take(&mut self.messages);
                 let num_messages = messages.len();
+
                 let processed_messages = self.core_user.fully_process_qs_messages(messages).await;
 
                 let result = if processed_messages.processed < num_messages {
@@ -1006,6 +1004,9 @@ impl QsStreamProcessor {
                         error!("logic error: no responder to ack QS messages");
                     }
                 }
+
+                // Start the background task, but don't wait for it to start
+                drop(self.core_user.outbound_service().start());
 
                 result
             }

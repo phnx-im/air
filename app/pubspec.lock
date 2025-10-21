@@ -502,6 +502,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.2"
+  iconoir_flutter:
+    dependency: "direct main"
+    description:
+      name: iconoir_flutter
+      sha256: "1d8d076d5dec9faf4e1ed6c10cf802957ca557477473937f82d8076b9077b085"
+      url: "https://pub.dev"
+    source: hosted
+    version: "7.11.0"
   image:
     dependency: transitive
     description:

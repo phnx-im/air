@@ -5,8 +5,8 @@
 use prost::Message;
 
 use crate::delivery_service::v1::{
-    GetAttachmentUrlPayload, GetAttachmentUrlRequest, ProvisionAttachmentPayload,
-    ProvisionAttachmentRequest,
+    AssistedMessage, GetAttachmentUrlPayload, GetAttachmentUrlRequest, GroupStateEarKey,
+    LeafNodeIndex, ProvisionAttachmentPayload, ProvisionAttachmentRequest,
 };
 
 use super::v1::{
@@ -52,13 +52,34 @@ impl VerifiedStruct<SendMessageRequest> for SendMessagePayload {
     }
 }
 
+/// For backwards compatibility, we need to be able to verify signatures over the
+/// old payload format that did not include the `suppress_notifications` field.
+#[derive(Clone, PartialEq, Eq, Hash, prost::Message)]
+pub struct SendMessagePayloadV1 {
+    #[prost(message, optional, tag = "1")]
+    pub group_state_ear_key: Option<GroupStateEarKey>,
+    #[prost(message, optional, tag = "2")]
+    pub message: Option<AssistedMessage>,
+    #[prost(message, optional, tag = "3")]
+    pub sender: Option<LeafNodeIndex>,
+}
+
 impl Verifiable for SendMessageRequest {
     fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
-        Ok(self
-            .payload
-            .as_ref()
-            .ok_or(MissingPayloadError)?
-            .encode_to_vec())
+        let payload = self.payload.as_ref().ok_or(MissingPayloadError)?;
+        let bytes = if payload.suppress_notifications.is_some() {
+            payload.encode_to_vec()
+        } else {
+            // Convert to old payload without optional field for backwards
+            // compatible signature verification.
+            SendMessagePayloadV1 {
+                group_state_ear_key: payload.group_state_ear_key.clone(),
+                message: payload.message.clone(),
+                sender: payload.sender,
+            }
+            .encode_to_vec()
+        };
+        Ok(bytes)
     }
 
     fn signature(&self) -> impl AsRef<[u8]> {

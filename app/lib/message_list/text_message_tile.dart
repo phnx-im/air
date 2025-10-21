@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/attachments/attachments.dart';
-import 'package:air/chat_details/chat_details.dart';
+import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/timestamp.dart';
@@ -18,12 +18,14 @@ import 'package:air/ui/typography/monospace.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:iconoir_flutter/regular/attachment.dart';
+import 'package:iconoir_flutter/regular/xmark.dart';
 
 import 'message_renderer.dart';
 
 const double largeCornerRadius = Spacings.sm;
 const double smallCornerRadius = Spacings.xxs;
-const double messageHorizontalPadding = Spacings.xs;
+const double messageHorizontalPadding = Spacings.s;
 const double messageVerticalPadding = Spacings.xxs;
 
 const _messagePadding = EdgeInsets.symmetric(
@@ -371,21 +373,38 @@ class _FileAttachmentContent extends StatelessWidget {
       padding: _messagePadding,
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        spacing: Spacings.s,
         children: [
-          Icon(
-            Icons.file_present_sharp,
-            size: 46,
+          Attachment(
+            width: 32,
             color:
                 isSender
                     ? CustomColorScheme.of(context).message.selfText
                     : CustomColorScheme.of(context).message.otherText,
           ),
-          const SizedBox(width: Spacings.xxs),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(attachment.filename),
-              Text(loc.bytesToHumanReadable(attachment.size)),
+              Text(
+                attachment.filename,
+                style: TextStyle(
+                  fontSize: BodyFontSize.base.size,
+                  color:
+                      isSender
+                          ? CustomColorScheme.of(context).message.selfText
+                          : CustomColorScheme.of(context).message.otherText,
+                ),
+              ),
+              Text(
+                loc.bytesToHumanReadable(attachment.size),
+                style: TextStyle(
+                  fontSize: BodyFontSize.small2.size,
+                  color:
+                      isSender
+                          ? CustomColorScheme.of(context).message.selfText
+                          : CustomColorScheme.of(context).message.otherText,
+                ),
+              ),
             ],
           ),
         ],
@@ -484,7 +503,10 @@ class _ImagePreview extends StatelessWidget {
                 leading: const SizedBox.shrink(),
                 actions: [
                   IconButton(
-                    icon: const Icon(Icons.close),
+                    icon: Xmark(
+                      color: CustomColorScheme.of(context).text.primary,
+                      width: 32,
+                    ),
                     onPressed: () {
                       overlayController.hide();
                     },
