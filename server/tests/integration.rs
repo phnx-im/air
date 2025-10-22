@@ -32,7 +32,7 @@ use airserver::RateLimitsConfig;
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use png::Encoder;
 use sha2::{Digest, Sha256};
-use tokio::task::JoinSet;
+use tokio::{task::JoinSet, time::sleep};
 use tokio_stream::StreamExt;
 use tonic::transport::Channel;
 use tonic_health::pb::{
@@ -1469,34 +1469,36 @@ async fn resync() {
     let alice = setup.get_user_mut(&ALICE);
     let alice_user = &mut alice.user;
 
-    // Alice creates an update and sends it to the DS
+    // Alice creates a invites charlie and sends the commit to the DS
     alice_user
         .invite_users(chat_id, std::slice::from_ref(&*CHARLIE))
         .await
         .unwrap();
 
-    // Bob fetches the update, but does not process it
+    // Bob fetches the invite and acks it s.t. it's removed from the queue,
+    // but does not process it. This is to simulate Bob missing the commit.
     let bob = setup.get_user_mut(&BOB);
     let bob_user = &mut bob.user;
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    // Make sure the ratchet advances
-    for m in qs_messages {
-        bob_user.decrypt_qs_queue_message(m).await.unwrap();
-    }
+    let [message] = qs_messages.as_slice() else {
+        panic!("Bob should have one message in the queue");
+    };
+    let (stream, responder) = bob_user.listen_queue().await.unwrap();
+    responder.ack(message.sequence_number + 1).await.unwrap();
+    sleep(Duration::from_secs(1)).await;
+    drop(stream);
 
-    // Alice does an update, which should trigger a resync on Bob's side
+    // Alice performs an update, which bob fetches and processes, triggering a
+    // resync.
     let alice = setup.get_user_mut(&ALICE);
     let alice_user = &mut alice.user;
     alice_user.update_key(chat_id).await.unwrap();
 
-    // Bob fetches and processes the update and the message
+    // Bob fetches and processes the update
     let bob = setup.get_user_mut(&BOB);
     let bob_user = &mut bob.user;
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user
-        .fully_process_qs_messages(qs_messages)
-        .await
-        .unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
     // Instead of throwing an error, Bob should have re-synced as part of processing the update.
     assert!(
         result.errors.is_empty(),
@@ -1512,10 +1514,7 @@ async fn resync() {
 
     // Alice processes Bob's rejoin
     let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user
-        .fully_process_qs_messages(qs_messages)
-        .await
-        .unwrap();
+    let result = alice_user.fully_process_qs_messages(qs_messages).await;
 
     assert!(
         result.errors.is_empty(),
@@ -1535,10 +1534,7 @@ async fn resync() {
     let bob = setup.get_user_mut(&BOB);
     let bob_user = &mut bob.user;
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user
-        .fully_process_qs_messages(qs_messages)
-        .await
-        .unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
     assert!(
         result.errors.is_empty(),
         "Bob should process Alice's message without errors"
