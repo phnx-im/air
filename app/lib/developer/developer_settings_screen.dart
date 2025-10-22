@@ -127,18 +127,21 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                           IconButton(
                             icon: const Icon(Icons.copy),
                             tooltip: 'Copy',
-                            onPressed: deviceToken == null
-                                ? null
-                                : () {
-                                    Clipboard.setData(
-                                      ClipboardData(text: deviceToken!),
-                                    );
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Device token copied'),
-                                      ),
-                                    );
-                                  },
+                            onPressed:
+                                deviceToken == null
+                                    ? null
+                                    : () {
+                                      Clipboard.setData(
+                                        ClipboardData(text: deviceToken!),
+                                      );
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Device token copied'),
+                                        ),
+                                      );
+                                    },
                           ),
                           IconButton(
                             icon: const Icon(Icons.refresh),
