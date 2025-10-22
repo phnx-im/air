@@ -831,20 +831,21 @@ pub mod tests {
         message.set_timestamp(Utc::now().checked_add_days(Days::new(1)).unwrap().into());
         message.store(&mut *connection, &mut store_notifier).await?;
 
-        // Chat with a draft message
+        // Chat with an empty draft message
         let chat_4 = test_chat();
         chat_4.store(&mut connection, &mut store_notifier).await?;
-        let message = test_chat_message(chat_4.id());
+        let mut message = test_chat_message(chat_4.id());
+        message.set_timestamp(Utc::now().checked_add_days(Days::new(2)).unwrap().into());
         message.store(&mut *connection, &mut store_notifier).await?;
         MessageDraft {
-            message: "Hello, world!".to_string(),
-            editing_id: Some(message.id()),
-            updated_at: Utc::now(),
+            message: "    ".into(), // Whitespace only
+            editing_id: None,
+            updated_at: TimeStamp::now().into(),
         }
         .store(&mut *connection, &mut store_notifier, chat_4.id())
         .await?;
 
-        // Chat with a more recent draft message
+        // Chat with a draft message
         let chat_5 = test_chat();
         chat_5.store(&mut connection, &mut store_notifier).await?;
         let message = test_chat_message(chat_5.id());
@@ -852,21 +853,20 @@ pub mod tests {
         MessageDraft {
             message: "Hello, world!".to_string(),
             editing_id: Some(message.id()),
-            updated_at: Utc::now().checked_add_days(Days::new(1)).unwrap(),
+            updated_at: Utc::now(),
         }
         .store(&mut *connection, &mut store_notifier, chat_5.id())
         .await?;
 
-        // Chat with an empty draft message
+        // Chat with a more recent draft message
         let chat_6 = test_chat();
         chat_6.store(&mut connection, &mut store_notifier).await?;
-        let mut message = test_chat_message(chat_6.id());
-        message.set_timestamp(Utc::now().checked_add_days(Days::new(2)).unwrap().into());
+        let message = test_chat_message(chat_6.id());
         message.store(&mut *connection, &mut store_notifier).await?;
         MessageDraft {
-            message: "    ".into(), // Whitespace only
-            editing_id: None,
-            updated_at: TimeStamp::now().into(),
+            message: "Hello, world!".to_string(),
+            editing_id: Some(message.id()),
+            updated_at: Utc::now().checked_add_days(Days::new(1)).unwrap(),
         }
         .store(&mut *connection, &mut store_notifier, chat_6.id())
         .await?;
@@ -875,9 +875,9 @@ pub mod tests {
         assert_eq!(
             loaded,
             [
-                chat_5.id(), // Hash the most recent draft message
-                chat_4.id(), // Has a draft message
-                chat_6.id(), // Empty draft message, but most recent message
+                chat_6.id(), // Has the most recent draft message
+                chat_5.id(), // Has a draft message
+                chat_4.id(), // Empty draft message, but most recent message
                 chat_3.id(), // Second most recent message
                 chat_2.id(), // Has a message
                 chat_1.id()  // No message
