@@ -331,7 +331,7 @@ impl ChatDetailsCubitBase {
     ) -> anyhow::Result<()> {
         if is_committed {
             // Debounce committing the draft to avoid confusing the user. Usually, the draft is
-            // committed when the user selects another chat. Commiting it immediately reorders the
+            // committed when the user selects another chat. Committing it immediately reorders the
             // chat list and the chat the user clicked on might be moved.
             sleep(Duration::from_millis(300)).await;
         }
