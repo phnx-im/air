@@ -141,7 +141,7 @@ impl CoreUser {
         // Open client specific db
         let client_db = open_client_db(&user_id, db_path).await?;
 
-        let global_lock = FileLock::new(PathBuf::from(db_path).join("lockfile"))?;
+        let global_lock = open_lock_file(db_path)?;
 
         Self::new_with_connections(
             user_id,

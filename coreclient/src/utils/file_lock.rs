@@ -105,7 +105,7 @@ mod tests {
         });
 
         drop(guard);
-        handle.await??;
+        timeout(Duration::from_millis(100), handle).await??;
 
         Ok(())
     }
