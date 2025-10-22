@@ -11,7 +11,6 @@ pub(crate) mod error;
 pub(crate) mod openmls_provider;
 pub(crate) mod persistence;
 pub(crate) mod process;
-pub(crate) mod resync;
 
 use client_auth_info::ClientVerificationInfo;
 pub(crate) use error::*;

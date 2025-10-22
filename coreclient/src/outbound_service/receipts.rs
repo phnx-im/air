@@ -55,7 +55,7 @@ impl OutboundService {
 impl OutboundServiceContext {
     pub(super) async fn send_queued_receipts(
         &self,
-        run_token: CancellationToken,
+        run_token: &CancellationToken,
     ) -> anyhow::Result<()> {
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();

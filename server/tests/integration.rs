@@ -1498,15 +1498,17 @@ async fn resync() {
     let bob_user = &mut bob.user;
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    // Run outbound service to complete the rejoin process
+    bob_user.outbound_service().run_once().await;
     // Instead of throwing an error, Bob should have re-synced as part of processing the update.
     assert!(
         result.errors.is_empty(),
         "Bob should process Alice's update and message without errors"
     );
-    match result.rejoined_chats.as_slice() {
-        [id] if *id == chat_id => {}
-        _ => panic!("Bob should have rejoined the group"),
-    }
+    // Bob should have rejoined the group and should be able to send a message.
+    setup
+        .send_message(chat_id, &BOB, vec![&ALICE, &CHARLIE])
+        .await;
 
     let alice = setup.get_user_mut(&ALICE);
     let alice_user = &mut alice.user;
@@ -1581,19 +1583,20 @@ async fn resync() {
 
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    bob_user.outbound_service().run_once().await;
     // Instead of throwing an error, Bob should have re-synced as part of processing the update.
     assert!(
         result.errors.is_empty(),
         "Bob should process Alice's update without errors"
     );
-    match result.rejoined_chats.as_slice() {
-        [id] if *id == chat_id => {}
-        _ => panic!("Bob should have rejoined the group"),
-    }
+
     // Alice should not be in the group anymore
     let participants = bob_user.chat_participants(chat_id).await.unwrap();
     assert_eq!(
         participants,
         [BOB.clone(), CHARLIE.clone()].into_iter().collect()
     );
+
+    // Bob should be able to send a message to the group, i.e. Charlie
+    setup.send_message(chat_id, &BOB, vec![&CHARLIE]).await;
 }

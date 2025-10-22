@@ -33,7 +33,6 @@ impl QsNotificationProcessor for CubitContext {
             new_messages,
             errors: _,
             processed: _,
-            rejoined_chats: _,
         }: ProcessedQsMessages,
     ) {
         let mut notifications = Vec::with_capacity(new_chats.len() + new_messages.len());

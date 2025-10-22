@@ -84,7 +84,6 @@ impl User {
             changed_chats: _,
             new_messages,
             errors: _,
-            rejoined_chats: _,
             processed: _,
         } = self.fetch_and_process_qs_messages().await?;
         self.new_chat_notifications(&new_chats, &mut notifications)
