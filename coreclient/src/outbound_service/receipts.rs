@@ -19,6 +19,7 @@ use crate::{
     Chat, ChatId, ChatStatus, MessageId,
     chats::StatusRecord,
     groups::{Group, openmls_provider::AirOpenMlsProvider},
+    outbound_service::receipt_queue::DequeueEntry,
     utils::connection_ext::StoreExt,
 };
 
@@ -64,7 +65,11 @@ impl OutboundServiceContext {
                 return Ok(()); // the task is being stopped
             }
 
-            let Some((chat_id, statuses)) = ReceiptQueue::dequeue(&self.pool, task_id).await?
+            let Some(DequeueEntry {
+                dequeue_id,
+                chat_id,
+                statuses,
+            }) = ReceiptQueue::dequeue(&self.pool, task_id).await?
             else {
                 return Ok(());
             };
@@ -73,11 +78,11 @@ impl OutboundServiceContext {
             match UnsentReceipt::new(statuses.iter().map(|(mimi_id, status)| (mimi_id, *status))) {
                 Ok(Some(receipt)) => match self.send_chat_receipt(chat_id, receipt).await {
                     Ok(_) => {
-                        ReceiptQueue::remove(&self.pool, task_id).await?;
+                        ReceiptQueue::remove(&self.pool, dequeue_id).await?;
                     }
                     Err(SendChatReceiptError::Fatal(error)) => {
                         error!(%error, "Failed to send receipt; dropping");
-                        ReceiptQueue::remove(&self.pool, task_id).await?;
+                        ReceiptQueue::remove(&self.pool, dequeue_id).await?;
                         return Err(error);
                     }
                     Err(SendChatReceiptError::Recoverable(error)) => {
@@ -88,13 +93,13 @@ impl OutboundServiceContext {
                 },
                 Ok(None) => {
                     // Nothing to send => Remove from the queue
-                    ReceiptQueue::remove(&self.pool, task_id).await?;
+                    ReceiptQueue::remove(&self.pool, dequeue_id).await?;
                 }
                 Err(error) => {
                     error!(%error, "Failed to create receipt; dropping");
                     // There is no chance we will be able to create a receipt next time
                     // => Remove from the queue
-                    ReceiptQueue::remove(&self.pool, task_id).await?;
+                    ReceiptQueue::remove(&self.pool, dequeue_id).await?;
                 }
             };
         }

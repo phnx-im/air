@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE receipt_queue\n                    SET locked_by = ?1, locked_at = ?2, dequeue_id = ?3\n                    WHERE chat_id = ?4 AND (locked_at IS NULL OR locked_at < ?5)\n                RETURNING\n                    mimi_id AS \"mimi_id: _\",\n                    status AS \"status: _\"\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "mimi_id: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "status: _",
+        "ordinal": 1,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "02aee87aa43d81930d086ca59f1f9ceb580e7c7b5e2d00e59a2e4e45dbf7b189"
+}
