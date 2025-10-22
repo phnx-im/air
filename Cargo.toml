@@ -52,9 +52,7 @@ sha2 = "0.10.9"
 
 openmls_traits = { version = "0.4.1" }
 privacypass = { git = "https://github.com/raphaelrobert/privacypass" }
-privacypass-middleware = { git = "https://github.com/phnx-im/pp-middleware" }
 openmls = { version = "0.7.1" }
-openmls_memory_storage = { version = "0.4.1" }
 openmls_rust_crypto = { version = "0.4.1" }
 tracing-subscriber = { version = "0.3", features = [
     "env-filter",

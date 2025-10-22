@@ -36,7 +36,7 @@ pub struct _ChatId {
 }
 
 /// UI representation of an [`UserId`]
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[frb(dart_code = "
     @override
     String toString() => '$uuid@$domain';
@@ -143,10 +143,6 @@ impl UiMessageDraft {
             editing_id: self.editing_id,
             updated_at: self.updated_at,
         }
-    }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.message.trim().is_empty() && self.editing_id.is_none()
     }
 }
 
@@ -532,7 +528,27 @@ impl UiUserProfile {
 }
 
 /// Image binary data together with its hashsum
+///
+/// Two images are considered equal in Dart if they have the same hashsum.
 #[derive(Clone, PartialEq, Eq, Hash)]
+#[frb(
+    non_hash,
+    non_eq,
+    dart_code = "
+    @override
+    String toString() => 'ImageData(hash: $hash, len: ${data.length})';
+
+    @override
+    int get hashCode => hash.hashCode;
+
+    @override
+    bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ImageData &&
+          runtimeType == other.runtimeType &&
+          hash == other.hash;
+"
+)]
 pub struct ImageData {
     /// The image data
     pub(crate) data: Vec<u8>,

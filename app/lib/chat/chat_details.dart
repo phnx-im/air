@@ -10,3 +10,4 @@ export 'chat_details_cubit.dart';
 export 'chat_details_screen.dart';
 export 'chat_screen.dart';
 export 'member_details_screen.dart';
+export 'member_details_cubit.dart';

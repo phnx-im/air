@@ -4,7 +4,9 @@
 
 import 'dart:async';
 
+import 'package:air/chat/chat_details.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iconoir_flutter/regular/prohibition.dart';
 import 'package:intl/intl.dart';
 import 'package:air/core/core.dart';
@@ -16,29 +18,54 @@ import 'package:air/ui/typography/font_size.dart';
 import 'package:air/ui/typography/monospace.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
-import 'package:provider/provider.dart';
 
 import 'chat_list_cubit.dart';
 
+typedef ChatDetailsCubitCreate =
+    ChatDetailsCubit Function({
+      required UserCubit userCubit,
+      required ChatId chatId,
+      required ChatsRepository chatsRepository,
+      bool withMembers,
+    });
+
 class ChatListContent extends StatelessWidget {
-  const ChatListContent({super.key});
+  const ChatListContent({
+    super.key,
+    this.createChatDetailsCubit = ChatDetailsCubit.new,
+  });
+
+  final ChatDetailsCubitCreate createChatDetailsCubit;
 
   @override
   Widget build(BuildContext context) {
-    final chats = context.select((ChatListCubit cubit) => cubit.state.chats);
+    final chatIds = context.select(
+      (ChatListCubit cubit) => cubit.state.chatIds,
+    );
 
-    if (chats.isEmpty) {
+    if (chatIds.isEmpty) {
       return const _NoChats();
     }
 
     return ListView.builder(
       padding: const EdgeInsets.all(0),
-      itemCount: chats.length,
+      itemCount: chatIds.length,
       physics: const BouncingScrollPhysics().applyTo(
         const AlwaysScrollableScrollPhysics(),
       ),
       itemBuilder: (BuildContext context, int index) {
-        return _ListTile(chat: chats[index]);
+        return BlocProvider(
+          key: ValueKey(chatIds[index]),
+          create:
+              (context) => createChatDetailsCubit(
+                userCubit: context.read<UserCubit>(),
+                chatId: chatIds[index],
+                chatsRepository: context.read<ChatsRepository>(),
+                withMembers: false,
+              ),
+          lazy: false,
+          child: _ListTile(chatId: chatIds[index]),
+        );
       },
     );
   }
@@ -62,16 +89,17 @@ class _NoChats extends StatelessWidget {
 }
 
 class _ListTile extends StatelessWidget {
-  const _ListTile({required this.chat});
+  const _ListTile({required this.chatId});
 
-  final UiChatDetails chat;
+  final ChatId chatId;
 
   @override
   Widget build(BuildContext context) {
     final currentChatId = context.select(
       (NavigationCubit cubit) => cubit.state.openChatId,
     );
-    final isSelected = currentChatId == chat.id;
+    final isSelected = currentChatId == chatId;
+
     return ListTile(
       horizontalTitleGap: 0,
       contentPadding: const EdgeInsets.symmetric(
@@ -94,28 +122,43 @@ class _ListTile extends StatelessWidget {
                   ? CustomColorScheme.of(context).backgroundBase.quaternary
                   : null,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          spacing: Spacings.s,
-          children: [
-            UserAvatar(size: 50, image: chat.picture, displayName: chat.title),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.start,
-                spacing: Spacings.xxxs,
-                children: [
-                  _ListTileTop(chat: chat),
-                  Expanded(child: _ListTileBottom(chat: chat)),
-                ],
-              ),
-            ),
-          ],
+        child: Builder(
+          builder: (context) {
+            final chat = context.select(
+              (ChatDetailsCubit cubit) => cubit.state.chat,
+            );
+            if (chat == null) {
+              return const SizedBox.shrink();
+            }
+
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              spacing: Spacings.s,
+              children: [
+                UserAvatar(
+                  size: 50,
+                  image: chat.picture,
+                  displayName: chat.title,
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    spacing: Spacings.xxxs,
+                    children: [
+                      _ListTileTop(chat: chat),
+                      Expanded(child: _ListTileBottom(chat: chat)),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
       selected: isSelected,
-      onTap: () => context.read<NavigationCubit>().openChat(chat.id),
+      onTap: () => context.read<NavigationCubit>().openChat(chatId),
     );
   }
 }
