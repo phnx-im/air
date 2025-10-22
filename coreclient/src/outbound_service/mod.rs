@@ -91,7 +91,6 @@ impl<C: OutboundServiceWork> OutboundService<C> {
                 let run_token = RunToken::new();
                 done_token = Some(run_token.done_token());
                 token.replace(run_token);
-                dbg!(token);
                 true // start running
             }
         });
