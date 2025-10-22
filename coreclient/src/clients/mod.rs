@@ -53,7 +53,10 @@ use crate::{
     outbound_service::OutboundService,
     store::Store,
     utils::{
-        connection_ext::StoreExt, image::resize_profile_image, persistence::delete_client_database,
+        connection_ext::StoreExt,
+        file_lock::FileLock,
+        image::resize_profile_image,
+        persistence::{delete_client_database, open_lock_file},
     },
 };
 use crate::{ChatId, key_stores::as_credentials::AsCredentials};
@@ -69,7 +72,7 @@ use crate::{
     key_stores::MemoryUserKeyStore,
     store::{StoreNotification, StoreNotifier},
     user_profiles::IndexedUserProfile,
-    utils::persistence::{open_air_db, open_client_db, open_db_in_memory},
+    utils::persistence::{open_air_db, open_client_db},
 };
 use crate::{store::StoreNotificationsSender, user_profiles::UserProfile};
 
@@ -138,8 +141,16 @@ impl CoreUser {
         // Open client specific db
         let client_db = open_client_db(&user_id, db_path).await?;
 
+        let global_lock = open_lock_file(db_path)?;
+
         Self::new_with_connections(
-            user_id, server_url, grpc_port, push_token, air_db, client_db,
+            user_id,
+            server_url,
+            grpc_port,
+            push_token,
+            air_db,
+            client_db,
+            global_lock,
         )
         .await
     }
@@ -151,6 +162,7 @@ impl CoreUser {
         push_token: Option<PushToken>,
         air_db: SqlitePool,
         client_db: SqlitePool,
+        global_lock: FileLock,
     ) -> Result<Self> {
         let server_url = server_url.to_string();
         let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone(), grpc_port);
@@ -172,19 +184,22 @@ impl CoreUser {
         .store(&client_db)
         .await?;
 
-        let self_user = final_state.into_self_user(client_db, api_clients);
+        let self_user = final_state.into_self_user(client_db, api_clients, global_lock);
 
         Ok(self_user)
     }
 
     /// The same as [`Self::new()`], except that databases are ephemeral and are
     /// dropped together with this instance of [`CoreUser`].
+    #[cfg(feature = "test_utils")]
     pub async fn new_ephemeral(
         user_id: UserId,
         server_url: Url,
         grpc_port: u16,
         push_token: Option<PushToken>,
     ) -> Result<Self> {
+        use crate::utils::persistence::open_db_in_memory;
+
         info!(?user_id, "creating new ephemeral user");
 
         // Open the air db to store the client record
@@ -193,8 +208,16 @@ impl CoreUser {
         // Open client specific db
         let client_db = open_db_in_memory().await?;
 
+        let global_lock = FileLock::from_file(tempfile::tempfile()?)?;
+
         Self::new_with_connections(
-            user_id, server_url, grpc_port, push_token, air_db, client_db,
+            user_id,
+            server_url,
+            grpc_port,
+            push_token,
+            air_db,
+            client_db,
+            global_lock,
         )
         .await
     }
@@ -221,7 +244,9 @@ impl CoreUser {
             .await?;
         ClientRecord::set_default(&air_db, &user_id).await?;
 
-        Ok(final_state.into_self_user(client_db, api_clients))
+        let global_lock = open_lock_file(db_path)?;
+
+        Ok(final_state.into_self_user(client_db, api_clients, global_lock))
     }
 
     /// Delete this user on the server and locally.

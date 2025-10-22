@@ -5,8 +5,7 @@
 use std::{
     fmt::Display,
     fs::{self, File},
-    path::Path,
-    time::Duration,
+    path::{Path, PathBuf},
 };
 
 use aircommon::{identifiers::UserId, time::TimeStamp};
@@ -22,8 +21,11 @@ use sqlx::{
 };
 use tracing::{error, info};
 
-use crate::clients::store::{ClientRecord, ClientRecordState::Finished};
 use crate::utils::data_migrations;
+use crate::{
+    clients::store::{ClientRecord, ClientRecordState::Finished},
+    utils::file_lock::FileLock,
+};
 
 pub(crate) const AIR_DB_NAME: &str = "air.db";
 
@@ -56,7 +58,10 @@ pub(crate) async fn open_air_db(db_path: &str) -> sqlx::Result<SqlitePool> {
     Ok(pool)
 }
 
+#[cfg(feature = "test_utils")]
 pub(crate) async fn open_db_in_memory() -> sqlx::Result<SqlitePool> {
+    use std::time::Duration;
+
     let opts = SqliteConnectOptions::new()
         .journal_mode(SqliteJournalMode::Wal)
         .in_memory(true);
@@ -245,6 +250,10 @@ pub async fn open_client_db(user_id: &UserId, client_db_path: &str) -> sqlx::Res
     migrate!().run(&pool).await?;
 
     Ok(pool)
+}
+
+pub(crate) fn open_lock_file(db_path: &str) -> std::io::Result<FileLock> {
+    FileLock::new(PathBuf::from(db_path).join("lockfile"))
 }
 
 /// Helper struct that allows us to use GroupId as sqlite input.
