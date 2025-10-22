@@ -201,6 +201,8 @@ pub trait Store {
         message_draft: Option<&MessageDraft>,
     ) -> StoreResult<()>;
 
+    async fn commit_all_message_drafts(&self) -> StoreResult<()>;
+
     async fn messages_count(&self, chat_id: ChatId) -> StoreResult<usize>;
 
     async fn unread_messages_count(&self, chat_id: ChatId) -> StoreResult<usize>;

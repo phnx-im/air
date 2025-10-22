@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO message_draft (\n                    chat_id,\n                    message,\n                    editing_id,\n                    updated_at,\n                    is_committed\n                ) VALUES (?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "92b7050c2e8ad27b972865601d5f2b2ea6e9d5958022ce0f5fcfa3a7f6ec2a81"
+}
