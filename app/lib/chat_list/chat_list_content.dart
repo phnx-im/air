@@ -55,6 +55,7 @@ class ChatListContent extends StatelessWidget {
       ),
       itemBuilder: (BuildContext context, int index) {
         return BlocProvider(
+          key: ValueKey(chatIds[index]),
           create:
               (context) => createChatDetailsCubit(
                 userCubit: context.read<UserCubit>(),

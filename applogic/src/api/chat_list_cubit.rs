@@ -131,7 +131,7 @@ where
     }
 
     async fn load_and_emit_state(&self) {
-        let Ok(chat_ids) = self.store.ordered_chat_id().await.inspect_err(|error| {
+        let Ok(chat_ids) = self.store.ordered_chat_ids().await.inspect_err(|error| {
             error!(%error, "Failed to load chats");
         }) else {
             return;
