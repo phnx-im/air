@@ -88,7 +88,7 @@ pub trait Store {
     ///
     /// 1. First return all chats having a draft ordered by the timestamp of the draft, descending.
     /// 2. Then return all chats ordered by the timestamp of the last message, descending.
-    async fn ordered_chat_id(&self) -> StoreResult<Vec<ChatId>>;
+    async fn ordered_chat_ids(&self) -> StoreResult<Vec<ChatId>>;
 
     async fn chat(&self, chat_id: ChatId) -> StoreResult<Option<Chat>>;
 

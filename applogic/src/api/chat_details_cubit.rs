@@ -17,7 +17,7 @@ use mimi_content::{
 };
 use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
-use tracing::{error, info};
+use tracing::error;
 
 use crate::api::{
     chats_repository::ChatsRepository,
@@ -63,8 +63,6 @@ impl ChatDetailsCubitBase {
         chats_repository: &ChatsRepository,
         with_members: bool,
     ) -> Self {
-        info!(%chat_id, "creating chat details cubit for chat");
-
         let store = user_cubit.core_user().clone();
 
         let initial_state = ChatDetailsState {
