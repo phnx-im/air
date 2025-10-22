@@ -4,6 +4,8 @@
 
 //! Common data model used in the server and client.
 
+#![warn(clippy::large_futures)]
+
 use std::fmt::Display;
 
 pub use mls_assist::openmls_rust_crypto::RustCrypto;

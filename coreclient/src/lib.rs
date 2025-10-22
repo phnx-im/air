@@ -4,6 +4,8 @@
 
 //! Implements the protocol logic of the client component
 
+#![warn(clippy::large_futures)]
+
 mod chats;
 pub mod clients;
 mod contacts;

@@ -181,6 +181,11 @@ impl ChatMessage {
         *self.timestamped_message.timestamp()
     }
 
+    #[cfg(test)]
+    pub(crate) fn set_timestamp(&mut self, at: TimeStamp) {
+        self.timestamped_message.timestamp = at;
+    }
+
     pub fn edited_at(&self) -> Option<TimeStamp> {
         if let Message::Content(content_message) = &self.timestamped_message.message {
             content_message.edited_at

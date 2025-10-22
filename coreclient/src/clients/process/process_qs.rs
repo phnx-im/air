@@ -114,7 +114,8 @@ impl CoreUser {
         let ds_timestamp = qs_queue_message.timestamp;
         match qs_queue_message.payload {
             ExtractedQsQueueMessagePayload::WelcomeBundle(welcome_bundle) => {
-                self.handle_welcome_bundle(welcome_bundle).await
+                // Box large future
+                Box::pin(self.handle_welcome_bundle(welcome_bundle)).await
             }
             ExtractedQsQueueMessagePayload::MlsMessage(mls_message) => {
                 self.handle_mls_message(*mls_message, ds_timestamp).await

@@ -4,6 +4,8 @@
 
 //! Multi-platform client application logic
 
+#![warn(clippy::large_futures)]
+
 pub(crate) use frb_generated::*;
 
 pub mod api;

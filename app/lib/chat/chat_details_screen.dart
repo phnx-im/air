@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/navigation/navigation.dart';
+import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/core/core.dart';
@@ -21,7 +22,24 @@ class ChatDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ChatDetailsScreenView();
+    final chatId = context.select(
+      (NavigationCubit cubit) => cubit.state.chatId,
+    );
+
+    if (chatId == null) {
+      return const SizedBox.shrink();
+    }
+
+    return BlocProvider(
+      create: (context) {
+        return ChatDetailsCubit(
+          userCubit: context.read<UserCubit>(),
+          chatId: chatId,
+          chatsRepository: context.read<ChatsRepository>(),
+        );
+      },
+      child: const ChatDetailsScreenView(),
+    );
   }
 }
 

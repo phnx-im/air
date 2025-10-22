@@ -18,7 +18,7 @@ use tracing::{debug, error};
 use crate::{
     clients::api_clients::ApiClients,
     store::{StoreNotificationsSender, StoreNotifier},
-    utils::connection_ext::StoreExt,
+    utils::{connection_ext::StoreExt, file_lock::FileLock},
 };
 
 mod receipt_queue;
@@ -53,6 +53,7 @@ impl OutboundService<OutboundServiceContext> {
         api_clients: ApiClients,
         client_signing_key: ClientSigningKey,
         store_notifications_tx: StoreNotificationsSender,
+        global_lock: FileLock,
     ) -> Self {
         let context = OutboundServiceContext {
             pool,
@@ -60,17 +61,17 @@ impl OutboundService<OutboundServiceContext> {
             signing_key: client_signing_key,
             store_notifications_tx,
         };
-        Self::with_context(context)
+        Self::with_context(context, global_lock)
     }
 }
 
 impl<C: OutboundServiceWork> OutboundService<C> {
-    fn with_context(context: C) -> Self {
+    fn with_context(context: C, global_lock: FileLock) -> Self {
         let (run_token_tx, run_token_rx) = watch::channel(None);
         let task = OutboundServiceTask {
             context: context.clone(),
         };
-        tokio::spawn(task.run(run_token_rx));
+        tokio::spawn(task.run(run_token_rx, global_lock));
         Self {
             context,
             run_token_tx,
@@ -147,7 +148,11 @@ struct OutboundServiceTask<C> {
 }
 
 impl<C: OutboundServiceWork> OutboundServiceTask<C> {
-    async fn run(self, mut run_token_rx: watch::Receiver<Option<RunToken>>) {
+    async fn run(
+        self,
+        mut run_token_rx: watch::Receiver<Option<RunToken>>,
+        mut global_lock: FileLock,
+    ) {
         loop {
             if run_token_rx.changed().await.is_err() {
                 break;
@@ -164,9 +169,15 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
                 (run_token.cancel.clone(), run_token.done_cell.clone())
             };
 
-            debug!("starting doing work in background task");
-            self.context.work(cancel).await;
-            debug!("finished work in background task");
+            {
+                let _guard = global_lock
+                    .lock()
+                    .await
+                    .expect("fatal: failed to acquire global lock");
+                debug!("starting doing work in background task");
+                self.context.work(cancel).await;
+                debug!("finished work in background task");
+            }
 
             // Rotate done token
             *done_cell.lock().expect("poisoned") = DoneToken::new();
@@ -314,6 +325,10 @@ mod test {
 
     use super::*;
 
+    fn global_lock() -> FileLock {
+        FileLock::from_file(tempfile::tempfile().unwrap()).unwrap()
+    }
+
     #[derive(Default, Clone)]
     struct DelayedCounterContext {
         counter: Arc<AtomicUsize>,
@@ -337,7 +352,7 @@ mod test {
         init_test_tracing();
 
         let context = DelayedCounterContext::default();
-        let service = OutboundService::with_context(context.clone());
+        let service = OutboundService::with_context(context.clone(), global_lock());
 
         service.start().await;
 
@@ -349,7 +364,7 @@ mod test {
         init_test_tracing();
 
         let context = DelayedCounterContext::default();
-        let service = OutboundService::with_context(context.clone());
+        let service = OutboundService::with_context(context.clone(), global_lock());
 
         service.start();
         service.stop().await;
@@ -362,7 +377,7 @@ mod test {
         init_test_tracing();
 
         let context = DelayedCounterContext::default();
-        let service = OutboundService::with_context(context.clone());
+        let service = OutboundService::with_context(context.clone(), global_lock());
 
         service.start().await;
         sleep(Duration::from_millis(100)).await; // +1
@@ -378,7 +393,7 @@ mod test {
     #[tokio::test]
     async fn wait_for_idle() {
         let context = DelayedCounterContext::default();
-        let service = OutboundService::with_context(context.clone());
+        let service = OutboundService::with_context(context.clone(), global_lock());
 
         service.start().await;
         sleep(Duration::from_millis(100)).await; // +1
@@ -391,7 +406,7 @@ mod test {
     #[tokio::test]
     async fn notify_work_triggers_another_run() {
         let context = DelayedCounterContext::default();
-        let service = OutboundService::with_context(context.clone());
+        let service = OutboundService::with_context(context.clone(), global_lock());
 
         service.start().await;
         service.notify_work().await;
@@ -404,7 +419,7 @@ mod test {
         init_test_tracing();
 
         let context = DelayedCounterContext::default();
-        let service = OutboundService::with_context(context.clone());
+        let service = OutboundService::with_context(context.clone(), global_lock());
 
         service.start();
         service.start();
@@ -445,7 +460,7 @@ mod test {
         }
 
         let context = MultiCounterContext::default();
-        let service = OutboundService::with_context(context.clone());
+        let service = OutboundService::with_context(context.clone(), global_lock());
 
         service.run_once().await;
         assert_eq!(3, context.counter.load(Ordering::SeqCst));

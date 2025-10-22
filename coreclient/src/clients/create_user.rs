@@ -430,7 +430,12 @@ pub(crate) struct PersistedUserState {
 }
 
 impl PersistedUserState {
-    pub(super) fn into_self_user(self, pool: SqlitePool, api_clients: ApiClients) -> CoreUser {
+    pub(super) fn into_self_user(
+        self,
+        pool: SqlitePool,
+        api_clients: ApiClients,
+        global_lock: FileLock,
+    ) -> CoreUser {
         let QsRegisteredUserState {
             key_store,
             server_url: _,
@@ -443,6 +448,7 @@ impl PersistedUserState {
             api_clients.clone(),
             key_store.signing_key.clone(),
             store_notifications_tx.clone(),
+            global_lock,
         );
         let inner = Arc::new(CoreUserInner {
             pool,

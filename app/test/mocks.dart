@@ -132,3 +132,5 @@ class MockAttachmentsRepository extends Mock implements AttachmentsRepository {}
 
 class MockUserSettingsCubit extends MockCubit<UserSettings>
     implements UserSettingsCubit {}
+
+class MockChatsRepository extends Mock implements ChatsRepository {}
