@@ -7,34 +7,29 @@
 use std::sync::Arc;
 
 use aircommon::identifiers::UserHandle;
+use aircoreclient::{ChatId, store::StoreNotification};
 use aircoreclient::{
-    Chat,
     clients::CoreUser,
     store::{Store, StoreEntityId},
 };
-use aircoreclient::{ChatId, store::StoreNotification};
 use flutter_rust_bridge::frb;
 use tokio::sync::watch;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
-use tracing::debug;
+use tracing::error;
 
 use crate::{
     StreamSink,
-    api::types::{UiChatMessage, UiMessageDraft, UiMessageDraftSource},
     util::{Cubit, CubitCore, spawn_from_sync},
 };
 
-use super::{
-    types::{UiChatDetails, UiChatType, UiUserHandle},
-    user_cubit::UserCubitBase,
-};
+use super::{types::UiUserHandle, user_cubit::UserCubitBase};
 
 /// Represents the state of the list of chat.
 #[frb(dart_metadata = ("freezed"))]
 #[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
 pub struct ChatListState {
-    pub chats: Vec<UiChatDetails>,
+    pub chat_ids: Vec<ChatId>,
 }
 
 /// Provides access to the list of chat.
@@ -136,9 +131,12 @@ where
     }
 
     async fn load_and_emit_state(&self) {
-        let chats = chat_details(&self.store).await;
-        debug!(?chats, "load_and_emit_state");
-        self.state_tx.send_modify(|state| state.chats = chats);
+        let Ok(chat_ids) = self.store.ordered_chat_id().await.inspect_err(|error| {
+            error!(%error, "Failed to load chats");
+        }) else {
+            return;
+        };
+        self.state_tx.send_modify(|state| state.chat_ids = chat_ids);
     }
 
     async fn store_notifications_loop(
@@ -170,71 +168,5 @@ where
             // changed and new chats, and replace them individually in the `state`.
             self.load_and_emit_state().await;
         }
-    }
-}
-
-async fn chat_details(store: &impl Store) -> Vec<UiChatDetails> {
-    let chatss = store.chats().await.unwrap_or_default();
-    let mut chat_details = Vec::with_capacity(chatss.len());
-    for chat in chatss {
-        let details = load_chat_details(store, chat).await;
-        chat_details.push(details);
-    }
-    // Sort the chat first by last updated draft if any, then by last used timestamp in
-    // descending order
-    chat_details.sort_unstable_by(|a, b| {
-        b.draft
-            .as_ref()
-            .filter(|draft| !draft.is_empty())
-            .map(|draft| draft.updated_at)
-            .cmp(
-                &a.draft
-                    .as_ref()
-                    .filter(|draft| !draft.is_empty())
-                    .map(|draft| draft.updated_at),
-            )
-            .then(b.last_used.cmp(&a.last_used))
-    });
-    chat_details
-}
-
-/// Loads additional details for a chat and converts it into a
-/// [`UiChatDetails`]
-pub(super) async fn load_chat_details(store: &impl Store, chat: Chat) -> UiChatDetails {
-    let messages_count = store.messages_count(chat.id()).await.unwrap_or_default();
-    let unread_messages = store
-        .unread_messages_count(chat.id())
-        .await
-        .unwrap_or_default();
-    let last_message = store
-        .last_message(chat.id())
-        .await
-        .ok()
-        .flatten()
-        .map(From::from);
-    let last_used = last_message
-        .as_ref()
-        .map(|m: &UiChatMessage| m.timestamp.clone())
-        .unwrap_or_default();
-    // default is UNIX_EPOCH
-
-    let chat_type = UiChatType::load_from_chat_type(store, chat.chat_type).await;
-
-    let draft = store
-        .message_draft(chat.id)
-        .await
-        .unwrap_or_default()
-        .map(|d| UiMessageDraft::from_draft(d, UiMessageDraftSource::System));
-
-    UiChatDetails {
-        id: chat.id,
-        status: chat.status.into(),
-        chat_type,
-        last_used,
-        attributes: chat.attributes.into(),
-        messages_count,
-        unread_messages,
-        last_message,
-        draft,
     }
 }

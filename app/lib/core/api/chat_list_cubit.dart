@@ -7,8 +7,6 @@ import 'package:convert/convert.dart';
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
-import 'markdown.dart';
-import 'message_content.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
@@ -16,7 +14,7 @@ import 'types.dart';
 import 'user_cubit.dart';
 part 'chat_list_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `chat_details`, `load_and_emit_state`, `load_chat_details`, `new`, `process_store_notification`, `spawn`, `store_notifications_loop`
+// These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `new`, `process_store_notification`, `spawn`, `store_notifications_loop`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChatListContext`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `eq`, `fmt`, `hash`
 
@@ -54,8 +52,7 @@ abstract class ChatListCubitBase implements RustOpaqueInterface {
 @freezed
 sealed class ChatListState with _$ChatListState {
   const ChatListState._();
-  const factory ChatListState({required List<UiChatDetails> chats}) =
-      _ChatListState;
+  const factory ChatListState({required List<ChatId> chatIds}) = _ChatListState;
   static Future<ChatListState> default_() =>
       RustLib.instance.api.crateApiChatListCubitChatListStateDefault();
 }

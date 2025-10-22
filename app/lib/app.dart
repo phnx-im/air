@@ -202,12 +202,25 @@ class LoadableUserCubitProvider extends StatelessWidget {
                             ),
                       ),
                     ],
-                    child: RepositoryProvider<AttachmentsRepository>(
-                      create:
-                          (context) => AttachmentsRepository(
-                            userCubit: context.read<UserCubit>().impl,
-                          ),
-                      lazy: false, // immediately download pending attachments
+                    child: MultiRepositoryProvider(
+                      providers: [
+                        RepositoryProvider<AttachmentsRepository>(
+                          create:
+                              (context) => AttachmentsRepository(
+                                userCubit: context.read<UserCubit>().impl,
+                              ),
+                          // immediately download pending attachments
+                          lazy: false,
+                        ),
+                        RepositoryProvider<ChatsRepository>(
+                          create:
+                              (context) => ChatsRepository(
+                                userCubit: context.read<UserCubit>().impl,
+                              ),
+                          // immediately cache chats
+                          lazy: false,
+                        ),
+                      ],
                       child: child,
                     ),
                   ),

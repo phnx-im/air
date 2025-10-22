@@ -7,6 +7,7 @@ import 'package:convert/convert.dart';
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import 'chats_repository.dart';
 import 'markdown.dart';
 import 'message_content.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
@@ -16,7 +17,7 @@ import 'types.dart';
 import 'user_cubit.dart';
 part 'chat_details_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `load_chat_details`, `new`, `store_draft_from_state`, `update_state_task`
+// These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `store_draft_from_state`, `update_state_task`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChatDetailsContext`, `MarkAsReadState`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `hash`
 // These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`
@@ -46,9 +47,13 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   factory ChatDetailsCubitBase({
     required UserCubitBase userCubit,
     required ChatId chatId,
+    required ChatsRepository chatsRepository,
+    required bool withMembers,
   }) => RustLib.instance.api.crateApiChatDetailsCubitChatDetailsCubitBaseNew(
     userCubit: userCubit,
     chatId: chatId,
+    chatsRepository: chatsRepository,
+    withMembers: withMembers,
   );
 
   Future<void> resetDraft();

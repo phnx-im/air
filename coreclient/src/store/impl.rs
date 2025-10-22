@@ -103,6 +103,10 @@ impl Store for CoreUser {
         Ok(self.chats().await?)
     }
 
+    async fn ordered_chat_id(&self) -> StoreResult<Vec<ChatId>> {
+        Ok(Chat::load_ordered_ids(self.pool()).await?)
+    }
+
     async fn chat(&self, chat_id: ChatId) -> StoreResult<Option<Chat>> {
         Ok(Chat::load(self.pool().acquire().await?.as_mut(), &chat_id).await?)
     }
