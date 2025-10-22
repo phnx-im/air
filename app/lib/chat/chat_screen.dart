@@ -40,6 +40,17 @@ class ChatScreen extends StatelessWidget {
           // rebuilds the cubit when a different chat is selected
           key: ValueKey("message-list-cubit-$chatId"),
           create:
+              (context) => ChatDetailsCubit(
+                userCubit: context.read<UserCubit>(),
+                chatId: chatId,
+                chatsRepository: context.read<ChatsRepository>(),
+                withMembers: false,
+              ),
+        ),
+        BlocProvider(
+          // rebuilds the cubit when a different chat is selected
+          key: ValueKey("message-list-cubit-$chatId"),
+          create:
               (context) => MessageListCubit(
                 userCubit: context.read<UserCubit>(),
                 chatId: chatId,
@@ -122,12 +133,11 @@ class _ChatHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = context.select(
-      (ChatDetailsCubit cubit) => cubit.state.chat?.title,
-    );
-
-    final image = context.select(
-      (ChatDetailsCubit cubit) => cubit.state.chat?.picture,
+    final (title, image) = context.select(
+      (ChatDetailsCubit cubit) => (
+        cubit.state.chat?.title,
+        cubit.state.chat?.picture,
+      ),
     );
 
     return Container(

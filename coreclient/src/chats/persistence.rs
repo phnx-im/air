@@ -239,6 +239,33 @@ impl Chat {
         Ok(chat.convert(members))
     }
 
+    pub(crate) async fn load_ordered_ids(
+        executor: impl SqliteExecutor<'_>,
+    ) -> sqlx::Result<Vec<ChatId>> {
+        // Note: Sqlite considers NULL values as the smallest value.
+        // Note: A draft is empty <=> trimmed text is empty AND editing_id is null.
+        query_scalar!(
+            r#"SELECT
+                c.chat_id AS "chat_id: _"
+            FROM chat c
+            LEFT OUTER JOIN message_draft d ON
+                d.chat_id = c.chat_id AND
+                NOT (TRIM(d.message) = '' AND d.editing_id IS NULL)
+            ORDER BY
+                d.updated_at DESC,
+                (SELECT timestamp
+                    FROM message
+                    WHERE chat_id = c.chat_id
+                    ORDER BY timestamp DESC
+                    LIMIT 1
+                ) DESC,
+                c.chat_id
+            "#,
+        )
+        .fetch_all(executor)
+        .await
+    }
+
     pub(crate) async fn load_by_group_id(
         connection: &mut SqliteConnection,
         group_id: &GroupId,
@@ -712,11 +739,13 @@ impl Chat {
 
 #[cfg(test)]
 pub mod tests {
-    use chrono::Duration;
+    use chrono::{Days, Duration};
     use sqlx::{Sqlite, pool::PoolConnection};
     use uuid::Uuid;
 
-    use crate::{InactiveChat, chats::messages::persistence::tests::test_chat_message};
+    use crate::{
+        InactiveChat, MessageDraft, chats::messages::persistence::tests::test_chat_message,
+    };
 
     use super::*;
 
@@ -777,6 +806,83 @@ pub mod tests {
 
         let loaded = Chat::load_all(&mut connection).await?;
         assert_eq!(loaded, [chat_a, chat_b]);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn load_ordered_ids(mut connection: PoolConnection<Sqlite>) -> anyhow::Result<()> {
+        let mut store_notifier = StoreNotifier::noop();
+
+        // Chat without a message
+        let chat_1 = test_chat();
+        chat_1.store(&mut connection, &mut store_notifier).await?;
+
+        // Chat with a message
+        let chat_2 = test_chat();
+        chat_2.store(&mut connection, &mut store_notifier).await?;
+        let message = test_chat_message(chat_2.id());
+        message.store(&mut *connection, &mut store_notifier).await?;
+
+        // Chat with another more recent message
+        let chat_3 = test_chat();
+        chat_3.store(&mut connection, &mut store_notifier).await?;
+        let mut message = test_chat_message(chat_3.id());
+        message.set_timestamp(Utc::now().checked_add_days(Days::new(1)).unwrap().into());
+        message.store(&mut *connection, &mut store_notifier).await?;
+
+        // Chat with an empty draft message
+        let chat_4 = test_chat();
+        chat_4.store(&mut connection, &mut store_notifier).await?;
+        let mut message = test_chat_message(chat_4.id());
+        message.set_timestamp(Utc::now().checked_add_days(Days::new(2)).unwrap().into());
+        message.store(&mut *connection, &mut store_notifier).await?;
+        MessageDraft {
+            message: "    ".into(), // Whitespace only
+            editing_id: None,
+            updated_at: TimeStamp::now().into(),
+        }
+        .store(&mut *connection, &mut store_notifier, chat_4.id())
+        .await?;
+
+        // Chat with a draft message
+        let chat_5 = test_chat();
+        chat_5.store(&mut connection, &mut store_notifier).await?;
+        let message = test_chat_message(chat_5.id());
+        message.store(&mut *connection, &mut store_notifier).await?;
+        MessageDraft {
+            message: "Hello, world!".to_string(),
+            editing_id: Some(message.id()),
+            updated_at: Utc::now(),
+        }
+        .store(&mut *connection, &mut store_notifier, chat_5.id())
+        .await?;
+
+        // Chat with a more recent draft message
+        let chat_6 = test_chat();
+        chat_6.store(&mut connection, &mut store_notifier).await?;
+        let message = test_chat_message(chat_6.id());
+        message.store(&mut *connection, &mut store_notifier).await?;
+        MessageDraft {
+            message: "Hello, world!".to_string(),
+            editing_id: Some(message.id()),
+            updated_at: Utc::now().checked_add_days(Days::new(1)).unwrap(),
+        }
+        .store(&mut *connection, &mut store_notifier, chat_6.id())
+        .await?;
+
+        let loaded = Chat::load_ordered_ids(&mut *connection).await?;
+        assert_eq!(
+            loaded,
+            [
+                chat_6.id(), // Has the most recent draft message
+                chat_5.id(), // Has a draft message
+                chat_4.id(), // Empty draft message, but most recent message
+                chat_3.id(), // Second most recent message
+                chat_2.id(), // Has a message
+                chat_1.id()  // No message
+            ]
+        );
 
         Ok(())
     }

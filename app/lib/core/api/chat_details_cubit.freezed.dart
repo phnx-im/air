@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ChatDetailsState {
 
- UiChatDetails? get chat; List<UiUserId> get members; UiRoomState? get roomState;
+ UiChatDetails? get chat; List<UiUserId> get members;
 /// Create a copy of ChatDetailsState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $ChatDetailsStateCopyWith<ChatDetailsState> get copyWith => _$ChatDetailsStateCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatDetailsState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other.members, members)&&(identical(other.roomState, roomState) || other.roomState == roomState));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatDetailsState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other.members, members));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(members),roomState);
+int get hashCode => Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(members));
 
 @override
 String toString() {
-  return 'ChatDetailsState(chat: $chat, members: $members, roomState: $roomState)';
+  return 'ChatDetailsState(chat: $chat, members: $members)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $ChatDetailsStateCopyWith<$Res>  {
   factory $ChatDetailsStateCopyWith(ChatDetailsState value, $Res Function(ChatDetailsState) _then) = _$ChatDetailsStateCopyWithImpl;
 @useResult
 $Res call({
- UiChatDetails? chat, List<UiUserId> members, UiRoomState? roomState
+ UiChatDetails? chat, List<UiUserId> members
 });
 
 
@@ -62,12 +62,11 @@ class _$ChatDetailsStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatDetailsState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? chat = freezed,Object? members = null,Object? roomState = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? chat = freezed,Object? members = null,}) {
   return _then(_self.copyWith(
 chat: freezed == chat ? _self.chat : chat // ignore: cast_nullable_to_non_nullable
 as UiChatDetails?,members: null == members ? _self.members : members // ignore: cast_nullable_to_non_nullable
-as List<UiUserId>,roomState: freezed == roomState ? _self.roomState : roomState // ignore: cast_nullable_to_non_nullable
-as UiRoomState?,
+as List<UiUserId>,
   ));
 }
 
@@ -79,7 +78,7 @@ as UiRoomState?,
 
 
 class _ChatDetailsState extends ChatDetailsState {
-  const _ChatDetailsState({this.chat, required final  List<UiUserId> members, this.roomState}): _members = members,super._();
+  const _ChatDetailsState({this.chat, required final  List<UiUserId> members}): _members = members,super._();
   
 
 @override final  UiChatDetails? chat;
@@ -90,7 +89,6 @@ class _ChatDetailsState extends ChatDetailsState {
   return EqualUnmodifiableListView(_members);
 }
 
-@override final  UiRoomState? roomState;
 
 /// Create a copy of ChatDetailsState
 /// with the given fields replaced by the non-null parameter values.
@@ -102,16 +100,16 @@ _$ChatDetailsStateCopyWith<_ChatDetailsState> get copyWith => __$ChatDetailsStat
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatDetailsState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other._members, _members)&&(identical(other.roomState, roomState) || other.roomState == roomState));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatDetailsState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other._members, _members));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(_members),roomState);
+int get hashCode => Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(_members));
 
 @override
 String toString() {
-  return 'ChatDetailsState(chat: $chat, members: $members, roomState: $roomState)';
+  return 'ChatDetailsState(chat: $chat, members: $members)';
 }
 
 
@@ -122,7 +120,7 @@ abstract mixin class _$ChatDetailsStateCopyWith<$Res> implements $ChatDetailsSta
   factory _$ChatDetailsStateCopyWith(_ChatDetailsState value, $Res Function(_ChatDetailsState) _then) = __$ChatDetailsStateCopyWithImpl;
 @override @useResult
 $Res call({
- UiChatDetails? chat, List<UiUserId> members, UiRoomState? roomState
+ UiChatDetails? chat, List<UiUserId> members
 });
 
 
@@ -139,12 +137,11 @@ class __$ChatDetailsStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatDetailsState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? chat = freezed,Object? members = null,Object? roomState = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? chat = freezed,Object? members = null,}) {
   return _then(_ChatDetailsState(
 chat: freezed == chat ? _self.chat : chat // ignore: cast_nullable_to_non_nullable
 as UiChatDetails?,members: null == members ? _self._members : members // ignore: cast_nullable_to_non_nullable
-as List<UiUserId>,roomState: freezed == roomState ? _self.roomState : roomState // ignore: cast_nullable_to_non_nullable
-as UiRoomState?,
+as List<UiUserId>,
   ));
 }
 

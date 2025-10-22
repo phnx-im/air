@@ -4,6 +4,8 @@
 
 //! Implements the local and the federation part of the protocol logic on the server side
 
+#![warn(clippy::large_futures)]
+
 pub mod air_service;
 pub mod auth_service;
 pub mod ds;
