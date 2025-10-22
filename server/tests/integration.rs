@@ -1465,7 +1465,6 @@ async fn resync() {
 
     // To trigger resync, we have Alice add Charlie to the group and Bob
     // fetching, but not processing the commit.
-
     let alice = setup.get_user_mut(&ALICE);
     let alice_user = &mut alice.user;
 
@@ -1538,5 +1537,63 @@ async fn resync() {
     assert!(
         result.errors.is_empty(),
         "Bob should process Alice's message without errors"
+    );
+
+    // Now Alice leaves the group, which means that if Bob resyncs again, he
+    // should commit the SelfRemove proposal in the process.
+    let alice = setup.get_user_mut(&ALICE);
+    let alice_user = &mut alice.user;
+
+    // Alice sends an update, which Bob misses again.
+    alice_user.update_key(chat_id).await.unwrap();
+
+    // Bob fetches the update and acks it s.t. it's removed from the queue,
+    // but does not process it. This is to simulate Bob missing the commit.
+    let bob = setup.get_user_mut(&BOB);
+    let bob_user = &mut bob.user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let [message] = qs_messages.as_slice() else {
+        panic!("Bob should have one message in the queue");
+    };
+    let (stream, responder) = bob_user.listen_queue().await.unwrap();
+    responder.ack(message.sequence_number + 1).await.unwrap();
+    sleep(Duration::from_secs(1)).await;
+    drop(stream);
+
+    // Now Alice leaves the group, which means that if Bob resyncs again, he
+    // should commit the SelfRemove proposal in the process.
+    let alice = setup.get_user_mut(&ALICE);
+    let alice_user = &mut alice.user;
+    alice_user.leave_chat(chat_id).await.unwrap();
+
+    // Bob fetches and processes his messages, which should trigger a resync.
+    let bob = setup.get_user_mut(&BOB);
+    let bob_user = &mut bob.user;
+
+    // Alice is still part of the group.
+    let participants = bob_user.chat_participants(chat_id).await.unwrap();
+    assert_eq!(
+        participants,
+        [ALICE.clone(), BOB.clone(), CHARLIE.clone()]
+            .into_iter()
+            .collect()
+    );
+
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    // Instead of throwing an error, Bob should have re-synced as part of processing the update.
+    assert!(
+        result.errors.is_empty(),
+        "Bob should process Alice's update without errors"
+    );
+    match result.rejoined_chats.as_slice() {
+        [id] if *id == chat_id => {}
+        _ => panic!("Bob should have rejoined the group"),
+    }
+    // Alice should not be in the group anymore
+    let participants = bob_user.chat_participants(chat_id).await.unwrap();
+    assert_eq!(
+        participants,
+        [BOB.clone(), CHARLIE.clone()].into_iter().collect()
     );
 }
