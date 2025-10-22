@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::HashSet, path::PathBuf, sync::Arc};
+use std::{collections::HashSet, sync::Arc};
 
 pub use airapiclient::as_api::ListenHandleResponder;
 use airapiclient::{
