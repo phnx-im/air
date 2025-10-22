@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:air/core/core.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/ui/colors/palette.dart';
@@ -120,8 +121,32 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                     ListTile(
                       title: const Text('Push Token'),
                       subtitle: Text(deviceToken ?? "N/A"),
-                      trailing: const Icon(Icons.refresh),
-                      onTap: onRefreshPushToken,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.copy),
+                            tooltip: 'Copy',
+                            onPressed: deviceToken == null
+                                ? null
+                                : () {
+                                    Clipboard.setData(
+                                      ClipboardData(text: deviceToken!),
+                                    );
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Device token copied'),
+                                      ),
+                                    );
+                                  },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.refresh),
+                            tooltip: 'Refresh',
+                            onPressed: onRefreshPushToken,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                   const _SectionHeader("User"),

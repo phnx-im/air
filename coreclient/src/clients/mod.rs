@@ -592,6 +592,11 @@ impl CoreUser {
 
     /// Updates the client's push token on the QS.
     pub async fn update_push_token(&self, push_token: Option<PushToken>) -> Result<()> {
+        match &push_token {
+            Some(_) => info!("Updating push token on QS"),
+            None => info!("Clearing push token on QS"),
+        }
+
         let client_id = self.inner.qs_client_id;
         // Ratchet encryption key
         let queue_encryption_key = self
