@@ -329,6 +329,13 @@ impl ChatDetailsCubitBase {
         draft_message: String,
         is_committed: bool,
     ) -> anyhow::Result<()> {
+        if is_committed {
+            // Debounce committing the draft to avoid confusing the user. Usually, the draft is
+            // committed when the user selects another chat. Commiting it immediately reorders the
+            // chat list and the chat the user clicked on might be moved.
+            sleep(Duration::from_millis(300)).await;
+        }
+
         let changed = self.core.state_tx().send_if_modified(|state| {
             let Some(chat) = state.chat.as_mut() else {
                 return false;

@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:air/user/user_settings_cubit.dart';
 import 'package:air/util/debouncer.dart';
@@ -92,15 +93,10 @@ class _MessageComposerState extends State<MessageComposer>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
 
-    // Debounce committing the draft to avoid confusing the user. Usually, the draft is committed
-    // when the user selects another chat. Commiting it immediately reorders the chat list and the
-    // chat the user clicked on might be moved.
-    Future.delayed(const Duration(milliseconds: 300), () {
-      _chatDetailsCubit.storeDraft(
-        draftMessage: _inputController.text.trim(),
-        isCommitted: true,
-      );
-    });
+    _chatDetailsCubit.storeDraft(
+      draftMessage: _inputController.text.trim(),
+      isCommitted: true,
+    );
 
     _inputController.dispose();
 
