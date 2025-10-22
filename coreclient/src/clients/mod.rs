@@ -72,7 +72,7 @@ use crate::{
     key_stores::MemoryUserKeyStore,
     store::{StoreNotification, StoreNotifier},
     user_profiles::IndexedUserProfile,
-    utils::persistence::{open_air_db, open_client_db, open_db_in_memory},
+    utils::persistence::{open_air_db, open_client_db},
 };
 use crate::{store::StoreNotificationsSender, user_profiles::UserProfile};
 
@@ -191,12 +191,15 @@ impl CoreUser {
 
     /// The same as [`Self::new()`], except that databases are ephemeral and are
     /// dropped together with this instance of [`CoreUser`].
+    #[cfg(feature = "test_utils")]
     pub async fn new_ephemeral(
         user_id: UserId,
         server_url: Url,
         grpc_port: u16,
         push_token: Option<PushToken>,
     ) -> Result<Self> {
+        use crate::utils::persistence::open_db_in_memory;
+
         info!(?user_id, "creating new ephemeral user");
 
         // Open the air db to store the client record

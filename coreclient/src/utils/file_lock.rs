@@ -29,6 +29,7 @@ impl FileLock {
         })
     }
 
+    #[cfg(any(test, feature = "test_utils"))]
     pub(crate) fn from_file(file: File) -> io::Result<Self> {
         Ok(Self {
             file: Arc::new(file),

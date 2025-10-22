@@ -12,7 +12,7 @@ license = "AGPL-3.0-or-later"
 [dependencies]
 aircommon = { workspace = true }
 airserver = { path = "../server" }
-aircoreclient = { path = "../coreclient" }
+aircoreclient = { path = "../coreclient", features = ["test_utils"] }
 airbackend = { path = "../backend", features = ["test_utils"] }
 
 tokio = { version = "1", features = ["process"] }

@@ -6,7 +6,6 @@ use std::{
     fmt::Display,
     fs::{self, File},
     path::{Path, PathBuf},
-    time::Duration,
 };
 
 use aircommon::{identifiers::UserId, time::TimeStamp};
@@ -59,7 +58,10 @@ pub(crate) async fn open_air_db(db_path: &str) -> sqlx::Result<SqlitePool> {
     Ok(pool)
 }
 
+#[cfg(feature = "test_utils")]
 pub(crate) async fn open_db_in_memory() -> sqlx::Result<SqlitePool> {
+    use std::time::Duration;
+
     let opts = SqliteConnectOptions::new()
         .journal_mode(SqliteJournalMode::Wal)
         .in_memory(true);
