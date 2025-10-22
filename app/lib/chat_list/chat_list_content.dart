@@ -4,7 +4,7 @@
 
 import 'dart:async';
 
-import 'package:air/chat_details/chat_details.dart';
+import 'package:air/chat/chat_details.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iconoir_flutter/regular/prohibition.dart';
