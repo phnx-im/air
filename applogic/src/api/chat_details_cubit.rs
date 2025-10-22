@@ -5,33 +5,26 @@
 //! A single chat details feature
 
 use std::path::PathBuf;
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId};
-use aircoreclient::{ChatId, store::StoreNotification};
+use aircoreclient::ChatId;
 use aircoreclient::{MessageId, clients::CoreUser, store::Store};
 use chrono::{DateTime, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
 use mimi_content::{
     ByteBuf, Disposition, MessageStatus, MimiContent, NestedPart, NestedPartContent,
 };
-use mimi_room_policy::{MimiProposal, RoleIndex, VerifiedRoomState};
-use tls_codec::Serialize;
 use tokio::{sync::watch, time::sleep};
-use tokio_stream::{Stream, StreamExt};
-use tokio_util::sync::CancellationToken;
+use tokio_stream::StreamExt;
 use tracing::error;
 
-use crate::api::types::UiMessageDraft;
+use crate::api::types::{UiMessageDraft, UiUserId};
 use crate::message_content::MimiContentExt;
 use crate::util::{Cubit, CubitCore, spawn_from_sync};
 use crate::{StreamSink, api::types::UiMessageDraftSource};
 
-use super::{
-    chat_list_cubit::load_chat_details,
-    types::{UiChatDetails, UiUserId},
-    user_cubit::UserCubitBase,
-};
+use super::{chat_list_cubit::load_chat_details, types::UiChatDetails, user_cubit::UserCubitBase};
 
 /// The state of a single chat
 ///
@@ -43,35 +36,6 @@ use super::{
 pub struct ChatDetailsState {
     pub chat: Option<UiChatDetails>,
     pub members: Vec<UiUserId>,
-    pub room_state: Option<UiRoomState>,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct UiRoomState {
-    our_user: UserId,
-    state: VerifiedRoomState,
-}
-
-impl UiRoomState {
-    #[frb(sync)]
-    pub fn can_kick(&self, target: &UiUserId) -> bool {
-        let Ok(user) = self.our_user.tls_serialize_detached() else {
-            return false;
-        };
-        let Ok(target) = UserId::from(target.clone()).tls_serialize_detached() else {
-            return false;
-        };
-
-        self.state
-            .can_apply_regular_proposals(
-                &user,
-                &[MimiProposal::ChangeRole {
-                    target,
-                    role: RoleIndex::Outsider,
-                }],
-            )
-            .is_ok()
-    }
 }
 
 /// The cubit responsible for a single chat
@@ -92,14 +56,25 @@ impl ChatDetailsCubitBase {
     #[frb(sync)]
     pub fn new(user_cubit: &UserCubitBase, chat_id: ChatId) -> Self {
         let store = user_cubit.core_user().clone();
-        let store_notifications = store.subscribe();
 
         let core = CubitCore::new();
 
         let context = ChatDetailsContext::new(store.clone(), core.state_tx().clone(), chat_id);
-        context
+
+        let emit_initial_state_task =
+            core.cancellation_token()
+                .clone()
+                .run_until_cancelled_owned({
+                    let context = context.clone();
+                    async move { context.load_and_emit_state().await }
+                });
+        spawn_from_sync(emit_initial_state_task);
+
+        let update_state_task = core
+            .cancellation_token()
             .clone()
-            .spawn(store_notifications, core.cancellation_token().clone());
+            .run_until_cancelled_owned(context.clone().update_state_task());
+        spawn_from_sync(update_state_task);
 
         Self { context, core }
     }
@@ -453,40 +428,16 @@ impl ChatDetailsContext {
         }
     }
 
-    fn spawn(
-        self,
-        store_notifications: impl Stream<Item = Arc<StoreNotification>> + Send + Unpin + 'static,
-        stop: CancellationToken,
-    ) {
-        spawn_from_sync(async move {
-            self.load_and_emit_state().await;
-            self.store_notifications_loop(store_notifications, stop)
-                .await;
-        });
-    }
-
     async fn load_and_emit_state(&self) {
-        let (details, last_read) = self.load_chat_details().await.unzip();
-        let members = if details.is_some() {
-            self.members_of_chat()
-                .await
-                .inspect_err(|error| error!(%error, "Failed fetching members"))
-                .unwrap_or_default()
-        } else {
-            Vec::new()
-        };
-        let room_state = if let Some(details) = &details {
-            if let Ok((our_id, state)) = self.store.load_room_state(&details.id).await {
-                Some(UiRoomState {
-                    our_user: our_id,
-                    state,
-                })
+        let (chat, last_read) = self.load_chat_details().await.unzip();
+        self.state_tx.send_if_modified(|state| {
+            if state.chat != chat {
+                state.chat = chat;
+                true
             } else {
-                None
+                false
             }
-        } else {
-            None
-        };
+        });
 
         if let Some(last_read) = last_read {
             let _ = self.mark_as_read_tx.send_replace(MarkAsReadState::Marked {
@@ -495,12 +446,22 @@ impl ChatDetailsContext {
             });
         }
 
-        let new_state = ChatDetailsState {
-            chat: details,
-            members,
-            room_state,
-        };
-        let _ = self.state_tx.send(new_state);
+        let members = self
+            .store
+            .chat_participants(self.chat_id)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(From::from)
+            .collect();
+        self.state_tx.send_if_modified(|state| {
+            if state.members != members {
+                state.members = members;
+                true
+            } else {
+                false
+            }
+        });
     }
 
     async fn load_chat_details(&self) -> Option<(UiChatDetails, DateTime<Utc>)> {
@@ -510,51 +471,27 @@ impl ChatDetailsContext {
         Some((details, last_read))
     }
 
-    async fn members_of_chat(&self) -> anyhow::Result<Vec<UiUserId>> {
-        Ok(self
-            .store
-            .chat_participants(self.chat_id)
-            .await
-            .unwrap_or_default()
-            .into_iter()
-            .map(From::from)
-            .collect())
-    }
-
     /// Returns only when `stop` is cancelled
-    async fn store_notifications_loop(
-        self,
-        mut store_notifications: impl Stream<Item = Arc<StoreNotification>> + Unpin,
-        stop: CancellationToken,
-    ) {
-        loop {
-            let res = tokio::select! {
-                notification = store_notifications.next() => notification,
-                _ = stop.cancelled() => return,
-            };
-            match res {
-                Some(notification) => self.handle_store_notification(&notification).await,
-                None => return,
-            }
-        }
-    }
-
-    async fn handle_store_notification(&self, notification: &StoreNotification) {
-        if notification.ops.contains_key(&self.chat_id.into()) {
-            self.load_and_emit_state().await;
-        } else {
-            let user_id = self
-                .state_tx
-                .borrow()
-                .chat
-                .as_ref()
-                .and_then(|chat| chat.connection_user_id())
-                .cloned()
-                .map(UserId::from);
-            if let Some(user_id) = user_id
-                && notification.ops.contains_key(&user_id.into())
-            {
+    async fn update_state_task(self) {
+        let mut notifications = self.store.subscribe();
+        while let Some(notification) = notifications.next().await {
+            if notification.ops.contains_key(&self.chat_id.into()) {
                 self.load_and_emit_state().await;
+            } else {
+                // Don't hold the lock of the state too long
+                let user_id = self
+                    .state_tx
+                    .borrow()
+                    .chat
+                    .as_ref()
+                    .and_then(|chat| chat.connection_user_id())
+                    .cloned()
+                    .map(UserId::from);
+                if let Some(user_id) = user_id
+                    && notification.ops.contains_key(&user_id.into())
+                {
+                    self.load_and_emit_state().await;
+                }
             }
         }
     }

@@ -4,6 +4,8 @@
 
 //! Server that makes the logic implemented in the backend available to clients via a REST API
 
+#![warn(clippy::large_futures)]
+
 use std::time::Duration;
 
 use airbackend::{

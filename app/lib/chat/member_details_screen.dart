@@ -3,19 +3,44 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:flutter/material.dart';
-import 'package:air/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'member_details_cubit.dart';
 import 'report_spam_button.dart';
 
 class MemberDetailsScreen extends StatelessWidget {
   const MemberDetailsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final chatId = context.select(
+      (NavigationCubit cubit) => cubit.state.chatId,
+    );
+
+    if (chatId == null) {
+      return const SizedBox.shrink();
+    }
+
+    return BlocProvider(
+      create: (context) {
+        return MemberDetailsCubit(
+          userCubit: context.read<UserCubit>(),
+          chatId: chatId,
+        );
+      },
+      child: const MemberDetailsScreenView(),
+    );
+  }
+}
+
+class MemberDetailsScreenView extends StatelessWidget {
+  const MemberDetailsScreenView({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +70,7 @@ class MemberDetailsScreen extends StatelessWidget {
     );
 
     final roomState = context.select(
-      (ChatDetailsCubit cubit) => cubit.state.roomState,
+      (MemberDetailsCubit cubit) => cubit.state.roomState,
     );
     if (roomState == null) {
       return const SizedBox.shrink();
@@ -60,7 +85,7 @@ class MemberDetailsScreen extends StatelessWidget {
         leading: const AppBarBackButton(),
         title: Text(loc.memberDetailsScreen_title),
       ),
-      body: MemberDetails(
+      body: MemberDetailsView(
         chatId: chatId,
         profile: profile,
         isSelf: isSelf,
@@ -71,8 +96,8 @@ class MemberDetailsScreen extends StatelessWidget {
 }
 
 /// Details of a member of a chat
-class MemberDetails extends StatelessWidget {
-  const MemberDetails({
+class MemberDetailsView extends StatelessWidget {
+  const MemberDetailsView({
     required this.chatId,
     required this.profile,
     required this.isSelf,
