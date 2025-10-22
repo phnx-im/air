@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
-import 'dart:io';
 
 import 'package:air/user/user_settings_cubit.dart';
 import 'package:air/util/debouncer.dart';
