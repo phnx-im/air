@@ -473,14 +473,14 @@ impl CoreUser {
     ) -> anyhow::Result<(Vec<TimestampedMessage>, bool)> {
         let mut messages = Vec::new();
 
-        if let Proposal::Remove(remove_proposal) = proposal.proposal() {
-            let Some(removed) = group.client_by_index(txn, remove_proposal.removed()).await else {
-                warn!("removed client not found");
+        if let Proposal::SelfRemove = proposal.proposal() {
+            // TODO: Handle external sender for when the server wants to kick a user?
+            let Sender::Member(sender) = proposal.sender() else {
                 return Ok((vec![], false));
             };
 
-            // TODO: Handle external sender for when the server wants to kick a user?
-            let Sender::Member(sender) = proposal.sender() else {
+            let Some(removed) = group.client_by_index(txn, *sender).await else {
+                warn!("removed client not found");
                 return Ok((vec![], false));
             };
 

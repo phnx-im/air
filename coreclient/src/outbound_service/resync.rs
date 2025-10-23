@@ -18,7 +18,7 @@ use uuid::Uuid;
 use crate::{
     ChatId,
     clients::api_clients::ApiClients,
-    groups::Group,
+    groups::{Group, ProfileInfo},
     outbound_service::{OutboundService, OutboundServiceContext},
 };
 
@@ -102,7 +102,7 @@ impl Resync {
             .begin_with("BEGIN IMMEDIATE")
             .await
             .map_err(SendResyncError::recoverable)?;
-        let (group, commit, group_info) = self
+        let (group, commit, group_info, _member_profile_infos) = self
             .create_commit(&mut txn, api_clients, signer, external_commit_info)
             .await
             .map_err(SendResyncError::fatal)?;
@@ -113,6 +113,8 @@ impl Resync {
         Self::send_commit(api_clients, signer, &group, commit, group_info)
             .await
             .map_err(SendResyncError::recoverable)?;
+
+        // TODO: Schedule fetching and storing member profile infos
 
         println!("Resync complete");
 
@@ -136,7 +138,7 @@ impl Resync {
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
         external_commit_info: ExternalCommitInfoIn,
-    ) -> Result<(Group, MlsMessageOut, MlsMessageOut)> {
+    ) -> Result<(Group, MlsMessageOut, MlsMessageOut, Vec<ProfileInfo>)> {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
         // reflect that in the UI.
 
@@ -144,7 +146,7 @@ impl Resync {
         Group::delete_from_db(txn, &self.group_id).await?;
 
         let aad = AadPayload::Resync.into();
-        let (new_group, commit, group_info, _member_profile_info) = Group::join_group_externally(
+        let (new_group, commit, group_info, member_profile_info) = Group::join_group_externally(
             txn,
             api_clients,
             external_commit_info,
@@ -158,7 +160,7 @@ impl Resync {
 
         new_group.store(&mut **txn).await?;
 
-        Ok((new_group, commit, group_info))
+        Ok((new_group, commit, group_info, member_profile_info))
     }
 
     async fn send_commit(

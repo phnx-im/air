@@ -2,13 +2,20 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::{Fqdn, UserId};
+use aircommon::{
+    identifiers::{Fqdn, UserId},
+    utils::removed_clients,
+};
+use anyhow::anyhow;
 use openmls::{group::GroupId, prelude::LeafNodeIndex};
-use sqlx::{Row, SqliteExecutor, query, query_as, query_scalar};
+use sqlx::{Row, SqliteConnection, SqliteExecutor, query, query_as, query_scalar};
 use tokio_stream::StreamExt;
 use uuid::Uuid;
 
-use crate::utils::persistence::{GroupIdRefWrapper, GroupIdWrapper};
+use crate::{
+    groups::Group,
+    utils::persistence::{GroupIdRefWrapper, GroupIdWrapper},
+};
 
 use super::{GroupMembership, StorableClientCredential};
 
@@ -198,6 +205,21 @@ impl GroupMembership {
         )
         .execute(executor)
         .await?;
+        Ok(())
+    }
+
+    pub(in crate::groups) async fn stage_removals_in_pending_commit(
+        connection: &mut SqliteConnection,
+        group: &Group,
+    ) -> anyhow::Result<()> {
+        for removed_client in removed_clients(
+            group
+                .mls_group
+                .pending_commit()
+                .ok_or(anyhow!("No pending commit after commit operation"))?,
+        ) {
+            Self::stage_removal(&mut *connection, group.group_id(), removed_client).await?;
+        }
         Ok(())
     }
 

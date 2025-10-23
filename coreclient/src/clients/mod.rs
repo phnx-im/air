@@ -535,6 +535,14 @@ impl CoreUser {
         Ok(Some(users))
     }
 
+    #[cfg(feature = "test_utils")]
+    pub async fn group_members(&self, chat_id: ChatId) -> Option<HashSet<UserId>> {
+        let mut connection = self.pool().acquire().await.ok()?;
+        let chat = Chat::load(&mut connection, &chat_id).await.ok()??;
+        let group = Group::load(&mut connection, chat.group_id()).await.ok()??;
+        Some(group.members(&mut *connection).await.into_iter().collect())
+    }
+
     pub async fn pending_removes(&self, chat_id: ChatId) -> Option<Vec<UserId>> {
         let mut connection = self.pool().acquire().await.ok()?;
         let chat = Chat::load(&mut connection, &chat_id).await.ok()??;

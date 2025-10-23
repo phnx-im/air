@@ -1573,7 +1573,7 @@ async fn resync() {
     let bob_user = &mut bob.user;
 
     // Alice is still part of the group.
-    let participants = bob_user.chat_participants(chat_id).await.unwrap();
+    let participants = bob_user.group_members(chat_id).await.unwrap();
     assert_eq!(
         participants,
         [ALICE.clone(), BOB.clone(), CHARLIE.clone()]
@@ -1590,13 +1590,13 @@ async fn resync() {
         "Bob should process Alice's update without errors"
     );
 
-    // Alice should not be in the group anymore
-    let participants = bob_user.chat_participants(chat_id).await.unwrap();
+    // Alice not in the group anymore.
+    let participants = bob_user.group_members(chat_id).await.unwrap();
     assert_eq!(
         participants,
         [BOB.clone(), CHARLIE.clone()].into_iter().collect()
     );
 
-    // Bob should be able to send a message to the group, i.e. Charlie
+    // Messages should reach Charlie.
     setup.send_message(chat_id, &BOB, vec![&CHARLIE]).await;
 }

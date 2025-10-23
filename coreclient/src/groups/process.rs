@@ -13,6 +13,7 @@ use aircommon::{
     crypto::{ear::keys::EncryptedUserProfileKey, hash::Hash, indexed_aead::keys::UserProfileKey},
     identifiers::UserId,
     messages::client_ds::{AadMessage, AadPayload},
+    utils::removed_client,
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use mimi_room_policy::RoleIndex;
@@ -134,13 +135,17 @@ impl Group {
 
                 // Before we process the AAD payload, we first process the
                 // proposals by value. Currently only removes are allowed.
-                for remove_proposal in staged_commit.remove_proposals() {
-                    if matches!(remove_proposal.sender(), Sender::NewMemberCommit) {
+                for queued_proposal in staged_commit.queued_proposals() {
+                    if matches!(queued_proposal.sender(), Sender::NewMemberCommit) {
                         // This can only happen if the removed member is rejoining
                         // as part of the commit. No need to process the removal.
                         continue;
                     }
-                    let removed_index = remove_proposal.remove_proposal().removed();
+                    // Load the removed client's index.
+                    let Some(removed_index) = removed_client(queued_proposal) else {
+                        // This is not a remove proposal, so we skip it.
+                        continue;
+                    };
 
                     let removed_id = self
                         .client_by_index(connection, removed_index)
