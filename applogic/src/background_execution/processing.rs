@@ -74,11 +74,11 @@ pub(crate) fn init_environment(content: &str) -> Option<NotificationBatch> {
         .map_err(|error| {
             match error.downcast::<&str>() {
                 Ok(s) => {
-                    error!("Thread panicked while initializing logger: {}", s);
+                    error!(error = s, "Thread panicked while initializing logger");
                 }
                 Err(error) => match error.downcast::<String>() {
                     Ok(s) => {
-                        error!("Thread panicked while initializing logger: {}", s);
+                        error!(error = s, "Thread panicked while initializing logger");
                     }
                     Err(_) => {
                         error!("Thread panicked while initializing logger occurred with unknown payload type");
