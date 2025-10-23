@@ -4,10 +4,7 @@
 
 use std::ffi::{CStr, CString, c_char};
 
-use crate::background_execution::{
-    IncomingNotificationContent, processing::retrieve_messages_sync,
-};
-use crate::logging::init_logger;
+use crate::background_execution::processing::init_environment;
 
 /// This method gets called from the iOS NSE
 ///
@@ -31,19 +28,11 @@ pub unsafe extern "C" fn process_new_messages(content: *const c_char) -> *mut c_
         }
     };
 
-    // Parse the JSON payload
-    let incoming_content: IncomingNotificationContent = match serde_json::from_str(json_str) {
-        Ok(v) => v,
-        Err(_) => {
-            return std::ptr::null_mut();
-        }
+    // Initialize the environment and retrieve the notification batch
+    let batch = match init_environment(json_str) {
+        Some(batch) => batch,
+        None => return std::ptr::null_mut(),
     };
-
-    // Initialize logging as requested by the payload
-    init_logger(incoming_content.log_file_path);
-
-    // Retrieve messages synchronously
-    let batch = retrieve_messages_sync(incoming_content.path);
 
     // Serialize the response JSON and return an owned C string to the caller
     match serde_json::to_string(&batch)
