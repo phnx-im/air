@@ -8,9 +8,8 @@ use jni::{
     sys::jstring,
 };
 
-use crate::{background_execution::processing::retrieve_messages_sync, logging::init_logger};
-
-use super::IncomingNotificationContent;
+use crate::background_execution::processing::init_environment;
+use tracing::error;
 
 /// This methos gets called from the Android Messaging Service
 #[unsafe(export_name = "Java_ms_air_NativeLib_process_1new_1messages")]
@@ -20,24 +19,33 @@ pub extern "C" fn process_new_messages(
     content: JString,
 ) -> jstring {
     // Convert Java string to Rust string
-    let input: String = env
-        .get_string(&content)
-        .expect("Couldn't get Java string")
-        .into();
+    let input: String = match env.get_string(&content) {
+        Ok(value) => value.into(),
+        Err(error) => {
+            error!(%error, "Failed to read content string from Java");
+            return std::ptr::null_mut();
+        }
+    };
 
-    let incoming_content: IncomingNotificationContent = serde_json::from_str(&input).unwrap();
+    let batch = match init_environment(&input) {
+        Some(batch) => batch,
+        None => return std::ptr::null_mut(),
+    };
 
-    init_logger(incoming_content.log_file_path.clone());
-    tracing::warn!(incoming_content.log_file_path, "init_logger");
-
-    // Retrieve messages
-    let batch = retrieve_messages_sync(incoming_content.path);
-
-    let response = serde_json::to_string(&batch).unwrap_or_default();
+    let response = match serde_json::to_string(&batch) {
+        Ok(json) => json,
+        Err(error) => {
+            error!(%error, "Failed to serialize notification batch");
+            return std::ptr::null_mut();
+        }
+    };
 
     // Convert Rust string back to Java string
-    let output = env
-        .new_string(response)
-        .expect("Couldn't create Java string");
-    output.into_raw()
+    match env.new_string(response) {
+        Ok(output) => output.into_raw(),
+        Err(error) => {
+            error!(%error, "Failed to create Java string");
+            std::ptr::null_mut()
+        }
+    }
 }
