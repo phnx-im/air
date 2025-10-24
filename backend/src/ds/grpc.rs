@@ -701,10 +701,6 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .ok_or_missing_field("sender")?
             .into();
 
-        //let ear_key = request.ear_key()?;
-        //let message = request.message()?;
-        //let qgid = message.validated_qgid(self.ds.own_domain())?;
-
         let timestamp = self
             .update_group_state(request, Some(sender_index), async |verified_data| {
                 let LeafVerificationData::<'_, ResyncPayload, true> {

@@ -86,14 +86,11 @@ impl CoreUser {
         let eci = self.fetch_external_commit_info(&cep_payload, &qgid).await?;
 
         // Join group
-        let (mut group, commit, group_info, mut member_profile_info) = self
-            .join_group_externally(
-                &mut connection,
-                eci,
-                &cep_payload,
-                aad,
-                connection_offer_hash,
-            )
+        let (mut group, commit, group_info, mut member_profile_info) = connection
+            .with_transaction(async |txn| {
+                self.join_group_externally(txn, eci, &cep_payload, aad, connection_offer_hash)
+                    .await
+            })
             .await?;
 
         // Verify that the group has only one other member and that it's
@@ -269,7 +266,7 @@ impl CoreUser {
 
     async fn join_group_externally(
         &self,
-        connection: &mut SqliteConnection,
+        connection: &mut SqliteTransaction<'_>,
         eci: ExternalCommitInfoIn,
         cep_payload: &ConnectionOfferPayload,
         aad: AadMessage,
@@ -325,7 +322,7 @@ impl CoreUser {
         chat: &mut Chat,
         contact: Contact,
     ) -> Result<()> {
-        group.store(txn.as_mut()).await?;
+        group.store_update(txn.as_mut()).await?;
         chat.store(txn.as_mut(), notifier).await?;
         contact.upsert(txn.as_mut(), notifier).await?;
         Ok(())

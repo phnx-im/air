@@ -9,17 +9,21 @@ use aircommon::{
     messages::{client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
 };
 use anyhow::Result;
-use openmls::{group::GroupId, prelude::MlsMessageOut};
+use openmls::{
+    group::GroupId,
+    prelude::{LeafNodeIndex, MlsMessageOut},
+};
 use sqlx::{Connection, SqliteConnection, SqliteTransaction};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{
-    ChatId,
+    ChatId, UserProfile,
     clients::api_clients::ApiClients,
     groups::{Group, ProfileInfo},
     outbound_service::{OutboundService, OutboundServiceContext},
+    utils::connection_ext::StoreExt,
 };
 
 pub(crate) struct Resync {
@@ -27,6 +31,7 @@ pub(crate) struct Resync {
     pub(crate) group_id: GroupId,
     pub(crate) group_state_ear_key: GroupStateEarKey,
     pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
+    pub(crate) original_leaf_index: LeafNodeIndex,
 }
 
 impl OutboundServiceContext {
@@ -47,16 +52,18 @@ impl OutboundServiceContext {
             debug!(?resync.chat_id, "dequeued resync");
 
             let mut connection = self.pool.acquire().await?;
-            println!("Processing resync for chat {}", resync.chat_id);
 
             let group_id = resync.group_id.clone();
 
-            match resync
+            let profile_infos = match resync
                 .create_and_send_commit(&mut connection, &self.api_clients, &self.signing_key)
                 .await
             {
-                Ok(_) => {
+                Ok(profile_infos) => {
                     Resync::remove(&mut *connection, &group_id).await?;
+                    // TODO: Schedule a job here that deals with fetching profile
+                    // infos in the background.
+                    profile_infos
                 }
                 Err(SendResyncError::Fatal(error)) => {
                     error!(%error, "Failed to send resync; dropping");
@@ -68,7 +75,19 @@ impl OutboundServiceContext {
                     continue;
                 }
             };
-            println!("Resync for chat complete");
+
+            for profile_info in profile_infos {
+                if let Err(e) = UserProfile::fetch_and_store(
+                    &mut connection,
+                    &mut self.notifier(),
+                    &self.api_clients,
+                    profile_info,
+                )
+                .await
+                {
+                    error!(%e, "Failed to fetch and store user profile info during resync");
+                };
+            }
         }
     }
 }
@@ -80,11 +99,7 @@ impl Resync {
         connection: &mut SqliteConnection,
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
-    ) -> Result<(), SendResyncError> {
-        println!(
-            "Creating and sending resync commit for chat {}",
-            self.chat_id
-        );
+    ) -> Result<Vec<ProfileInfo>, SendResyncError> {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
         // reflect that in the UI.
 
@@ -93,32 +108,30 @@ impl Resync {
             .await
             .map_err(SendResyncError::recoverable)?;
 
-        println!(
-            "Fetched external commit info for resync of chat {}",
-            self.chat_id
-        );
+        let original_leaf_index = self.original_leaf_index;
 
         let mut txn = connection
             .begin_with("BEGIN IMMEDIATE")
             .await
             .map_err(SendResyncError::recoverable)?;
-        let (group, commit, group_info, _member_profile_infos) = self
+        let (group, commit, group_info, member_profile_infos) = self
             .create_commit(&mut txn, api_clients, signer, external_commit_info)
             .await
             .map_err(SendResyncError::fatal)?;
         txn.commit().await.map_err(SendResyncError::recoverable)?;
 
-        println!("Created resync commit, sending to DS");
+        Self::send_commit(
+            api_clients,
+            signer,
+            &group,
+            commit,
+            group_info,
+            original_leaf_index,
+        )
+        .await
+        .map_err(SendResyncError::recoverable)?;
 
-        Self::send_commit(api_clients, signer, &group, commit, group_info)
-            .await
-            .map_err(SendResyncError::recoverable)?;
-
-        // TODO: Schedule fetching and storing member profile infos
-
-        println!("Resync complete");
-
-        Ok(())
+        Ok(member_profile_infos)
     }
 
     async fn fetch_group_info(&self, api_clients: &ApiClients) -> Result<ExternalCommitInfoIn> {
@@ -158,8 +171,6 @@ impl Resync {
         )
         .await?;
 
-        new_group.store(&mut **txn).await?;
-
         Ok((new_group, commit, group_info, member_profile_info))
     }
 
@@ -169,6 +180,7 @@ impl Resync {
         group: &Group,
         commit: MlsMessageOut,
         group_info: MlsMessageOut,
+        original_leaf_index: LeafNodeIndex,
     ) -> Result<()> {
         let qgid: QualifiedGroupId = group.group_id().try_into()?;
         let api_client = api_clients.get(qgid.owning_domain())?;
@@ -180,7 +192,7 @@ impl Resync {
                 group_info,
                 signer,
                 group.group_state_ear_key(),
-                group.own_index(),
+                original_leaf_index,
             )
             .await?;
         Ok(())
@@ -233,15 +245,17 @@ mod persistence {
             );
 
             let group_id_bytes = self.group_id.as_slice();
+            let original_leaf_index = self.original_leaf_index.u32() as i32;
             query!(
                 "INSERT INTO resync_queue
-                    (group_id, chat_id,  group_state_ear_key, identity_link_wrapper_key)
-                VALUES (?1, ?2, ?3, ?4)
+                    (group_id, chat_id,  group_state_ear_key, identity_link_wrapper_key, original_leaf_index)
+                VALUES (?1, ?2, ?3, ?4, ?5)
                 ON CONFLICT DO NOTHING",
                 group_id_bytes,
                 self.chat_id,
                 self.group_state_ear_key,
                 self.identity_link_wrapper_key,
+                original_leaf_index
             )
             .execute(executor)
             .await?;
@@ -259,6 +273,7 @@ mod persistence {
                 group_id: Vec<u8>,
                 group_state_ear_key: GroupStateEarKey,
                 identity_link_wrapper_key: IdentityLinkWrapperKey,
+                original_leaf_index: i32,
             }
 
             let resync = query_as!(
@@ -275,7 +290,8 @@ mod persistence {
                     chat_id AS "chat_id: _",
                     group_id AS "group_id: _",
                     group_state_ear_key AS "group_state_ear_key: _",
-                    identity_link_wrapper_key AS "identity_link_wrapper_key: _"
+                    identity_link_wrapper_key AS "identity_link_wrapper_key: _",
+                    original_leaf_index AS "original_leaf_index: _"
                 "#,
                 task_id,
             )
@@ -286,6 +302,7 @@ mod persistence {
                 group_id: GroupId::from_slice(&record.group_id),
                 group_state_ear_key: record.group_state_ear_key,
                 identity_link_wrapper_key: record.identity_link_wrapper_key,
+                original_leaf_index: LeafNodeIndex::new(record.original_leaf_index as u32),
             });
 
             Ok(resync)

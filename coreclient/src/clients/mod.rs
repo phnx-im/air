@@ -512,7 +512,10 @@ impl CoreUser {
 
     /// Returns None if there is no chat with the given id.
     pub async fn chat_participants(&self, chat_id: ChatId) -> Option<HashSet<UserId>> {
-        self.try_chat_participants(chat_id).await.ok()?
+        self.try_chat_participants(chat_id)
+            .await
+            .inspect_err(|e| error!(?e, "Error loading chat participants"))
+            .ok()?
     }
 
     pub(crate) async fn try_chat_participants(

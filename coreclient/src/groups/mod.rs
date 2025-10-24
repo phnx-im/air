@@ -81,8 +81,8 @@ use openmls::{
     prelude::{
         BasicCredentialError, CredentialWithKey, Extension, Extensions, GroupId, KeyPackage,
         LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
-        OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal,
-        ProposalType, ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
+        OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, ProposalType,
+        ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
         UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
@@ -234,7 +234,7 @@ impl Group {
 
     /// Join a group with the provided welcome message. If there exists a group
     /// with the same ID, checks if that group is inactive and if so deletes the
-    /// old group.
+    /// old group before it stores the new one.
     ///
     /// Returns the group name.
     pub(super) async fn join_group(
@@ -372,13 +372,25 @@ impl Group {
             &as_credentials,
         )?;
 
-        // Phase 8: Decrypt and verify the client credentials.
+        let group = Self {
+            group_id: mls_group.group_id().clone(),
+            mls_group,
+            identity_link_wrapper_key: welcome_attribution_info.identity_link_wrapper_key().clone(),
+            group_state_ear_key: joiner_info.group_state_ear_key,
+            pending_diff: None,
+            room_state,
+        };
+
+        // Phase 7: Store the group and client credentials.
+        group.store(txn.as_mut()).await?;
+
         {
             for client_auth_info in &client_information {
                 client_auth_info.store(txn).await?;
             }
         }
 
+        // Phase 8: Decrypt and verify the client credentials.
         let member_profile_info = encrypted_user_profile_keys
             .into_iter()
             .zip(
@@ -399,22 +411,13 @@ impl Group {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let group = Self {
-            group_id: mls_group.group_id().clone(),
-            mls_group,
-            identity_link_wrapper_key: welcome_attribution_info.identity_link_wrapper_key().clone(),
-            group_state_ear_key: joiner_info.group_state_ear_key,
-            pending_diff: None,
-            room_state,
-        };
-
         Ok((group, member_profile_info))
     }
 
     /// Join a group using an external commit.
     #[allow(clippy::too_many_arguments)]
     pub(super) async fn join_group_externally(
-        connection: &mut SqliteConnection,
+        txn: &mut SqliteTransaction<'_>,
         api_clients: &ApiClients,
         external_commit_info: ExternalCommitInfoIn,
         signer: &ClientSigningKey,
@@ -462,7 +465,7 @@ impl Group {
         // Let's create the group first so that we can access the GroupId.
         // Phase 1: Create and store the group
         let (mls_group, commit, group_info) = {
-            let provider = AirOpenMlsProvider::new(&mut *connection);
+            let provider = AirOpenMlsProvider::new(&mut *txn);
             // Prepare PSK proposal if we have a connection offer hash.
             let psk_proposal = match connection_offer_hash {
                 Some(co_hash) => {
@@ -514,7 +517,7 @@ impl Group {
 
         // Phase 2: Fetch the AS credentials from the server
         let as_credentials = AsCredentials::fetch_for_verification(
-            &mut *connection,
+            &mut *txn,
             api_clients,
             member_info.iter().map(|info| &info.credential),
         )
@@ -529,7 +532,7 @@ impl Group {
             .into_iter()
             .enumerate()
             .filter_map(|(index, eupk)| {
-                (!removed_members.contains(&&LeafNodeIndex::new(index as u32))).then_some(eupk)
+                (!removed_members.contains(&LeafNodeIndex::new(index as u32))).then_some(eupk)
             })
             .zip(
                 client_information
@@ -558,14 +561,6 @@ impl Group {
         let own_auth_info = ClientAuthInfo::new(own_credential, own_group_membership);
         client_information.push(own_auth_info);
 
-        // Phase 4: Store the client credentials.
-        {
-            for client_auth_info in client_information.iter() {
-                // Store client auth info.
-                client_auth_info.store(&mut *connection).await?;
-            }
-        }
-
         let group = Self {
             group_id: mls_group.group_id().clone(),
             mls_group,
@@ -574,6 +569,18 @@ impl Group {
             pending_diff: None,
             room_state,
         };
+
+        // Phase 4: Store the group and client auth info.
+
+        // If the group previously existed, delete it first.
+        Group::delete_from_db(&mut *txn, &group.group_id).await?;
+        group.store(txn.as_mut()).await?;
+        {
+            for client_auth_info in client_information.iter() {
+                // Store client auth info.
+                client_auth_info.store(&mut *txn).await?;
+            }
+        }
 
         Ok((group, commit, group_info, member_profile_info))
     }
@@ -993,9 +1000,8 @@ impl Group {
     ) -> Vec<UserId> {
         let mut pending_removes = Vec::new();
         for proposal in self.mls_group().pending_proposals() {
-            if let Proposal::SelfRemove = proposal.proposal()
-                && let Sender::Member(sender) = proposal.sender()
-                && let Some(client) = self.client_by_index(connection, *sender).await
+            if let Some(removed_client_index) = removed_client(proposal)
+                && let Some(client) = self.client_by_index(connection, removed_client_index).await
             {
                 pending_removes.push(client);
             }

@@ -1222,7 +1222,8 @@ async fn delete_account() {
     let bob_test_user = setup.users.get_mut(&BOB).unwrap();
     let bob = &mut bob_test_user.user;
     let qs_messages = bob.qs_fetch_messages().await.unwrap();
-    bob.fully_process_qs_messages(qs_messages).await;
+    let result = bob.fully_process_qs_messages(qs_messages).await;
+    assert!(result.errors.is_empty());
 
     let participants = setup
         .get_user(&BOB)
@@ -1505,10 +1506,6 @@ async fn resync() {
         result.errors.is_empty(),
         "Bob should process Alice's update and message without errors"
     );
-    // Bob should have rejoined the group and should be able to send a message.
-    setup
-        .send_message(chat_id, &BOB, vec![&ALICE, &CHARLIE])
-        .await;
 
     let alice = setup.get_user_mut(&ALICE);
     let alice_user = &mut alice.user;
@@ -1521,6 +1518,14 @@ async fn resync() {
         result.errors.is_empty(),
         "Alice should process Bob's rejoin without errors"
     );
+
+    // Bob should have rejoined the group and should be able to send a message.
+    setup
+        .send_message(chat_id, &BOB, vec![&ALICE, &CHARLIE])
+        .await;
+
+    let alice = setup.get_user_mut(&ALICE);
+    let alice_user = &mut alice.user;
 
     // When Alice sends another message, Bob should be able to process it without errors.
     alice_user
@@ -1599,4 +1604,14 @@ async fn resync() {
 
     // Messages should reach Charlie.
     setup.send_message(chat_id, &BOB, vec![&CHARLIE]).await;
+
+    // Charlie should also only see Bob in the group.
+    let charlie = setup.get_user_mut(&CHARLIE);
+    let charlie_user = &mut charlie.user;
+
+    let participants = charlie_user.group_members(chat_id).await.unwrap();
+    assert_eq!(
+        participants,
+        [BOB.clone(), CHARLIE.clone()].into_iter().collect()
+    );
 }

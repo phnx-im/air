@@ -414,6 +414,8 @@ mod tests {
 
     use super::*;
 
+    const TEST_GROUP_ID: [u8; 32] = [0u8; 32];
+
     /// Returns test credential with a fixed identity but random payload.
     fn test_client_credential(user_uuid: Uuid) -> StorableClientCredential {
         let user_id = UserId::new(user_uuid, "localhost".parse().unwrap());
@@ -428,12 +430,34 @@ mod tests {
         StorableClientCredential { client_credential }
     }
 
+    async fn store_dummy_group(executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+        let group_id = GroupId::from_slice(&TEST_GROUP_ID);
+        let group_id_wrapper = GroupIdRefWrapper::from(&group_id);
+        query(
+            r#"INSERT OR IGNORE INTO "group" (
+                group_id, 
+                identity_link_wrapper_key, 
+                group_state_ear_key, 
+                pending_diff, 
+                room_state
+            ) VALUES (?, ?, ?, ?, ?)"#,
+        )
+        .bind(group_id_wrapper)
+        .bind(vec![0u8; 32])
+        .bind(vec![0u8; 32])
+        .bind(None::<Vec<u8>>)
+        .bind(vec![0u8; 32])
+        .execute(executor)
+        .await?;
+        Ok(())
+    }
+
     /// Returns test group membership with a given parameter and fixed group id.
     fn test_group_membership(
         credential: &ClientCredential,
         index: LeafNodeIndex,
     ) -> GroupMembership {
-        let group_id = GroupId::from_slice(&[0; 32]);
+        let group_id = GroupId::from_slice(&TEST_GROUP_ID);
 
         GroupMembership::new(credential.identity().clone(), group_id, index)
     }
@@ -472,6 +496,8 @@ mod tests {
 
     #[sqlx::test]
     async fn group_membership_merge_for_group(pool: SqlitePool) -> anyhow::Result<()> {
+        store_dummy_group(&pool).await?;
+
         let credential_add = test_client_credential(Uuid::new_v4());
         credential_add.store(&pool).await?;
         let index_add = LeafNodeIndex::new(0);
@@ -550,6 +576,8 @@ mod tests {
 
     #[sqlx::test]
     async fn group_membership_store_load(pool: SqlitePool) -> anyhow::Result<()> {
+        store_dummy_group(&pool).await?;
+
         let credential = test_client_credential(Uuid::new_v4());
         credential.store(&pool).await?;
 
@@ -569,7 +597,9 @@ mod tests {
 
     #[sqlx::test]
     async fn group_membership_store_load_staged(pool: SqlitePool) -> anyhow::Result<()> {
+        store_dummy_group(&pool).await?;
         let credential = test_client_credential(Uuid::new_v4());
+
         credential.store(&pool).await?;
 
         let index = LeafNodeIndex::new(0);
@@ -588,6 +618,8 @@ mod tests {
 
     #[sqlx::test]
     async fn group_membership_member_indices(pool: SqlitePool) -> anyhow::Result<()> {
+        store_dummy_group(&pool).await?;
+
         let credential = test_client_credential(Uuid::new_v4());
         credential.store(&pool).await?;
 
@@ -603,6 +635,8 @@ mod tests {
 
     #[sqlx::test]
     async fn group_membership_client_indices(pool: SqlitePool) -> anyhow::Result<()> {
+        store_dummy_group(&pool).await?;
+
         let credential_a = test_client_credential(Uuid::new_v4());
         credential_a.store(&pool).await?;
 
@@ -639,6 +673,8 @@ mod tests {
 
     #[sqlx::test]
     async fn group_membership_group_members(pool: SqlitePool) -> anyhow::Result<()> {
+        store_dummy_group(&pool).await?;
+
         let credential_a = test_client_credential(Uuid::new_v4());
         credential_a.store(&pool).await?;
 

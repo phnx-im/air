@@ -15,6 +15,7 @@ use aircommon::{
         },
     },
     time::TimeStamp,
+    utils::removed_client,
 };
 use airprotos::queue_service::v1::{QueueEvent, queue_event};
 use anyhow::{Context, Result, bail, ensure};
@@ -25,7 +26,7 @@ use mimi_room_policy::RoleIndex;
 use openmls::{
     group::QueuedProposal,
     prelude::{
-        ApplicationMessage, MlsMessageBodyIn, MlsMessageIn, ProcessedMessageContent, Proposal,
+        ApplicationMessage, MlsMessageBodyIn, MlsMessageIn, ProcessedMessageContent,
         ProtocolMessage, Sender,
     },
 };
@@ -135,8 +136,8 @@ impl CoreUser {
     ) -> Result<ProcessQsMessageResult> {
         // WelcomeBundle Phase 1: Join the group. This might involve
         // loading AS credentials or fetching them from the AS.
-        let (own_profile_key, own_profile_key_in_group, group, chat_id) = self
-            .with_transaction_and_notifier(async |txn, notifier| {
+        let (own_profile_key, own_profile_key_in_group, group, chat_id) =
+            Box::pin(self.with_transaction_and_notifier(async |txn, notifier| {
                 let (group, member_profile_info) = Group::join_group(
                     welcome_bundle,
                     &self.inner.key_store.wai_ear_key,
@@ -179,16 +180,14 @@ impl CoreUser {
 
                 let chat = Chat::new_group_chat(group_id.clone(), attributes);
                 let own_profile_key = UserProfileKey::load_own(txn.as_mut()).await?;
-                // If we've been in that chat before, we delete the old
-                // chat (and the corresponding MLS group) first and then
-                // create a new one. We do leave the messages intact, though.
+                // If we've been in that chat before, we delete the old chat
+                // first and then create a new one. We do leave the messages
+                // intact, though.
                 Chat::delete(txn.as_mut(), notifier, chat.id()).await?;
-                Group::delete_from_db(txn, &group_id).await?;
-                group.store(txn.as_mut()).await?;
                 chat.store(txn.as_mut(), notifier).await?;
 
                 Ok((own_profile_key, own_profile_key_in_group, group, chat.id()))
-            })
+            }))
             .await?;
 
         // WelcomeBundle Phase 4: Check whether our user profile key is up to
@@ -269,6 +268,7 @@ impl CoreUser {
                         group_id: group.group_id().clone(),
                         group_state_ear_key: group.group_state_ear_key().clone(),
                         identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
+                        original_leaf_index: group.own_index(),
                     };
                     return Ok(TransactionResult::NeedsResync(resync));
                 };
@@ -473,34 +473,34 @@ impl CoreUser {
     ) -> anyhow::Result<(Vec<TimestampedMessage>, bool)> {
         let mut messages = Vec::new();
 
-        if let Proposal::SelfRemove = proposal.proposal() {
-            // TODO: Handle external sender for when the server wants to kick a user?
-            let Sender::Member(sender) = proposal.sender() else {
-                return Ok((vec![], false));
-            };
+        let Sender::Member(sender_index) = proposal.sender() else {
+            bail!("No external senders supported yet");
+        };
 
-            let Some(removed) = group.client_by_index(txn, *sender).await else {
-                warn!("removed client not found");
-                return Ok((vec![], false));
-            };
+        let removed_index = removed_client(&proposal)
+            .context("Only Removes and SelfRemoves are supported for now")?;
 
-            let Some(sender) = group.client_by_index(txn, *sender).await else {
-                warn!("sending client not found");
-                return Ok((vec![], false));
-            };
+        let Some(removed) = group.client_by_index(txn, removed_index).await else {
+            warn!("removed client not found");
+            return Ok((vec![], false));
+        };
 
-            ensure!(
-                sender == removed,
-                "A user should not send remove proposals for other users"
-            );
+        let Some(sender) = group.client_by_index(txn, *sender_index).await else {
+            warn!("sending client not found");
+            return Ok((vec![], false));
+        };
 
-            group.room_state_change_role(&sender, &sender, RoleIndex::Outsider)?;
+        ensure!(
+            sender == removed,
+            "A user should not send remove proposals for other users"
+        );
 
-            messages.push(TimestampedMessage::system_message(
-                SystemMessage::Remove(sender, removed),
-                ds_timestamp,
-            ));
-        }
+        group.room_state_change_role(&sender, &sender, RoleIndex::Outsider)?;
+
+        messages.push(TimestampedMessage::system_message(
+            SystemMessage::Remove(sender, removed),
+            ds_timestamp,
+        ));
 
         // For now, we don't to anything here. The proposal
         // was processed by the MLS group and will be
