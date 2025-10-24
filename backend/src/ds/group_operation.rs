@@ -33,7 +33,8 @@ use aircommon::{
         welcome_attribution_info::EncryptedWelcomeAttributionInfo,
     },
     mls_group_config::QS_CLIENT_REFERENCE_EXTENSION_TYPE,
-    time::{Duration, TimeStamp}, utils::removed_clients,
+    time::{Duration, TimeStamp},
+    utils::removed_clients,
 };
 use tls_codec::DeserializeBytes;
 use tracing::{error, warn};
