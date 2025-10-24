@@ -753,6 +753,7 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_store_draft_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>,
             >>::sse_decode(&mut deserializer);
             let api_draft_message = <String>::sse_decode(&mut deserializer);
+            let api_is_committed = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -778,6 +779,7 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_store_draft_impl(
                             crate::api::chat_details_cubit::ChatDetailsCubitBase::store_draft(
                                 &*api_that_guard,
                                 api_draft_message,
+                                api_is_committed,
                             )
                             .await?;
                         Ok(output_ok)
@@ -6555,6 +6557,13 @@ const _: fn() = || {
         let _: uuid::Uuid = ChatId.uuid;
     }
     {
+        let MessageDraft = None::<crate::api::types::MessageDraft>.unwrap();
+        let _: String = MessageDraft.message;
+        let _: Option<crate::api::types::MessageId> = MessageDraft.editing_id;
+        let _: chrono::DateTime<chrono::Utc> = MessageDraft.updated_at;
+        let _: bool = MessageDraft.is_committed;
+    }
+    {
         let MessageId = None::<crate::api::types::MessageId>.unwrap();
         let _: uuid::Uuid = MessageId.uuid;
     }
@@ -7819,6 +7828,22 @@ impl SseDecode for crate::api::markdown::MessageContent {
     }
 }
 
+impl SseDecode for crate::api::types::MessageDraft {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_message = <String>::sse_decode(deserializer);
+        let mut var_editingId = <Option<crate::api::types::MessageId>>::sse_decode(deserializer);
+        let mut var_updatedAt = <chrono::DateTime<chrono::Utc>>::sse_decode(deserializer);
+        let mut var_isCommitted = <bool>::sse_decode(deserializer);
+        return crate::api::types::MessageDraft {
+            message: var_message,
+            editing_id: var_editingId,
+            updated_at: var_updatedAt,
+            is_committed: var_isCommitted,
+        };
+    }
+}
+
 impl SseDecode for crate::api::types::MessageId {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -8013,6 +8038,17 @@ impl SseDecode for Option<crate::api::markdown::MessageContent> {
     }
 }
 
+impl SseDecode for Option<crate::api::types::MessageDraft> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::types::MessageDraft>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::types::MessageId> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -8064,19 +8100,6 @@ impl SseDecode for Option<crate::api::message_content::UiImageMetadata> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::api::message_content::UiImageMetadata>::sse_decode(
-                deserializer,
-            ));
-        } else {
-            return None;
-        }
-    }
-}
-
-impl SseDecode for Option<crate::api::types::UiMessageDraft> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        if (<bool>::sse_decode(deserializer)) {
-            return Some(<crate::api::types::UiMessageDraft>::sse_decode(
                 deserializer,
             ));
         } else {
@@ -8249,7 +8272,7 @@ impl SseDecode for crate::api::types::UiChatDetails {
         let mut var_unreadMessages = <usize>::sse_decode(deserializer);
         let mut var_lastMessage =
             <Option<crate::api::types::UiChatMessage>>::sse_decode(deserializer);
-        let mut var_draft = <Option<crate::api::types::UiMessageDraft>>::sse_decode(deserializer);
+        let mut var_draft = <Option<crate::api::types::MessageDraft>>::sse_decode(deserializer);
         return crate::api::types::UiChatDetails {
             id: var_id,
             status: var_status,
@@ -8458,34 +8481,6 @@ impl SseDecode for crate::api::types::UiMessage {
                 unimplemented!("");
             }
         }
-    }
-}
-
-impl SseDecode for crate::api::types::UiMessageDraft {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_message = <String>::sse_decode(deserializer);
-        let mut var_editingId = <Option<crate::api::types::MessageId>>::sse_decode(deserializer);
-        let mut var_updatedAt = <chrono::DateTime<chrono::Utc>>::sse_decode(deserializer);
-        let mut var_source = <crate::api::types::UiMessageDraftSource>::sse_decode(deserializer);
-        return crate::api::types::UiMessageDraft {
-            message: var_message,
-            editing_id: var_editingId,
-            updated_at: var_updatedAt,
-            source: var_source,
-        };
-    }
-}
-
-impl SseDecode for crate::api::types::UiMessageDraftSource {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <i32>::sse_decode(deserializer);
-        return match inner {
-            0 => crate::api::types::UiMessageDraftSource::User,
-            1 => crate::api::types::UiMessageDraftSource::System,
-            _ => unreachable!("Invalid variant for UiMessageDraftSource: {}", inner),
-        };
     }
 }
 
@@ -9593,6 +9588,29 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::markdown::MessageContent>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::MessageDraft> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.message.into_into_dart().into_dart(),
+            self.0.editing_id.into_into_dart().into_dart(),
+            self.0.updated_at.into_into_dart().into_dart(),
+            self.0.is_committed.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::types::MessageDraft>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::MessageDraft>>
+    for crate::api::types::MessageDraft
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::types::MessageDraft> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::MessageId> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [self.0.uuid.into_into_dart().into_dart()].into_dart()
@@ -10144,50 +10162,6 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiMessage>
     for crate::api::types::UiMessage
 {
     fn into_into_dart(self) -> crate::api::types::UiMessage {
-        self
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::types::UiMessageDraft {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [
-            self.message.into_into_dart().into_dart(),
-            self.editing_id.into_into_dart().into_dart(),
-            self.updated_at.into_into_dart().into_dart(),
-            self.source.into_into_dart().into_dart(),
-        ]
-        .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::types::UiMessageDraft
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiMessageDraft>
-    for crate::api::types::UiMessageDraft
-{
-    fn into_into_dart(self) -> crate::api::types::UiMessageDraft {
-        self
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::types::UiMessageDraftSource {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        match self {
-            Self::User => 0.into_dart(),
-            Self::System => 1.into_dart(),
-            _ => unreachable!(),
-        }
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::types::UiMessageDraftSource
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiMessageDraftSource>
-    for crate::api::types::UiMessageDraftSource
-{
-    fn into_into_dart(self) -> crate::api::types::UiMessageDraftSource {
         self
     }
 }
@@ -11328,6 +11302,16 @@ impl SseEncode for crate::api::markdown::MessageContent {
     }
 }
 
+impl SseEncode for crate::api::types::MessageDraft {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.message, serializer);
+        <Option<crate::api::types::MessageId>>::sse_encode(self.editing_id, serializer);
+        <chrono::DateTime<chrono::Utc>>::sse_encode(self.updated_at, serializer);
+        <bool>::sse_encode(self.is_committed, serializer);
+    }
+}
+
 impl SseEncode for crate::api::types::MessageId {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -11490,6 +11474,16 @@ impl SseEncode for Option<crate::api::markdown::MessageContent> {
     }
 }
 
+impl SseEncode for Option<crate::api::types::MessageDraft> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::types::MessageDraft>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::types::MessageId> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -11536,16 +11530,6 @@ impl SseEncode for Option<crate::api::message_content::UiImageMetadata> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::message_content::UiImageMetadata>::sse_encode(value, serializer);
-        }
-    }
-}
-
-impl SseEncode for Option<crate::api::types::UiMessageDraft> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <bool>::sse_encode(self.is_some(), serializer);
-        if let Some(value) = self {
-            <crate::api::types::UiMessageDraft>::sse_encode(value, serializer);
         }
     }
 }
@@ -11681,7 +11665,7 @@ impl SseEncode for crate::api::types::UiChatDetails {
         <usize>::sse_encode(self.messages_count, serializer);
         <usize>::sse_encode(self.unread_messages, serializer);
         <Option<crate::api::types::UiChatMessage>>::sse_encode(self.last_message, serializer);
-        <Option<crate::api::types::UiMessageDraft>>::sse_encode(self.draft, serializer);
+        <Option<crate::api::types::MessageDraft>>::sse_encode(self.draft, serializer);
     }
 }
 
@@ -11843,32 +11827,6 @@ impl SseEncode for crate::api::types::UiMessage {
                 unimplemented!("");
             }
         }
-    }
-}
-
-impl SseEncode for crate::api::types::UiMessageDraft {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.message, serializer);
-        <Option<crate::api::types::MessageId>>::sse_encode(self.editing_id, serializer);
-        <chrono::DateTime<chrono::Utc>>::sse_encode(self.updated_at, serializer);
-        <crate::api::types::UiMessageDraftSource>::sse_encode(self.source, serializer);
-    }
-}
-
-impl SseEncode for crate::api::types::UiMessageDraftSource {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(
-            match self {
-                crate::api::types::UiMessageDraftSource::User => 0,
-                crate::api::types::UiMessageDraftSource::System => 1,
-                _ => {
-                    unimplemented!("");
-                }
-            },
-            serializer,
-        );
     }
 }
 

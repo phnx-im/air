@@ -5,6 +5,7 @@
 import 'dart:async';
 
 import 'package:air/user/user_settings_cubit.dart';
+import 'package:air/util/debouncer.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:iconoir_flutter/regular/edit_pencil.dart';
@@ -20,7 +21,6 @@ import 'package:air/main.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
-import 'package:air/util/debouncer.dart';
 import 'package:provider/provider.dart';
 
 import 'message_renderer.dart';
@@ -38,7 +38,7 @@ class _MessageComposerState extends State<MessageComposer>
     with WidgetsBindingObserver {
   final TextEditingController _inputController = CustomTextEditingController();
   final Debouncer _storeDraftDebouncer = Debouncer(
-    delay: const Duration(milliseconds: 500),
+    delay: const Duration(milliseconds: 300),
   );
   StreamSubscription<ChatDetailsState>? _draftLoadingSubscription;
   final _focusNode = FocusNode();
@@ -55,29 +55,35 @@ class _MessageComposerState extends State<MessageComposer>
 
     _chatDetailsCubit = context.read<ChatDetailsCubit>();
 
-    // Propagate draft changes to the text field.
-    // In particular, this sets the draft message on initial load, if any.
-
+    // Propagate loaded draft to the text field.
+    //
+    // There are two cases when the changes are propagated:
+    //
+    // 1. Initially loaded draft
+    // 2. Editing ID has changed
+    MessageId? currentEditingId;
     _draftLoadingSubscription = _chatDetailsCubit.stream.listen((state) {
-      if (state.chat != null) {
-        // state is fully loaded
-        if (state.chat?.draft case final draft?) {
-          // We have a draft
-          // Ignore user drafts, those were input here and just reflect the change state.
-
-          switch (draft.source) {
-            case UiMessageDraftSource.system:
-              // If input controller is not empty, then the user already typed something,
-              // and we don't want to overwrite it.
-              if (_inputController.text.isEmpty) {
-                _inputController.text = draft.message;
-              }
-              break;
-            case UiMessageDraftSource.user:
-              // Ingore user drafts; they just reflect the past state of the input controller.
-              break;
+      // Check that chat is fully loaded
+      if (state.chat == null) {
+        return;
+      }
+      switch (state.chat?.draft) {
+        // Initially loaded draft
+        case final draft? when draft.isCommitted:
+          // If input controller is not empty, then the user already typed something,
+          // and we don't want to overwrite it.
+          if (_inputController.text.isEmpty) {
+            _inputController.text = draft.message;
           }
-        }
+        // Editing ID has changed
+        case final draft when draft?.editingId != currentEditingId:
+          // If input controller is not empty, then the user already typed something,
+          // and we don't want to overwrite it.
+          if (_inputController.text.isEmpty) {
+            _inputController.text = draft?.message ?? "";
+          }
+          currentEditingId = draft?.editingId;
+        default:
       }
     });
   }
@@ -85,9 +91,12 @@ class _MessageComposerState extends State<MessageComposer>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _storeDraftDebouncer.dispose();
 
-    _chatDetailsCubit.storeDraft(draftMessage: _inputController.text);
+    _chatDetailsCubit.storeDraft(
+      draftMessage: _inputController.text.trim(),
+      isCommitted: true,
+    );
+
     _inputController.dispose();
 
     _draftLoadingSubscription?.cancel();
@@ -298,7 +307,10 @@ class _MessageComposerState extends State<MessageComposer>
       _inputIsEmpty = _inputController.text.trim().isEmpty;
     });
     _storeDraftDebouncer.run(() {
-      _chatDetailsCubit.storeDraft(draftMessage: _inputController.text);
+      _chatDetailsCubit.storeDraft(
+        draftMessage: _inputController.text,
+        isCommitted: false,
+      );
     });
   }
 }

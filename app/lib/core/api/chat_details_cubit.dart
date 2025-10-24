@@ -71,7 +71,10 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
 
   ChatDetailsState get state;
 
-  Future<void> storeDraft({required String draftMessage});
+  Future<void> storeDraft({
+    required String draftMessage,
+    required bool isCommitted,
+  });
 
   Stream<ChatDetailsState> stream();
 
