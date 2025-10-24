@@ -34,6 +34,7 @@ use aircommon::{
     },
     mls_group_config::QS_CLIENT_REFERENCE_EXTENSION_TYPE,
     time::{Duration, TimeStamp},
+    utils::removed_clients,
 };
 use tls_codec::DeserializeBytes;
 use tracing::{error, warn};
@@ -219,10 +220,7 @@ impl DsGroupState {
             _ => None,
         };
 
-        let removed_clients = staged_commit
-            .remove_proposals()
-            .map(|remove_proposal| remove_proposal.remove_proposal().removed())
-            .collect::<Vec<_>>();
+        let removed_clients = removed_clients(staged_commit);
 
         for removed in &removed_clients {
             if *removed == sender_index.leaf_index() {

@@ -131,8 +131,8 @@ impl VerifiedConnectionPackagesWithGroupId {
         let (group, group_membership, partial_params) =
             Group::create_group(&provider, signing_key, group_id.clone(), group_data)?;
 
-        group_membership.store(txn.as_mut()).await?;
         group.store(txn.as_mut()).await?;
+        group_membership.store(txn.as_mut()).await?;
 
         // TODO: Once we allow multi-client, invite all our other clients to the
         // connection group.

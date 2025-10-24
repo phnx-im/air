@@ -132,6 +132,12 @@ impl TryFromRef<'_, openmls::framing::MlsMessageOut> for MlsMessage {
     }
 }
 
+impl From<Vec<u8>> for MlsMessage {
+    fn from(value: Vec<u8>) -> Self {
+        Self { tls: value }
+    }
+}
+
 impl TryFromRef<'_, MlsMessage> for openmls::framing::MlsMessageIn {
     type Error = tls_codec::Error;
 

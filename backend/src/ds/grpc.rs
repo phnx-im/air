@@ -582,6 +582,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
                     .try_ref_into()
                     .invalid_tls("room_state")?,
             ),
+            proposals: commit_info.proposals.into_iter().map(From::from).collect(),
         }))
     }
 
@@ -629,6 +630,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
                     .try_ref_into()
                     .invalid_tls("room_state")?,
             ),
+            proposals: commit_info.proposals.into_iter().map(From::from).collect(),
         }))
     }
 
@@ -665,6 +667,8 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
                     let destination_clients: Vec<_> = group_state.destination_clients().collect();
                     let group_message = group_state.join_connection_group(params)?;
 
+                    group_state.proposals.clear();
+
                     let timestamp = self
                         .fan_out_message_without_notifications(group_message, destination_clients)
                         .await;
@@ -697,10 +701,6 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .ok_or_missing_field("sender")?
             .into();
 
-        //let ear_key = request.ear_key()?;
-        //let message = request.message()?;
-        //let qgid = message.validated_qgid(self.ds.own_domain())?;
-
         let timestamp = self
             .update_group_state(request, Some(sender_index), async |verified_data| {
                 let LeafVerificationData::<'_, ResyncPayload, true> {
@@ -715,6 +715,8 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
                     .collect();
 
                 let group_message = group_state.resync_client(external_commit, sender_index)?;
+
+                group_state.proposals.clear();
 
                 let timestamp = self
                     .fan_out_message_without_notifications(group_message, destination_clients)
@@ -835,6 +837,8 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
                 let group_message = group_state.delete_group(commit)?;
 
+                group_state.proposals.clear();
+
                 let timestamp = self
                     .fan_out_message_without_notifications(group_message, destination_clients)
                     .await;
@@ -883,6 +887,8 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
                 let (group_message, welcome_bundles) =
                     group_state.group_operation(params, ear_key).await?;
+
+                group_state.proposals.clear();
 
                 let timestamp = self
                     .fan_out_message_without_notifications(group_message, destination_clients)

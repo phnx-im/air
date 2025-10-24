@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircommon::utils::removed_clients;
 use mls_assist::{
     group::ProcessedAssistedMessage,
     messages::{AssistedMessageIn, SerializedMlsMessage},
@@ -54,10 +55,8 @@ impl DsGroupState {
                 return Err(GroupDeletionError::InvalidMessage);
             }
             // Process remove proposals, but only non-inline ones.
-            let removed_clients: Vec<_> = staged_commit
-                .remove_proposals()
-                .map(|remove_proposal| remove_proposal.remove_proposal().removed())
-                .collect();
+
+            let removed_clients: Vec<_> = removed_clients(staged_commit);
             let existing_clients: Vec<_> = self
                 .member_profiles
                 .keys()

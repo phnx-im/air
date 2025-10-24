@@ -3,11 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    crypto::indexed_aead::{
-        ciphertexts::{IndexDecryptable, IndexEncryptable},
-        keys::UserProfileKey,
-    },
-    messages::{client_as_out::GetUserProfileResponse, client_ds::UserProfileKeyUpdateParams},
+    crypto::indexed_aead::{ciphertexts::IndexEncryptable, keys::UserProfileKey},
+    messages::client_ds::UserProfileKeyUpdateParams,
 };
 use anyhow::Context;
 use sqlx::SqliteConnection;
@@ -18,10 +15,7 @@ use crate::{
     groups::{Group, ProfileInfo},
     key_stores::indexed_keys::StorableIndexedKey,
     store::StoreNotifier,
-    user_profiles::{
-        IndexedUserProfile, UserProfile, VerifiableUserProfile, process::ExistingUserProfile,
-        update::UserProfileUpdate,
-    },
+    user_profiles::{IndexedUserProfile, UserProfile, update::UserProfileUpdate},
     utils::connection_ext::StoreExt,
 };
 
@@ -111,46 +105,7 @@ impl CoreUser {
         notifier: &mut StoreNotifier,
         profile_info: impl Into<ProfileInfo>,
     ) -> anyhow::Result<()> {
-        let ProfileInfo {
-            user_profile_key,
-            client_credential,
-        } = profile_info.into();
-        let user_id = client_credential.identity();
-
-        // Phase 1: Check if the profile in the DB is up to date.
-        let existing_user_profile = ExistingUserProfile::load(&mut *connection, user_id).await?;
-        if existing_user_profile.matches_index(user_profile_key.index()) {
-            return Ok(());
-        }
-
-        // Phase 2: Fetch the user profile from the server
-        let api_client = self.inner.api_clients.get(user_id.domain())?;
-
-        // TODO: Avoid network calls while in transaction
-        let GetUserProfileResponse {
-            encrypted_user_profile,
-        } = api_client
-            .as_get_user_profile(
-                client_credential.identity().clone(),
-                user_profile_key.index().clone(),
-            )
-            .await?;
-
-        let verifiable_user_profile =
-            VerifiableUserProfile::decrypt_with_index(&user_profile_key, &encrypted_user_profile)?;
-        let persistable_user_profile = existing_user_profile
-            .process_decrypted_user_profile(verifiable_user_profile, &client_credential)?;
-
-        // Phase 3: Store the user profile and key in the database
-        user_profile_key.store(&mut *connection).await?;
-        persistable_user_profile
-            .persist(&mut *connection, notifier)
-            .await?;
-        if let Some(old_user_profile_index) = persistable_user_profile.old_profile_index() {
-            // Delete the old user profile key
-            UserProfileKey::delete(connection, old_user_profile_index).await?;
-        }
-
-        Ok(())
+        UserProfile::fetch_and_store(connection, notifier, &self.inner.api_clients, profile_info)
+            .await
     }
 }
