@@ -71,7 +71,7 @@ impl OutboundServiceContext {
             };
 
             // If a resync is pending, we skip sending receipts for this chat
-            if Resync::is_pending_for_chat(&self.pool, &chat_id.into()).await? {
+            if Resync::is_pending_for_chat(&self.pool, &chat_id).await? {
                 debug!(?chat_id, "Skipping sending receipt due to pending resync");
                 continue;
             }
