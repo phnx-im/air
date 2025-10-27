@@ -185,7 +185,6 @@ impl Resync {
         let qgid: QualifiedGroupId = group.group_id().try_into()?;
         let api_client = api_clients.get(qgid.owning_domain())?;
 
-        // Phase 3: Send the commit and group info to the DS
         api_client
             .ds_resync(
                 commit,
