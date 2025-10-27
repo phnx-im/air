@@ -308,6 +308,19 @@ mod persistence {
             Ok(resync)
         }
 
+        pub(crate) async fn is_pending_for_chat(
+            executor: impl SqliteExecutor<'_>,
+            chat_id: &ChatId,
+        ) -> sqlx::Result<bool> {
+            let record = query!(
+                "SELECT EXISTS(SELECT 1 FROM resync_queue WHERE chat_id = ? LIMIT 1) AS row_exists",
+                chat_id,
+            )
+            .fetch_one(executor)
+            .await?;
+            Ok(record.row_exists == 1)
+        }
+
         pub(crate) async fn remove(
             executor: impl SqliteExecutor<'_>,
             group_id: &GroupId,
