@@ -644,7 +644,7 @@ impl Group {
             welcome_option.ok_or(anyhow!("Commit didn't return a welcome"))?,
             ProtocolVersion::default(),
         );
-        let commit = AssistedMessageOut::new(mls_commit, Some(group_info.into()))?;
+        let commit = AssistedMessageOut::new(mls_commit, Some(group_info.into()));
 
         let encrypted_welcome_attribution_infos = wai_keys
             .iter()
@@ -723,7 +723,7 @@ impl Group {
         // There shouldn't be a welcome
         debug_assert!(_welcome_option.is_none());
         let group_info = group_info_option.ok_or(anyhow!("No group info after commit"))?;
-        let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()))?;
+        let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()));
 
         GroupMembership::stage_removals_in_pending_commit(&mut *connection, self).await?;
 
@@ -771,7 +771,7 @@ impl Group {
         debug_assert!(_welcome_option.is_none());
         let group_info =
             group_info_option.ok_or(anyhow!("No group info after commit operation"))?;
-        let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()))?;
+        let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()));
 
         GroupMembership::stage_removals_in_pending_commit(&mut *connection, self).await?;
 
@@ -881,7 +881,7 @@ impl Group {
             .mls_group
             .create_message(provider, signer, &content.serialize()?)?;
 
-        let message = AssistedMessageOut::new(mls_message, None)?;
+        let message = AssistedMessageOut::new(mls_message, None);
 
         let suppress_notifications = suppress_notifications(&content);
 
@@ -962,7 +962,7 @@ impl Group {
         };
 
         GroupMembership::stage_removals_in_pending_commit(&mut *txn, self).await?;
-        let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()))?;
+        let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()));
         Ok(UpdateParamsOut { commit })
     }
 
@@ -976,7 +976,7 @@ impl Group {
             .mls_group
             .leave_group_via_self_remove(provider, signer)?;
 
-        let assisted_message = AssistedMessageOut::new(proposal, None)?;
+        let assisted_message = AssistedMessageOut::new(proposal, None);
         let params = SelfRemoveParamsOut {
             remove_proposal: assisted_message,
         };

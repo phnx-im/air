@@ -11,20 +11,11 @@ use openmls::{
         group_info::VerifiableGroupInfo,
     },
 };
-use thiserror::Error;
 
 #[cfg(doc)]
-use openmls::prelude::{PrivateMessage, PublicMessage};
+use openmls::prelude::{PrivateMessage, PublicMessage, group_info::GroupInfo};
 
 pub mod codec;
-
-#[derive(Debug, Error)]
-pub enum AssistedMessageError {
-    #[error("Invalid MLSMessage body.")]
-    InvalidMessage,
-    #[error("Missing group info.")]
-    MissingGroupInfo,
-}
 
 #[derive(Debug, TlsSerialize, TlsSize)]
 pub struct AssistedMessageOut {
@@ -36,36 +27,42 @@ impl AssistedMessageOut {
     /// Create a new [`AssistedMessageOut`] from an [`MlsMessageOut`] containing
     /// either a [`PublicMessage`] or a [`PrivateMessage`] and optionally an
     /// [`MlsMessageOut`] containing a [`GroupInfo`].
-    ///
-    /// Returns an error if the message is a commit and no [`GroupInfo`] is provided.
-    pub fn new(
-        mls_message: MlsMessageOut,
-        group_info_option: Option<MlsMessageOut>,
-    ) -> Result<Self, AssistedMessageError> {
-        let assisted_group_info_option =
-            if let MlsMessageBodyOut::PublicMessage(pub_msg) = mls_message.body() {
-                if let Some(MlsMessageBodyOut::GroupInfo(group_info)) =
-                    group_info_option.as_ref().map(|m| m.body())
-                {
-                    Some(AssistedGroupInfo {
-                        extensions: group_info.extensions().clone(),
-                        signature: group_info.signature().clone(),
-                    })
-                } else {
-                    // If the message is a commit, we require a GroupInfo to be present.
-                    if pub_msg.content_type() == ContentType::Commit {
-                        return Err(AssistedMessageError::MissingGroupInfo);
-                    } else {
-                        None
-                    }
-                }
-            } else {
+    pub fn new(mls_message: MlsMessageOut, group_info_option: Option<MlsMessageOut>) -> Self {
+        let is_public_commit = matches!(
+            mls_message.body(),
+            MlsMessageBodyOut::PublicMessage(pm)
+                if pm.content_type() == ContentType::Commit
+        );
+        let assisted_group_info_option = match group_info_option.as_ref().map(|m| m.body()) {
+            Some(MlsMessageBodyOut::GroupInfo(gi)) => {
+                // Ensure that GroupInfo is only provided for (public) Commit messages.
+                debug_assert!(
+                    is_public_commit,
+                    "GroupInfo should only be provided for Commit messages."
+                );
+                Some(AssistedGroupInfo {
+                    extensions: gi.extensions().clone(),
+                    signature: gi.signature().clone(),
+                })
+            }
+            // Second input should be None or GroupInfo
+            Some(_) => {
+                debug_assert!(false, "Second input must be GroupInfo if provided.");
                 None
-            };
-        Ok(Self {
+            }
+            // If no GroupInfo is provided, it must be a non-commit message.
+            None => {
+                debug_assert!(
+                    !is_public_commit,
+                    "GroupInfo must be provided for Commit messages."
+                );
+                None
+            }
+        };
+        Self {
             mls_message,
             assisted_group_info_option,
-        })
+        }
     }
 }
 
