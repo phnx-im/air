@@ -218,6 +218,7 @@ impl DsGrpcClient {
                     .try_ref_into()?,
             )
             .map_err(|_| DsRequestError::UnexpectedResponse)?,
+            proposals: response.proposals.into_iter().map(|m| m.tls).collect(),
         })
     }
 
@@ -388,6 +389,7 @@ impl DsGrpcClient {
                     .try_ref_into()?,
             )
             .map_err(|_| DsRequestError::UnexpectedResponse)?,
+            proposals: response.proposals.into_iter().map(|m| m.tls).collect(),
         })
     }
 

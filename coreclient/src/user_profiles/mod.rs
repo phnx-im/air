@@ -22,16 +22,24 @@ use aircommon::{
         },
     },
     identifiers::UserId,
-    messages::client_as_out::EncryptedUserProfileCtype,
+    messages::client_as_out::{EncryptedUserProfileCtype, GetUserProfileResponse},
 };
 use display_name::BaseDisplayName;
 pub use display_name::{DisplayName, DisplayNameError};
 use sealed::Seal;
 use serde::{Deserialize, Serialize};
-use sqlx::{Database, Decode, Encode, Sqlite, encode::IsNull, error::BoxDynError};
+use sqlx::{
+    Database, Decode, Encode, Sqlite, SqliteConnection, encode::IsNull, error::BoxDynError,
+};
 use thiserror::Error;
 use tls_codec::{Serialize as _, TlsDeserializeBytes, TlsSerialize, TlsSize};
 use tracing::info;
+
+use crate::{
+    clients::api_clients::ApiClients, groups::ProfileInfo,
+    key_stores::indexed_keys::StorableIndexedKey as _, store::StoreNotifier,
+    user_profiles::process::ExistingUserProfile,
+};
 
 pub mod display_name;
 pub(crate) mod generate;
@@ -155,6 +163,54 @@ impl UserProfile {
             display_name: mem::take(&mut self.display_name),
             profile_picture: mem::take(&mut self.profile_picture),
         }
+    }
+
+    pub(crate) async fn fetch_and_store(
+        connection: &mut SqliteConnection,
+        notifier: &mut StoreNotifier,
+        api_clients: &ApiClients,
+        profile_info: impl Into<ProfileInfo>,
+    ) -> anyhow::Result<()> {
+        let ProfileInfo {
+            user_profile_key,
+            client_credential,
+        } = profile_info.into();
+        let user_id = client_credential.identity();
+
+        let api_client = api_clients.get(user_id.domain())?;
+
+        // Phase 1: Check if the profile in the DB is up to date.
+        let existing_user_profile = ExistingUserProfile::load(&mut *connection, user_id).await?;
+        if existing_user_profile.matches_index(user_profile_key.index()) {
+            return Ok(());
+        }
+
+        // Phase 2: Fetch the user profile from the server
+        let GetUserProfileResponse {
+            encrypted_user_profile,
+        } = api_client
+            .as_get_user_profile(
+                client_credential.identity().clone(),
+                user_profile_key.index().clone(),
+            )
+            .await?;
+
+        let verifiable_user_profile =
+            VerifiableUserProfile::decrypt_with_index(&user_profile_key, &encrypted_user_profile)?;
+        let persistable_user_profile = existing_user_profile
+            .process_decrypted_user_profile(verifiable_user_profile, &client_credential)?;
+
+        // Phase 3: Store the user profile and key in the database
+        user_profile_key.store(&mut *connection).await?;
+        persistable_user_profile
+            .persist(&mut *connection, notifier)
+            .await?;
+        if let Some(old_user_profile_index) = persistable_user_profile.old_profile_index() {
+            // Delete the old user profile key
+            UserProfileKey::delete(&mut *connection, old_user_profile_index).await?;
+        }
+
+        Ok(())
     }
 }
 

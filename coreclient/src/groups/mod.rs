@@ -50,6 +50,7 @@ use aircommon::{
         default_sender_ratchet_configuration,
     },
     time::TimeStamp,
+    utils::removed_client,
 };
 use anyhow::{Context, Result, anyhow, bail};
 use mimi_content::MimiContent;
@@ -59,6 +60,7 @@ use openmls_provider::AirOpenMlsProvider;
 use openmls_traits::storage::StorageProvider;
 use serde::{Deserialize, Serialize};
 use sqlx::{SqliteConnection, SqliteExecutor, SqliteTransaction};
+use tls_codec::DeserializeBytes;
 use tracing::{debug, error};
 
 use crate::{
@@ -78,10 +80,10 @@ use openmls::{
     key_packages::KeyPackageBundle,
     prelude::{
         BasicCredentialError, CredentialWithKey, Extension, Extensions, GroupId, KeyPackage,
-        LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsMessageOut, OpenMlsProvider,
-        PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal, ProtocolVersion,
-        QueuedProposal, Sender, SignaturePublicKey, StagedCommit, UnknownExtension,
-        tls_codec::Serialize as TlsSerializeTrait,
+        LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
+        OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, ProposalType,
+        ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
+        UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
     treesync::RatchetTree,
@@ -232,7 +234,7 @@ impl Group {
 
     /// Join a group with the provided welcome message. If there exists a group
     /// with the same ID, checks if that group is inactive and if so deletes the
-    /// old group.
+    /// old group before it stores the new one.
     ///
     /// Returns the group name.
     pub(super) async fn join_group(
@@ -370,13 +372,25 @@ impl Group {
             &as_credentials,
         )?;
 
-        // Phase 8: Decrypt and verify the client credentials.
+        let group = Self {
+            group_id: mls_group.group_id().clone(),
+            mls_group,
+            identity_link_wrapper_key: welcome_attribution_info.identity_link_wrapper_key().clone(),
+            group_state_ear_key: joiner_info.group_state_ear_key,
+            pending_diff: None,
+            room_state,
+        };
+
+        // Phase 7: Store the group and client credentials.
+        group.store(txn.as_mut()).await?;
+
         {
             for client_auth_info in &client_information {
                 client_auth_info.store(txn).await?;
             }
         }
 
+        // Phase 8: Decrypt and verify the client credentials.
         let member_profile_info = encrypted_user_profile_keys
             .into_iter()
             .zip(
@@ -397,30 +411,21 @@ impl Group {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let group = Self {
-            group_id: mls_group.group_id().clone(),
-            mls_group,
-            identity_link_wrapper_key: welcome_attribution_info.identity_link_wrapper_key().clone(),
-            group_state_ear_key: joiner_info.group_state_ear_key,
-            pending_diff: None,
-            room_state,
-        };
-
         Ok((group, member_profile_info))
     }
 
     /// Join a group using an external commit.
     #[allow(clippy::too_many_arguments)]
     pub(super) async fn join_group_externally(
-        connection: &mut SqliteConnection,
+        txn: &mut SqliteTransaction<'_>,
         api_clients: &ApiClients,
         external_commit_info: ExternalCommitInfoIn,
         signer: &ClientSigningKey,
         group_state_ear_key: GroupStateEarKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         aad: AadMessage,
-        own_client_credential: &ClientCredential,
-        connection_offer_hash: ConnectionOfferHash,
+        // Should be Some if this join is in response to a connection offer.
+        connection_offer_hash: Option<ConnectionOfferHash>,
     ) -> Result<(Self, MlsMessageOut, MlsMessageOut, Vec<ProfileInfo>)> {
         let mls_group_config = default_mls_group_join_config();
         let credential_with_key = CredentialWithKey {
@@ -432,35 +437,66 @@ impl Group {
             ratchet_tree_in,
             encrypted_user_profile_keys,
             room_state,
+            proposals,
         } = external_commit_info;
+
+        let proposals = proposals
+            .iter()
+            .filter_map(|b| {
+                let mls_message = MlsMessageIn::tls_deserialize_exact_bytes(b);
+                let MlsMessageBodyIn::PublicMessage(pm) = mls_message.ok()?.extract() else {
+                    return None;
+                };
+                Some(anyhow::Ok(pm))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Figure out who was removed so we can filter out the encrypted profile keys later.
+        let removed_members: Vec<_> = proposals
+            .iter()
+            .filter_map(|pm| {
+                let Sender::Member(sender) = pm.sender() else {
+                    return None;
+                };
+                Some(*sender)
+            })
+            .collect();
 
         // Let's create the group first so that we can access the GroupId.
         // Phase 1: Create and store the group
         let (mls_group, commit, group_info) = {
-            let provider = AirOpenMlsProvider::new(&mut *connection);
-            let psk_value = connection_offer_hash.into_bytes();
-            // Since the value is public information, we can also use it as an ID
-            let psk_id = PreSharedKeyId::new(
-                verifiable_group_info.ciphersuite(),
-                provider.rand(),
-                Psk::External(ExternalPsk::new(psk_value.to_vec())),
-            )?;
-            psk_id.store(&provider, &psk_value)?;
-            let psk_proposal = PreSharedKeyProposal::new(PreSharedKeyId::new(
-                verifiable_group_info.ciphersuite(),
-                provider.rand(),
-                Psk::External(ExternalPsk::new(psk_value.to_vec())),
-            )?);
+            let provider = AirOpenMlsProvider::new(&mut *txn);
+            // Prepare PSK proposal if we have a connection offer hash.
+            let psk_proposal = match connection_offer_hash {
+                Some(co_hash) => {
+                    let psk_value = co_hash.into_bytes();
+                    let psk_id = PreSharedKeyId::new(
+                        verifiable_group_info.ciphersuite(),
+                        provider.rand(),
+                        Psk::External(ExternalPsk::new(psk_value.to_vec())),
+                    )?;
+                    psk_id.store(&provider, &psk_value)?;
+                    Some(PreSharedKeyProposal::new(psk_id))
+                }
+                None => None,
+            };
+
             let leaf_node_parameters = LeafNodeParameters::builder()
                 .with_capabilities(default_capabilities())
                 .build();
-            let (mls_group, commit) = ExternalCommitBuilder::new()
+            let mut builder = ExternalCommitBuilder::new()
+                .with_proposals(proposals)
                 .with_aad(aad.tls_serialize_detached()?)
                 .with_config(mls_group_config)
                 .with_ratchet_tree(ratchet_tree_in)
                 .build_group(&provider, verifiable_group_info, credential_with_key)?
-                .leaf_node_parameters(leaf_node_parameters)
-                .add_psk_proposal(psk_proposal)
+                .leaf_node_parameters(leaf_node_parameters);
+
+            if let Some(psk_proposal) = psk_proposal {
+                builder = builder.add_psk_proposal(psk_proposal);
+            }
+
+            let (mls_group, commit) = builder
                 .create_group_info(true)
                 .load_psks(provider.storage())?
                 .build(provider.rand(), provider.crypto(), signer, |_| true)?
@@ -481,7 +517,7 @@ impl Group {
 
         // Phase 2: Fetch the AS credentials from the server
         let as_credentials = AsCredentials::fetch_for_verification(
-            &mut *connection,
+            &mut *txn,
             api_clients,
             member_info.iter().map(|info| &info.credential),
         )
@@ -494,6 +530,10 @@ impl Group {
         // Compile a list of user profile keys for the members.
         let member_profile_info = encrypted_user_profile_keys
             .into_iter()
+            .enumerate()
+            .filter_map(|(index, eupk)| {
+                (!removed_members.contains(&LeafNodeIndex::new(index as u32))).then_some(eupk)
+            })
             .zip(
                 client_information
                     .iter()
@@ -511,23 +551,15 @@ impl Group {
 
         // We still have to add ourselves to the encrypted client credentials.
         let own_index = mls_group.own_leaf_index().usize();
+        let own_credential = signer.credential().clone();
         let own_group_membership = GroupMembership::new(
-            own_client_credential.identity().clone(),
+            own_credential.identity().clone(),
             mls_group.group_id().clone(),
             LeafNodeIndex::new(own_index as u32),
         );
 
-        let own_auth_info =
-            ClientAuthInfo::new(own_client_credential.clone(), own_group_membership);
+        let own_auth_info = ClientAuthInfo::new(own_credential, own_group_membership);
         client_information.push(own_auth_info);
-
-        // Phase 4: Store the client credentials.
-        {
-            for client_auth_info in client_information.iter() {
-                // Store client auth info.
-                client_auth_info.store(&mut *connection).await?;
-            }
-        }
 
         let group = Self {
             group_id: mls_group.group_id().clone(),
@@ -537,6 +569,18 @@ impl Group {
             pending_diff: None,
             room_state,
         };
+
+        // Phase 4: Store the group and client auth info.
+
+        // If the group previously existed, delete it first.
+        Group::delete_from_db(&mut *txn, &group.group_id).await?;
+        group.store(txn.as_mut()).await?;
+        {
+            for client_auth_info in client_information.iter() {
+                // Store client auth info.
+                client_auth_info.store(&mut *txn).await?;
+            }
+        }
 
         Ok((group, commit, group_info, member_profile_info))
     }
@@ -600,7 +644,7 @@ impl Group {
             welcome_option.ok_or(anyhow!("Commit didn't return a welcome"))?,
             ProtocolVersion::default(),
         );
-        let commit = AssistedMessageOut::new(mls_commit, Some(group_info.into()))?;
+        let commit = AssistedMessageOut::new(mls_commit, Some(group_info.into()));
 
         let encrypted_welcome_attribution_infos = wai_keys
             .iter()
@@ -622,19 +666,7 @@ impl Group {
             .collect::<Result<Vec<_>>>()?;
 
         // Stage removals
-        for remove in self
-            .mls_group
-            .pending_commit()
-            .ok_or(anyhow!("No pending commit after commit operation"))?
-            .remove_proposals()
-        {
-            GroupMembership::stage_removal(
-                &mut *connection,
-                self.group_id(),
-                remove.remove_proposal().removed(),
-            )
-            .await?;
-        }
+        GroupMembership::stage_removals_in_pending_commit(&mut *connection, self).await?;
 
         // Stage the adds in the DB.
         let free_indices = GroupMembership::free_indices(&mut *connection, self.group_id()).await?;
@@ -691,21 +723,9 @@ impl Group {
         // There shouldn't be a welcome
         debug_assert!(_welcome_option.is_none());
         let group_info = group_info_option.ok_or(anyhow!("No group info after commit"))?;
-        let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()))?;
+        let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()));
 
-        for remove in self
-            .mls_group()
-            .pending_commit()
-            .ok_or(anyhow!("No pending commit after commit operation"))?
-            .remove_proposals()
-        {
-            GroupMembership::stage_removal(
-                &mut *connection,
-                self.group_id(),
-                remove.remove_proposal().removed(),
-            )
-            .await?;
-        }
+        GroupMembership::stage_removals_in_pending_commit(&mut *connection, self).await?;
 
         let params = GroupOperationParamsOut {
             commit,
@@ -751,21 +771,9 @@ impl Group {
         debug_assert!(_welcome_option.is_none());
         let group_info =
             group_info_option.ok_or(anyhow!("No group info after commit operation"))?;
-        let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()))?;
+        let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()));
 
-        for remove in self
-            .mls_group()
-            .pending_commit()
-            .ok_or(anyhow!("No pending commit after commit operation"))?
-            .remove_proposals()
-        {
-            GroupMembership::stage_removal(
-                &mut *connection,
-                self.group_id(),
-                remove.remove_proposal().removed(),
-            )
-            .await?;
-        }
+        GroupMembership::stage_removals_in_pending_commit(&mut *connection, self).await?;
 
         let params = DeleteGroupParamsOut { commit };
         Ok(params)
@@ -844,8 +852,8 @@ impl Group {
             let group_member_data =
                 GroupMembership::group_members(&mut *connection, self.group_id()).await?;
             if mls_group_members.len() != group_member_data.len() {
-                tracing::info!(?mls_group_members, "Group members according to OpenMLS");
-                tracing::info!(?group_member_data, "Group members according to DB");
+                tracing::error!(?mls_group_members, "Group members according to OpenMLS");
+                tracing::error!(?group_member_data, "Group members according to DB");
                 panic!("Group members don't match up");
             }
             let client_indices = GroupMembership::client_indices(
@@ -873,7 +881,7 @@ impl Group {
             .mls_group
             .create_message(provider, signer, &content.serialize()?)?;
 
-        let message = AssistedMessageOut::new(mls_message, None)?;
+        let message = AssistedMessageOut::new(mls_message, None);
 
         let suppress_notifications = suppress_notifications(&content);
 
@@ -953,20 +961,8 @@ impl Group {
             )
         };
 
-        for remove in self
-            .mls_group()
-            .pending_commit()
-            .ok_or(anyhow!("No pending commit after commit operation"))?
-            .remove_proposals()
-        {
-            GroupMembership::stage_removal(
-                txn.as_mut(),
-                self.group_id(),
-                remove.remove_proposal().removed(),
-            )
-            .await?;
-        }
-        let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()))?;
+        GroupMembership::stage_removals_in_pending_commit(&mut *txn, self).await?;
+        let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()));
         Ok(UpdateParamsOut { commit })
     }
 
@@ -976,9 +972,11 @@ impl Group {
         signer: &ClientSigningKey,
     ) -> Result<SelfRemoveParamsOut> {
         let provider = &AirOpenMlsProvider::new(connection);
-        let proposal = self.mls_group.leave_group(provider, signer)?;
+        let proposal = self
+            .mls_group
+            .leave_group_via_self_remove(provider, signer)?;
 
-        let assisted_message = AssistedMessageOut::new(proposal, None)?;
+        let assisted_message = AssistedMessageOut::new(proposal, None);
         let params = SelfRemoveParamsOut {
             remove_proposal: assisted_message,
         };
@@ -1002,8 +1000,8 @@ impl Group {
     ) -> Vec<UserId> {
         let mut pending_removes = Vec::new();
         for proposal in self.mls_group().pending_proposals() {
-            if let Proposal::Remove(rp) = proposal.proposal()
-                && let Some(client) = self.client_by_index(connection, rp.removed()).await
+            if let Some(removed_client_index) = removed_client(proposal)
+                && let Some(client) = self.client_by_index(connection, removed_client_index).await
             {
                 pending_removes.push(client);
             }
@@ -1071,9 +1069,23 @@ impl TimestampedMessage {
     ) -> Result<Vec<Self>> {
         // Collect the remover/removed pairs into a set to avoid duplicates.
         let mut removed_set = HashSet::new();
-        for remove_proposal in staged_commit.remove_proposals() {
-            let Sender::Member(sender_index) = remove_proposal.sender() else {
-                bail!("Only member proposals are supported for now")
+        let remove_proposals = staged_commit.queued_proposals().filter(|&p| {
+            matches!(
+                p.proposal().proposal_type(),
+                ProposalType::Remove | ProposalType::SelfRemove
+            )
+        });
+        for remove_proposal in remove_proposals {
+            let sender_index = match remove_proposal.sender() {
+                Sender::Member(leaf_node_index) => leaf_node_index,
+                Sender::External(_) | Sender::NewMemberProposal => {
+                    bail!("Only member proposals are supported for now")
+                }
+                Sender::NewMemberCommit => {
+                    // This can only happen if the removed member is rejoining
+                    // as part of the commit. No need to create a message.
+                    continue;
+                }
             };
             let remover = if let Some(remover) =
                 ClientAuthInfo::load(&mut *connection, group_id, *sender_index).await?
@@ -1089,7 +1101,11 @@ impl TimestampedMessage {
             .identity()
             .clone();
 
-            let removed_index = remove_proposal.remove_proposal().removed();
+            let Some(removed_index) = removed_client(remove_proposal) else {
+                // This cannot happen since we filtered for remove proposals.
+                continue;
+            };
+
             let removed = ClientAuthInfo::load_staged(connection, group_id, removed_index)
                 .await?
                 .ok_or_else(|| anyhow!("Could not find client credential of removed"))?

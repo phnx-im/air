@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::crypto::errors::DecryptionError;
-use mls_assist::messages::AssistedMessageError;
 use openmls::group::{CreateMessageError, MlsGroupStateError, ProcessMessageError};
 use thiserror::Error;
 
@@ -22,8 +21,6 @@ pub enum GroupOperationError {
     JoinerInfoDecryptionError(#[from] DecryptionError),
     #[error(transparent)]
     TlsCodecError(#[from] tls_codec::Error),
-    #[error(transparent)]
-    AssistedMessageError(#[from] AssistedMessageError),
     #[error(transparent)]
     MimiContentError(#[from] mimi_content::Error),
 }

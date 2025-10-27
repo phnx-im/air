@@ -22,7 +22,6 @@ impl DsGroupState {
         // Process message (but don't apply it yet). This performs
         // mls-assist-level validations and puts the proposal into mls-assist's
         // proposal store.
-        // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
             .group()
             .process_assisted_message(self.provider.crypto(), remove_proposal)
@@ -33,7 +32,7 @@ impl DsGroupState {
         let ProcessedAssistedMessage::NonCommit(processed_message) =
             &processed_assisted_message_plus.processed_assisted_message
         else {
-            // This should be a commit.
+            // This should be a proposal.
             return Err(ClientSelfRemovalError::InvalidMessage);
         };
 
@@ -48,13 +47,9 @@ impl DsGroupState {
             return Err(ClientSelfRemovalError::InvalidMessage);
         };
 
-        let Proposal::Remove(remove_proposal) = queued_proposal.proposal() else {
+        let Proposal::SelfRemove = queued_proposal.proposal() else {
             return Err(ClientSelfRemovalError::InvalidMessage);
         };
-
-        if remove_proposal.removed() != sender_index {
-            return Err(ClientSelfRemovalError::InvalidMessage);
-        }
 
         // Everything seems to be okay.
         // Now we have to update the group state and distribute.
@@ -73,9 +68,15 @@ impl DsGroupState {
             Duration::days(USER_EXPIRATION_DAYS),
         )?;
 
+        let serialized_mls_message = processed_assisted_message_plus.serialized_mls_message;
+
+        // Store the proposal so we can send it to clients requesting external
+        // commit info.
+        self.proposals.push(serialized_mls_message.0.clone());
+
         // We remove the user and client profile only when the proposal is committed.
 
         // Finally, we create the message for distribution.
-        Ok(processed_assisted_message_plus.serialized_mls_message)
+        Ok(serialized_mls_message)
     }
 }
