@@ -46,74 +46,68 @@ class DeleteAccountScreen extends HookWidget {
           child: Container(
             constraints:
                 isPointer() ? const BoxConstraints(maxWidth: 800) : null,
-            child: Stack(
+            child: Column(
+              mainAxisSize: MainAxisSize.max,
               children: [
-                ListView(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: [
-                    Icon(Icons.warning_rounded, color: dangerColor, size: 120),
-                    const SizedBox(height: Spacings.s),
-
-                    Text(
-                      loc.deleteAccountScreen_explanatoryText,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: Spacings.l),
-
-                    TextField(
-                      onChanged:
-                          (value) =>
-                              isConfirmed.value = value == _confirmationText,
-                      decoration: InputDecoration(
-                        hintText: loc.deleteAccountScreen_confirmationInputHint,
+                Expanded(
+                  child: ListView(
+                    padding: EdgeInsets.zero,
+                    children: [
+                      Icon(Icons.warning_rounded, color: dangerColor, size: 120),
+                      const SizedBox(height: Spacings.s),
+                      Text(
+                        loc.deleteAccountScreen_explanatoryText,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium,
                       ),
-                    ),
-                    const SizedBox(height: Spacings.s),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: Spacings.xxs,
-                        ),
-                        child: Text(
-                          style: TextStyle(color: Theme.of(context).hintColor),
-                          loc.deleteAccountScreen_confirmationInputLabel,
+                      const SizedBox(height: Spacings.l),
+                      TextField(
+                        onChanged:
+                            (value) =>
+                                isConfirmed.value = value == _confirmationText,
+                        decoration: InputDecoration(
+                          hintText:
+                              loc.deleteAccountScreen_confirmationInputHint,
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: Spacings.s),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: Spacings.xxs,
+                          ),
+                          child: Text(
+                            style: TextStyle(color: Theme.of(context).hintColor),
+                            loc.deleteAccountScreen_confirmationInputLabel,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                Column(
+                const SizedBox(height: Spacings.m),
+                Wrap(
+                  runSpacing: Spacings.xs,
+                  spacing: Spacings.xs,
+                  runAlignment: WrapAlignment.center,
+                  alignment: WrapAlignment.center,
                   children: [
-                    const Spacer(),
-                    Center(
-                      child: Wrap(
-                        runSpacing: Spacings.xs,
-                        spacing: Spacings.xs,
-                        runAlignment: WrapAlignment.center,
-                        children: [
-                          SizedBox(
-                            width:
-                                isSmallScreen(context) ? double.infinity : null,
-                            child: _DeleteAccountButton(
-                              isConfirmed: isConfirmed.value,
-                            ),
-                          ),
-                          SizedBox(
-                            width:
-                                isSmallScreen(context) ? double.infinity : null,
-                            child: OutlinedButton(
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                              },
-                              child: Text(
-                                loc.deleteAccountScreen_cancelButtonText,
-                              ),
-                            ),
-                          ),
-                        ],
+                    SizedBox(
+                      width: isSmallScreen(context) ? double.infinity : null,
+                      child: _DeleteAccountButton(
+                        isConfirmed: isConfirmed.value,
+                      ),
+                    ),
+                    SizedBox(
+                      width: isSmallScreen(context) ? double.infinity : null,
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                        child: Text(
+                          loc.deleteAccountScreen_cancelButtonText,
+                        ),
                       ),
                     ),
                   ],

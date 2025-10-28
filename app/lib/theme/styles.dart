@@ -75,7 +75,7 @@ class CustomOutlineButtonStyle extends ButtonStyle {
          elevation: WidgetStateProperty.all<double>(0),
          shadowColor: WidgetStateProperty.all<Color>(Colors.transparent),
          padding: WidgetStateProperty.all<EdgeInsetsGeometry>(
-           const EdgeInsets.symmetric(vertical: 25, horizontal: 50),
+           const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
          ),
          splashFactory: NoSplash.splashFactory,
          surfaceTintColor: WidgetStateProperty.all<Color>(Colors.transparent),
@@ -92,10 +92,6 @@ class CustomOutlineButtonStyle extends ButtonStyle {
              borderRadius: BorderRadius.circular(12),
            ),
          ),
-         textStyle: WidgetStatePropertyAll(
-           baselineTextTheme.labelLarge!.merge(
-             customTextScheme.labelLarge!.copyWith(fontWeight: FontWeight.bold),
-           ),
-         ),
+         textStyle: WidgetStatePropertyAll(baselineTextTheme.bodyLarge!),
        );
 }

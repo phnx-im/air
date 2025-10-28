@@ -7,21 +7,23 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:flutter/material.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 
-class AppBarBackButton extends StatelessWidget {
-  const AppBarBackButton({super.key});
+class AppBarPlusButton extends StatelessWidget {
+  const AppBarPlusButton({super.key, this.onPressed});
+
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.only(left: Spacings.m),
+      padding: const EdgeInsets.only(right: Spacings.m),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
+          onTap: onPressed,
           customBorder: const CircleBorder(),
           overlayColor: WidgetStateProperty.all(Colors.transparent),
-          onTap: () => Navigator.of(context).maybePop(),
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: colors.backgroundBase.secondary,
@@ -30,7 +32,7 @@ class AppBarBackButton extends StatelessWidget {
             child: SizedBox.square(
               dimension: 24,
               child: Center(
-                child: iconoir.ArrowLeft(width: 16, color: colors.text.primary),
+                child: iconoir.Plus(width: 16, color: colors.text.primary),
               ),
             ),
           ),

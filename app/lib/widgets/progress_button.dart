@@ -26,7 +26,9 @@ class ProgressButton extends HookWidget {
 
     final theme = Theme.of(context);
     final buttonTheme = theme.outlinedButtonTheme;
-    final buttonFontSize = buttonTheme.style?.textStyle?.resolve({})?.fontSize!;
+    final resolvedTextStyle =
+        buttonTheme.style?.textStyle?.resolve({}) ?? theme.textTheme.labelLarge;
+    final buttonFontSize = resolvedTextStyle?.fontSize ?? 14.0;
 
     return OutlinedButton(
       style: style,
