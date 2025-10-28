@@ -53,7 +53,11 @@ class DeleteAccountScreen extends HookWidget {
                   child: ListView(
                     padding: EdgeInsets.zero,
                     children: [
-                      Icon(Icons.warning_rounded, color: dangerColor, size: 120),
+                      Icon(
+                        Icons.warning_rounded,
+                        color: dangerColor,
+                        size: 120,
+                      ),
                       const SizedBox(height: Spacings.s),
                       Text(
                         loc.deleteAccountScreen_explanatoryText,
@@ -78,7 +82,9 @@ class DeleteAccountScreen extends HookWidget {
                             horizontal: Spacings.xxs,
                           ),
                           child: Text(
-                            style: TextStyle(color: Theme.of(context).hintColor),
+                            style: TextStyle(
+                              color: Theme.of(context).hintColor,
+                            ),
                             loc.deleteAccountScreen_confirmationInputLabel,
                           ),
                         ),
@@ -105,9 +111,7 @@ class DeleteAccountScreen extends HookWidget {
                         onPressed: () {
                           Navigator.of(context).pop();
                         },
-                        child: Text(
-                          loc.deleteAccountScreen_cancelButtonText,
-                        ),
+                        child: Text(loc.deleteAccountScreen_cancelButtonText),
                       ),
                     ),
                   ],

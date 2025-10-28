@@ -533,10 +533,7 @@ class _CenteredAppBarTitle extends StatelessWidget {
       children: [
         Flexible(
           flex: 1,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: leading,
-          ),
+          child: Align(alignment: Alignment.centerLeft, child: leading),
         ),
         Expanded(
           child: Center(
@@ -548,10 +545,7 @@ class _CenteredAppBarTitle extends StatelessWidget {
         ),
         Flexible(
           flex: 1,
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: trailing,
-          ),
+          child: Align(alignment: Alignment.centerRight, child: trailing),
         ),
       ],
     );

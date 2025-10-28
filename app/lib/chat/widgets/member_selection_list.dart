@@ -35,13 +35,13 @@ class MemberSelectionList extends StatelessWidget {
         normalizedQuery.isEmpty
             ? contacts
             : contacts.where((contact) {
-                final name =
-                    usersState
-                        .profile(userId: contact.userId)
-                        .displayName
-                        .toLowerCase();
-                return name.contains(normalizedQuery);
-              }).toList();
+              final name =
+                  usersState
+                      .profile(userId: contact.userId)
+                      .displayName
+                      .toLowerCase();
+              return name.contains(normalizedQuery);
+            }).toList();
 
     return ListView.separated(
       padding: const EdgeInsets.symmetric(
@@ -53,8 +53,7 @@ class MemberSelectionList extends StatelessWidget {
           (context, index) => Divider(
             height: 1,
             thickness: 1,
-            color:
-                CustomColorScheme.of(context).backgroundBase.primary,
+            color: CustomColorScheme.of(context).backgroundBase.primary,
           ),
       itemBuilder: (context, index) {
         final contact = filteredContacts[index];

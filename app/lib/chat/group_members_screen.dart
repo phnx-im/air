@@ -186,18 +186,21 @@ class _GroupMemberTile extends StatelessWidget {
       profile: profile,
       displayNameOverride: displayName,
       enabled: !isSelf,
-      onTap: isSelf
-          ? null
-          : () => context.read<NavigationCubit>().openMemberDetails(memberId),
-      trailing: isSelf
-          ? null
-          : RemoveMemberButton(
-              chatId: chatId,
-              memberId: memberId,
-              displayName: profile.displayName,
-              compact: true,
-              enabled: canKick,
-            ),
+      onTap:
+          isSelf
+              ? null
+              : () =>
+                  context.read<NavigationCubit>().openMemberDetails(memberId),
+      trailing:
+          isSelf
+              ? null
+              : RemoveMemberButton(
+                chatId: chatId,
+                memberId: memberId,
+                displayName: profile.displayName,
+                compact: true,
+                enabled: canKick,
+              ),
     );
   }
 }
