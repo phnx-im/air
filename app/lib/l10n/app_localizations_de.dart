@@ -64,7 +64,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get addMembersScreen_title => 'Mitglieder hinzufügen';
 
   @override
-  String get addMembersScreen_addMembers => 'Mitglied(er) hinzufügen';
+  String get addMembersScreen_addMembers => 'Mitglieder hinzufügen';
 
   @override
   String get addMembersScreen_error_noActiveChat =>
@@ -84,9 +84,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get chatScreen_emptyChat =>
       'Wähle eine Unterhaltung aus, um mit dem Nachrichten schreiben zu beginnen';
-
-  @override
-  String get memberDetailsScreen_title => 'Mitgliederdetails';
 
   @override
   String get removeUserDialog_title => 'Benutzer entfernen';
@@ -444,10 +441,72 @@ class AppLocalizationsDe extends AppLocalizations {
   String get groupDetails_addMembers => 'Add members';
 
   @override
-  String get groupDetails_leaveChat => 'Leave Group';
+  String get groupDetails_leaveChat => 'Leave';
 
   @override
-  String get groupDetails_deleteChat => 'Delete Group Chat';
+  String get groupDetails_deleteChat => 'Delete';
+
+  @override
+  String get groupDetails_seeAll => 'Alle anzeigen';
+
+  @override
+  String groupDetails_memberCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Mitglieder',
+      one: '$count Mitgleid',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get groupMembersScreen_title => 'Gruppenmitglieder';
+
+  @override
+  String get groupMembersScreen_searchHint => 'Suchen';
+
+  @override
+  String get groupCreationScreen_title => 'Mitglieder hinzufügen';
+
+  @override
+  String get groupCreationScreen_cancel => 'Abbrechen';
+
+  @override
+  String get groupCreationScreen_next => 'Weiter';
+
+  @override
+  String get groupCreationScreen_skip => 'Überspringen';
+
+  @override
+  String get groupCreationDetails_title => 'Gruppendetails';
+
+  @override
+  String get groupCreationDetails_groupNameHint => 'Gruppenname (erforderlich)';
+
+  @override
+  String get groupCreationDetails_groupNameHintFocused => 'Gruppenname';
+
+  @override
+  String get groupCreationDetails_groupNameHelper =>
+      'Mindestens ein Zeichen, bitte';
+
+  @override
+  String get groupCreationDetails_descriptionHint =>
+      'Gruppenbeschreibung (optional)';
+
+  @override
+  String get groupCreationDetails_descriptionHintFocused =>
+      'Gruppenbeschreibung';
+
+  @override
+  String get groupCreationDetails_create => 'Erstellen';
+
+  @override
+  String get groupCreationDetails_emptySelection => 'Keine Mitglieder';
+
+  @override
+  String get addMembersScreen_done => 'Fertig';
 
   @override
   String get leaveChatDialog_title => 'Leave Group';

@@ -25,7 +25,7 @@ ThemeData themeData(Brightness brightness) {
       baselineTheme.appBarTheme.titleTextStyle ??
       baselineTheme.textTheme.titleLarge;
   final mergedAppBarTitleStyle = baseAppBarTitleStyle?.merge(
-    customTextScheme.titleLarge ?? const TextStyle(),
+    customTextScheme.labelMedium ?? const TextStyle(),
   );
 
   return ThemeData(
@@ -48,7 +48,6 @@ ThemeData themeData(Brightness brightness) {
       titleTextStyle: (mergedAppBarTitleStyle ?? const TextStyle()).copyWith(
         color: colorScheme.text.primary,
         fontSize: LabelFontSize.base.size,
-        fontWeight: FontWeight.bold,
       ),
     ),
     scaffoldBackgroundColor: colorScheme.backgroundBase.primary,

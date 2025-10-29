@@ -20,14 +20,19 @@ void main() {
   group('GroupDetails', () {
     late MockChatDetailsCubit chatDetailsCubit;
     late MockUsersCubit usersCubit;
+    late MockUserCubit userCubit;
 
     setUp(() async {
       chatDetailsCubit = MockChatDetailsCubit();
       usersCubit = MockUsersCubit();
+      userCubit = MockUserCubit();
 
       when(
         () => usersCubit.state,
       ).thenReturn(MockUsersState(profiles: userProfiles));
+      when(
+        () => userCubit.state,
+      ).thenReturn(MockUiUser(id: 1, userHandles: const []));
     });
 
     Widget buildSubject({List<UiUserId> members = const []}) {
@@ -39,6 +44,7 @@ void main() {
         providers: [
           BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
           BlocProvider<UsersCubit>.value(value: usersCubit),
+          BlocProvider<UserCubit>.value(value: userCubit),
         ],
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
