@@ -170,8 +170,8 @@ class GroupDetails extends StatelessWidget {
         ) ??
         false;
     if (!confirmed) return;
-    if (!context.mounted) return;
     userCubit.deleteChat(chat.id);
+    if (!context.mounted) return;
     navigationCubit.closeChat();
   }
 }
