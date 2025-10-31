@@ -37,9 +37,13 @@ abstract class NavigationCubitBase implements RustOpaqueInterface {
 
   Future<void> openChatDetails();
 
+  Future<void> openCreateGroup();
+
   Future<void> openDeveloperSettings({
     required DeveloperSettingsScreenType screen,
   });
+
+  Future<void> openGroupMembers();
 
   Future<void> openHome();
 
@@ -77,6 +81,8 @@ sealed class HomeNavigationState with _$HomeNavigationState {
     UserSettingsScreenType? userSettingsScreen,
     @Default(false) bool chatDetailsOpen,
     @Default(false) bool addMembersOpen,
+    @Default(false) bool groupMembersOpen,
+    @Default(false) bool createGroupOpen,
   }) = _HomeNavigationState;
   static Future<HomeNavigationState> default_() =>
       RustLib.instance.api.crateApiNavigationCubitHomeNavigationStateDefault();

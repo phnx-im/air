@@ -63,6 +63,10 @@ class ChatDetailsScreenView extends StatelessWidget {
       (ChatDetailsCubit cubit) => cubit.state.chat?.chatType,
     );
 
+    final chatTitle = context.select(
+      (ChatDetailsCubit cubit) => cubit.state.chat?.title ?? '',
+    );
+
     final loc = AppLocalizations.of(context);
 
     return Scaffold(
@@ -70,7 +74,7 @@ class ChatDetailsScreenView extends StatelessWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: const AppBarBackButton(),
-        title: Text(loc.chatDetailsScreen_title),
+        title: Text(chatTitle),
       ),
       body: SafeArea(
         child: switch (chatType) {

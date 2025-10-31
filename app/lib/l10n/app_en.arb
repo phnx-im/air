@@ -27,7 +27,6 @@
 
   "chatScreen_emptyChat": "Select a chat to start messaging",
 
-  "memberDetailsScreen_title": "Member details",
   "removeUserDialog_title": "Remove user",
   "removeUserDialog_content": "Are you sure you want to remove {displayName} from the group?",
   "removeUserDialog_cancel": "Cancel",
@@ -165,9 +164,34 @@
 
   "groupDetails_members": "Members",
   "groupDetails_addMembers": "Add members",
-  "groupDetails_leaveChat": "Leave Group",
-  "groupDetails_deleteChat": "Delete Group Chat",
+  "groupDetails_leaveChat": "Leave",
+  "groupDetails_deleteChat": "Delete",
+  "groupDetails_seeAll": "See all",
+  "groupDetails_memberCount": "{count, plural, one {{count} member} other {{count} members}}",
+  "@groupDetails_memberCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupMembersScreen_title": "Group members",
+  "groupMembersScreen_searchHint": "Search",
+  "groupCreationScreen_title": "Add members",
+  "groupCreationScreen_cancel": "Cancel",
+  "groupCreationScreen_next": "Next",
+  "groupCreationScreen_skip": "Skip",
+  "groupCreationDetails_title": "Group details",
+  "groupCreationDetails_groupNameHint": "Group name (required)",
+  "groupCreationDetails_groupNameHintFocused": "Group name",
+  "groupCreationDetails_groupNameHelper": "At least one character, please",
+  "groupCreationDetails_descriptionHint": "Group description (optional)",
+  "groupCreationDetails_descriptionHintFocused": "Group description",
+  "groupCreationDetails_create": "Create",
+  "groupCreationDetails_emptySelection": "No members",
 
+  "addMembersScreen_addMembers": "Add members",
+  "addMembersScreen_done": "Done",
   "leaveChatDialog_title": "Leave Group",
   "leaveChatDialog_content": "Are you sure you want to leave {chatName}?",
   "leaveChatDialog_cancel": "Cancel",
@@ -195,4 +219,5 @@
   "deleteAccountScreen_confirmButtonText": "Delete Air Account",
   "deleteAccountScreen_cancelButtonText": "Cancel",
   "deleteAccountScreen_deleteAccountError": "Something went wrong on our end. Wait a moment, then try again."
+
 }

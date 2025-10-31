@@ -41,6 +41,7 @@ class TextMessageTile extends StatelessWidget {
     required this.flightPosition,
     required this.status,
     required this.isSender,
+    required this.showSender,
     super.key,
   });
 
@@ -50,12 +51,13 @@ class TextMessageTile extends StatelessWidget {
   final UiFlightPosition flightPosition;
   final UiMessageStatus status;
   final bool isSender;
+  final bool showSender;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        if (!isSender && flightPosition.isFirst)
+        if (showSender && !isSender && flightPosition.isFirst)
           _Sender(sender: contentMessage.sender, isSender: false),
         _MessageView(
           messageId: messageId,
