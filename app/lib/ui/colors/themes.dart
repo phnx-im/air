@@ -69,6 +69,7 @@ final CustomColorScheme lightCustomColorScheme = CustomColorScheme(
     warning: AppColors.yellow[400]!,
     danger: AppColors.red[400]!,
     link: AppColors.blue[400]!,
+    selfLink: AppColors.blue[700]!,
   ),
   message: MessageColors(
     selfBackground: AppColors.neutral[600]!,
@@ -131,6 +132,7 @@ final CustomColorScheme darkCustomColorScheme = CustomColorScheme(
     warning: AppColors.yellow[500]!,
     danger: AppColors.red[500]!,
     link: AppColors.blue[500]!,
+    selfLink: AppColors.blue[600]!,
   ),
   message: MessageColors(
     selfBackground: AppColors.neutral[300]!,

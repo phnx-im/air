@@ -2,12 +2,25 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::iter::Peekable;
+use std::{iter::Peekable, sync::LazyLock};
 
 use flutter_rust_bridge::frb;
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+use regex::Regex;
 
 const MAX_DEPTH: usize = 50;
+
+pub(crate) static URL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    // The non-protocol part is split into two:
+    // * Any number of allowed characters except the last character
+    // * The last character must be allowed and not .
+    Regex::new(
+        "(mailto:|https:|http:)\
+        [^\u{0000}-\u{001F}\u{007F}-\u{009F}<>\"\\s{-}\\^⟨⟩`\\\\]*\
+        [^\u{0000}-\u{001F}\u{007F}-\u{009F}<>\"\\s{-}\\^⟨⟩`\\\\.]",
+    )
+    .unwrap()
+});
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum Error {
@@ -336,11 +349,7 @@ where
                 iter.peek().ok_or(Error::ExpectedMoreEvents)?.clone().event
             {
                 let event = iter.next().expect("we already peeked");
-                value.push(RangedInlineElement {
-                    start: event.start,
-                    end: event.end,
-                    element: InlineElement::Text(str.to_string()),
-                });
+                collect_links(event.start, event.end, &str, &mut value);
             }
 
             // A code block cannot contain any other data
@@ -491,11 +500,7 @@ where
 
             Event::Text(str) => {
                 let value = iter.next().expect("we already peeked");
-                result.push(RangedInlineElement {
-                    start: value.start,
-                    end: value.end,
-                    element: InlineElement::Text(str.to_string()),
-                });
+                collect_links(value.start, value.end, &str, &mut result);
             }
 
             Event::Code(str) => {
@@ -719,6 +724,52 @@ where
     }
 }
 
+/// Collects links and surrounding text from a string into `elements`.
+///
+/// If there are no links, a single element with the entire string is added.
+fn collect_links(start: u32, end: u32, str: &str, elements: &mut Vec<RangedInlineElement>) {
+    let mut last_end = 0;
+
+    for mat in URL_RE.find_iter(str) {
+        // Unmatched part before this match
+        if mat.start() > last_end {
+            let text = str[last_end..mat.start()].to_string();
+            elements.push(RangedInlineElement {
+                start: start + last_end as u32,
+                end: start + mat.start() as u32,
+                element: InlineElement::Text(text),
+            });
+        }
+
+        // Matched link
+        let text = mat.as_str().to_string();
+        elements.push(RangedInlineElement {
+            start: start + mat.start() as u32,
+            end: start + mat.end() as u32,
+            element: InlineElement::Link {
+                dest_url: text.to_string(),
+                children: vec![RangedInlineElement {
+                    start: start + mat.start() as u32,
+                    end: start + mat.end() as u32,
+                    element: InlineElement::Text(text),
+                }],
+            },
+        });
+
+        last_end = mat.end();
+    }
+
+    // Trailing unmatched part
+    if last_end < str.len() {
+        let text = str[last_end..].to_string();
+        elements.push(RangedInlineElement {
+            start: start + last_end as u32,
+            end,
+            element: InlineElement::Text(text),
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -758,14 +809,118 @@ But it ends after the paragraph"#,
             Err(Error::DepthLimitReached)
         );
     }
-}
 
-#[test]
-fn text_in_html_block() {
-    MessageContent::try_parse_markdown(">a<a>").unwrap();
-}
+    #[test]
+    fn text_in_html_block() {
+        MessageContent::try_parse_markdown(">a<a>").unwrap();
+    }
 
-#[test]
-fn inline_html() {
-    MessageContent::try_parse_markdown("|>\n|-\n<Y>").unwrap();
+    #[test]
+    fn inline_html() {
+        MessageContent::try_parse_markdown("|>\n|-\n<Y>").unwrap();
+    }
+
+    fn parse_links(str_: &str) -> Vec<RangedInlineElement> {
+        let mut elements = Vec::new();
+        collect_links(0, str_.len() as u32, str_, &mut elements);
+        elements
+    }
+
+    #[track_caller]
+    fn is_text(elem: &RangedInlineElement, expected: &str, range: (u32, u32)) {
+        match &elem.element {
+            InlineElement::Text(t) => {
+                assert_eq!(t, expected);
+                assert_eq!((elem.start, elem.end), range);
+            }
+            _ => panic!("Expected Text, got {:?}", elem.element),
+        }
+    }
+
+    #[track_caller]
+    fn is_link(elem: &RangedInlineElement, expected: &str, range: (u32, u32)) {
+        match &elem.element {
+            InlineElement::Link { dest_url, children } => {
+                assert_eq!(dest_url, expected);
+                assert_eq!((elem.start, elem.end), range);
+                assert_eq!(children.len(), 1);
+                if let InlineElement::Text(child_text) = &children[0].element {
+                    assert_eq!(child_text, expected);
+                } else {
+                    panic!("Child of Link should be Text");
+                }
+            }
+            _ => panic!("Expected Link, got {:?}", elem.element),
+        }
+    }
+
+    #[test]
+    fn collect_links_no_links() {
+        let elems = parse_links("hello world");
+        assert_eq!(elems.len(), 1);
+        is_text(&elems[0], "hello world", (0, 11));
+    }
+
+    #[test]
+    fn collect_links_single() {
+        let elems = parse_links("Visit https://example.com now!");
+        assert_eq!(elems.len(), 3);
+
+        is_text(&elems[0], "Visit ", (0, 6));
+        is_link(&elems[1], "https://example.com", (6, 25));
+        is_text(&elems[2], " now!", (25, 30));
+    }
+
+    #[test]
+    fn collect_links_multiple() {
+        let elems = parse_links("A https://a.com and https://b.com.");
+        dbg!(&elems);
+        assert_eq!(elems.len(), 5);
+
+        is_text(&elems[0], "A ", (0, 2));
+        is_link(&elems[1], "https://a.com", (2, 15));
+        is_text(&elems[2], " and ", (15, 20));
+        is_link(&elems[3], "https://b.com", (20, 33)); // note: regex includes trailing '.' due to \S+
+        is_text(&elems[4], ".", (33, 34));
+    }
+
+    #[test]
+    fn collect_links_at_start() {
+        let elems = parse_links("https://example.com start");
+        assert_eq!(elems.len(), 2);
+
+        is_link(&elems[0], "https://example.com", (0, 19));
+        is_text(&elems[1], " start", (19, 25));
+    }
+
+    #[test]
+    fn collect_links_at_end() {
+        let elems = parse_links("end https://example.com");
+        assert_eq!(elems.len(), 2);
+
+        is_text(&elems[0], "end ", (0, 4));
+        is_link(&elems[1], "https://example.com", (4, 23));
+    }
+
+    #[test]
+    fn collect_links_adjacent() {
+        let elems = parse_links("https://a.comhttps://b.com");
+        assert_eq!(elems.len(), 1);
+        is_link(&elems[0], "https://a.comhttps://b.com", (0, 26));
+    }
+
+    #[test]
+    fn extract_link_empty_string() {
+        let elems = parse_links("");
+        assert!(elems.is_empty());
+    }
+
+    #[test]
+    fn collect_links_emoji() {
+        let elems = parse_links("Check this 🌐 https://example.com 🚀!");
+        assert_eq!(elems.len(), 3);
+        is_text(&elems[0], "Check this 🌐 ", (0, 16));
+        is_link(&elems[1], "https://example.com", (16, 35));
+        is_text(&elems[2], " 🚀!", (35, 41));
+    }
 }
