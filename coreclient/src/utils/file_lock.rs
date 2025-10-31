@@ -2,6 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#![cfg_attr(
+    target_os = "android",
+    expect(unused, reason = "file locking is not supported on Android")
+)]
+
 use std::{
     fs::{File, OpenOptions},
     io,
@@ -10,6 +15,7 @@ use std::{
 };
 
 use tokio::task::spawn_blocking;
+use tracing::error;
 
 #[derive(Debug)]
 pub(crate) struct FileLock {
@@ -30,10 +36,10 @@ impl FileLock {
     }
 
     #[cfg(any(test, feature = "test_utils"))]
-    pub(crate) fn from_file(file: File) -> io::Result<Self> {
-        Ok(Self {
+    pub(crate) fn from_file(file: File) -> Self {
+        Self {
             file: Arc::new(file),
-        })
+        }
     }
 
     /// Note: `&mut self` makes sure that the file cannot be locked twice which is unspecified
@@ -58,7 +64,9 @@ pub struct FileLockGuard<'a> {
 impl Drop for FileLockGuard<'_> {
     fn drop(&mut self) {
         if let Some(lock_file) = self.file_lock.take() {
-            let _ = lock_file.file.unlock();
+            if let Err(error) = lock_file.file.unlock() {
+                error!(%error, "failed to unlock file lock");
+            }
         }
     }
 }
