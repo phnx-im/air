@@ -63,10 +63,10 @@ pub struct FileLockGuard<'a> {
 
 impl Drop for FileLockGuard<'_> {
     fn drop(&mut self) {
-        if let Some(lock_file) = self.file_lock.take() {
-            if let Err(error) = lock_file.file.unlock() {
-                error!(%error, "failed to unlock file lock");
-            }
+        if let Some(lock_file) = self.file_lock.take()
+            && let Err(error) = lock_file.file.unlock()
+        {
+            error!(%error, "failed to unlock file lock");
         }
     }
 }
