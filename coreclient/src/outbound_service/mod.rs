@@ -21,6 +21,9 @@ use crate::{
     utils::{connection_ext::StoreExt, file_lock::FileLock},
 };
 
+mod chat_message_queue;
+mod chat_messages;
+mod error;
 mod receipt_queue;
 mod receipts;
 
@@ -194,8 +197,11 @@ pub struct OutboundServiceContext {
 
 impl OutboundServiceContext {
     async fn work(&self, run_token: CancellationToken) {
-        if let Err(error) = self.send_queued_receipts(run_token).await {
+        if let Err(error) = self.send_queued_receipts(&run_token).await {
             error!(%error, "Failed to send queued receipts");
+        }
+        if let Err(error) = self.send_queued_messages(&run_token).await {
+            error!(%error, "Failed to send queued messages");
         }
     }
 

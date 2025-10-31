@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE receipt_queue\n                    SET locked_by = ?1\n                    WHERE chat_id = ?2 \n                RETURNING\n                    message_id AS \"uuid: _\"\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "uuid: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6ac931f66f5a63830f207cb186ef753edd08cc7387abbb3c584420d2374f33d8"
+}
