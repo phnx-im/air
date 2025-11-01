@@ -14,9 +14,9 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
 part 'types.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `calculate`, `connection_user_id`, `flight_break_condition`, `from_asset`, `from_bytes`, `from_draft`, `from_profile`, `from_user_id`, `into_draft`, `load_from_chat_type`, `new`, `timestamp`
+// These functions are ignored because they are not marked as `pub`: `calculate`, `connection_user_id`, `flight_break_condition`, `from_asset`, `from_bytes`, `from_profile`, `from_user_id`, `load_from_chat_type`, `timestamp`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `UiChat`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `from`
 
 /// Mirror of the [`ChatId`] type
@@ -65,6 +65,17 @@ class ImageData {
       other is ImageData &&
           runtimeType == other.runtimeType &&
           hash == other.hash;
+}
+
+/// UI representation of a [`MessageDraft`]
+@freezed
+sealed class MessageDraft with _$MessageDraft {
+  const factory MessageDraft({
+    required String message,
+    MessageId? editingId,
+    required DateTime updatedAt,
+    required bool isCommitted,
+  }) = _MessageDraft;
 }
 
 /// Mirror of the [`MessageId`] type
@@ -119,7 +130,7 @@ class UiChatDetails {
   final int messagesCount;
   final int unreadMessages;
   final UiChatMessage? lastMessage;
-  final UiMessageDraft? draft;
+  final MessageDraft? draft;
 
   const UiChatDetails({
     required this.id,
@@ -323,27 +334,6 @@ sealed class UiMessage with _$UiMessage {
 
   const factory UiMessage.content(UiContentMessage field0) = UiMessage_Content;
   const factory UiMessage.display(UiEventMessage field0) = UiMessage_Display;
-}
-
-/// Draft of a message in a chat
-@freezed
-sealed class UiMessageDraft with _$UiMessageDraft {
-  const factory UiMessageDraft({
-    required String message,
-    MessageId? editingId,
-    required DateTime updatedAt,
-    required UiMessageDraftSource source,
-  }) = _UiMessageDraft;
-}
-
-/// Makes it possible to distinguish whether the draft was created in Flutter by the user or loaded
-/// from the database or reset by the handle, that is, by the system.
-enum UiMessageDraftSource {
-  /// The draft was created/changed by the user.
-  user,
-
-  /// The draft was created/changed by the system.
-  system,
 }
 
 enum UiMessageStatus {

@@ -228,6 +228,13 @@ impl Store for CoreUser {
         Ok(())
     }
 
+    async fn commit_all_message_drafts(&self) -> StoreResult<()> {
+        self.with_notifier(async |notifier| {
+            Ok(MessageDraft::commit_all(self.pool(), notifier).await?)
+        })
+        .await
+    }
+
     async fn messages_count(&self, chat_id: ChatId) -> StoreResult<usize> {
         Ok(self.try_messages_count(chat_id).await?)
     }

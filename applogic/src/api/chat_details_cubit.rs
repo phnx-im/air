@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId};
-use aircoreclient::{Chat, ChatId};
+use aircoreclient::{Chat, ChatId, MessageDraft};
 use aircoreclient::{MessageId, clients::CoreUser, store::Store};
 use chrono::{DateTime, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
@@ -19,13 +19,13 @@ use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
 use tracing::error;
 
+use crate::StreamSink;
 use crate::api::{
     chats_repository::ChatsRepository,
-    types::{UiChatMessage, UiChatType, UiMessageDraft, UiUserId},
+    types::{UiChatMessage, UiChatType, UiUserId},
 };
 use crate::message_content::MimiContentExt;
 use crate::util::{Cubit, CubitCore, spawn_from_sync};
-use crate::{StreamSink, api::types::UiMessageDraftSource};
 
 use super::{types::UiChatDetails, user_cubit::UserCubitBase};
 
@@ -323,7 +323,19 @@ impl ChatDetailsCubitBase {
         Ok(())
     }
 
-    pub async fn store_draft(&self, draft_message: String) -> anyhow::Result<()> {
+    #[frb]
+    pub async fn store_draft(
+        &self,
+        draft_message: String,
+        is_committed: bool,
+    ) -> anyhow::Result<()> {
+        if is_committed {
+            // Debounce committing the draft to avoid confusing the user. Usually, the draft is
+            // committed when the user selects another chat. Committing it immediately reorders the
+            // chat list and the chat the user clicked on might be moved.
+            sleep(Duration::from_millis(300)).await;
+        }
+
         let changed = self.core.state_tx().send_if_modified(|state| {
             let Some(chat) = state.chat.as_mut() else {
                 return false;
@@ -332,14 +344,20 @@ impl ChatDetailsCubitBase {
                 Some(draft) if draft.message != draft_message => {
                     draft.message = draft_message;
                     draft.updated_at = Utc::now();
+                    draft.is_committed = is_committed;
+                    true
+                }
+                Some(draft) if draft.is_committed != is_committed => {
+                    draft.is_committed = is_committed;
                     true
                 }
                 Some(_) => false,
                 None => {
-                    chat.draft.replace(UiMessageDraft::new(
-                        draft_message,
-                        UiMessageDraftSource::User,
-                    ));
+                    chat.draft.replace(MessageDraft {
+                        message: draft_message,
+                        is_committed,
+                        ..MessageDraft::empty()
+                    });
                     true
                 }
             }
@@ -388,17 +406,13 @@ impl ChatDetailsCubitBase {
             let Some(chat) = state.chat.as_mut() else {
                 return false;
             };
-            let draft = chat.draft.get_or_insert_with(|| UiMessageDraft {
-                message: String::new(),
-                editing_id: None,
-                updated_at: Utc::now(),
-                source: UiMessageDraftSource::System,
-            });
+            let draft = chat.draft.get_or_insert_with(MessageDraft::empty);
             if draft.editing_id.is_some() {
                 return false;
             }
             draft.message = body.to_owned();
             draft.editing_id = Some(message.id());
+            draft.is_committed = false;
             true
         });
 
@@ -419,7 +433,7 @@ impl ChatDetailsCubitBase {
             .and_then(|c| c.draft.clone());
         self.context
             .store
-            .store_message_draft(self.context.chat_id, draft.map(|d| d.into_draft()).as_ref())
+            .store_message_draft(self.context.chat_id, draft.as_ref())
             .await?;
         Ok(())
     }
@@ -553,11 +567,7 @@ pub(super) async fn load_chat_details(store: &impl Store, chat: Chat) -> UiChatD
 
     let chat_type = UiChatType::load_from_chat_type(store, chat.chat_type).await;
 
-    let draft = store
-        .message_draft(chat.id)
-        .await
-        .unwrap_or_default()
-        .map(|d| UiMessageDraft::from_draft(d, UiMessageDraftSource::System));
+    let draft = store.message_draft(chat.id).await.unwrap_or_default();
 
     UiChatDetails {
         id: chat.id,

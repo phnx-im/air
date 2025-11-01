@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE message_draft SET is_committed = true\n                RETURNING chat_id AS \"chat_id: ChatId\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "chat_id: ChatId",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b79fc4960c7ea30dfd4c92d53482467f3a373ac877941e5159b8a56fced65800"
+}

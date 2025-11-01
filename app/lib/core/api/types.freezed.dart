@@ -12,6 +12,143 @@ part of 'types.dart';
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
+mixin _$MessageDraft {
+
+ String get message; MessageId? get editingId; DateTime get updatedAt; bool get isCommitted;
+/// Create a copy of MessageDraft
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MessageDraftCopyWith<MessageDraft> get copyWith => _$MessageDraftCopyWithImpl<MessageDraft>(this as MessageDraft, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageDraft&&(identical(other.message, message) || other.message == message)&&(identical(other.editingId, editingId) || other.editingId == editingId)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.isCommitted, isCommitted) || other.isCommitted == isCommitted));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,message,editingId,updatedAt,isCommitted);
+
+@override
+String toString() {
+  return 'MessageDraft(message: $message, editingId: $editingId, updatedAt: $updatedAt, isCommitted: $isCommitted)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MessageDraftCopyWith<$Res>  {
+  factory $MessageDraftCopyWith(MessageDraft value, $Res Function(MessageDraft) _then) = _$MessageDraftCopyWithImpl;
+@useResult
+$Res call({
+ String message, MessageId? editingId, DateTime updatedAt, bool isCommitted
+});
+
+
+
+
+}
+/// @nodoc
+class _$MessageDraftCopyWithImpl<$Res>
+    implements $MessageDraftCopyWith<$Res> {
+  _$MessageDraftCopyWithImpl(this._self, this._then);
+
+  final MessageDraft _self;
+  final $Res Function(MessageDraft) _then;
+
+/// Create a copy of MessageDraft
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? message = null,Object? editingId = freezed,Object? updatedAt = null,Object? isCommitted = null,}) {
+  return _then(_self.copyWith(
+message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,editingId: freezed == editingId ? _self.editingId : editingId // ignore: cast_nullable_to_non_nullable
+as MessageId?,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
+as DateTime,isCommitted: null == isCommitted ? _self.isCommitted : isCommitted // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+}
+
+
+
+/// @nodoc
+
+
+class _MessageDraft implements MessageDraft {
+  const _MessageDraft({required this.message, this.editingId, required this.updatedAt, required this.isCommitted});
+  
+
+@override final  String message;
+@override final  MessageId? editingId;
+@override final  DateTime updatedAt;
+@override final  bool isCommitted;
+
+/// Create a copy of MessageDraft
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$MessageDraftCopyWith<_MessageDraft> get copyWith => __$MessageDraftCopyWithImpl<_MessageDraft>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessageDraft&&(identical(other.message, message) || other.message == message)&&(identical(other.editingId, editingId) || other.editingId == editingId)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.isCommitted, isCommitted) || other.isCommitted == isCommitted));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,message,editingId,updatedAt,isCommitted);
+
+@override
+String toString() {
+  return 'MessageDraft(message: $message, editingId: $editingId, updatedAt: $updatedAt, isCommitted: $isCommitted)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$MessageDraftCopyWith<$Res> implements $MessageDraftCopyWith<$Res> {
+  factory _$MessageDraftCopyWith(_MessageDraft value, $Res Function(_MessageDraft) _then) = __$MessageDraftCopyWithImpl;
+@override @useResult
+$Res call({
+ String message, MessageId? editingId, DateTime updatedAt, bool isCommitted
+});
+
+
+
+
+}
+/// @nodoc
+class __$MessageDraftCopyWithImpl<$Res>
+    implements _$MessageDraftCopyWith<$Res> {
+  __$MessageDraftCopyWithImpl(this._self, this._then);
+
+  final _MessageDraft _self;
+  final $Res Function(_MessageDraft) _then;
+
+/// Create a copy of MessageDraft
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? message = null,Object? editingId = freezed,Object? updatedAt = null,Object? isCommitted = null,}) {
+  return _then(_MessageDraft(
+message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,editingId: freezed == editingId ? _self.editingId : editingId // ignore: cast_nullable_to_non_nullable
+as MessageId?,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
+as DateTime,isCommitted: null == isCommitted ? _self.isCommitted : isCommitted // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$UiChatMessage {
 
  ChatId get chatId; MessageId get id; String get timestamp; UiMessage get message; UiFlightPosition get position; UiMessageStatus get status;
@@ -1180,143 +1317,6 @@ $UiEventMessageCopyWith<$Res> get field0 {
     return _then(_self.copyWith(field0: value));
   });
 }
-}
-
-/// @nodoc
-mixin _$UiMessageDraft {
-
- String get message; MessageId? get editingId; DateTime get updatedAt; UiMessageDraftSource get source;
-/// Create a copy of UiMessageDraft
-/// with the given fields replaced by the non-null parameter values.
-@JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-$UiMessageDraftCopyWith<UiMessageDraft> get copyWith => _$UiMessageDraftCopyWithImpl<UiMessageDraft>(this as UiMessageDraft, _$identity);
-
-
-
-@override
-bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiMessageDraft&&(identical(other.message, message) || other.message == message)&&(identical(other.editingId, editingId) || other.editingId == editingId)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.source, source) || other.source == source));
-}
-
-
-@override
-int get hashCode => Object.hash(runtimeType,message,editingId,updatedAt,source);
-
-@override
-String toString() {
-  return 'UiMessageDraft(message: $message, editingId: $editingId, updatedAt: $updatedAt, source: $source)';
-}
-
-
-}
-
-/// @nodoc
-abstract mixin class $UiMessageDraftCopyWith<$Res>  {
-  factory $UiMessageDraftCopyWith(UiMessageDraft value, $Res Function(UiMessageDraft) _then) = _$UiMessageDraftCopyWithImpl;
-@useResult
-$Res call({
- String message, MessageId? editingId, DateTime updatedAt, UiMessageDraftSource source
-});
-
-
-
-
-}
-/// @nodoc
-class _$UiMessageDraftCopyWithImpl<$Res>
-    implements $UiMessageDraftCopyWith<$Res> {
-  _$UiMessageDraftCopyWithImpl(this._self, this._then);
-
-  final UiMessageDraft _self;
-  final $Res Function(UiMessageDraft) _then;
-
-/// Create a copy of UiMessageDraft
-/// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? message = null,Object? editingId = freezed,Object? updatedAt = null,Object? source = null,}) {
-  return _then(_self.copyWith(
-message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
-as String,editingId: freezed == editingId ? _self.editingId : editingId // ignore: cast_nullable_to_non_nullable
-as MessageId?,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
-as DateTime,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
-as UiMessageDraftSource,
-  ));
-}
-
-}
-
-
-
-/// @nodoc
-
-
-class _UiMessageDraft implements UiMessageDraft {
-  const _UiMessageDraft({required this.message, this.editingId, required this.updatedAt, required this.source});
-  
-
-@override final  String message;
-@override final  MessageId? editingId;
-@override final  DateTime updatedAt;
-@override final  UiMessageDraftSource source;
-
-/// Create a copy of UiMessageDraft
-/// with the given fields replaced by the non-null parameter values.
-@override @JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-_$UiMessageDraftCopyWith<_UiMessageDraft> get copyWith => __$UiMessageDraftCopyWithImpl<_UiMessageDraft>(this, _$identity);
-
-
-
-@override
-bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiMessageDraft&&(identical(other.message, message) || other.message == message)&&(identical(other.editingId, editingId) || other.editingId == editingId)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.source, source) || other.source == source));
-}
-
-
-@override
-int get hashCode => Object.hash(runtimeType,message,editingId,updatedAt,source);
-
-@override
-String toString() {
-  return 'UiMessageDraft(message: $message, editingId: $editingId, updatedAt: $updatedAt, source: $source)';
-}
-
-
-}
-
-/// @nodoc
-abstract mixin class _$UiMessageDraftCopyWith<$Res> implements $UiMessageDraftCopyWith<$Res> {
-  factory _$UiMessageDraftCopyWith(_UiMessageDraft value, $Res Function(_UiMessageDraft) _then) = __$UiMessageDraftCopyWithImpl;
-@override @useResult
-$Res call({
- String message, MessageId? editingId, DateTime updatedAt, UiMessageDraftSource source
-});
-
-
-
-
-}
-/// @nodoc
-class __$UiMessageDraftCopyWithImpl<$Res>
-    implements _$UiMessageDraftCopyWith<$Res> {
-  __$UiMessageDraftCopyWithImpl(this._self, this._then);
-
-  final _UiMessageDraft _self;
-  final $Res Function(_UiMessageDraft) _then;
-
-/// Create a copy of UiMessageDraft
-/// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? message = null,Object? editingId = freezed,Object? updatedAt = null,Object? source = null,}) {
-  return _then(_UiMessageDraft(
-message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
-as String,editingId: freezed == editingId ? _self.editingId : editingId // ignore: cast_nullable_to_non_nullable
-as MessageId?,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
-as DateTime,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
-as UiMessageDraftSource,
-  ));
-}
-
-
 }
 
 /// @nodoc
