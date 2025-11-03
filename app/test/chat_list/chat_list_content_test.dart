@@ -152,11 +152,11 @@ final chats = [
       position: UiFlightPosition.single,
       status: UiMessageStatus.sent,
     ),
-    draft: UiMessageDraft(
+    draft: MessageDraft(
       message: 'Some draft message',
       editingId: null,
       updatedAt: DateTime.now(),
-      source: UiMessageDraftSource.system,
+      isCommitted: true,
     ),
   ),
   // A blocked contact
