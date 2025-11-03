@@ -11,15 +11,9 @@ use regex::Regex;
 const MAX_DEPTH: usize = 50;
 
 pub(crate) static URL_RE: LazyLock<Regex> = LazyLock::new(|| {
-    // The non-protocol part is split into two:
-    // * Any number of allowed characters except the last character
-    // * The last character must be allowed and not .
     Regex::new(
-        "(mailto:|https:|http:)\
-        [^\u{0000}-\u{001F}\u{007F}-\u{009F}<>\"\\s{-}\\^⟨⟩`\\\\]*\
-        [^\u{0000}-\u{001F}\u{007F}-\u{009F}<>\"\\s{-}\\^⟨⟩`\\\\.]",
-    )
-    .unwrap()
+        r#"(?i)(?:mailto:|https?://)[^\p{Cc}\p{Cf}\s<>""{}\^⟨⟩`\\]*[^\p{Cc}\p{Cf}\s<>""{}\^⟨⟩`\\\.,;:!\?\)\]]"#
+    ).unwrap()
 });
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
@@ -922,5 +916,26 @@ But it ends after the paragraph"#,
         is_text(&elems[0], "Check this 🌐 ", (0, 16));
         is_link(&elems[1], "https://example.com", (16, 35));
         is_text(&elems[2], " 🚀!", (35, 41));
+    }
+
+    #[test]
+    fn collect_links_case_insensitive() {
+        let elems = parse_links("HTTPS://Example.com hTtPs://EXAMPLE.COM");
+        assert_eq!(elems.len(), 3);
+        is_link(&elems[0], "HTTPS://Example.com", (0, 19));
+        is_text(&elems[1], " ", (19, 20));
+        is_link(&elems[2], "hTtPs://EXAMPLE.COM", (20, 39));
+    }
+
+    #[test]
+    fn collect_links_trailing_punctuation() {
+        let text = "Check this link: https://example.com, and this one: http://example.org!";
+        let elems = parse_links(text);
+        assert_eq!(elems.len(), 5);
+        is_text(&elems[0], "Check this link: ", (0, 17));
+        is_link(&elems[1], "https://example.com", (17, 36));
+        is_text(&elems[2], ", and this one: ", (36, 52));
+        is_link(&elems[3], "http://example.org", (52, 70));
+        is_text(&elems[4], "!", (70, 71));
     }
 }
