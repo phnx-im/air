@@ -260,33 +260,10 @@ impl Message {
                 let content = match content_message.content.string_rendering() {
                     Ok(content) => content,
                     Err(mimi_content::Error::UnsupportedContentType) => {
-                        match &content_message.content.nested_part.part {
-                            // Attachment
-                            NestedPartContent::MultiPart {
-                                part_semantics: PartSemantics::ProcessAll,
-                                parts,
-                            } if parts
-                                .iter()
-                                .any(|part| part.disposition == Disposition::Attachment) =>
-                            {
-                                // Blurhash preview indicates an image
-                                let is_image = parts.iter().any(|part| {
-                                    part.disposition == Disposition::Preview
-                                        && matches!(
-                                            &part.part,
-                                            NestedPartContent::SinglePart {
-                                                content_type,
-                                                ..
-                                            } if content_type == "text/blurhash"
-                                        )
-                                });
-                                if is_image {
-                                    "🖼️".to_owned()
-                                } else {
-                                    "📎".to_owned()
-                                }
-                            }
-                            _ => {
+                        match self.attachment_type() {
+                            Some(AttachmentType::Image) => "🖼️".to_owned(),
+                            Some(AttachmentType::File) => "📎".to_owned(),
+                            None => {
                                 error!("Unsupported content type");
                                 return None;
                             }
@@ -346,6 +323,49 @@ impl Message {
             Message::Event(_) => None,
         }
     }
+
+    /// Returns `Some(AttachmentType)` if the message contains an attachment.
+    ///
+    /// Otherwise, returns `None`.
+    fn attachment_type(&self) -> Option<AttachmentType> {
+        let Self::Content(content_message) = self else {
+            return None;
+        };
+
+        match &content_message.content().nested_part.part {
+            // Attachment
+            NestedPartContent::MultiPart {
+                part_semantics: PartSemantics::ProcessAll,
+                parts,
+            } if parts
+                .iter()
+                .any(|part| part.disposition == Disposition::Attachment) =>
+            {
+                // Blurhash preview indicates an image
+                let is_image = parts.iter().any(|part| {
+                    part.disposition == Disposition::Preview
+                        && matches!(
+                            &part.part,
+                            NestedPartContent::SinglePart {
+                                content_type,
+                                ..
+                            } if content_type == "text/blurhash"
+                        )
+                });
+                Some(if is_image {
+                    AttachmentType::Image
+                } else {
+                    AttachmentType::File
+                })
+            }
+            _ => None,
+        }
+    }
+}
+
+enum AttachmentType {
+    Image,
+    File,
 }
 
 // WARNING: If this type is changed, a new `VersionedMessage` variant must be
