@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "348991441140",
+    "project_id": "prototype-6eb85",
+    "storage_bucket": "prototype-6eb85.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:348991441140:android:cec4524c6f2b8c3bb5b6a1",
+        "android_client_info": {
+          "package_name": "ms.air.dev"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB5hRrUrS__JvCTCh0-pD1RNc7en5fz1mY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

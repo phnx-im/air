@@ -67,6 +67,21 @@ android {
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
+
+    flavorDimensions += "environment"
+
+    productFlavors {
+        create("dev") {
+            dimension = "environment"
+            applicationIdSuffix = ".dev"
+            resValue("string", "app_name", "Air (dev)")
+            isDefault = true
+        }
+        create("prod") {
+            dimension = "environment"
+            isDefault = false
+        }
+    }
 }
 
 flutter {

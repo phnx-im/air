@@ -82,6 +82,8 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  default-flavor: dev
+
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/tilde.svg
