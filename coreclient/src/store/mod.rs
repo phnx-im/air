@@ -10,6 +10,7 @@ use aircommon::messages::client_as_out::UserHandleDeleteResponse;
 use mimi_content::MimiContent;
 use mimi_room_policy::VerifiedRoomState;
 use tokio_stream::Stream;
+use uuid::Uuid;
 
 use crate::{
     AttachmentContent, Chat, ChatId, ChatMessage, Contact, DownloadProgress, MessageDraft,
@@ -213,7 +214,7 @@ pub trait Store {
         replaces_id: Option<MessageId>,
     ) -> StoreResult<ChatMessage>;
 
-    async fn resend_message(&self) -> StoreResult<()>;
+    async fn resend_message(&self, local_message_id: Uuid) -> StoreResult<()>;
 
     // attachments
 

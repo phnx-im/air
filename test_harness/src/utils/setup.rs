@@ -571,15 +571,24 @@ impl TestBackend {
 
         sender.fully_process_qs_messages(sender_qs_messages).await;
 
-        let message = test_sender
+        test_sender
             .user
             .send_message(chat_id, orig_message.clone(), None)
             .await
             .unwrap();
+        test_sender.user.outbound_service().run_once().await;
         let sender_user_id = test_sender.user.user_id().clone();
 
         let chat = test_sender.user.chat(&chat_id).await.unwrap();
         let group_id = chat.group_id();
+
+        // Reload message, because we sent it in the background.
+        let message = test_sender
+            .user
+            .last_message(chat_id)
+            .await
+            .unwrap()
+            .unwrap();
 
         assert_eq!(
             message.message(),
@@ -643,12 +652,20 @@ impl TestBackend {
 
         sender.fully_process_qs_messages(sender_qs_messages).await;
 
-        let message = test_sender
+        test_sender
             .user
             .send_message(chat_id, orig_message.clone(), Some(last_message.id()))
             .await
             .unwrap();
+        test_sender.user.outbound_service().run_once().await;
+        let message = test_sender
+            .user
+            .last_message(chat_id)
+            .await
+            .unwrap()
+            .unwrap();
         let sender_user_id = test_sender.user.user_id().clone();
+        println!("Edited message: {:?}", message);
 
         let chat = test_sender.user.chat(&chat_id).await.unwrap();
         let group_id = chat.group_id();
@@ -726,6 +743,7 @@ impl TestBackend {
             .send_message(chat_id, orig_message.clone(), Some(last_message.id()))
             .await
             .unwrap();
+        test_sender.user.outbound_service().run_once().await;
 
         let sender_user_id = test_sender.user.user_id().clone();
 

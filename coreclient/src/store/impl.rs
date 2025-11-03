@@ -11,6 +11,7 @@ use aircommon::{
 use mimi_room_policy::VerifiedRoomState;
 use tokio_stream::Stream;
 use tracing::error;
+use uuid::Uuid;
 
 use crate::{
     AttachmentContent, Chat, ChatId, ChatMessage, Contact, DownloadProgress, MessageDraft,
@@ -283,8 +284,10 @@ impl Store for CoreUser {
         Ok(AttachmentRecord::load_content(self.pool(), attachment_id).await?)
     }
 
-    async fn resend_message(&self) -> StoreResult<()> {
-        self.outbound_service().start().await;
+    async fn resend_message(&self, local_message_id: Uuid) -> StoreResult<()> {
+        self.outbound_service()
+            .enqueue_chat_message(MessageId::new(local_message_id))
+            .await?;
         Ok(())
     }
 

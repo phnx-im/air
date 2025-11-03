@@ -69,7 +69,7 @@ mod persistence {
 
             let message_ids = query_as!(
                 MessageId,
-                r#"UPDATE receipt_queue
+                r#"UPDATE chat_message_queue
                     SET locked_by = ?1
                     WHERE chat_id = ?2 
                 RETURNING

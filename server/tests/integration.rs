@@ -1382,6 +1382,7 @@ async fn client_sequence_number_race() {
                     .send_message(chat_id, message, None)
                     .await
                     .unwrap();
+                alice_user.outbound_service().run_once().await;
             }
         });
     }

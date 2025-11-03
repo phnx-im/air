@@ -2,14 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{
-    credentials::keys::ClientSigningKey, identifiers::UserId,
-    messages::client_ds_out::SendMessageParamsOut, time::TimeStamp,
-};
+use aircommon::{identifiers::UserId, time::TimeStamp};
 use anyhow::{Context, bail};
 use mimi_content::{MessageStatus, MimiContent, NestedPartContent};
 use sqlx::SqliteTransaction;
-use uuid::Uuid;
 
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, ContentMessage, MessageId,
@@ -18,7 +14,7 @@ use crate::{
     utils::connection_ext::StoreExt,
 };
 
-use super::{ApiClients, CoreUser, Group, StoreNotifier};
+use super::{CoreUser, Group, StoreNotifier};
 
 impl CoreUser {
     /// Send a message and return it.
@@ -67,7 +63,7 @@ impl CoreUser {
             .await?;
 
         self.outbound_service()
-            .enqueue_chat_message(chat_id, unsent_group_message.message.id())
+            .enqueue_chat_message(unsent_group_message.message.id())
             .await?;
 
         Ok(unsent_group_message.message)
@@ -92,7 +88,7 @@ impl CoreUser {
         .await?;
 
         self.outbound_service()
-            .enqueue_chat_message(chat_id, unsent_group_message.message.id())
+            .enqueue_chat_message(unsent_group_message.message.id())
             .await?;
 
         Ok(unsent_group_message.message)
@@ -112,7 +108,7 @@ impl UnsentContent {
         notifier: &mut StoreNotifier,
         sender: &UserId,
         replaces_id: Option<MessageId>,
-    ) -> anyhow::Result<UnsentMessage<WithContent, GroupUpdateNeeded>> {
+    ) -> anyhow::Result<UnsentMessage<GroupUpdateNeeded>> {
         let UnsentContent {
             chat_id,
             message_id,
@@ -193,42 +189,34 @@ impl UnsentContent {
             chat,
             group,
             message,
-            content: WithContent(content),
             group_update: GroupUpdateNeeded,
         })
     }
 }
-
-/// Message type state: Message with MIMI content
-struct WithContent(MimiContent);
-/// Message type state: Message with prepared send parameters
-struct WithParams(SendMessageParamsOut);
 
 /// Message type state: Group update needed before sending the message
 struct GroupUpdateNeeded;
 /// Message type state: Group already updated, message can be sent
 struct GroupUpdated;
 
-struct UnsentMessage<State, GroupUpdate> {
+struct UnsentMessage<GroupUpdate> {
     chat: Chat,
     group: Group,
     message: ChatMessage,
-    content: State,
     group_update: GroupUpdate,
 }
 
-impl UnsentMessage<WithContent, GroupUpdateNeeded> {
+impl UnsentMessage<GroupUpdateNeeded> {
     async fn store_group_update(
         self,
         txn: &mut SqliteTransaction<'_>,
         notifier: &mut StoreNotifier,
         own_user: &UserId,
-    ) -> anyhow::Result<UnsentMessage<WithContent, GroupUpdated>> {
+    ) -> anyhow::Result<UnsentMessage<GroupUpdated>> {
         let Self {
             chat,
             group,
             message,
-            content,
             group_update: GroupUpdateNeeded,
         } = self;
 
@@ -244,7 +232,6 @@ impl UnsentMessage<WithContent, GroupUpdateNeeded> {
             chat,
             group,
             message,
-            content,
             group_update: GroupUpdated,
         })
     }

@@ -17,13 +17,16 @@ use crate::{
 use super::{OutboundService, OutboundServiceContext};
 
 impl OutboundService {
-    pub async fn enqueue_chat_message<'a>(
-        &self,
-        chat_id: ChatId,
-        message_id: MessageId,
-    ) -> anyhow::Result<()> {
+    pub async fn enqueue_chat_message(&self, message_id: MessageId) -> anyhow::Result<()> {
         let mut connection = self.context.pool.acquire().await?;
 
+        // Load message to make sure it exists and get chat id
+        let message = ChatMessage::load(&mut *connection, message_id)
+            .await?
+            .with_context(|| format!("Can't find message with id {message_id:?}"))?;
+        let chat_id = message.chat_id();
+
+        // Load chat to check status
         let chat = Chat::load(&mut connection, &chat_id)
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
@@ -130,9 +133,16 @@ impl OutboundServiceContext {
 
         // mark message as sent
         self.with_transaction_and_notifier(async |txn, notifier| {
-            message
-                .mark_as_sent(&mut *txn, notifier, ds_timestamp)
-                .await?;
+            if message.edited_at().is_some() {
+                message
+                    .mark_as_sent(&mut *txn, notifier, message.timestamp().into())
+                    .await?;
+                message.set_edited_at(ds_timestamp);
+            } else {
+                message
+                    .mark_as_sent(&mut *txn, notifier, ds_timestamp)
+                    .await?;
+            }
 
             Chat::mark_as_read_until_message_id(
                 txn,
