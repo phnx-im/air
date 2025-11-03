@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::MimiId;
-use mimi_content::{MessageStatus, MimiContent};
+use mimi_content::{
+    Disposition, MessageStatus, MimiContent, NestedPartContent, content_container::PartSemantics,
+};
 use tracing::{error, warn};
 
 use crate::{
@@ -248,38 +250,48 @@ impl Message {
 
     /// Returns a string representation of the message for use in UI
     /// notifications.
-    pub async fn string_representation(&self, store: &impl Store, chat_type: &ChatType) -> String {
+    pub async fn string_representation(
+        &self,
+        store: &impl Store,
+        chat_type: &ChatType,
+    ) -> Option<String> {
         match self {
-            Message::Content(content_message) => match chat_type {
-                ChatType::Group => {
-                    let display_name = store
-                        .user_profile(&content_message.sender)
-                        .await
-                        .display_name;
-                    let content = content_message
-                        .content
-                        .string_rendering() // TODO: Better error handling
-                        .unwrap_or_else(|e| format!("Error: {e}"));
-                    format!("{display_name}: {content}")
-                }
-                ChatType::HandleConnection(handle) => {
-                    let content = content_message
-                        .content
-                        .string_rendering() // TODO: Better error handling
-                        .unwrap_or_else(|e| format!("Error: {e}"));
-                    format!("{handle}: {content}", handle = handle.plaintext())
-                }
-                ChatType::Connection(_) => {
-                    let content = content_message
-                        .content
-                        .string_rendering() // TODO: Better error handling
-                        .unwrap_or_else(|e| format!("Error: {e}"));
-                    content.to_string()
-                }
-            },
+            Message::Content(content_message) => {
+                let content = match content_message.content.string_rendering() {
+                    Ok(content) => content,
+                    Err(mimi_content::Error::UnsupportedContentType) => {
+                        match self.attachment_type() {
+                            Some(AttachmentType::Image) => "🖼️".to_owned(),
+                            Some(AttachmentType::File) => "📎".to_owned(),
+                            None => {
+                                error!("Unsupported content type");
+                                return None;
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        error!(%error, "Failed to render message content");
+                        return None;
+                    }
+                };
+                let repr = match chat_type {
+                    ChatType::Group => {
+                        let display_name = store
+                            .user_profile(&content_message.sender)
+                            .await
+                            .display_name;
+                        format!("{display_name}: {content}")
+                    }
+                    ChatType::HandleConnection(handle) => {
+                        format!("{handle}: {content}", handle = handle.plaintext())
+                    }
+                    ChatType::Connection(_) => content,
+                };
+                Some(repr)
+            }
             Message::Event(event_message) => match &event_message {
-                EventMessage::System(system) => system.string_representation(store).await,
-                EventMessage::Error(error) => error.message().to_string(),
+                EventMessage::System(system) => Some(system.string_representation(store).await),
+                EventMessage::Error(error) => Some(error.message().to_string()),
             },
         }
     }
@@ -311,6 +323,49 @@ impl Message {
             Message::Event(_) => None,
         }
     }
+
+    /// Returns `Some(AttachmentType)` if the message contains an attachment.
+    ///
+    /// Otherwise, returns `None`.
+    fn attachment_type(&self) -> Option<AttachmentType> {
+        let Self::Content(content_message) = self else {
+            return None;
+        };
+
+        match &content_message.content().nested_part.part {
+            // Attachment
+            NestedPartContent::MultiPart {
+                part_semantics: PartSemantics::ProcessAll,
+                parts,
+            } if parts
+                .iter()
+                .any(|part| part.disposition == Disposition::Attachment) =>
+            {
+                // Blurhash preview indicates an image
+                let is_image = parts.iter().any(|part| {
+                    part.disposition == Disposition::Preview
+                        && matches!(
+                            &part.part,
+                            NestedPartContent::SinglePart {
+                                content_type,
+                                ..
+                            } if content_type == "text/blurhash"
+                        )
+                });
+                Some(if is_image {
+                    AttachmentType::Image
+                } else {
+                    AttachmentType::File
+                })
+            }
+            _ => None,
+        }
+    }
+}
+
+enum AttachmentType {
+    Image,
+    File,
 }
 
 // WARNING: If this type is changed, a new `VersionedMessage` variant must be
