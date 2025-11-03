@@ -16,6 +16,7 @@ use flutter_rust_bridge::frb;
 use tokio::sync::{mpsc, watch};
 use tokio_stream::StreamExt;
 use tokio_util::sync::{CancellationToken, DropGuard};
+use tracing::error;
 
 use crate::{
     StreamSink,
@@ -115,7 +116,7 @@ impl UsersState {
         let tx = self.inner.load_profile_tx.clone();
         spawn_from_sync(async move {
             let _ = tx.send(user_id).await.inspect_err(|error| {
-                tracing::error!(%error, "Failed to send load profile request");
+                error!(%error, "Failed to send load profile request");
             });
         });
     }
@@ -173,6 +174,16 @@ impl UsersCubitBase {
     #[frb(sync)]
     pub fn new(user_cubit: &UserCubitBase) -> Self {
         let store = user_cubit.core_user().clone();
+
+        /// Commit all drafts (some might be uncommitted, because the app was closed while editing).
+        spawn_from_sync({
+            let store = store.clone();
+            async move {
+                if let Err(error) = store.commit_all_message_drafts().await {
+                    error!(%error, "Failed to commit all message drafts");
+                }
+            }
+        });
 
         let (load_profile_tx, load_profile_rx) = mpsc::channel(1024);
         let inner = UsersStateInner::new(store.user_id().clone(), load_profile_tx);

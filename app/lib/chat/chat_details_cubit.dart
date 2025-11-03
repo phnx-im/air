@@ -61,8 +61,10 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
     untilTimestamp: untilTimestamp,
   );
 
-  Future<void> storeDraft({required String draftMessage}) =>
-      _impl.storeDraft(draftMessage: draftMessage);
+  Future<void> storeDraft({
+    required String draftMessage,
+    required bool isCommitted,
+  }) => _impl.storeDraft(draftMessage: draftMessage, isCommitted: isCommitted);
 
   Future<void> resetDraft() => _impl.resetDraft();
 
