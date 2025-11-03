@@ -27,10 +27,13 @@ impl User {
                     ChatType::HandleConnection(handle) => handle.plaintext().to_owned(),
                     ChatType::Group => chat.attributes().title().to_string(),
                 };
-                let body = message
+                let Some(body) = message
                     .message()
                     .string_representation(&self.user, chat.chat_type())
-                    .await;
+                    .await
+                else {
+                    continue;
+                };
                 notifications.push(NotificationContent {
                     identifier: NotificationId::random(),
                     title: title.to_owned(),
