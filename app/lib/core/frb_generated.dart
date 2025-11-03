@@ -159,6 +159,7 @@ abstract class RustLibApi extends BaseApi {
   Future<void> crateApiChatDetailsCubitChatDetailsCubitBaseStoreDraft({
     required ChatDetailsCubitBase that,
     required String draftMessage,
+    required bool isCommitted,
   });
 
   Stream<ChatDetailsState> crateApiChatDetailsCubitChatDetailsCubitBaseStream({
@@ -1271,6 +1272,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<void> crateApiChatDetailsCubitChatDetailsCubitBaseStoreDraft({
     required ChatDetailsCubitBase that,
     required String draftMessage,
+    required bool isCommitted,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -1281,6 +1283,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             serializer,
           );
           sse_encode_String(draftMessage, serializer);
+          sse_encode_bool(isCommitted, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -1294,7 +1297,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kCrateApiChatDetailsCubitChatDetailsCubitBaseStoreDraftConstMeta,
-        argValues: [that, draftMessage],
+        argValues: [that, draftMessage, isCommitted],
         apiImpl: this,
       ),
     );
@@ -1304,7 +1307,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiChatDetailsCubitChatDetailsCubitBaseStoreDraftConstMeta =>
       const TaskConstMeta(
         debugName: "ChatDetailsCubitBase_store_draft",
-        argNames: ["that", "draftMessage"],
+        argNames: ["that", "draftMessage", "isCommitted"],
       );
 
   @override
@@ -6662,6 +6665,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MessageDraft dco_decode_box_autoadd_message_draft(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_message_draft(raw);
+  }
+
+  @protected
   MessageId dco_decode_box_autoadd_message_id(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_message_id(raw);
@@ -6713,12 +6722,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiInactiveChat dco_decode_box_autoadd_ui_inactive_chat(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_ui_inactive_chat(raw);
-  }
-
-  @protected
-  UiMessageDraft dco_decode_box_autoadd_ui_message_draft(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_ui_message_draft(raw);
   }
 
   @protected
@@ -7061,6 +7064,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MessageDraft dco_decode_message_draft(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return MessageDraft(
+      message: dco_decode_String(arr[0]),
+      editingId: dco_decode_opt_box_autoadd_message_id(arr[1]),
+      updatedAt: dco_decode_Chrono_Utc(arr[2]),
+      isCommitted: dco_decode_bool(arr[3]),
+    );
+  }
+
+  @protected
   MessageId dco_decode_message_id(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -7208,6 +7225,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MessageDraft? dco_decode_opt_box_autoadd_message_draft(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_message_draft(raw);
+  }
+
+  @protected
   MessageId? dco_decode_opt_box_autoadd_message_id(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_message_id(raw);
@@ -7237,12 +7260,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiImageMetadata? dco_decode_opt_box_autoadd_ui_image_metadata(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_ui_image_metadata(raw);
-  }
-
-  @protected
-  UiMessageDraft? dco_decode_opt_box_autoadd_ui_message_draft(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw == null ? null : dco_decode_box_autoadd_ui_message_draft(raw);
   }
 
   @protected
@@ -7380,7 +7397,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       messagesCount: dco_decode_CastedPrimitive_usize(arr[5]),
       unreadMessages: dco_decode_CastedPrimitive_usize(arr[6]),
       lastMessage: dco_decode_opt_box_autoadd_ui_chat_message(arr[7]),
-      draft: dco_decode_opt_box_autoadd_ui_message_draft(arr[8]),
+      draft: dco_decode_opt_box_autoadd_message_draft(arr[8]),
     );
   }
 
@@ -7540,26 +7557,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       default:
         throw Exception("unreachable");
     }
-  }
-
-  @protected
-  UiMessageDraft dco_decode_ui_message_draft(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
-    return UiMessageDraft(
-      message: dco_decode_String(arr[0]),
-      editingId: dco_decode_opt_box_autoadd_message_id(arr[1]),
-      updatedAt: dco_decode_Chrono_Utc(arr[2]),
-      source: dco_decode_ui_message_draft_source(arr[3]),
-    );
-  }
-
-  @protected
-  UiMessageDraftSource dco_decode_ui_message_draft_source(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return UiMessageDraftSource.values[raw as int];
   }
 
   @protected
@@ -8708,6 +8705,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MessageDraft sse_decode_box_autoadd_message_draft(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_message_draft(deserializer));
+  }
+
+  @protected
   MessageId sse_decode_box_autoadd_message_id(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_message_id(deserializer));
@@ -8775,14 +8780,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_ui_inactive_chat(deserializer));
-  }
-
-  @protected
-  UiMessageDraft sse_decode_box_autoadd_ui_message_draft(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_ui_message_draft(deserializer));
   }
 
   @protected
@@ -9227,6 +9224,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MessageDraft sse_decode_message_draft(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_message = sse_decode_String(deserializer);
+    var var_editingId = sse_decode_opt_box_autoadd_message_id(deserializer);
+    var var_updatedAt = sse_decode_Chrono_Utc(deserializer);
+    var var_isCommitted = sse_decode_bool(deserializer);
+    return MessageDraft(
+      message: var_message,
+      editingId: var_editingId,
+      updatedAt: var_updatedAt,
+      isCommitted: var_isCommitted,
+    );
+  }
+
+  @protected
   MessageId sse_decode_message_id(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_uuid = sse_decode_Uuid(deserializer);
@@ -9423,6 +9435,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MessageDraft? sse_decode_opt_box_autoadd_message_draft(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_message_draft(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   MessageId? sse_decode_opt_box_autoadd_message_id(
     SseDeserializer deserializer,
   ) {
@@ -9482,19 +9507,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_ui_image_metadata(deserializer));
-    } else {
-      return null;
-    }
-  }
-
-  @protected
-  UiMessageDraft? sse_decode_opt_box_autoadd_ui_message_draft(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_ui_message_draft(deserializer));
     } else {
       return null;
     }
@@ -9655,7 +9667,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_lastMessage = sse_decode_opt_box_autoadd_ui_chat_message(
       deserializer,
     );
-    var var_draft = sse_decode_opt_box_autoadd_ui_message_draft(deserializer);
+    var var_draft = sse_decode_opt_box_autoadd_message_draft(deserializer);
     return UiChatDetails(
       id: var_id,
       status: var_status,
@@ -9828,30 +9840,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       default:
         throw UnimplementedError('');
     }
-  }
-
-  @protected
-  UiMessageDraft sse_decode_ui_message_draft(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_message = sse_decode_String(deserializer);
-    var var_editingId = sse_decode_opt_box_autoadd_message_id(deserializer);
-    var var_updatedAt = sse_decode_Chrono_Utc(deserializer);
-    var var_source = sse_decode_ui_message_draft_source(deserializer);
-    return UiMessageDraft(
-      message: var_message,
-      editingId: var_editingId,
-      updatedAt: var_updatedAt,
-      source: var_source,
-    );
-  }
-
-  @protected
-  UiMessageDraftSource sse_decode_ui_message_draft_source(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var inner = sse_decode_i_32(deserializer);
-    return UiMessageDraftSource.values[inner];
   }
 
   @protected
@@ -11223,6 +11211,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_message_draft(
+    MessageDraft self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_message_draft(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_message_id(
     MessageId self,
     SseSerializer serializer,
@@ -11301,15 +11298,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_ui_inactive_chat(self, serializer);
-  }
-
-  @protected
-  void sse_encode_box_autoadd_ui_message_draft(
-    UiMessageDraft self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_ui_message_draft(self, serializer);
   }
 
   @protected
@@ -11733,6 +11721,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_message_draft(MessageDraft self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.message, serializer);
+    sse_encode_opt_box_autoadd_message_id(self.editingId, serializer);
+    sse_encode_Chrono_Utc(self.updatedAt, serializer);
+    sse_encode_bool(self.isCommitted, serializer);
+  }
+
+  @protected
   void sse_encode_message_id(MessageId self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_Uuid(self.uuid, serializer);
@@ -11921,6 +11918,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_message_draft(
+    MessageDraft? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_message_draft(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_message_id(
     MessageId? self,
     SseSerializer serializer,
@@ -11982,19 +11992,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_ui_image_metadata(self, serializer);
-    }
-  }
-
-  @protected
-  void sse_encode_opt_box_autoadd_ui_message_draft(
-    UiMessageDraft? self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    sse_encode_bool(self != null, serializer);
-    if (self != null) {
-      sse_encode_box_autoadd_ui_message_draft(self, serializer);
     }
   }
 
@@ -12142,7 +12139,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_CastedPrimitive_usize(self.messagesCount, serializer);
     sse_encode_CastedPrimitive_usize(self.unreadMessages, serializer);
     sse_encode_opt_box_autoadd_ui_chat_message(self.lastMessage, serializer);
-    sse_encode_opt_box_autoadd_ui_message_draft(self.draft, serializer);
+    sse_encode_opt_box_autoadd_message_draft(self.draft, serializer);
   }
 
   @protected
@@ -12283,27 +12280,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_32(1, serializer);
         sse_encode_box_autoadd_ui_event_message(field0, serializer);
     }
-  }
-
-  @protected
-  void sse_encode_ui_message_draft(
-    UiMessageDraft self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.message, serializer);
-    sse_encode_opt_box_autoadd_message_id(self.editingId, serializer);
-    sse_encode_Chrono_Utc(self.updatedAt, serializer);
-    sse_encode_ui_message_draft_source(self.source, serializer);
-  }
-
-  @protected
-  void sse_encode_ui_message_draft_source(
-    UiMessageDraftSource self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.index, serializer);
   }
 
   @protected
@@ -12528,12 +12504,14 @@ class ChatDetailsCubitBaseImpl extends RustOpaque
   ChatDetailsState get state => RustLib.instance.api
       .crateApiChatDetailsCubitChatDetailsCubitBaseState(that: this);
 
-  Future<void> storeDraft({required String draftMessage}) => RustLib
-      .instance
-      .api
+  Future<void> storeDraft({
+    required String draftMessage,
+    required bool isCommitted,
+  }) => RustLib.instance.api
       .crateApiChatDetailsCubitChatDetailsCubitBaseStoreDraft(
         that: this,
         draftMessage: draftMessage,
+        isCommitted: isCommitted,
       );
 
   Stream<ChatDetailsState> stream() => RustLib.instance.api
