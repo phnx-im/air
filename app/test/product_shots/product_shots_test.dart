@@ -215,6 +215,7 @@ void main() {
       when(
         () => chatDetailsCubit.storeDraft(
           draftMessage: any(named: "draftMessage"),
+          isCommitted: any(named: "isCommitted"),
         ),
       ).thenAnswer((_) async => Future.value());
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
@@ -361,6 +362,7 @@ void main() {
       when(
         () => chatDetailsCubit.storeDraft(
           draftMessage: any(named: "draftMessage"),
+          isCommitted: any(named: "isCommitted"),
         ),
       ).thenAnswer((_) async => Future.value());
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
