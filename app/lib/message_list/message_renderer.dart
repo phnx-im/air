@@ -323,11 +323,11 @@ InlineSpan buildInlineElement(
       style: TextStyle(
         color:
             isSender
-                ? const Color(0xFF69d1ff)
+                ? CustomColorScheme.of(context).function.selfLink
                 : CustomColorScheme.of(context).function.link,
         decorationColor:
             isSender
-                ? const Color(0xFF69d1ff)
+                ? CustomColorScheme.of(context).function.selfLink
                 : CustomColorScheme.of(context).function.link,
         decoration: TextDecoration.underline,
       ),
