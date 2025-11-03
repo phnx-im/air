@@ -305,7 +305,10 @@ impl ProductionPushNotificationProvider {
             "message": {
                 "token": push_token.token(),
                 "data": {
-                    "id": "",
+                    "data": "",
+                },
+                "android": {
+                    "priority": "HIGH",
                 }
             }
         });

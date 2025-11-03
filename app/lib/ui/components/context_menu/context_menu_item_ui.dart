@@ -35,16 +35,23 @@ class ContextMenuItem extends StatelessWidget {
         overlayColor: Colors.transparent,
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisSize: MainAxisSize.max,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            spacing: Spacings.xxs,
-            children: [
-              Icon(leadingIcon, size: 24),
-              Text(label, style: TextStyle(fontSize: LabelFontSize.base.size)),
-            ],
+          if (leadingIcon != null) ...[
+            Icon(leadingIcon, size: 24),
+            const SizedBox(width: Spacings.xxs),
+          ],
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(fontSize: LabelFontSize.base.size),
+            ),
           ),
-          Icon(trailingIcon),
+          if (trailingIcon != null) ...[
+            const SizedBox(width: Spacings.xxs),
+            Icon(trailingIcon),
+          ],
         ],
       ),
     );

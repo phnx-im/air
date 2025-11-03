@@ -60,6 +60,7 @@ class ChatTile extends StatelessWidget {
             flightPosition: position,
             status: adjustedStatus,
             isSender: isSender,
+            showSender: !isConnectionChat,
           ),
           UiMessage_Display(field0: final display) => DisplayMessageTile(
             display,

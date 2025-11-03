@@ -54,7 +54,7 @@ use crate::{
     store::Store,
     utils::{
         connection_ext::StoreExt,
-        file_lock::FileLock,
+        global_lock::GlobalLock,
         image::resize_profile_image,
         persistence::{delete_client_database, open_lock_file},
     },
@@ -162,7 +162,7 @@ impl CoreUser {
         push_token: Option<PushToken>,
         air_db: SqlitePool,
         client_db: SqlitePool,
-        global_lock: FileLock,
+        global_lock: GlobalLock,
     ) -> Result<Self> {
         let server_url = server_url.to_string();
         let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone(), grpc_port);
@@ -208,7 +208,7 @@ impl CoreUser {
         // Open client specific db
         let client_db = open_db_in_memory().await?;
 
-        let global_lock = FileLock::from_file(tempfile::tempfile()?)?;
+        let global_lock = GlobalLock::from_file(tempfile::tempfile()?);
 
         Self::new_with_connections(
             user_id,
@@ -617,6 +617,11 @@ impl CoreUser {
 
     /// Updates the client's push token on the QS.
     pub async fn update_push_token(&self, push_token: Option<PushToken>) -> Result<()> {
+        match &push_token {
+            Some(_) => info!("Updating push token on QS"),
+            None => info!("Clearing push token on QS"),
+        }
+
         let client_id = self.inner.qs_client_id;
         // Ratchet encryption key
         let queue_encryption_key = self

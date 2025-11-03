@@ -19,8 +19,8 @@ pub mod swift_api;
     reason = "used only on Android/iOS but is compiled for all targets"
 )]
 pub(crate) mod processing;
+pub(crate) mod stack;
 
-#[cfg(any(target_os = "android", target_os = "ios"))]
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct IncomingNotificationContent {

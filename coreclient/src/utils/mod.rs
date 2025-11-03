@@ -4,7 +4,8 @@
 
 pub(crate) mod connection_ext;
 pub(crate) mod data_migrations;
-pub(crate) mod file_lock;
+mod file_lock;
+pub(crate) mod global_lock;
 pub(crate) mod image;
 pub(crate) mod persistence;
 

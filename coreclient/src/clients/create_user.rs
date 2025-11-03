@@ -11,6 +11,7 @@ use crate::{
     },
     outbound_service,
     user_profiles::generate::NewUserProfile,
+    utils::global_lock::GlobalLock,
 };
 use aircommon::{
     credentials::{
@@ -434,7 +435,7 @@ impl PersistedUserState {
         self,
         pool: SqlitePool,
         api_clients: ApiClients,
-        global_lock: FileLock,
+        global_lock: GlobalLock,
     ) -> CoreUser {
         let QsRegisteredUserState {
             key_store,

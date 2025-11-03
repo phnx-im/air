@@ -7,12 +7,14 @@ import 'dart:typed_data';
 
 import 'package:air/theme/spacings.dart';
 import 'package:air/ui/typography/monospace.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:air/core/api/markdown.dart';
 import 'package:air/ui/colors/palette.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
+import 'package:url_launcher/url_launcher.dart';
 
 Widget buildBlockElement(
   BuildContext context,
@@ -291,10 +293,14 @@ Widget buildBlockElement(
 InlineSpan buildInlineElement(
   BuildContext context,
   RangedInlineElement inline,
-  bool isSender,
-) {
+  bool isSender, {
+  Uri? destUrl,
+}) {
   return switch (inline.element) {
-    InlineElement_Text(:final field0) => TextSpan(text: field0),
+    InlineElement_Text(:final field0) => TextSpan(
+      text: field0,
+      recognizer: destUrl != null ? openLinkRecognizer(destUrl) : null,
+    ),
     InlineElement_Code(:final field0) => TextSpan(
       text: field0,
       style: TextStyle(
@@ -302,10 +308,17 @@ InlineSpan buildInlineElement(
         fontSize: BodyFontSize.small2.size,
       ),
     ),
-    InlineElement_Link(:final children) => TextSpan(
+    InlineElement_Link(:final destUrl, :final children) => TextSpan(
       children:
           children
-              .map((child) => buildInlineElement(context, child, isSender))
+              .map(
+                (child) => buildInlineElement(
+                  context,
+                  child,
+                  isSender,
+                  destUrl: Uri.tryParse(destUrl),
+                ),
+              )
               .toList(),
       style: TextStyle(
         color:
@@ -325,6 +338,7 @@ InlineSpan buildInlineElement(
               .map((child) => buildInlineElement(context, child, isSender))
               .toList(),
       style: const TextStyle(fontWeight: FontWeight.bold),
+      recognizer: destUrl != null ? openLinkRecognizer(destUrl) : null,
     ),
     InlineElement_Italic(:final field0) => TextSpan(
       children:
@@ -332,6 +346,7 @@ InlineSpan buildInlineElement(
               .map((child) => buildInlineElement(context, child, isSender))
               .toList(),
       style: const TextStyle(fontStyle: FontStyle.italic),
+      recognizer: destUrl != null ? openLinkRecognizer(destUrl) : null,
     ),
     InlineElement_Strikethrough(:final field0) => TextSpan(
       children:
@@ -339,6 +354,7 @@ InlineSpan buildInlineElement(
               .map((child) => buildInlineElement(context, child, isSender))
               .toList(),
       style: const TextStyle(decoration: TextDecoration.lineThrough),
+      recognizer: destUrl != null ? openLinkRecognizer(destUrl) : null,
     ),
     InlineElement_Spoiler(:final field0) => TextSpan(
       children:
@@ -391,6 +407,14 @@ InlineSpan buildInlineElement(
     ),
   };
 }
+
+TapGestureRecognizer openLinkRecognizer(Uri uri) =>
+    TapGestureRecognizer()
+      ..onTap = () async {
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      };
 
 // The style used for formatting characters like * or >
 TextStyle highlightStyle(BuildContext context) =>

@@ -24,7 +24,6 @@
 
   "chatScreen_emptyChat": "Sélectionnez une chat pour commencer à envoyer des messages",
 
-  "memberDetailsScreen_title": "Détails du membre",
   "removeUserDialog_title": "Retirer l'utilisateur",
   "removeUserDialog_content": "Êtes-vous sûr de vouloir retirer cet utilisateur du groupe ?",
   "removeUserDialog_cancel": "Annuler",
@@ -136,5 +135,32 @@
   "byteUnit_PB": "Po",
   "byteUnit_EB": "Eo",
   "byteUnit_ZB": "Zo",
-  "byteUnit_YB": "Yo"
+  "byteUnit_YB": "Yo",
+  "groupDetails_addPerson": "Ajouter une personne",
+  "groupDetails_seeAll": "Voir tout",
+  "groupDetails_memberCount": "{count, plural, one {{count} membre} other {{count} membres}}",
+  "@groupDetails_memberCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupMembersScreen_title": "Membres du groupe",
+  "groupMembersScreen_searchHint": "Chercher",
+  "groupCreationScreen_title": "Ajouter des membres",
+  "groupCreationScreen_cancel": "Annuler",
+  "groupCreationScreen_next": "Suivant",
+  "groupCreationScreen_skip": "Ignorer",
+  "groupCreationDetails_title": "Détails du groupe",
+  "groupCreationDetails_groupNameHint": "Nom du groupe (obligatoire)",
+  "groupCreationDetails_groupNameHintFocused": "Nom du groupe",
+  "groupCreationDetails_groupNameHelper": "Au moins un caractère, s'il vous plaît",
+  "groupCreationDetails_descriptionHint": "Description du groupe (facultatif)",
+  "groupCreationDetails_descriptionHintFocused": "Description du groupe",
+  "groupCreationDetails_create": "Créer",
+  "groupCreationDetails_emptySelection": "Aucun membre",
+
+  "addMembersScreen_addMembers": "Ajouter des membres",
+  "addMembersScreen_done": "Terminé"
 }

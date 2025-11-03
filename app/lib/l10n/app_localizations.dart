@@ -199,7 +199,7 @@ abstract class AppLocalizations {
   /// No description provided for @addMembersScreen_addMembers.
   ///
   /// In en, this message translates to:
-  /// **'Add member(s)'**
+  /// **'Add members'**
   String get addMembersScreen_addMembers;
 
   /// No description provided for @addMembersScreen_error_noActiveChat.
@@ -231,12 +231,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Select a chat to start messaging'**
   String get chatScreen_emptyChat;
-
-  /// No description provided for @memberDetailsScreen_title.
-  ///
-  /// In en, this message translates to:
-  /// **'Member details'**
-  String get memberDetailsScreen_title;
 
   /// No description provided for @removeUserDialog_title.
   ///
@@ -853,14 +847,116 @@ abstract class AppLocalizations {
   /// No description provided for @groupDetails_leaveChat.
   ///
   /// In en, this message translates to:
-  /// **'Leave Group'**
+  /// **'Leave'**
   String get groupDetails_leaveChat;
 
   /// No description provided for @groupDetails_deleteChat.
   ///
   /// In en, this message translates to:
-  /// **'Delete Group Chat'**
+  /// **'Delete'**
   String get groupDetails_deleteChat;
+
+  /// No description provided for @groupDetails_seeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'See all'**
+  String get groupDetails_seeAll;
+
+  /// No description provided for @groupDetails_memberCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one {{count} member} other {{count} members}}'**
+  String groupDetails_memberCount(int count);
+
+  /// No description provided for @groupMembersScreen_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Group members'**
+  String get groupMembersScreen_title;
+
+  /// No description provided for @groupMembersScreen_searchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get groupMembersScreen_searchHint;
+
+  /// No description provided for @groupCreationScreen_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Add members'**
+  String get groupCreationScreen_title;
+
+  /// No description provided for @groupCreationScreen_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get groupCreationScreen_cancel;
+
+  /// No description provided for @groupCreationScreen_next.
+  ///
+  /// In en, this message translates to:
+  /// **'Next'**
+  String get groupCreationScreen_next;
+
+  /// No description provided for @groupCreationScreen_skip.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get groupCreationScreen_skip;
+
+  /// No description provided for @groupCreationDetails_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Group details'**
+  String get groupCreationDetails_title;
+
+  /// No description provided for @groupCreationDetails_groupNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Group name (required)'**
+  String get groupCreationDetails_groupNameHint;
+
+  /// No description provided for @groupCreationDetails_groupNameHintFocused.
+  ///
+  /// In en, this message translates to:
+  /// **'Group name'**
+  String get groupCreationDetails_groupNameHintFocused;
+
+  /// No description provided for @groupCreationDetails_groupNameHelper.
+  ///
+  /// In en, this message translates to:
+  /// **'At least one character, please'**
+  String get groupCreationDetails_groupNameHelper;
+
+  /// No description provided for @groupCreationDetails_descriptionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Group description (optional)'**
+  String get groupCreationDetails_descriptionHint;
+
+  /// No description provided for @groupCreationDetails_descriptionHintFocused.
+  ///
+  /// In en, this message translates to:
+  /// **'Group description'**
+  String get groupCreationDetails_descriptionHintFocused;
+
+  /// No description provided for @groupCreationDetails_create.
+  ///
+  /// In en, this message translates to:
+  /// **'Create'**
+  String get groupCreationDetails_create;
+
+  /// No description provided for @groupCreationDetails_emptySelection.
+  ///
+  /// In en, this message translates to:
+  /// **'No members'**
+  String get groupCreationDetails_emptySelection;
+
+  /// No description provided for @addMembersScreen_done.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get addMembersScreen_done;
 
   /// No description provided for @leaveChatDialog_title.
   ///

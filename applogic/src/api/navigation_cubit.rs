@@ -66,6 +66,10 @@ pub struct HomeNavigationState {
     pub chat_details_open: bool,
     #[frb(default = false)]
     pub add_members_open: bool,
+    #[frb(default = false)]
+    pub group_members_open: bool,
+    #[frb(default = false)]
+    pub create_group_open: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -194,7 +198,31 @@ impl NavigationCubitBase {
     pub fn close_chat(&self) {
         self.core.state_tx().send_if_modified(|state| match state {
             NavigationState::Intro { .. } => false,
-            NavigationState::Home { home } => mem::replace(&mut home.chat_open, false),
+            NavigationState::Home { home } => {
+                let mut changed = false;
+                if mem::replace(&mut home.chat_open, false) {
+                    changed = true;
+                }
+                if mem::replace(&mut home.chat_details_open, false) {
+                    changed = true;
+                }
+                if mem::replace(&mut home.add_members_open, false) {
+                    changed = true;
+                }
+                if mem::replace(&mut home.group_members_open, false) {
+                    changed = true;
+                }
+                if mem::replace(&mut home.create_group_open, false) {
+                    changed = true;
+                }
+                if home.member_details.take().is_some() {
+                    changed = true;
+                }
+                if home.chat_id.take().is_some() {
+                    changed = true;
+                }
+                changed
+            }
         });
     }
 
@@ -226,6 +254,20 @@ impl NavigationCubitBase {
         self.core.state_tx().send_if_modified(|state| match state {
             NavigationState::Intro { .. } => false,
             NavigationState::Home { home } => !mem::replace(&mut home.add_members_open, true),
+        });
+    }
+
+    pub fn open_group_members(&self) {
+        self.core.state_tx().send_if_modified(|state| match state {
+            NavigationState::Intro { .. } => false,
+            NavigationState::Home { home } => !mem::replace(&mut home.group_members_open, true),
+        });
+    }
+
+    pub fn open_create_group(&self) {
+        self.core.state_tx().send_if_modified(|state| match state {
+            NavigationState::Intro { .. } => false,
+            NavigationState::Home { home } => !mem::replace(&mut home.create_group_open, true),
         });
     }
 
@@ -337,12 +379,22 @@ impl NavigationCubitBase {
                 home.member_details.take();
                 true
             }
+            NavigationState::Home { home } if home.create_group_open => {
+                home.create_group_open = false;
+                true
+            }
             NavigationState::Home { home } if home.chat_id.is_some() && home.add_members_open => {
                 home.add_members_open = false;
                 true
             }
+            NavigationState::Home { home } if home.chat_id.is_some() && home.group_members_open => {
+                home.group_members_open = false;
+                true
+            }
             NavigationState::Home { home } if home.chat_id.is_some() && home.chat_details_open => {
                 home.chat_details_open = false;
+                home.group_members_open = false;
+                home.add_members_open = false;
                 true
             }
             NavigationState::Home { home } if home.chat_id.is_some() => {
