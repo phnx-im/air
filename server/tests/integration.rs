@@ -4,7 +4,7 @@
 
 use std::{fs, io::Cursor, sync::LazyLock, time::Duration};
 
-use airapiclient::{as_api::AsRequestError, ds_api::DsRequestError};
+use airapiclient::as_api::AsRequestError;
 use airprotos::{
     auth_service::v1::auth_service_server, delivery_service::v1::delivery_service_server,
     queue_service::v1::queue_service_server,
@@ -95,28 +95,29 @@ async fn rate_limit() {
     // should stop with `resource_exhausted = true` at some point
     for i in 0..100 {
         info!(i, "sending message");
-        let res = alice
+        alice
             .user
             .send_message(
                 chat_id,
                 MimiContent::simple_markdown_message("Hello bob".into(), [0; 16]), // simple seed for testing
                 None,
             )
-            .await;
+            .await
+            .unwrap();
+        alice.user.outbound_service().run_once().await;
 
-        let Err(error) = res else {
+        let message = alice.user.last_message(chat_id).await.unwrap().unwrap();
+
+        // Due to the indirection of the outbound service, we can't just check
+        // for errors while sending. Instead, we just check whether the message
+        // was marked as sent.
+        if message.is_sent() {
+            info!(i, "message sent successfully");
             continue;
-        };
-
-        let error: DsRequestError = error.downcast().expect("should be a DsRequestError");
-        match error {
-            DsRequestError::Tonic(status) => {
-                assert_eq!(status.code(), tonic::Code::ResourceExhausted);
-                resource_exhausted = true;
-                break;
-            }
-            _ => panic!("unexpected error type: {error:?}"),
         }
+
+        resource_exhausted = true;
+        break;
     }
     assert!(resource_exhausted);
 
@@ -124,18 +125,20 @@ async fn rate_limit() {
     tokio::time::sleep(Duration::from_secs(1)).await; // replenish
 
     info!("sending message after rate limit tokens replenished");
-    let res = alice
+    alice
         .user
         .send_message(
             chat_id,
             MimiContent::simple_markdown_message("Hello bob".into(), [0; 16]), // simple seed for testing
             None,
         )
-        .await;
+        .await
+        .unwrap();
+    alice.user.outbound_service().run_once().await;
 
-    if let Err(error) = res {
-        panic!("rate limit did not replenish: {error:?}");
-    }
+    let message = alice.user.last_message(chat_id).await.unwrap().unwrap();
+
+    assert!(message.is_sent());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -582,6 +585,7 @@ async fn mark_as_read() {
                 .unwrap();
             messages_sent.push(message);
         }
+        user.outbound_service().run_once().await;
         messages_sent
     }
 
@@ -959,6 +963,9 @@ async fn send_image_attachment() {
         .send_attachment(chat_id, &ALICE, vec![&BOB], &attachment, "test.png")
         .await;
 
+    let alice = setup.get_user(&ALICE);
+    alice.user.outbound_service().run_once().await;
+
     let attachment_id = match &external_part {
         NestedPartContent::ExternalPart {
             content_type,
@@ -1126,6 +1133,7 @@ async fn blocked_contact() {
 
     // Messages from bob are dropped
     bob.user.send_message(chat_id, msg, None).await.unwrap();
+    bob.user.outbound_service().run_once().await;
     // We get the message but it is dropped
     let messages = alice.user.qs_fetch_messages().await.unwrap();
     assert_eq!(messages.len(), 1);
@@ -1305,6 +1313,7 @@ async fn update_and_send_message(
         .send_message(contact_chat_id, msg, None)
         .await
         .unwrap();
+    bob_user.outbound_service().run_once().await;
     // alice fetches and processes bob's message
     let alice = setup.get_user_mut(alice);
     let alice_user = &mut alice.user;
@@ -1335,6 +1344,7 @@ async fn ratchet_tolerance() {
             .await
             .unwrap();
     }
+    alice_user.outbound_service().run_once().await;
 
     let bob = setup.get_user_mut(&BOB);
     let bob_user = &mut bob.user;

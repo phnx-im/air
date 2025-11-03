@@ -665,7 +665,6 @@ impl TestBackend {
             .unwrap()
             .unwrap();
         let sender_user_id = test_sender.user.user_id().clone();
-        println!("Edited message: {:?}", message);
 
         let chat = test_sender.user.chat(&chat_id).await.unwrap();
         let group_id = chat.group_id();
@@ -738,12 +737,18 @@ impl TestBackend {
 
         sender.fully_process_qs_messages(sender_qs_messages).await;
 
-        let message = test_sender
+        test_sender
             .user
             .send_message(chat_id, orig_message.clone(), Some(last_message.id()))
             .await
             .unwrap();
         test_sender.user.outbound_service().run_once().await;
+        let message = test_sender
+            .user
+            .last_message(chat_id)
+            .await
+            .unwrap()
+            .unwrap();
 
         let sender_user_id = test_sender.user.user_id().clone();
 
@@ -812,6 +817,7 @@ impl TestBackend {
         std::fs::write(&path, attachment).unwrap();
 
         let message = sender.upload_attachment(chat_id, &path).await.unwrap();
+        sender.outbound_service().run_once().await;
 
         let mut external_part = None;
         message

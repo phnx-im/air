@@ -6,6 +6,9 @@
 CREATE TABLE chat_message_queue (
     chat_id BLOB NOT NULL,
     message_id BLOB PRIMARY KEY NOT NULL,
+    -- Optional attachment id if the message has an attachment that needs to be
+    -- cleaned up in case sending fails.
+    attachment_id BLOB,
     created_at TEXT NOT NULL,
     locked_by BLOB,
     FOREIGN KEY (message_id) REFERENCES message (message_id) ON DELETE CASCADE

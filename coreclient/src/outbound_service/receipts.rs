@@ -57,17 +57,18 @@ impl OutboundServiceContext {
     pub(super) async fn send_queued_receipts(
         &self,
         run_token: &CancellationToken,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Vec<anyhow::Error>> {
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
+        let mut errors = Vec::new();
         loop {
             if run_token.is_cancelled() {
-                return Ok(()); // the task is being stopped
+                return Ok(errors); // the task is being stopped
             }
 
             let Some((chat_id, statuses)) = ReceiptQueue::dequeue(&self.pool, task_id).await?
             else {
-                return Ok(());
+                return Ok(errors);
             };
             debug!(?chat_id, num_statuses = statuses.len(), "dequeued receipt");
 
@@ -78,11 +79,13 @@ impl OutboundServiceContext {
                     }
                     Err(OutboundServiceError::Fatal(error)) => {
                         error!(%error, "Failed to send receipt; dropping");
+                        errors.push(error);
                         ReceiptQueue::remove(&self.pool, task_id).await?;
-                        return Err(error);
+                        return Ok(errors);
                     }
                     Err(OutboundServiceError::Recoverable(error)) => {
                         error!(%error, "Failed to send receipt; will retry later");
+                        errors.push(error);
                         // Don't unlock the receipts now; they will be unlocked after a threshold.
                         continue;
                     }
@@ -93,6 +96,7 @@ impl OutboundServiceContext {
                 }
                 Err(error) => {
                     error!(%error, "Failed to create receipt; dropping");
+                    errors.push(error);
                     // There is no chance we will be able to create a receipt next time
                     // => Remove from the queue
                     ReceiptQueue::remove(&self.pool, task_id).await?;
@@ -127,8 +131,10 @@ impl OutboundServiceContext {
         };
 
         // load group and create MLS message
-        let (group_state_ear_key, params) =
-            self.new_mls_message(&chat, unsent_receipt.content).await?;
+        let (group_state_ear_key, params) = self
+            .new_mls_message(&chat, unsent_receipt.content)
+            .await
+            .map_err(OutboundServiceError::fatal)?;
 
         // send MLS message to DS
         self.api_clients
@@ -155,7 +161,7 @@ impl OutboundServiceContext {
         &self,
         chat: &Chat,
         mimi_content: MimiContent,
-    ) -> Result<(GroupStateEarKey, SendMessageParamsOut), OutboundServiceError> {
+    ) -> Result<(GroupStateEarKey, SendMessageParamsOut), anyhow::Error> {
         self.with_transaction(async |txn| {
             let group_id = chat.group_id();
             let mut group = Group::load_clean(txn.as_mut(), group_id)
@@ -169,7 +175,6 @@ impl OutboundServiceContext {
             Ok((group.group_state_ear_key().clone(), params))
         })
         .await
-        .map_err(OutboundServiceError::fatal)
     }
 }
 

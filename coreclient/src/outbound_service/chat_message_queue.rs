@@ -2,27 +2,37 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircommon::identifiers::AttachmentId;
+
 use crate::{ChatId, MessageId};
 
 pub(crate) struct ChatMessageQueue {
     chat_id: ChatId,
     message_id: MessageId,
+    attachment_id: Option<AttachmentId>,
 }
 
 impl ChatMessageQueue {
-    pub(crate) fn new(chat_id: ChatId, message_id: MessageId) -> Self {
+    pub(crate) fn new(
+        chat_id: ChatId,
+        message_id: MessageId,
+        attachment_id: Option<AttachmentId>,
+    ) -> Self {
         Self {
             chat_id,
             message_id,
+            attachment_id,
         }
     }
 }
 
 mod persistence {
     use aircommon::time::TimeStamp;
-    use sqlx::{SqliteExecutor, SqlitePool, query, query_as, query_scalar};
+    use sqlx::{SqliteExecutor, SqliteTransaction, query, query_as, query_scalar};
     use tracing::debug;
     use uuid::Uuid;
+
+    use crate::clients::attachment::persistence::PendingAttachmentRecord;
 
     use super::*;
 
@@ -36,11 +46,12 @@ mod persistence {
 
             query!(
                 "INSERT INTO chat_message_queue
-                    (chat_id, message_id, created_at)
-                VALUES (?1, ?2, ?3)
+                    (chat_id, message_id, attachment_id, created_at)
+                VALUES (?1, ?2, ?3, ?4)
                 ON CONFLICT DO NOTHING",
                 self.chat_id,
                 self.message_id,
+                self.attachment_id,
                 now,
             )
             .execute(executor)
@@ -49,53 +60,49 @@ mod persistence {
         }
 
         pub(crate) async fn dequeue(
-            pool: &SqlitePool,
+            executor: impl SqliteExecutor<'_>,
             task_id: Uuid,
-        ) -> anyhow::Result<Option<(ChatId, MessageId)>> {
-            let mut txn = pool.begin_with("BEGIN IMMEDIATE").await?;
-
-            let chat_id = query_scalar!(
-                r#"SELECT chat_id AS "chat_id: _"
+        ) -> anyhow::Result<Option<MessageId>> {
+            let message_id = query_as!(
+                MessageId,
+                r#"
+                UPDATE chat_message_queue
+                SET locked_by = ?1
+                WHERE message_id = (
+                    SELECT message_id
                     FROM chat_message_queue
+                    WHERE locked_by IS NULL OR locked_by != ?1
                     ORDER BY created_at ASC
                     LIMIT 1
+                )
+                RETURNING message_id AS "uuid: _"
                 "#,
+                task_id
             )
-            .fetch_optional(txn.as_mut())
+            .fetch_optional(executor)
             .await?;
-            let Some(chat_id) = chat_id else {
-                return Ok(None);
-            };
 
-            let message_ids = query_as!(
-                MessageId,
-                r#"UPDATE chat_message_queue
-                    SET locked_by = ?1
-                    WHERE chat_id = ?2 
-                RETURNING
-                    message_id AS "uuid: _"
+            Ok(message_id)
+        }
+
+        pub(crate) async fn remove(
+            txn: &mut SqliteTransaction<'_>,
+            message_id: MessageId,
+        ) -> sqlx::Result<()> {
+            let attachment_id = query_scalar!(
+                r#"DELETE FROM chat_message_queue 
+                WHERE message_id = ?
+                RETURNING attachment_id AS "uuid: _"
                 "#,
-                task_id,
-                chat_id,
+                message_id
             )
             .fetch_one(txn.as_mut())
             .await?;
 
-            txn.commit().await?;
+            if let Some(attachment_id) = attachment_id {
+                PendingAttachmentRecord::delete(txn.as_mut(), attachment_id).await?;
+            }
 
-            Ok(Some((chat_id, message_ids)))
-        }
-
-        pub(crate) async fn remove(
-            executor: impl SqliteExecutor<'_>,
-            message_id: MessageId,
-        ) -> sqlx::Result<()> {
-            query!(
-                "DELETE FROM chat_message_queue WHERE message_id = ?",
-                message_id
-            )
-            .execute(executor)
-            .await?;
             Ok(())
         }
     }

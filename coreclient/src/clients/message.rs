@@ -63,12 +63,14 @@ impl CoreUser {
             .await?;
 
         self.outbound_service()
-            .enqueue_chat_message(unsent_group_message.message.id())
+            .enqueue_chat_message(unsent_group_message.message.id(), None)
             .await?;
 
         Ok(unsent_group_message.message)
     }
 
+    // TODO: This should be merged with send_message as soon as we don't
+    // automatically send updates before attempting to enqueue a message.
     pub(crate) async fn send_message_transactional(
         &self,
         txn: &mut SqliteTransaction<'_>,
@@ -86,10 +88,6 @@ impl CoreUser {
         .await?
         .store_group_update(txn, notifier, self.user_id())
         .await?;
-
-        self.outbound_service()
-            .enqueue_chat_message(unsent_group_message.message.id())
-            .await?;
 
         Ok(unsent_group_message.message)
     }

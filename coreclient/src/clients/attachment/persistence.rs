@@ -18,7 +18,7 @@ use crate::{ChatId, MessageId, store::StoreNotifier};
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub(crate) struct AttachmentRecord {
-    pub(super) attachment_id: AttachmentId,
+    pub(crate) attachment_id: AttachmentId,
     pub(super) chat_id: ChatId,
     pub(super) message_id: MessageId,
     pub(super) content_type: String,

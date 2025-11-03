@@ -16,7 +16,7 @@ use url::Url;
 mod content;
 mod download;
 mod ear;
-mod persistence;
+pub(crate) mod persistence;
 mod process;
 mod upload;
 
