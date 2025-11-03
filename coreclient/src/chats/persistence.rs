@@ -856,7 +856,7 @@ pub mod tests {
             message: "Hello, world!".to_string(),
             editing_id: Some(message.id()),
             updated_at: Utc::now(),
-            is_committed: false,
+            is_committed: true,
         }
         .store(&mut *connection, &mut store_notifier, chat_5.id())
         .await?;
@@ -870,7 +870,7 @@ pub mod tests {
             message: "Hello, world!".to_string(),
             editing_id: Some(message.id()),
             updated_at: Utc::now().checked_add_days(Days::new(1)).unwrap(),
-            is_committed: false,
+            is_committed: true,
         }
         .store(&mut *connection, &mut store_notifier, chat_6.id())
         .await?;
