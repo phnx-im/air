@@ -15,6 +15,7 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
 import 'types.dart';
 import 'user_cubit.dart';
+import 'user_settings_cubit.dart';
 part 'chat_details_cubit.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `store_draft_from_state`, `update_state_task`
@@ -46,11 +47,13 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   /// changes in the chat and update the state accordingly.
   factory ChatDetailsCubitBase({
     required UserCubitBase userCubit,
+    required UserSettingsCubitBase userSettingsCubit,
     required ChatId chatId,
     required ChatsRepository chatsRepository,
     required bool withMembers,
   }) => RustLib.instance.api.crateApiChatDetailsCubitChatDetailsCubitBaseNew(
     userCubit: userCubit,
+    userSettingsCubit: userSettingsCubit,
     chatId: chatId,
     chatsRepository: chatsRepository,
     withMembers: withMembers,

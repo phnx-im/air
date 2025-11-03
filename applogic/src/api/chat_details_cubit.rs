@@ -23,6 +23,7 @@ use crate::StreamSink;
 use crate::api::{
     chats_repository::ChatsRepository,
     types::{UiChatMessage, UiChatType, UiUserId},
+    user_settings_cubit::{UserSettings, UserSettingsCubitBase},
 };
 use crate::message_content::MimiContentExt;
 use crate::util::{Cubit, CubitCore, spawn_from_sync};
@@ -49,6 +50,7 @@ pub struct ChatDetailsState {
 pub struct ChatDetailsCubitBase {
     context: ChatDetailsContext,
     core: CubitCore<ChatDetailsState>,
+    user_settings_rx: watch::Receiver<UserSettings>,
 }
 
 impl ChatDetailsCubitBase {
@@ -59,6 +61,7 @@ impl ChatDetailsCubitBase {
     #[frb(sync)]
     pub fn new(
         user_cubit: &UserCubitBase,
+        user_settings_cubit: &UserSettingsCubitBase,
         chat_id: ChatId,
         chats_repository: &ChatsRepository,
         with_members: bool,
@@ -70,6 +73,8 @@ impl ChatDetailsCubitBase {
             members: Default::default(),
         };
         let core = CubitCore::with_initial_state(initial_state);
+
+        let user_settings_rx = user_settings_cubit.subscribe();
 
         let context = ChatDetailsContext::new(
             store.clone(),
@@ -94,7 +99,11 @@ impl ChatDetailsCubitBase {
             .run_until_cancelled_owned(context.clone().update_state_task());
         spawn_from_sync(update_state_task);
 
-        Self { context, core }
+        Self {
+            context,
+            core,
+            user_settings_rx,
+        }
     }
 
     // Cubit interface
@@ -307,17 +316,20 @@ impl ChatDetailsCubitBase {
             .mark_chat_as_read(self.context.chat_id, until_message_id)
             .await?;
 
-        let statuses = read_message_ids
-            .iter()
-            .map(|(message_id, mimi_id)| (*message_id, mimi_id, MessageStatus::Read));
-        if let Err(error) = self
-            .context
-            .store
-            .outbound_service()
-            .enqueue_receipts(self.context.chat_id, statuses)
-            .await
-        {
-            error!(%error, "Failed to send read receipt");
+        let read_receipts_enabled = self.user_settings_rx.borrow().read_receipts;
+        if read_receipts_enabled {
+            let statuses = read_message_ids
+                .iter()
+                .map(|(message_id, mimi_id)| (*message_id, mimi_id, MessageStatus::Read));
+            if let Err(error) = self
+                .context
+                .store
+                .outbound_service()
+                .enqueue_receipts(self.context.chat_id, statuses)
+                .await
+            {
+                error!(%error, "Failed to enqueue read receipt");
+            }
         }
 
         Ok(())

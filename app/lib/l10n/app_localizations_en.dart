@@ -41,6 +41,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get userSettingsScreen_deleteAccount => 'Delete Air Account';
 
   @override
+  String get userSettingsScreen_sendWithEnter => 'Send with Enter';
+
+  @override
+  String get userSettingsScreen_readReceipts => 'Read Receipts';
+
+  @override
+  String get userSettingsScreen_readReceiptsDescription =>
+      'If disabled, others won\'t be able to see when you\'ve read their messages and you won\'t be able to see when they\'ve read yours.';
+
+  @override
   String get removeUsernameDialog_title => 'Remove Username';
 
   @override
