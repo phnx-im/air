@@ -444,5 +444,25 @@ void main() {
         matchesGoldenFile('goldens/message_list_blocked_contact_chat.png'),
       );
     });
+
+    testWidgets('renders correctly with disabled read receipts', (
+      tester,
+    ) async {
+      when(
+        () => messageListCubit.state,
+      ).thenReturn(MockMessageListState(messages));
+      when(
+        () => userSettingsCubit.state,
+      ).thenReturn(const UserSettings(readReceipts: false));
+
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+
+      await tester.pumpWidget(buildSubject());
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_list_disabled_read_receipts.png'),
+      );
+    });
   });
 }
