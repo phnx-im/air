@@ -18,11 +18,9 @@ import 'user_cubit.dart';
 import 'user_settings_cubit.dart';
 part 'chat_details_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `do_mark_as_read`, `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `store_draft_from_state`, `update_state_task`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChatDetailsContext`, `MarkAsReadState`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `hash`
-// These functions are ignored (category: IgnoreBecauseExplicitAttribute): `enqueue_receipts`, `enqueue_receipts`, `mark_chat_as_read`, `mark_chat_as_read`
-// These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`
+// These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `store_draft_from_state`, `update_state_task`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChatDetailsContext`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `eq`, `fmt`, `hash`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>>
 abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
