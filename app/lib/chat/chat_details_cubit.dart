@@ -12,6 +12,7 @@ import 'package:air/user/user.dart';
 class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
   ChatDetailsCubit({
     required UserCubit userCubit,
+    required UserSettingsCubit userSettingsCubit,
     required ChatsRepository chatsRepository,
     required ChatId chatId,
 
@@ -19,6 +20,7 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
     bool withMembers = true,
   }) : _impl = ChatDetailsCubitBase(
          userCubit: userCubit.impl,
+         userSettingsCubit: userSettingsCubit.impl,
          chatId: chatId,
          chatsRepository: chatsRepository,
          withMembers: withMembers,
