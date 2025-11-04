@@ -115,6 +115,7 @@ dependencies = [
  "memmap2",
  "mimi-room-policy",
  "mimi_content",
+ "mockall",
  "notify-rust",
  "openmls",
  "parking_lot",
