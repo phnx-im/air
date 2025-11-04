@@ -592,6 +592,11 @@ void main() {
     testWidgets('renders correctly with disabled read receipts', (
       tester,
     ) async {
+      tester.view.physicalSize = testSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
       when(
         () => messageListCubit.state,
       ).thenReturn(MockMessageListState(messages));
