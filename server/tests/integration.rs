@@ -1447,7 +1447,9 @@ impl QsNotificationProcessor for NoopNotificationProcessor {
     async fn show_notifications(&mut self, _: ProcessedQsMessages) {}
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+// TODO: Re-enable once we have implemented a resync UX.
+//#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[allow(dead_code)]
 #[tracing::instrument(name = "Resync", skip_all)]
 async fn resync() {
     let mut setup = TestBackend::single().await;

@@ -214,6 +214,7 @@ impl SendResyncError {
 }
 
 impl OutboundService {
+    #[allow(dead_code)]
     pub(crate) async fn enqueue_resync(&self, resync: Resync) -> anyhow::Result<()> {
         let mut connection = self.context.pool.acquire().await?;
 

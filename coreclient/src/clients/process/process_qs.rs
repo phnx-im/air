@@ -353,8 +353,9 @@ impl CoreUser {
             TransactionResult::Ok(messages, chat_changed, chat_id, profile_infos) => {
                 (messages, chat_changed, chat_id, profile_infos)
             }
-            TransactionResult::NeedsResync(resync) => {
-                self.outbound_service().enqueue_resync(resync).await?;
+            TransactionResult::NeedsResync(_resync) => {
+                // TODO: Once we have a UX for resyncs, we should schedule one
+                // here and re-enable the resync test in integration.rs
                 return Ok(ProcessQsMessageResult::None);
             }
         };
