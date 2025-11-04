@@ -718,7 +718,7 @@ async fn delete_user() {
 
     setup.add_user(&ALICE).await;
     // Adding another user with the same id should fail.
-    match TestUser::try_new(&ALICE, Some("localhost".into()), setup.grpc_port()).await {
+    match TestUser::try_new(&ALICE, setup.listen_addr()).await {
         Ok(_) => panic!("Should not be able to create a user with the same id"),
         Err(e) => match e.downcast_ref::<AsRequestError>().unwrap() {
             AsRequestError::Tonic(status) => {
@@ -731,7 +731,7 @@ async fn delete_user() {
     setup.delete_user(&ALICE).await;
     // After deletion, adding the user again should work.
     // Note: Since the user is ephemeral, there is nothing to test on the client side.
-    TestUser::try_new(&ALICE, Some("localhost".into()), setup.grpc_port())
+    TestUser::try_new(&ALICE, setup.listen_addr())
         .await
         .unwrap();
 }
@@ -835,7 +835,7 @@ async fn update_user_profile_on_group_join() {
 #[tracing::instrument(name = "Health check test", skip_all)]
 async fn health_check() {
     let setup = TestBackend::single().await;
-    let endpoint = format!("http://localhost:{}", setup.grpc_port());
+    let endpoint = format!("http://{}", setup.listen_addr());
     let channel = Channel::from_shared(endpoint)
         .unwrap()
         .connect()
@@ -1242,7 +1242,7 @@ async fn delete_account() {
 
     // After deletion, adding the user again should work.
     // Note: Since the user is ephemeral, there is nothing to test on the client side.
-    let mut new_alice = TestUser::try_new(&ALICE, Some("localhost".into()), setup.grpc_port())
+    let mut new_alice = TestUser::try_new(&ALICE, setup.listen_addr())
         .await
         .unwrap();
     // Adding a user handle to the new user should work, because the previous user handle was

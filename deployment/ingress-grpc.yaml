@@ -23,18 +23,18 @@ spec:
           service:
             name: air-backend
             port:
-              number: 50051
+              number: 80
       - path: /queue_service.v1.QueueService
         pathType: ImplementationSpecific
         backend:
           service:
             name: air-backend
             port:
-              number: 50051
+              number: 80
       - path: /auth_service.v1.AuthService
         pathType: ImplementationSpecific
         backend:
           service:
             name: air-backend
             port:
-              number: 50051
+              number: 80

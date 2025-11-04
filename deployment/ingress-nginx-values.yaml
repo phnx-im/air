@@ -8,30 +8,9 @@ controller:
                 {
                   "frontends": [
                     {
-                      "name": "https",
-                      "mode": "http",
-                      "port": 443,
-                      "default_backend": "http",
-                      "networks": [
-                        {
-                          "name": "public-IPv4"
-                        }
-                      ],
-                      "tls_configs": [
-                        {
-                          "name": "prod-air-ms-cert",
-                          "certificate_bundle_uuid": "0ab632f5-8c8f-40f5-bc85-9881e9564a6d"
-                        }
-                      ],
-                      "properties": {
-                        "http2_enabled": false,
-                        "timeout_client": 3600
-                      }
-                    },
-                    {
                       "name": "grpc",
                       "mode": "http",
-                      "port": 50051,
+                      "port": 443,
                       "default_backend": "https",
                       "networks": [
                         {
@@ -51,15 +30,6 @@ controller:
                     }
                   ],
                   "backends": [
-                    {
-                      "name": "http",
-                      "properties": {
-                        "outbound_proxy_protocol": "v2",
-                        "http2_enabled": false,
-                        "tls_enabled": true,
-                        "timeout_server": 3600
-                      }
-                    },
                     {
                       "name": "https",
                       "properties": {

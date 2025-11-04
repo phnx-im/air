@@ -10,7 +10,6 @@ use airapiclient::{
     qs_api::{ListenResponder, ListenResponderClosedError},
 };
 use aircommon::{
-    DEFAULT_PORT_GRPC,
     credentials::{
         ClientCredential, ClientCredentialCsr, ClientCredentialPayload, keys::ClientSigningKey,
     },
@@ -129,7 +128,6 @@ impl CoreUser {
     pub async fn new(
         user_id: UserId,
         server_url: Url,
-        grpc_port: u16,
         db_path: &str,
         push_token: Option<PushToken>,
     ) -> Result<Self> {
@@ -146,7 +144,6 @@ impl CoreUser {
         Self::new_with_connections(
             user_id,
             server_url,
-            grpc_port,
             push_token,
             air_db,
             client_db,
@@ -158,14 +155,13 @@ impl CoreUser {
     async fn new_with_connections(
         user_id: UserId,
         server_url: Url,
-        grpc_port: u16,
         push_token: Option<PushToken>,
         air_db: SqlitePool,
         client_db: SqlitePool,
         global_lock: GlobalLock,
     ) -> Result<Self> {
         let server_url = server_url.to_string();
-        let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone(), grpc_port);
+        let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone());
 
         let user_creation_state =
             UserCreationState::new(&client_db, &air_db, user_id, server_url.clone(), push_token)
@@ -195,7 +191,6 @@ impl CoreUser {
     pub async fn new_ephemeral(
         user_id: UserId,
         server_url: Url,
-        grpc_port: u16,
         push_token: Option<PushToken>,
     ) -> Result<Self> {
         use crate::utils::persistence::open_db_in_memory;
@@ -213,7 +208,6 @@ impl CoreUser {
         Self::new_with_connections(
             user_id,
             server_url,
-            grpc_port,
             push_token,
             air_db,
             client_db,
@@ -234,11 +228,8 @@ impl CoreUser {
             .context("missing user creation state")?;
 
         let air_db = open_air_db(db_path).await?;
-        let api_clients = ApiClients::new(
-            user_id.domain().clone(),
-            user_creation_state.server_url(),
-            DEFAULT_PORT_GRPC,
-        );
+        let api_clients =
+            ApiClients::new(user_id.domain().clone(), user_creation_state.server_url());
         let final_state = user_creation_state
             .complete_user_creation(&air_db, &client_db, &api_clients)
             .await?;
