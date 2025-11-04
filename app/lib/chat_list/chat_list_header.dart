@@ -197,46 +197,7 @@ class _PlusButtonState extends State<_PlusButton> {
     );
   }
 
-  void _newGroup(BuildContext context) async {
-    final chatListCubit = context.read<ChatListCubit>();
-    final loc = AppLocalizations.of(context);
-
-    validator(String? value) {
-      final plaintext = value?.trim().toLowerCase();
-      if (plaintext == null || plaintext.isEmpty) {
-        return loc.newChatDialog_error_emptyGroupName;
-      }
-      return null;
-    }
-
-    String? input = await showDialog(
-      context: context,
-      builder:
-          (BuildContext context) => CreateChatView(
-            context,
-            loc.newChatDialog_newChatTitle,
-            loc.newChatDialog_newChatDescription,
-            loc.newChatDialog_chatNamePlaceholder,
-            loc.newChatDialog_actionButton,
-            validator: validator,
-          ),
-    );
-    String groupName = input?.trim() ?? "";
-    if (groupName.isNotEmpty) {
-      try {
-        final chatId = await chatListCubit.createGroupChat(
-          groupName: groupName,
-        );
-        _log.info(
-          "A new group '$groupName' was created: "
-          "chatId = $chatId",
-        );
-      } catch (e) {
-        if (context.mounted) {
-          _log.severe("Failed to create chat: $e");
-          showErrorBanner(context, loc.newChatDialog_error(groupName));
-        }
-      }
-    }
+  void _newGroup(BuildContext context) {
+    context.read<NavigationCubit>().openCreateGroup();
   }
 }

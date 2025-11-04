@@ -2,16 +2,19 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/chat/widgets/app_bar_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/core/core.dart';
 import 'package:air/navigation/navigation.dart';
-import 'package:air/ui/colors/themes.dart';
+import 'package:air/theme/theme.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 
 import 'add_members_cubit.dart';
+import 'widgets/member_search_field.dart';
+import 'widgets/member_selection_list.dart';
 
 class AddMembersScreen extends StatelessWidget {
   const AddMembersScreen({super.key});
@@ -35,8 +38,22 @@ class AddMembersScreen extends StatelessWidget {
   }
 }
 
-class AddMembersScreenView extends StatelessWidget {
+class AddMembersScreenView extends StatefulWidget {
   const AddMembersScreenView({super.key});
+
+  @override
+  State<AddMembersScreenView> createState() => _AddMembersScreenViewState();
+}
+
+class _AddMembersScreenViewState extends State<AddMembersScreenView> {
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +63,6 @@ class AddMembersScreenView extends StatelessWidget {
         cubit.state.selectedContacts,
       ),
     );
-
     final loc = AppLocalizations.of(context);
 
     return Scaffold(
@@ -54,35 +70,41 @@ class AddMembersScreenView extends StatelessWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: const AppBarBackButton(),
-        title: Text(loc.addMembersScreen_title),
+        title: Text(loc.addMembersScreen_addMembers),
+        actions: [
+          AppBarButton(
+            onPressed:
+                selectedContacts.isNotEmpty
+                    ? () => _addSelectedContacts(context, selectedContacts)
+                    : null,
+
+            child: Text(loc.addMembersScreen_done),
+          ),
+        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Center(
+      body: SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
           child: Container(
-            constraints: const BoxConstraints(minWidth: 100, maxWidth: 600),
+            constraints:
+                isPointer() ? const BoxConstraints(maxWidth: 800) : null,
             child: Column(
               children: [
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: contacts.length,
-                    itemBuilder: (context, index) {
-                      final contact = contacts[index];
-                      return _MemberTile(
-                        contact: contact,
-                        selectedContacts: selectedContacts,
-                      );
-                    },
-                  ),
+                MemberSearchField(
+                  controller: _searchController,
+                  hintText: loc.groupMembersScreen_searchHint,
+                  onChanged: (value) => setState(() => _query = value),
                 ),
-                OutlinedButton(
-                  onPressed:
-                      selectedContacts.isNotEmpty
-                          ? () async {
-                            _addSelectedContacts(context, selectedContacts);
-                          }
-                          : null,
-                  child: Text(loc.addMembersScreen_addMembers),
+                Expanded(
+                  child: MemberSelectionList(
+                    contacts: contacts,
+                    selectedContacts: selectedContacts,
+                    query: _query,
+                    onToggle:
+                        (contact) => context
+                            .read<AddMembersCubit>()
+                            .toggleContact(contact),
+                  ),
                 ),
               ],
             ),
@@ -92,7 +114,7 @@ class AddMembersScreenView extends StatelessWidget {
     );
   }
 
-  void _addSelectedContacts(
+  Future<void> _addSelectedContacts(
     BuildContext context,
     Set<UiUserId> selectedContacts,
   ) async {
@@ -107,47 +129,5 @@ class AddMembersScreenView extends StatelessWidget {
       await userCubit.addUserToChat(chatId, userId);
     }
     navigationCubit.pop();
-  }
-}
-
-class _MemberTile extends StatelessWidget {
-  const _MemberTile({required this.contact, required this.selectedContacts});
-
-  final UiContact contact;
-  final Set<UiUserId> selectedContacts;
-
-  @override
-  Widget build(BuildContext context) {
-    final profile = context.select(
-      (UsersCubit cubit) => cubit.state.profile(userId: contact.userId),
-    );
-
-    return ListTile(
-      leading: UserAvatar(
-        displayName: profile.displayName,
-        image: profile.profilePicture,
-      ),
-      title: Text(
-        profile.displayName,
-        style: Theme.of(context).textTheme.bodyMedium,
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: Checkbox(
-        value: selectedContacts.contains(contact.userId),
-        checkColor: CustomColorScheme.of(context).text.secondary,
-        fillColor: WidgetStateProperty.all(
-          CustomColorScheme.of(context).backgroundBase.secondary,
-        ),
-        focusColor: Colors.transparent,
-        hoverColor: Colors.transparent,
-        overlayColor: WidgetStateProperty.all(Colors.transparent),
-        side: BorderSide.none,
-        shape: const CircleBorder(),
-        onChanged:
-            (bool? value) =>
-                context.read<AddMembersCubit>().toggleContact(contact),
-      ),
-      onTap: () => context.read<AddMembersCubit>().toggleContact(contact),
-    );
   }
 }

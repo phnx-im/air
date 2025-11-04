@@ -250,6 +250,7 @@ impl Chat {
             FROM chat c
             LEFT OUTER JOIN message_draft d ON
                 d.chat_id = c.chat_id AND
+                d.is_committed = TRUE AND
                 NOT (TRIM(d.message) = '' AND d.editing_id IS NULL)
             ORDER BY
                 d.updated_at DESC,
@@ -841,6 +842,7 @@ pub mod tests {
             message: "    ".into(), // Whitespace only
             editing_id: None,
             updated_at: TimeStamp::now().into(),
+            is_committed: false,
         }
         .store(&mut *connection, &mut store_notifier, chat_4.id())
         .await?;
@@ -854,6 +856,7 @@ pub mod tests {
             message: "Hello, world!".to_string(),
             editing_id: Some(message.id()),
             updated_at: Utc::now(),
+            is_committed: true,
         }
         .store(&mut *connection, &mut store_notifier, chat_5.id())
         .await?;
@@ -867,6 +870,7 @@ pub mod tests {
             message: "Hello, world!".to_string(),
             editing_id: Some(message.id()),
             updated_at: Utc::now().checked_add_days(Days::new(1)).unwrap(),
+            is_committed: true,
         }
         .store(&mut *connection, &mut store_notifier, chat_6.id())
         .await?;

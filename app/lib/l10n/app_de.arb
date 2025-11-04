@@ -24,7 +24,6 @@
 
   "chatScreen_emptyChat": "Wähle eine Unterhaltung aus, um mit dem Nachrichten schreiben zu beginnen",
 
-  "memberDetailsScreen_title": "Mitgliederdetails",
   "removeUserDialog_title": "Benutzer entfernen",
   "removeUserDialog_content": "Bist du sicher, dass du diesen Benutzer aus der Gruppe entfernen möchtest?",
   "removeUserDialog_cancel": "Abbrechen",
@@ -136,5 +135,32 @@
   "byteUnit_PB": "PB",
   "byteUnit_EB": "EB",
   "byteUnit_ZB": "ZB",
-  "byteUnit_YB": "YB"
+  "byteUnit_YB": "YB",
+  "groupDetails_addPerson": "Person hinzufügen",
+  "groupDetails_seeAll": "Alle anzeigen",
+  "groupDetails_memberCount": "{count, plural, one {{count} Mitgleid} other {{count} Mitglieder}}",
+  "@groupDetails_memberCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupMembersScreen_title": "Gruppenmitglieder",
+  "groupMembersScreen_searchHint": "Suchen",
+  "groupCreationScreen_title": "Mitglieder hinzufügen",
+  "groupCreationScreen_cancel": "Abbrechen",
+  "groupCreationScreen_next": "Weiter",
+  "groupCreationScreen_skip": "Überspringen",
+  "groupCreationDetails_title": "Gruppendetails",
+  "groupCreationDetails_groupNameHint": "Gruppenname (erforderlich)",
+  "groupCreationDetails_groupNameHintFocused": "Gruppenname",
+  "groupCreationDetails_groupNameHelper": "Mindestens ein Zeichen, bitte",
+  "groupCreationDetails_descriptionHint": "Gruppenbeschreibung (optional)",
+  "groupCreationDetails_descriptionHintFocused": "Gruppenbeschreibung",
+  "groupCreationDetails_create": "Erstellen",
+  "groupCreationDetails_emptySelection": "Keine Mitglieder",
+
+  "addMembersScreen_addMembers": "Mitglieder hinzufügen",
+  "addMembersScreen_done": "Fertig"
 }

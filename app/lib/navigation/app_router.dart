@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
 import 'package:air/chat/chat_details.dart';
+import 'package:air/chat/create_group_screen.dart';
 import 'package:air/developer/developer.dart';
 import 'package:air/home_screen.dart';
 import 'package:air/intro_screen.dart';
@@ -176,6 +177,11 @@ extension on HomeNavigationState {
     );
     return [
       homeScreenPage,
+      if (createGroupOpen)
+        const MaterialPage(
+          key: ValueKey("create-group-screen"),
+          child: CreateGroupScreen(),
+        ),
       ...switch (userSettingsScreen) {
         null => [],
         UserSettingsScreenType.root => [
@@ -231,6 +237,11 @@ extension on HomeNavigationState {
         const MaterialPage(
           key: ValueKey("chat-details-screen"),
           child: ChatDetailsScreen(),
+        ),
+      if (openChatId != null && chatDetailsOpen && groupMembersOpen)
+        const MaterialPage(
+          key: ValueKey("chat-group-members-screen"),
+          child: GroupMembersScreen(),
         ),
       if (openChatId != null && chatDetailsOpen && memberDetails != null)
         const MaterialPage(

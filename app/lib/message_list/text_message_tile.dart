@@ -445,6 +445,7 @@ class _ImageAttachmentContent extends StatelessWidget {
           ),
       child: GestureDetector(
         onTap: () {
+          FocusScope.of(context).unfocus();
           overlayController.show();
         },
         child: ClipRRect(
