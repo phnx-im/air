@@ -152,8 +152,7 @@ impl OutboundServiceContext {
 
             Ok(())
         })
-        .await
-        .map_err(OutboundServiceError::fatal)?;
+        .await?;
 
         Ok(())
     }

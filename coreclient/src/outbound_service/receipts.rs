@@ -57,18 +57,17 @@ impl OutboundServiceContext {
     pub(super) async fn send_queued_receipts(
         &self,
         run_token: &CancellationToken,
-    ) -> anyhow::Result<Vec<anyhow::Error>> {
+    ) -> anyhow::Result<()> {
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
-        let mut errors = Vec::new();
         loop {
             if run_token.is_cancelled() {
-                return Ok(errors); // the task is being stopped
+                return Ok(()); // the task is being stopped
             }
 
             let Some((chat_id, statuses)) = ReceiptQueue::dequeue(&self.pool, task_id).await?
             else {
-                return Ok(errors);
+                return Ok(());
             };
             debug!(?chat_id, num_statuses = statuses.len(), "dequeued receipt");
 
@@ -79,13 +78,11 @@ impl OutboundServiceContext {
                     }
                     Err(OutboundServiceError::Fatal(error)) => {
                         error!(%error, "Failed to send receipt; dropping");
-                        errors.push(error);
                         ReceiptQueue::remove(&self.pool, task_id).await?;
-                        return Ok(errors);
+                        return Err(error);
                     }
                     Err(OutboundServiceError::Recoverable(error)) => {
                         error!(%error, "Failed to send receipt; will retry later");
-                        errors.push(error);
                         // Don't unlock the receipts now; they will be unlocked after a threshold.
                         continue;
                     }
@@ -96,7 +93,6 @@ impl OutboundServiceContext {
                 }
                 Err(error) => {
                     error!(%error, "Failed to create receipt; dropping");
-                    errors.push(error);
                     // There is no chance we will be able to create a receipt next time
                     // => Remove from the queue
                     ReceiptQueue::remove(&self.pool, task_id).await?;
