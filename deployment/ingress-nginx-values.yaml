@@ -24,7 +24,7 @@ controller:
                         }
                       ],
                       "properties": {
-                        "http2_enabled": false,
+                        "http2_enabled": true,
                         "timeout_client": 3600
                       }
                     },
