@@ -61,6 +61,12 @@ impl OutboundServiceContext {
         Ok(())
     }
 
+    /// This function does the following:
+    /// 1. Generate a number of new key packages
+    /// 2. Upload them to the QS (and clean up on failure)
+    /// 3. Delete key packages that are marked stale
+    /// 4. Mark key packages stale that were previously marked live
+    /// 5. Marks the uploaded key packages as live in the database
     async fn upload_key_packages(&self) -> anyhow::Result<()> {
         let key_packages = self
             .with_transaction(async |txn| {
