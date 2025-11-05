@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:air/theme/spacings.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
@@ -33,59 +34,43 @@ class ContextMenu extends StatefulWidget {
 }
 
 class _ContextMenuState extends State<ContextMenu> {
-  final GlobalKey _childKey = GlobalKey();
-  Offset? _childPosition;
-  Size? _childSize;
+  final LayerLink _layerLink = LayerLink();
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.scheduleFrameCallback(_checkChildPosition);
-  }
-
-  void _checkChildPosition(Duration timeStamp) {
-    if (!mounted) return;
-
-    final context = _childKey.currentContext;
-    final box = context?.findRenderObject() as RenderBox?;
-
-    if (box != null && box.hasSize) {
-      final newSize = box.size;
-      final newPosition = box.localToGlobal(Offset.zero);
-
-      if (newSize != _childSize || newPosition != _childPosition) {
-        setState(() {
-          _childSize = newSize;
-          _childPosition = newPosition;
-        });
-      }
+  Alignment get _targetAnchor {
+    switch (widget.direction) {
+      case ContextMenuDirection.left:
+        return Alignment.bottomRight;
+      case ContextMenuDirection.right:
+        return Alignment.bottomLeft;
     }
   }
 
-  Offset _relativePosition() {
-    final (position, size) = (_childPosition, _childSize);
-    if (position == null || size == null) {
-      return Offset.zero;
+  Alignment get _followerAnchor {
+    switch (widget.direction) {
+      case ContextMenuDirection.left:
+        return Alignment.topRight;
+      case ContextMenuDirection.right:
+        return Alignment.topLeft;
     }
+  }
 
+  Offset get _followerOffset {
     switch (widget.direction) {
       case ContextMenuDirection.left:
         return Offset(
-          position.dx - widget.width + size.width - widget.offset.dx,
-          position.dy + size.height + widget.offset.dy + Spacings.xs,
+          -widget.offset.dx,
+          Spacings.xs + widget.offset.dy,
         );
       case ContextMenuDirection.right:
         return Offset(
-          position.dx + widget.offset.dx,
-          position.dy + size.height + widget.offset.dy + Spacings.xxs,
+          widget.offset.dx,
+          Spacings.xxs + widget.offset.dy,
         );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final relativePosition = _relativePosition();
-
     // Add hide to menu items and store it menu items
 
     final updatedMenuItems = <ContextMenuItem>[];
@@ -102,8 +87,8 @@ class _ContextMenuState extends State<ContextMenu> {
 
     return OverlayPortal(
       controller: widget.controller,
-      child: KeyedSubtree(
-        key: _childKey,
+      child: CompositedTransformTarget(
+        link: _layerLink,
         child: widget.child ?? const SizedBox.shrink(),
       ),
 
@@ -126,9 +111,11 @@ class _ContextMenuState extends State<ContextMenu> {
                   onTap: () => widget.controller.hide(),
                 ),
               ),
-              Positioned(
-                left: relativePosition.dx,
-                top: relativePosition.dy,
+              CompositedTransformFollower(
+                link: _layerLink,
+                targetAnchor: _targetAnchor,
+                followerAnchor: _followerAnchor,
+                offset: _followerOffset,
                 child: SizedBox(
                   width: widget.width,
                   child: ContextMenuUi(

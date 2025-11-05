@@ -113,6 +113,11 @@ class _PlusButtonState extends State<_PlusButton> {
         ),
       ],
       child: TextButton(
+        style: TextButton.styleFrom(
+          padding: EdgeInsets.zero,
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
         onPressed: () {
           contextMenuController.show();
         },
