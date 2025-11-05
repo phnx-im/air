@@ -11,7 +11,7 @@ controller:
                       "name": "https",
                       "mode": "http",
                       "port": 443,
-                      "default_backend": "http",
+                      "default_backend": "https",
                       "networks": [
                         {
                           "name": "public-IPv4"
@@ -24,7 +24,7 @@ controller:
                         }
                       ],
                       "properties": {
-                        "http2_enabled": false,
+                        "http2_enabled": true,
                         "timeout_client": 3600
                       }
                     },
@@ -51,15 +51,6 @@ controller:
                     }
                   ],
                   "backends": [
-                    {
-                      "name": "http",
-                      "properties": {
-                        "outbound_proxy_protocol": "v2",
-                        "http2_enabled": false,
-                        "tls_enabled": true,
-                        "timeout_server": 3600
-                      }
-                    },
                     {
                       "name": "https",
                       "properties": {

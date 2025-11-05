@@ -25,7 +25,6 @@ The managed Load Balancer is configured via the custom
 ### Ingress
 
 ```
-kubectl apply -f ingress-http.yaml
 kubectl apply -f ingress-grpc.yaml
 ```
 
