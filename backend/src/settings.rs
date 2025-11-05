@@ -25,18 +25,29 @@ pub struct Settings {
 /// Configuration for the application.
 #[derive(Deserialize, Clone, Debug)]
 pub struct ApplicationSettings {
+    /// The address to listen for incoming requests
     #[serde(default = "default_listen")]
     pub listen: SocketAddr,
+    /// The address to serve metrics on
+    ///
+    /// Note: This is not the same address as the address for the incoming request, because the
+    /// metrics *must not* be exposed to the outside world.
+    #[serde(default = "default_listen_metrics")]
+    pub listen_metrics: SocketAddr,
+    /// The domain of the users on this server
+    ///
+    /// Users on this server will have ids of the form `<id>@<domain>`.
+    ///
+    /// Can *not* be changed after the first start of the server.
     pub domain: String,
 }
 
-pub const DEFAULT_LISTEN_PORT: u16 = 8080;
-
-pub const DEFAULT_LISTEN_ADDR: SocketAddr =
-    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), DEFAULT_LISTEN_PORT);
-
 fn default_listen() -> SocketAddr {
-    DEFAULT_LISTEN_ADDR
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080)
+}
+
+fn default_listen_metrics() -> SocketAddr {
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 9090)
 }
 
 /// Configuration for the database.
