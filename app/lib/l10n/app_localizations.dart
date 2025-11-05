@@ -706,6 +706,18 @@ abstract class AppLocalizations {
   /// **'Deleted message'**
   String get textMessage_deleted;
 
+  /// No description provided for @messageContextMenu_copy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy message'**
+  String get messageContextMenu_copy;
+
+  /// No description provided for @messageContextMenu_edit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit message'**
+  String get messageContextMenu_edit;
+
   /// No description provided for @reportSpamButton_text.
   ///
   /// In en, this message translates to:

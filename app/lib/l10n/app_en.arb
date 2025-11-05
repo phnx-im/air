@@ -134,6 +134,8 @@
   "textMessage_edited": "edited",
   "textMessage_hiddenPlaceholder": "Blocked user, tap to reveal message",
   "textMessage_deleted": "Deleted message",
+  "messageContextMenu_copy": "Copy message",
+  "messageContextMenu_edit": "Edit message",
 
   "reportSpamButton_text": "Report spam",
   "reportSpamDialog_title": "Report spam?",

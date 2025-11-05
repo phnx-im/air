@@ -96,6 +96,8 @@
   },
 
   "textMessage_edited": "modifié",
+  "messageContextMenu_copy": "Copier le message",
+  "messageContextMenu_edit": "Modifier le message",
 
   "reportSpamButton_text": "Signaler comme spam",
   "reportSpamDialog_title": "Signaler comme spam ?",

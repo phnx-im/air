@@ -3,8 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/api/markdown.dart';
+import 'package:flutter/cupertino.dart'
+    show cupertinoDesktopTextSelectionHandleControls,
+         cupertinoTextSelectionHandleControls;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart'
+    show SelectableRegion, SelectableRegionState;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/attachments/attachments.dart';
 import 'package:air/chat/chat_details.dart';
@@ -13,6 +18,8 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/timestamp.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/components/context_menu/context_menu.dart';
+import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/ui/typography/monospace.dart';
 import 'package:air/user/user.dart';
@@ -92,6 +99,46 @@ class _MessageView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final isRevealed = useState(false);
+    final contextMenuController = useMemoized<OverlayPortalController>(
+      OverlayPortalController.new,
+    );
+    final cursorPositionNotifier = useMemoized<ValueNotifier<Offset?>>(
+      () => ValueNotifier<Offset?>(null),
+    );
+    final selectionAreaKey = useMemoized(
+      () => GlobalKey<SelectableRegionState>(),
+    );
+    useEffect(() {
+      return cursorPositionNotifier.dispose;
+    }, [cursorPositionNotifier]);
+
+    useEffect(() {
+      return () {
+        if (contextMenuController.isShowing) {
+          contextMenuController.hide();
+        }
+      };
+    }, [contextMenuController]);
+
+    final loc = AppLocalizations.of(context);
+    final plainBody = contentMessage.content.plainBody?.trim();
+
+    final menuItems = <ContextMenuItem>[
+      if (plainBody != null && plainBody.isNotEmpty)
+        ContextMenuItem(
+          label: loc.messageContextMenu_copy,
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: plainBody));
+          },
+        ),
+      if (isSender)
+        ContextMenuItem(
+          label: loc.messageContextMenu_edit,
+          onPressed: () {
+            context.read<ChatDetailsCubit>().editMessage(messageId: messageId);
+          },
+        ),
+    ];
 
     final showMessageStatus =
         isSender &&
@@ -101,61 +148,98 @@ class _MessageView extends HookWidget {
 
     return Align(
       alignment: isSender ? Alignment.centerRight : Alignment.centerLeft,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: constraints.maxWidth * 5 / 6),
-            child: Container(
-              padding: EdgeInsets.only(
-                top: flightPosition.isFirst ? 5 : 0,
-                bottom: flightPosition.isLast ? 5 : 0,
+      child: ContextMenu(
+        direction:
+            isSender ? ContextMenuDirection.left : ContextMenuDirection.right,
+        width: 200,
+        offset: const Offset(Spacings.xxs, 0),
+        controller: contextMenuController,
+        menuItems: menuItems,
+        cursorPosition: cursorPositionNotifier,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: constraints.maxWidth * 5 / 6,
               ),
-              child: Column(
-                crossAxisAlignment:
-                    isSender
-                        ? CrossAxisAlignment.end
-                        : CrossAxisAlignment.start,
-                children: [
-                  InkWell(
-                    mouseCursor: SystemMouseCursors.basic,
-                    onTap: () => isRevealed.value = true,
-                    onLongPress:
-                        isSender
-                            ? () => context
-                                .read<ChatDetailsCubit>()
-                                .editMessage(messageId: messageId)
-                            : null,
-                    child: _MessageContent(
-                      content: contentMessage.content,
-                      isSender: isSender,
-                      flightPosition: flightPosition,
-                      isEdited: contentMessage.edited,
-                      isHidden:
-                          status == UiMessageStatus.hidden && !isRevealed.value,
+              child: Container(
+                padding: EdgeInsets.only(
+                  top: flightPosition.isFirst ? 5 : 0,
+                  bottom: flightPosition.isLast ? 5 : 0,
+                ),
+                child: Column(
+                  crossAxisAlignment:
+                      isSender
+                          ? CrossAxisAlignment.end
+                          : CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    MouseRegion(
+                      cursor: SystemMouseCursors.basic,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.deferToChild,
+                        onTap: () => isRevealed.value = true,
+                        onLongPress:
+                            menuItems.isEmpty
+                                ? null
+                                : () {
+                                  selectionAreaKey.currentState?.clearSelection();
+                                  if (contextMenuController.isShowing) {
+                                    contextMenuController.hide();
+                                  }
+                                  ContextMenu.closeActiveMenu();
+                                  cursorPositionNotifier.value = null;
+                                  contextMenuController.show();
+                                },
+                        onSecondaryTapDown:
+                            menuItems.isEmpty
+                                ? null
+                                : (details) {
+                                  selectionAreaKey.currentState?.clearSelection();
+                                  if (contextMenuController.isShowing) {
+                                    contextMenuController.hide();
+                                  }
+                                  ContextMenu.closeActiveMenu();
+                                  cursorPositionNotifier.value =
+                                      details.globalPosition;
+                                  contextMenuController.show();
+                                },
+                        child: _MessageContent(
+                          content: contentMessage.content,
+                          isSender: isSender,
+                          flightPosition: flightPosition,
+                          isEdited: contentMessage.edited,
+                          isHidden:
+                              status == UiMessageStatus.hidden &&
+                              !isRevealed.value,
+                          selectionAreaKey: selectionAreaKey,
+                        ),
+                      ),
                     ),
-                  ),
-                  if (flightPosition.isLast) ...[
-                    const SizedBox(height: 2),
-                    Row(
-                      mainAxisAlignment:
-                          isSender
-                              ? MainAxisAlignment.end
-                              : MainAxisAlignment.start,
-                      children: [
-                        const SizedBox(width: Spacings.s),
-                        Timestamp(timestamp),
-                        if (showMessageStatus)
-                          const SizedBox(width: Spacings.xxxs),
-                        if (showMessageStatus) _MessageStatus(status: status),
-                        const SizedBox(width: Spacings.xs),
-                      ],
-                    ),
+                    if (flightPosition.isLast) ...[
+                      const SizedBox(height: 2),
+                      Row(
+                        mainAxisAlignment:
+                            isSender
+                                ? MainAxisAlignment.end
+                                : MainAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(width: Spacings.s),
+                          Timestamp(timestamp),
+                          if (showMessageStatus)
+                            const SizedBox(width: Spacings.xxxs),
+                          if (showMessageStatus) _MessageStatus(status: status),
+                          const SizedBox(width: Spacings.xs),
+                        ],
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -186,6 +270,7 @@ class _MessageContent extends StatelessWidget {
     required this.flightPosition,
     required this.isEdited,
     required this.isHidden,
+    required this.selectionAreaKey,
   });
 
   final UiMimiContent content;
@@ -193,10 +278,29 @@ class _MessageContent extends StatelessWidget {
   final UiFlightPosition flightPosition;
   final bool isEdited;
   final bool isHidden;
+  final GlobalKey<SelectableRegionState> selectionAreaKey;
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
+    final platform = Theme.of(context).platform;
+    late final TextSelectionControls selectionControls;
+    switch (platform) {
+      case TargetPlatform.android:
+      case TargetPlatform.fuchsia:
+        selectionControls = materialTextSelectionHandleControls;
+        break;
+      case TargetPlatform.linux:
+      case TargetPlatform.windows:
+        selectionControls = desktopTextSelectionHandleControls;
+        break;
+      case TargetPlatform.iOS:
+        selectionControls = cupertinoTextSelectionHandleControls;
+        break;
+      case TargetPlatform.macOS:
+        selectionControls = cupertinoDesktopTextSelectionHandleControls;
+        break;
+    }
 
     final bool isDeleted = content.replaces != null && content.content == null;
 
@@ -257,8 +361,6 @@ class _MessageContent extends StatelessWidget {
             isSender
                 ? AlignmentDirectional.topEnd
                 : AlignmentDirectional.topStart,
-        // There's a bug in the linter
-        // ignore: avoid_unnecessary_containers
         child: Container(
           decoration: BoxDecoration(
             borderRadius: _messageBorderRadius(isSender, flightPosition),
@@ -275,9 +377,17 @@ class _MessageContent extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: contentElements,
+                    SelectableRegion(
+                      key: selectionAreaKey,
+                      selectionControls: selectionControls,
+                      magnifierConfiguration:
+                          TextMagnifier.adaptiveMagnifierConfiguration,
+                      contextMenuBuilder: (context, _) =>
+                          const SizedBox.shrink(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: contentElements,
+                      ),
                     ),
                     if (!isDeleted && isEdited)
                       Padding(

@@ -45,15 +45,14 @@ class _MessageListViewState extends State<MessageListView> {
   Widget build(BuildContext context) {
     final state = context.select((MessageListCubit cubit) => cubit.state);
 
-    return SelectionArea(
-      child: ListView.custom(
-        physics: _scrollPhysics,
-        reverse: true,
-        padding: EdgeInsets.only(
-          top: kToolbarHeight + MediaQuery.of(context).padding.top,
-        ),
-        childrenDelegate: SliverChildBuilderDelegate(
-          (context, reverseIndex) {
+    return ListView.custom(
+      physics: _scrollPhysics,
+      reverse: true,
+      padding: EdgeInsets.only(
+        top: kToolbarHeight + MediaQuery.of(context).padding.top,
+      ),
+      childrenDelegate: SliverChildBuilderDelegate(
+        (context, reverseIndex) {
             final index = state.loadedMessagesCount - reverseIndex - 1;
             final message = state.messageAt(index);
             if (message == null) {
@@ -90,8 +89,7 @@ class _MessageListViewState extends State<MessageListView> {
             // reverse index
             return index != null ? state.loadedMessagesCount - index - 1 : null;
           },
-          childCount: state.loadedMessagesCount,
-        ),
+        childCount: state.loadedMessagesCount,
       ),
     );
   }
