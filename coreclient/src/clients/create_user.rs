@@ -9,7 +9,7 @@ use crate::{
         MemoryUserKeyStoreBase, as_credentials::AsCredentials, indexed_keys::StorableIndexedKey,
         queue_ratchets::StorableQsQueueRatchet,
     },
-    outbound_service,
+    outbound_service::{self, timed_tasks_queue::TimedTaskQueue},
     user_profiles::generate::NewUserProfile,
     utils::global_lock::GlobalLock,
 };
@@ -373,38 +373,13 @@ pub(crate) struct QsRegisteredUserState {
 }
 
 impl QsRegisteredUserState {
-    pub(super) async fn upload_key_packages(
-        self,
-        pool: &SqlitePool,
-        api_clients: &ApiClients,
-    ) -> Result<PersistedUserState> {
-        let QsRegisteredUserState {
-            ref key_store,
-            server_url: _,
-            qs_user_id: _,
-            ref qs_client_id,
-        } = self;
+    pub(super) async fn upload_key_packages(self, pool: &SqlitePool) -> Result<PersistedUserState> {
+        let now = Utc::now();
+        // Ensure the task is picked up immediately
+        let due_at = now - chrono::Duration::minutes(5);
 
-        let mut qs_key_packages = vec![];
-        for _ in 0..KEY_PACKAGES {
-            let key_package = key_store
-                .generate_key_package(pool, qs_client_id, false)
-                .await?;
-            qs_key_packages.push(key_package);
-        }
-        let last_resort_key_package = key_store
-            .generate_key_package(pool, qs_client_id, true)
-            .await?;
-        qs_key_packages.push(last_resort_key_package);
-
-        // Upload add packages
-        api_clients
-            .default_client()?
-            .qs_publish_key_packages(
-                *qs_client_id,
-                qs_key_packages,
-                &key_store.qs_client_signing_key,
-            )
+        TimedTaskQueue::new_key_package_upload_task(due_at)
+            .enqueue(pool.acquire().await?.as_mut())
             .await?;
 
         let state = PersistedUserState { state: self };
@@ -447,7 +422,8 @@ impl PersistedUserState {
         let outbound_service = outbound_service::OutboundService::new(
             pool.clone(),
             api_clients.clone(),
-            key_store.signing_key.clone(),
+            key_store.clone(),
+            qs_client_id.clone(),
             store_notifications_tx.clone(),
             global_lock,
         );

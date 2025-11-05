@@ -56,9 +56,12 @@ impl AsMut<CoreUser> for TestUser {
 
 impl TestUser {
     pub async fn new(user_id: &UserId, address_option: Option<String>, grpc_port: u16) -> Self {
-        Self::try_new(user_id, address_option, grpc_port)
+        let user = Self::try_new(user_id, address_option, grpc_port)
             .await
-            .unwrap()
+            .unwrap();
+        // Run outbound service to upload KeyPackages
+        user.user.outbound_service().run_once().await;
+        user
     }
 
     pub async fn try_new(

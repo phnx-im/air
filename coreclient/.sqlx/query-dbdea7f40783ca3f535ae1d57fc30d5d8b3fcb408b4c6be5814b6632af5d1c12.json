@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO timed_tasks_queue\n                    (due_at, task_kind)\n                VALUES (?1, ?2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "dbdea7f40783ca3f535ae1d57fc30d5d8b3fcb408b4c6be5814b6632af5d1c12"
+}

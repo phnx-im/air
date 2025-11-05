@@ -8,7 +8,10 @@ use std::{
     task::{Context, Poll},
 };
 
-use aircommon::{credentials::keys::ClientSigningKey, identifiers::UserId};
+use aircommon::{
+    credentials::keys::ClientSigningKey,
+    identifiers::{QsClientId, UserId},
+};
 use pin_project::pin_project;
 use sqlx::SqlitePool;
 use tokio::sync::watch;
@@ -17,12 +20,15 @@ use tracing::{debug, error};
 
 use crate::{
     clients::api_clients::ApiClients,
+    key_stores::MemoryUserKeyStore,
     store::{StoreNotificationsSender, StoreNotifier},
     utils::{connection_ext::StoreExt, global_lock::GlobalLock},
 };
 
 mod receipt_queue;
 mod receipts;
+mod timed_tasks;
+pub(crate) mod timed_tasks_queue;
 
 /// A service which is responsible for processing outbound messages.
 ///
@@ -50,14 +56,16 @@ impl OutboundService<OutboundServiceContext> {
     pub(crate) fn new(
         pool: SqlitePool,
         api_clients: ApiClients,
-        client_signing_key: ClientSigningKey,
+        key_store: MemoryUserKeyStore,
+        qs_client_id: QsClientId,
         store_notifications_tx: StoreNotificationsSender,
         global_lock: GlobalLock,
     ) -> Self {
         let context = OutboundServiceContext {
             pool,
             api_clients,
-            signing_key: client_signing_key,
+            key_store,
+            qs_client_id,
             store_notifications_tx,
         };
         Self::with_context(context, global_lock)
@@ -188,19 +196,27 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
 pub struct OutboundServiceContext {
     pool: SqlitePool,
     api_clients: ApiClients,
-    signing_key: ClientSigningKey,
+    key_store: MemoryUserKeyStore,
+    qs_client_id: QsClientId,
     store_notifications_tx: StoreNotificationsSender,
 }
 
 impl OutboundServiceContext {
     async fn work(&self, run_token: CancellationToken) {
-        if let Err(error) = self.send_queued_receipts(run_token).await {
+        if let Err(error) = self.send_queued_receipts(&run_token).await {
             error!(%error, "Failed to send queued receipts");
+        }
+        if let Err(error) = self.execute_timed_tasks(&run_token).await {
+            error!(%error, "Failed to execute timed tasks");
         }
     }
 
+    fn signing_key(&self) -> &ClientSigningKey {
+        &self.key_store.signing_key
+    }
+
     fn user_id(&self) -> &UserId {
-        self.signing_key.credential().identity()
+        self.signing_key().credential().identity()
     }
 }
 

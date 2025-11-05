@@ -55,7 +55,7 @@ impl OutboundService {
 impl OutboundServiceContext {
     pub(super) async fn send_queued_receipts(
         &self,
-        run_token: CancellationToken,
+        run_token: &CancellationToken,
     ) -> anyhow::Result<()> {
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
@@ -133,7 +133,7 @@ impl OutboundServiceContext {
         self.api_clients
             .get(&chat.owner_domain())
             .map_err(SendChatReceiptError::fatal)?
-            .ds_send_message(params, &self.signing_key, &group_state_ear_key)
+            .ds_send_message(params, self.signing_key(), &group_state_ear_key)
             .await
             .map_err(SendChatReceiptError::recoverable)?;
 
@@ -162,7 +162,7 @@ impl OutboundServiceContext {
                 .with_context(|| format!("Can't find group with id {group_id:?}"))?;
             let params = group.create_message(
                 &AirOpenMlsProvider::new(txn.as_mut()),
-                &self.signing_key,
+                self.signing_key(),
                 mimi_content,
             )?;
             group.store_update(txn.as_mut()).await?;

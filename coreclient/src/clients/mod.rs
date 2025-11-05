@@ -103,7 +103,6 @@ pub(crate) const CIPHERSUITE: Ciphersuite =
     Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
 pub(crate) const CONNECTION_PACKAGES: usize = 50;
-pub(crate) const KEY_PACKAGES: usize = 50;
 
 #[derive(Debug, Clone)]
 pub struct CoreUser {
