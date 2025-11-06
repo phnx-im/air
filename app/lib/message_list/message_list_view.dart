@@ -44,7 +44,6 @@ class _MessageListViewState extends State<MessageListView> {
   @override
   Widget build(BuildContext context) {
     final state = context.select((MessageListCubit cubit) => cubit.state);
-
     return ListView.custom(
       physics: _scrollPhysics,
       reverse: true,

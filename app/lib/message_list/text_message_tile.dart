@@ -5,10 +5,6 @@
 import 'dart:async' show unawaited;
 
 import 'package:air/core/api/markdown.dart';
-import 'package:flutter/cupertino.dart'
-    show
-        cupertinoDesktopTextSelectionHandleControls,
-        cupertinoTextSelectionHandleControls;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -109,9 +105,6 @@ class _MessageView extends HookWidget {
     final cursorPositionNotifier = useMemoized<ValueNotifier<Offset?>>(
       () => ValueNotifier<Offset?>(null),
     );
-    final selectionAreaKey = useMemoized(
-      () => GlobalKey<SelectableRegionState>(),
-    );
     final bubbleKey = useMemoized(GlobalKey.new);
     final messageContainerKey = useMemoized(() => GlobalKey());
     final isDetached = useState(false);
@@ -131,20 +124,19 @@ class _MessageView extends HookWidget {
     final plainBody = contentMessage.content.plainBody?.trim();
     final platform = Theme.of(context).platform;
     final bool isMobilePlatform =
-        (platform == TargetPlatform.android || platform == TargetPlatform.iOS);
+        platform == TargetPlatform.android || platform == TargetPlatform.iOS;
+    final bool isDesktopPlatform =
+        platform == TargetPlatform.macOS ||
+        platform == TargetPlatform.linux ||
+        platform == TargetPlatform.windows;
 
-    Widget buildMessageBubble({
-      required bool enableSelection,
-      GlobalKey<SelectableRegionState>? selectionKey,
-      GlobalKey? key,
-    }) {
+    Widget buildMessageBubble({required bool enableSelection, GlobalKey? key}) {
       Widget child = _MessageContent(
         content: contentMessage.content,
         isSender: isSender,
         flightPosition: flightPosition,
         isEdited: contentMessage.edited,
         isHidden: status == UiMessageStatus.hidden && !isRevealed.value,
-        selectionAreaKey: enableSelection ? selectionKey : null,
         enableSelection: enableSelection,
       );
       if (key != null) {
@@ -164,23 +156,25 @@ class _MessageView extends HookWidget {
         return const SizedBox.shrink();
       }
 
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 2),
-          Row(
-            mainAxisAlignment:
-                isSender ? MainAxisAlignment.end : MainAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(width: Spacings.s),
-              Timestamp(timestamp),
-              if (showMessageStatus) const SizedBox(width: Spacings.xxxs),
-              if (showMessageStatus) _MessageStatus(status: status),
-              const SizedBox(width: Spacings.xs),
-            ],
-          ),
-        ],
+      return SelectionContainer.disabled(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 2),
+            Row(
+              mainAxisAlignment:
+                  isSender ? MainAxisAlignment.end : MainAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(width: Spacings.s),
+                Timestamp(timestamp),
+                if (showMessageStatus) const SizedBox(width: Spacings.xxxs),
+                if (showMessageStatus) _MessageStatus(status: status),
+                const SizedBox(width: Spacings.xs),
+              ],
+            ),
+          ],
+        ),
       );
     }
 
@@ -235,7 +229,6 @@ class _MessageView extends HookWidget {
     }) {
       final bubble = buildMessageBubble(
         enableSelection: enableSelection,
-        selectionKey: enableSelection ? selectionAreaKey : null,
         key: bubbleRenderKey,
       );
       final timestampRow = buildTimestampRow();
@@ -353,7 +346,6 @@ class _MessageView extends HookWidget {
               actions.isEmpty
                   ? null
                   : (details) {
-                    selectionAreaKey.currentState?.clearSelection();
                     if (contextMenuController.isShowing) {
                       contextMenuController.hide();
                     }
@@ -361,7 +353,7 @@ class _MessageView extends HookWidget {
                     cursorPositionNotifier.value = details.globalPosition;
                     contextMenuController.show();
                   },
-          enableSelection: true,
+          enableSelection: isDesktopPlatform,
           messageKey: messageContainerKey,
           detached: false,
           bubbleRenderKey: bubbleKey,
@@ -396,7 +388,6 @@ class _MessageContent extends StatelessWidget {
     required this.flightPosition,
     required this.isEdited,
     required this.isHidden,
-    required this.selectionAreaKey,
     required this.enableSelection,
   });
 
@@ -405,94 +396,91 @@ class _MessageContent extends StatelessWidget {
   final UiFlightPosition flightPosition;
   final bool isEdited;
   final bool isHidden;
-  final GlobalKey<SelectableRegionState>? selectionAreaKey;
   final bool enableSelection;
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final platform = Theme.of(context).platform;
-    final TextSelectionControls? selectionControls =
-        enableSelection
-            ? switch (platform) {
-              TargetPlatform.android ||
-              TargetPlatform.fuchsia => materialTextSelectionHandleControls,
-              TargetPlatform.linux ||
-              TargetPlatform.windows => desktopTextSelectionHandleControls,
-              TargetPlatform.iOS => cupertinoTextSelectionHandleControls,
-              TargetPlatform.macOS =>
-                cupertinoDesktopTextSelectionHandleControls,
-            }
-            : null;
-
     final bool isDeleted = content.replaces != null && content.content == null;
 
-    final contentElements =
-        isHidden
-            ? [
-              Padding(
-                padding: _messagePadding,
-                child: Text(
-                  loc.textMessage_hiddenPlaceholder,
-                  style: TextStyle(
-                    fontStyle: FontStyle.italic,
-                    fontSize: BodyFontSize.base.size,
-                    color: CustomColorScheme.of(context).text.tertiary,
-                  ),
-                ),
-              ),
-            ]
-            : [
-              if (isDeleted)
-                Padding(
-                  padding: _messagePadding,
-                  child: buildBlockElement(
-                    context,
-                    BlockElement.error(loc.textMessage_deleted),
-                    isSender,
-                  ),
-                ),
-              if (content.attachments.firstOrNull case final attachment?)
-                switch (attachment.imageMetadata) {
-                  null => _FileAttachmentContent(
-                    attachment: attachment,
-                    isSender: isSender,
-                  ),
-                  final imageMetadata => _ImageAttachmentContent(
-                    attachment: attachment,
-                    imageMetadata: imageMetadata,
-                    isSender: isSender,
-                    flightPosition: flightPosition,
-                    hasMessage: content.content?.elements.isNotEmpty ?? false,
-                  ),
-                },
-              ...(content.content?.elements ?? []).map(
-                (inner) => Padding(
-                  padding: _messagePadding.copyWith(
-                    bottom: isEdited ? 0 : null,
-                  ),
-                  child: buildBlockElement(context, inner.element, isSender),
-                ),
-              ),
-              // The edited label is no longer included here
-            ];
+    final List<Widget> columnChildren = [];
 
-    final Widget contentColumn = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: contentElements,
-    );
+    if (isHidden) {
+      columnChildren.add(
+        SelectionContainer.disabled(
+          child: Padding(
+            padding: _messagePadding,
+            child: Text(
+              loc.textMessage_hiddenPlaceholder,
+              style: TextStyle(
+                fontStyle: FontStyle.italic,
+                fontSize: BodyFontSize.base.size,
+                color: CustomColorScheme.of(context).text.tertiary,
+              ),
+            ),
+          ),
+        ),
+      );
+    } else {
+      final List<Widget> selectableBlocks = [];
 
-    final Widget selectableChild =
-        enableSelection
-            ? SelectableRegion(
-              key: selectionAreaKey,
-              selectionControls: selectionControls!,
-              magnifierConfiguration:
-                  TextMagnifier.adaptiveMagnifierConfiguration,
-              contextMenuBuilder: (context, _) => const SizedBox.shrink(),
-              child: contentColumn,
-            )
-            : SelectionContainer.disabled(child: contentColumn);
+      if (isDeleted) {
+        selectableBlocks.add(
+          Padding(
+            padding: _messagePadding,
+            child: buildBlockElement(
+              context,
+              BlockElement.error(loc.textMessage_deleted),
+              isSender,
+            ),
+          ),
+        );
+      }
+
+      if (content.attachments.firstOrNull case final attachment?) {
+        final Widget attachmentWidget = switch (attachment.imageMetadata) {
+          null => _FileAttachmentContent(
+            attachment: attachment,
+            isSender: isSender,
+          ),
+          final imageMetadata => _ImageAttachmentContent(
+            attachment: attachment,
+            imageMetadata: imageMetadata,
+            isSender: isSender,
+            flightPosition: flightPosition,
+            hasMessage: content.content?.elements.isNotEmpty ?? false,
+          ),
+        };
+        columnChildren.add(
+          SelectionContainer.disabled(child: attachmentWidget),
+        );
+      }
+
+      selectableBlocks.addAll(
+        (content.content?.elements ?? []).map(
+          (inner) => Padding(
+            padding: _messagePadding.copyWith(bottom: isEdited ? 0 : null),
+            child: buildBlockElement(context, inner.element, isSender),
+          ),
+        ),
+      );
+
+      if (selectableBlocks.isNotEmpty) {
+        final textColumn = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: selectableBlocks,
+        );
+        final Widget selectableChild =
+            enableSelection
+                ? SelectableRegion(
+                  selectionControls: emptyTextSelectionControls,
+                  contextMenuBuilder: (context, _) => const SizedBox.shrink(),
+                  child: textColumn,
+                )
+                : SelectionContainer.disabled(child: textColumn);
+        columnChildren.add(selectableChild);
+      }
+    }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 1.5),
@@ -501,7 +489,7 @@ class _MessageContent extends StatelessWidget {
             isSender
                 ? AlignmentDirectional.topEnd
                 : AlignmentDirectional.topStart,
-        child: Container(
+        child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: _messageBorderRadius(isSender, flightPosition),
             color:
@@ -517,7 +505,10 @@ class _MessageContent extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    selectableChild,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: columnChildren,
+                    ),
                     if (!isDeleted && isEdited)
                       Padding(
                         padding: const EdgeInsets.only(
