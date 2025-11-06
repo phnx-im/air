@@ -52,42 +52,42 @@ class _MessageListViewState extends State<MessageListView> {
       ),
       childrenDelegate: SliverChildBuilderDelegate(
         (context, reverseIndex) {
-            final index = state.loadedMessagesCount - reverseIndex - 1;
-            final message = state.messageAt(index);
-            if (message == null) {
-              return const SizedBox.shrink();
-            }
-            final animate =
-                !_animatedMessages.contains(message.id) &&
-                state.isNewMessage(message.id);
-            if (animate) {
-              _animatedMessages.add(message.id);
-            }
-            return BlocProvider(
-              key: ValueKey(message.id),
-              create: (context) {
-                return widget.createMessageCubit(
-                  userCubit: context.read<UserCubit>(),
-                  initialState: MessageState(message: message),
-                );
-              },
-              child: _VisibilityChatTile(
-                messageId: message.id,
-                timestamp: DateTime.parse(message.timestamp),
-                child: ChatTile(
-                  isConnectionChat: state.isConnectionChat ?? false,
-                  animated: animate,
-                ),
+          final index = state.loadedMessagesCount - reverseIndex - 1;
+          final message = state.messageAt(index);
+          if (message == null) {
+            return const SizedBox.shrink();
+          }
+          final animate =
+              !_animatedMessages.contains(message.id) &&
+              state.isNewMessage(message.id);
+          if (animate) {
+            _animatedMessages.add(message.id);
+          }
+          return BlocProvider(
+            key: ValueKey(message.id),
+            create: (context) {
+              return widget.createMessageCubit(
+                userCubit: context.read<UserCubit>(),
+                initialState: MessageState(message: message),
+              );
+            },
+            child: _VisibilityChatTile(
+              messageId: message.id,
+              timestamp: DateTime.parse(message.timestamp),
+              child: ChatTile(
+                isConnectionChat: state.isConnectionChat ?? false,
+                animated: animate,
               ),
-            );
-          },
-          findChildIndexCallback: (key) {
-            final messageKey = key as ValueKey<MessageId>;
-            final messageId = messageKey.value;
-            final index = state.messageIdIndex(messageId);
-            // reverse index
-            return index != null ? state.loadedMessagesCount - index - 1 : null;
-          },
+            ),
+          );
+        },
+        findChildIndexCallback: (key) {
+          final messageKey = key as ValueKey<MessageId>;
+          final messageId = messageKey.value;
+          final index = state.messageIdIndex(messageId);
+          // reverse index
+          return index != null ? state.loadedMessagesCount - index - 1 : null;
+        },
         childCount: state.loadedMessagesCount,
       ),
     );
