@@ -868,7 +868,6 @@ But it ends after the paragraph"#,
     #[test]
     fn collect_links_multiple() {
         let elems = parse_links("A https://a.com and https://b.com.");
-        dbg!(&elems);
         assert_eq!(elems.len(), 5);
 
         is_text(&elems[0], "A ", (0, 2));
