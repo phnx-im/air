@@ -27,10 +27,7 @@ pub mod messages;
 pub mod mls_group_config;
 pub mod pow;
 pub mod time;
-
-pub const DEFAULT_PORT_HTTP: u16 = 9420;
-pub const DEFAULT_PORT_HTTPS: u16 = 443;
-pub const DEFAULT_PORT_GRPC: u16 = 50051;
+pub mod utils;
 
 pub const ACCEPTED_API_VERSIONS_HEADER: &str = "x-accepted-api-versions";
 

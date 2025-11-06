@@ -13,6 +13,7 @@ use aircommon::{
     crypto::{ear::keys::EncryptedUserProfileKey, hash::Hash, indexed_aead::keys::UserProfileKey},
     identifiers::UserId,
     messages::client_ds::{AadMessage, AadPayload},
+    utils::removed_client,
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use mimi_room_policy::RoleIndex;
@@ -23,7 +24,7 @@ use tracing::debug;
 use crate::{clients::api_clients::ApiClients, key_stores::as_credentials::AsCredentials};
 
 use openmls::{
-    group::QueuedAddProposal,
+    group::{ProcessMessageError, QueuedAddProposal, ValidationError},
     prelude::{
         BasicCredentialError, LeafNodeIndex, ProcessedMessage, ProcessedMessageContent,
         ProtocolMessage, Sender, SignaturePublicKey, StagedCommit,
@@ -49,11 +50,31 @@ impl Group {
         connection: &mut SqliteConnection,
         api_clients: &ApiClients,
         message: impl Into<ProtocolMessage>,
-    ) -> Result<ProcessMessageResult> {
+    ) -> Result<Option<ProcessMessageResult>> {
         // Phase 1: Process the message.
         let processed_message = {
             let provider = AirOpenMlsProvider::new(&mut *connection);
-            self.mls_group.process_message(&provider, message)?
+            let message = message.into();
+            let message_epoch = message.epoch();
+            match self.mls_group.process_message(&provider, message) {
+                Ok(pm) => pm,
+                Err(ProcessMessageError::<sqlx::Error>::ValidationError(
+                    ValidationError::WrongEpoch,
+                )) => {
+                    // If the message epoch is in the past, we can just ignore
+                    // it. Likely we already re-joined and this is a message we
+                    // missed.
+                    if self.mls_group.epoch() > message_epoch {
+                        bail!("Message epoch is in the past");
+                    }
+                    // If the message epoch is in the future, we need to re-join
+                    // the group.
+                    return Ok(None);
+                }
+                Err(e) => {
+                    bail!("Could not process message: {e:?}");
+                }
+            }
         };
 
         let group_id = self.group_id().clone();
@@ -78,12 +99,12 @@ impl Group {
                     } else {
                         bail!("Invalid sender type.")
                     };
-                return Ok(ProcessMessageResult {
+                return Ok(Some(ProcessMessageResult {
                     processed_message,
                     we_were_removed,
                     sender_client_credential,
                     profile_infos: Vec::new(),
-                });
+                }));
             }
             ProcessedMessageContent::ProposalMessage(_proposal) => {
                 // Proposals are just returned and can then be added to the
@@ -114,8 +135,17 @@ impl Group {
 
                 // Before we process the AAD payload, we first process the
                 // proposals by value. Currently only removes are allowed.
-                for remove_proposal in staged_commit.remove_proposals() {
-                    let removed_index = remove_proposal.remove_proposal().removed();
+                for queued_proposal in staged_commit.queued_proposals() {
+                    if matches!(queued_proposal.sender(), Sender::NewMemberCommit) {
+                        // This can only happen if the removed member is rejoining
+                        // as part of the commit. No need to process the removal.
+                        continue;
+                    }
+                    // Load the removed client's index.
+                    let Some(removed_index) = removed_client(queued_proposal) else {
+                        // This is not a remove proposal, so we skip it.
+                        continue;
+                    };
 
                     let removed_id = self
                         .client_by_index(connection, removed_index)
@@ -350,12 +380,12 @@ impl Group {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(ProcessMessageResult {
+        Ok(Some(ProcessMessageResult {
             processed_message,
             we_were_removed,
             sender_client_credential,
             profile_infos,
-        })
+        }))
     }
 
     async fn process_adds<'a>(

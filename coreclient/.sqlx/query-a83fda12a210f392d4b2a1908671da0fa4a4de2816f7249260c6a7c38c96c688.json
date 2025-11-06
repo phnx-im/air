@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS(SELECT 1 FROM resync_queue WHERE chat_id = ? LIMIT 1) AS row_exists",
+  "describe": {
+    "columns": [
+      {
+        "name": "row_exists",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a83fda12a210f392d4b2a1908671da0fa4a4de2816f7249260c6a7c38c96c688"
+}

@@ -19,6 +19,7 @@ use crate::{
     Chat, ChatId, ChatStatus, MessageId,
     chats::StatusRecord,
     groups::{Group, openmls_provider::AirOpenMlsProvider},
+    outbound_service::resync::Resync,
     utils::connection_ext::StoreExt,
 };
 
@@ -55,7 +56,7 @@ impl OutboundService {
 impl OutboundServiceContext {
     pub(super) async fn send_queued_receipts(
         &self,
-        run_token: CancellationToken,
+        run_token: &CancellationToken,
     ) -> anyhow::Result<()> {
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
@@ -68,6 +69,13 @@ impl OutboundServiceContext {
             else {
                 return Ok(());
             };
+
+            // If a resync is pending, we skip sending receipts for this chat
+            if Resync::is_pending_for_chat(&self.pool, &chat_id).await? {
+                debug!(?chat_id, "Skipping sending receipt due to pending resync");
+                continue;
+            }
+
             debug!(?chat_id, num_statuses = statuses.len(), "dequeued receipt");
 
             match UnsentReceipt::new(statuses.iter().map(|(mimi_id, status)| (mimi_id, *status))) {
