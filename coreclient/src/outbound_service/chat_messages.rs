@@ -10,6 +10,7 @@ use tracing::debug;
 use tracing::warn;
 use uuid::Uuid;
 
+use crate::outbound_service::resync::Resync;
 use crate::{
     Chat, ChatMessage, ChatStatus, Message, MessageId,
     outbound_service::chat_message_queue::ChatMessageQueue, utils::connection_ext::StoreExt,
@@ -96,13 +97,22 @@ impl OutboundServiceContext {
             let chat = Chat::load(&mut connection, &chat_id)
                 .await?
                 .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+
+            // Don't send messages for blocked chats
             if let ChatStatus::Blocked = chat.status() {
                 return Ok(());
             }
+
+            // Don't send messages for chats with pending resync
+            if Resync::is_pending_for_chat(&mut *connection, &chat_id).await? {
+                debug!(?chat_id, "Skipping sending message due to pending resync");
+                return Ok(());
+            }
+
+            debug_assert!(!message.is_sent());
+
             (chat, message)
         };
-
-        debug_assert!(!message.is_sent());
 
         let Message::Content(content) = message.message() else {
             return Err(anyhow!(
