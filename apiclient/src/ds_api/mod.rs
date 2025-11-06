@@ -127,8 +127,7 @@ impl ApiClient {
         qs_client_reference: QsReference,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
-        // We unwrap here, because we know that the group_info is present.
-        let external_commit = AssistedMessageOut::new(commit, Some(group_info)).unwrap();
+        let external_commit = AssistedMessageOut::new(commit, Some(group_info));
         self.ds_grpc_client
             .join_connection_group(external_commit, qs_client_reference, group_state_ear_key)
             .await
@@ -137,11 +136,13 @@ impl ApiClient {
     /// Resync a client to rejoin a group.
     pub async fn ds_resync(
         &self,
-        external_commit: AssistedMessageOut,
+        commit: MlsMessageOut,
+        group_info: MlsMessageOut,
         signing_key: &ClientSigningKey,
         group_state_ear_key: &GroupStateEarKey,
         own_leaf_index: LeafNodeIndex,
     ) -> Result<TimeStamp, DsRequestError> {
+        let external_commit = AssistedMessageOut::new(commit, Some(group_info));
         self.ds_grpc_client
             .resync(
                 external_commit,
