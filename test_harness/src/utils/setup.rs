@@ -973,7 +973,12 @@ impl TestBackend {
 
             let qs_messages = invitee.qs_fetch_messages().await.unwrap();
 
-            invitee.fully_process_qs_messages(qs_messages).await;
+            let res = invitee.fully_process_qs_messages(qs_messages).await;
+            assert!(
+                res.errors.is_empty(),
+                "Errors processing QS messages for {invitee_id:?}: {:?}",
+                res.errors
+            );
 
             let mut invitee_chats_after = invitee.chats().await.unwrap();
             let chat_uuid = chat_id.uuid();
@@ -1020,6 +1025,11 @@ impl TestBackend {
             let qs_messages = group_member.qs_fetch_messages().await.unwrap();
 
             let invite_messages = group_member.fully_process_qs_messages(qs_messages).await;
+            assert!(
+                invite_messages.errors.is_empty(),
+                "Errors processing QS messages for {group_member_id:?}: {:?}",
+                invite_messages.errors
+            );
 
             let invite_messages = display_messages_to_string_map(invite_messages.new_messages);
 

@@ -16,7 +16,7 @@ use crate::{
 
 use super::OutboundServiceContext;
 
-const KEY_PACKAGES: usize = 100;
+pub const KEY_PACKAGES: usize = 100;
 
 impl OutboundServiceContext {
     pub(super) async fn execute_timed_tasks(

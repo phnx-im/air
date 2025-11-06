@@ -288,6 +288,7 @@ dependencies = [
  "airserver_test_harness",
  "anyhow",
  "base64 0.21.7",
+ "chrono",
  "config",
  "criterion 0.5.1",
  "hex",

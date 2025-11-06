@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{fs, io::Cursor, sync::LazyLock, time::Duration};
+use std::{collections::HashSet, fs, io::Cursor, sync::LazyLock, time::Duration};
 
 use airapiclient::{as_api::AsRequestError, ds_api::DsRequestError};
 use airprotos::{
@@ -10,6 +10,7 @@ use airprotos::{
     queue_service::v1::queue_service_server,
 };
 use base64::{Engine, prelude::BASE64_STANDARD};
+use chrono::Utc;
 use image::{ImageBuffer, Rgba};
 use mimi_content::{MessageStatus, MimiContent, content_container::NestedPartContent};
 use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
@@ -26,6 +27,7 @@ use aircoreclient::{
         CoreUser,
         process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
     },
+    outbound_service::KEY_PACKAGES,
     store::Store,
 };
 use airserver::RateLimitsConfig;
@@ -1615,5 +1617,73 @@ async fn resync() {
     assert_eq!(
         participants,
         [BOB.clone(), CHARLIE.clone()].into_iter().collect()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Key Package Upload", skip_all)]
+async fn key_package_upload() {
+    let mut setup = TestBackend::single().await;
+    setup.add_user(&ALICE).await;
+    setup.add_user(&BOB).await;
+    setup.connect_users(&ALICE, &BOB).await;
+    // Exhaust Bob's key packages
+    // We collect Bob's encryption keys. They should be unique every time.
+    let mut encryption_keys = HashSet::new();
+
+    async fn create_chat_and_invite_bob(setup: &mut TestBackend) -> Vec<u8> {
+        let chat_id = setup.create_group(&ALICE).await;
+        let alice = setup.get_user_mut(&ALICE);
+        let alice_user = &mut alice.user;
+        alice_user
+            .invite_users(chat_id, &[BOB.clone()])
+            .await
+            .unwrap();
+        let bob = setup.get_user_mut(&BOB);
+        let bob_user = &mut bob.user;
+        let messages = bob_user.qs_fetch_messages().await.unwrap();
+        let res = bob_user.fully_process_qs_messages(messages).await;
+        assert!(
+            res.errors.is_empty(),
+            "Bob should process Alice's invitation without errors"
+        );
+        let bob_encryption_key = bob_user
+            .mls_members(chat_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .into_iter()
+            .find(|m| m.index.usize() == 1)
+            .unwrap()
+            .encryption_key;
+        bob_encryption_key
+    }
+
+    for _ in 0..(KEY_PACKAGES + 1) {
+        let bob_encryption_key = create_chat_and_invite_bob(&mut setup).await;
+        assert!(encryption_keys.insert(bob_encryption_key));
+    }
+
+    let bob_encryption_key = create_chat_and_invite_bob(&mut setup).await;
+    assert!(
+        !encryption_keys.insert(bob_encryption_key),
+        "Alice should have reused Bob's last resort KeyPackage"
+    );
+
+    // Bob uploads new KeyPackages
+    let bob = setup.get_user_mut(&BOB);
+    let bob_user = &mut bob.user;
+    let now = Utc::now();
+    bob_user
+        .schedule_key_package_upload(now - chrono::Duration::minutes(5))
+        .await
+        .unwrap();
+    bob_user.outbound_service().run_once().await;
+
+    // Invite Bob again, should get a new KeyPackage
+    let bob_encryption_key = create_chat_and_invite_bob(&mut setup).await;
+    assert!(
+        encryption_keys.insert(bob_encryption_key),
+        "Bob should have a new KeyPackage after uploading new ones"
     );
 }

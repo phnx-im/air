@@ -25,6 +25,8 @@ use crate::{
     utils::{connection_ext::StoreExt, global_lock::GlobalLock},
 };
 
+pub use timed_tasks::KEY_PACKAGES;
+
 mod receipt_queue;
 mod receipts;
 pub(crate) mod resync;
