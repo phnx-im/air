@@ -10,7 +10,6 @@ use tracing::debug;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::outbound_service::error::OutboundServiceError;
 use crate::{
     Chat, ChatMessage, ChatStatus, Message, MessageId,
     outbound_service::chat_message_queue::ChatMessageQueue, utils::connection_ext::StoreExt,
@@ -91,8 +90,7 @@ impl OutboundServiceContext {
         let (chat, mut message) = {
             let mut connection = self.pool.acquire().await?;
             let message = ChatMessage::load(&mut *connection, message_id)
-                .await
-                .map_err(OutboundServiceError::recoverable)?
+                .await?
                 .with_context(|| format!("Can't find message with id {message_id:?}"))?;
             let chat_id = message.chat_id();
             let chat = Chat::load(&mut connection, &chat_id)
@@ -120,8 +118,7 @@ impl OutboundServiceContext {
         // send MLS message to DS
         let ds_timestamp = self
             .api_clients
-            .get(&chat.owner_domain())
-            .map_err(OutboundServiceError::fatal)?
+            .get(&chat.owner_domain())?
             .ds_send_message(params, &self.signing_key, &group_state_ear_key)
             .await?;
 
