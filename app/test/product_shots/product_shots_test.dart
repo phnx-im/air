@@ -67,12 +67,14 @@ void main() {
     late MockChatListCubit chatListCubit;
     late MockUserCubit userCubit;
     late MockUsersCubit usersCubit;
+    late MockUserSettingsCubit userSettingsCubit;
 
     setUp(() async {
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
       chatListCubit = MockChatListCubit();
       usersCubit = MockUsersCubit();
+      userSettingsCubit = MockUserSettingsCubit();
 
       when(
         () => navigationCubit.state,
@@ -95,6 +97,7 @@ void main() {
               BlocProvider<UserCubit>.value(value: userCubit),
               BlocProvider<UsersCubit>.value(value: usersCubit),
               BlocProvider<ChatListCubit>.value(value: chatListCubit),
+              BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
             ],
             child: Builder(
               builder: (context) {
@@ -215,6 +218,7 @@ void main() {
       when(
         () => chatDetailsCubit.storeDraft(
           draftMessage: any(named: "draftMessage"),
+          isCommitted: any(named: "isCommitted"),
         ),
       ).thenAnswer((_) async => Future.value());
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
@@ -361,6 +365,7 @@ void main() {
       when(
         () => chatDetailsCubit.storeDraft(
           draftMessage: any(named: "draftMessage"),
+          isCommitted: any(named: "isCommitted"),
         ),
       ).thenAnswer((_) async => Future.value());
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());

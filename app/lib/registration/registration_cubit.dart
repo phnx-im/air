@@ -61,7 +61,7 @@ class RegistrationCubit extends Cubit<RegistrationState> {
 
     final url =
         state.domain == "localhost"
-            ? "http://${state.domain}"
+            ? "http://${state.domain}:8080"
             : "https://${state.domain}";
 
     try {

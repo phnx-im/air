@@ -4,6 +4,7 @@
 
 import 'dart:typed_data';
 
+import 'package:air/core/api/markdown.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +20,8 @@ import 'package:visibility_detector/visibility_detector.dart';
 import '../chat_list/chat_list_content_test.dart';
 import '../helpers.dart';
 import '../mocks.dart';
+
+const testSize = Size(1080, 2800);
 
 final chatId = 1.chatId();
 
@@ -63,8 +66,23 @@ final messages = [
         ),
       ),
     ),
-    position: UiFlightPosition.single,
+    position: UiFlightPosition.start,
     status: UiMessageStatus.sent,
+  ),
+  UiChatMessage(
+    id: 100.messageId(),
+    chatId: chatId,
+    timestamp: '2023-01-01T00:04:01.000Z',
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 3.userId(),
+        sent: true,
+        edited: false,
+        content: richContent,
+      ),
+    ),
+    position: UiFlightPosition.end,
+    status: UiMessageStatus.delivered,
   ),
   UiChatMessage(
     id: 3.messageId(),
@@ -141,6 +159,21 @@ This is a message with multiple lines. It should be properly displayed in the me
         sender: 1.userId(),
         sent: true,
         edited: false,
+        content: richContent,
+      ),
+    ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.delivered,
+  ),
+  UiChatMessage(
+    id: 8.messageId(),
+    chatId: chatId,
+    timestamp: '2023-01-01T00:04:01.000Z',
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 1.userId(),
+        sent: true,
+        edited: false,
         content: UiMimiContent(
           topicId: Uint8List(0),
           plainBody: "This is a delivered message",
@@ -153,7 +186,7 @@ This is a message with multiple lines. It should be properly displayed in the me
     status: UiMessageStatus.delivered,
   ),
   UiChatMessage(
-    id: 8.messageId(),
+    id: 9.messageId(),
     chatId: chatId,
     timestamp: '2023-01-01T00:04:02.000Z',
     message: UiMessage_Content(
@@ -173,6 +206,72 @@ This is a message with multiple lines. It should be properly displayed in the me
     status: UiMessageStatus.read,
   ),
 ];
+
+final richContent = UiMimiContent(
+  topicId: Uint8List(0),
+  plainBody: "This is a message with a link https://example.com",
+  content: const MessageContent(
+    elements: [
+      RangedBlockElement(
+        start: 0,
+        end: 0,
+        element: BlockElement_Paragraph([
+          RangedInlineElement(
+            start: 0,
+            end: 0,
+            element: InlineElement_Text("This is a rich content message "),
+          ),
+          RangedInlineElement(
+            start: 0,
+            end: 0,
+            element: InlineElement_Link(
+              destUrl: "https://example.com",
+              children: [
+                RangedInlineElement(
+                  start: 0,
+                  end: 0,
+                  element: InlineElement_Text("https://example.com"),
+                ),
+              ],
+            ),
+          ),
+        ]),
+      ),
+      RangedBlockElement(
+        start: 0,
+        end: 0,
+        element: BlockElement_Quote([
+          RangedBlockElement(
+            start: 0,
+            end: 0,
+            element: BlockElement_Paragraph([
+              RangedInlineElement(
+                start: 0,
+                end: 0,
+                element: InlineElement_Text("This is a quote "),
+              ),
+              RangedInlineElement(
+                start: 0,
+                end: 0,
+                element: InlineElement_Link(
+                  destUrl: "https://example.com",
+                  children: [
+                    RangedInlineElement(
+                      start: 0,
+                      end: 0,
+                      element: InlineElement_Text("https://example.com"),
+                    ),
+                  ],
+                ),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ],
+  ),
+  attachments: [],
+);
 
 final imageAttachment = UiAttachment(
   attachmentId: 2.attachmentId(),
@@ -300,6 +399,7 @@ void main() {
     late MockChatDetailsCubit chatDetailsCubit;
     late MockMessageListCubit messageListCubit;
     late MockAttachmentsRepository attachmentsRepository;
+    late MockUserSettingsCubit userSettingsCubit;
 
     setUp(() async {
       userCubit = MockUserCubit();
@@ -307,6 +407,7 @@ void main() {
       chatDetailsCubit = MockChatDetailsCubit();
       messageListCubit = MockMessageListCubit();
       attachmentsRepository = MockAttachmentsRepository();
+      userSettingsCubit = MockUserSettingsCubit();
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
       when(
@@ -318,6 +419,7 @@ void main() {
           untilTimestamp: any(named: 'untilTimestamp'),
         ),
       ).thenAnswer((_) => Future.value());
+      when(() => userSettingsCubit.state).thenReturn(const UserSettings());
     });
 
     Widget buildSubject() => RepositoryProvider<AttachmentsRepository>.value(
@@ -328,6 +430,7 @@ void main() {
           BlocProvider<UsersCubit>.value(value: contactsCubit),
           BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
           BlocProvider<MessageListCubit>.value(value: messageListCubit),
+          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
         ],
         child: Builder(
           builder: (context) {
@@ -358,6 +461,11 @@ void main() {
     });
 
     testWidgets('renders correctly', (tester) async {
+      tester.view.physicalSize = testSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
       when(
         () => messageListCubit.state,
       ).thenReturn(MockMessageListState(messages));
@@ -372,7 +480,37 @@ void main() {
       );
     });
 
+    testWidgets('renders correctly (dark mode)', (tester) async {
+      tester.view.physicalSize = testSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      when(
+        () => messageListCubit.state,
+      ).thenReturn(MockMessageListState(messages));
+
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      addTearDown(() {
+        tester.platformDispatcher.clearPlatformBrightnessTestValue();
+      });
+
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+
+      await tester.pumpWidget(buildSubject());
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_list_dark_mode.png'),
+      );
+    });
+
     testWidgets('renders correctly with attachments', (tester) async {
+      tester.view.physicalSize = testSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
       when(
         () => messageListCubit.state,
       ).thenReturn(MockMessageListState(messages + attachmentMessages));
@@ -394,6 +532,11 @@ void main() {
     });
 
     testWidgets('renders correctly with blocked messages', (tester) async {
+      tester.view.physicalSize = testSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
       final messageWithBobBlocked = [
         for (final message in messages)
           switch (message.message) {
@@ -420,6 +563,11 @@ void main() {
     testWidgets('renders correctly with blocked messages in contact chat', (
       tester,
     ) async {
+      tester.view.physicalSize = testSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
       final messageWithBobBlocked = [
         for (final message in messages) ...[
           if (message.sender == 1.userId()) message,
@@ -438,6 +586,31 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/message_list_blocked_contact_chat.png'),
+      );
+    });
+
+    testWidgets('renders correctly with disabled read receipts', (
+      tester,
+    ) async {
+      tester.view.physicalSize = testSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      when(
+        () => messageListCubit.state,
+      ).thenReturn(MockMessageListState(messages));
+      when(
+        () => userSettingsCubit.state,
+      ).thenReturn(const UserSettings(readReceipts: false));
+
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+
+      await tester.pumpWidget(buildSubject());
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_list_disabled_read_receipts.png'),
       );
     });
   });

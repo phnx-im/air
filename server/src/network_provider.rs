@@ -3,10 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use airbackend::qs::{network_provider::NetworkProvider, qs_api::FederatedProcessingResult};
-use aircommon::{
-    DEFAULT_PORT_HTTP, DEFAULT_PORT_HTTPS, endpoint_paths::ENDPOINT_QS_FEDERATION,
-    identifiers::Fqdn,
-};
+use aircommon::{endpoint_paths::ENDPOINT_QS_FEDERATION, identifiers::Fqdn};
 use reqwest::Client;
 use thiserror::Error;
 use tls_codec::DeserializeBytes;
@@ -53,12 +50,11 @@ impl NetworkProvider for MockNetworkProvider {
         bytes: Vec<u8>,
         destination: Fqdn,
     ) -> Result<FederatedProcessingResult, Self::NetworkError> {
-        let (transport_encryption, port) = match self.transport_encryption {
-            TransportEncryption::On => ("s", DEFAULT_PORT_HTTPS),
-            TransportEncryption::Off => ("", DEFAULT_PORT_HTTP),
+        let protocol = match self.transport_encryption {
+            TransportEncryption::On => "https",
+            TransportEncryption::Off => "http",
         };
-        let url =
-            format!("http{transport_encryption}://{destination}:{port}{ENDPOINT_QS_FEDERATION}");
+        let url = format!("{protocol}://{destination}{ENDPOINT_QS_FEDERATION}");
         // Reqwest should resolve the hostname on its own.
         let result = match self.client.post(url).body(bytes).send().await {
             // For now we don't care about the response.

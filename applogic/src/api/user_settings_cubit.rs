@@ -5,6 +5,7 @@
 use aircoreclient::store::{Store, UserSetting};
 use anyhow::{anyhow, bail};
 use flutter_rust_bridge::frb;
+use tokio::sync::watch;
 
 use crate::{
     StreamSink,
@@ -20,6 +21,8 @@ pub struct UserSettings {
     pub sidebar_width: f64,
     #[frb(default = false)]
     pub send_on_enter: bool,
+    #[frb(default = true)]
+    pub read_receipts: bool,
 }
 
 impl Default for UserSettings {
@@ -29,6 +32,7 @@ impl Default for UserSettings {
             interface_scale: None,
             sidebar_width: 300.0,
             send_on_enter: false,
+            read_receipts: true,
         }
     }
 }
@@ -42,7 +46,7 @@ impl UserSettingsCubitBase {
     #[frb(sync)]
     pub fn new() -> Self {
         Self {
-            core: CubitCore::with_initial_state(Default::default()),
+            core: CubitCore::new(),
         }
     }
 
@@ -79,6 +83,7 @@ impl UserSettingsCubitBase {
         let interface_scale = store.user_setting().await;
         let sidebar_width = store.user_setting().await;
         let send_on_enter = store.user_setting().await;
+        let read_receipts = store.user_setting().await;
         self.core.state_tx().send_modify(|state| {
             state.interface_scale = interface_scale.map(|InterfaceScaleSetting(value)| value);
             if let Some(SidebarWidthSetting(value)) = sidebar_width {
@@ -86,6 +91,9 @@ impl UserSettingsCubitBase {
             }
             if let Some(SendOnEnterSetting(value)) = send_on_enter {
                 state.send_on_enter = value;
+            }
+            if let Some(ReadReceiptsSetting(value)) = read_receipts {
+                state.read_receipts = value;
             }
         });
     }
@@ -143,6 +151,28 @@ impl UserSettingsCubitBase {
             .send_modify(|state| state.send_on_enter = value);
         Ok(())
     }
+
+    pub async fn set_read_receipts(
+        &self,
+        user_cubit: &UserCubitBase,
+        value: bool,
+    ) -> anyhow::Result<()> {
+        if self.core.state_tx().borrow().read_receipts == value {
+            return Ok(());
+        }
+        user_cubit
+            .core_user()
+            .set_user_setting(&ReadReceiptsSetting(value))
+            .await?;
+        self.core
+            .state_tx()
+            .send_modify(|state| state.read_receipts = value);
+        Ok(())
+    }
+
+    pub(crate) fn subscribe(&self) -> watch::Receiver<UserSettings> {
+        self.core.state_tx().subscribe()
+    }
 }
 
 struct InterfaceScaleSetting(f64);
@@ -196,6 +226,23 @@ impl UserSetting for SendOnEnterSetting {
         match bytes.as_slice() {
             [byte] => Ok(Self(*byte != 0)),
             _ => bail!("invalid send_on_enter bytes"),
+        }
+    }
+}
+
+struct ReadReceiptsSetting(bool);
+
+impl UserSetting for ReadReceiptsSetting {
+    const KEY: &'static str = "read_receipts";
+
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(vec![self.0 as u8])
+    }
+
+    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
+        match bytes.as_slice() {
+            [byte] => Ok(Self(*byte != 0)),
+            _ => bail!("invalid read_receipts bytes"),
         }
     }
 }

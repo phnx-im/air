@@ -154,6 +154,24 @@ abstract class AppLocalizations {
   /// **'Delete Air Account'**
   String get userSettingsScreen_deleteAccount;
 
+  /// No description provided for @userSettingsScreen_sendWithEnter.
+  ///
+  /// In en, this message translates to:
+  /// **'Send with Enter'**
+  String get userSettingsScreen_sendWithEnter;
+
+  /// No description provided for @userSettingsScreen_readReceipts.
+  ///
+  /// In en, this message translates to:
+  /// **'Read Receipts'**
+  String get userSettingsScreen_readReceipts;
+
+  /// No description provided for @userSettingsScreen_readReceiptsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'If disabled, others won\'t be able to see when you\'ve read their messages and you won\'t be able to see when they\'ve read yours.'**
+  String get userSettingsScreen_readReceiptsDescription;
+
   /// No description provided for @removeUsernameDialog_title.
   ///
   /// In en, this message translates to:

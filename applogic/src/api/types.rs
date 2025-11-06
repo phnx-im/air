@@ -13,10 +13,9 @@ pub use aircommon::identifiers::UserHandle;
 use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact, ContentMessage, DisplayName,
-    ErrorMessage, EventMessage, InactiveChat, Message, MessageDraft, SystemMessage, UserProfile,
-    store::Store,
+    ErrorMessage, EventMessage, InactiveChat, Message, SystemMessage, UserProfile, store::Store,
 };
-pub use aircoreclient::{ChatId, MessageId};
+pub use aircoreclient::{ChatId, MessageDraft, MessageId};
 use chrono::{DateTime, Duration, Utc};
 use flutter_rust_bridge::frb;
 use mimi_content::MessageStatus;
@@ -86,7 +85,7 @@ pub struct UiChatDetails {
     pub messages_count: usize,
     pub unread_messages: usize,
     pub last_message: Option<UiChatMessage>,
-    pub draft: Option<UiMessageDraft>,
+    pub draft: Option<MessageDraft>,
 }
 
 impl UiChatDetails {
@@ -98,52 +97,16 @@ impl UiChatDetails {
     }
 }
 
-/// Draft of a message in a chat
+/// UI representation of a [`MessageDraft`]
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[doc(hidden)]
+#[frb(mirror(MessageDraft))]
 #[frb(dart_metadata = ("freezed"))]
-pub struct UiMessageDraft {
+pub struct _MessageDraft {
     pub message: String,
     pub editing_id: Option<MessageId>,
     pub updated_at: DateTime<Utc>,
-    pub source: UiMessageDraftSource,
-}
-
-/// Makes it possible to distinguish whether the draft was created in Flutter by the user or loaded
-/// from the database or reset by the handle, that is, by the system.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub enum UiMessageDraftSource {
-    /// The draft was created/changed by the user.
-    User,
-    /// The draft was created/changed by the system.
-    System,
-}
-
-impl UiMessageDraft {
-    pub(crate) fn new(message: String, source: UiMessageDraftSource) -> Self {
-        Self {
-            message,
-            editing_id: None,
-            updated_at: Utc::now(),
-            source,
-        }
-    }
-
-    pub(crate) fn from_draft(draft: MessageDraft, source: UiMessageDraftSource) -> Self {
-        Self {
-            message: draft.message,
-            editing_id: draft.editing_id,
-            updated_at: Utc::now(),
-            source,
-        }
-    }
-
-    pub(crate) fn into_draft(self) -> MessageDraft {
-        MessageDraft {
-            message: self.message,
-            editing_id: self.editing_id,
-            updated_at: self.updated_at,
-        }
-    }
+    pub is_committed: bool,
 }
 
 /// Status of a chat

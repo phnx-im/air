@@ -152,11 +152,11 @@ final chats = [
       position: UiFlightPosition.single,
       status: UiMessageStatus.sent,
     ),
-    draft: UiMessageDraft(
+    draft: MessageDraft(
       message: 'Some draft message',
       editingId: null,
       updatedAt: DateTime.now(),
-      source: UiMessageDraftSource.system,
+      isCommitted: true,
     ),
   ),
   // A blocked contact
@@ -196,6 +196,7 @@ ChatDetailsCubitCreate createMockChatDetailsCubitFactory(
   List<UiChatDetails> chats,
 ) => ({
   required UserCubit userCubit,
+  required UserSettingsCubit userSettingsCubit,
   required ChatId chatId,
   required ChatsRepository chatsRepository,
   bool withMembers = true,
@@ -212,11 +213,13 @@ void main() {
     late MockNavigationCubit navigationCubit;
     late MockChatListCubit chatListCubit;
     late MockUserCubit userCubit;
+    late MockUserSettingsCubit userSettingsCubit;
 
     setUp(() async {
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
       chatListCubit = MockChatListCubit();
+      userSettingsCubit = MockUserSettingsCubit();
 
       when(
         () => navigationCubit.state,
@@ -232,6 +235,7 @@ void main() {
               BlocProvider<NavigationCubit>.value(value: navigationCubit),
               BlocProvider<UserCubit>.value(value: userCubit),
               BlocProvider<ChatListCubit>.value(value: chatListCubit),
+              BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
             ],
             child: Builder(
               builder: (context) {

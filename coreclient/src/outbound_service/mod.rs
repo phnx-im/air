@@ -18,7 +18,7 @@ use tracing::{debug, error};
 use crate::{
     clients::api_clients::ApiClients,
     store::{StoreNotificationsSender, StoreNotifier},
-    utils::{connection_ext::StoreExt, file_lock::FileLock},
+    utils::{connection_ext::StoreExt, global_lock::GlobalLock},
 };
 
 mod chat_message_queue;
@@ -26,6 +26,7 @@ mod chat_messages;
 mod error;
 mod receipt_queue;
 mod receipts;
+pub(crate) mod resync;
 
 /// A service which is responsible for processing outbound messages.
 ///
@@ -55,7 +56,7 @@ impl OutboundService<OutboundServiceContext> {
         api_clients: ApiClients,
         client_signing_key: ClientSigningKey,
         store_notifications_tx: StoreNotificationsSender,
-        global_lock: FileLock,
+        global_lock: GlobalLock,
     ) -> Self {
         let context = OutboundServiceContext {
             pool,
@@ -68,7 +69,7 @@ impl OutboundService<OutboundServiceContext> {
 }
 
 impl<C: OutboundServiceWork> OutboundService<C> {
-    fn with_context(context: C, global_lock: FileLock) -> Self {
+    fn with_context(context: C, global_lock: GlobalLock) -> Self {
         let (run_token_tx, run_token_rx) = watch::channel(None);
         let task = OutboundServiceTask {
             context: context.clone(),
@@ -153,7 +154,7 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
     async fn run(
         self,
         mut run_token_rx: watch::Receiver<Option<RunToken>>,
-        mut global_lock: FileLock,
+        mut global_lock: GlobalLock,
     ) {
         loop {
             if run_token_rx.changed().await.is_err() {
@@ -197,6 +198,9 @@ pub struct OutboundServiceContext {
 
 impl OutboundServiceContext {
     async fn work(&self, run_token: CancellationToken) {
+        if let Err(error) = self.perform_queued_resyncs(&run_token).await {
+            error!(%error, "Failed to perform queued resyncs");
+        }
         if let Err(error) = self.send_queued_receipts(&run_token).await {
             error!(%error, "Failed to send queued receipts");
         }
@@ -327,8 +331,8 @@ mod test {
 
     use super::*;
 
-    fn global_lock() -> FileLock {
-        FileLock::from_file(tempfile::tempfile().unwrap()).unwrap()
+    fn global_lock() -> GlobalLock {
+        GlobalLock::from_file(tempfile::tempfile().unwrap())
     }
 
     #[derive(Default, Clone)]

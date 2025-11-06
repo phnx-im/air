@@ -311,8 +311,8 @@ mod create_chat_flow {
                 group_membership.user_id(),
             )?;
 
-            group_membership.store(txn.as_mut()).await?;
             group.store(txn.as_mut()).await?;
+            group_membership.store(txn.as_mut()).await?;
 
             let chat = Chat::new_group_chat(partial_params.group_id.clone(), attributes);
             chat.store(txn.as_mut(), notifier).await?;

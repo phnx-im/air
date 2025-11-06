@@ -4,7 +4,6 @@
 
 application:
   domain: localhost
-  host: 127.0.0.1
 
 storage:
   endpoint: http://localhost:9000

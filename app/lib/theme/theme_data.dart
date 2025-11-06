@@ -102,7 +102,7 @@ ThemeData themeData(Brightness brightness) {
       trackColor: WidgetStateProperty.resolveWith(
         (states) =>
             states.contains(WidgetState.selected)
-                ? colorScheme.backgroundBase.secondary
+                ? colorScheme.function.success
                 : Colors.transparent,
       ),
     ),

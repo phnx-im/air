@@ -8,6 +8,9 @@
   "userSettingsScreen_interfaceScale": "Interface scale",
   "userSettingsScreen_help": "Help",
   "userSettingsScreen_deleteAccount": "Delete Air Account",
+  "userSettingsScreen_sendWithEnter": "Send with Enter",
+  "userSettingsScreen_readReceipts": "Read Receipts",
+  "userSettingsScreen_readReceiptsDescription": "If disabled, others won't be able to see when you've read their messages and you won't be able to see when they've read yours.",
 
   "removeUsernameDialog_title": "Remove Username",
   "removeUsernameDialog_content": "People won't be able to send you a Contact Request using this Username, and it may be claimed by someone else.",

@@ -10,7 +10,6 @@ use airapiclient::{
     qs_api::{ListenResponder, ListenResponderClosedError},
 };
 use aircommon::{
-    DEFAULT_PORT_GRPC,
     credentials::{
         ClientCredential, ClientCredentialCsr, ClientCredentialPayload, keys::ClientSigningKey,
     },
@@ -54,7 +53,7 @@ use crate::{
     store::Store,
     utils::{
         connection_ext::StoreExt,
-        file_lock::FileLock,
+        global_lock::GlobalLock,
         image::resize_profile_image,
         persistence::{delete_client_database, open_lock_file},
     },
@@ -128,7 +127,6 @@ impl CoreUser {
     pub async fn new(
         user_id: UserId,
         server_url: Url,
-        grpc_port: u16,
         db_path: &str,
         push_token: Option<PushToken>,
     ) -> Result<Self> {
@@ -145,7 +143,6 @@ impl CoreUser {
         Self::new_with_connections(
             user_id,
             server_url,
-            grpc_port,
             push_token,
             air_db,
             client_db,
@@ -157,14 +154,13 @@ impl CoreUser {
     async fn new_with_connections(
         user_id: UserId,
         server_url: Url,
-        grpc_port: u16,
         push_token: Option<PushToken>,
         air_db: SqlitePool,
         client_db: SqlitePool,
-        global_lock: FileLock,
+        global_lock: GlobalLock,
     ) -> Result<Self> {
         let server_url = server_url.to_string();
-        let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone(), grpc_port);
+        let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone());
 
         let user_creation_state =
             UserCreationState::new(&client_db, &air_db, user_id, server_url.clone(), push_token)
@@ -194,7 +190,6 @@ impl CoreUser {
     pub async fn new_ephemeral(
         user_id: UserId,
         server_url: Url,
-        grpc_port: u16,
         push_token: Option<PushToken>,
     ) -> Result<Self> {
         use crate::utils::persistence::open_db_in_memory;
@@ -207,12 +202,11 @@ impl CoreUser {
         // Open client specific db
         let client_db = open_db_in_memory().await?;
 
-        let global_lock = FileLock::from_file(tempfile::tempfile()?)?;
+        let global_lock = GlobalLock::from_file(tempfile::tempfile()?);
 
         Self::new_with_connections(
             user_id,
             server_url,
-            grpc_port,
             push_token,
             air_db,
             client_db,
@@ -233,11 +227,8 @@ impl CoreUser {
             .context("missing user creation state")?;
 
         let air_db = open_air_db(db_path).await?;
-        let api_clients = ApiClients::new(
-            user_id.domain().clone(),
-            user_creation_state.server_url(),
-            DEFAULT_PORT_GRPC,
-        );
+        let api_clients =
+            ApiClients::new(user_id.domain().clone(), user_creation_state.server_url());
         let final_state = user_creation_state
             .complete_user_creation(&air_db, &client_db, &api_clients)
             .await?;
@@ -442,16 +433,22 @@ impl CoreUser {
     ///
     /// Must *not* be used outside of integration tests, because the messages are not acked.
     pub async fn qs_fetch_messages(&self) -> Result<Vec<QueueMessage>> {
-        let (stream, _responder) = self.listen_queue().await?;
-        let messages = stream
-            .take_while(|message| !matches!(message.event, Some(queue_event::Event::Empty(_))))
-            .filter_map(|message| match message.event? {
-                queue_event::Event::Empty(_) => unreachable!(),
-                queue_event::Event::Message(queue_message) => queue_message.try_into().ok(),
-                queue_event::Event::Payload(_) => None,
-            })
-            .collect()
-            .await;
+        let (mut stream, _responder) = self.listen_queue().await?;
+        let mut messages: Vec<QueueMessage> = Vec::new();
+
+        while let Some(message) = stream.next().await {
+            match message.event {
+                Some(queue_event::Event::Empty(_)) => break,
+                Some(queue_event::Event::Message(queue_message)) => {
+                    if let Ok(queue_message) = queue_message.try_into() {
+                        messages.push(queue_message);
+                    }
+                }
+                Some(queue_event::Event::Payload(_)) => {}
+                None => {}
+            }
+        }
+
         Ok(messages)
     }
 
@@ -505,7 +502,10 @@ impl CoreUser {
 
     /// Returns None if there is no chat with the given id.
     pub async fn chat_participants(&self, chat_id: ChatId) -> Option<HashSet<UserId>> {
-        self.try_chat_participants(chat_id).await.ok()?
+        self.try_chat_participants(chat_id)
+            .await
+            .inspect_err(|e| error!(?e, "Error loading chat participants"))
+            .ok()?
     }
 
     pub(crate) async fn try_chat_participants(
@@ -526,6 +526,14 @@ impl CoreUser {
             .map(|bytes| Ok(UserId::tls_deserialize_exact_bytes(bytes)?))
             .collect::<Result<HashSet<_>>>()?;
         Ok(Some(users))
+    }
+
+    #[cfg(feature = "test_utils")]
+    pub async fn group_members(&self, chat_id: ChatId) -> Option<HashSet<UserId>> {
+        let mut connection = self.pool().acquire().await.ok()?;
+        let chat = Chat::load(&mut connection, &chat_id).await.ok()??;
+        let group = Group::load(&mut connection, chat.group_id()).await.ok()??;
+        Some(group.members(&mut *connection).await.into_iter().collect())
     }
 
     pub async fn pending_removes(&self, chat_id: ChatId) -> Option<Vec<UserId>> {
