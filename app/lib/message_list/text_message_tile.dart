@@ -2,20 +2,33 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async' show unawaited;
+
 import 'package:air/core/api/markdown.dart';
 import 'package:flutter/cupertino.dart'
-    show cupertinoDesktopTextSelectionHandleControls,
-         cupertinoTextSelectionHandleControls;
+    show
+        cupertinoDesktopTextSelectionHandleControls,
+        cupertinoTextSelectionHandleControls;
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart'
-    show SelectableRegion, SelectableRegionState;
+    show
+        DefaultTextStyle,
+        SelectionContainer,
+        SelectableRegion,
+        SelectableRegionState,
+        TextMagnifier,
+        KeyedSubtree;
+import 'package:flutter/rendering.dart' show RenderBox;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/attachments/attachments.dart';
 import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/timestamp.dart';
+import 'package:air/message_list/mobile_message_actions.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/context_menu/context_menu.dart';
@@ -25,6 +38,7 @@ import 'package:air/ui/typography/monospace.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:iconoir_flutter/regular/attachment.dart';
 import 'package:iconoir_flutter/regular/xmark.dart';
 
@@ -108,6 +122,9 @@ class _MessageView extends HookWidget {
     final selectionAreaKey = useMemoized(
       () => GlobalKey<SelectableRegionState>(),
     );
+    final bubbleKey = useMemoized(GlobalKey.new);
+    final messageContainerKey = useMemoized(() => GlobalKey());
+    final isDetached = useState(false);
     useEffect(() {
       return cursorPositionNotifier.dispose;
     }, [cursorPositionNotifier]);
@@ -122,29 +139,188 @@ class _MessageView extends HookWidget {
 
     final loc = AppLocalizations.of(context);
     final plainBody = contentMessage.content.plainBody?.trim();
+    final platform = Theme.of(context).platform;
+    final bool isMobilePlatform =
+        (platform == TargetPlatform.android || platform == TargetPlatform.iOS);
 
-    final menuItems = <ContextMenuItem>[
-      if (plainBody != null && plainBody.isNotEmpty)
-        ContextMenuItem(
-          label: loc.messageContextMenu_copy,
-          onPressed: () {
-            Clipboard.setData(ClipboardData(text: plainBody));
-          },
-        ),
-      if (isSender)
-        ContextMenuItem(
-          label: loc.messageContextMenu_edit,
-          onPressed: () {
-            context.read<ChatDetailsCubit>().editMessage(messageId: messageId);
-          },
-        ),
-    ];
+    Widget buildMessageBubble({
+      required bool enableSelection,
+      GlobalKey<SelectableRegionState>? selectionKey,
+      GlobalKey? key,
+    }) {
+      Widget child = _MessageContent(
+        content: contentMessage.content,
+        isSender: isSender,
+        flightPosition: flightPosition,
+        isEdited: contentMessage.edited,
+        isHidden: status == UiMessageStatus.hidden && !isRevealed.value,
+        selectionAreaKey: enableSelection ? selectionKey : null,
+        enableSelection: enableSelection,
+      );
+      if (key != null) {
+        child = KeyedSubtree(key: key, child: child);
+      }
+      return child;
+    }
 
     final showMessageStatus =
         isSender &&
         flightPosition.isLast &&
         status != UiMessageStatus.sending &&
         status != UiMessageStatus.hidden;
+
+    Widget buildTimestampRow() {
+      if (!flightPosition.isLast) {
+        return const SizedBox.shrink();
+      }
+
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 2),
+          Row(
+            mainAxisAlignment:
+                isSender ? MainAxisAlignment.end : MainAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(width: Spacings.s),
+              Timestamp(timestamp),
+              if (showMessageStatus) const SizedBox(width: Spacings.xxxs),
+              if (showMessageStatus) _MessageStatus(status: status),
+              const SizedBox(width: Spacings.xs),
+            ],
+          ),
+        ],
+      );
+    }
+
+    final actions = <MessageAction>[
+      if (plainBody != null && plainBody.isNotEmpty)
+        MessageAction(
+          label: loc.messageContextMenu_copy,
+          leading: iconoir.Copy(width: 20),
+          onSelected: () {
+            Clipboard.setData(ClipboardData(text: plainBody));
+          },
+        ),
+      if (isSender)
+        MessageAction(
+          label: loc.messageContextMenu_edit,
+          leading: iconoir.EditPencil(width: 20),
+          onSelected: () {
+            context.read<ChatDetailsCubit>().editMessage(messageId: messageId);
+          },
+        ),
+    ];
+
+    final menuItems =
+        actions
+            .map(
+              (action) => ContextMenuItem(
+                label: action.label,
+                leading: action.leading,
+                onPressed: action.onSelected,
+              ),
+            )
+            .toList();
+
+    Widget buildMessageShell({
+      required VoidCallback? onLongPress,
+      GestureTapDownCallback? onSecondaryTapDown,
+      required bool enableSelection,
+      required GlobalKey messageKey,
+      required bool detached,
+      GlobalKey? bubbleRenderKey,
+    }) {
+      final bubble = buildMessageBubble(
+        enableSelection: enableSelection,
+        selectionKey: enableSelection ? selectionAreaKey : null,
+        key: bubbleRenderKey,
+      );
+      final timestampRow = buildTimestampRow();
+
+      return Container(
+        key: messageKey,
+        padding: EdgeInsets.only(
+          top: flightPosition.isFirst ? 5 : 0,
+          bottom: flightPosition.isLast ? 5 : 0,
+        ),
+        child: Column(
+          crossAxisAlignment:
+              isSender ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            MouseRegion(
+              cursor: SystemMouseCursors.basic,
+              child: AnimatedOpacity(
+                opacity: detached ? 0.0 : 1.0,
+                duration: const Duration(milliseconds: 120),
+                child: IgnorePointer(
+                  ignoring: detached,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.deferToChild,
+                    onTap: () => isRevealed.value = true,
+                    onLongPress: onLongPress,
+                    onSecondaryTapDown: onSecondaryTapDown,
+                    child: bubble,
+                  ),
+                ),
+              ),
+            ),
+            timestampRow,
+          ],
+        ),
+      );
+    }
+
+    if (isMobilePlatform) {
+      return Align(
+        alignment: isSender ? Alignment.centerRight : Alignment.centerLeft,
+        child: buildMessageShell(
+          onLongPress:
+              actions.isEmpty
+                  ? null
+                  : () {
+                    final messageContext = messageContainerKey.currentContext;
+                    if (messageContext == null) return;
+                    final bubbleContext = bubbleKey.currentContext;
+                    if (bubbleContext == null) return;
+                    final renderObject = bubbleContext.findRenderObject();
+                    if (renderObject is! RenderBox || !renderObject.hasSize) {
+                      return;
+                    }
+                    final origin = renderObject.localToGlobal(Offset.zero);
+                    final anchorRect = origin & renderObject.size;
+                    final defaultTextStyle = DefaultTextStyle.of(
+                      messageContext,
+                    );
+                    final overlayBubble = buildMessageBubble(
+                      enableSelection: false,
+                    );
+                    ContextMenu.closeActiveMenu();
+                    isDetached.value = true;
+                    final future = showMobileMessageActions(
+                      context: context,
+                      sourceContext: messageContext,
+                      defaultTextStyle: defaultTextStyle,
+                      anchorRect: anchorRect,
+                      actions: actions,
+                      messageContent: overlayBubble,
+                    );
+                    unawaited(
+                      future.whenComplete(() {
+                        isDetached.value = false;
+                      }),
+                    );
+                  },
+          onSecondaryTapDown: null,
+          enableSelection: false,
+          messageKey: messageContainerKey,
+          detached: isDetached.value,
+          bubbleRenderKey: bubbleKey,
+        ),
+      );
+    }
 
     return Align(
       alignment: isSender ? Alignment.centerRight : Alignment.centerLeft,
@@ -156,89 +332,35 @@ class _MessageView extends HookWidget {
         controller: contextMenuController,
         menuItems: menuItems,
         cursorPosition: cursorPositionNotifier,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: constraints.maxWidth * 5 / 6,
-              ),
-              child: Container(
-                padding: EdgeInsets.only(
-                  top: flightPosition.isFirst ? 5 : 0,
-                  bottom: flightPosition.isLast ? 5 : 0,
-                ),
-                child: Column(
-                  crossAxisAlignment:
-                      isSender
-                          ? CrossAxisAlignment.end
-                          : CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    MouseRegion(
-                      cursor: SystemMouseCursors.basic,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.deferToChild,
-                        onTap: () => isRevealed.value = true,
-                        onLongPress:
-                            menuItems.isEmpty
-                                ? null
-                                : () {
-                                  selectionAreaKey.currentState?.clearSelection();
-                                  if (contextMenuController.isShowing) {
-                                    contextMenuController.hide();
-                                  }
-                                  ContextMenu.closeActiveMenu();
-                                  cursorPositionNotifier.value = null;
-                                  contextMenuController.show();
-                                },
-                        onSecondaryTapDown:
-                            menuItems.isEmpty
-                                ? null
-                                : (details) {
-                                  selectionAreaKey.currentState?.clearSelection();
-                                  if (contextMenuController.isShowing) {
-                                    contextMenuController.hide();
-                                  }
-                                  ContextMenu.closeActiveMenu();
-                                  cursorPositionNotifier.value =
-                                      details.globalPosition;
-                                  contextMenuController.show();
-                                },
-                        child: _MessageContent(
-                          content: contentMessage.content,
-                          isSender: isSender,
-                          flightPosition: flightPosition,
-                          isEdited: contentMessage.edited,
-                          isHidden:
-                              status == UiMessageStatus.hidden &&
-                              !isRevealed.value,
-                          selectionAreaKey: selectionAreaKey,
-                        ),
-                      ),
-                    ),
-                    if (flightPosition.isLast) ...[
-                      const SizedBox(height: 2),
-                      Row(
-                        mainAxisAlignment:
-                            isSender
-                                ? MainAxisAlignment.end
-                                : MainAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(width: Spacings.s),
-                          Timestamp(timestamp),
-                          if (showMessageStatus)
-                            const SizedBox(width: Spacings.xxxs),
-                          if (showMessageStatus) _MessageStatus(status: status),
-                          const SizedBox(width: Spacings.xs),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            );
-          },
+        child: buildMessageShell(
+          onLongPress:
+              actions.isEmpty
+                  ? null
+                  : () {
+                    selectionAreaKey.currentState?.clearSelection();
+                    if (contextMenuController.isShowing) {
+                      contextMenuController.hide();
+                    }
+                    ContextMenu.closeActiveMenu();
+                    cursorPositionNotifier.value = null;
+                    contextMenuController.show();
+                  },
+          onSecondaryTapDown:
+              actions.isEmpty
+                  ? null
+                  : (details) {
+                    selectionAreaKey.currentState?.clearSelection();
+                    if (contextMenuController.isShowing) {
+                      contextMenuController.hide();
+                    }
+                    ContextMenu.closeActiveMenu();
+                    cursorPositionNotifier.value = details.globalPosition;
+                    contextMenuController.show();
+                  },
+          enableSelection: true,
+          messageKey: messageContainerKey,
+          detached: false,
+          bubbleRenderKey: bubbleKey,
         ),
       ),
     );
@@ -271,6 +393,7 @@ class _MessageContent extends StatelessWidget {
     required this.isEdited,
     required this.isHidden,
     required this.selectionAreaKey,
+    required this.enableSelection,
   });
 
   final UiMimiContent content;
@@ -278,29 +401,25 @@ class _MessageContent extends StatelessWidget {
   final UiFlightPosition flightPosition;
   final bool isEdited;
   final bool isHidden;
-  final GlobalKey<SelectableRegionState> selectionAreaKey;
+  final GlobalKey<SelectableRegionState>? selectionAreaKey;
+  final bool enableSelection;
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final platform = Theme.of(context).platform;
-    late final TextSelectionControls selectionControls;
-    switch (platform) {
-      case TargetPlatform.android:
-      case TargetPlatform.fuchsia:
-        selectionControls = materialTextSelectionHandleControls;
-        break;
-      case TargetPlatform.linux:
-      case TargetPlatform.windows:
-        selectionControls = desktopTextSelectionHandleControls;
-        break;
-      case TargetPlatform.iOS:
-        selectionControls = cupertinoTextSelectionHandleControls;
-        break;
-      case TargetPlatform.macOS:
-        selectionControls = cupertinoDesktopTextSelectionHandleControls;
-        break;
-    }
+    final TextSelectionControls? selectionControls =
+        enableSelection
+            ? switch (platform) {
+              TargetPlatform.android ||
+              TargetPlatform.fuchsia => materialTextSelectionHandleControls,
+              TargetPlatform.linux ||
+              TargetPlatform.windows => desktopTextSelectionHandleControls,
+              TargetPlatform.iOS => cupertinoTextSelectionHandleControls,
+              TargetPlatform.macOS =>
+                cupertinoDesktopTextSelectionHandleControls,
+            }
+            : null;
 
     final bool isDeleted = content.replaces != null && content.content == null;
 
@@ -354,6 +473,23 @@ class _MessageContent extends StatelessWidget {
               // The edited label is no longer included here
             ];
 
+    final Widget contentColumn = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: contentElements,
+    );
+
+    final Widget selectableChild =
+        enableSelection
+            ? SelectableRegion(
+              key: selectionAreaKey,
+              selectionControls: selectionControls!,
+              magnifierConfiguration:
+                  TextMagnifier.adaptiveMagnifierConfiguration,
+              contextMenuBuilder: (context, _) => const SizedBox.shrink(),
+              child: contentColumn,
+            )
+            : SelectionContainer.disabled(child: contentColumn);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 1.5),
       child: Container(
@@ -377,18 +513,7 @@ class _MessageContent extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    SelectableRegion(
-                      key: selectionAreaKey,
-                      selectionControls: selectionControls,
-                      magnifierConfiguration:
-                          TextMagnifier.adaptiveMagnifierConfiguration,
-                      contextMenuBuilder: (context, _) =>
-                          const SizedBox.shrink(),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: contentElements,
-                      ),
-                    ),
+                    selectableChild,
                     if (!isDeleted && isEdited)
                       Padding(
                         padding: const EdgeInsets.only(
