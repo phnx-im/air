@@ -152,7 +152,6 @@ use mls_assist::{
     MlsAssistRustCrypto,
     openmls::{prelude::group_info::GroupInfo, treesync::RatchetTree},
 };
-use tls_codec::{TlsSerialize, TlsSize};
 use uuid::Uuid;
 
 use aircommon::{
@@ -176,10 +175,12 @@ impl Ds {
     }
 }
 
-#[derive(Debug, TlsSerialize, TlsSize)]
+#[derive(Debug)]
 pub struct ExternalCommitInfo {
     pub group_info: GroupInfo,
     pub ratchet_tree: RatchetTree,
     pub encrypted_user_profile_keys: Vec<EncryptedUserProfileKey>,
     pub room_state: VerifiedRoomState,
+    // Proposals that are valid in external commits
+    pub proposals: Vec<Vec<u8>>,
 }

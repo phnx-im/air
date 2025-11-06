@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::ClientSigningKey,
     crypto::{hpke::HpkeDecryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{QualifiedGroupId, UserHandle},
     messages::{
@@ -87,15 +86,11 @@ impl CoreUser {
         let eci = self.fetch_external_commit_info(&cep_payload, &qgid).await?;
 
         // Join group
-        let (mut group, commit, group_info, mut member_profile_info) = self
-            .join_group_externally(
-                &mut connection,
-                eci,
-                &cep_payload,
-                self.signing_key(),
-                aad,
-                connection_offer_hash,
-            )
+        let (mut group, commit, group_info, mut member_profile_info) = connection
+            .with_transaction(async |txn| {
+                self.join_group_externally(txn, eci, &cep_payload, aad, connection_offer_hash)
+                    .await
+            })
             .await?;
 
         // Verify that the group has only one other member and that it's
@@ -271,10 +266,9 @@ impl CoreUser {
 
     async fn join_group_externally(
         &self,
-        connection: &mut SqliteConnection,
+        connection: &mut SqliteTransaction<'_>,
         eci: ExternalCommitInfoIn,
         cep_payload: &ConnectionOfferPayload,
-        leaf_signer: &ClientSigningKey,
         aad: AadMessage,
         connection_offer_hash: ConnectionOfferHash,
     ) -> Result<(Group, MlsMessageOut, MlsMessageOut, Vec<ProfileInfo>)> {
@@ -282,14 +276,13 @@ impl CoreUser {
             &mut *connection,
             &self.inner.api_clients,
             eci,
-            leaf_signer,
+            self.signing_key(),
             cep_payload.connection_group_ear_key.clone(),
             cep_payload
                 .connection_group_identity_link_wrapper_key
                 .clone(),
             aad,
-            self.inner.key_store.signing_key.credential(),
-            connection_offer_hash,
+            Some(connection_offer_hash),
         )
         .await?;
         Ok((group, commit, group_info, member_profile_info))
@@ -329,7 +322,7 @@ impl CoreUser {
         chat: &mut Chat,
         contact: Contact,
     ) -> Result<()> {
-        group.store(txn.as_mut()).await?;
+        group.store_update(txn.as_mut()).await?;
         chat.store(txn.as_mut(), notifier).await?;
         contact.upsert(txn.as_mut(), notifier).await?;
         Ok(())

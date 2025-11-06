@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO resync_queue\n                    (group_id, chat_id,  group_state_ear_key, identity_link_wrapper_key, original_leaf_index)\n                VALUES (?1, ?2, ?3, ?4, ?5)\n                ON CONFLICT DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "f2f59fcf3ee2aefbbf8dcc0ac311d3e46f41a7f4a72f2480f02aca27ded505f6"
+}
