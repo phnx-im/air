@@ -37,11 +37,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Port binding
-    let addr = format!(
-        "{}:{}",
-        configuration.application.host, configuration.application.grpc_port
-    );
-    let listener = tokio::net::TcpListener::bind(addr)
+    let listener = tokio::net::TcpListener::bind(configuration.application.listen)
         .await
         .expect("Failed to bind");
 

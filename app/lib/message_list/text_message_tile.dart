@@ -146,12 +146,7 @@ class _MessageView extends HookWidget {
                         Timestamp(timestamp),
                         if (showMessageStatus)
                           const SizedBox(width: Spacings.xxxs),
-                        if (showMessageStatus)
-                          DoubleCheckIcon(
-                            size: LabelFontSize.small2.size,
-                            singleCheckIcon: status == UiMessageStatus.sent,
-                            inverted: status == UiMessageStatus.read,
-                          ),
+                        if (showMessageStatus) _MessageStatus(status: status),
                         const SizedBox(width: Spacings.xs),
                       ],
                     ),
@@ -162,6 +157,24 @@ class _MessageView extends HookWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class _MessageStatus extends StatelessWidget {
+  const _MessageStatus({required this.status});
+
+  final UiMessageStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final readReceiptsEnabled = context.select(
+      (UserSettingsCubit cubit) => cubit.state.readReceipts,
+    );
+    return DoubleCheckIcon(
+      size: LabelFontSize.small2.size,
+      singleCheckIcon: status == UiMessageStatus.sent,
+      inverted: readReceiptsEnabled && status == UiMessageStatus.read,
     );
   }
 }

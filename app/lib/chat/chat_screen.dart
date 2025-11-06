@@ -42,6 +42,7 @@ class ChatScreen extends StatelessWidget {
           create:
               (context) => ChatDetailsCubit(
                 userCubit: context.read<UserCubit>(),
+                userSettingsCubit: context.read<UserSettingsCubit>(),
                 chatId: chatId,
                 chatsRepository: context.read<ChatsRepository>(),
                 withMembers: false,

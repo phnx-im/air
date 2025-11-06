@@ -12,20 +12,19 @@ use aircoreclient::{Chat, ChatId, MessageDraft};
 use aircoreclient::{MessageId, clients::CoreUser, store::Store};
 use chrono::{DateTime, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
-use mimi_content::{
-    ByteBuf, Disposition, MessageStatus, MimiContent, NestedPart, NestedPartContent,
-};
+use mimi_content::{ByteBuf, Disposition, MimiContent, NestedPart, NestedPartContent};
 use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
 use tracing::error;
 
-use crate::StreamSink;
 use crate::api::{
     chats_repository::ChatsRepository,
     types::{UiChatMessage, UiChatType, UiUserId},
+    user_settings_cubit::{UserSettings, UserSettingsCubitBase},
 };
 use crate::message_content::MimiContentExt;
 use crate::util::{Cubit, CubitCore, spawn_from_sync};
+use crate::{StreamSink, mark_as_read::MarkAsReadState};
 
 use super::{types::UiChatDetails, user_cubit::UserCubitBase};
 
@@ -49,6 +48,7 @@ pub struct ChatDetailsState {
 pub struct ChatDetailsCubitBase {
     context: ChatDetailsContext,
     core: CubitCore<ChatDetailsState>,
+    user_settings_rx: watch::Receiver<UserSettings>,
 }
 
 impl ChatDetailsCubitBase {
@@ -59,6 +59,7 @@ impl ChatDetailsCubitBase {
     #[frb(sync)]
     pub fn new(
         user_cubit: &UserCubitBase,
+        user_settings_cubit: &UserSettingsCubitBase,
         chat_id: ChatId,
         chats_repository: &ChatsRepository,
         with_members: bool,
@@ -70,6 +71,8 @@ impl ChatDetailsCubitBase {
             members: Default::default(),
         };
         let core = CubitCore::with_initial_state(initial_state);
+
+        let user_settings_rx = user_settings_cubit.subscribe();
 
         let context = ChatDetailsContext::new(
             store.clone(),
@@ -94,7 +97,11 @@ impl ChatDetailsCubitBase {
             .run_until_cancelled_owned(context.clone().update_state_task());
         spawn_from_sync(update_state_task);
 
-        Self { context, core }
+        Self {
+            context,
+            core,
+            user_settings_rx,
+        }
     }
 
     // Cubit interface
@@ -243,84 +250,17 @@ impl ChatDetailsCubitBase {
         until_message_id: MessageId,
         until_timestamp: DateTime<Utc>,
     ) -> anyhow::Result<()> {
-        let scheduled = self
-            .context
-            .mark_as_read_tx
-            .send_if_modified(|state| match &state {
-                MarkAsReadState::NotLoaded => {
-                    error!("Marking as read while chat is not loaded");
-                    false
-                }
-                MarkAsReadState::Marked { at }
-                | MarkAsReadState::Scheduled {
-                    until_timestamp: at,
-                    until_message_id: _,
-                } if *at < until_timestamp => {
-                    *state = MarkAsReadState::Scheduled {
-                        until_timestamp,
-                        until_message_id,
-                    };
-                    true
-                }
-                MarkAsReadState::Marked { .. } => {
-                    false // already marked as read
-                }
-                MarkAsReadState::Scheduled { .. } => {
-                    false // already scheduled at a later timestamp
-                }
-            });
-        if !scheduled {
-            return Ok(());
-        }
-
-        // debounce
         const MARK_AS_READ_DEBOUNCE: Duration = Duration::from_secs(2);
-        let mut rx = self.context.mark_as_read_tx.subscribe();
-        tokio::select! {
-            _ = rx.changed() => return Ok(()),
-            _ = sleep(MARK_AS_READ_DEBOUNCE) => {},
-        };
-
-        // check if the scheduled state is still valid and if so, mark it as read
-        let scheduled = self
-            .context
-            .mark_as_read_tx
-            .send_if_modified(|state| match state {
-                MarkAsReadState::Scheduled {
-                    until_message_id: scheduled_message_id,
-                    until_timestamp,
-                } if *scheduled_message_id == until_message_id => {
-                    *state = MarkAsReadState::Marked {
-                        at: *until_timestamp,
-                    };
-                    true
-                }
-                _ => false,
-            });
-        if !scheduled {
-            return Ok(());
-        }
-
-        let (_, read_message_ids) = self
-            .context
-            .store
-            .mark_chat_as_read(self.context.chat_id, until_message_id)
-            .await?;
-
-        let statuses = read_message_ids
-            .iter()
-            .map(|(message_id, mimi_id)| (*message_id, mimi_id, MessageStatus::Read));
-        if let Err(error) = self
-            .context
-            .store
-            .outbound_service()
-            .enqueue_receipts(self.context.chat_id, statuses)
-            .await
-        {
-            error!(%error, "Failed to send read receipt");
-        }
-
-        Ok(())
+        crate::mark_as_read::mark_as_read(
+            &self.context.store,
+            &self.context.mark_as_read_tx,
+            &self.user_settings_rx,
+            self.context.chat_id,
+            until_message_id,
+            until_timestamp,
+            MARK_AS_READ_DEBOUNCE,
+        )
+        .await
     }
 
     #[frb]
@@ -580,18 +520,4 @@ pub(super) async fn load_chat_details(store: &impl Store, chat: Chat) -> UiChatD
         last_message,
         draft,
     }
-}
-
-#[frb(ignore)]
-#[derive(Debug, Default)]
-enum MarkAsReadState {
-    #[default]
-    NotLoaded,
-    /// Chat is marked as read until the given timestamp
-    Marked { at: DateTime<Utc> },
-    /// Chat is scheduled to be marked as read until the given timestamp and message id
-    Scheduled {
-        until_timestamp: DateTime<Utc>,
-        until_message_id: MessageId,
-    },
 }

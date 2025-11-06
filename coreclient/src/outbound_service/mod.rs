@@ -27,6 +27,7 @@ use crate::{
 
 mod receipt_queue;
 mod receipts;
+pub(crate) mod resync;
 mod timed_tasks;
 pub(crate) mod timed_tasks_queue;
 
@@ -203,6 +204,9 @@ pub struct OutboundServiceContext {
 
 impl OutboundServiceContext {
     async fn work(&self, run_token: CancellationToken) {
+        if let Err(error) = self.perform_queued_resyncs(&run_token).await {
+            error!(%error, "Failed to perform queued resyncs");
+        }
         if let Err(error) = self.send_queued_receipts(&run_token).await {
             error!(%error, "Failed to send queued receipts");
         }

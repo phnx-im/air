@@ -34,6 +34,7 @@ class ChatDetailsScreen extends StatelessWidget {
       create: (context) {
         return ChatDetailsCubit(
           userCubit: context.read<UserCubit>(),
+          userSettingsCubit: context.read<UserSettingsCubit>(),
           chatId: chatId,
           chatsRepository: context.read<ChatsRepository>(),
         );

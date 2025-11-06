@@ -399,6 +399,7 @@ void main() {
     late MockChatDetailsCubit chatDetailsCubit;
     late MockMessageListCubit messageListCubit;
     late MockAttachmentsRepository attachmentsRepository;
+    late MockUserSettingsCubit userSettingsCubit;
 
     setUp(() async {
       userCubit = MockUserCubit();
@@ -406,6 +407,7 @@ void main() {
       chatDetailsCubit = MockChatDetailsCubit();
       messageListCubit = MockMessageListCubit();
       attachmentsRepository = MockAttachmentsRepository();
+      userSettingsCubit = MockUserSettingsCubit();
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
       when(
@@ -417,6 +419,7 @@ void main() {
           untilTimestamp: any(named: 'untilTimestamp'),
         ),
       ).thenAnswer((_) => Future.value());
+      when(() => userSettingsCubit.state).thenReturn(const UserSettings());
     });
 
     Widget buildSubject() => RepositoryProvider<AttachmentsRepository>.value(
@@ -427,6 +430,7 @@ void main() {
           BlocProvider<UsersCubit>.value(value: contactsCubit),
           BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
           BlocProvider<MessageListCubit>.value(value: messageListCubit),
+          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
         ],
         child: Builder(
           builder: (context) {
@@ -582,6 +586,31 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/message_list_blocked_contact_chat.png'),
+      );
+    });
+
+    testWidgets('renders correctly with disabled read receipts', (
+      tester,
+    ) async {
+      tester.view.physicalSize = testSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      when(
+        () => messageListCubit.state,
+      ).thenReturn(MockMessageListState(messages));
+      when(
+        () => userSettingsCubit.state,
+      ).thenReturn(const UserSettings(readReceipts: false));
+
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+
+      await tester.pumpWidget(buildSubject());
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_list_disabled_read_receipts.png'),
       );
     });
   });

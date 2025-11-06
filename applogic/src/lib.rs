@@ -14,6 +14,7 @@ pub mod background_execution;
 #[allow(clippy::uninlined_format_args)]
 pub(crate) mod frb_generated;
 pub(crate) mod logging;
+pub(crate) mod mark_as_read;
 pub(crate) mod message_content;
 pub(crate) mod messages;
 pub(crate) mod notifications;

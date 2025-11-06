@@ -4,12 +4,13 @@
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
+    net::SocketAddr,
     path::Path,
     time::Duration,
 };
 
 use aircommon::{
-    DEFAULT_PORT_HTTP, OpenMlsRand, RustCrypto,
+    OpenMlsRand, RustCrypto,
     identifiers::{Fqdn, UserHandle, UserId},
 };
 use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, store::Store, *};
@@ -55,26 +56,17 @@ impl AsMut<CoreUser> for TestUser {
 }
 
 impl TestUser {
-    pub async fn new(user_id: &UserId, address_option: Option<String>, grpc_port: u16) -> Self {
-        let user = Self::try_new(user_id, address_option, grpc_port)
-            .await
-            .unwrap();
+    pub async fn new(user_id: &UserId, listen: SocketAddr) -> Self {
+        let user = Self::try_new(user_id, listen).await.unwrap();
         // Run outbound service to upload KeyPackages
         user.user.outbound_service().run_once().await;
         user
     }
 
-    pub async fn try_new(
-        user_id: &UserId,
-        address_option: Option<String>,
-        grpc_port: u16,
-    ) -> anyhow::Result<Self> {
-        let hostname_str =
-            address_option.unwrap_or_else(|| format!("{}:{}", user_id.domain(), DEFAULT_PORT_HTTP));
+    pub async fn try_new(user_id: &UserId, listen: SocketAddr) -> anyhow::Result<Self> {
+        let server_url = format!("http://{listen}").parse().unwrap();
 
-        let server_url = format!("http://{hostname_str}").parse().unwrap();
-
-        let user = CoreUser::new_ephemeral(user_id.clone(), server_url, grpc_port, None).await?;
+        let user = CoreUser::new_ephemeral(user_id.clone(), server_url, None).await?;
 
         Ok(Self {
             user,
@@ -83,18 +75,9 @@ impl TestUser {
         })
     }
 
-    pub async fn new_persisted(
-        user_id: &UserId,
-        address_option: Option<String>,
-        grpc_port: u16,
-        db_dir: &str,
-    ) -> Self {
-        let hostname_str =
-            address_option.unwrap_or_else(|| format!("{}:{}", user_id.domain(), DEFAULT_PORT_HTTP));
-
-        let server_url = format!("http://{hostname_str}").parse().unwrap();
-
-        let user = CoreUser::new(user_id.clone(), server_url, grpc_port, db_dir, None)
+    pub async fn new_persisted(user_id: &UserId, listen_addr: SocketAddr, db_dir: &str) -> Self {
+        let server_url = format!("http://{listen_addr}").parse().unwrap();
+        let user = CoreUser::new(user_id.clone(), server_url, db_dir, None)
             .await
             .unwrap();
         Self {
@@ -144,15 +127,13 @@ impl TestUser {
 
 enum TestKind {
     SingleBackend(String), // url of the single backend
-    Federated,
 }
 
 pub struct TestBackend {
     pub users: HashMap<UserId, TestUser>,
     pub groups: HashMap<ChatId, HashSet<UserId>>,
     // This is what we feed to the test clients.
-    kind: TestKind,
-    grpc_port: u16,
+    listen_addr: SocketAddr,
     temp_dir: TempDir,
     _guard: Option<LocalEnterGuard>,
 }
@@ -167,28 +148,20 @@ impl TestBackend {
         let domain: Fqdn = "example.com".parse().unwrap();
         let local = LocalSet::new();
         let _guard = local.enter();
-        let addr = spawn_app_with_rate_limits(domain.clone(), network_provider, rate_limits).await;
-        info!(%addr, "spawned server");
+        let listen_addr =
+            spawn_app_with_rate_limits(domain.clone(), network_provider, rate_limits).await;
+        info!(%listen_addr, "spawned server");
         Self {
             users: HashMap::new(),
             groups: HashMap::new(),
-            kind: TestKind::SingleBackend(addr.to_string()),
-            grpc_port: addr.port(),
+            listen_addr,
             temp_dir: tempfile::tempdir().unwrap(),
             _guard: Some(_guard),
         }
     }
 
-    pub fn url(&self) -> Option<String> {
-        if let TestKind::SingleBackend(url) = &self.kind {
-            Some(url.clone())
-        } else {
-            None
-        }
-    }
-
-    pub fn grpc_port(&self) -> u16 {
-        self.grpc_port
+    pub fn listen_addr(&self) -> SocketAddr {
+        self.listen_addr
     }
 
     pub fn temp_dir(&self) -> &Path {
@@ -198,13 +171,13 @@ impl TestBackend {
     pub async fn add_persisted_user(&mut self, user_id: &UserId) {
         let path = self.temp_dir.path().to_str().unwrap();
         info!(%path, ?user_id, "Creating persisted user");
-        let user = TestUser::new_persisted(user_id, self.url(), self.grpc_port, path).await;
+        let user = TestUser::new_persisted(user_id, self.listen_addr, path).await;
         self.users.insert(user_id.clone(), user);
     }
 
     pub async fn add_user(&mut self, user_id: &UserId) {
         info!(?user_id, "Creating user");
-        let user = TestUser::new(user_id, self.url(), self.grpc_port).await;
+        let user = TestUser::new(user_id, self.listen_addr).await;
         self.users.insert(user_id.clone(), user);
     }
 

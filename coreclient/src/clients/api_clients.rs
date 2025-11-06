@@ -18,29 +18,22 @@ pub(crate) struct ApiClients {
     // is a temporary workaround and should probably be replaced by a more
     // thought-out mechanism.
     own_domain: Fqdn,
-    own_domain_or_address: String,
+    own_endpoint: String,
     clients: Arc<Mutex<HashMap<String, ApiClient>>>,
-    grpc_port: u16,
 }
 
 impl ApiClients {
-    pub(super) fn new(
-        own_domain: Fqdn,
-        own_domain_or_address: impl ToString,
-        grpc_port: u16,
-    ) -> Self {
-        let own_domain_or_address = own_domain_or_address.to_string();
+    pub(super) fn new(own_domain: Fqdn, own_endpoint: impl ToString) -> Self {
         Self {
             own_domain,
-            own_domain_or_address,
+            own_endpoint: own_endpoint.to_string(),
             clients: Default::default(),
-            grpc_port,
         }
     }
 
     pub(crate) fn get(&self, domain: &Fqdn) -> Result<ApiClient, ApiClientsError> {
         let domain = if domain == &self.own_domain {
-            self.own_domain_or_address.clone()
+            self.own_endpoint.clone()
         } else {
             domain.to_string()
         };
@@ -48,7 +41,7 @@ impl ApiClients {
         let client = match clients.entry(domain) {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => {
-                let client = ApiClient::new(entry.key(), self.grpc_port)?;
+                let client = ApiClient::new(entry.key())?;
                 entry.insert(client).clone()
             }
         };

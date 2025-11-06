@@ -423,7 +423,7 @@ impl PersistedUserState {
             pool.clone(),
             api_clients.clone(),
             key_store.clone(),
-            qs_client_id.clone(),
+            qs_client_id,
             store_notifications_tx.clone(),
             global_lock,
         );
