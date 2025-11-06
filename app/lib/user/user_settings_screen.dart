@@ -60,17 +60,14 @@ class UserSettingsScreen extends StatelessWidget {
 
                   const _UserHandles(),
 
-                  if (isMobilePlatform) ...[
-                    const SettingsDivider(),
-                    const _MobileSettings(),
-                  ],
+                  const SettingsDivider(),
 
-                  if (isDesktopPlatform) ...[
-                    const SettingsDivider(),
-                    const _DesktopSettings(),
-                  ],
+                  const _CommonSettings(),
+                  if (isMobilePlatform) const _MobileSettings(),
+                  if (isDesktopPlatform) const _DesktopSettings(),
 
                   const SettingsDivider(),
+
                   const _Help(),
                   const SizedBox(height: Spacings.xs),
                   const _DeleteAccount(),
@@ -233,6 +230,58 @@ class _UserHandlePlaceholder extends StatelessWidget {
   }
 }
 
+class _CommonSettings extends StatefulWidget {
+  const _CommonSettings();
+
+  @override
+  State<_CommonSettings> createState() => _CommonSettingsState();
+}
+
+class _CommonSettingsState extends State<_CommonSettings> {
+  final Debouncer _readReceiptsDebouncer = Debouncer(
+    delay: const Duration(milliseconds: 500),
+  );
+  bool _readReceipts = false;
+
+  @override
+  void initState() {
+    super.initState();
+    setState(() {
+      _readReceipts = context.read<UserSettingsCubit>().state.readReceipts;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    return ListView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        SwitchListTile(
+          title: Text(loc.userSettingsScreen_readReceipts),
+          subtitle: Text(
+            style: TextStyle(color: Theme.of(context).hintColor),
+            loc.userSettingsScreen_readReceiptsDescription,
+          ),
+          value: _readReceipts,
+          onChanged: (value) {
+            _readReceiptsDebouncer.run(() {
+              context.read<UserSettingsCubit>().setReadReceipts(
+                userCubit: context.read(),
+                value: value,
+              );
+            });
+            setState(() {
+              _readReceipts = value;
+            });
+          },
+        ),
+      ],
+    );
+  }
+}
+
 class _MobileSettings extends StatefulWidget {
   const _MobileSettings();
 
@@ -256,12 +305,13 @@ class _MobileSettingsState extends State<_MobileSettings> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return ListView(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       children: [
         SwitchListTile(
-          title: const Text("Send with Enter"),
+          title: Text(loc.userSettingsScreen_sendWithEnter),
           value: _sendOnEnter,
           onChanged: (value) {
             _sendOnEnterDebouncer.run(() {

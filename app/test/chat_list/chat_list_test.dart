@@ -25,6 +25,7 @@ void main() {
     late MockUserCubit userCubit;
     late MockUsersCubit contactsCubit;
     late MockChatDetailsCubit chatDetailsCubit;
+    late MockUserSettingsCubit userSettingsCubit;
 
     setUp(() async {
       navigationCubit = MockNavigationCubit();
@@ -32,6 +33,7 @@ void main() {
       chatListCubit = MockChatListCubit();
       contactsCubit = MockUsersCubit();
       chatDetailsCubit = MockChatDetailsCubit();
+      userSettingsCubit = MockUserSettingsCubit();
 
       when(
         () => navigationCubit.state,
@@ -56,6 +58,7 @@ void main() {
               BlocProvider<UserCubit>.value(value: userCubit),
               BlocProvider<UsersCubit>.value(value: contactsCubit),
               BlocProvider<ChatListCubit>.value(value: chatListCubit),
+              BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
             ],
             child: Builder(
               builder: (context) {

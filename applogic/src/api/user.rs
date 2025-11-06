@@ -6,7 +6,7 @@
 
 use std::cmp::Reverse;
 
-use aircommon::{DEFAULT_PORT_GRPC, identifiers::UserId, messages::push_token::PushTokenOperator};
+use aircommon::{identifiers::UserId, messages::push_token::PushTokenOperator};
 use aircoreclient::{
     Asset, UserProfile,
     clients::{
@@ -74,14 +74,7 @@ impl User {
             server_url.set_host(Some("prod.air.ms"))?;
         }
 
-        let user = CoreUser::new(
-            user_id,
-            server_url,
-            DEFAULT_PORT_GRPC,
-            &path,
-            push_token.map(|p| p.into()),
-        )
-        .await?;
+        let user = CoreUser::new(user_id, server_url, &path, push_token.map(|p| p.into())).await?;
 
         let user_profile = UserProfile {
             user_id: user.user_id().clone(),

@@ -2,7 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::DEFAULT_PORT_GRPC;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
 use chrono::Duration;
 use serde::Deserialize;
 
@@ -24,15 +25,18 @@ pub struct Settings {
 /// Configuration for the application.
 #[derive(Deserialize, Clone, Debug)]
 pub struct ApplicationSettings {
-    pub port: u16,
-    #[serde(default = "default_grpc_port")]
-    pub grpc_port: u16,
-    pub host: String,
+    #[serde(default = "default_listen")]
+    pub listen: SocketAddr,
     pub domain: String,
 }
 
-fn default_grpc_port() -> u16 {
-    DEFAULT_PORT_GRPC
+pub const DEFAULT_LISTEN_PORT: u16 = 8080;
+
+pub const DEFAULT_LISTEN_ADDR: SocketAddr =
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), DEFAULT_LISTEN_PORT);
+
+fn default_listen() -> SocketAddr {
+    DEFAULT_LISTEN_ADDR
 }
 
 /// Configuration for the database.

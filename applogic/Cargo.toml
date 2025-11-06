@@ -65,3 +65,4 @@ quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
 tempfile = "3.17.1"
 openmls = { workspace = true } # Required for GroupId
+mockall = { workspace = true }

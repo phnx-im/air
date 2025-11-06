@@ -3,8 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 application:
-  port: 9420
-  host: 0.0.0.0
+  listen: 127.0.0.1:8080
   domain: ""
 database:
   host: "127.0.0.1"

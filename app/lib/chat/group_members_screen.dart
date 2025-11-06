@@ -36,6 +36,7 @@ class GroupMembersScreen extends StatelessWidget {
           create:
               (context) => ChatDetailsCubit(
                 userCubit: context.read<UserCubit>(),
+                userSettingsCubit: context.read<UserSettingsCubit>(),
                 chatsRepository: context.read<ChatsRepository>(),
                 chatId: chatId,
               ),

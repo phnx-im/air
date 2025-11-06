@@ -24,6 +24,7 @@ import 'chat_list_cubit.dart';
 typedef ChatDetailsCubitCreate =
     ChatDetailsCubit Function({
       required UserCubit userCubit,
+      required UserSettingsCubit userSettingsCubit,
       required ChatId chatId,
       required ChatsRepository chatsRepository,
       bool withMembers,
@@ -59,6 +60,7 @@ class ChatListContent extends StatelessWidget {
           create:
               (context) => createChatDetailsCubit(
                 userCubit: context.read<UserCubit>(),
+                userSettingsCubit: context.read<UserSettingsCubit>(),
                 chatId: chatIds[index],
                 chatsRepository: context.read<ChatsRepository>(),
                 withMembers: false,

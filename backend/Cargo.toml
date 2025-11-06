@@ -52,7 +52,7 @@ aircommon = { path = "../common", features = ["test_utils"] }
 anyhow = "1.0.97"
 insta = { workspace = true }
 serde_json = "1.0.140"
-mockall = "0.13.1"
+mockall = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 [features]
