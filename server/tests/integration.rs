@@ -1636,7 +1636,7 @@ async fn key_package_upload() {
         let alice = setup.get_user_mut(&ALICE);
         let alice_user = &mut alice.user;
         alice_user
-            .invite_users(chat_id, &[BOB.clone()])
+            .invite_users(chat_id, std::slice::from_ref(&BOB))
             .await
             .unwrap();
         let bob = setup.get_user_mut(&BOB);
@@ -1647,7 +1647,7 @@ async fn key_package_upload() {
             res.errors.is_empty(),
             "Bob should process Alice's invitation without errors"
         );
-        let bob_encryption_key = bob_user
+        bob_user
             .mls_members(chat_id)
             .await
             .unwrap()
@@ -1655,8 +1655,7 @@ async fn key_package_upload() {
             .into_iter()
             .find(|m| m.index.usize() == 1)
             .unwrap()
-            .encryption_key;
-        bob_encryption_key
+            .encryption_key
     }
 
     for _ in 0..(KEY_PACKAGES + 1) {
