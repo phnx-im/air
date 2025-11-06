@@ -9,19 +9,8 @@ import 'package:flutter/cupertino.dart'
     show
         cupertinoDesktopTextSelectionHandleControls,
         cupertinoTextSelectionHandleControls;
-import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart'
-    show
-        DefaultTextStyle,
-        SelectionContainer,
-        SelectableRegion,
-        SelectableRegionState,
-        TextMagnifier,
-        KeyedSubtree;
-import 'package:flutter/rendering.dart' show RenderBox;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/attachments/attachments.dart';
 import 'package:air/chat/chat_details.dart';
@@ -44,6 +33,7 @@ import 'package:iconoir_flutter/regular/xmark.dart';
 
 import 'message_renderer.dart';
 
+const double _bubbleMaxWidthFactor = 5 / 6;
 const double largeCornerRadius = Spacings.sm;
 const double smallCornerRadius = Spacings.xxs;
 const double messageHorizontalPadding = Spacings.s;
@@ -194,19 +184,30 @@ class _MessageView extends HookWidget {
       );
     }
 
+    final attachments = contentMessage.content.attachments;
+    final hasImageAttachment = attachments.any(
+      (attachment) => attachment.imageMetadata != null,
+    );
+
     final actions = <MessageAction>[
       if (plainBody != null && plainBody.isNotEmpty)
         MessageAction(
           label: loc.messageContextMenu_copy,
-          leading: iconoir.Copy(width: 20),
+          leading: iconoir.Copy(
+            width: 24,
+            color: CustomColorScheme.of(context).text.primary,
+          ),
           onSelected: () {
             Clipboard.setData(ClipboardData(text: plainBody));
           },
         ),
-      if (isSender)
+      if (isSender && !hasImageAttachment)
         MessageAction(
           label: loc.messageContextMenu_edit,
-          leading: iconoir.EditPencil(width: 20),
+          leading: iconoir.EditPencil(
+            width: 24,
+            color: CustomColorScheme.of(context).text.primary,
+          ),
           onSelected: () {
             context.read<ChatDetailsCubit>().editMessage(messageId: messageId);
           },
@@ -273,16 +274,35 @@ class _MessageView extends HookWidget {
       );
     }
 
+    Widget wrapWithBubbleWidth(Widget child) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final hasFiniteWidth = constraints.maxWidth.isFinite;
+          final double maxWidth =
+              hasFiniteWidth
+                  ? constraints.maxWidth * _bubbleMaxWidthFactor
+                  : double.infinity;
+          final alignment =
+              isSender ? Alignment.centerRight : Alignment.centerLeft;
+          final boxConstraints =
+              hasFiniteWidth
+                  ? BoxConstraints(maxWidth: maxWidth)
+                  : const BoxConstraints();
+          return Align(
+            alignment: alignment,
+            child: ConstrainedBox(constraints: boxConstraints, child: child),
+          );
+        },
+      );
+    }
+
     if (isMobilePlatform) {
-      return Align(
-        alignment: isSender ? Alignment.centerRight : Alignment.centerLeft,
-        child: buildMessageShell(
+      return wrapWithBubbleWidth(
+        buildMessageShell(
           onLongPress:
               actions.isEmpty
                   ? null
                   : () {
-                    final messageContext = messageContainerKey.currentContext;
-                    if (messageContext == null) return;
                     final bubbleContext = bubbleKey.currentContext;
                     if (bubbleContext == null) return;
                     final renderObject = bubbleContext.findRenderObject();
@@ -291,9 +311,6 @@ class _MessageView extends HookWidget {
                     }
                     final origin = renderObject.localToGlobal(Offset.zero);
                     final anchorRect = origin & renderObject.size;
-                    final defaultTextStyle = DefaultTextStyle.of(
-                      messageContext,
-                    );
                     final overlayBubble = buildMessageBubble(
                       enableSelection: false,
                     );
@@ -301,11 +318,10 @@ class _MessageView extends HookWidget {
                     isDetached.value = true;
                     final future = showMobileMessageActions(
                       context: context,
-                      sourceContext: messageContext,
-                      defaultTextStyle: defaultTextStyle,
                       anchorRect: anchorRect,
                       actions: actions,
                       messageContent: overlayBubble,
+                      alignEnd: isSender,
                     );
                     unawaited(
                       future.whenComplete(() {
@@ -322,9 +338,8 @@ class _MessageView extends HookWidget {
       );
     }
 
-    return Align(
-      alignment: isSender ? Alignment.centerRight : Alignment.centerLeft,
-      child: ContextMenu(
+    return wrapWithBubbleWidth(
+      ContextMenu(
         direction:
             isSender ? ContextMenuDirection.left : ContextMenuDirection.right,
         width: 200,
@@ -333,18 +348,7 @@ class _MessageView extends HookWidget {
         menuItems: menuItems,
         cursorPosition: cursorPositionNotifier,
         child: buildMessageShell(
-          onLongPress:
-              actions.isEmpty
-                  ? null
-                  : () {
-                    selectionAreaKey.currentState?.clearSelection();
-                    if (contextMenuController.isShowing) {
-                      contextMenuController.hide();
-                    }
-                    ContextMenu.closeActiveMenu();
-                    cursorPositionNotifier.value = null;
-                    contextMenuController.show();
-                  },
+          onLongPress: null,
           onSecondaryTapDown:
               actions.isEmpty
                   ? null

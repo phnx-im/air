@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart'
-    show DefaultTextStyle, Directionality, InheritedTheme;
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/ui/components/context_menu/context_menu_ui.dart';
@@ -24,11 +22,10 @@ class MessageAction {
 
 Future<void> showMobileMessageActions({
   required BuildContext context,
-  required BuildContext sourceContext,
-  required DefaultTextStyle defaultTextStyle,
   required Rect anchorRect,
   required List<MessageAction> actions,
   required Widget messageContent,
+  required bool alignEnd,
 }) {
   return showGeneralDialog(
     context: context,
@@ -49,22 +46,16 @@ Future<void> showMobileMessageActions({
         anchorRect: anchorRect,
         actions: actions,
         messageContent: messageContent,
+        alignEnd: alignEnd,
       );
-      final mediaQueryData = MediaQuery.of(sourceContext);
-      final textDirection = Directionality.of(sourceContext);
-      return MediaQuery(
-        data: mediaQueryData,
-        child: DefaultTextStyle(
-          style: defaultTextStyle.style,
-          textAlign: defaultTextStyle.textAlign,
-          softWrap: defaultTextStyle.softWrap,
-          overflow: defaultTextStyle.overflow,
-          maxLines: defaultTextStyle.maxLines,
-          child: Directionality(
-            textDirection: textDirection,
-            child: overlayView,
-          ),
-        ),
+      final defaultTextStyle = DefaultTextStyle.of(context);
+      return DefaultTextStyle(
+        style: defaultTextStyle.style,
+        textAlign: defaultTextStyle.textAlign,
+        softWrap: defaultTextStyle.softWrap,
+        overflow: defaultTextStyle.overflow,
+        maxLines: defaultTextStyle.maxLines,
+        child: overlayView,
       );
     },
   );
@@ -76,12 +67,14 @@ class _MobileMessageActionView extends StatelessWidget {
     required this.anchorRect,
     required this.actions,
     required this.messageContent,
+    required this.alignEnd,
   });
 
   final Animation<double> animation;
   final Rect anchorRect;
   final List<MessageAction> actions;
   final Widget messageContent;
+  final bool alignEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -172,12 +165,13 @@ class _MobileMessageActionView extends StatelessWidget {
             Positioned(left: left, top: top, width: width, child: child!),
             if (sheetHeight > 0)
               Positioned(
-                left: Spacings.m,
-                right: Spacings.m,
+                left: alignEnd ? null : Spacings.m,
+                right: alignEnd ? Spacings.m : null,
                 top: sheetTop,
                 child: _MobileContextMenu(
                   animation: animation,
                   actions: actions,
+                  alignEnd: alignEnd,
                 ),
               ),
           ],
@@ -188,10 +182,15 @@ class _MobileMessageActionView extends StatelessWidget {
 }
 
 class _MobileContextMenu extends StatelessWidget {
-  const _MobileContextMenu({required this.animation, required this.actions});
+  const _MobileContextMenu({
+    required this.animation,
+    required this.actions,
+    required this.alignEnd,
+  });
 
   final Animation<double> animation;
   final List<MessageAction> actions;
+  final bool alignEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -217,9 +216,14 @@ class _MobileContextMenu extends StatelessWidget {
       opacity: animation,
       child: SlideTransition(
         position: slideAnimation,
-        child: ContextMenuUi(
-          menuItems: items,
-          onHide: () => Navigator.of(context).pop(),
+        child: Align(
+          alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
+          child: IntrinsicWidth(
+            child: ContextMenuUi(
+              menuItems: items,
+              onHide: () => Navigator.of(context).pop(),
+            ),
+          ),
         ),
       ),
     );
