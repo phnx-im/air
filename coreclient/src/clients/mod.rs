@@ -186,7 +186,6 @@ impl CoreUser {
         Ok(self_user)
     }
 
-
     /// Load a user from the database.
     ///
     /// If a user creation process with a matching `UserId` was interrupted before, this will
@@ -499,7 +498,6 @@ impl CoreUser {
             .collect::<Result<HashSet<_>>>()?;
         Ok(Some(users))
     }
-
 
     pub async fn pending_removes(&self, chat_id: ChatId) -> Option<Vec<UserId>> {
         let mut connection = self.pool().acquire().await.ok()?;
