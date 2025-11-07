@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE timed_tasks_queue\n                SET due_at = ?\n                WHERE task_kind = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "bb6cb4f82ddb3c7b66683980d2f780d26c452d986859ff924b13bc34dfc745dd"
+}

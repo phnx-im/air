@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE key_package_refs\n            SET is_live = 0\n            WHERE is_live = 1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "19c43fdf5324ccd4d6cf3f67e5fd5d9659dcbb9e4b3b75e0fd4bd84b2149c96d"
+}
