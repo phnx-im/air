@@ -379,7 +379,7 @@ impl QsRegisteredUserState {
         let due_at = now - chrono::Duration::minutes(5);
 
         TimedTaskQueue::new_key_package_upload_task(due_at)
-            .enqueue(pool.acquire().await?.as_mut())
+            .enqueue(pool)
             .await?;
 
         let state = PersistedUserState { state: self };

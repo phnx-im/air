@@ -4,7 +4,8 @@
 --
 -- Tasks scheduled for specific times.
 CREATE TABLE timed_tasks_queue (
-    task_kind TEXT NOT NULL,
+    -- Marking additionally as NOT NULL because otherwise sqlx gets confused.
+    task_kind TEXT PRIMARY KEY NOT NULL,
     locked_by BLOB,
     due_at TEXT NOT NULL
 );

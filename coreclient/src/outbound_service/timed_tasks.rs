@@ -37,18 +37,23 @@ impl OutboundServiceContext {
             };
             debug!(?task_kind, "dequeued task");
 
-            match self.handle_task(task_kind).await {
+            let res = self.handle_task(task_kind).await;
+
+            let interval = match res {
                 Ok(_) => {
                     // Task was successful, schedule next run
-                    let now = Utc::now();
-                    let due_at = now + task_kind.default_interval();
-                    TimedTaskQueue::set_due_date(&self.pool, task_kind, due_at).await?;
+                    task_kind.default_interval()
                 }
                 Err(error) => {
                     error!(%error, "Failed to execute timed task");
-                    continue;
+                    task_kind.default_retry_interval()
                 }
             };
+
+            // Schedule next run
+            let now = Utc::now();
+            let due_at = now + interval;
+            TimedTaskQueue::set_due_date(&self.pool, task_kind, due_at).await?;
         }
     }
 

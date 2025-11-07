@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use sqlx::{
     Database, Decode, Encode, Sqlite, Type, encode::IsNull, error::BoxDynError,
     sqlite::SqliteTypeInfo,
@@ -14,9 +14,15 @@ pub(crate) enum TaskKind {
 }
 
 impl TaskKind {
-    pub(super) fn default_interval(&self) -> chrono::Duration {
+    pub(super) fn default_interval(&self) -> Duration {
         match self {
-            TaskKind::KeyPackageUpload => chrono::Duration::weeks(1),
+            TaskKind::KeyPackageUpload => Duration::weeks(1),
+        }
+    }
+
+    pub(super) fn default_retry_interval(&self) -> Duration {
+        match self {
+            TaskKind::KeyPackageUpload => Duration::minutes(5),
         }
     }
 }
@@ -49,7 +55,7 @@ mod persistence {
             );
 
             query!(
-                "INSERT INTO timed_tasks_queue
+                "INSERT OR REPLACE INTO timed_tasks_queue
                     (due_at, task_kind)
                 VALUES (?1, ?2)",
                 self.due_at,
