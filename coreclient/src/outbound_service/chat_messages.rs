@@ -129,7 +129,7 @@ impl OutboundServiceContext {
         let ds_timestamp = self
             .api_clients
             .get(&chat.owner_domain())?
-            .ds_send_message(params, &self.signing_key, &group_state_ear_key)
+            .ds_send_message(params, self.signing_key(), &group_state_ear_key)
             .await?;
 
         // post-processing:
