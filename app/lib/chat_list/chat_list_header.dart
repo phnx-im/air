@@ -94,44 +94,50 @@ class _PlusButtonState extends State<_PlusButton> {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    return ContextMenu(
-      direction: ContextMenuDirection.left,
-      width: 200,
-      controller: contextMenuController,
-      menuItems: [
-        ContextMenuItem(
-          label: loc.chatList_newContact,
-          onPressed: () {
-            _newContact(context);
-          },
-        ),
-        ContextMenuItem(
-          label: loc.chatList_newGroup,
-          onPressed: () {
-            _newGroup(context);
-          },
-        ),
-      ],
-      child: TextButton(
-        style: TextButton.styleFrom(
-          padding: EdgeInsets.zero,
-          minimumSize: Size.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-        onPressed: () {
-          contextMenuController.show();
-        },
-        child: Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: CustomColorScheme.of(context).backgroundBase.quaternary,
-            borderRadius: BorderRadius.circular(16),
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacings.sm,
+        vertical: Spacings.sm,
+      ),
+      child: ContextMenu(
+        direction: ContextMenuDirection.left,
+        width: 200,
+        controller: contextMenuController,
+        menuItems: [
+          ContextMenuItem(
+            label: loc.chatList_newContact,
+            onPressed: () {
+              _newContact(context);
+            },
           ),
-          child: Center(
-            child: iconoir.Plus(
-              color: CustomColorScheme.of(context).text.primary,
-              width: 22,
+          ContextMenuItem(
+            label: loc.chatList_newGroup,
+            onPressed: () {
+              _newGroup(context);
+            },
+          ),
+        ],
+        child: TextButton(
+          style: TextButton.styleFrom(
+            padding: EdgeInsets.zero,
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          onPressed: () {
+            contextMenuController.show();
+          },
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: CustomColorScheme.of(context).backgroundBase.quaternary,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Center(
+              child: iconoir.Plus(
+                color: CustomColorScheme.of(context).text.primary,
+                width: 22,
+              ),
             ),
           ),
         ),
