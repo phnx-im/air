@@ -22,7 +22,7 @@ use crate::{
     ChatId, UserProfile,
     clients::api_clients::ApiClients,
     groups::{Group, ProfileInfo},
-    outbound_service::{OutboundService, OutboundServiceContext},
+    outbound_service::{OutboundService, OutboundServiceContext, error::OutboundServiceError},
     utils::connection_ext::StoreExt,
 };
 
@@ -65,12 +65,12 @@ impl OutboundServiceContext {
                     // infos in the background.
                     profile_infos
                 }
-                Err(SendResyncError::Fatal(error)) => {
+                Err(OutboundServiceError::Fatal(error)) => {
                     error!(%error, "Failed to send resync; dropping");
                     Resync::remove(&mut *connection, &group_id).await?;
                     return Err(error);
                 }
-                Err(SendResyncError::Recoverable(error)) => {
+                Err(OutboundServiceError::Recoverable(error)) => {
                     error!(%error, "Failed to send resync; will retry later");
                     continue;
                 }
@@ -99,26 +99,28 @@ impl Resync {
         connection: &mut SqliteConnection,
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
-    ) -> Result<Vec<ProfileInfo>, SendResyncError> {
+    ) -> Result<Vec<ProfileInfo>, OutboundServiceError> {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
         // reflect that in the UI.
 
         let external_commit_info = self
             .fetch_group_info(api_clients)
             .await
-            .map_err(SendResyncError::recoverable)?;
+            .map_err(OutboundServiceError::recoverable)?;
 
         let original_leaf_index = self.original_leaf_index;
 
         let mut txn = connection
             .begin_with("BEGIN IMMEDIATE")
             .await
-            .map_err(SendResyncError::recoverable)?;
+            .map_err(OutboundServiceError::recoverable)?;
         let (group, commit, group_info, member_profile_infos) = self
             .create_commit(&mut txn, api_clients, signer, external_commit_info)
             .await
-            .map_err(SendResyncError::fatal)?;
-        txn.commit().await.map_err(SendResyncError::recoverable)?;
+            .map_err(OutboundServiceError::fatal)?;
+        txn.commit()
+            .await
+            .map_err(OutboundServiceError::recoverable)?;
 
         Self::send_commit(
             api_clients,
@@ -129,7 +131,7 @@ impl Resync {
             original_leaf_index,
         )
         .await
-        .map_err(SendResyncError::recoverable)?;
+        .map_err(OutboundServiceError::recoverable)?;
 
         Ok(member_profile_infos)
     }
@@ -195,21 +197,6 @@ impl Resync {
             )
             .await?;
         Ok(())
-    }
-}
-
-enum SendResyncError {
-    Fatal(anyhow::Error),
-    Recoverable(anyhow::Error),
-}
-
-impl SendResyncError {
-    pub fn fatal<E: Into<anyhow::Error>>(error: E) -> Self {
-        SendResyncError::Fatal(error.into())
-    }
-
-    pub fn recoverable<E: Into<anyhow::Error>>(error: E) -> Self {
-        SendResyncError::Recoverable(error.into())
     }
 }
 

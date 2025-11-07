@@ -292,7 +292,10 @@ impl Store for CoreUser {
     }
 
     async fn resend_message(&self, local_message_id: Uuid) -> StoreResult<()> {
-        self.re_send_message(local_message_id).await
+        self.outbound_service()
+            .enqueue_chat_message(MessageId::new(local_message_id), None)
+            .await?;
+        Ok(())
     }
 
     fn notify(&self, notification: StoreNotification) {

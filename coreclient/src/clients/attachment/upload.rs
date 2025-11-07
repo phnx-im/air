@@ -95,29 +95,36 @@ impl CoreUser {
 
         // Note: Acquire a transaction here to ensure that the attachment will be deleted from the
         // local database in case of an error.
-        self.with_transaction_and_notifier(async |txn, notifier| {
-            let message_id = MessageId::random();
-            let message = self
-                .send_message_transactional(txn, notifier, chat_id, message_id, content)
-                .await?;
+        let message = self
+            .with_transaction_and_notifier(async |txn, notifier| {
+                let message_id = MessageId::random();
+                let message = self
+                    .send_message_transactional(txn, notifier, chat_id, message_id, content)
+                    .await?;
 
-            // store attachment locally
-            // (must be done after the message is stored locally due to foreign key constraints)
-            let record = AttachmentRecord {
-                attachment_id,
-                chat_id: chat.id(),
-                message_id,
-                content_type: content_type.to_owned(),
-                status: AttachmentStatus::Ready,
-                created_at: Utc::now(),
-            };
-            record
-                .store(txn.as_mut(), notifier, Some(content_bytes.as_slice()))
-                .await?;
+                // store attachment locally
+                // (must be done after the message is stored locally due to foreign key constraints)
+                let record = AttachmentRecord {
+                    attachment_id,
+                    chat_id: chat.id(),
+                    message_id,
+                    content_type: content_type.to_owned(),
+                    status: AttachmentStatus::Ready,
+                    created_at: Utc::now(),
+                };
+                record
+                    .store(txn.as_mut(), notifier, Some(content_bytes.as_slice()))
+                    .await?;
 
-            Ok(message)
-        })
-        .await
+                Ok(message)
+            })
+            .await?;
+
+        self.outbound_service()
+            .enqueue_chat_message(message.id(), Some(attachment_id))
+            .await?;
+
+        Ok(message)
     }
 }
 

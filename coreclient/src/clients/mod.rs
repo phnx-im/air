@@ -67,7 +67,6 @@ use crate::{
     },
     clients::connection_offer::FriendshipPackage,
     contacts::Contact,
-    groups::openmls_provider::AirOpenMlsProvider,
     key_stores::MemoryUserKeyStore,
     store::{StoreNotification, StoreNotifier},
     user_profiles::IndexedUserProfile,

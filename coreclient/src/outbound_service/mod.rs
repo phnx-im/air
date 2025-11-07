@@ -27,6 +27,9 @@ use crate::{
 
 pub use timed_tasks::KEY_PACKAGES;
 
+mod chat_message_queue;
+mod chat_messages;
+mod error;
 mod receipt_queue;
 mod receipts;
 pub(crate) mod resync;
@@ -211,6 +214,9 @@ impl OutboundServiceContext {
         }
         if let Err(error) = self.send_queued_receipts(&run_token).await {
             error!(%error, "Failed to send queued receipts");
+        }
+        if let Err(error) = self.send_queued_messages(&run_token).await {
+            error!(%error, "Failed to send queued messages");
         }
         if let Err(error) = self.execute_timed_tasks(&run_token).await {
             error!(%error, "Failed to execute timed tasks");

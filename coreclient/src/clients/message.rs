@@ -2,24 +2,19 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{
-    credentials::keys::ClientSigningKey, identifiers::UserId,
-    messages::client_ds_out::SendMessageParamsOut, time::TimeStamp,
-};
+use aircommon::{identifiers::UserId, time::TimeStamp};
 use anyhow::{Context, bail};
 use mimi_content::{MessageStatus, MimiContent, NestedPartContent};
-use openmls::storage::OpenMlsProvider;
-use sqlx::{SqliteConnection, SqliteTransaction};
-use uuid::Uuid;
+use sqlx::SqliteTransaction;
 
 use crate::{
-    Chat, ChatId, ChatMessage, ChatStatus, ContentMessage, Message, MessageId,
+    Chat, ChatId, ChatMessage, ChatStatus, ContentMessage, MessageId,
     chats::{StatusRecord, messages::edit::MessageEdit},
     clients::block_contact::BlockedContactError,
     utils::connection_ext::StoreExt,
 };
 
-use super::{AirOpenMlsProvider, ApiClients, CoreUser, Group, StoreNotifier};
+use super::{CoreUser, Group, StoreNotifier};
 
 impl CoreUser {
     /// Send a message and return it.
@@ -62,24 +57,20 @@ impl CoreUser {
                 }
                 .store_unsent_message(txn, notifier, self.user_id(), replaces_id)
                 .await?
-                .create_group_message(&AirOpenMlsProvider::new(txn), self.signing_key())?
                 .store_group_update(txn, notifier, self.user_id())
                 .await
             })
             .await?;
 
-        let sent_message = unsent_group_message
-            .send_message_to_ds(&self.inner.api_clients, self.signing_key())
+        self.outbound_service()
+            .enqueue_chat_message(unsent_group_message.message.id(), None)
             .await?;
 
-        self.with_transaction_and_notifier(async |txn, notifier| {
-            sent_message
-                .mark_as_sent(txn, notifier, self.user_id())
-                .await
-        })
-        .await
+        Ok(unsent_group_message.message)
     }
 
+    // TODO: This should be merged with send_message as soon as we don't
+    // automatically send updates before attempting to enqueue a message.
     pub(crate) async fn send_message_transactional(
         &self,
         txn: &mut SqliteTransaction<'_>,
@@ -95,43 +86,10 @@ impl CoreUser {
         }
         .store_unsent_message(txn, notifier, self.user_id(), None)
         .await?
-        .create_group_message(&AirOpenMlsProvider::new(txn), self.signing_key())?
         .store_group_update(txn, notifier, self.user_id())
         .await?;
 
-        let sent_message = unsent_group_message
-            .send_message_to_ds(&self.inner.api_clients, self.signing_key())
-            .await?;
-
-        sent_message
-            .mark_as_sent(txn, notifier, self.user_id())
-            .await
-    }
-
-    /// Re-try sending a message, where sending previously failed.
-    pub async fn re_send_message(&self, local_message_id: Uuid) -> anyhow::Result<()> {
-        let unsent_group_message = self
-            .with_transaction(async |txn| {
-                LocalMessage { local_message_id }
-                    .load_for_resend(txn)
-                    .await?
-                    .create_group_message(&AirOpenMlsProvider::new(txn), self.signing_key())
-            })
-            .await?;
-
-        let sent_message = unsent_group_message
-            .send_message_to_ds(&self.inner.api_clients, self.signing_key())
-            .await?;
-
-        self.with_transaction_and_notifier(async |connection, notifier| {
-            // Do not mark as read, because the user might have missed messages
-            sent_message
-                .mark_as_sent(connection, notifier, self.user_id())
-                .await
-        })
-        .await?;
-
-        Ok(())
+        Ok(unsent_group_message.message)
     }
 }
 
@@ -148,7 +106,7 @@ impl UnsentContent {
         notifier: &mut StoreNotifier,
         sender: &UserId,
         replaces_id: Option<MessageId>,
-    ) -> anyhow::Result<UnsentMessage<WithContent, GroupUpdateNeeded>> {
+    ) -> anyhow::Result<UnsentMessage<GroupUpdateNeeded>> {
         let UnsentContent {
             chat_id,
             message_id,
@@ -229,111 +187,34 @@ impl UnsentContent {
             chat,
             group,
             message,
-            content: WithContent(content),
             group_update: GroupUpdateNeeded,
         })
     }
 }
-
-struct LocalMessage {
-    local_message_id: Uuid,
-}
-
-impl LocalMessage {
-    async fn load_for_resend(
-        self,
-        connection: &mut SqliteConnection,
-    ) -> anyhow::Result<UnsentMessage<WithContent, GroupUpdated>> {
-        let Self { local_message_id } = self;
-
-        let message = ChatMessage::load(&mut *connection, MessageId::new(local_message_id))
-            .await?
-            .with_context(|| format!("Can't find unsent message with id {local_message_id}"))?;
-        let content = match message.message() {
-            Message::Content(content_message) if !content_message.was_sent() => {
-                content_message.content().clone()
-            }
-            Message::Content(_) => bail!("Message with id {local_message_id} was already sent"),
-            _ => bail!("Message with id {local_message_id} is not a content message"),
-        };
-        let chat_id = message.chat_id();
-        let chat = Chat::load(&mut *connection, &chat_id)
-            .await?
-            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
-        let group_id = chat.group_id();
-
-        let group = Group::load(connection, group_id)
-            .await?
-            .with_context(|| format!("Can't find group with id {group_id:?}"))?;
-
-        let message = UnsentMessage {
-            chat,
-            group,
-            message,
-            content: WithContent(content),
-            group_update: GroupUpdated,
-        };
-
-        Ok(message)
-    }
-}
-
-/// Message type state: Message with MIMI content
-struct WithContent(MimiContent);
-/// Message type state: Message with prepared send parameters
-struct WithParams(SendMessageParamsOut);
 
 /// Message type state: Group update needed before sending the message
 struct GroupUpdateNeeded;
 /// Message type state: Group already updated, message can be sent
 struct GroupUpdated;
 
-struct UnsentMessage<State, GroupUpdate> {
+struct UnsentMessage<GroupUpdate> {
     chat: Chat,
     group: Group,
     message: ChatMessage,
-    content: State,
     group_update: GroupUpdate,
 }
 
-impl<GroupUpdate> UnsentMessage<WithContent, GroupUpdate> {
-    fn create_group_message(
-        self,
-        provider: &impl OpenMlsProvider,
-        signer: &ClientSigningKey,
-    ) -> anyhow::Result<UnsentMessage<WithParams, GroupUpdate>> {
-        let Self {
-            chat,
-            mut group,
-            message,
-            content: WithContent(content),
-            group_update,
-        } = self;
-
-        let params = group.create_message(provider, signer, content)?;
-
-        Ok(UnsentMessage {
-            chat,
-            message,
-            group,
-            content: WithParams(params),
-            group_update,
-        })
-    }
-}
-
-impl UnsentMessage<WithParams, GroupUpdateNeeded> {
+impl UnsentMessage<GroupUpdateNeeded> {
     async fn store_group_update(
         self,
         txn: &mut SqliteTransaction<'_>,
         notifier: &mut StoreNotifier,
         own_user: &UserId,
-    ) -> anyhow::Result<UnsentMessage<WithParams, GroupUpdated>> {
+    ) -> anyhow::Result<UnsentMessage<GroupUpdated>> {
         let Self {
             chat,
             group,
             message,
-            content: WithParams(params),
             group_update: GroupUpdateNeeded,
         } = self;
 
@@ -349,78 +230,7 @@ impl UnsentMessage<WithParams, GroupUpdateNeeded> {
             chat,
             group,
             message,
-            content: WithParams(params),
             group_update: GroupUpdated,
         })
-    }
-}
-
-impl UnsentMessage<WithParams, GroupUpdated> {
-    async fn send_message_to_ds(
-        self,
-        api_clients: &ApiClients,
-        signer: &ClientSigningKey,
-    ) -> anyhow::Result<SentMessage> {
-        let Self {
-            chat,
-            message,
-            group,
-            content: WithParams(params),
-            group_update: GroupUpdated,
-        } = self;
-
-        let ds_timestamp = api_clients
-            .get(&chat.owner_domain())?
-            .ds_send_message(params, signer, group.group_state_ear_key())
-            .await?;
-
-        Ok(SentMessage {
-            message,
-            ds_timestamp,
-        })
-    }
-}
-
-struct SentMessage {
-    message: ChatMessage,
-    ds_timestamp: TimeStamp,
-}
-
-impl SentMessage {
-    async fn mark_as_sent(
-        self,
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
-        own_user: &UserId,
-    ) -> anyhow::Result<ChatMessage> {
-        let Self {
-            mut message,
-            ds_timestamp,
-        } = self;
-
-        if message.edited_at().is_some() {
-            message
-                .mark_as_sent(&mut *txn, notifier, message.timestamp().into())
-                .await?;
-            message.set_edited_at(ds_timestamp);
-        } else {
-            message
-                .mark_as_sent(&mut *txn, notifier, ds_timestamp)
-                .await?;
-        }
-
-        // Note: even though the message was already marked as read, we still need to move the last
-        // read timestamp down. After a message was sent to DS, it is marked as read, which updates
-        // its timestamp to the timestamp returned by DS.
-        Chat::mark_as_read_until_message_id(
-            txn,
-            notifier,
-            message.chat_id(),
-            message.id(),
-            own_user,
-        )
-        .await?;
-
-        Ok(message)
     }
 }
