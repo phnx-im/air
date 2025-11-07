@@ -99,6 +99,7 @@ pub async fn spawn_app_with_rate_limits(
     // Start the server
     let server = run(ServerRunParams {
         listener,
+        metrics_listener: None,
         ds,
         auth_service,
         qs,

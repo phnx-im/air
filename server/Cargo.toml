@@ -43,11 +43,16 @@ zeroize = "1.8.1"
 tls_codec = { workspace = true }
 reqwest = { workspace = true }
 tonic = { workspace = true }
+tower = { workspace = true }
 tower-http = { workspace = true }
 tokio-stream = { workspace = true }
 tower_governor = { workspace = true }
 anyhow = "1.0.98"
 tonic-health = { workspace = true }
+metrics-exporter-prometheus = { version = "0.17.2", default-features = false }
+pin-project = { workspace = true }
+metrics = "0.24.2"
+axum = { version = "0.8.6", features = ["http2"] }
 
 [dev-dependencies]
 tracing-futures = "^0.2.5"
