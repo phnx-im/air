@@ -164,7 +164,7 @@ impl OutboundServiceContext {
         &self,
         chat: &Chat,
         mimi_content: MimiContent,
-    ) -> Result<(GroupStateEarKey, SendMessageParamsOut), anyhow::Error> {
+    ) -> anyhow::Result<(GroupStateEarKey, SendMessageParamsOut)> {
         self.with_transaction(async |txn| {
             let group_id = chat.group_id();
             let mut group = Group::load_clean(txn.as_mut(), group_id)
