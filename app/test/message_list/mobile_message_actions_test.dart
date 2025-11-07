@@ -233,7 +233,7 @@ void main() {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
-      final messageFinder = find.text('Hello Alice from Bob');
+      final messageFinder = find.text("Hello Alice, it's Bob");
       expect(messageFinder, findsOneWidget);
 
       await tester.longPress(messageFinder);
