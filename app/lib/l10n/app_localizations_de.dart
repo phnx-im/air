@@ -369,10 +369,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get textMessage_deleted => 'Deleted message';
 
   @override
-  String get messageContextMenu_copy => 'Nachricht kopieren';
+  String get messageContextMenu_copy => 'Kopieren';
 
   @override
-  String get messageContextMenu_edit => 'Nachricht bearbeiten';
+  String get messageContextMenu_edit => 'Bearbeiten';
 
   @override
   String get reportSpamButton_text => 'Spam melden';

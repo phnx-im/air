@@ -709,13 +709,13 @@ abstract class AppLocalizations {
   /// No description provided for @messageContextMenu_copy.
   ///
   /// In en, this message translates to:
-  /// **'Copy message'**
+  /// **'Copy'**
   String get messageContextMenu_copy;
 
   /// No description provided for @messageContextMenu_edit.
   ///
   /// In en, this message translates to:
-  /// **'Edit message'**
+  /// **'Edit'**
   String get messageContextMenu_edit;
 
   /// No description provided for @reportSpamButton_text.
