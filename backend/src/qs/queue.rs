@@ -7,12 +7,13 @@ use std::{
     sync::Arc,
 };
 
-use aircommon::identifiers::QsClientId;
+use aircommon::{identifiers::QsClientId, time::TimeStamp};
 use airprotos::queue_service::v1::{
     QueueEmpty, QueueEvent, QueueEventPayload, QueueMessage, queue_event,
 };
 use futures_util::{Stream, stream};
-use sqlx::{PgExecutor, PgPool, PgTransaction, query_scalar};
+use metrics::gauge;
+use sqlx::{PgExecutor, PgPool, PgTransaction};
 use tokio::sync::{Mutex, mpsc};
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
@@ -22,6 +23,7 @@ use uuid::Uuid;
 use crate::{
     errors::QueueError,
     pg_listen::{PgChannelName, PgListenerTaskHandle, spawn_pg_listener_task},
+    qs::{METRIC_AIR_ACTIVE_USERS, client_record::QsClientRecord, user_record::UserRecord},
 };
 
 /// Maximum number of messages to fetch at once.
@@ -43,8 +45,16 @@ struct ListenerContext {
     payload_tx: mpsc::Sender<QueueEventPayload>,
 }
 
+impl ListenerContext {
+    fn new(cancel: CancellationToken, payload_tx: mpsc::Sender<QueueEventPayload>) -> Self {
+        gauge!(METRIC_AIR_ACTIVE_USERS).increment(1);
+        Self { cancel, payload_tx }
+    }
+}
+
 impl Drop for ListenerContext {
     fn drop(&mut self) {
+        gauge!(METRIC_AIR_ACTIVE_USERS).decrement(1);
         self.cancel.cancel();
     }
 }
@@ -161,10 +171,10 @@ impl Queues {
         }
 
         let cancel = CancellationToken::new();
-        let context = ListenerContext {
-            cancel: cancel.clone(),
-            payload_tx,
-        };
+        let context = ListenerContext::new(cancel.clone(), payload_tx);
+
+        QsClientRecord::update_activity_time(&self.pool, client_id, TimeStamp::now()).await?;
+        UserRecord::metrics(&self.pool).await?.report();
 
         if listeners.insert(client_id, context).is_none() {
             self.pg_listener_task_handle.listen(client_id).await;
@@ -290,6 +300,7 @@ pub(crate) mod persistence {
     use prost::Message;
     use sqlx::{
         Database, Decode, Encode, Postgres, Type, encode::IsNull, error::BoxDynError, query,
+        query_scalar,
     };
 
     #[derive(Debug)]
@@ -335,7 +346,7 @@ pub(crate) mod persistence {
             queue_id: QsClientId,
             message: &QueueMessage,
         ) -> Result<(), QueueError> {
-            sqlx::query!(
+            query!(
                 "INSERT INTO qs_queues (queue_id, sequence_number, message_bytes)
                 VALUES ($1, $2, $3)",
                 queue_id as QsClientId,

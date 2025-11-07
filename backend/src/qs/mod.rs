@@ -67,6 +67,7 @@ use aircommon::{
 };
 use client_id_decryption_key::StorableClientIdDecryptionKey;
 
+use metrics::describe_gauge;
 use sqlx::PgPool;
 
 use crate::{
@@ -94,6 +95,11 @@ pub struct Qs {
     queues: Queues,
 }
 
+pub(crate) const METRIC_AIR_QS_TOTAL_USERS: &str = "air_qs_total_users";
+pub(crate) const METRIC_AIR_QS_MAU_USERS: &str = "air_qs_mau_users";
+pub(crate) const METRIC_AIR_QS_DAU_USERS: &str = "air_qs_dau_users";
+pub(crate) const METRIC_AIR_ACTIVE_USERS: &str = "air_qs_active_users";
+
 impl BackendService for Qs {
     async fn initialize(db_pool: PgPool, domain: Fqdn) -> Result<Self, ServiceCreationError> {
         // Check if the requisite key material exists and if it doesn't, generate it.
@@ -114,6 +120,22 @@ impl BackendService for Qs {
             db_pool,
             queues,
         })
+    }
+
+    fn describe_metrics() {
+        describe_gauge!(METRIC_AIR_QS_TOTAL_USERS, "Number of total users");
+        describe_gauge!(
+            METRIC_AIR_QS_DAU_USERS,
+            "Number of rolling DAU (daily active users)"
+        );
+        describe_gauge!(
+            METRIC_AIR_QS_MAU_USERS,
+            "Number of rolling MAU (monthly active users)"
+        );
+        describe_gauge!(
+            METRIC_AIR_ACTIVE_USERS,
+            "Number of currently connetected users"
+        );
     }
 }
 

@@ -67,6 +67,7 @@ tokio-util = "0.7.13"
 derive_more = { version = "0.99.19", features = ["from"] }
 displaydoc = "0.2.5"
 mockall = "0.13.1"
+metrics = "0.24.2"
 
 mimi_content = { git = "https://github.com/boxdot/mimi-content", rev = "18af569b6074ed5b63cb2d5086ffea3acfad3f02" }
 

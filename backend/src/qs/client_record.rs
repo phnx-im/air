@@ -189,6 +189,21 @@ pub(crate) mod persistence {
             }))
         }
 
+        pub(in crate::qs) async fn update_activity_time(
+            connection: impl PgExecutor<'_>,
+            client_id: QsClientId,
+            activity_time: TimeStamp,
+        ) -> sqlx::Result<()> {
+            query!(
+                "UPDATE qs_client_record SET activity_time = $1 WHERE client_id = $2",
+                activity_time as _,
+                client_id as _,
+            )
+            .execute(connection)
+            .await?;
+            Ok(())
+        }
+
         pub(in crate::qs) async fn delete(
             connection: impl PgExecutor<'_>,
             client_id: &QsClientId,

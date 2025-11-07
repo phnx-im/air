@@ -153,6 +153,7 @@ dependencies = [
  "displaydoc",
  "futures-util",
  "insta",
+ "metrics",
  "mimi-room-policy",
  "mls-assist",
  "mockall",

@@ -66,8 +66,11 @@ pub trait BackendService: Sized {
         sqlx::migrate!("./migrations").run(&db_pool).await?;
         info!("Database migration successful");
 
+        Self::describe_metrics();
         Self::initialize(db_pool, domain).await
     }
+
+    fn describe_metrics() {}
 
     async fn initialize(db_pool: PgPool, domain: Fqdn) -> Result<Self, ServiceCreationError>;
 }
