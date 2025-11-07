@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                UPDATE timed_tasks_queue\n                SET locked_by = ?1\n                WHERE task_kind = (\n                    SELECT task_kind\n                    FROM timed_tasks_queue\n                    WHERE \n                        (locked_by IS NULL OR locked_by != ?1)\n                        AND due_at <= ?2\n                    ORDER BY due_at ASC\n                    LIMIT 1\n                )\n                RETURNING task_kind AS \"task_kind: TaskKind\"\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "task_kind: TaskKind",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "96bd8465d94476a76ade627aa16b8a1c8afe09901d2699d126a2ca00850706ac"
+}
