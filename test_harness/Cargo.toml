@@ -10,18 +10,18 @@ publish = false
 license = "AGPL-3.0-or-later"
 
 [dependencies]
-aircommon = { workspace = true }
-airserver = { path = "../server" }
-aircoreclient = { path = "../coreclient", features = ["test_utils"] }
-airbackend = { path = "../backend", features = ["test_utils"] }
+airbackend = { workspace = true, features = ["test_utils"] }
+aircommon.workspace = true
+aircoreclient = { workspace = true, features = ["test_utils"] }
+airserver.workspace = true
 
-tokio = { version = "1", features = ["process"] }
-rand = "0.8"
-rand_chacha = { version = "0.3" }
-uuid = { version = "1.0.0", features = ["v4"] }
-tracing = { version = "0.1", features = ["log"] }
-mimi_content = { workspace = true }
-tracing-subscriber.workspace = true
-tempfile = "3.19.1"
-anyhow = "1.0.98"
+anyhow.workspace = true
+mimi_content.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["process"] }
 tokio-stream.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid = { workspace = true, features = ["v4"] }
