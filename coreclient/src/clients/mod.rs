@@ -91,6 +91,8 @@ mod persistence;
 pub mod process;
 mod remove_users;
 pub mod store;
+#[cfg(feature = "test_utils")]
+mod test_utils;
 #[cfg(test)]
 mod tests;
 mod update_key;
@@ -101,7 +103,6 @@ pub(crate) const CIPHERSUITE: Ciphersuite =
     Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
 pub(crate) const CONNECTION_PACKAGES: usize = 50;
-pub(crate) const KEY_PACKAGES: usize = 50;
 
 #[derive(Debug, Clone)]
 pub struct CoreUser {
@@ -182,37 +183,6 @@ impl CoreUser {
         let self_user = final_state.into_self_user(client_db, api_clients, global_lock);
 
         Ok(self_user)
-    }
-
-    /// The same as [`Self::new()`], except that databases are ephemeral and are
-    /// dropped together with this instance of [`CoreUser`].
-    #[cfg(feature = "test_utils")]
-    pub async fn new_ephemeral(
-        user_id: UserId,
-        server_url: Url,
-        push_token: Option<PushToken>,
-    ) -> Result<Self> {
-        use crate::utils::persistence::open_db_in_memory;
-
-        info!(?user_id, "creating new ephemeral user");
-
-        // Open the air db to store the client record
-        let air_db = open_db_in_memory().await?;
-
-        // Open client specific db
-        let client_db = open_db_in_memory().await?;
-
-        let global_lock = GlobalLock::from_file(tempfile::tempfile()?);
-
-        Self::new_with_connections(
-            user_id,
-            server_url,
-            push_token,
-            air_db,
-            client_db,
-            global_lock,
-        )
-        .await
     }
 
     /// Load a user from the database.
@@ -526,14 +496,6 @@ impl CoreUser {
             .map(|bytes| Ok(UserId::tls_deserialize_exact_bytes(bytes)?))
             .collect::<Result<HashSet<_>>>()?;
         Ok(Some(users))
-    }
-
-    #[cfg(feature = "test_utils")]
-    pub async fn group_members(&self, chat_id: ChatId) -> Option<HashSet<UserId>> {
-        let mut connection = self.pool().acquire().await.ok()?;
-        let chat = Chat::load(&mut connection, &chat_id).await.ok()??;
-        let group = Group::load(&mut connection, chat.group_id()).await.ok()??;
-        Some(group.members(&mut *connection).await.into_iter().collect())
     }
 
     pub async fn pending_removes(&self, chat_id: ChatId) -> Option<Vec<UserId>> {

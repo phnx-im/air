@@ -143,7 +143,7 @@ impl OutboundServiceContext {
         self.api_clients
             .get(&chat.owner_domain())
             .map_err(OutboundServiceError::fatal)?
-            .ds_send_message(params, &self.signing_key, &group_state_ear_key)
+            .ds_send_message(params, self.signing_key(), &group_state_ear_key)
             .await
             .map_err(OutboundServiceError::recoverable)?;
 
@@ -172,7 +172,7 @@ impl OutboundServiceContext {
                 .with_context(|| format!("Can't find group with id {group_id:?}"))?;
             let params = group.create_message(
                 &AirOpenMlsProvider::new(txn.as_mut()),
-                &self.signing_key,
+                self.signing_key(),
                 mimi_content,
             )?;
             Ok((group.group_state_ear_key().clone(), params))

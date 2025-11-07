@@ -56,7 +56,7 @@ impl OutboundServiceContext {
             let group_id = resync.group_id.clone();
 
             let profile_infos = match resync
-                .create_and_send_commit(&mut connection, &self.api_clients, &self.signing_key)
+                .create_and_send_commit(&mut connection, &self.api_clients, self.signing_key())
                 .await
             {
                 Ok(profile_infos) => {
