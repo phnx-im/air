@@ -10,6 +10,7 @@ pub use download::{DownloadProgress, DownloadProgressEvent};
 pub(crate) use persistence::AttachmentRecord;
 pub use persistence::{AttachmentContent, AttachmentStatus};
 use thiserror::Error;
+use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
 use url::Url;
 
 mod content;
@@ -19,20 +20,22 @@ mod persistence;
 mod process;
 mod upload;
 
-#[derive(derive_more::From)]
+#[derive(TlsSize, TlsSerialize, TlsDeserializeBytes)]
 struct AttachmentBytes {
-    bytes: Vec<u8>,
+    bytes: VLBytes,
 }
 
-impl AttachmentBytes {
-    fn new(bytes: Vec<u8>) -> Self {
-        Self { bytes }
+impl From<Vec<u8>> for AttachmentBytes {
+    fn from(bytes: Vec<u8>) -> Self {
+        Self {
+            bytes: VLBytes::from(bytes),
+        }
     }
 }
 
 impl AsRef<[u8]> for AttachmentBytes {
     fn as_ref(&self) -> &[u8] {
-        &self.bytes
+        self.bytes.as_slice()
     }
 }
 

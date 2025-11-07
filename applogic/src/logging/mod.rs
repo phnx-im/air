@@ -7,13 +7,12 @@ pub(crate) mod dart;
 
 use std::{
     path::Path,
-    sync::{Arc, Once, OnceLock},
+    sync::{Arc, OnceLock},
 };
 
 use anyhow::Context;
-use tracing::warn;
 use tracing::{info, level_filters::LevelFilter};
-use tracing_subscriber::util::{SubscriberInitExt, TryInitError};
+use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, registry};
 use tracing_subscriber::{fmt, layer::SubscriberExt};
 
@@ -23,55 +22,44 @@ pub(crate) const LOG_FILE_RING_BUFFER_SIZE: usize = 500 * 1024; // 500 KiB
 
 pub(crate) static LOG_FILE_RING_BUFFER: OnceLock<Arc<FileRingBufferLock>> = OnceLock::new();
 
-static INIT_LOGGER_ONCE: Once = Once::new();
-
 pub fn init_logger(log_file: impl AsRef<Path>) -> Arc<FileRingBufferLock> {
-    let is_file_initialized = LOG_FILE_RING_BUFFER.get().is_some();
-    let is_logger_initialized = INIT_LOGGER_ONCE.is_completed();
-
     let buffer_path = log_file.as_ref();
     let buffer = LOG_FILE_RING_BUFFER
         .get_or_init(|| init_app_log(buffer_path).expect("failed to init log file"));
 
-    INIT_LOGGER_ONCE.call_once(|| {
-        do_init_logger(buffer.clone(), buffer_path).expect("failed to init logger");
-    });
-
-    info!(is_file_initialized, is_logger_initialized, "init_logger");
+    do_init_logger(buffer.clone());
+    info!(log_file =% buffer_path.display(), "Rust logging initialized");
 
     buffer.clone()
 }
 
-fn do_init_logger(
-    log_file: Arc<FileRingBufferLock>,
-    log_file_path: &Path,
-) -> Result<(), TryInitError> {
-    let default_level = if cfg!(debug_assertions) {
-        LevelFilter::INFO
-    } else {
-        LevelFilter::WARN
-    };
-
+fn do_init_logger(log_file: Arc<FileRingBufferLock>) {
     let env_filter = EnvFilter::builder()
-        .with_default_directive(default_level.into())
+        .with_default_directive(LevelFilter::INFO.into())
         .from_env_lossy();
 
     let registry = registry().with(env_filter);
 
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {
-        registry
+        if let Err(error) = registry
             .with(dart::layer())
             .with(fmt::Layer::new().with_writer(log_file))
-            .try_init()?;
+            .try_init()
+        {
+            tracing::warn!(%error, "skip logger init; already initialized");
+        }
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
     {
         use fmt::writer::MakeWriterExt;
-        registry
+        if let Err(error) = registry
             .with(fmt::Layer::new().map_writer(|w| w.and(log_file)))
-            .try_init()?;
+            .try_init()
+        {
+            tracing::warn!(%error, "skip logger init; already initialized");
+        }
     }
 
     #[cfg(not(any(
@@ -84,14 +72,6 @@ fn do_init_logger(
     {
         unimplemented!("logging is not supported on this platform");
     }
-
-    warn!(
-        %default_level,
-        log_file =? log_file_path.display(),
-        "init_logger finished (deliberately output by warn level)"
-    );
-
-    Ok(())
 }
 
 fn init_app_log(file_path: impl AsRef<Path>) -> anyhow::Result<Arc<FileRingBufferLock>> {

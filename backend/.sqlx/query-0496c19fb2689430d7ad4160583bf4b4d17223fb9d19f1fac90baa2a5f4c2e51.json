@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE\n                    qs_user_record\n                SET\n                    verifying_key = $2, friendship_token = $3\n                WHERE\n                    user_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0496c19fb2689430d7ad4160583bf4b4d17223fb9d19f1fac90baa2a5f4c2e51"
+}

@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                user_uuid AS \"user_uuid: _\",\n                user_domain AS \"user_domain: _\",\n                chat_id AS \"chat_id: _\",\n                wai_ear_key AS \"wai_ear_key: _\",\n                friendship_token AS \"friendship_token: _\"\n            FROM contact",
+  "describe": {
+    "columns": [
+      {
+        "name": "user_uuid: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "user_domain: _",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "chat_id: _",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "wai_ear_key: _",
+        "ordinal": 3,
+        "type_info": "Blob"
+      },
+      {
+        "name": "friendship_token: _",
+        "ordinal": 4,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "665c2a2a1b0c0d9266ab8e12d448801206d132b3a2c7fb4da1ae028cd80180e2"
+}

@@ -40,7 +40,7 @@ impl PrivateKeyStore for AuthServiceBatchedKeyStoreProvider<'_> {
     ) {
         let server = BlobEncoded(server);
         if let Err(error) = sqlx::query!(
-            "INSERT INTO as_batched_keys (token_key_id, voprf_server)
+            "INSERT INTO as_batched_key (token_key_id, voprf_server)
             VALUES ($1, $2)",
             truncated_token_key_id as i16,
             server as _
@@ -60,7 +60,7 @@ impl PrivateKeyStore for AuthServiceBatchedKeyStoreProvider<'_> {
         let token_key_id: i16 = (*truncated_token_key_id).into();
         sqlx::query_scalar!(
             r#"SELECT voprf_server AS "voprf_server: BlobDecoded<VoprfServer<Ristretto255>>"
-            FROM as_batched_keys
+            FROM as_batched_key
             WHERE token_key_id = $1"#,
             token_key_id
         )
@@ -76,7 +76,7 @@ impl PrivateKeyStore for AuthServiceBatchedKeyStoreProvider<'_> {
 mod tests {
     use std::sync::LazyLock;
 
-    use aircommon::codec::AirCodec;
+    use aircommon::codec::PersistenceCodec;
     use rand::{SeedableRng, rngs::StdRng};
     use sqlx::PgPool;
 
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_server_serde_codec() {
-        insta::assert_binary_snapshot!(".cbor", AirCodec::to_vec(&*SERVER).unwrap());
+        insta::assert_binary_snapshot!(".cbor", PersistenceCodec::to_vec(&*SERVER).unwrap());
     }
 
     #[test]

@@ -48,7 +48,7 @@ pub(crate) mod persistence {
         ) -> Result<(), StorageError> {
             sqlx::query!(
                 "INSERT INTO
-                    qs_user_records
+                    qs_user_record
                     (user_id, verifying_key, friendship_token)
                 VALUES
                     ($1, $2, $3)",
@@ -70,7 +70,7 @@ pub(crate) mod persistence {
                     verifying_key as "verifying_key: QsUserVerifyingKey",
                     friendship_token as "friendship_token: FriendshipToken"
                 FROM
-                    qs_user_records
+                    qs_user_record
                 WHERE
                     user_id = $1"#,
                 user_id.as_uuid(),
@@ -92,7 +92,7 @@ pub(crate) mod persistence {
             user_id: QsUserId,
         ) -> Result<(), StorageError> {
             sqlx::query!(
-                "DELETE FROM qs_user_records WHERE user_id = $1",
+                "DELETE FROM qs_user_record WHERE user_id = $1",
                 &user_id as &QsUserId
             )
             .execute(connection)
@@ -106,7 +106,7 @@ pub(crate) mod persistence {
         ) -> Result<(), StorageError> {
             sqlx::query!(
                 "UPDATE
-                    qs_user_records
+                    qs_user_record
                 SET
                     verifying_key = $2, friendship_token = $3
                 WHERE

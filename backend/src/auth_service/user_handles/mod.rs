@@ -12,6 +12,7 @@ use aircommon::{
 use displaydoc::Display;
 use persistence::UpdateExpirationDataResult;
 use thiserror::Error;
+use tokio::task::spawn_blocking;
 use tonic::Status;
 use tracing::{error, warn};
 
@@ -34,7 +35,7 @@ impl AuthService {
     ) -> Result<(), CreateHandleError> {
         let handle = UserHandle::new(handle_plaintext)?;
 
-        let local_hash = handle.hash()?;
+        let local_hash = spawn_blocking(move || handle.calculate_hash()).await??;
         if local_hash != hash {
             return Err(CreateHandleError::HashMismatch);
         }
@@ -86,6 +87,8 @@ pub(crate) enum CreateHandleError {
     StorageError(#[from] sqlx::Error),
     /// Failed to hash the user handle
     HashError(#[from] UserHandleHashError),
+    /// Failed to hash the user handle
+    HashTaskError(#[from] tokio::task::JoinError),
     /// Invalid user handle
     UserHandleValidation(#[from] UserHandleValidationError),
     /// Hash does not match the hash of the user handle
@@ -103,6 +106,10 @@ impl From<CreateHandleError> for Status {
                 Status::internal(msg)
             }
             CreateHandleError::HashError(error) => {
+                error!(%error, "Error creating user handle");
+                Status::internal(msg)
+            }
+            CreateHandleError::HashTaskError(error) => {
                 error!(%error, "Error creating user handle");
                 Status::internal(msg)
             }

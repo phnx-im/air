@@ -4,7 +4,7 @@
 
 use std::{cell::RefCell, future::Future};
 
-use aircommon::codec::AirCodec;
+use aircommon::codec::PersistenceCodec;
 use openmls_traits::storage::{
     CURRENT_VERSION, Entity, Key, StorageProvider,
     traits::{
@@ -16,6 +16,8 @@ use sqlx::{
     error::BoxDynError, query, sqlite::SqliteTypeInfo,
 };
 use tokio_stream::StreamExt;
+
+use crate::groups::openmls_provider::encryption_key_pairs::StorableEncryptionKeyPairRef;
 
 use super::{
     EntityRefWrapper, EntitySliceWrapper, EntityVecWrapper, EntityWrapper, KeyRefWrapper,
@@ -251,7 +253,7 @@ impl StorageProvider<CURRENT_VERSION> for SqliteStorageProvider<'_> {
         public_key: &EncryptionKey,
         key_pair: &HpkeKeyPair,
     ) -> Result<(), Self::Error> {
-        let storable = StorableSignatureKeyPairsRef(key_pair);
+        let storable = StorableEncryptionKeyPairRef(key_pair);
         let mut connection = self.connection.borrow_mut();
         let task = storable.store(&mut **connection, public_key);
         block_async_in_place(task)
@@ -742,7 +744,7 @@ impl<'q, T: Key<CURRENT_VERSION>> Encode<'q, Sqlite> for KeyRefWrapper<'_, T> {
         &self,
         buf: &mut <Sqlite as sqlx::Database>::ArgumentBuffer<'q>,
     ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
-        let key_bytes = AirCodec::to_vec(&self.0)?;
+        let key_bytes = PersistenceCodec::to_vec(&self.0)?;
         Encode::<Sqlite>::encode(key_bytes, buf)
     }
 }
@@ -758,7 +760,7 @@ impl<T: Entity<CURRENT_VERSION>> Encode<'_, Sqlite> for EntityRefWrapper<'_, T> 
         &self,
         buf: &mut <Sqlite as Database>::ArgumentBuffer<'_>,
     ) -> Result<IsNull, BoxDynError> {
-        let entity_bytes = AirCodec::to_vec(&self.0)?;
+        let entity_bytes = PersistenceCodec::to_vec(&self.0)?;
         Encode::<Sqlite>::encode(entity_bytes, buf)
     }
 }
@@ -795,7 +797,7 @@ impl<SignatureKeyPairs: Entity<CURRENT_VERSION>>
         let public_key = KeyRefWrapper(public_key);
         let signature_key = EntityRefWrapper(self.0);
         query!(
-            "INSERT INTO signature_keys (public_key, signature_key) VALUES (?1, ?2)",
+            "INSERT INTO signature_key (public_key, signature_key) VALUES (?1, ?2)",
             public_key,
             signature_key
         )
@@ -814,7 +816,7 @@ impl<LeafNode: Entity<CURRENT_VERSION>> StorableLeafNodeRef<'_, LeafNode> {
         let group_id = KeyRefWrapper(group_id);
         let entity = EntityRefWrapper(self.0);
         query!(
-            "INSERT INTO own_leaf_nodes (group_id, leaf_node) VALUES (?1, ?2)",
+            "INSERT INTO own_leaf_node (group_id, leaf_node) VALUES (?1, ?2)",
             group_id,
             entity,
         )
@@ -835,7 +837,7 @@ impl<T: Entity<CURRENT_VERSION>> Encode<'_, Sqlite> for EntitySliceWrapper<'_, T
         &self,
         buf: &mut <Sqlite as Database>::ArgumentBuffer<'_>,
     ) -> Result<IsNull, BoxDynError> {
-        let entity_bytes = AirCodec::to_vec(&self.0)?;
+        let entity_bytes = PersistenceCodec::to_vec(&self.0)?;
         Encode::<Sqlite>::encode(entity_bytes, buf)
     }
 }
@@ -849,7 +851,7 @@ impl<KeyPackage: Entity<CURRENT_VERSION>> StorableKeyPackageRef<'_, KeyPackage> 
         let key_package_ref = KeyRefWrapper(key_package_ref);
         let key_package = EntityRefWrapper(self.0);
         query!(
-            "INSERT INTO key_packages (key_package_ref, key_package) VALUES (?1, ?2)",
+            "INSERT INTO key_package (key_package_ref, key_package) VALUES (?1, ?2)",
             key_package_ref,
             key_package,
         )
@@ -871,7 +873,7 @@ impl<EpochKeyPairs: Entity<CURRENT_VERSION>> StorableEpochKeyPairsRef<'_, EpochK
         let epoch_id = KeyRefWrapper(epoch_id);
         let entity = EntitySliceWrapper(self.0);
         query!(
-            "INSERT INTO epoch_keys_pairs (group_id, epoch_id, leaf_index, key_pairs)
+            "INSERT INTO epoch_key_pairs (group_id, epoch_id, leaf_index, key_pairs)
             VALUES (?1, ?2, ?3, ?4)",
             group_id,
             epoch_id,
@@ -893,7 +895,7 @@ impl<PskBundle: Entity<CURRENT_VERSION>> StorablePskBundleRef<'_, PskBundle> {
         let psk_id = KeyRefWrapper(psk_id);
         let psk_bundle = EntityRefWrapper(self.0);
         query!(
-            "INSERT INTO psks (psk_id, psk_bundle) VALUES (?1, ?2)",
+            "INSERT INTO psk (psk_id, psk_bundle) VALUES (?1, ?2)",
             psk_id,
             psk_bundle,
         )
@@ -912,7 +914,7 @@ impl<T: Entity<CURRENT_VERSION>> Type<Sqlite> for EntityWrapper<T> {
 impl<T: Entity<CURRENT_VERSION>> Decode<'_, Sqlite> for EntityWrapper<T> {
     fn decode(value: <Sqlite as Database>::ValueRef<'_>) -> Result<Self, BoxDynError> {
         let bytes: &[u8] = Decode::<Sqlite>::decode(value)?;
-        let entity = AirCodec::from_slice(bytes)?;
+        let entity = PersistenceCodec::from_slice(bytes)?;
         Ok(Self(entity))
     }
 }
@@ -948,7 +950,7 @@ impl<Proposal: Entity<CURRENT_VERSION>, ProposalRef: Entity<CURRENT_VERSION>>
         let proposal_ref = EntityRefWrapper(self.0);
         let proposal = EntityRefWrapper(self.1);
         query!(
-            "INSERT INTO proposals (group_id, proposal_ref, proposal) VALUES (?1, ?2, ?3)",
+            "INSERT INTO proposal (group_id, proposal_ref, proposal) VALUES (?1, ?2, ?3)",
             group_id,
             proposal_ref,
             proposal
@@ -964,7 +966,7 @@ impl<LeafNode: Entity<CURRENT_VERSION>> StorableLeafNode<LeafNode> {
         executor: impl SqliteExecutor<'_>,
         group_id: &GroupId,
     ) -> sqlx::Result<Vec<LeafNode>> {
-        sqlx::query("SELECT leaf_node FROM own_leaf_nodes WHERE group_id = ?")
+        sqlx::query("SELECT leaf_node FROM own_leaf_node WHERE group_id = ?")
             .bind(KeyRefWrapper(group_id))
             .fetch(executor)
             .map(|row| {
@@ -983,7 +985,7 @@ impl<Proposal: Entity<CURRENT_VERSION>, ProposalRef: Entity<CURRENT_VERSION>>
         executor: impl SqliteExecutor<'_>,
         group_id: &GroupId,
     ) -> sqlx::Result<Vec<(ProposalRef, Proposal)>> {
-        sqlx::query("SELECT proposal_ref, proposal FROM proposals WHERE group_id = ?1")
+        sqlx::query("SELECT proposal_ref, proposal FROM proposal WHERE group_id = ?1")
             .bind(KeyRefWrapper(group_id))
             .fetch(executor)
             .map(|row| {
@@ -1000,7 +1002,7 @@ impl<Proposal: Entity<CURRENT_VERSION>, ProposalRef: Entity<CURRENT_VERSION>>
         executor: impl SqliteExecutor<'_>,
         group_id: &GroupId,
     ) -> sqlx::Result<Vec<ProposalRef>> {
-        sqlx::query("SELECT proposal_ref FROM proposals WHERE group_id = ?1")
+        sqlx::query("SELECT proposal_ref FROM proposal WHERE group_id = ?1")
             .bind(KeyRefWrapper(group_id))
             .fetch(executor)
             .map(|row| {
@@ -1017,7 +1019,7 @@ impl<SignatureKeyPairs: Entity<CURRENT_VERSION>> StorableSignatureKeyPairs<Signa
         executor: impl SqliteExecutor<'_>,
         public_key: &SignaturePublicKey,
     ) -> sqlx::Result<Option<SignatureKeyPairs>> {
-        sqlx::query("SELECT signature_key FROM signature_keys WHERE public_key = ?1")
+        sqlx::query("SELECT signature_key FROM signature_key WHERE public_key = ?1")
             .bind(KeyRefWrapper(public_key))
             .fetch_optional(executor)
             .await?
@@ -1034,7 +1036,7 @@ impl<EncryptionKeyPair: Entity<CURRENT_VERSION>> StorableEncryptionKeyPair<Encry
         executor: impl SqliteExecutor<'_>,
         public_key: &EncryptionKey,
     ) -> sqlx::Result<Option<EncryptionKeyPair>> {
-        sqlx::query("SELECT key_pair FROM encryption_keys WHERE public_key = ?1")
+        sqlx::query("SELECT key_pair FROM encryption_key WHERE public_key = ?1")
             .bind(KeyRefWrapper(public_key))
             .fetch_optional(executor)
             .await?
@@ -1043,6 +1045,27 @@ impl<EncryptionKeyPair: Entity<CURRENT_VERSION>> StorableEncryptionKeyPair<Encry
                 Ok(encryption_key_pair)
             })
             .transpose()
+    }
+}
+
+impl<EncryptionKeyPair: Entity<CURRENT_VERSION>>
+    StorableEncryptionKeyPairRef<'_, EncryptionKeyPair>
+{
+    async fn store<EncryptionKey: Key<CURRENT_VERSION>>(
+        &self,
+        executor: impl SqliteExecutor<'_>,
+        public_key: &EncryptionKey,
+    ) -> sqlx::Result<()> {
+        let public_key = KeyRefWrapper(public_key);
+        let key_pair = EntityRefWrapper(self.0);
+        query!(
+            "INSERT INTO encryption_key (public_key, key_pair) VALUES (?1, ?2)",
+            public_key,
+            key_pair
+        )
+        .execute(executor)
+        .await?;
+        Ok(())
     }
 }
 
@@ -1056,7 +1079,7 @@ impl<EpochKeyPairs: Entity<CURRENT_VERSION>> StorableEpochKeyPairs<EpochKeyPairs
         let group_id = KeyRefWrapper(group_id);
         let epoch_id = KeyRefWrapper(epoch_id);
         sqlx::query(
-            "SELECT key_pairs FROM epoch_keys_pairs
+            "SELECT key_pairs FROM epoch_key_pairs
             WHERE group_id = ?1 AND epoch_id = ?2 AND leaf_index = ?3",
         )
         .bind(group_id)
@@ -1082,7 +1105,7 @@ impl<T: Entity<CURRENT_VERSION>> Type<Sqlite> for EntityVecWrapper<T> {
 impl<T: Entity<CURRENT_VERSION>> Decode<'_, Sqlite> for EntityVecWrapper<T> {
     fn decode(value: <Sqlite as Database>::ValueRef<'_>) -> Result<Self, BoxDynError> {
         let bytes: &[u8] = Decode::<Sqlite>::decode(value)?;
-        let entities = AirCodec::from_slice(bytes)?;
+        let entities = PersistenceCodec::from_slice(bytes)?;
         Ok(Self(entities))
     }
 }
@@ -1092,7 +1115,7 @@ impl<KeyPackage: Entity<CURRENT_VERSION>> StorableKeyPackage<KeyPackage> {
         executor: impl SqliteExecutor<'_>,
         key_package_ref: &KeyPackageRef,
     ) -> sqlx::Result<Option<KeyPackage>> {
-        sqlx::query("SELECT key_package FROM key_packages WHERE key_package_ref = ?1")
+        sqlx::query("SELECT key_package FROM key_package WHERE key_package_ref = ?1")
             .bind(KeyRefWrapper(key_package_ref))
             .fetch_optional(executor)
             .await?
@@ -1109,7 +1132,7 @@ impl<PskBundle: Entity<CURRENT_VERSION>> StorablePskBundle<PskBundle> {
         executor: impl SqliteExecutor<'_>,
         psk_id: &PskId,
     ) -> sqlx::Result<Option<PskBundle>> {
-        sqlx::query("SELECT psk_bundle FROM psks WHERE psk_id = ?1")
+        sqlx::query("SELECT psk_bundle FROM psk WHERE psk_id = ?1")
             .bind(KeyRefWrapper(psk_id))
             .fetch_optional(executor)
             .await?
@@ -1124,7 +1147,7 @@ impl<PskBundle: Entity<CURRENT_VERSION>> StorablePskBundle<PskBundle> {
 impl<GroupId: Key<CURRENT_VERSION>> StorableGroupIdRef<'_, GroupId> {
     async fn delete_all_proposals(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
         let group_id = KeyRefWrapper(self.0);
-        query!("DELETE FROM proposals WHERE group_id = ?1", group_id)
+        query!("DELETE FROM proposal WHERE group_id = ?1", group_id)
             .execute(executor)
             .await?;
         Ok(())
@@ -1138,7 +1161,7 @@ impl<GroupId: Key<CURRENT_VERSION>> StorableGroupIdRef<'_, GroupId> {
         let group_id = KeyRefWrapper(self.0);
         let proposal_ref = KeyRefWrapper(proposal_ref);
         query!(
-            "DELETE FROM proposals WHERE group_id = ?1 AND proposal_ref = ?2",
+            "DELETE FROM proposal WHERE group_id = ?1 AND proposal_ref = ?2",
             group_id,
             proposal_ref,
         )
@@ -1149,7 +1172,7 @@ impl<GroupId: Key<CURRENT_VERSION>> StorableGroupIdRef<'_, GroupId> {
 
     async fn delete_leaf_nodes(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
         let group_id = KeyRefWrapper(self.0);
-        query!("DELETE FROM own_leaf_nodes WHERE group_id = ?1", group_id)
+        query!("DELETE FROM own_leaf_node WHERE group_id = ?1", group_id)
             .execute(executor)
             .await?;
         Ok(())
@@ -1180,7 +1203,7 @@ impl<GroupId: Key<CURRENT_VERSION>> StorableGroupIdRef<'_, GroupId> {
         let group_id = KeyRefWrapper(self.0);
         let epoch_key = KeyRefWrapper(epoch_key);
         query!(
-            "DELETE FROM epoch_keys_pairs WHERE group_id = ? AND epoch_id = ? AND leaf_index = ?",
+            "DELETE FROM epoch_key_pairs WHERE group_id = ? AND epoch_id = ? AND leaf_index = ?",
             group_id,
             epoch_key,
             leaf_index,
@@ -1197,7 +1220,7 @@ impl<SignaturePublicKey: Key<CURRENT_VERSION>>
     async fn delete(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
         let public_key = KeyRefWrapper(self.0);
         query!(
-            "DELETE FROM signature_keys WHERE public_key = ?1",
+            "DELETE FROM signature_key WHERE public_key = ?1",
             public_key
         )
         .execute(executor)
@@ -1212,7 +1235,7 @@ impl<EncryptionPublicKey: Key<CURRENT_VERSION>>
     async fn delete(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
         let public_key = KeyRefWrapper(self.0);
         query!(
-            "DELETE FROM encryption_keys WHERE public_key = ?1",
+            "DELETE FROM encryption_key WHERE public_key = ?1",
             public_key
         )
         .execute(executor)
@@ -1225,7 +1248,7 @@ impl<KeyPackageRef: Key<CURRENT_VERSION>> StorableHashRef<'_, KeyPackageRef> {
     async fn delete_key_package(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
         let hash_ref = KeyRefWrapper(self.0);
         query!(
-            "DELETE FROM key_packages WHERE key_package_ref = ?1",
+            "DELETE FROM key_package WHERE key_package_ref = ?1",
             hash_ref,
         )
         .execute(executor)
@@ -1237,7 +1260,7 @@ impl<KeyPackageRef: Key<CURRENT_VERSION>> StorableHashRef<'_, KeyPackageRef> {
 impl<PskId: Key<CURRENT_VERSION>> StorablePskIdRef<'_, PskId> {
     async fn delete(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
         let psks_id = KeyRefWrapper(self.0);
-        query!("DELETE FROM psks WHERE psk_id = ?1", psks_id)
+        query!("DELETE FROM psk WHERE psk_id = ?1", psks_id)
             .execute(executor)
             .await?;
         Ok(())

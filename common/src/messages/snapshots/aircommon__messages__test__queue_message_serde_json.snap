@@ -1,6 +1,5 @@
 ---
 source: common/src/messages/mod.rs
-assertion_line: 129
 expression: message
 ---
 {

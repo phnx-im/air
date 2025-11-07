@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                queue_ratchet AS \"queue_ratchet: _\"\n            FROM queue_ratchet WHERE queue_type = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "queue_ratchet: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d9679de0e6e04447c11d1e2ed281c7c6807c5074b60b5268d4b80cdde933dd62"
+}

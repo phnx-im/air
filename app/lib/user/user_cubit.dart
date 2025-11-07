@@ -11,7 +11,7 @@ import 'package:air/navigation/navigation.dart';
 
 /// Wrapper of the [UserCubitBase] that implements a [StateStreamableSource]
 ///
-// See <https://github.com/phnx-im/infra/issues/248>
+// See <https://github.com/phnx-im/air/issues/248>
 class UserCubit implements StateStreamableSource<UiUser> {
   UserCubit({
     required CoreClient coreClient,
@@ -54,15 +54,15 @@ class UserCubit implements StateStreamableSource<UiUser> {
         profilePicture: profilePicture,
       );
 
-  Future<void> addUserToConversation(
-    ConversationId conversationId,
-    UiUserId userId,
-  ) => _impl.addUserToConversation(conversationId, userId);
+  Future<void> addUserToChat(ChatId chatId, UiUserId userId) =>
+      _impl.addUserToChat(chatId, userId);
 
-  Future<void> removeUserFromConversation(
-    ConversationId conversationId,
-    UiUserId userId,
-  ) => _impl.removeUserFromConversation(conversationId, userId);
+  Future<void> removeUserFromChat(ChatId chatId, UiUserId userId) =>
+      _impl.removeUserFromChat(chatId, userId);
+
+  Future<void> leaveChat(ChatId chatId) => _impl.leaveChat(chatId);
+
+  Future<void> deleteChat(ChatId chatId) => _impl.deleteChat(chatId);
 
   Future<List<UiContact>> get contacts => _impl.contacts;
 
@@ -72,6 +72,18 @@ class UserCubit implements StateStreamableSource<UiUser> {
   Future<void> removeUserHandle(UiUserHandle userHandle) =>
       _impl.removeUserHandle(userHandle: userHandle);
 
-  Future<List<UiContact>> addableContacts(ConversationId conversationId) =>
-      _impl.addableContacts(conversationId: conversationId);
+  Future<List<UiContact>> addableContacts(ChatId chatId) =>
+      _impl.addableContacts(chatId: chatId);
+
+  Future<void> blockContact(UiUserId userId) =>
+      _impl.blockContact(userId: userId);
+
+  Future<void> unblockContact(UiUserId userId) =>
+      _impl.unblockContact(userId: userId);
+
+  Future<void> reportSpam(UiUserId spammerId) =>
+      _impl.reportSpam(spammerId: spammerId);
+
+  Future<void> deleteAccount() async =>
+      _impl.deleteAccount(dbPath: await dbPath());
 }

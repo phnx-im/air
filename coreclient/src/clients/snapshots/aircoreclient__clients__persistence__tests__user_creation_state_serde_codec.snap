@@ -1,6 +1,0 @@
----
-source: coreclient/src/clients/persistence.rs
-expression: "AirCodec::to_vec(&state).unwrap()"
-extension: cbor
-snapshot_kind: binary
----

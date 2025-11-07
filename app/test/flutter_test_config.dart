@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,17 +33,52 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
 
 Future<void> _loadFonts() async {
   final monospace = getSystemMonospaceFontFamily();
-  final fonts = {
+  final fonts = <String, String>{
     "MaterialIcons": "fonts/MaterialIcons-Regular.otf",
-    "Roboto": "assets/fonts/Roboto-Regular.ttf",
     "SourceCodeProEmbedded": "assets/fonts/SourceCodePro.ttf",
     monospace: "assets/fonts/RobotoMono-Regular.ttf",
   };
+  final usesSanFrancisco = await _tryLoadSanFranciscoFont();
+  if (!usesSanFrancisco) {
+    fonts["Roboto"] = "assets/fonts/Roboto-Regular.ttf";
+  }
   for (final entry in fonts.entries) {
     final bytes = rootBundle.load(entry.value);
     final fontLoader = FontLoader(entry.key)..addFont(bytes);
     await fontLoader.load();
   }
+}
+
+Future<bool> _tryLoadSanFranciscoFont() async {
+  if (!Platform.isMacOS) {
+    return false;
+  }
+
+  const sfPaths = [
+    '/System/Library/Fonts/SFNS.ttf',
+    '/System/Library/Fonts/SFNSText.ttf',
+    '/System/Library/Fonts/SFNSDisplay.ttf',
+  ];
+  const familyAliases = ['SF Pro Text', 'SF Pro', 'SFNS', 'SF', 'Roboto'];
+
+  for (final path in sfPaths) {
+    final file = File(path);
+    if (!file.existsSync()) {
+      continue;
+    }
+
+    final bytes = file.readAsBytesSync();
+    final byteData = bytes.buffer.asByteData();
+
+    for (final family in familyAliases) {
+      final loader = FontLoader(family)..addFont(Future.value(byteData));
+      await loader.load();
+    }
+
+    return true;
+  }
+
+  return false;
 }
 
 void _setGoldenFileComparatorWithThreshold(double threshold) {

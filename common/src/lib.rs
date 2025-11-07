@@ -4,6 +4,8 @@
 
 //! Common data model used in the server and client.
 
+#![warn(clippy::large_futures)]
+
 use std::fmt::Display;
 
 pub use mls_assist::openmls_rust_crypto::RustCrypto;
@@ -22,6 +24,7 @@ pub mod crypto;
 pub mod endpoint_paths;
 pub mod identifiers;
 pub mod messages;
+pub mod mls_group_config;
 pub mod pow;
 pub mod time;
 
@@ -32,7 +35,7 @@ pub const DEFAULT_PORT_GRPC: u16 = 50051;
 pub const ACCEPTED_API_VERSIONS_HEADER: &str = "x-accepted-api-versions";
 
 /// Unrecoverable error in this implementation.
-#[derive(Debug, Error, Serialize, Deserialize)]
+#[derive(Debug, Clone, Error, Serialize, Deserialize)]
 pub struct LibraryError;
 
 impl LibraryError {

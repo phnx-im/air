@@ -21,7 +21,7 @@ part 'navigation_cubit.freezed.dart';
 abstract class NavigationCubitBase implements RustOpaqueInterface {
   Future<void> close();
 
-  Future<void> closeConversation();
+  Future<void> closeChat();
 
   bool get isClosed;
 
@@ -33,13 +33,17 @@ abstract class NavigationCubitBase implements RustOpaqueInterface {
 
   Future<void> openAddMembers();
 
-  Future<void> openConversation({required ConversationId conversationId});
+  Future<void> openChat({required ChatId chatId});
 
-  Future<void> openConversationDetails();
+  Future<void> openChatDetails();
+
+  Future<void> openCreateGroup();
 
   Future<void> openDeveloperSettings({
     required DeveloperSettingsScreenType screen,
   });
+
+  Future<void> openGroupMembers();
 
   Future<void> openHome();
 
@@ -60,7 +64,7 @@ abstract class NavigationCubitBase implements RustOpaqueInterface {
 
 enum DeveloperSettingsScreenType { root, changeUser, logs }
 
-/// Conversations screen: main screen of the app
+/// Chats screen: main screen of the app
 ///
 /// Note: this can be represented in a better way disallowing invalid states.
 /// For now, following KISS we represent the navigation stack in a very simple
@@ -70,13 +74,15 @@ enum DeveloperSettingsScreenType { root, changeUser, logs }
 sealed class HomeNavigationState with _$HomeNavigationState {
   const HomeNavigationState._();
   const factory HomeNavigationState({
-    @Default(false) bool conversationOpen,
-    ConversationId? conversationId,
+    @Default(false) bool chatOpen,
+    ChatId? chatId,
     DeveloperSettingsScreenType? developerSettingsScreen,
     UiUserId? memberDetails,
     UserSettingsScreenType? userSettingsScreen,
-    @Default(false) bool conversationDetailsOpen,
+    @Default(false) bool chatDetailsOpen,
     @Default(false) bool addMembersOpen,
+    @Default(false) bool groupMembersOpen,
+    @Default(false) bool createGroupOpen,
   }) = _HomeNavigationState;
   static Future<HomeNavigationState> default_() =>
       RustLib.instance.api.crateApiNavigationCubitHomeNavigationStateDefault();
@@ -87,9 +93,7 @@ sealed class IntroScreenType with _$IntroScreenType {
   const IntroScreenType._();
 
   const factory IntroScreenType.intro() = IntroScreenType_Intro;
-  const factory IntroScreenType.serverChoice() = IntroScreenType_ServerChoice;
-  const factory IntroScreenType.displayNamePicture() =
-      IntroScreenType_DisplayNamePicture;
+  const factory IntroScreenType.signUp() = IntroScreenType_SignUp;
   const factory IntroScreenType.developerSettings(
     DeveloperSettingsScreenType field0,
   ) = IntroScreenType_DeveloperSettings;
@@ -108,4 +112,10 @@ sealed class NavigationState with _$NavigationState {
   }) = NavigationState_Home;
 }
 
-enum UserSettingsScreenType { root, editDisplayName, addUserHandle }
+enum UserSettingsScreenType {
+  root,
+  editDisplayName,
+  addUserHandle,
+  help,
+  deleteAccount,
+}

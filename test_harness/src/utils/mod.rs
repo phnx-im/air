@@ -9,16 +9,15 @@ use std::{net::SocketAddr, time::Duration};
 pub mod setup;
 
 use airbackend::{
+    air_service::BackendService,
     auth_service::AuthService,
     ds::{Ds, storage::Storage},
-    infra_service::InfraService,
     qs::Qs,
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
     RateLimitsConfig, ServerRunParams, configurations::get_configuration_from_str,
-    dispatch::DispatchNotifier, enqueue_provider::SimpleEnqueueProvider,
-    network_provider::MockNetworkProvider,
+    enqueue_provider::SimpleEnqueueProvider, network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
 };
 use tokio::net::TcpListener;
@@ -41,7 +40,7 @@ const TEST_RATE_LIMITS: RateLimitsConfig = RateLimitsConfig {
 pub async fn spawn_app(
     domain: impl Into<Option<Fqdn>>,
     network_provider: MockNetworkProvider,
-) -> (SocketAddr, DispatchNotifier) {
+) -> SocketAddr {
     spawn_app_with_rate_limits(domain, network_provider, TEST_RATE_LIMITS).await
 }
 
@@ -50,7 +49,7 @@ pub async fn spawn_app_with_rate_limits(
     domain: impl Into<Option<Fqdn>>,
     network_provider: MockNetworkProvider,
     rate_limits: RateLimitsConfig,
-) -> (SocketAddr, DispatchNotifier) {
+) -> SocketAddr {
     init_test_tracing();
 
     // Load configuration
@@ -66,8 +65,6 @@ pub async fn spawn_app_with_rate_limits(
         .await
         .expect("Failed to bind to random port.");
     let grpc_address = grpc_listener.local_addr().unwrap();
-
-    let dispatch_notifier = DispatchNotifier::new();
 
     // DS storage provider
     let mut ds = Ds::new(&configuration.database, domain.clone())
@@ -98,7 +95,6 @@ pub async fn spawn_app_with_rate_limits(
 
     let qs_connector = SimpleEnqueueProvider {
         qs: qs.clone(),
-        notifier: dispatch_notifier.clone(),
         push_notification_provider,
         network: network_provider.clone(),
     };
@@ -110,7 +106,6 @@ pub async fn spawn_app_with_rate_limits(
         auth_service,
         qs,
         qs_connector,
-        dispatch_notifier: dispatch_notifier.clone(),
         rate_limits,
     })
     .await;
@@ -119,5 +114,5 @@ pub async fn spawn_app_with_rate_limits(
     tokio::spawn(server);
 
     // Return the address
-    (grpc_address, dispatch_notifier)
+    grpc_address
 }

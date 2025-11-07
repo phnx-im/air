@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO message_status\n                        (message_id,  sender_user_uuid, sender_user_domain, status, created_at)\n                    VALUES (?1, ?2, ?3, ?4, ?5)\n                    ON CONFLICT (message_id, sender_user_domain, sender_user_uuid)\n                    DO UPDATE SET status = ?4, created_at = ?5",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "098b0470ec8e00f70cae177f36ff3e59072d7506cdce54158ad9ea787cb5336e"
+}

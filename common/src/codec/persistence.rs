@@ -5,7 +5,7 @@
 use serde::{Serialize, de::DeserializeOwned};
 use sqlx::{Database, Decode, Encode, Type, encode::IsNull, error::BoxDynError};
 
-use super::AirCodec;
+use super::PersistenceCodec;
 
 pub struct BlobEncoded<T: Serialize>(pub T);
 
@@ -26,7 +26,7 @@ where
         &self,
         buf: &mut <DB as Database>::ArgumentBuffer<'q>,
     ) -> Result<IsNull, BoxDynError> {
-        let bytes = AirCodec::to_vec(&self.0)?;
+        let bytes = PersistenceCodec::to_vec(&self.0)?;
         Encode::<DB>::encode(&bytes, buf)
     }
 }
@@ -55,7 +55,7 @@ where
 {
     fn decode(value: <DB as Database>::ValueRef<'q>) -> Result<Self, BoxDynError> {
         let bytes: &[u8] = Decode::<DB>::decode(value)?;
-        AirCodec::from_slice(bytes)
+        PersistenceCodec::from_slice(bytes)
             .map(BlobDecoded)
             .map_err(From::from)
     }

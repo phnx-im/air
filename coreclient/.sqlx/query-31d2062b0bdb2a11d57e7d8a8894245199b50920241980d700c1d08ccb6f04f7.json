@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO contact (\n                user_uuid,\n                user_domain,\n                chat_id,\n                wai_ear_key,\n                friendship_token\n            ) VALUES (?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "31d2062b0bdb2a11d57e7d8a8894245199b50920241980d700c1d08ccb6f04f7"
+}

@@ -58,7 +58,6 @@ impl DsGroupState {
 
         // Everything seems to be okay.
         // Now we have to update the group state and distribute.
-
         let sender = VerifiableClientCredential::try_from(
             self.group.leaf(sender_index).unwrap().credential().clone(),
         )

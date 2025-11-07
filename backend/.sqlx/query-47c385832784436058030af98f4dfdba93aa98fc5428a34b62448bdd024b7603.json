@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH next_connection_package AS (\n                SELECT id, connection_package\n                FROM handle_connection_package\n                WHERE hash = $1\n                ORDER BY is_last_resort ASC\n                LIMIT 1\n                FOR UPDATE -- make sure two concurrent queries don't return the same package\n                SKIP LOCKED -- skip rows that are already locked by other processes\n            ),\n            deleted_package AS (\n                DELETE FROM handle_connection_package\n                WHERE id = (\n                    SELECT id\n                    FROM next_connection_package\n                )\n                AND is_last_resort IS NOT TRUE\n                AND (SELECT COUNT(*) FROM handle_connection_package WHERE hash = $1) > 1\n            )\n            SELECT connection_package\n                AS \"connection_package: BlobDecoded<StorableConnectionPackage>\"\n            FROM next_connection_package",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "connection_package: BlobDecoded<StorableConnectionPackage>",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "47c385832784436058030af98f4dfdba93aa98fc5428a34b62448bdd024b7603"
+}

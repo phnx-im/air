@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO pending_attachment (\n                attachment_id,\n                size,\n                enc_alg,\n                enc_key,\n                nonce,\n                aad,\n                hash_alg,\n                hash\n            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "e2f29c90ea2cdffc66f43d4d72af9e4cf096a012fa8a018849010ae88cbd54e6"
+}

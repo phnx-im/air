@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n                    verifying_key as \"verifying_key: QsUserVerifyingKey\",\n                    friendship_token as \"friendship_token: FriendshipToken\"\n                FROM\n                    qs_user_record\n                WHERE\n                    user_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "verifying_key: QsUserVerifyingKey",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "friendship_token: FriendshipToken",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "24f96787546b36a6c56403cd16b0995c8768652c816f247a23162ac169b229af"
+}

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    codec::AirCodec,
+    codec::PersistenceCodec,
     identifiers::{Fqdn, UserId},
 };
 use chrono::{DateTime, Utc};
@@ -45,7 +45,7 @@ impl<'q> Encode<'q, Sqlite> for UserCreationState {
         buf: &mut <Sqlite as Database>::ArgumentBuffer<'q>,
     ) -> Result<IsNull, BoxDynError> {
         let state = StorableUserCreationStateRef::CurrentVersion(self);
-        let bytes = AirCodec::to_vec(&state)?;
+        let bytes = PersistenceCodec::to_vec(&state)?;
         Encode::<Sqlite>::encode(bytes, buf)
     }
 }
@@ -53,7 +53,7 @@ impl<'q> Encode<'q, Sqlite> for UserCreationState {
 impl<'r> Decode<'r, Sqlite> for UserCreationState {
     fn decode(value: <Sqlite as Database>::ValueRef<'r>) -> Result<Self, BoxDynError> {
         let bytes: &[u8] = Decode::<Sqlite>::decode(value)?;
-        let state = AirCodec::from_slice(bytes)?;
+        let state = PersistenceCodec::from_slice(bytes)?;
         match state {
             StorableUserCreationState::CurrentVersion(state) => Ok(state),
         }
@@ -196,7 +196,7 @@ impl ClientRecord {
         .map(|res| res.map(From::from))
     }
 
-    pub(super) async fn store(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+    pub(crate) async fn store(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
         let record_state_str = match self.client_record_state {
             ClientRecordState::InProgress => "in_progress",
             ClientRecordState::Finished => "finished",
@@ -332,7 +332,7 @@ mod tests {
     fn user_creation_state_basic_serde_codec() {
         insta::assert_binary_snapshot!(
             ".cbor",
-            AirCodec::to_vec(&*USER_CREATION_STATE_BASIC).unwrap()
+            PersistenceCodec::to_vec(&*USER_CREATION_STATE_BASIC).unwrap()
         );
     }
 
@@ -344,7 +344,7 @@ mod tests {
     #[test]
     fn client_record_serde_codec() {
         let record = new_client_record(Uuid::from_u128(1), "2025-01-01T00:00:00Z".parse().unwrap());
-        insta::assert_binary_snapshot!(".cbor", AirCodec::to_vec(&record).unwrap());
+        insta::assert_binary_snapshot!(".cbor", PersistenceCodec::to_vec(&record).unwrap());
     }
 
     #[test]

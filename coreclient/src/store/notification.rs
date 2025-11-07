@@ -11,7 +11,7 @@ use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
 use tokio_stream::{Stream, StreamExt};
 use tracing::{debug, error, warn};
 
-use crate::{ConversationId, ConversationMessageId};
+use crate::{ChatId, MessageId};
 
 // 1024 * size_of::<Arc<StoreNotification>>() = 1024 * 8 = 8 KiB
 const NOTIFICATION_CHANNEL_SIZE: usize = 1024;
@@ -212,8 +212,8 @@ pub enum StoreOperation {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::From)]
 pub enum StoreEntityId {
     User(UserId),
-    Conversation(ConversationId),
-    Message(ConversationMessageId),
+    Chat(ChatId),
+    Message(MessageId),
     Attachment(AttachmentId),
 }
 
@@ -221,7 +221,7 @@ impl StoreEntityId {
     pub(crate) fn kind(&self) -> StoreEntityKind {
         match self {
             StoreEntityId::User(_) => StoreEntityKind::User,
-            StoreEntityId::Conversation(_) => StoreEntityKind::Conversation,
+            StoreEntityId::Chat(_) => StoreEntityKind::Chat,
             StoreEntityId::Message(_) => StoreEntityKind::Message,
             StoreEntityId::Attachment(_) => StoreEntityKind::Attachment,
         }
@@ -231,7 +231,7 @@ impl StoreEntityId {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum StoreEntityKind {
     User = 0,
-    Conversation = 1,
+    Chat = 1,
     Message = 2,
     Attachment = 3,
 }
@@ -246,7 +246,7 @@ impl TryFrom<i64> for StoreEntityKind {
     fn try_from(value: i64) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(StoreEntityKind::User),
-            1 => Ok(StoreEntityKind::Conversation),
+            1 => Ok(StoreEntityKind::Chat),
             2 => Ok(StoreEntityKind::Message),
             3 => Ok(StoreEntityKind::Attachment),
             _ => Err(InvalidStoreEntityKind(value)),

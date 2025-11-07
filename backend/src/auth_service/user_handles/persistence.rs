@@ -31,7 +31,7 @@ impl UserHandleRecord {
         }
 
         query!(
-            "INSERT INTO as_user_handles (
+            "INSERT INTO as_user_handle (
                 hash,
                 verifying_key,
                 expiration_data
@@ -56,7 +56,7 @@ impl UserHandleRecord {
     ) -> sqlx::Result<Option<HandleVerifyingKey>> {
         query_scalar!(
             r#"SELECT verifying_key AS "verifying_key: HandleVerifyingKey"
-                FROM as_user_handles WHERE hash = $1"#,
+                FROM as_user_handle WHERE hash = $1"#,
             hash.as_bytes(),
         )
         .fetch_optional(executor)
@@ -71,7 +71,7 @@ impl UserHandleRecord {
         hash: &UserHandleHash,
     ) -> sqlx::Result<bool> {
         let res = query!(
-            "DELETE FROM as_user_handles WHERE hash = $1",
+            "DELETE FROM as_user_handle WHERE hash = $1",
             hash.as_bytes(),
         )
         .execute(executor)
@@ -86,7 +86,7 @@ impl UserHandleRecord {
     ) -> sqlx::Result<Option<ExpirationData>> {
         query_scalar!(
             r#"SELECT expiration_data AS "expiration_data: ExpirationData"
-            FROM as_user_handles WHERE hash = $1"#,
+            FROM as_user_handle WHERE hash = $1"#,
             hash.as_bytes(),
         )
         .fetch_optional(executor)
@@ -111,7 +111,7 @@ impl UserHandleRecord {
             UpdateExpirationDataResult::Deleted
         } else {
             query!(
-                "UPDATE as_user_handles SET expiration_data = $1 WHERE hash = $2",
+                "UPDATE as_user_handle SET expiration_data = $1 WHERE hash = $2",
                 expiration_data as _,
                 hash.as_bytes(),
             )

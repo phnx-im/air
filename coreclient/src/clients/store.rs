@@ -4,13 +4,14 @@
 
 use aircommon::{
     crypto::{
-        ear::{Ciphertext, EarDecryptable, GenericDeserializable, keys::DatabaseKek},
+        ear::{Ciphertext, EarDecryptable, keys::DatabaseKek},
         errors::RandomnessError,
         secrets::Secret,
     },
     messages::push_token::PushToken,
 };
 use anyhow::bail;
+use tls_codec::{Serialize as _, TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 use super::{
     create_user::{
@@ -185,7 +186,7 @@ pub type EncryptedDek = Ciphertext<EncryptedDatabaseDekCtype>;
 impl EarEncryptable<DatabaseKek, EncryptedDatabaseDekCtype> for DatabaseDek {}
 impl EarDecryptable<DatabaseKek, EncryptedDatabaseDekCtype> for DatabaseDek {}
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, TlsSerialize, TlsDeserializeBytes, TlsSize)]
 pub struct DatabaseDek(Secret<DATABASE_DEK_LENGTH>);
 
 impl DatabaseDek {
@@ -218,7 +219,7 @@ impl ClientRecord {
     pub(super) fn new(user_id: UserId, kek: &DatabaseKek) -> anyhow::Result<Self> {
         // Generate new DEK and encrypt it
         let dek = DatabaseDek::random()?;
-        let serialized_dek = GenericSerializable::serialize(&dek)?;
+        let serialized_dek = dek.tls_serialize_detached()?;
         let encrypted_dek = kek
             .encrypt(serialized_dek.as_slice())
             .map_err(|e| anyhow::anyhow!("Failed to encrypt DEK: {}", e))?;
@@ -246,9 +247,7 @@ impl ClientRecord {
         let bytes = kek
             .decrypt(self.encrypted_dek.aead_ciphertext())
             .map_err(|e| anyhow::anyhow!("Failed to decrypt DEK: {}", e))?;
-        Ok(<DatabaseDek as GenericDeserializable>::deserialize(
-            bytes.as_slice(),
-        )?)
+        Ok(DatabaseDek::tls_deserialize_exact_bytes(bytes.as_slice())?)
     }
 }
 #[cfg(test)]

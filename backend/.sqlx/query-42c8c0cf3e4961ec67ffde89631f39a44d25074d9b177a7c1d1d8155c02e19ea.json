@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE as_signing_key\n                SET currently_active = CASE\n                    WHEN credential_fingerprint = $1 THEN true\n                    ELSE false\n                END\n                WHERE currently_active = true OR credential_fingerprint = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "42c8c0cf3e4961ec67ffde89631f39a44d25074d9b177a7c1d1d8155c02e19ea"
+}

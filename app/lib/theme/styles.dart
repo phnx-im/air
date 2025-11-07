@@ -2,19 +2,19 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ui/theme/font.dart';
 import 'package:flutter/material.dart';
 import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/typography/font_size.dart';
 import 'dart:io' show Platform;
 
 // === Devices ===
 
 bool isSmallScreen(BuildContext context) {
-  return MediaQuery.of(context).size.width <= 600;
+  return MediaQuery.sizeOf(context).width <= 600;
 }
 
 bool isLargeScreen(BuildContext context) {
-  return MediaQuery.of(context).size.width > 600;
+  return MediaQuery.sizeOf(context).width > 600;
 }
 
 bool isTouch() {
@@ -25,102 +25,73 @@ bool isPointer() {
   return Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 }
 
-// === Colors ===
-
-// Grey
-
-Color activeButtonColor(CustomColorScheme colorScheme) =>
-    colorScheme.backgroundBase.quaternary;
-Color inactiveButtonColor(CustomColorScheme colorScheme) =>
-    colorScheme.backgroundBase.secondary;
-
 // === Buttons ===
 
-ButtonStyle textButtonStyle(BuildContext context) {
-  return ButtonStyle(
-    foregroundColor: WidgetStateProperty.all(
-      CustomColorScheme.of(context).text.primary,
-    ),
-    overlayColor: WidgetStateProperty.all(Colors.transparent),
-    surfaceTintColor: WidgetStateProperty.all<Color>(Colors.transparent),
-    splashFactory: NoSplash.splashFactory,
-    padding: WidgetStateProperty.all(const EdgeInsets.all(20)),
-    textStyle: WidgetStateProperty.all<TextStyle>(
-      Theme.of(context).textTheme.labelLarge!.copyWith(
-        fontSize: LabelFontSize.base.size,
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-  );
+extension on CustomColorScheme {
+  Color get activeButtonColor => backgroundBase.quaternary;
+  Color get inactiveButtonColor => backgroundBase.secondary;
 }
 
-ButtonStyle dynamicTextButtonStyle(
-  BuildContext context,
-  bool isActive,
-  bool isMain,
-) {
-  return ButtonStyle(
-    foregroundColor:
-        isActive
-            ? WidgetStateProperty.all(
-              CustomColorScheme.of(context).text.secondary,
-            )
-            : WidgetStateProperty.all(
-              CustomColorScheme.of(context).text.quaternary,
-            ),
-    overlayColor: WidgetStateProperty.all(Colors.transparent),
-    surfaceTintColor: WidgetStateProperty.all<Color>(Colors.transparent),
-    splashFactory: NoSplash.splashFactory,
-    padding: WidgetStateProperty.all(const EdgeInsets.all(20)),
-    textStyle: WidgetStateProperty.all<TextStyle>(
-      Theme.of(context).textTheme.labelLarge!.copyWith(
-        fontSize: LabelFontSize.base.size,
-        fontWeight: isMain ? FontWeight.bold : FontWeight.normal,
-      ),
-    ),
-  );
+class CustomTextButtonStyle extends ButtonStyle {
+  CustomTextButtonStyle({
+    required CustomColorScheme colorScheme,
+    required TextTheme baselineTextTheme,
+  }) : super(
+         foregroundColor: WidgetStateProperty.fromMap({
+           WidgetState.disabled: colorScheme.text.quaternary,
+           WidgetState.any: colorScheme.text.secondary,
+         }),
+         overlayColor: WidgetStateProperty.all(Colors.transparent),
+         surfaceTintColor: WidgetStateProperty.all(Colors.transparent),
+         splashFactory: NoSplash.splashFactory,
+         padding: WidgetStateProperty.all(const EdgeInsets.all(20)),
+         textStyle: WidgetStateProperty.all<TextStyle>(
+           baselineTextTheme.labelLarge!.merge(customTextScheme.labelLarge!),
+         ),
+       );
 }
 
-ButtonStyle buttonStyle(CustomColorScheme colorScheme, bool isActive) {
-  return ButtonStyle(
-    foregroundColor: WidgetStateProperty.all<Color>(
-      isActive ? colorScheme.text.primary : colorScheme.text.quaternary,
-    ),
-    backgroundColor: WidgetStateProperty.all<Color>(
-      isActive
-          ? activeButtonColor(colorScheme)
-          : inactiveButtonColor(colorScheme),
-    ),
-    overlayColor: WidgetStateProperty.all<Color>(
-      isActive
-          ? activeButtonColor(colorScheme)
-          : inactiveButtonColor(colorScheme),
-    ),
-    mouseCursor: WidgetStateProperty.all<MouseCursor>(
-      isActive ? SystemMouseCursors.click : SystemMouseCursors.basic,
-    ),
-    elevation: WidgetStateProperty.all<double>(0),
-    shadowColor: WidgetStateProperty.all<Color>(Colors.transparent),
-    padding: WidgetStateProperty.all<EdgeInsetsGeometry>(
-      const EdgeInsets.symmetric(vertical: 25, horizontal: 50),
-    ),
-    splashFactory: NoSplash.splashFactory,
-    surfaceTintColor: WidgetStateProperty.all<Color>(Colors.transparent),
-    side: WidgetStateProperty.all<BorderSide>(
-      const BorderSide(color: Colors.transparent, width: 0),
-    ),
-    shape: WidgetStateProperty.all<OutlinedBorder>(
-      RoundedRectangleBorder(
-        side: const BorderSide(
-          color: Colors.transparent,
-          width: 0,
-          style: BorderStyle.none,
-        ),
-        borderRadius: BorderRadius.circular(12),
-      ),
-    ),
-    textStyle: WidgetStateProperty.all<TextStyle>(
-      TextStyle(fontSize: LabelFontSize.base.size, fontWeight: FontWeight.bold),
-    ),
-  );
+class CustomOutlineButtonStyle extends ButtonStyle {
+  CustomOutlineButtonStyle({
+    required CustomColorScheme colorScheme,
+    required TextTheme baselineTextTheme,
+  }) : super(
+         foregroundColor: WidgetStateProperty<Color>.fromMap({
+           WidgetState.disabled: colorScheme.text.quaternary,
+           WidgetState.any: colorScheme.text.primary,
+         }),
+         backgroundColor: WidgetStateProperty<Color>.fromMap({
+           WidgetState.disabled: colorScheme.inactiveButtonColor,
+           WidgetState.any: colorScheme.activeButtonColor,
+         }),
+         overlayColor: WidgetStateProperty<Color>.fromMap({
+           WidgetState.disabled: colorScheme.inactiveButtonColor,
+           WidgetState.any: colorScheme.activeButtonColor,
+         }),
+         mouseCursor: const WidgetStateProperty<MouseCursor>.fromMap({
+           WidgetState.disabled: SystemMouseCursors.basic,
+           WidgetState.any: SystemMouseCursors.click,
+         }),
+         elevation: WidgetStateProperty.all<double>(0),
+         shadowColor: WidgetStateProperty.all<Color>(Colors.transparent),
+         padding: WidgetStateProperty.all<EdgeInsetsGeometry>(
+           const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+         ),
+         splashFactory: NoSplash.splashFactory,
+         surfaceTintColor: WidgetStateProperty.all<Color>(Colors.transparent),
+         side: WidgetStateProperty.all<BorderSide>(
+           const BorderSide(color: Colors.transparent, width: 0),
+         ),
+         shape: WidgetStateProperty.all<OutlinedBorder>(
+           RoundedRectangleBorder(
+             side: const BorderSide(
+               color: Colors.transparent,
+               width: 0,
+               style: BorderStyle.none,
+             ),
+             borderRadius: BorderRadius.circular(12),
+           ),
+         ),
+         textStyle: WidgetStatePropertyAll(baselineTextTheme.bodyLarge!),
+       );
 }

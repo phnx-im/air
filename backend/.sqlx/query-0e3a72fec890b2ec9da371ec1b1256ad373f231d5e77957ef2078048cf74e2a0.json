@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT signing_key AS \"signing_key: BlobDecoded<StorableSigningKey>\"\n                FROM as_signing_key\n                WHERE currently_active = true AND cred_type = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "signing_key: BlobDecoded<StorableSigningKey>",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "credential_type",
+            "kind": {
+              "Enum": [
+                "as",
+                "intermediate"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0e3a72fec890b2ec9da371ec1b1256ad373f231d5e77957ef2078048cf74e2a0"
+}

@@ -37,6 +37,7 @@ class UserSettingsScreen extends StatelessWidget {
         leading: const AppBarBackButton(),
       ),
       body: SafeArea(
+        minimum: const EdgeInsets.only(bottom: Spacings.m),
         child: Align(
           alignment: Alignment.topCenter,
           child: Container(
@@ -55,27 +56,21 @@ class UserSettingsScreen extends StatelessWidget {
 
                   const _UserProfileData(),
 
-                  const SizedBox(height: Spacings.xs),
-                  Divider(color: Theme.of(context).hintColor),
-                  const SizedBox(height: Spacings.xs),
+                  const SettingsDivider(),
 
                   const _UserHandles(),
 
-                  if (isMobilePlatform) ...[
-                    const SizedBox(height: Spacings.xs),
-                    Divider(color: Theme.of(context).hintColor),
-                    const SizedBox(height: Spacings.xs),
+                  const SettingsDivider(),
 
-                    const _MobileSettings(),
-                  ],
+                  const _CommonSettings(),
+                  if (isMobilePlatform) const _MobileSettings(),
+                  if (isDesktopPlatform) const _DesktopSettings(),
 
-                  if (isDesktopPlatform) ...[
-                    const SizedBox(height: Spacings.xs),
-                    Divider(color: Theme.of(context).hintColor),
-                    const SizedBox(height: Spacings.xs),
+                  const SettingsDivider(),
 
-                    const _DesktopSettings(),
-                  ],
+                  const _Help(),
+                  const SizedBox(height: Spacings.xs),
+                  const _DeleteAccount(),
                 ],
               ),
             ),
@@ -196,7 +191,6 @@ class _UserHandle extends StatelessWidget {
               onPressed: () {
                 Navigator.of(context).pop(false);
               },
-              style: textButtonStyle(context),
               child: Text(loc.removeUsernameDialog_cancel),
             ),
             TextButton(
@@ -206,7 +200,6 @@ class _UserHandle extends StatelessWidget {
                   Navigator.of(context).pop(true);
                 }
               },
-              style: textButtonStyle(context),
               child: Text(loc.removeUsernameDialog_remove),
             ),
           ],
@@ -237,6 +230,58 @@ class _UserHandlePlaceholder extends StatelessWidget {
   }
 }
 
+class _CommonSettings extends StatefulWidget {
+  const _CommonSettings();
+
+  @override
+  State<_CommonSettings> createState() => _CommonSettingsState();
+}
+
+class _CommonSettingsState extends State<_CommonSettings> {
+  final Debouncer _readReceiptsDebouncer = Debouncer(
+    delay: const Duration(milliseconds: 500),
+  );
+  bool _readReceipts = false;
+
+  @override
+  void initState() {
+    super.initState();
+    setState(() {
+      _readReceipts = context.read<UserSettingsCubit>().state.readReceipts;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    return ListView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        SwitchListTile(
+          title: Text(loc.userSettingsScreen_readReceipts),
+          subtitle: Text(
+            style: TextStyle(color: Theme.of(context).hintColor),
+            loc.userSettingsScreen_readReceiptsDescription,
+          ),
+          value: _readReceipts,
+          onChanged: (value) {
+            _readReceiptsDebouncer.run(() {
+              context.read<UserSettingsCubit>().setReadReceipts(
+                userCubit: context.read(),
+                value: value,
+              );
+            });
+            setState(() {
+              _readReceipts = value;
+            });
+          },
+        ),
+      ],
+    );
+  }
+}
+
 class _MobileSettings extends StatefulWidget {
   const _MobileSettings();
 
@@ -260,12 +305,13 @@ class _MobileSettingsState extends State<_MobileSettings> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return ListView(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       children: [
         SwitchListTile(
-          title: const Text("Send with Enter"),
+          title: Text(loc.userSettingsScreen_sendWithEnter),
           value: _sendOnEnter,
           onChanged: (value) {
             _sendOnEnterDebouncer.run(() {
@@ -297,9 +343,15 @@ class _DesktopSettingsState extends State<_DesktopSettings> {
   @override
   void initState() {
     super.initState();
+
     setState(() {
+      final interfaceScale =
+          context.read<UserSettingsCubit>().state.interfaceScale;
+      var isLinuxAndScaled =
+          Platform.isLinux &&
+          WidgetsBinding.instance.platformDispatcher.textScaleFactor >= 1.5;
       _interfaceScaleSliderValue =
-          context.read<UserSettingsCubit>().state.interfaceScale * 100;
+          100 * (interfaceScale ?? (isLinuxAndScaled ? 1.5 : 1.0));
     });
   }
 
@@ -332,7 +384,6 @@ class _DesktopSettingsState extends State<_DesktopSettings> {
             },
           ),
         ),
-        const SizedBox(height: Spacings.s),
       ],
     );
   }
@@ -348,4 +399,62 @@ Color getColor(Set<WidgetState> states) {
     return Colors.brown;
   }
   return Colors.transparent;
+}
+
+class _Help extends StatelessWidget {
+  const _Help();
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+
+    return ListView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        ListTile(
+          leading: const Icon(Icons.help, size: _listIconSize),
+          title: Text(loc.userSettingsScreen_help),
+          onTap: () {
+            context.read<NavigationCubit>().openUserSettings(
+              screen: UserSettingsScreenType.help,
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _DeleteAccount extends StatelessWidget {
+  const _DeleteAccount();
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final color = CustomColorScheme.of(context).function.danger;
+    return ListTile(
+      leading: const Icon(Icons.person_outline, size: _listIconSize),
+      title: Text(loc.userSettingsScreen_deleteAccount),
+      iconColor: color,
+      textColor: color,
+      onTap: () {
+        context.read<NavigationCubit>().openUserSettings(
+          screen: UserSettingsScreenType.deleteAccount,
+        );
+      },
+    );
+  }
+}
+
+class SettingsDivider extends StatelessWidget {
+  const SettingsDivider({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: Spacings.xs),
+      child: Divider(color: Theme.of(context).hintColor),
+    );
+  }
 }

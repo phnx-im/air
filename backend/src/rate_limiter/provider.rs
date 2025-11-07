@@ -56,7 +56,7 @@ pub(crate) mod persistence {
                 r#"SELECT
                     remaining AS "remaining: _",
                     valid_until AS "valid_until: _"
-                FROM allowance_records
+                FROM allowance_record
                 WHERE key_value = $1"#,
                 key.serialize(),
             )
@@ -78,7 +78,7 @@ pub(crate) mod persistence {
             // only supports microsecond precision.
             let valid_until = self.valid_until.round_subsecs(6);
             query!(
-                "INSERT INTO allowance_records
+                "INSERT INTO allowance_record
                     (key_value, remaining, valid_until)
                     VALUES ($1, $2, $3)",
                 key.serialize(),
@@ -95,7 +95,7 @@ pub(crate) mod persistence {
         pub(in crate::rate_limiter) async fn delete_expired(
             connection: impl PgExecutor<'_>,
         ) -> Result<(), sqlx::Error> {
-            query!("DELETE FROM allowance_records WHERE valid_until < NOW()")
+            query!("DELETE FROM allowance_record WHERE valid_until < NOW()")
                 .execute(connection)
                 .await?;
             Ok(())

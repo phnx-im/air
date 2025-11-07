@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS(\n                    SELECT 1 FROM chat c\n                    INNER JOIN blocked_contact b\n                        ON b.user_uuid = c.connection_user_uuid\n                        AND b.user_domain = c.connection_user_domain\n                    WHERE chat_id = ?1\n                ) AS \"exists: _\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "exists: _",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8cfdfc12e51fd295690779a4b3904afe8c6c3f32470610112f48d8bb74a3165f"
+}

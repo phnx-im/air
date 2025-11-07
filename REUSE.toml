@@ -1,7 +1,7 @@
 version = 1
 SPDX-PackageName = "Air"
 SPDX-PackageSupplier = "Phoenix R&D GmbH <hello@phnx.im>"
-SPDX-PackageDownloadLocation = "https://github.com/phnx-im/infra"
+SPDX-PackageDownloadLocation = "https://github.com/phnx-im/air"
 
 [[annotations]]
 path = "Cargo.lock"
@@ -134,3 +134,15 @@ path = ".sql-formatter.json"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2025 Phoenix R&D GmbH <hello@phnx.im>"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = "**/*.arb"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Phoenix R&D GmbH <hello@phnx.im>"
+SPDX-License-Identifier = "CC-BY-SA-4.0"
+
+[[annotations]]
+path = "app/stores/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Phoenix R&D GmbH <hello@phnx.im>"
+SPDX-License-Identifier = "CC-BY-SA-4.0"

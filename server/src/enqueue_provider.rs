@@ -10,29 +10,34 @@ use airbackend::{
     },
 };
 
-use crate::dispatch::DispatchNotifier;
-
 #[derive(Debug, Clone)]
 pub struct SimpleEnqueueProvider<N: NetworkProvider, P: PushNotificationProvider> {
     pub qs: Qs,
-    pub notifier: DispatchNotifier,
     pub push_notification_provider: P,
     pub network: N,
 }
 
-impl<N: NetworkProvider, P: PushNotificationProvider> QsConnector for SimpleEnqueueProvider<N, P> {
+impl<N, P> QsConnector for SimpleEnqueueProvider<N, P>
+where
+    N: NetworkProvider + Clone,
+    P: PushNotificationProvider + Clone,
+{
     type EnqueueError = QsEnqueueError<N>;
 
     fn dispatch(
         &self,
         message: DsFanOutMessage,
-    ) -> impl Future<Output = Result<(), Self::EnqueueError>> + Send {
-        Qs::enqueue_message(
-            &self.qs,
-            &self.notifier,
-            &self.push_notification_provider,
-            &self.network,
-            message,
-        )
+    ) -> impl Future<Output = Result<(), Self::EnqueueError>> + Send + 'static {
+        let provider = self.clone();
+        async move {
+            provider
+                .qs
+                .enqueue_message(
+                    &provider.push_notification_provider,
+                    &provider.network,
+                    message,
+                )
+                .await
+        }
     }
 }

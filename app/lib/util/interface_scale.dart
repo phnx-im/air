@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 import 'package:air/ui/theme/scale.dart';
 import 'package:air/user/user.dart';
@@ -17,18 +19,32 @@ class InterfaceScale extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final userUiFactor = context.select(
+    final interfaceScale = context.select(
       (UserSettingsCubit cubit) => cubit.state.interfaceScale,
     );
 
-    final scalingFactors = getScalingFactors(context);
-    final uiScalingFactor = scalingFactors.uiFactor * userUiFactor;
+    final platformTextScaled =
+        WidgetsBinding.instance.platformDispatcher.textScaleFactor >= 1.5;
 
-    // remove text scaling on Linux
+    // On Linux with a 4k display, set the default text scaling to 1.5x
+    final userUiFactor =
+        Platform.isLinux
+            ? (interfaceScale ?? (platformTextScaled ? 1.5 : 1.0))
+            : interfaceScale;
+
+    final scalingFactors = getScalingFactors(context);
+    final uiScalingFactor =
+        userUiFactor != null ? scalingFactors.uiFactor * userUiFactor : null;
+
+    if (uiScalingFactor == null) {
+      return child;
+    }
+
+    final mediaQuery = MediaQuery.of(context);
     final wrappedChild = MediaQuery(
-      data: MediaQuery.of(
-        context,
-      ).copyWith(textScaler: TextScaler.linear(scalingFactors.textFactor)),
+      data: mediaQuery.copyWith(
+        textScaler: TextScaler.linear(scalingFactors.textFactor),
+      ),
       child: child,
     );
     return uiScalingFactor == 1.0

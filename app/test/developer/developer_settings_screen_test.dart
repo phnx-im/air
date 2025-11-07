@@ -9,7 +9,6 @@ import 'package:mocktail/mocktail.dart';
 import 'package:air/core/core.dart';
 import 'package:air/developer/developer.dart';
 import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
 
 import '../helpers.dart';
@@ -50,10 +49,7 @@ void main() {
         builder: (context) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
-            theme: themeData(
-              MediaQuery.platformBrightnessOf(context),
-              CustomColorScheme.of(context),
-            ),
+            theme: themeData(MediaQuery.platformBrightnessOf(context)),
             home: DeveloperSettingsScreenView(
               deviceToken: deviceToken,
               isMobile: true,

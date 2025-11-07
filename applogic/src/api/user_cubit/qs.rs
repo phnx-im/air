@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircoreclient::clients::{
-    QueueEvent, QueueEventUpdate, process::process_qs::ProcessedQsMessages, queue_event,
+    QueueEvent,
+    process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
 };
 use flutter_rust_bridge::frb;
-use tokio_stream::{Stream, StreamExt};
+use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, warn};
 
 use crate::{
     api::user::User,
@@ -21,50 +21,46 @@ use super::{AppState, CubitContext};
 #[frb(ignore)]
 pub(super) struct QueueContext {
     cubit_context: CubitContext,
+    handler: QsStreamProcessor,
+}
+
+impl QsNotificationProcessor for CubitContext {
+    async fn show_notifications(
+        &mut self,
+        ProcessedQsMessages {
+            new_chats,
+            changed_chats: _,
+            new_messages,
+            errors: _,
+            processed: _,
+        }: ProcessedQsMessages,
+    ) {
+        let mut notifications = Vec::with_capacity(new_chats.len() + new_messages.len());
+        let user = User::from_core_user(self.core_user.clone());
+        user.new_chat_notifications(&new_chats, &mut notifications)
+            .await;
+        user.new_message_notifications(&new_messages, &mut notifications)
+            .await;
+        CubitContext::show_notifications(self, notifications).await;
+    }
 }
 
 impl BackgroundStreamContext<QueueEvent> for QueueContext {
-    async fn create_stream(&self) -> anyhow::Result<impl Stream<Item = QueueEvent> + 'static> {
-        let stream = self.cubit_context.core_user.listen_queue().await?;
-        // Immediately emit an update event to kick off the initial state
-        let initial_event = QueueEvent {
-            event: Some(queue_event::Event::Update(QueueEventUpdate {})),
-        };
-        Ok(tokio_stream::once(initial_event).chain(stream))
+    async fn create_stream(&mut self) -> anyhow::Result<impl Stream<Item = QueueEvent> + 'static> {
+        let (stream, responder) = self.cubit_context.core_user.listen_queue().await?;
+        self.handler.replace_responder(responder);
+        Ok(stream)
     }
 
-    async fn handle_event(&self, event: QueueEvent) {
-        debug!(?event, "handling listen event");
-        match event.event {
-            Some(queue_event::Event::Payload(_)) => {
-                // currently, we don't handle payload events
-                warn!("ignoring listen event")
-            }
-            Some(queue_event::Event::Update(_)) => {
-                let core_user = self.cubit_context.core_user.clone();
-                let user = User::from_core_user(core_user);
-                match user.fetch_and_process_qs_messages().await {
-                    Ok(ProcessedQsMessages {
-                        new_conversations,
-                        changed_conversations: _,
-                        new_messages,
-                        errors: _,
-                    }) => {
-                        let mut notifications =
-                            Vec::with_capacity(new_conversations.len() + new_messages.len());
-                        user.new_conversation_notifications(&new_conversations, &mut notifications)
-                            .await;
-                        user.new_message_notifications(&new_messages, &mut notifications)
-                            .await;
-                        self.cubit_context.show_notifications(notifications).await;
-                    }
-                    Err(error) => {
-                        error!(%error, "failed to fetch messages on queue update");
-                    }
-                }
-            }
-            None => {}
-        }
+    async fn handle_event(&mut self, event: QueueEvent) -> bool {
+        let result = self
+            .handler
+            .process_event(event, &mut self.cubit_context)
+            .await;
+        // Stop stream if partially processed
+        // => There is a hole in the sequence of the messages, therefore we cannot continue
+        // processing them.
+        !result.is_partially_processed()
     }
 
     async fn in_foreground(&self) {
@@ -72,7 +68,12 @@ impl BackgroundStreamContext<QueueEvent> for QueueContext {
             .cubit_context
             .app_state
             .clone()
-            .wait_for(|app_state| matches!(app_state, AppState::Foreground))
+            .wait_for(|app_state| {
+                matches!(
+                    app_state,
+                    AppState::Foreground | AppState::DesktopBackground
+                )
+            })
             .await;
     }
 
@@ -81,14 +82,18 @@ impl BackgroundStreamContext<QueueEvent> for QueueContext {
             .cubit_context
             .app_state
             .clone()
-            .wait_for(|app_state| matches!(app_state, AppState::Background))
+            .wait_for(|app_state| matches!(app_state, AppState::MobileBackground))
             .await;
     }
 }
 
 impl QueueContext {
     pub(super) fn new(cubit_context: CubitContext) -> Self {
-        Self { cubit_context }
+        let handler = QsStreamProcessor::new(cubit_context.core_user.clone());
+        Self {
+            handler,
+            cubit_context,
+        }
     }
 
     pub(super) fn into_task(

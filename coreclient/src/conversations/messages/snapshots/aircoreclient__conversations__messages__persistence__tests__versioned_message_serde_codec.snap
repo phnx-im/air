@@ -1,6 +1,0 @@
----
-source: coreclient/src/conversations/messages/persistence.rs
-expression: "AirCodec::to_vec(&*VERSIONED_MESSAGE).unwrap()"
-extension: cbor
-snapshot_kind: binary
----

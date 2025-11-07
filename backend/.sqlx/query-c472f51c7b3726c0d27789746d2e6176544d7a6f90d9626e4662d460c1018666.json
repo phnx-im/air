@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT signing_key AS \"signing_key: BlobDecoded<IntermediateSigningKey>\"\n                FROM as_signing_key\n                WHERE currently_active = true\n                    AND cred_type = 'intermediate'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "signing_key: BlobDecoded<IntermediateSigningKey>",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c472f51c7b3726c0d27789746d2e6176544d7a6f90d9626e4662d460c1018666"
+}

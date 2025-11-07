@@ -24,7 +24,7 @@ use super::RandomnessError;
     TlsSerialize, TlsDeserializeBytes, TlsSize, Clone, PartialEq, Eq, Serialize, Deserialize,
 )]
 pub struct Secret<const LENGTH: usize> {
-    #[serde(with = "super::serde_arrays")]
+    #[serde(with = "serde_bytes")]
     secret: [u8; LENGTH],
 }
 
@@ -114,7 +114,7 @@ where
 
 #[derive(Clone, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(transparent)]
-pub(super) struct SecretBytes(Vec<u8>);
+pub(super) struct SecretBytes(#[serde(with = "serde_bytes")] Vec<u8>);
 
 impl From<Vec<u8>> for SecretBytes {
     fn from(secret: Vec<u8>) -> Self {

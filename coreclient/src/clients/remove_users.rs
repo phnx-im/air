@@ -5,29 +5,29 @@
 use aircommon::identifiers::UserId;
 use remove_users_flow::RemoveUsersData;
 
-use crate::{ConversationId, ConversationMessage};
+use crate::{ChatId, ChatMessage, utils::connection_ext::StoreExt};
 
 use super::CoreUser;
 
 impl CoreUser {
-    /// Remove users from the conversation with the given [`ConversationId`].
+    /// Remove users from the chat with the given [`ChatId`].
     ///
     /// Since this function causes the creation of an MLS commit, it can cause
     /// more than one effect on the group. As a result this function returns a
-    /// vector of [`ConversationMessage`]s that represents the changes to the
+    /// vector of [`ChatMessage`]s that represents the changes to the
     /// group. Note that these returned message have already been persisted.
     pub(crate) async fn remove_users(
         &self,
-        conversation_id: ConversationId,
+        chat_id: ChatId,
         target_users: Vec<UserId>,
-    ) -> anyhow::Result<Vec<ConversationMessage>> {
-        // Phase 1: Load the group and conversation and prepare the commit.
+    ) -> anyhow::Result<Vec<ChatMessage>> {
+        // Phase 1: Load the group and chat and prepare the commit.
         let remove = self
             .with_transaction(async |txn| {
                 RemoveUsersData::stage_remove(
                     txn,
                     self.signing_key(),
-                    conversation_id,
+                    chat_id,
                     self.user_id(),
                     target_users,
                 )
@@ -42,7 +42,7 @@ impl CoreUser {
 
         // Phase 3: Merge the commit into the group
         self.with_transaction_and_notifier(async |txn, notifier| {
-            removed.accept(txn, notifier, conversation_id).await
+            removed.accept(txn, notifier, chat_id).await
         })
         .await
     }
@@ -58,14 +58,14 @@ mod remove_users_flow {
     use sqlx::SqliteTransaction;
 
     use crate::{
-        Conversation, ConversationId, ConversationMessage,
+        Chat, ChatId, ChatMessage,
         clients::{CoreUser, api_clients::ApiClients},
         groups::Group,
         store::StoreNotifier,
     };
 
     pub(super) struct RemoveUsersData {
-        conversation: Conversation,
+        chat: Chat,
         group: Group,
         params: GroupOperationParamsOut,
     }
@@ -74,14 +74,14 @@ mod remove_users_flow {
         pub(super) async fn stage_remove(
             txn: &mut SqliteTransaction<'_>,
             signer: &ClientSigningKey,
-            conversation_id: ConversationId,
+            chat_id: ChatId,
             sender_id: &UserId,
             target_users: Vec<UserId>,
         ) -> anyhow::Result<Self> {
-            let conversation = Conversation::load(txn.as_mut(), &conversation_id)
+            let chat = Chat::load(txn.as_mut(), &chat_id)
                 .await?
-                .with_context(|| format!("Can't find conversation with id {conversation_id}"))?;
-            let group_id = conversation.group_id();
+                .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+            let group_id = chat.group_id();
             let mut group = Group::load_clean(txn, group_id)
                 .await?
                 .with_context(|| format!("No group found for group ID {group_id:?}"))?;
@@ -96,7 +96,7 @@ mod remove_users_flow {
                 .await?;
 
             Ok(Self {
-                conversation,
+                chat,
                 group,
                 params,
             })
@@ -108,13 +108,13 @@ mod remove_users_flow {
             signer: &ClientSigningKey,
         ) -> anyhow::Result<RemovedUsers> {
             let Self {
-                conversation,
+                chat,
                 group,
                 params,
             } = self;
 
             let ds_timestamp = api_clients
-                .get(&conversation.owner_domain())?
+                .get(&chat.owner_domain())?
                 .ds_group_operation(params, signer, group.group_state_ear_key())
                 .await?;
             Ok(RemovedUsers {
@@ -134,8 +134,8 @@ mod remove_users_flow {
             self,
             txn: &mut sqlx::SqliteTransaction<'_>,
             notifier: &mut StoreNotifier,
-            conversation_id: ConversationId,
-        ) -> anyhow::Result<Vec<ConversationMessage>> {
+            chat_id: ChatId,
+        ) -> anyhow::Result<Vec<ChatMessage>> {
             let Self {
                 mut group,
                 ds_timestamp,
@@ -145,8 +145,7 @@ mod remove_users_flow {
                 .merge_pending_commit(txn.as_mut(), None, ds_timestamp)
                 .await?;
             group.store_update(txn.as_mut()).await?;
-            CoreUser::store_new_messages(txn.as_mut(), notifier, conversation_id, group_messages)
-                .await
+            CoreUser::store_new_messages(txn.as_mut(), notifier, chat_id, group_messages).await
         }
     }
 }

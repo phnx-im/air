@@ -1,7 +1,6 @@
 ---
 source: common/src/messages/mod.rs
-assertion_line: 120
-expression: "AirCodec::to_vec(&message).unwrap()"
+expression: "PersistenceCodec::to_vec(&message).unwrap()"
 extension: cbor
 snapshot_kind: binary
 ---

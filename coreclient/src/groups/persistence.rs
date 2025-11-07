@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    codec::{AirCodec, BlobDecoded, BlobEncoded},
+    codec::{BlobDecoded, BlobEncoded, PersistenceCodec},
     credentials::VerifiableClientCredential,
     crypto::ear::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
 };
@@ -16,7 +16,7 @@ use tls_codec::Serialize as _;
 use tracing::error;
 
 use crate::{
-    ConversationId,
+    ChatId,
     utils::persistence::{GroupIdRefWrapper, GroupIdWrapper},
 };
 
@@ -40,7 +40,7 @@ impl SqlGroup {
             room_state,
         } = self;
 
-        let room_state = if let Some(state) = AirCodec::from_slice::<RoomState>(&room_state)
+        let room_state = if let Some(state) = PersistenceCodec::from_slice::<RoomState>(&room_state)
             .ok()
             .and_then(|state| VerifiedRoomState::verify(state).ok())
         {
@@ -86,14 +86,14 @@ impl Group {
         let pending_diff = self.pending_diff.as_ref().map(BlobEncoded);
 
         query!(
-            "INSERT INTO groups (
+            r#"INSERT INTO "group" (
                 group_id,
                 identity_link_wrapper_key,
                 group_state_ear_key,
                 pending_diff,
                 room_state
             )
-            VALUES (?, ?, ?, ?, ?)",
+            VALUES (?, ?, ?, ?, ?)"#,
             group_id,
             self.identity_link_wrapper_key,
             self.group_state_ear_key,
@@ -121,12 +121,11 @@ impl Group {
         Ok(Some(group))
     }
 
-    pub async fn load_with_conversation_id_clean(
+    pub async fn load_with_chat_id_clean(
         connection: &mut sqlx::SqliteConnection,
-        conversation_id: ConversationId,
+        chat_id: ChatId,
     ) -> anyhow::Result<Option<Self>> {
-        let Some(group) = Group::load_with_conversation_id(connection, conversation_id).await?
-        else {
+        let Some(group) = Group::load_with_chat_id(connection, chat_id).await? else {
             return Ok(None);
         };
 
@@ -156,7 +155,7 @@ impl Group {
                 group_state_ear_key AS "group_state_ear_key: _",
                 pending_diff AS "pending_diff: _",
                 room_state AS "room_state: _"
-            FROM groups WHERE group_id = ?"#,
+            FROM "group" WHERE group_id = ?"#,
             group_id
         )
         .fetch_optional(connection)
@@ -164,10 +163,10 @@ impl Group {
         .map(|res| res.map(|group| SqlGroup::into_group(group, mls_group)))
     }
 
-    /// Same as [`Self::load()`], but load the group via the corresponding conversation.
-    pub(crate) async fn load_with_conversation_id(
+    /// Same as [`Self::load()`], but load the group via the corresponding chat.
+    pub(crate) async fn load_with_chat_id(
         connection: &mut sqlx::SqliteConnection,
-        conversation_id: ConversationId,
+        chat_id: ChatId,
     ) -> sqlx::Result<Option<Self>> {
         let Some(sql_group) = query_as!(
             SqlGroup,
@@ -177,11 +176,11 @@ impl Group {
                 g.group_state_ear_key AS "group_state_ear_key: _",
                 g.pending_diff AS "pending_diff: _",
                 g.room_state AS "room_state: _"
-            FROM groups g
-            INNER JOIN conversations c ON c.group_id = g.group_id
-            WHERE c.conversation_id = ?
+            FROM "group" g
+            INNER JOIN chat c ON c.group_id = g.group_id
+            WHERE c.chat_id = ?
             "#,
-            conversation_id
+            chat_id
         )
         .fetch_optional(&mut *connection)
         .await?
@@ -203,12 +202,12 @@ impl Group {
         let pending_diff = self.pending_diff.as_ref().map(BlobEncoded);
         let room_state = BlobEncoded(&self.room_state);
         query!(
-            "UPDATE groups SET
+            r#"UPDATE "group" SET
                 identity_link_wrapper_key = ?,
                 group_state_ear_key = ?,
                 pending_diff = ?,
                 room_state = ?
-            WHERE group_id = ?",
+            WHERE group_id = ?"#,
             self.identity_link_wrapper_key,
             self.group_state_ear_key,
             pending_diff,
@@ -229,7 +228,7 @@ impl Group {
             group.mls_group.delete(provider.storage())?;
         };
         let group_id = GroupIdRefWrapper::from(group_id);
-        query!("DELETE FROM groups WHERE group_id = ?", group_id)
+        query!(r#"DELETE FROM "group" WHERE group_id = ?"#, group_id)
             .execute(txn.as_mut())
             .await?;
         Ok(())
@@ -243,7 +242,7 @@ impl Group {
         }
         let group_ids = query_as!(
             SqlGroupId,
-            r#"SELECT group_id AS "group_id: _" FROM groups"#,
+            r#"SELECT group_id AS "group_id: _" FROM "group""#,
         )
         .fetch_all(connection)
         .await?;

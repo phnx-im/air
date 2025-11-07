@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{io, marker::PhantomData};
+use std::marker::PhantomData;
 
 use sha2::{Digest, Sha256};
-use tls_codec::{Serialize, TlsSerialize, TlsSize};
+use tls_codec::{Serialize, TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 use crate::{crypto::Labeled, identifiers::TlsStr};
 
@@ -22,49 +22,19 @@ struct LabeledHashPayload<'a, T: Serialize> {
 impl<T: Serialize + Labeled> LabeledHashPayload<'_, T> {
     fn new(payload: T) -> Self {
         Self {
-            operation: TlsStr("Infra Hash"),
+            operation: TlsStr("Air Hash"),
             label: TlsStr(T::LABEL),
             payload,
         }
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, TlsSize, TlsSerialize, TlsDeserializeBytes)]
 #[serde(transparent)]
 pub struct Hash<T: Labeled + Sized> {
+    #[serde(with = "serde_bytes")]
     bytes: [u8; HASH_SIZE],
     _marker: PhantomData<T>,
-}
-
-impl<T: Labeled> tls_codec::Size for Hash<T> {
-    fn tls_serialized_len(&self) -> usize {
-        // Note: hash must be serialized as a byte slice, to include the length as a prefix.
-        // Otherwise, the signatures of data containing a hash will not fit the serialized data.
-        self.bytes.as_slice().tls_serialized_len()
-    }
-}
-
-impl<T: Labeled + Sized + Serialize> Serialize for Hash<T> {
-    fn tls_serialize<W: io::Write>(&self, writer: &mut W) -> Result<usize, tls_codec::Error> {
-        // Note: hash must be serialized as a byte slice, to include the length as a prefix.
-        // Otherwise, the signatures of data containing a hash will not fit the serialized data.
-        self.bytes.as_slice().tls_serialize(writer)
-    }
-}
-
-impl<T: Labeled> tls_codec::DeserializeBytes for Hash<T> {
-    fn tls_deserialize_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), tls_codec::Error> {
-        // Note: hash must be serialized as a byte slice, to include the length as a prefix.
-        // Otherwise, the signatures of data containing a hash will not fit the serialized data.
-        let (bytes, remaining) = Vec::<u8>::tls_deserialize_bytes(bytes)?;
-        let hash = Hash {
-            bytes: bytes
-                .try_into()
-                .map_err(|_| tls_codec::Error::DecodingError("Invalid hash length".to_string()))?,
-            _marker: PhantomData,
-        };
-        Ok((hash, remaining))
-    }
 }
 
 impl<T: Labeled + Sized> Hash<T> {

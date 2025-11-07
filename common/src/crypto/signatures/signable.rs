@@ -37,7 +37,9 @@
 use std::{marker::PhantomData, vec};
 
 use serde::{Deserialize, Serialize};
-use tls_codec::{Serialize as TlsSerializeTrait, TlsDeserializeBytes, TlsSerialize, TlsSize};
+use tls_codec::{
+    Serialize as TlsSerializeTrait, TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes,
+};
 
 use crate::LibraryError;
 
@@ -48,6 +50,7 @@ use super::private_keys::{
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Signature<KT> {
+    #[serde(with = "serde_bytes")]
     bytes: Vec<u8>,
     _phantom: PhantomData<KT>,
 }
@@ -104,11 +107,11 @@ pub trait SignedStruct<T, KT> {
 /// Labeled signature content.
 #[derive(Debug, Clone, TlsSerialize, TlsDeserializeBytes, TlsSize)]
 pub struct SignContent {
-    label: Vec<u8>,
-    content: Vec<u8>,
+    label: VLBytes,
+    content: VLBytes,
 }
 
-const SIGN_LABEL_PREFIX: &str = "Phoenix Homeserver Protocol 1.0";
+const SIGN_LABEL_PREFIX: &str = "Air Protocol";
 
 impl From<(&str, &[u8])> for SignContent {
     fn from((label, content): (&str, &[u8])) -> Self {

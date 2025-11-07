@@ -24,6 +24,7 @@ use super::{DEFAULT_SIGNATURE_SCHEME, signable::Signature};
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct VerifyingKey<KT> {
+    #[serde(with = "serde_bytes")]
     pub(super) key: Vec<u8>,
     _type: PhantomData<KT>,
 }

@@ -8,6 +8,8 @@ use aircommon::{
 };
 use prost::Message;
 
+use crate::auth_service::v1::{ReportSpamPayload, ReportSpamRequest};
+
 use super::v1::{
     CreateHandlePayload, CreateHandleRequest, DeleteHandlePayload, DeleteHandleRequest,
     DeleteUserPayload, DeleteUserRequest, HandleSignature, InitListenHandlePayload,
@@ -290,6 +292,58 @@ impl Verifiable for IssueTokensRequest {
 
     fn label(&self) -> &str {
         ISSUE_TOKENS_PAYLOAD_LABEL
+    }
+}
+
+const REPORT_SPAM_PAYLOAD_LABEL: &str = "ReportSpamPayload";
+
+impl SignedStruct<ReportSpamPayload, ClientKeyType> for ReportSpamRequest {
+    fn from_payload(payload: ReportSpamPayload, signature: ClientSignature) -> Self {
+        ReportSpamRequest {
+            payload: Some(payload),
+            signature: Some(signature.into()),
+        }
+    }
+}
+
+impl Signable for ReportSpamPayload {
+    type SignedOutput = ReportSpamRequest;
+
+    fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
+        Ok(self.encode_to_vec())
+    }
+
+    fn label(&self) -> &str {
+        REPORT_SPAM_PAYLOAD_LABEL
+    }
+}
+
+impl VerifiedStruct<ReportSpamRequest> for ReportSpamPayload {
+    type SealingType = private_mod::Seal;
+
+    fn from_verifiable(verifiable: ReportSpamRequest, _seal: Self::SealingType) -> Self {
+        verifiable.payload.unwrap()
+    }
+}
+
+impl Verifiable for ReportSpamRequest {
+    fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
+        Ok(self
+            .payload
+            .as_ref()
+            .ok_or(MissingPayloadError)?
+            .encode_to_vec())
+    }
+
+    fn signature(&self) -> impl AsRef<[u8]> {
+        self.signature
+            .as_ref()
+            .map(|s| s.value.as_slice())
+            .unwrap_or_default()
+    }
+
+    fn label(&self) -> &str {
+        REPORT_SPAM_PAYLOAD_LABEL
     }
 }
 

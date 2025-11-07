@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[graph]
+targets = [
+    "aarch64-apple-darwin",
+    "aarch64-apple-ios",
+    "aarch64-linux-android",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-windows-msvc",
+]
+all-features = false
+no-default-features = false
+
+[bans]
+multiple-versions = "allow"
+
+[advisories]
+ignore = [
+    { id = "RUSTSEC-2023-0071", reason = "no fix yet available; the crate is not used by us" },
+    { id = "RUSTSEC-2024-0436", reason = "no fix yet available" },
+]
+
+[licenses]
+# List of explicitly allowed licenses
+# See https://spdx.org/licenses/ for list of possible licenses
+# [possible values: any SPDX 3.11 short identifier (+ optional exception)].
+allow = [
+    "Apache-2.0 WITH LLVM-exception",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Zlib",
+]
+confidence-threshold = 0.8
+exceptions = [
+    { allow = [
+        "AGPL-3.0-or-later",
+    ], crate = "mls-assist" },
+    { allow = [
+        "AGPL-3.0-or-later",
+    ], crate = "mimi_content" },
+    { allow = [
+        "AGPL-3.0-or-later",
+    ], crate = "mimi-room-policy" },
+    { allow = [
+        "AGPL-3.0-or-later",
+    ], crate = "serde_list" },
+    { allow = [
+        "AGPL-3.0-or-later",
+    ], crate = "serde_list_macros" },
+]
+
+[licenses.private]
+ignore = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = [
+    "https://github.com/boxdot/formats",
+    "https://github.com/boxdot/mimi-content",
+    "https://github.com/facebook/voprf",
+    "https://github.com/openmls/openmls",
+    "https://github.com/raphaelrobert/privacypass",
+]
+
+[sources.allow-org]
+github = ["phnx-im"]

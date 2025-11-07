@@ -22,6 +22,7 @@ use crate::{
         },
     },
     groups::Group,
+    utils::connection_ext::StoreExt,
 };
 
 impl CoreUser {
@@ -62,8 +63,8 @@ impl CoreUser {
                 let record = AttachmentRecord::load(txn.as_mut(), attachment_id)
                     .await?
                     .context("attachment record not found")?;
-                let conversation_id = record.conversation_id;
-                let group = Group::load_with_conversation_id_clean(txn, conversation_id)
+                let chat_id = record.chat_id;
+                let group = Group::load_with_chat_id_clean(txn, chat_id)
                     .await?
                     .context("group not found")?;
 
@@ -150,8 +151,13 @@ impl CoreUser {
 
         // Store the attachment and mark it as downloaded
         self.with_transaction_and_notifier(async move |txn, notifier| {
-            AttachmentRecord::set_content(txn.as_mut(), notifier, attachment_id, &content.bytes)
-                .await?;
+            AttachmentRecord::set_content(
+                txn.as_mut(),
+                notifier,
+                attachment_id,
+                content.bytes.as_slice(),
+            )
+            .await?;
             PendingAttachmentRecord::delete(txn.as_mut(), attachment_id).await?;
             Ok(())
         })

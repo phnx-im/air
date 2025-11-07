@@ -21,3 +21,19 @@ Future<void> deleteClientDatabase({
   dbPath: dbPath,
   userId: userId,
 );
+
+Future<Uint8List> exportClientDatabase({
+  required String dbPath,
+  required UiUserId userId,
+}) => RustLib.instance.api.crateApiUtilsExportClientDatabase(
+  dbPath: dbPath,
+  userId: userId,
+);
+
+Future<void> importClientDatabase({
+  required String dbPath,
+  required List<int> tarGzBytes,
+}) => RustLib.instance.api.crateApiUtilsImportClientDatabase(
+  dbPath: dbPath,
+  tarGzBytes: tarGzBytes,
+);

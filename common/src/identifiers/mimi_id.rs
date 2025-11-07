@@ -20,7 +20,7 @@ use crate::identifiers::UserId;
 ///
 /// See <https://www.ietf.org/archive/id/draft-ietf-mimi-content-06.html#section-3.3>
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct MimiId([u8; 32]);
+pub struct MimiId(#[serde(with = "serde_bytes")] [u8; 32]);
 
 impl fmt::Debug for MimiId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO blocked_contact (\n                    user_uuid,\n                    user_domain,\n                    last_display_name,\n                    blocked_at\n                ) VALUES (?1, ?2, ?3, ?4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "5b9a455a624cf4f3c05c52f9ab6e4bfd4dc38931b734650d78789d7832649ba2"
+}

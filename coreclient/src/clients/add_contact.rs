@@ -4,7 +4,7 @@
 
 use airapiclient::{ApiClient, as_api::ConnectionOfferResponder};
 use aircommon::{
-    codec::AirCodec,
+    codec::PersistenceCodec,
     credentials::keys::ClientSigningKey,
     crypto::{
         ear::keys::FriendshipPackageEarKey, hash::Hashable as _, hpke::HpkeEncryptable,
@@ -12,7 +12,8 @@ use aircommon::{
     },
     identifiers::{QsReference, UserHandle, UserId},
     messages::{
-        client_as::ConnectionOfferMessage, client_ds_out::CreateGroupParamsOut,
+        client_as::{ConnectionOfferMessage, EncryptedConnectionOffer},
+        client_ds_out::CreateGroupParamsOut,
         connection_package::ConnectionPackage,
     },
 };
@@ -21,30 +22,28 @@ use sqlx::SqliteTransaction;
 use tracing::info;
 
 use crate::{
-    Conversation, ConversationAttributes, ConversationId,
+    Chat, ChatAttributes, ChatId,
     clients::connection_offer::FriendshipPackage,
     contacts::HandleContact,
     groups::{Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider},
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
     store::StoreNotifier,
+    utils::connection_ext::StoreExt,
 };
 
-use super::{
-    CoreUser,
-    connection_offer::{ConnectionOffer, payload::ConnectionOfferPayload},
-};
+use super::{CoreUser, connection_offer::payload::ConnectionOfferPayload};
 
 impl CoreUser {
     /// Create a connection with via a user handle.
     pub(crate) async fn add_contact_via_handle(
         &self,
         handle: UserHandle,
-    ) -> anyhow::Result<Option<ConversationId>> {
+    ) -> anyhow::Result<Option<ChatId>> {
         let client = self.api_client()?;
 
         // Phase 1: Fetch a connection package from the AS
         let (connection_package, connection_offer_responder) =
-            match client.as_connect_handle(&handle).await {
+            match client.as_connect_handle(handle.clone()).await {
                 Ok(res) => res,
                 Err(error) if error.is_not_found() => {
                     return Ok(None);
@@ -54,6 +53,10 @@ impl CoreUser {
 
         // Phase 2: Verify the connection package
         let verified_connection_package = connection_package.verify()?;
+        // We don't need to know if the connection package is last resort here,
+        // so we can just turn it into a v2.
+        let verified_connection_package: ConnectionPackage =
+            verified_connection_package.into_current();
 
         // Phase 3: Prepare the connection locally
         let group_id = client.ds_request_group_id().await?;
@@ -87,7 +90,7 @@ impl CoreUser {
                 .await?;
 
             // Phase 5: Create the connection group on the DS and send off the connection offer
-            let conversation_id = local_partial_contact
+            let chat_id = local_partial_contact
                 .create_connection_group_via_handle(
                     &client,
                     self.signing_key(),
@@ -95,7 +98,7 @@ impl CoreUser {
                 )
                 .await?;
 
-            Ok(Some(conversation_id))
+            Ok(Some(chat_id))
         })
         .await
     }
@@ -121,30 +124,27 @@ impl VerifiedConnectionPackagesWithGroupId {
 
         info!("Creating local connection group");
         let title = format!("Connection group: {}", handle.plaintext());
-        let conversation_attributes = ConversationAttributes::new(title, None);
-        let group_data = AirCodec::to_vec(&conversation_attributes)?.into();
+        let attributes = ChatAttributes::new(title, None);
+        let group_data = PersistenceCodec::to_vec(&attributes)?.into();
 
         let provider = AirOpenMlsProvider::new(txn);
         let (group, group_membership, partial_params) =
             Group::create_group(&provider, signing_key, group_id.clone(), group_data)?;
+
         group_membership.store(txn.as_mut()).await?;
         group.store(txn.as_mut()).await?;
 
         // TODO: Once we allow multi-client, invite all our other clients to the
         // connection group.
 
-        // Create the connection conversation
-        let conversation = Conversation::new_handle_conversation(
-            group_id.clone(),
-            conversation_attributes,
-            handle.clone(),
-        );
-        conversation.store(txn.as_mut(), notifier).await?;
+        // Create the connection chat
+        let chat = Chat::new_handle_chat(group_id.clone(), attributes, handle.clone());
+        chat.store(txn.as_mut(), notifier).await?;
 
         Ok(LocalGroup {
             group,
             partial_params,
-            conversation_id: conversation.id(),
+            chat_id: chat.id(),
             verified_connection_package,
         })
     }
@@ -153,7 +153,7 @@ impl VerifiedConnectionPackagesWithGroupId {
 struct LocalGroup {
     group: Group,
     partial_params: PartialCreateGroupParams,
-    conversation_id: ConversationId,
+    chat_id: ChatId,
     verified_connection_package: ConnectionPackage,
 }
 
@@ -170,7 +170,7 @@ impl LocalGroup {
         let Self {
             group,
             partial_params,
-            conversation_id,
+            chat_id,
             verified_connection_package,
         } = self;
 
@@ -178,21 +178,11 @@ impl LocalGroup {
 
         let friendship_package = FriendshipPackage {
             friendship_token: key_store.friendship_token.clone(),
-            connection_key: key_store.connection_key.clone(),
             wai_ear_key: key_store.wai_ear_key.clone(),
             user_profile_base_secret: own_user_profile_key.base_secret().clone(),
         };
 
         let friendship_package_ear_key = FriendshipPackageEarKey::random()?;
-
-        // Create and persist a new partial contact
-        HandleContact::new(
-            handle.clone(),
-            conversation_id,
-            friendship_package_ear_key.clone(),
-        )
-        .upsert(txn.as_mut(), notifier)
-        .await?;
 
         // Create a connection offer
         let connection_package_hash = verified_connection_package.hash();
@@ -201,15 +191,31 @@ impl LocalGroup {
             connection_group_id: group.group_id().clone(),
             connection_group_ear_key: group.group_state_ear_key().clone(),
             connection_group_identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
-            friendship_package_ear_key,
+            friendship_package_ear_key: friendship_package_ear_key.clone(),
             friendship_package,
             connection_package_hash,
         };
-        let connection_offer = connection_offer_payload.sign(
-            &key_store.signing_key,
+        let connection_offer = connection_offer_payload
+            .sign(
+                &key_store.signing_key,
+                handle.clone(),
+                verified_connection_package.hash(),
+            )?
+            .encrypt(verified_connection_package.encryption_key(), &[], &[]);
+
+        let connection_offer_hash = connection_offer.hash();
+
+        group.store_connection_offer_psk(txn.as_mut(), connection_offer_hash)?;
+
+        // Create and persist a new partial contact
+        HandleContact::new(
             handle,
-            verified_connection_package.hash(),
-        )?;
+            chat_id,
+            friendship_package_ear_key,
+            connection_offer_hash,
+        )
+        .upsert(txn.as_mut(), notifier)
+        .await?;
 
         let encrypted_user_profile_key =
             own_user_profile_key.encrypt(group.identity_link_wrapper_key(), own_user_id)?;
@@ -219,7 +225,7 @@ impl LocalGroup {
             group,
             connection_offer,
             params,
-            conversation_id,
+            chat_id,
             verified_connection_package,
         })
     }
@@ -227,9 +233,9 @@ impl LocalGroup {
 
 struct LocalHandleContact {
     group: Group,
-    connection_offer: ConnectionOffer,
+    connection_offer: EncryptedConnectionOffer,
     params: CreateGroupParamsOut,
-    conversation_id: ConversationId,
+    chat_id: ChatId,
     verified_connection_package: ConnectionPackage,
 }
 
@@ -239,12 +245,12 @@ impl LocalHandleContact {
         client: &ApiClient,
         signer: &ClientSigningKey,
         responder: ConnectionOfferResponder,
-    ) -> anyhow::Result<ConversationId> {
+    ) -> anyhow::Result<ChatId> {
         let Self {
             group,
             connection_offer,
             params,
-            conversation_id,
+            chat_id,
             verified_connection_package,
         } = self;
 
@@ -253,13 +259,11 @@ impl LocalHandleContact {
             .ds_create_group(params, signer, group.group_state_ear_key())
             .await?;
 
-        // Encrypt the connection offer and send it off.
-        let ciphertext =
-            connection_offer.encrypt(verified_connection_package.encryption_key(), &[], &[]);
+        // Send off the connection offer.
         let hash = verified_connection_package.hash();
-        let message = ConnectionOfferMessage::new(hash, ciphertext);
+        let message = ConnectionOfferMessage::new(hash, connection_offer);
         responder.send(message).await?;
 
-        Ok(conversation_id)
+        Ok(chat_id)
     }
 }

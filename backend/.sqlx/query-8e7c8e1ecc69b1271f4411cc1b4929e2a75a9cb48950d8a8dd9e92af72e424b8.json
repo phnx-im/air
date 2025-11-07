@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n                    remaining AS \"remaining: _\",\n                    valid_until AS \"valid_until: _\"\n                FROM allowance_record\n                WHERE key_value = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "remaining: _",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "valid_until: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "8e7c8e1ecc69b1271f4411cc1b4929e2a75a9cb48950d8a8dd9e92af72e424b8"
+}

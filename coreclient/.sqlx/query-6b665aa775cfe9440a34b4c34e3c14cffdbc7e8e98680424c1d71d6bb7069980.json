@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE group_membership AS merged\n            SET leaf_index = staged.leaf_index\n            FROM group_membership AS staged\n            WHERE merged.group_id = staged.group_id\n              AND merged.user_uuid = staged.user_uuid\n              AND merged.user_domain = staged.user_domain\n              AND merged.status = 'merged'\n              AND staged.status = 'staged_update'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "6b665aa775cfe9440a34b4c34e3c14cffdbc7e8e98680424c1d71d6bb7069980"
+}

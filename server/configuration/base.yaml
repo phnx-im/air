@@ -11,4 +11,4 @@ database:
   port: 5432
   username: "postgres"
   password: "password"
-  name: "phnx_db"
+  name: "air_db"

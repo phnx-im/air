@@ -13,9 +13,7 @@ mod traits;
 use std::marker::PhantomData;
 
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
-pub use traits::{
-    EarDecryptable, EarEncryptable, EarKey, GenericDeserializable, GenericSerializable,
-};
+pub use traits::{EarDecryptable, EarEncryptable, EarKey};
 
 use aes_gcm::Aes256Gcm;
 pub use aes_gcm::aead::Payload;
@@ -43,7 +41,9 @@ const AEAD_NONCE_SIZE: usize = 12;
 )]
 #[sqlx(type_name = "aead_ciphertext")]
 pub struct AeadCiphertext {
+    #[serde(with = "serde_bytes")]
     ciphertext: Vec<u8>,
+    #[serde(with = "serde_bytes")]
     nonce: [u8; AEAD_NONCE_SIZE],
 }
 

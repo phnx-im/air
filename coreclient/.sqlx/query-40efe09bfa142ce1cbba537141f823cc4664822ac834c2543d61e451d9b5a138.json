@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT is_last_resort\n            FROM connection_package\n            WHERE connection_package_hash = $1",
+  "describe": {
+    "columns": [
+      {
+        "name": "is_last_resort",
+        "ordinal": 0,
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "40efe09bfa142ce1cbba537141f823cc4664822ac834c2543d61e451d9b5a138"
+}

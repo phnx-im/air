@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM allowance_record WHERE valid_until < NOW()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "05d5c55a8ae47b92ed68b7eca5a96dcc012074d9297a8f3c08ee739da0e4a660"
+}

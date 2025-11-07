@@ -5,11 +5,9 @@
 use std::{fmt, ops::Deref};
 
 use aircommon::{
-    crypto::{
-        hpke::{ClientIdEncryptionKey, HpkeEncryptable},
-        kdf::keys::ConnectionKey,
-    },
-    identifiers::{ClientConfig, QS_CLIENT_REFERENCE_EXTENSION_TYPE, QsClientId, QsReference},
+    crypto::hpke::{ClientIdEncryptionKey, HpkeEncryptable},
+    identifiers::{ClientConfig, QsClientId, QsReference},
+    mls_group_config::{QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_capabilities},
 };
 use anyhow::Result;
 use openmls::prelude::{
@@ -21,13 +19,13 @@ use tls_codec::Serialize as TlsSerializeTrait;
 
 use crate::{
     clients::{CIPHERSUITE, api_clients::ApiClients},
-    groups::{default_capabilities, openmls_provider::AirOpenMlsProvider},
+    groups::openmls_provider::AirOpenMlsProvider,
 };
 
 use aircommon::{
     credentials::keys::ClientSigningKey,
     crypto::{
-        ConnectionDecryptionKey, RatchetDecryptionKey,
+        RatchetDecryptionKey,
         ear::keys::{PushTokenEarKey, WelcomeAttributionInfoEarKey},
         signatures::keys::{QsClientSigningKey, QsUserSigningKey},
     },
@@ -44,8 +42,6 @@ pub(crate) mod queue_ratchets;
 pub(crate) struct MemoryUserKeyStoreBase<K> {
     // Client credential secret key
     pub(super) signing_key: K,
-    // AS-specific key material
-    pub(super) connection_decryption_key: ConnectionDecryptionKey,
     // QS-specific key material
     pub(super) qs_client_signing_key: QsClientSigningKey,
     pub(super) qs_user_signing_key: QsUserSigningKey,
@@ -54,7 +50,6 @@ pub(crate) struct MemoryUserKeyStoreBase<K> {
     pub(super) push_token_ear_key: PushTokenEarKey,
     // These are keys that we send to our contacts
     pub(super) friendship_token: FriendshipToken,
-    pub(super) connection_key: ConnectionKey,
     pub(super) wai_ear_key: WelcomeAttributionInfoEarKey,
 }
 

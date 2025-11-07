@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT\n                    base_secret AS \"base_secret: _\",\n                    key_value AS \"key: _\",\n                    key_index AS \"index: _\"\n                FROM indexed_key\n                WHERE key_index = ?\n                LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "base_secret: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "key: _",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "index: _",
+        "ordinal": 2,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b480efe392cf8543e21a7069344e6448d74a68660e1763236200222b2476e5f7"
+}

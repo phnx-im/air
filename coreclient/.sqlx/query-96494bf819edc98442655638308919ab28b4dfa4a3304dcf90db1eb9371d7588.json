@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                    message_id AS \"message_id: _\"\n                FROM message\n                INNER JOIN chat c ON c.chat_id = ?1\n                WHERE c.chat_id = ?1 AND timestamp > c.last_read",
+  "describe": {
+    "columns": [
+      {
+        "name": "message_id: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "96494bf819edc98442655638308919ab28b4dfa4a3304dcf90db1eb9371d7588"
+}

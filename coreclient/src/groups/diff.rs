@@ -42,7 +42,7 @@ pub(crate) struct StagedGroupDiff {
 mod test {
     use std::sync::LazyLock;
 
-    use aircommon::codec::AirCodec;
+    use aircommon::codec::PersistenceCodec;
 
     use super::*;
 
@@ -91,7 +91,10 @@ mod test {
 
     #[test]
     fn test_group_staged_diff_serde_codec() {
-        insta::assert_binary_snapshot!(".cbor", AirCodec::to_vec(&*STAGED_GROUP_DIFF).unwrap());
+        insta::assert_binary_snapshot!(
+            ".cbor",
+            PersistenceCodec::to_vec(&*STAGED_GROUP_DIFF).unwrap()
+        );
     }
 
     #[test]

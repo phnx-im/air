@@ -4,8 +4,14 @@
 
 package ms.air
 
+import android.Manifest
 import android.content.ContentValues.TAG
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.google.android.gms.tasks.Task
 import com.google.firebase.messaging.FirebaseMessaging
 import io.flutter.Log
@@ -16,19 +22,25 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     companion object {
         private const val CHANNEL_NAME: String = "ms.air/channel"
+        private const val REQUEST_CODE_POST_NOTIFICATIONS = 1000
     }
 
     private var channel: MethodChannel? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        requestNotificationPermissionIfNeeded()
+    }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
 
         if (intent.action == Notifications.SELECT_NOTIFICATION) {
             val notificationId = intent.extras?.getString(Notifications.EXTRAS_NOTIFICATION_ID_KEY)
-            val conversationId = intent.extras?.getString(Notifications.EXTRAS_CONVERSATION_ID_KEY)
+            val chatId = intent.extras?.getString(Notifications.EXTRAS_CHAT_ID_KEY)
             if (notificationId != null) {
                 val arguments = mapOf(
-                    "identifier" to notificationId, "conversationId" to conversationId
+                    "identifier" to notificationId, "chatId" to chatId
                 )
                 channel?.invokeMethod("openedNotification", arguments)
             }
@@ -73,12 +85,12 @@ class MainActivity : FlutterActivity() {
                     val identifier: String? = call.argument("identifier")
                     val title: String? = call.argument("title")
                     val body: String? = call.argument("body")
-                    val conversationId: ConversationId? =
-                        call.argument<String>("conversationId")?.let { ConversationId(it) }
+                    val chatId: ChatId? =
+                        call.argument<String>("chatId")?.let { ChatId(it) }
 
                     if (identifier != null && title != null && body != null) {
                         val notification =
-                            NotificationContent(identifier, title, body, conversationId)
+                            NotificationContent(identifier, title, body, chatId)
                         Notifications.showNotification(this, notification)
                         result.success(null)
                     } else {
@@ -95,7 +107,7 @@ class MainActivity : FlutterActivity() {
                     val res: ArrayList<Map<String, Any?>> = ArrayList(notifications.map { handle ->
                         mapOf<String, Any?>(
                             "identifier" to handle.notificationId,
-                            "conversationId" to handle.conversationId
+                            "chatId" to handle.chatId
                         )
                     })
                     result.success(res)
@@ -119,5 +131,24 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-}
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return
+        }
 
+        val hasPermission = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasPermission) {
+            return
+        }
+
+        ActivityCompat.requestPermissions(
+            this,
+            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+            REQUEST_CODE_POST_NOTIFICATIONS
+        )
+    }
+}

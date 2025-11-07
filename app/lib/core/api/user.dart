@@ -18,7 +18,7 @@ part 'user.freezed.dart';
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<User>>
 abstract class User implements RustOpaqueInterface {
-  /// Total number of unread messages across all conversations
+  /// Total number of unread messages across all chats
   Future<int> get globalUnreadMessagesCount;
 
   static Future<User> load({

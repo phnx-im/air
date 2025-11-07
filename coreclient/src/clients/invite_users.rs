@@ -5,33 +5,35 @@
 use aircommon::identifiers::UserId;
 use invite_users_flow::InviteUsersData;
 
-use crate::{ConversationId, ConversationMessage, utils::connection_ext::ConnectionExt as _};
+use crate::{
+    ChatId, ChatMessage,
+    utils::connection_ext::{ConnectionExt as _, StoreExt},
+};
 
 use super::CoreUser;
 
 impl CoreUser {
-    /// Invite users to an existing conversation.
+    /// Invite users to an existing chat.
     ///
     /// Since this function causes the creation of an MLS commit, it can cause
     /// more than one effect on the group. As a result this function returns a
-    /// vector of [`ConversationMessage`]s that represents the changes to the
+    /// vector of [`ChatMessage`]s that represents the changes to the
     /// group. Note that these returned message have already been persisted.
     pub(crate) async fn invite_users(
         &self,
-        conversation_id: ConversationId,
+        chat_id: ChatId,
         invited_users: &[UserId],
-    ) -> anyhow::Result<Vec<ConversationMessage>> {
+    ) -> anyhow::Result<Vec<ChatMessage>> {
         let mut connection = self.pool().acquire().await?;
 
-        // Phase 1: Load all the relevant conversation and all the contacts we
+        // Phase 1: Load all the relevant chat and all the contacts we
         // want to add.
-        let invite_prepared =
-            InviteUsersData::load(&mut connection, conversation_id, invited_users)
-                .await?
-                // Phase 2: Load add infos for each contact
-                // This needs the connection load (and potentially fetch and store).
-                .load_add_infos(&mut connection, &self.inner.api_clients)
-                .await?;
+        let invite_prepared = InviteUsersData::load(&mut connection, chat_id, invited_users)
+            .await?
+            // Phase 2: Load add infos for each contact
+            // This needs the connection load (and potentially fetch and store).
+            .load_add_infos(&mut connection, &self.inner.api_clients)
+            .await?;
 
         // Phase 3: Load the group and create the commit to add the new members
         let invite = invite_prepared
@@ -46,18 +48,16 @@ impl CoreUser {
 
         // Phase 5: Merge the commit into the group
         // Now that we know the commit went through, we can merge the commit
-        let conversation_messages = connection
+        let messages = connection
             .with_transaction(async |txn| {
                 self.with_notifier(async |notifier| {
-                    invited
-                        .merge_pending_commit(txn, notifier, conversation_id)
-                        .await
+                    invited.merge_pending_commit(txn, notifier, chat_id).await
                 })
                 .await
             })
             .await?;
 
-        Ok(conversation_messages)
+        Ok(messages)
     }
 }
 
@@ -75,7 +75,7 @@ mod invite_users_flow {
     use sqlx::SqliteConnection;
 
     use crate::{
-        Contact, Conversation, ConversationId, ConversationMessage,
+        Chat, ChatId, ChatMessage, Contact,
         clients::{CoreUser, api_clients::ApiClients},
         contacts::ContactAddInfos,
         groups::{Group, client_auth_info::StorableClientCredential},
@@ -96,12 +96,12 @@ mod invite_users_flow {
     impl InviteUsersData<()> {
         pub(super) async fn load(
             connection: &mut SqliteConnection,
-            conversation_id: ConversationId,
+            chat_id: ChatId,
             invited_users: &[UserId],
         ) -> anyhow::Result<InviteUsersData<Vec<Contact>>> {
-            let conversation = Conversation::load(&mut *connection, &conversation_id)
+            let chat = Chat::load(&mut *connection, &chat_id)
                 .await?
-                .with_context(|| format!("Can't find conversation with id {conversation_id}"))?;
+                .with_context(|| format!("Can't find chat with id {chat_id}"))?;
 
             let mut contact_wai_keys = Vec::with_capacity(invited_users.len());
             let mut contacts = Vec::with_capacity(invited_users.len());
@@ -125,9 +125,9 @@ mod invite_users_flow {
             }
 
             Ok(InviteUsersData {
-                group_id: conversation.group_id().clone(),
+                group_id: chat.group_id().clone(),
                 invited_users: invited_users.to_vec(),
-                owner_domain: conversation.owner_domain(),
+                owner_domain: chat.owner_domain(),
                 contact_wai_keys,
                 client_credentials,
                 state: contacts,
@@ -257,8 +257,8 @@ mod invite_users_flow {
             self,
             connection: &mut sqlx::SqliteConnection,
             notifier: &mut StoreNotifier,
-            conversation_id: ConversationId,
-        ) -> anyhow::Result<Vec<ConversationMessage>> {
+            chat_id: ChatId,
+        ) -> anyhow::Result<Vec<ChatMessage>> {
             let Self {
                 mut group,
                 ds_timestamp,
@@ -268,13 +268,7 @@ mod invite_users_flow {
                 .merge_pending_commit(&mut *connection, None, ds_timestamp)
                 .await?;
             group.store_update(&mut *connection).await?;
-            CoreUser::store_new_messages(
-                &mut *connection,
-                notifier,
-                conversation_id,
-                group_messages,
-            )
-            .await
+            CoreUser::store_new_messages(&mut *connection, notifier, chat_id, group_messages).await
         }
     }
 }

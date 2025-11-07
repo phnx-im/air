@@ -151,7 +151,7 @@ mod tests {
     async fn test_rate_limiter() {
         let config = RlConfig {
             max_requests: 5,
-            time_window: TimeDelta::milliseconds(1),
+            time_window: TimeDelta::milliseconds(100),
         };
         let storage = InMemoryStorage::new();
         let rate_limiter = RateLimiter::new(config.clone(), storage);

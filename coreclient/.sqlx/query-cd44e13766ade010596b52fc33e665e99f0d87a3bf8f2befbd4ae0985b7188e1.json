@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT group_id AS \"group_id: _\" FROM \"group\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "group_id: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "cd44e13766ade010596b52fc33e665e99f0d87a3bf8f2befbd4ae0985b7188e1"
+}

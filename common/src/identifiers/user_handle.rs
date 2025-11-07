@@ -60,7 +60,7 @@ impl UserHandle {
         Ok(())
     }
 
-    pub fn hash(&self) -> Result<UserHandleHash, UserHandleHashError> {
+    pub fn calculate_hash(&self) -> Result<UserHandleHash, UserHandleHashError> {
         let argon2 = Argon2::default();
         let const_salt = b"user handle salt"; // TODO(security): this is not what we want
         let mut hash = [0u8; 32];
@@ -81,6 +81,7 @@ impl UserHandle {
     Debug, Clone, Copy, PartialEq, Eq, Hash, TlsSerialize, TlsSize, Serialize, Deserialize,
 )]
 pub struct UserHandleHash {
+    #[serde(with = "serde_bytes")]
     hash: [u8; 32],
 }
 
@@ -274,7 +275,7 @@ mod tests {
     #[test]
     fn test_user_handle_hash_produces_hash() {
         let handle = UserHandle::new(valid_user_handle_string()).unwrap();
-        let handle_hash = handle.hash().unwrap();
+        let handle_hash = handle.calculate_hash().unwrap();
         assert_eq!(
             hex::encode(handle_hash.hash),
             "67eedaa506238ce0774d7ee8bbda5cf5bef329607dbbad4c2cccd96ae8024a76"
@@ -288,8 +289,8 @@ mod tests {
         let handle1 = UserHandle::new(handle_str.clone()).unwrap();
         let handle2 = UserHandle::new(handle_str).unwrap();
 
-        let hash1 = handle1.hash().unwrap();
-        let hash2 = handle2.hash().unwrap();
+        let hash1 = handle1.calculate_hash().unwrap();
+        let hash2 = handle2.calculate_hash().unwrap();
 
         assert_eq!(hash1.hash, hash2.hash);
     }

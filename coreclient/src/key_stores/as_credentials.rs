@@ -98,7 +98,7 @@ impl AsCredentials {
         let credential_type = self.credential_type();
         let body = self.body();
         query!(
-            "INSERT OR REPLACE INTO as_credentials
+            "INSERT OR REPLACE INTO as_credential
                 (fingerprint, user_domain, credential_type, credential) VALUES (?, ?, ?, ?)",
             fingerpint,
             domain,
@@ -120,7 +120,7 @@ impl AsCredentials {
                 query_scalar!(
                     r#"SELECT
                     credential AS "credential: _"
-                FROM as_credentials
+                FROM as_credential
                 WHERE user_domain = ?
                     AND credential_type = 'as_intermediate_credential'
                     AND fingerprint = ?"#,
@@ -133,7 +133,7 @@ impl AsCredentials {
                 query_scalar!(
                     r#"SELECT
                     credential AS "credential: _"
-                FROM as_credentials
+                FROM as_credential
                 WHERE user_domain = ?
                     AND credential_type = 'as_intermediate_credential'"#,
                     domain

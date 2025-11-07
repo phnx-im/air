@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS(\n                    SELECT 1 FROM blocked_contact\n                    WHERE user_uuid = ?1 AND user_domain = ?2\n                ) AS \"exists: _\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "exists: _",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "601a9276fd78f32ebed85cee5d489e3352a34a992bb04062ef2d4f945f0bc070"
+}

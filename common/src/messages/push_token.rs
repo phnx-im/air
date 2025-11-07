@@ -2,26 +2,33 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use crate::crypto::ear::{EarDecryptable, EarEncryptable, keys::PushTokenEarKey};
+use crate::{
+    crypto::ear::{EarDecryptable, EarEncryptable, keys::PushTokenEarKey},
+    identifiers::TlsString,
+};
 
 use super::*;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, TlsSize, TlsSerialize, TlsDeserializeBytes)]
+#[repr(u8)]
 pub enum PushTokenOperator {
     Apple,
     Google,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, TlsSize, TlsSerialize, TlsDeserializeBytes)]
 pub struct PushToken {
     operator: PushTokenOperator,
-    token: String,
+    token: TlsString,
 }
 
 impl PushToken {
     /// Create a new push token.
     pub fn new(operator: PushTokenOperator, token: String) -> Self {
-        Self { operator, token }
+        Self {
+            operator,
+            token: TlsString(token),
+        }
     }
 
     pub fn operator(&self) -> &PushTokenOperator {
@@ -29,7 +36,7 @@ impl PushToken {
     }
 
     pub fn token(&self) -> &str {
-        &self.token
+        &self.token.0
     }
 }
 

@@ -5,3 +5,5 @@
 .vscode
 target
 client.db
+client.db-shm
+client.db-wal

@@ -22,6 +22,7 @@ use url::{ParseError, Url};
 pub mod as_api;
 pub mod ds_api;
 pub mod qs_api;
+pub(crate) mod util;
 
 // TODO: Turn this on once we have the necessary test infrastructure for
 // certificates in place.

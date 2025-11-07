@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    identifiers::UserHandleHash, messages::connection_package::ConnectionPackage,
+    identifiers::UserHandleHash, messages::connection_package::VersionedConnectionPackage,
     time::ExpirationData,
 };
 use airprotos::{
@@ -52,7 +52,7 @@ pub(crate) trait ConnectHandleProtocol {
     async fn get_connection_package_for_handle(
         &self,
         hash: &UserHandleHash,
-    ) -> sqlx::Result<ConnectionPackage>;
+    ) -> sqlx::Result<VersionedConnectionPackage>;
 
     async fn enqueue_connection_offer(
         &self,
@@ -215,7 +215,7 @@ impl ConnectHandleProtocol for AuthService {
     async fn get_connection_package_for_handle(
         &self,
         hash: &UserHandleHash,
-    ) -> sqlx::Result<ConnectionPackage> {
+    ) -> sqlx::Result<VersionedConnectionPackage> {
         StorableConnectionPackage::load_for_handle(&self.db_pool, hash).await
     }
 
@@ -266,7 +266,9 @@ mod tests {
     use tokio::{sync::mpsc, task::JoinHandle, time::timeout};
     use tokio_stream::wrappers::ReceiverStream;
 
-    use crate::auth_service::connection_package::persistence::tests::random_connection_package;
+    use crate::auth_service::connection_package::persistence::tests::{
+        ConnectionPackageType, random_connection_package,
+    };
 
     use super::*;
 
@@ -315,7 +317,12 @@ mod tests {
 
         let hash = UserHandleHash::new([1; 32]);
         let expiration_data = ExpirationData::new(Duration::days(1));
-        let connection_package = random_connection_package(signing_key.verifying_key().clone());
+        let connection_package = random_connection_package(
+            signing_key.verifying_key().clone(),
+            ConnectionPackageType::V2 {
+                is_last_resort: false,
+            },
+        );
         let connection_offer = ConnectionOfferMessage::default();
 
         let mut mock_protocol = MockConnectHandleProtocol::new();
@@ -489,7 +496,12 @@ mod tests {
 
         let hash = UserHandleHash::new([1; 32]);
         let expiration_data = ExpirationData::new(Duration::days(1));
-        let connection_package = random_connection_package(signing_key.verifying_key().clone());
+        let connection_package = random_connection_package(
+            signing_key.verifying_key().clone(),
+            ConnectionPackageType::V2 {
+                is_last_resort: false,
+            },
+        );
 
         let mut mock_protocol = MockConnectHandleProtocol::new();
 

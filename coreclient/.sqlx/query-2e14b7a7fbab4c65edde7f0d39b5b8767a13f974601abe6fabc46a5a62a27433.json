@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO as_credential\n                (fingerprint, user_domain, credential_type, credential) VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "2e14b7a7fbab4c65edde7f0d39b5b8767a13f974601abe6fabc46a5a62a27433"
+}

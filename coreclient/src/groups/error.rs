@@ -15,7 +15,7 @@ pub enum GroupOperationError {
     #[error(transparent)]
     CreateMessageError(#[from] CreateMessageError),
     #[error(transparent)]
-    ProcessMessageError(#[from] ProcessMessageError),
+    ProcessMessageError(#[from] ProcessMessageError<sqlx::Error>),
     #[error("Missing key package in key store")]
     MissingKeyPackage,
     #[error(transparent)]

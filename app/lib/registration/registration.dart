@@ -5,6 +5,5 @@
 /// Registration features
 library;
 
-export 'server_choice.dart';
-export 'display_name_picture.dart';
+export 'sign_up_screen.dart';
 export 'registration_cubit.dart';

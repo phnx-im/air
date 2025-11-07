@@ -37,11 +37,11 @@ data class NotificationContent(
     val identifier: String,
     val title: String,
     val body: String,
-    val conversationId: ConversationId?
+    val chatId: ChatId?
 )
 
 @Serializable
-data class ConversationId(
+data class ChatId(
     val uuid: String
 )
 
@@ -54,7 +54,7 @@ data class NotificationBatch(
 
 data class NotificationHandle(
     val notificationId: String,
-    val conversationId: String?
+    val chatId: String?
 )
 
 class NativeLib {
@@ -104,9 +104,9 @@ class Notifications {
 
         const val SELECT_NOTIFICATION: String = "SELECT_NOTIFICATION"
 
-        /// Key for storing the conversation id in the Intent extras field
+        /// Key for storing the chat id in the Intent extras field
         const val EXTRAS_NOTIFICATION_ID_KEY: String = "ms.air/notification_id"
-        const val EXTRAS_CONVERSATION_ID_KEY: String = "ms.air/conversation_id"
+        const val EXTRAS_CHAT_ID_KEY: String = "ms.air/chat_id"
 
 
         fun showNotification(context: Context, content: NotificationContent) {
@@ -131,7 +131,7 @@ class Notifications {
             val intent = Intent(context, MainActivity::class.java).apply {
                 action = SELECT_NOTIFICATION
                 putExtra(EXTRAS_NOTIFICATION_ID_KEY, content.identifier)
-                putExtra(EXTRAS_CONVERSATION_ID_KEY, content.conversationId?.uuid)
+                putExtra(EXTRAS_CHAT_ID_KEY, content.chatId?.uuid)
             }
 
             val pendingIntent = PendingIntent.getActivity(
@@ -142,7 +142,7 @@ class Notifications {
             )
 
             val extras = Bundle().apply {
-                putString(EXTRAS_CONVERSATION_ID_KEY, content.conversationId?.uuid)
+                putString(EXTRAS_CHAT_ID_KEY, content.chatId?.uuid)
             }
 
             val notification =
@@ -165,7 +165,7 @@ class Notifications {
                 .mapNotNull { sbn ->
                     NotificationHandle(
                         sbn.tag,
-                        sbn.notification.extras.getString(EXTRAS_CONVERSATION_ID_KEY)
+                        sbn.notification.extras.getString(EXTRAS_CHAT_ID_KEY)
                     )
                 }
                 .toTypedArray()

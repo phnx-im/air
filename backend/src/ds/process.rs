@@ -156,13 +156,14 @@ use tls_codec::{TlsSerialize, TlsSize};
 use uuid::Uuid;
 
 use aircommon::{
-    codec::AirCodec, crypto::ear::keys::EncryptedUserProfileKey, identifiers::QualifiedGroupId,
+    codec::PersistenceCodec, crypto::ear::keys::EncryptedUserProfileKey,
+    identifiers::QualifiedGroupId,
 };
 
 use super::Ds;
 
 pub const USER_EXPIRATION_DAYS: i64 = 90;
-pub(super) type Provider = MlsAssistRustCrypto<AirCodec>;
+pub(super) type Provider = MlsAssistRustCrypto<PersistenceCodec>;
 
 impl Ds {
     pub(crate) async fn request_group_id(&self) -> QualifiedGroupId {

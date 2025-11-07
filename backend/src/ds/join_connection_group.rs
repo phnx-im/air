@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    messages::client_ds::{InfraAadMessage, InfraAadPayload, JoinConnectionGroupParams},
+    messages::client_ds::{AadMessage, AadPayload, JoinConnectionGroupParams},
     time::{Duration, TimeStamp},
 };
 use mls_assist::{
@@ -64,19 +64,18 @@ impl DsGroupState {
             return Err(JoinConnectionGroupError::InvalidMessage);
         };
 
-        let aad_message = InfraAadMessage::tls_deserialize_exact_bytes(processed_message.aad())
+        let aad_message = AadMessage::tls_deserialize_exact_bytes(processed_message.aad())
             .map_err(|_| {
                 tracing::warn!("Invalid message: Failed to deserialize AAD.");
                 JoinConnectionGroupError::InvalidMessage
             })?;
         // TODO: Check version of Aad Message
-        let aad_payload =
-            if let InfraAadPayload::JoinConnectionGroup(aad) = aad_message.into_payload() {
-                aad
-            } else {
-                tracing::warn!("Invalid message: Wrong AAD payload.");
-                return Err(JoinConnectionGroupError::InvalidMessage);
-            };
+        let aad_payload = if let AadPayload::JoinConnectionGroup(aad) = aad_message.into_payload() {
+            aad
+        } else {
+            tracing::warn!("Invalid message: Wrong AAD payload.");
+            return Err(JoinConnectionGroupError::InvalidMessage);
+        };
 
         // Check if the group indeed only has one user (prior to the new one joining).
         if self.member_profiles.len() > 1 {

@@ -4,10 +4,11 @@
 
 [package]
 name = "airapiclient"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 publish = false
 description = "HTTP and GRPC client for the server API"
+license = "AGPL-3.0-or-later"
 
 [dependencies]
 airprotos.workspace = true
@@ -21,9 +22,11 @@ url = "2"
 tonic.workspace = true
 tokio-stream.workspace = true
 tokio.workspace = true
+tokio-util.workspace = true
 mimi-room-policy.workspace = true
 futures-util = "0.3.31"
 uuid = "1.0.0"
+pin-project = "1.1.10"
 
 [dev-dependencies]
 tokio.workspace = true

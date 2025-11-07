@@ -14,7 +14,7 @@ use sqlx::{
     sqlite::SqliteTypeInfo,
 };
 
-use crate::{codec::AirCodec, crypto::secrets::SecretBytes};
+use crate::{codec::PersistenceCodec, crypto::secrets::SecretBytes};
 
 use super::{DecryptionKey, EncryptionKey};
 
@@ -102,7 +102,7 @@ impl<KT> Encode<'_, Sqlite> for DecryptionKey<KT> {
         &self,
         buf: &mut <Sqlite as Database>::ArgumentBuffer<'_>,
     ) -> Result<IsNull, BoxDynError> {
-        let bytes = AirCodec::to_vec(self).map_err(BoxDynError::from)?;
+        let bytes = PersistenceCodec::to_vec(self).map_err(BoxDynError::from)?;
         Encode::<Sqlite>::encode(bytes, buf)
     }
 }
@@ -110,7 +110,7 @@ impl<KT> Encode<'_, Sqlite> for DecryptionKey<KT> {
 impl<'r, KT> Decode<'r, Sqlite> for DecryptionKey<KT> {
     fn decode(value: <Sqlite as Database>::ValueRef<'r>) -> Result<Self, BoxDynError> {
         let bytes: &[u8] = Decode::<Sqlite>::decode(value)?;
-        AirCodec::from_slice(bytes).map_err(BoxDynError::from)
+        PersistenceCodec::from_slice(bytes).map_err(BoxDynError::from)
     }
 }
 

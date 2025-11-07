@@ -1,6 +1,5 @@
 ---
 source: common/src/crypto/signatures/keys.rs
-assertion_line: 44
 expression: key
 ---
 [

@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                    group_id AS \"group_id: _\",\n                    user_uuid AS \"user_uuid: _\",\n                    user_domain AS \"user_domain: _\",\n                    leaf_index AS \"leaf_index: _\"\n                FROM group_membership\n                WHERE group_id = ? AND leaf_index = ?\n                AND status = 'merged'",
+  "describe": {
+    "columns": [
+      {
+        "name": "group_id: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "user_uuid: _",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "user_domain: _",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "leaf_index: _",
+        "ordinal": 3,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "298c10fc577149288f22cf0e0906c52445291af3ba19bda39097e2babea5aa13"
+}

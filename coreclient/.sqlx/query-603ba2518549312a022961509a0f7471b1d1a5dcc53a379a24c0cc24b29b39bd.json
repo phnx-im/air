@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE \"group\" SET\n                identity_link_wrapper_key = ?,\n                group_state_ear_key = ?,\n                pending_diff = ?,\n                room_state = ?\n            WHERE group_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "603ba2518549312a022961509a0f7471b1d1a5dcc53a379a24c0cc24b29b39bd"
+}

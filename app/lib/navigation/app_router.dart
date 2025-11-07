@@ -6,7 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
-import 'package:air/conversation_details/conversation_details.dart';
+import 'package:air/chat/chat_details.dart';
+import 'package:air/chat/create_group_screen.dart';
 import 'package:air/developer/developer.dart';
 import 'package:air/home_screen.dart';
 import 'package:air/intro_screen.dart';
@@ -98,7 +99,7 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
         // whether the page was popped by the user or programmatically.
         //
         // Also see
-        //   * <https://github.com/phnx-im/infra/issues/244>
+        //   * <https://github.com/phnx-im/air/issues/244>
         //   * <https://github.com/flutter/flutter/issues/109494>
         //
         // ignore: deprecated_member_use
@@ -147,10 +148,7 @@ class AppBackButtonDispatcher extends RootBackButtonDispatcher {}
 extension on IntroScreenType {
   ValueKey<String> get key => switch (this) {
     IntroScreenType_Intro() => const ValueKey("intro-screen"),
-    IntroScreenType_ServerChoice() => const ValueKey("server-choice-screen"),
-    IntroScreenType_DisplayNamePicture() => const ValueKey(
-      "display-name-picture-screen",
-    ),
+    IntroScreenType_SignUp() => const ValueKey("sign-up-screen"),
     IntroScreenType_DeveloperSettings(field0: final screen) => ValueKey(
       "developer-settings-screen-$screen",
     ),
@@ -158,8 +156,7 @@ extension on IntroScreenType {
 
   Widget get screen => switch (this) {
     IntroScreenType_Intro() => const IntroScreen(),
-    IntroScreenType_ServerChoice() => const ServerChoice(),
-    IntroScreenType_DisplayNamePicture() => const DisplayNameAvatarChoice(),
+    IntroScreenType_SignUp() => const SignUpScreen(),
     IntroScreenType_DeveloperSettings(field0: final screen) => switch (screen) {
       DeveloperSettingsScreenType.root => const DeveloperSettingsScreen(),
       DeveloperSettingsScreenType.changeUser => const ChangeUserScreen(),
@@ -170,6 +167,8 @@ extension on IntroScreenType {
 
 /// Convert [HomeNavigation] state into a list of pages.
 extension on HomeNavigationState {
+  ChatId? get openChatId => chatOpen ? chatId : null;
+
   List<MaterialPage> pages(ResponsiveScreenType screenType) {
     const homeScreenPage = NoAnimationPage(
       key: ValueKey("home-screen"),
@@ -178,6 +177,11 @@ extension on HomeNavigationState {
     );
     return [
       homeScreenPage,
+      if (createGroupOpen)
+        const MaterialPage(
+          key: ValueKey("create-group-screen"),
+          child: CreateGroupScreen(),
+        ),
       ...switch (userSettingsScreen) {
         null => [],
         UserSettingsScreenType.root => [
@@ -206,31 +210,45 @@ extension on HomeNavigationState {
             child: AddUserHandleScreen(),
           ),
         ],
+        UserSettingsScreenType.help => [
+          const MaterialPage(
+            key: ValueKey("user-settings-screen-root"),
+            child: UserSettingsScreen(),
+          ),
+          const MaterialPage(
+            key: ValueKey("user-settings-screen-help"),
+            child: HelpScreen(),
+          ),
+        ],
+        UserSettingsScreenType.deleteAccount => [
+          const MaterialPage(
+            key: ValueKey("user-settings-screen-root"),
+            child: UserSettingsScreen(),
+          ),
+          const MaterialPage(
+            key: ValueKey("user-settings-screen-delete-account"),
+            child: DeleteAccountScreen(),
+          ),
+        ],
       },
-      if (conversationId != null &&
-          conversationOpen &&
-          screenType == ResponsiveScreenType.mobile)
+      if (openChatId != null && screenType == ResponsiveScreenType.mobile)
+        const MaterialPage(key: ValueKey("chat-screen"), child: ChatScreen()),
+      if (openChatId != null && chatDetailsOpen)
         const MaterialPage(
-          key: ValueKey("conversation-screen"),
-          child: ConversationScreen(),
+          key: ValueKey("chat-details-screen"),
+          child: ChatDetailsScreen(),
         ),
-      if (conversationId != null && conversationOpen && conversationDetailsOpen)
+      if (openChatId != null && chatDetailsOpen && groupMembersOpen)
         const MaterialPage(
-          key: ValueKey("conversation-details-screen"),
-          child: ConversationDetailsScreen(),
+          key: ValueKey("chat-group-members-screen"),
+          child: GroupMembersScreen(),
         ),
-      if (conversationId != null &&
-          conversationOpen &&
-          conversationDetailsOpen &&
-          memberDetails != null)
+      if (openChatId != null && chatDetailsOpen && memberDetails != null)
         const MaterialPage(
-          key: ValueKey("conversation-member-details-screen"),
+          key: ValueKey("chat-member-details-screen"),
           child: MemberDetailsScreen(),
         ),
-      if (conversationId != null &&
-          conversationOpen &&
-          conversationDetailsOpen &&
-          addMembersOpen)
+      if (openChatId != null && chatDetailsOpen && addMembersOpen)
         const MaterialPage(
           key: ValueKey("add-members-screen"),
           child: AddMembersScreen(),

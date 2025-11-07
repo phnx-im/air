@@ -1,0 +1,71 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT credential as \"client_credential: FlatClientCredential\"\n                FROM as_client_record\n                WHERE user_uuid = $1 AND user_domain = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "client_credential: FlatClientCredential",
+        "type_info": {
+          "Custom": {
+            "name": "client_credential",
+            "kind": {
+              "Composite": [
+                [
+                  "version",
+                  "Bytea"
+                ],
+                [
+                  "signature_scheme",
+                  "Bytea"
+                ],
+                [
+                  "verifying_key",
+                  "Bytea"
+                ],
+                [
+                  "expiration_data",
+                  {
+                    "Custom": {
+                      "name": "expiration",
+                      "kind": {
+                        "Composite": [
+                          [
+                            "not_before",
+                            "Timestamptz"
+                          ],
+                          [
+                            "not_after",
+                            "Timestamptz"
+                          ]
+                        ]
+                      }
+                    }
+                  }
+                ],
+                [
+                  "signer_fingerprint",
+                  "Bytea"
+                ],
+                [
+                  "signature",
+                  "Bytea"
+                ]
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "69aa624f6448b467607c5691614f34100985f97535d53654ab3d3c0aab7f16ef"
+}

@@ -1,6 +1,6 @@
 ---
 source: backend/src/ds/group_state/mod.rs
-expression: "AirCodec::to_vec(&state).unwrap()"
+expression: "PersistenceCodec::to_vec(&state).unwrap()"
 extension: cbor
 snapshot_kind: binary
 ---

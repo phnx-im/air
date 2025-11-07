@@ -8,20 +8,20 @@ import 'app_localizations.dart';
 
 extension AppLocalizationsExtension on AppLocalizations {
   String bytesToHumanReadable(int bytes) {
-    const List<String> byteUnits = [
-      'B',
-      'KB',
-      'MB',
-      'GB',
-      'TB',
-      'PB',
-      'EB',
-      'ZB',
-      'YB',
+    final List<String> byteUnits = [
+      byteUnit_B,
+      byteUnit_KB,
+      byteUnit_MB,
+      byteUnit_GB,
+      byteUnit_TB,
+      byteUnit_PB,
+      byteUnit_EB,
+      byteUnit_ZB,
+      byteUnit_YB,
     ];
 
     if (bytes == 0) {
-      return '0 B';
+      return attachmentSize(0, byteUnit_B);
     }
 
     int i = (log(bytes) / log(1000)).floor();

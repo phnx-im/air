@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
+import 'package:iconoir_flutter/regular/warning_circle.dart';
 import 'package:logging/logging.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ui/colors/themes.dart';
@@ -16,7 +17,7 @@ final _log = Logger('AttachmentImage');
 /// An image that is loaded from the database via an [AttachmentsRepository].
 ///
 /// During loading, image's blurhash is shown instead of the image.
-class AttachmentImage extends StatefulWidget {
+class AttachmentImage extends StatelessWidget {
   const AttachmentImage({
     super.key,
     required this.attachment,
@@ -31,29 +32,27 @@ class AttachmentImage extends StatefulWidget {
   final BoxFit fit;
 
   @override
-  State<AttachmentImage> createState() => _AttachmentImageState();
-}
-
-class _AttachmentImageState extends State<AttachmentImage> {
-  @override
   Widget build(BuildContext context) {
     return AspectRatio(
-      aspectRatio: widget.imageMetadata.width / widget.imageMetadata.height,
+      aspectRatio: imageMetadata.width / imageMetadata.height,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          BlurHash(hash: widget.imageMetadata.blurhash),
+          BlurHash(hash: imageMetadata.blurhash),
           Image(
             image: AttachmentImageProvider(
-              attachment: widget.attachment,
+              attachment: attachment,
               attachmentsRepository: RepositoryProvider.of(context),
             ),
             loadingBuilder: loadingBuilder,
-            fit: widget.fit,
+            fit: fit,
             alignment: Alignment.center,
             errorBuilder: (context, error, stackTrace) {
               _log.severe('Failed to load attachment', error, stackTrace);
-              return const Icon(Icons.error);
+              return WarningCircle(
+                width: 32,
+                color: CustomColorScheme.of(context).text.primary,
+              );
             },
           ),
         ],

@@ -15,21 +15,18 @@ class NotificationContent {
   final NotificationId identifier;
   final String title;
   final String body;
-  final ConversationId? conversationId;
+  final ChatId? chatId;
 
   const NotificationContent({
     required this.identifier,
     required this.title,
     required this.body,
-    this.conversationId,
+    this.chatId,
   });
 
   @override
   int get hashCode =>
-      identifier.hashCode ^
-      title.hashCode ^
-      body.hashCode ^
-      conversationId.hashCode;
+      identifier.hashCode ^ title.hashCode ^ body.hashCode ^ chatId.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -39,17 +36,17 @@ class NotificationContent {
           identifier == other.identifier &&
           title == other.title &&
           body == other.body &&
-          conversationId == other.conversationId;
+          chatId == other.chatId;
 }
 
 class NotificationHandle {
   final NotificationId identifier;
-  final ConversationId? conversationId;
+  final ChatId? chatId;
 
-  const NotificationHandle({required this.identifier, this.conversationId});
+  const NotificationHandle({required this.identifier, this.chatId});
 
   @override
-  int get hashCode => identifier.hashCode ^ conversationId.hashCode;
+  int get hashCode => identifier.hashCode ^ chatId.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -57,7 +54,7 @@ class NotificationHandle {
       other is NotificationHandle &&
           runtimeType == other.runtimeType &&
           identifier == other.identifier &&
-          conversationId == other.conversationId;
+          chatId == other.chatId;
 }
 
 class NotificationId {

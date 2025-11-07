@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO indexed_key (base_secret, key_value, key_index)\n                VALUES ($1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "de0507774fab06711f5d38f372067d6402e4db77d642154de5d795c2dbc48354"
+}

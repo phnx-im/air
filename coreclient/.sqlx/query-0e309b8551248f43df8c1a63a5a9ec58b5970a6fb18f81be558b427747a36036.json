@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO \"group\" (\n                group_id,\n                identity_link_wrapper_key,\n                group_state_ear_key,\n                pending_diff,\n                room_state\n            )\n            VALUES (?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "0e309b8551248f43df8c1a63a5a9ec58b5970a6fb18f81be558b427747a36036"
+}

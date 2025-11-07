@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    crypto::hpke::HpkeDecryptable, identifiers::ClientConfig, messages::MlsInfraVersion,
+    crypto::hpke::HpkeDecryptable, identifiers::ClientConfig, messages::AirProtocolVersion,
 };
 use tls_codec::Serialize;
 
@@ -13,9 +13,9 @@ use crate::messages::{
 };
 
 use super::{
-    Notifier, PushNotificationProvider, Qs,
-    client_id_decryption_key::StorableClientIdDecryptionKey, client_record::QsClientRecord,
-    errors::QsEnqueueError, network_provider::NetworkProvider, qs_api::FederatedProcessingResult,
+    PushNotificationProvider, Qs, client_id_decryption_key::StorableClientIdDecryptionKey,
+    client_record::QsClientRecord, errors::QsEnqueueError, network_provider::NetworkProvider,
+    qs_api::FederatedProcessingResult,
 };
 
 impl Qs {
@@ -27,13 +27,8 @@ impl Qs {
     /// This endpoint is used for enqueining messages in both local and remote
     /// queues, depending on the FQDN of the client.
     #[tracing::instrument(skip_all, err)]
-    pub async fn enqueue_message<
-        W: Notifier + Send,
-        N: NetworkProvider + Send,
-        P: PushNotificationProvider + Send,
-    >(
+    pub async fn enqueue_message<N: NetworkProvider + Send, P: PushNotificationProvider + Send>(
         &self,
-        websocket_notifier: &W,
         push_notification_provider: &P,
         network_provider: &N,
         message: DsFanOutMessage,
@@ -41,7 +36,7 @@ impl Qs {
         let own_domain = self.domain.clone();
         if message.client_reference.client_homeserver_domain != own_domain {
             let qs_to_qs_message = QsToQsMessage {
-                protocol_version: MlsInfraVersion::Alpha,
+                protocol_version: AirProtocolVersion::Alpha,
                 sender: own_domain.clone(),
                 recipient: message.client_reference.client_homeserver_domain.clone(),
                 payload: QsToQsPayload::FanOutMessageRequest(message.clone()),
@@ -76,13 +71,22 @@ impl Qs {
                 &[],
             )?;
 
+            // Since we only care about suppression of background push
+            // notifications, we can just opt to not to send the push token ear
+            // key.
+            let push_token_ear_key = if message.suppress_notifications.into() {
+                None
+            } else {
+                client_config.push_token_ear_key
+            };
+
             QsClientRecord::enqueue(
                 &self.db_pool,
-                &client_config.client_id,
-                websocket_notifier,
+                client_config.client_id,
+                self.queues(),
                 push_notification_provider,
                 message.payload,
-                client_config.push_token_ear_key,
+                push_token_ear_key,
             )
             .await?;
         }

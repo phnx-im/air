@@ -14,19 +14,19 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
 part 'types.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `calculate`, `flight_break_condition`, `from_asset`, `from_bytes`, `from_draft`, `from_profile`, `from_user_id`, `into_draft`, `is_empty`, `load_from_conversation_type`, `new`, `timestamp`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `UiConversation`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`
+// These functions are ignored because they are not marked as `pub`: `calculate`, `connection_user_id`, `flight_break_condition`, `from_asset`, `from_bytes`, `from_profile`, `from_user_id`, `load_from_chat_type`, `timestamp`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `UiChat`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `from`
 
-/// Mirror of the [`ConversationId`] type
-class ConversationId {
+/// Mirror of the [`ChatId`] type
+class ChatId {
   final UuidValue uuid;
 
-  const ConversationId({required this.uuid});
+  const ChatId({required this.uuid});
 
   @override
-  String toString() => 'ConversationId($uuid)';
+  String toString() => 'ChatId($uuid)';
 
   @override
   int get hashCode => uuid.hashCode;
@@ -34,32 +34,12 @@ class ConversationId {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is ConversationId &&
-          runtimeType == other.runtimeType &&
-          uuid == other.uuid;
-}
-
-/// Mirror of the [`ConversationMessageId`] type
-class ConversationMessageId {
-  final UuidValue uuid;
-
-  const ConversationMessageId({required this.uuid});
-
-  @override
-  String toString() => 'ConversationMessageId($uuid)';
-
-  @override
-  int get hashCode => uuid.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ConversationMessageId &&
-          runtimeType == other.runtimeType &&
-          uuid == other.uuid;
+      other is ChatId && runtimeType == other.runtimeType && uuid == other.uuid;
 }
 
 /// Image binary data together with its hashsum
+///
+/// Two images are considered equal in Dart if they have the same hashsum.
 class ImageData {
   /// The image data
   final Uint8List data;
@@ -74,15 +54,163 @@ class ImageData {
       RustLib.instance.api.crateApiTypesImageDataComputeHash(bytes: bytes);
 
   @override
-  int get hashCode => data.hashCode ^ hash.hashCode;
+  String toString() => 'ImageData(hash: $hash, len: ${data.length})';
+
+  @override
+  int get hashCode => hash.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is ImageData &&
           runtimeType == other.runtimeType &&
-          data == other.data &&
           hash == other.hash;
+}
+
+/// UI representation of a [`MessageDraft`]
+@freezed
+sealed class MessageDraft with _$MessageDraft {
+  const factory MessageDraft({
+    required String message,
+    MessageId? editingId,
+    required DateTime updatedAt,
+    required bool isCommitted,
+  }) = _MessageDraft;
+}
+
+/// Mirror of the [`MessageId`] type
+class MessageId {
+  final UuidValue uuid;
+
+  const MessageId({required this.uuid});
+
+  @override
+  String toString() => 'MessageId($uuid)';
+
+  @override
+  int get hashCode => uuid.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MessageId &&
+          runtimeType == other.runtimeType &&
+          uuid == other.uuid;
+}
+
+/// Attributes of a chat
+class UiChatAttributes {
+  /// Title of the chat
+  final String title;
+
+  /// Optional picture of the chat
+  final ImageData? picture;
+
+  const UiChatAttributes({required this.title, this.picture});
+
+  @override
+  int get hashCode => title.hashCode ^ picture.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UiChatAttributes &&
+          runtimeType == other.runtimeType &&
+          title == other.title &&
+          picture == other.picture;
+}
+
+/// Details of a chat
+class UiChatDetails {
+  final ChatId id;
+  final UiChatStatus status;
+  final UiChatType chatType;
+  final String lastUsed;
+  final UiChatAttributes attributes;
+  final int messagesCount;
+  final int unreadMessages;
+  final UiChatMessage? lastMessage;
+  final MessageDraft? draft;
+
+  const UiChatDetails({
+    required this.id,
+    required this.status,
+    required this.chatType,
+    required this.lastUsed,
+    required this.attributes,
+    required this.messagesCount,
+    required this.unreadMessages,
+    this.lastMessage,
+    this.draft,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      status.hashCode ^
+      chatType.hashCode ^
+      lastUsed.hashCode ^
+      attributes.hashCode ^
+      messagesCount.hashCode ^
+      unreadMessages.hashCode ^
+      lastMessage.hashCode ^
+      draft.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UiChatDetails &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          status == other.status &&
+          chatType == other.chatType &&
+          lastUsed == other.lastUsed &&
+          attributes == other.attributes &&
+          messagesCount == other.messagesCount &&
+          unreadMessages == other.unreadMessages &&
+          lastMessage == other.lastMessage &&
+          draft == other.draft;
+}
+
+/// A message in a chat
+@freezed
+sealed class UiChatMessage with _$UiChatMessage {
+  const factory UiChatMessage({
+    required ChatId chatId,
+    required MessageId id,
+    required String timestamp,
+    required UiMessage message,
+    required UiFlightPosition position,
+    required UiMessageStatus status,
+  }) = _UiChatMessage;
+}
+
+@freezed
+sealed class UiChatStatus with _$UiChatStatus {
+  const UiChatStatus._();
+
+  const factory UiChatStatus.inactive(UiInactiveChat field0) =
+      UiChatStatus_Inactive;
+  const factory UiChatStatus.active() = UiChatStatus_Active;
+  const factory UiChatStatus.blocked() = UiChatStatus_Blocked;
+}
+
+@freezed
+sealed class UiChatType with _$UiChatType {
+  const UiChatType._();
+
+  /// A connection chat which was established via a handle and is not yet confirmed by
+  /// the other party.
+  const factory UiChatType.handleConnection(UiUserHandle field0) =
+      UiChatType_HandleConnection;
+
+  /// A connection chat that is confirmed by the other party and for which we have
+  /// received the necessary secrets.
+  const factory UiChatType.connection(UiUserProfile field0) =
+      UiChatType_Connection;
+
+  /// A group chat, that is, it can contains multiple participants.
+  const factory UiChatType.group() = UiChatType_Group;
 }
 
 /// Client record of a user
@@ -140,190 +268,20 @@ class UiContact {
 }
 
 /// Content of a message including the sender and whether it was sent
-class UiContentMessage {
-  final UiUserId sender;
-  final bool sent;
-  final UiMimiContent content;
-  final bool edited;
-
-  const UiContentMessage({
-    required this.sender,
-    required this.sent,
-    required this.content,
-    required this.edited,
-  });
-
-  @override
-  int get hashCode =>
-      sender.hashCode ^ sent.hashCode ^ content.hashCode ^ edited.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is UiContentMessage &&
-          runtimeType == other.runtimeType &&
-          sender == other.sender &&
-          sent == other.sent &&
-          content == other.content &&
-          edited == other.edited;
-}
-
-/// Attributes of a conversation
-class UiConversationAttributes {
-  /// Title of the conversation
-  final String title;
-
-  /// Optional picture of the conversation
-  final ImageData? picture;
-
-  const UiConversationAttributes({required this.title, this.picture});
-
-  @override
-  int get hashCode => title.hashCode ^ picture.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is UiConversationAttributes &&
-          runtimeType == other.runtimeType &&
-          title == other.title &&
-          picture == other.picture;
-}
-
-/// Details of a conversation
-class UiConversationDetails {
-  final ConversationId id;
-  final UiConversationStatus status;
-  final UiConversationType conversationType;
-  final String lastUsed;
-  final UiConversationAttributes attributes;
-  final int messagesCount;
-  final int unreadMessages;
-  final UiConversationMessage? lastMessage;
-  final UiMessageDraft? draft;
-
-  const UiConversationDetails({
-    required this.id,
-    required this.status,
-    required this.conversationType,
-    required this.lastUsed,
-    required this.attributes,
-    required this.messagesCount,
-    required this.unreadMessages,
-    this.lastMessage,
-    this.draft,
-  });
-
-  @override
-  int get hashCode =>
-      id.hashCode ^
-      status.hashCode ^
-      conversationType.hashCode ^
-      lastUsed.hashCode ^
-      attributes.hashCode ^
-      messagesCount.hashCode ^
-      unreadMessages.hashCode ^
-      lastMessage.hashCode ^
-      draft.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is UiConversationDetails &&
-          runtimeType == other.runtimeType &&
-          id == other.id &&
-          status == other.status &&
-          conversationType == other.conversationType &&
-          lastUsed == other.lastUsed &&
-          attributes == other.attributes &&
-          messagesCount == other.messagesCount &&
-          unreadMessages == other.unreadMessages &&
-          lastMessage == other.lastMessage &&
-          draft == other.draft;
-}
-
-/// A message in a conversation
-class UiConversationMessage {
-  final ConversationId conversationId;
-  final ConversationMessageId id;
-  final String timestamp;
-  final UiMessage message;
-  final UiFlightPosition position;
-  final UiMessageStatus status;
-
-  const UiConversationMessage({
-    required this.conversationId,
-    required this.id,
-    required this.timestamp,
-    required this.message,
-    required this.position,
-    required this.status,
-  });
-
-  @override
-  int get hashCode =>
-      conversationId.hashCode ^
-      id.hashCode ^
-      timestamp.hashCode ^
-      message.hashCode ^
-      position.hashCode ^
-      status.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is UiConversationMessage &&
-          runtimeType == other.runtimeType &&
-          conversationId == other.conversationId &&
-          id == other.id &&
-          timestamp == other.timestamp &&
-          message == other.message &&
-          position == other.position &&
-          status == other.status;
-}
-
 @freezed
-sealed class UiConversationStatus with _$UiConversationStatus {
-  const UiConversationStatus._();
-
-  const factory UiConversationStatus.inactive(UiInactiveConversation field0) =
-      UiConversationStatus_Inactive;
-  const factory UiConversationStatus.active() = UiConversationStatus_Active;
-}
-
-@freezed
-sealed class UiConversationType with _$UiConversationType {
-  const UiConversationType._();
-
-  /// A connection conversation which was established via a handle and is not yet confirmed by
-  /// the other party.
-  const factory UiConversationType.handleConnection(UiUserHandle field0) =
-      UiConversationType_HandleConnection;
-
-  /// A connection conversation that is confirmed by the other party and for which we have
-  /// received the necessary secrets.
-  const factory UiConversationType.connection(UiUserProfile field0) =
-      UiConversationType_Connection;
-
-  /// A group conversation, that is, it can contains multiple participants.
-  const factory UiConversationType.group() = UiConversationType_Group;
+sealed class UiContentMessage with _$UiContentMessage {
+  const factory UiContentMessage({
+    required UiUserId sender,
+    required bool sent,
+    required UiMimiContent content,
+    required bool edited,
+  }) = _UiContentMessage;
 }
 
 /// Error message
-class UiErrorMessage {
-  final String message;
-
-  const UiErrorMessage({required this.message});
-
-  @override
-  int get hashCode => message.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is UiErrorMessage &&
-          runtimeType == other.runtimeType &&
-          message == other.message;
+@freezed
+sealed class UiErrorMessage with _$UiErrorMessage {
+  const factory UiErrorMessage({required String message}) = _UiErrorMessage;
 }
 
 @freezed
@@ -336,7 +294,7 @@ sealed class UiEventMessage with _$UiEventMessage {
       UiEventMessage_Error;
 }
 
-/// Position of a conversation message in a flight
+/// Position of a chat message in a flight
 ///
 /// A flight is a sequence of messages that are grouped to be displayed together.
 enum UiFlightPosition {
@@ -353,11 +311,11 @@ enum UiFlightPosition {
   end,
 }
 
-/// Inactive conversation with past members
-class UiInactiveConversation {
+/// Inactive chat with past members
+class UiInactiveChat {
   final List<UiUserId> pastMembers;
 
-  const UiInactiveConversation({required this.pastMembers});
+  const UiInactiveChat({required this.pastMembers});
 
   @override
   int get hashCode => pastMembers.hashCode;
@@ -365,7 +323,7 @@ class UiInactiveConversation {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is UiInactiveConversation &&
+      other is UiInactiveChat &&
           runtimeType == other.runtimeType &&
           pastMembers == other.pastMembers;
 }
@@ -378,38 +336,20 @@ sealed class UiMessage with _$UiMessage {
   const factory UiMessage.display(UiEventMessage field0) = UiMessage_Display;
 }
 
-/// Draft of a message in a conversation
-@freezed
-sealed class UiMessageDraft with _$UiMessageDraft {
-  const factory UiMessageDraft({
-    required String message,
-    ConversationMessageId? editingId,
-    required DateTime updatedAt,
-    required UiMessageDraftSource source,
-  }) = _UiMessageDraft;
-}
-
-/// Makes it possible to distinguish whether the draft was created in Flutter by the user or loaded
-/// from the database or reset by the handle, that is, by the system.
-enum UiMessageDraftSource {
-  /// The draft was created/changed by the user.
-  user,
-
-  /// The draft was created/changed by the system.
-  system,
-}
-
 enum UiMessageStatus {
   sending,
 
   /// The message was sent to the server.
   sent,
 
-  /// The message was received by at least one user in the conversation.
+  /// The message was received by at least one user in the chat.
   delivered,
 
-  /// The message was read by at least one user in the conversation.
+  /// The message was read by at least one user in the chat.
   read,
+
+  /// The message was hidden because it is from a blocked contact.
+  hidden,
 }
 
 @freezed

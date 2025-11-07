@@ -49,9 +49,12 @@ mod tests {
 
         own_client_info.store(&pool).await?;
 
-        let row = sqlx::query("SELECT * FROM own_client_info")
-            .fetch_one(&pool)
-            .await?;
+        let row = sqlx::query(
+            "SELECT server_url, qs_user_id, qs_client_id, user_uuid, user_domain
+            FROM own_client_info",
+        )
+        .fetch_one(&pool)
+        .await?;
         let server_url = row.try_get(0)?;
         let qs_user_id = row.try_get(1)?;
         let qs_client_id = row.try_get(2)?;

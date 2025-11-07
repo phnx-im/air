@@ -1,0 +1,6 @@
+---
+source: coreclient/src/chats/messages/persistence.rs
+expression: "PersistenceCodec::to_vec(&*VERSIONED_MESSAGE).unwrap()"
+extension: cbor
+snapshot_kind: binary
+---

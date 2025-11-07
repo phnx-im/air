@@ -12,9 +12,13 @@ on:
   pull_request:
     branches: ["main"]
 
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
 jobs:
   ios-build:
-    runs-on: macos-latest
+    runs-on: macos-26
 
     steps:
       - name: Checkout code
@@ -28,15 +32,16 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.3'
+          ruby-version: "3.3"
 
       - name: Set up Flutter FVM
         uses: kuhnroyal/flutter-fvm-config-action/setup@v3
         with:
-          path: 'app/.fvmrc'
+          path: "app/.fvmrc"
+          cache: false
 
       - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@1.89.0
+        uses: dtolnay/rust-toolchain@1.90.0
 
       - name: Set up iOS CI
         env:
@@ -93,4 +98,3 @@ jobs:
         with:
           name: build-logs
           path: ~/Library/Logs/gym/Runner-Runner.log
-

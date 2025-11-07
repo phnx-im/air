@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE chat SET last_read = ?1\n            WHERE chat_id = ?2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "d561a01b9fe18d42a605f65966b16be7703b3a3f2a62c3e084bf7d0e76b57610"
+}

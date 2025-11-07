@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use aircoreclient::{
-    ConversationMessageId,
+    MessageId,
     store::{Store, StoreNotification, StoreOperation, StoreResult},
 };
 use flutter_rust_bridge::frb;
@@ -18,24 +18,23 @@ use tracing::{debug, error};
 
 use crate::{
     StreamSink,
-    api::types::UiFlightPosition,
+    api::types::{UiChatMessage, UiFlightPosition},
     util::{Cubit, CubitCore, spawn_from_sync},
 };
 
-use super::{types::UiConversationMessage, user_cubit::UserCubitBase};
+use super::user_cubit::UserCubitBase;
 
-/// State of a single message in a conversation
+/// State of a single message in a chat
 #[frb(dart_metadata = ("freezed"))]
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct MessageState {
-    pub message: UiConversationMessage,
+    pub message: UiChatMessage,
 }
 
-/// Provides access to a single message in a conversation.
+/// Provides access to a single message in a chat.
 ///
 /// Listens to changes to the message and reloads it. On reload, also the previous and next
-/// messages in the conversation timeline are loaded to calculate the flight position of this
-/// message.
+/// messages in the chat timeline are loaded to calculate the flight position of this message.
 #[frb(opaque)]
 pub struct MessageCubitBase {
     core: CubitCore<MessageState>,
@@ -87,15 +86,11 @@ impl MessageCubitBase {
 struct MessageContext<S> {
     store: S,
     state_tx: watch::Sender<MessageState>,
-    message_id: ConversationMessageId,
+    message_id: MessageId,
 }
 
 impl<S: Store + Send + Sync + 'static> MessageContext<S> {
-    fn new(
-        store: S,
-        state_tx: watch::Sender<MessageState>,
-        message_id: ConversationMessageId,
-    ) -> Self {
+    fn new(store: S, state_tx: watch::Sender<MessageState>, message_id: MessageId) -> Self {
         Self {
             store,
             state_tx,
@@ -115,12 +110,12 @@ impl<S: Store + Send + Sync + 'static> MessageContext<S> {
     }
 
     async fn load_and_emit_state(&self) {
-        let conversation_message = self.store.message(self.message_id).await;
+        let message = self.store.message(self.message_id).await;
 
-        debug!(?conversation_message, "load_and_emit_state");
-        match conversation_message {
+        debug!(?message, "load_and_emit_state");
+        match message {
             Ok(Some(message)) => {
-                let mut message = UiConversationMessage::from(message);
+                let mut message = UiChatMessage::from(message);
                 message.position = calculate_flight_position(&self.store, &message)
                     .await
                     .inspect_err(|error| error!(?error, "Failed to calculate flight position"))
@@ -168,7 +163,7 @@ impl<S: Store + Send + Sync + 'static> MessageContext<S> {
 /// Calculate the flight position of a message by loading its previous and next messages.
 async fn calculate_flight_position(
     store: &impl Store,
-    message: &UiConversationMessage,
+    message: &UiChatMessage,
 ) -> StoreResult<UiFlightPosition> {
     let prev_message = store.prev_message(message.id).await?.map(From::from);
     let next_message = store.next_message(message.id).await?.map(From::from);

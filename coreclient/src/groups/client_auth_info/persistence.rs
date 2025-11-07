@@ -2,11 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{
-    credentials::ClientCredential,
-    crypto::hash::Hash,
-    identifiers::{Fqdn, UserId},
-};
+use aircommon::identifiers::{Fqdn, UserId};
 use openmls::{group::GroupId, prelude::LeafNodeIndex};
 use sqlx::{Row, SqliteExecutor, query, query_as, query_scalar};
 use tokio_stream::StreamExt;
@@ -17,24 +13,6 @@ use crate::utils::persistence::{GroupIdRefWrapper, GroupIdWrapper};
 use super::{GroupMembership, StorableClientCredential};
 
 impl StorableClientCredential {
-    /// Load the [`StorableClientCredential`] with the given
-    /// [`CredentialFingerprint`] from the database.
-    pub(crate) async fn load(
-        executor: impl SqliteExecutor<'_>,
-        credential_fingerprint: &Hash<ClientCredential>,
-    ) -> sqlx::Result<Option<Self>> {
-        query_scalar!(
-            r#"SELECT
-                client_credential AS "client_credential: _"
-            FROM client_credentials
-            WHERE fingerprint = ?"#,
-            credential_fingerprint
-        )
-        .fetch_optional(executor)
-        .await
-        .map(|res| res.map(StorableClientCredential::new))
-    }
-
     pub(crate) async fn load_by_user_id(
         executor: impl SqliteExecutor<'_>,
         user_id: &UserId,
@@ -44,7 +22,7 @@ impl StorableClientCredential {
         query_scalar!(
             r#"SELECT
                 client_credential AS "client_credential: _"
-            FROM client_credentials
+            FROM client_credential
             WHERE user_uuid = ? AND user_domain = ?"#,
             uuid,
             domain,
@@ -61,7 +39,7 @@ impl StorableClientCredential {
         let uuid = user_id.uuid();
         let domain = user_id.domain();
         query!(
-            "INSERT OR IGNORE INTO client_credentials
+            "INSERT OR IGNORE INTO client_credential
                 (fingerprint, user_uuid, user_domain, client_credential) VALUES (?, ?, ?, ?)",
             fingerprint,
             uuid,
@@ -75,7 +53,6 @@ impl StorableClientCredential {
 }
 
 struct SqlGroupMembership {
-    client_credential_fingerprint: Hash<ClientCredential>,
     group_id: GroupIdWrapper,
     user_uuid: Uuid,
     user_domain: Fqdn,
@@ -85,7 +62,6 @@ struct SqlGroupMembership {
 impl From<SqlGroupMembership> for GroupMembership {
     fn from(
         SqlGroupMembership {
-            client_credential_fingerprint,
             group_id: GroupIdWrapper(group_id),
             user_uuid,
             user_domain,
@@ -96,7 +72,6 @@ impl From<SqlGroupMembership> for GroupMembership {
             user_id: UserId::new(user_uuid, user_domain),
             group_id,
             leaf_index: LeafNodeIndex::new(leaf_index),
-            client_credential_fingerprint,
         }
     }
 }
@@ -123,8 +98,7 @@ impl GroupMembership {
         // user_id).
         query!(
             "UPDATE group_membership AS merged
-            SET client_credential_fingerprint = staged.client_credential_fingerprint,
-                leaf_index = staged.leaf_index
+            SET leaf_index = staged.leaf_index
             FROM group_membership AS staged
             WHERE merged.group_id = staged.group_id
               AND merged.user_uuid = staged.user_uuid
@@ -167,14 +141,12 @@ impl GroupMembership {
                 user_domain,
                 group_id,
                 leaf_index,
-                client_credential_fingerprint,
                 status
-            ) VALUES (?, ?, ?, ?, ?, 'merged')",
+            ) VALUES (?, ?, ?, ?, 'merged')",
             uuid,
             domain,
             sql_group_id,
             leaf_index,
-            self.client_credential_fingerprint,
         )
         .execute(executor)
         .await?;
@@ -192,14 +164,13 @@ impl GroupMembership {
                 user_domain,
                 group_id,
                 leaf_index,
-                client_credential_fingerprint,
-                status)
-            VALUES (?, ?, ?, ?, ?, 'staged_update')",
+                status
+            )
+            VALUES (?, ?, ?, ?, 'staged_update')",
             uuid,
             domain,
             sql_group_id,
             leaf_index,
-            self.client_credential_fingerprint,
         )
         .execute(executor)
         .await?;
@@ -217,14 +188,13 @@ impl GroupMembership {
                 user_domain,
                 group_id,
                 leaf_index,
-                client_credential_fingerprint,
-                status)
-            VALUES (?, ?, ?, ?, ?, 'staged_add')",
+                status
+            )
+            VALUES (?, ?, ?, ?, 'staged_add')",
             uuid,
             domain,
             sql_group_id,
             leaf_index,
-            self.client_credential_fingerprint,
         )
         .execute(executor)
         .await?;
@@ -283,7 +253,6 @@ impl GroupMembership {
             query_as!(
                 SqlGroupMembership,
                 r#"SELECT
-                    client_credential_fingerprint AS "client_credential_fingerprint: _",
                     group_id AS "group_id: _",
                     user_uuid AS "user_uuid: _",
                     user_domain AS "user_domain: _",
@@ -300,7 +269,6 @@ impl GroupMembership {
             query_as!(
                 SqlGroupMembership,
                 r#"SELECT
-                    client_credential_fingerprint AS "client_credential_fingerprint: _",
                     group_id AS "group_id: _",
                     user_uuid AS "user_uuid: _",
                     user_domain AS "user_domain: _",
@@ -412,7 +380,10 @@ mod tests {
             AsIntermediateCredentialBody, ClientCredential, ClientCredentialCsr,
             ClientCredentialPayload,
         },
-        crypto::signatures::signable::{Signature, SignedStruct},
+        crypto::{
+            hash::Hash,
+            signatures::signable::{Signature, SignedStruct},
+        },
     };
     use openmls::prelude::SignatureScheme;
     use sqlx::SqlitePool;
@@ -442,12 +413,7 @@ mod tests {
     ) -> GroupMembership {
         let group_id = GroupId::from_slice(&[0; 32]);
 
-        GroupMembership::new(
-            credential.identity().clone(),
-            group_id,
-            index,
-            credential.fingerprint(),
-        )
+        GroupMembership::new(credential.identity().clone(), group_id, index)
     }
 
     #[sqlx::test]

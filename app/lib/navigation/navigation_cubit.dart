@@ -35,14 +35,17 @@ class NavigationCubit implements StateStreamableSource<NavigationState> {
 
   // Methods
 
-  Future<void> closeConversation() => _impl.closeConversation();
+  Future<void> closeChat() => _impl.closeChat();
 
-  Future<void> openConversation(ConversationId conversationId) =>
-      _impl.openConversation(conversationId: conversationId);
+  Future<void> openChat(ChatId chatId) => _impl.openChat(chatId: chatId);
 
-  Future<void> openConversationDetails() => _impl.openConversationDetails();
+  Future<void> openChatDetails() => _impl.openChatDetails();
 
   Future<void> openAddMembers() => _impl.openAddMembers();
+
+  Future<void> openCreateGroup() => _impl.openCreateGroup();
+
+  Future<void> openGroupMembers() => _impl.openGroupMembers();
 
   Future<void> openMemberDetails(UiUserId member) =>
       _impl.openMemberDetails(member: member);
@@ -65,5 +68,5 @@ class NavigationCubit implements StateStreamableSource<NavigationState> {
   bool pop() => _impl.pop();
 
   Future<void> openServerChoice() =>
-      _impl.openIntroScreen(screen: const IntroScreenType.serverChoice());
+      _impl.openIntroScreen(screen: const IntroScreenType.signUp());
 }

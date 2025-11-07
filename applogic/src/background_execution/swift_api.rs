@@ -4,10 +4,7 @@
 
 use std::ffi::{CStr, CString, c_char};
 
-use crate::background_execution::{
-    IncomingNotificationContent, processing::retrieve_messages_sync,
-};
-use crate::logging::init_logger;
+use crate::background_execution::processing::init_environment;
 
 /// This method gets called from the iOS NSE
 ///
@@ -16,20 +13,35 @@ use crate::logging::init_logger;
 /// The caller must ensure that the content is a pointer to a valid C string.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn process_new_messages(content: *const c_char) -> *mut c_char {
-    assert!(!content.is_null());
+    if content.is_null() {
+        return std::ptr::null_mut();
+    }
 
+    // Borrow the incoming C string (must be NUL-terminated)
     let c_str = unsafe { CStr::from_ptr(content) };
 
-    let json_str = c_str.to_str().unwrap();
-    let incoming_content: IncomingNotificationContent = serde_json::from_str(json_str).unwrap();
+    // Ensure it's valid UTF-8 (JSON must be UTF-8)
+    let json_str = match c_str.to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            return std::ptr::null_mut();
+        }
+    };
 
-    init_logger(incoming_content.log_file_path);
+    // Initialize the environment and retrieve the notification batch
+    let batch = match init_environment(json_str) {
+        Some(batch) => batch,
+        None => return std::ptr::null_mut(),
+    };
 
-    // Retrieve messages
-    let batch = retrieve_messages_sync(incoming_content.path);
-
-    let response = serde_json::to_string(&batch).unwrap_or_default();
-    CString::new(response).unwrap().into_raw()
+    // Serialize the response JSON and return an owned C string to the caller
+    match serde_json::to_string(&batch)
+        .ok()
+        .and_then(|s| CString::new(s).ok())
+    {
+        Some(cstr) => cstr.into_raw(),
+        None => std::ptr::null_mut(),
+    }
 }
 
 /// This method gets called from the iOS NSE

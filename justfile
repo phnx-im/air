@@ -6,17 +6,17 @@ set windows-shell := ["C:\\Program Files\\Git\\bin\\sh.exe","-c"]
 
 # === Backend ===
 
-POSTGRES_DATABASE_URL := "postgres://postgres:password@localhost:5432/phnx_db"
+POSTGRES_DATABASE_URL := "postgres://postgres:password@localhost:5432/air_db"
 
 docker-is-podman := if `command -v podman || true` =~ ".*podman$" { "true" } else { "false" }
 
 # run docker compose services in the background
 run-services: generate-db-certs
     if {{docker-is-podman}} == "true"; then \
-        podman rm infra_minio-setup_1 -i 2>&1 /dev/null; \
+        podman rm air_minio-setup_1 -i 2>&1 /dev/null; \
         podman-compose --podman-run-args=--replace up -d; \
         podman-compose ps; \
-        podman logs infra_postgres_1; \
+        podman logs air_postgres_1; \
     else \
         docker compose up --wait --wait-timeout=300; \
         docker compose ps; \
@@ -29,7 +29,7 @@ init-backend-db $DATABASE_URL=(POSTGRES_DATABASE_URL):
 
 [working-directory: 'backend']
 prepare-db-statements $DATABASE_URL=(POSTGRES_DATABASE_URL):
-    cargo sqlx prepare --database-url $DATABASE_URL
+    cargo sqlx prepare --database-url $DATABASE_URL -- --tests
 
 # generate postgres TLS certificates
 generate-db-certs:
@@ -158,7 +158,7 @@ build-ios:
 # Build Linux app
 [working-directory: 'app']
 build-linux:
-     flutter build linux
+     flutter build linux -v
 
 # analyze Dart code
 [working-directory: 'app']
@@ -178,7 +178,7 @@ run-backend: init-backend-db
 # Build Windows app
 [working-directory: 'app']
 build-windows:
-     flutter build windows
+     flutter build windows -v
 
 # Run app
 [working-directory: 'app']

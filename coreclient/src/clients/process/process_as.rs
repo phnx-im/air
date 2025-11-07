@@ -7,14 +7,15 @@ use aircommon::{
     crypto::{hpke::HpkeDecryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{QualifiedGroupId, UserHandle},
     messages::{
-        client_as::ConnectionOfferMessage,
-        client_ds::{InfraAadMessage, InfraAadPayload, JoinConnectionGroupParamsAad},
+        client_as::{ConnectionOfferHash, ConnectionOfferMessage},
+        client_ds::{AadMessage, AadPayload, JoinConnectionGroupParamsAad},
         client_ds_out::ExternalCommitInfoIn,
         connection_package::{ConnectionPackage, ConnectionPackageHash},
     },
 };
 use airprotos::auth_service::v1::{HandleQueueMessage, handle_queue_message};
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result, bail, ensure};
+use mimi_room_policy::RoleIndex;
 use openmls::prelude::MlsMessageOut;
 use sqlx::SqliteConnection;
 use sqlx::SqliteTransaction;
@@ -22,28 +23,31 @@ use tls_codec::DeserializeBytes;
 use tracing::error;
 
 use crate::{
-    clients::connection_offer::{ConnectionOfferIn, payload::ConnectionOfferPayload},
+    clients::{
+        block_contact::{BlockedContact, BlockedContactError},
+        connection_offer::{ConnectionOfferIn, payload::ConnectionOfferPayload},
+    },
     groups::{Group, ProfileInfo},
     key_stores::indexed_keys::StorableIndexedKey,
     store::StoreNotifier,
     user_handles::connection_packages::StorableConnectionPackage,
-    utils::connection_ext::ConnectionExt,
+    utils::connection_ext::{ConnectionExt, StoreExt},
 };
 
 use super::{
-    AsCredentials, Contact, Conversation, ConversationAttributes, ConversationId, CoreUser,
-    EarEncryptable, FriendshipPackage, anyhow,
+    AsCredentials, Chat, ChatAttributes, ChatId, Contact, CoreUser, EarEncryptable,
+    FriendshipPackage, anyhow,
 };
 
 impl CoreUser {
     /// Process a queue message received from the AS handle queue.
     ///
-    /// Returns the [`ConversationId`] of any newly created conversations.
+    /// Returns the [`ChatId`] of any newly created chat.
     pub async fn process_handle_queue_message(
         &self,
         user_handle: &UserHandle,
         handle_queue_message: HandleQueueMessage,
-    ) -> Result<ConversationId> {
+    ) -> Result<ChatId> {
         let payload = handle_queue_message
             .payload
             .context("no payload in handle queue message")?;
@@ -59,13 +63,21 @@ impl CoreUser {
         &self,
         handle: UserHandle,
         ecep: ConnectionOfferMessage,
-    ) -> Result<ConversationId> {
+    ) -> Result<ChatId> {
         let mut connection = self.pool().acquire().await?;
+
+        let connection_offer_hash = ecep.connection_offer_hash();
 
         // Parse & verify connection offer
         let (cep_payload, hash) = self
             .parse_and_verify_connection_offer(&mut connection, ecep, handle.clone())
             .await?;
+
+        // Deny connection from blocked users
+        let user_id = cep_payload.sender_client_credential.identity();
+        if BlockedContact::check_blocked(&mut *connection, user_id).await? {
+            bail!(BlockedContactError);
+        }
 
         // Prepare group
         let own_user_profile_key = UserProfileKey::load_own(&mut *connection).await?;
@@ -75,8 +87,15 @@ impl CoreUser {
         let eci = self.fetch_external_commit_info(&cep_payload, &qgid).await?;
 
         // Join group
-        let (group, commit, group_info, mut member_profile_info) = self
-            .join_group_externally(&mut connection, eci, &cep_payload, self.signing_key(), aad)
+        let (mut group, commit, group_info, mut member_profile_info) = self
+            .join_group_externally(
+                &mut connection,
+                eci,
+                &cep_payload,
+                self.signing_key(),
+                aad,
+                connection_offer_hash,
+            )
             .await?;
 
         // Verify that the group has only one other member and that it's
@@ -114,25 +133,25 @@ impl CoreUser {
         })
         .await?;
 
-        // Create conversation
-        // Note: For now, the conversation is immediately confirmed.
-        let (mut conversation, contact) = self
-            .create_connection_conversation(&mut connection, &group, &cep_payload)
+        // Create chat
+        // Note: For now, the chat is immediately confirmed.
+        let (mut chat, contact) = self
+            .create_connection_chat(&mut connection, &group, &cep_payload)
             .await?;
+
+        group.room_state_change_role(
+            cep_payload.sender_client_credential.identity(),
+            self.user_id(),
+            RoleIndex::Regular,
+        )?;
 
         let mut notifier = self.store_notifier();
 
-        // Store group, conversation & contact
+        // Store group, chat & contact
         connection
             .with_transaction(async |txn| {
-                self.store_group_conversation_contact(
-                    txn,
-                    &mut notifier,
-                    &group,
-                    &mut conversation,
-                    contact,
-                )
-                .await
+                self.store_group_chat_contact(txn, &mut notifier, &group, &mut chat, contact)
+                    .await
             })
             .await?;
 
@@ -140,15 +159,26 @@ impl CoreUser {
         self.send_confirmation_to_ds(commit, group_info, &cep_payload, qgid)
             .await?;
 
-        // Delete the connection package
-        ConnectionPackage::delete(&mut connection, &hash)
-            .await
-            .context("Failed to delete connection package")?;
+        // Delete the connection package if it's not last resort
+        connection
+            .with_transaction(async |txn| {
+                let is_last_resort =
+                    <ConnectionPackage as StorableConnectionPackage>::is_last_resort(txn, &hash)
+                        .await?
+                        .unwrap_or(false);
+                if !is_last_resort {
+                    ConnectionPackage::delete(txn, &hash)
+                        .await
+                        .context("Failed to delete connection package")?;
+                }
+                Ok(())
+            })
+            .await?;
 
         notifier.notify();
 
-        // Return the conversation ID
-        Ok(conversation.id())
+        // Return the chat ID
+        Ok(chat.id())
     }
 
     /// Parse and verify the connection offer
@@ -158,7 +188,6 @@ impl CoreUser {
         com: ConnectionOfferMessage,
         user_handle: UserHandle,
     ) -> Result<(ConnectionOfferPayload, ConnectionPackageHash)> {
-        // TODO: Fetch the right key based on the hash in the ConnectionOfferMessage.
         let (eco, hash) = com.into_parts();
 
         let decryption_key = ConnectionPackage::load_decryption_key(connection, &hash)
@@ -195,7 +224,7 @@ impl CoreUser {
         &self,
         cep_payload: &ConnectionOfferPayload,
         own_user_profile_key: &UserProfileKey,
-    ) -> Result<(InfraAadMessage, QualifiedGroupId)> {
+    ) -> Result<(AadMessage, QualifiedGroupId)> {
         // We create a new group and signal that fact to the user,
         // so the user can decide if they want to accept the
         // connection.
@@ -207,18 +236,16 @@ impl CoreUser {
 
         let encrypted_friendship_package = FriendshipPackage {
             friendship_token: self.inner.key_store.friendship_token.clone(),
-            connection_key: self.inner.key_store.connection_key.clone(),
             wai_ear_key: self.inner.key_store.wai_ear_key.clone(),
             user_profile_base_secret: own_user_profile_key.base_secret().clone(),
         }
         .encrypt(&cep_payload.friendship_package_ear_key)?;
 
-        let aad: InfraAadMessage =
-            InfraAadPayload::JoinConnectionGroup(JoinConnectionGroupParamsAad {
-                encrypted_friendship_package,
-                encrypted_user_profile_key,
-            })
-            .into();
+        let aad: AadMessage = AadPayload::JoinConnectionGroup(JoinConnectionGroupParamsAad {
+            encrypted_friendship_package,
+            encrypted_user_profile_key,
+        })
+        .into();
         let qgid = QualifiedGroupId::tls_deserialize_exact_bytes(
             cep_payload.connection_group_id.as_slice(),
         )?;
@@ -248,7 +275,8 @@ impl CoreUser {
         eci: ExternalCommitInfoIn,
         cep_payload: &ConnectionOfferPayload,
         leaf_signer: &ClientSigningKey,
-        aad: InfraAadMessage,
+        aad: AadMessage,
+        connection_offer_hash: ConnectionOfferHash,
     ) -> Result<(Group, MlsMessageOut, MlsMessageOut, Vec<ProfileInfo>)> {
         let (group, commit, group_info, member_profile_info) = Group::join_group_externally(
             &mut *connection,
@@ -261,17 +289,18 @@ impl CoreUser {
                 .clone(),
             aad,
             self.inner.key_store.signing_key.credential(),
+            connection_offer_hash,
         )
         .await?;
         Ok((group, commit, group_info, member_profile_info))
     }
 
-    async fn create_connection_conversation(
+    async fn create_connection_chat(
         &self,
         connection: &mut SqliteConnection,
         group: &Group,
         cep_payload: &ConnectionOfferPayload,
-    ) -> Result<(Conversation, Contact)> {
+    ) -> Result<(Chat, Contact)> {
         let sender_user_id = cep_payload.sender_client_credential.identity();
 
         let display_name = self
@@ -279,29 +308,29 @@ impl CoreUser {
             .await
             .display_name;
 
-        let conversation = Conversation::new_connection_conversation(
+        let chat = Chat::new_connection_chat(
             group.group_id().clone(),
             sender_user_id.clone(),
-            ConversationAttributes::new(display_name.to_string(), None),
+            ChatAttributes::new(display_name.to_string(), None),
         )?;
         let contact = Contact::from_friendship_package(
             sender_user_id.clone(),
-            conversation.id(),
+            chat.id(),
             cep_payload.friendship_package.clone(),
         )?;
-        Ok((conversation, contact))
+        Ok((chat, contact))
     }
 
-    async fn store_group_conversation_contact(
+    async fn store_group_chat_contact(
         &self,
         txn: &mut SqliteTransaction<'_>,
         notifier: &mut StoreNotifier,
         group: &Group,
-        conversation: &mut Conversation,
+        chat: &mut Chat,
         contact: Contact,
     ) -> Result<()> {
         group.store(txn.as_mut()).await?;
-        conversation.store(txn.as_mut(), notifier).await?;
+        chat.store(txn.as_mut(), notifier).await?;
         contact.upsert(txn.as_mut(), notifier).await?;
         Ok(())
     }

@@ -23,7 +23,6 @@ use crate::identifiers::{ClientConfig, SealedClientReference};
 
 use super::{
     RawKey,
-    ear::{GenericDeserializable, GenericSerializable},
     errors::{DecryptionError, EncryptionError, RandomnessError},
     secrets::SecretBytes,
 };
@@ -33,6 +32,7 @@ pub mod trait_impls;
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct EncryptionKey<KT> {
+    #[serde(with = "serde_bytes")]
     key: Vec<u8>,
     _type: std::marker::PhantomData<KT>,
 }
@@ -143,7 +143,7 @@ impl<KT> DecryptionKey<KT> {
 
 // TODO: We might want to properly fix AAD and Info at some point.
 pub trait HpkeEncryptable<KT, HpkeCiphertextType: From<HpkeCiphertext>>:
-    GenericSerializable
+    tls_codec::Serialize
 {
     /// Encrypts the data with the given encryption key.
     fn encrypt(
@@ -153,13 +153,13 @@ pub trait HpkeEncryptable<KT, HpkeCiphertextType: From<HpkeCiphertext>>:
         aad: &[u8],
     ) -> HpkeCiphertextType {
         // Hiding a LibraryError behind an empty vec.
-        let plain_txt = self.serialize().unwrap_or_default();
+        let plain_txt = self.tls_serialize_detached().unwrap_or_default();
         encryption_key.encrypt(info, aad, &plain_txt).into()
     }
 }
 
 pub trait HpkeDecryptable<KT, HpkeCiphertextType: AsRef<HpkeCiphertext>>:
-    GenericDeserializable
+    tls_codec::DeserializeBytes + Sized
 {
     fn decrypt(
         ct: HpkeCiphertextType,
@@ -168,7 +168,7 @@ pub trait HpkeDecryptable<KT, HpkeCiphertextType: AsRef<HpkeCiphertext>>:
         aad: &[u8],
     ) -> Result<Self, DecryptionError> {
         let plaintext = decryption_key.decrypt(info, aad, ct.as_ref())?;
-        Self::deserialize(&plaintext).map_err(|e| {
+        Self::tls_deserialize_exact_bytes(&plaintext).map_err(|e| {
             error!(%e, "Error deserializing decrypted data");
             DecryptionError::DeserializationError
         })

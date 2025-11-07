@@ -19,7 +19,7 @@ use crate::{
     identifiers::{QsClientId, QsUserId},
 };
 
-use super::{FriendshipToken, QueueMessage, push_token::EncryptedPushToken};
+use super::{FriendshipToken, push_token::EncryptedPushToken};
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct QsOpenWsParams {
@@ -110,17 +110,4 @@ pub struct KeyPackageResponseIn {
 #[derive(Debug)]
 pub struct EncryptionKeyResponse {
     pub encryption_key: ClientIdEncryptionKey,
-}
-
-#[derive(Debug)]
-pub struct DequeueMessagesParams {
-    pub sender: QsClientId,
-    pub sequence_number_start: u64,
-    pub max_message_number: u64,
-}
-
-#[derive(Debug)]
-pub struct DequeueMessagesResponse {
-    pub messages: Vec<QueueMessage>,
-    pub remaining_messages_number: u64,
 }

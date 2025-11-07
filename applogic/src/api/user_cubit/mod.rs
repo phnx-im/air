@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use aircommon::identifiers::{UserHandle, UserId};
 use aircoreclient::Asset;
-use aircoreclient::{ConversationId, clients::CoreUser, store::Store};
+use aircoreclient::{ChatId, clients::CoreUser, store::Store};
 use flutter_rust_bridge::frb;
 use qs::QueueContext;
 use tokio::sync::watch;
@@ -44,7 +44,7 @@ mod user_handle;
 // should do it, to minimize the amount of UI rebuilds in Flutter.
 //
 // See:
-// * <https://github.com/phnx-im/infra/issues/247>
+// * <https://github.com/phnx-im/air/issues/247>
 // * <https://github.com/fzyzcjy/flutter_rust_bridge/issues/2238>
 #[frb(opaque)]
 #[derive(Debug, Clone)]
@@ -97,9 +97,10 @@ impl UiUser {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppState {
-    Background,
+    MobileBackground,
+    DesktopBackground,
     Foreground,
 }
 
@@ -117,10 +118,6 @@ pub enum AppState {
 pub struct UserCubitBase {
     core: CubitCore<UiUser>,
     context: CubitContext,
-    #[cfg_attr(
-        not(any(target_os = "android", target_os = "ios")),
-        expect(dead_code, reason = "app state only changes on mobile")
-    )]
     app_state_tx: watch::Sender<AppState>,
     background_listen_handle_tasks: HandleBackgroundTasks,
     cancel: CancellationToken,
@@ -222,29 +219,44 @@ impl UserCubitBase {
     }
 
     #[frb(positional)]
-    pub async fn add_user_to_conversation(
-        &self,
-        conversation_id: ConversationId,
-        user_id: UiUserId,
-    ) -> anyhow::Result<()> {
+    pub async fn add_user_to_chat(&self, chat_id: ChatId, user_id: UiUserId) -> anyhow::Result<()> {
         self.context
             .core_user
-            .invite_users(conversation_id, &[user_id.into()])
+            .invite_users(chat_id, &[user_id.into()])
             .await?;
         Ok(())
     }
 
     #[frb(positional)]
-    pub async fn remove_user_from_conversation(
+    pub async fn remove_user_from_chat(
         &self,
-        conversation_id: ConversationId,
+        chat_id: ChatId,
         user_id: UiUserId,
     ) -> anyhow::Result<()> {
         self.context
             .core_user
-            .remove_users(conversation_id, vec![user_id.into()])
+            .remove_users(chat_id, vec![user_id.into()])
             .await?;
         Ok(())
+    }
+
+    #[frb(positional)]
+    pub async fn delete_chat(&self, chat_id: ChatId) -> anyhow::Result<()> {
+        self.context
+            .core_user
+            .delete_chat(chat_id)
+            .await
+            .inspect_err(|error| {
+                error!(%error, "failed to delete conversion; skipping");
+            })
+            .ok();
+        self.context.core_user.erase_chat(chat_id).await?;
+        Ok(())
+    }
+
+    #[frb(positional)]
+    pub async fn leave_chat(&self, chat_id: ChatId) -> anyhow::Result<()> {
+        self.context.core_user.leave_chat(chat_id).await
     }
 
     #[frb(getter)]
@@ -253,20 +265,12 @@ impl UserCubitBase {
         Ok(contacts.into_iter().map(From::from).collect())
     }
 
-    pub async fn addable_contacts(
-        &self,
-        conversation_id: ConversationId,
-    ) -> anyhow::Result<Vec<UiContact>> {
-        let Some(members) = self
-            .context
-            .core_user
-            .conversation_participants(conversation_id)
-            .await
-        else {
+    pub async fn addable_contacts(&self, chat_id: ChatId) -> anyhow::Result<Vec<UiContact>> {
+        let Some(members) = self.context.core_user.chat_participants(chat_id).await else {
             return Ok(vec![]);
         };
         let mut contacts = self.contacts().await.unwrap_or_default();
-        // Retain only those contacts that are not already in the conversation
+        // Retain only those contacts that are not already in the chat
         contacts.retain(|contact| {
             !members
                 .iter()
@@ -276,18 +280,19 @@ impl UserCubitBase {
     }
 
     pub fn set_app_state(&self, _app_state: AppState) {
-        // Note: on Desktop, we consider the app to be always in foreground
-        #[cfg(any(target_os = "android", target_os = "ios"))]
-        {
-            let app_state = _app_state;
-            debug!(?app_state, "app state changed");
-            let _no_receivers = self.app_state_tx.send(app_state);
-        }
+        let app_state = _app_state;
+        debug!(?app_state, "app state changed");
+        let _no_receivers = self.app_state_tx.send(app_state);
     }
 
     pub async fn add_user_handle(&mut self, user_handle: UiUserHandle) -> anyhow::Result<bool> {
         let user_handle = UserHandle::new(user_handle.plaintext)?;
-        let Some(record) = self.context.core_user.add_user_handle(&user_handle).await? else {
+        let Some(record) = self
+            .context
+            .core_user
+            .add_user_handle(user_handle.clone())
+            .await?
+        else {
             return Ok(false);
         };
 
@@ -334,6 +339,22 @@ impl UserCubitBase {
         self.background_listen_handle_tasks.remove(user_handle);
 
         Ok(())
+    }
+
+    pub async fn report_spam(&self, spammer_id: UiUserId) -> anyhow::Result<()> {
+        self.context.core_user.report_spam(spammer_id.into()).await
+    }
+
+    pub async fn block_contact(&self, user_id: UiUserId) -> anyhow::Result<()> {
+        self.context.core_user.block_contact(user_id.into()).await
+    }
+
+    pub async fn unblock_contact(&self, user_id: UiUserId) -> anyhow::Result<()> {
+        self.context.core_user.unblock_contact(user_id.into()).await
+    }
+
+    pub async fn delete_account(&self, db_path: &str) -> anyhow::Result<()> {
+        self.context.core_user.delete_account(Some(db_path)).await
     }
 }
 
@@ -402,42 +423,42 @@ impl CubitContext {
 #[derive(Debug)]
 enum NotificationContext {
     Intro,
-    Conversation(ConversationId),
-    ConversationList,
+    Chat(ChatId),
+    ChatList,
     Other,
 }
 
 impl CubitContext {
     /// Show OS notifications depending on the current navigation state and OS.
     async fn show_notifications(&self, mut notifications: Vec<NotificationContent>) {
+        const IS_DESKTOP: bool = cfg!(any(
+            target_os = "macos",
+            target_os = "windows",
+            target_os = "linux"
+        ));
         let notification_context = match &*self.navigation_state.borrow() {
             NavigationState::Intro { .. } => NotificationContext::Intro,
             NavigationState::Home {
                 home:
                     HomeNavigationState {
-                        conversation_id: Some(conversation_id),
+                        chat_id: Some(chat_id),
                         ..
                     },
-            } => NotificationContext::Conversation(*conversation_id),
+            } => NotificationContext::Chat(*chat_id),
             NavigationState::Home {
                 home:
                     HomeNavigationState {
-                        conversation_id: None,
+                        chat_id: None,
                         developer_settings_screen,
                         user_settings_screen,
                         ..
                     },
             } => {
-                const IS_DESKTOP: bool = cfg!(any(
-                    target_os = "macos",
-                    target_os = "windows",
-                    target_os = "linux"
-                ));
                 if !IS_DESKTOP
                     && developer_settings_screen.is_none()
                     && user_settings_screen.is_none()
                 {
-                    NotificationContext::ConversationList
+                    NotificationContext::ChatList
                 } else {
                     NotificationContext::Other
                 }
@@ -447,13 +468,17 @@ impl CubitContext {
         debug!(?notifications, ?notification_context, "send_notification");
 
         match notification_context {
-            NotificationContext::Intro | NotificationContext::ConversationList => {
+            NotificationContext::Intro | NotificationContext::ChatList => {
                 return; // suppress all notifications
             }
-            NotificationContext::Conversation(conversation_id) => {
-                // Remove notifications for the current conversation
-                notifications
-                    .retain(|notification| notification.conversation_id != Some(conversation_id));
+            NotificationContext::Chat(chat_id) => {
+                // We don't want to show notifications when
+                // - we are on mobile and the notification belongs to the currently open chat
+                // - we are on desktop, the app is in the foreground, and the notification belongs to the currently open chat
+                let app_state = *self.app_state.borrow();
+                if !IS_DESKTOP || app_state == AppState::Foreground {
+                    notifications.retain(|notification| notification.chat_id != Some(chat_id));
+                }
             }
             NotificationContext::Other => (),
         }

@@ -4,20 +4,20 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: phnx-ingress-http
+  name: air-ingress-http
 spec:
   ingressClassName: nginx
   tls:
   - hosts:
-    - dev.phnx.im
+    - prod.air.ms
   rules:
-  - host: dev.phnx.im
+  - host: prod.air.ms
     http:
       paths:
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: phnx-backend
+            name: air-backend
             port:
               number: 80

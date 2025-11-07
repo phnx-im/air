@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO own_key_index (key_index, key_type) VALUES ($1, $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "6c95a8bb2f2a4a5659e09c16bbecf794448cbf2a91915ad04683cba94d70def6"
+}

@@ -1,0 +1,166 @@
+{
+  "appTitle": "Air",
+
+  "userSettingsScreen_title": "Benutzereinstellungen",
+  "userSettingsScreen_idCopied": "Benutzer-ID in Zwischenablage kopiert",
+  "userSettingsScreen_profileDescription": "Andere sehen dein Bild und deinen Namen, wenn du mit ihnen kommunizierst.",
+  "userSettingsScreen_userNamesDescription": "Teile Benutzernamen mit anderen, damit sie sich mit dir verbinden können. Nach der Verbindung sind Benutzernamen für andere nicht mehr sichtbar. Du kannst bis zu 5 Benutzernamen haben.",
+  "userSettingsScreen_interfaceScale": "Oberflächenskalierung",
+  "userSettingsScreen_help": "Hilfe",
+
+  "removeUsernameDialog_title": "Benutzername entfernen",
+  "removeUsernameDialog_content": "Wenn du fortfährst, wird dein Benutzername entfernt und kann von jemand anderem beansprucht werden. Du wirst über ihn nicht mehr erreichbar sein.",
+  "removeUsernameDialog_cancel": "Abbrechen",
+  "removeUsernameDialog_remove": "Entfernen",
+  "userSettingsScreen_noUserHandles": "noch keine Benutzernamen",
+  "userSettingsScreen_userHandlePlaceholder": "Benutzername",
+
+  "addMembersScreen_title": "Mitglieder hinzufügen",
+  "addMembersScreen_addMembers": "Mitglied(er) hinzufügen",
+  "addMembersScreen_error_noActiveChat": "eine aktive Unterhaltung ist erforderlich",
+
+  "chatDetailsScreen_title": "Details",
+  "chatDetailsScreen_unknownChat": "Unbekannte Unterhaltung",
+
+  "chatScreen_emptyChat": "Wähle eine Unterhaltung aus, um mit dem Nachrichten schreiben zu beginnen",
+
+  "removeUserDialog_title": "Benutzer entfernen",
+  "removeUserDialog_content": "Bist du sicher, dass du diesen Benutzer aus der Gruppe entfernen möchtest?",
+  "removeUserDialog_cancel": "Abbrechen",
+  "removeUserDialog_removeUser": "Benutzer entfernen",
+  "removeUserButton_text": "Benutzer entfernen",
+
+  "introScreen_signUp": "Registrieren",
+
+  "userHandleScreen_title": "Benutzername",
+  "userHandleScreen_inputHint": "Benutzername",
+  "userHandleScreen_error_emptyHandle": "Benutzername darf nicht leer sein",
+  "userHandleScreen_description": "Wähle einen Benutzernamen, den andere verwenden können, um sich mit dir zu verbinden.\n\nVerwende Buchstaben, Zahlen oder Unterstriche. Mindestens 5 Zeichen.",
+  "userHandleScreen_save": "Speichern",
+
+  "editDisplayNameScreen_title": "Anzeigename",
+  "editDisplayNameScreen_hintText": "Anzeigename",
+  "editDisplayNameScreen_description": "Wähle einen Namen, den andere sehen werden, wenn du mit ihnen kommunizierst.",
+  "editDisplayNameScreen_save": "Speichern",
+
+  "systemMessage_userAddedUser_prefix": "",
+  "systemMessage_userAddedUser_infix": " hat ",
+  "systemMessage_userAddedUser_suffix": " hinzugefügt",
+
+  "systemMessage_userRemovedUser_prefix": "",
+  "systemMessage_userRemovedUser_infix": " hat ",
+  "systemMessage_userRemovedUser_suffix": " entfernt",
+
+  "timestamp_now": "Jetzt",
+  "timestamp_yesterday": "Gestern",
+
+  "chatList_newContact": "Neuer Kontakt",
+  "chatList_newGroup": "Neue Gruppe",
+  "chatList_emptyMessage": "Erstelle eine neue Verbindung, um zu beginnen",
+
+  "chatList_draft": "Entwurf",
+  "chatList_you": "Du",
+  "chatList_imageEmoji": "🖼️",
+  "chatList_fileEmoji": "📎",
+
+  "newChatDialog_newChatTitle": "Neue Unterhaltung",
+  "newChatDialog_newChatDescription": "Wähle einen Namen für die neue Unterhaltung",
+  "newChatDialog_chatNamePlaceholder": "Unterhaltungsname",
+  "newChatDialog_actionButton": "Unterhaltung erstellen",
+  "newChatDialog_error": "Unterhaltung mit Name {chatName} konnte nicht hinzugefügt werden",
+  "newChatDialog_error_emptyGroupName": "Unterhaltungsname darf nicht leer sein",
+
+  "newConnectionDialog_newConnectionTitle": "Neue Verbindung",
+  "newConnectionDialog_newConnectionDescription": "Gib den Benutzernamen des Benutzers ein, mit dem du dich verbinden möchtest",
+  "newConnectionDialog_usernamePlaceholder": "Benutzername",
+  "newConnectionDialog_actionButton": "Verbinden",
+  "newConnectionDialog_error": "Benutzer mit Benutzername {username} konnte nicht hinzugefügt werden. Bitte versuche es erneut.",
+  "newConnectionDialog_error_emptyHandle": "Benutzername darf nicht leer sein",
+  "newConnectionDialog_error_handleNotFound": "Benutzername {username} existiert nicht",
+
+  "composer_inputHint": "Nachricht an {chatTitle}",
+  "composer_editMessage": "Nachricht bearbeiten",
+  "composer_error_attachment": "Anhang konnte nicht hochgeladen werden. Bitte versuche es erneut.",
+
+  "attachmentSize": "{size} {byteUnit}",
+  "@attachmentSize": {
+    "placeholders": {
+      "size": {
+        "type": "double",
+        "format": "decimalPatternDigits",
+        "optionalParameters": {
+          "decimalDigits": 2
+        }
+      }
+    }
+  },
+
+  "textMessage_edited": "bearbeitet",
+
+  "reportSpamButton_text": "Spam melden",
+  "reportSpamDialog_title": "Spam melden?",
+  "reportSpamDialog_content": "Air wird benachrichtigt, dass diese Person möglicherweise Spam sendet. Air kann niemals den Inhalt von Chats einsehen.",
+  "reportSpamDialog_cancel": "Abbrechen",
+  "reportSpamDialog_reportSpam": "Spam melden",
+  "reportSpamDialog_success": "Spam gemeldet",
+  "reportSpamDialog_error": "Spam konnte nicht gemeldet werden. Bitte versuche es erneut.",
+
+  "helpScreen_title": "Hilfe",
+  "helpScreen_contactUs": "Kontakt",
+  "helpScreen_versionInfo": "Versionsinformationen",
+  "helpScreen_licenses": "Lizenzen",
+
+  "licensesScreen_title": "Lizenzen",
+
+  "contactUsScreen_title": "Kontakt",
+  "contactUsScreen_subject": "Nachrichtenbetreff",
+  "contactUsScreen_body": "Inhalt",
+  "contactUsScreen_composeEmail": "E-Mail verfassen",
+
+  "contactUsScreen_subject_somethingNotWorking": "Etwas funktioniert nicht",
+  "contactUsScreen_subject_iHaveAQuestion": "Ich habe eine Frage",
+  "contactUsScreen_subject_requestFeature": "Feature anfragen",
+  "contactUsScreen_subject_other": "Andere",
+
+  "contactUsScreen_subject_empty": "Bitte wähle einen Betreff aus",
+  "contactUsScreen_body_empty": "Gib deine Nachricht ein",
+  "contactUsScreen_body_tooShort": "Bitte gib mehr Informationen an",
+  "contactUsScreen_errorLaunchingEmail": "E-Mail-Client konnte nicht geöffnet werden",
+
+  "byteUnit_B": "B",
+  "byteUnit_KB": "KB",
+  "byteUnit_MB": "MB",
+  "byteUnit_GB": "GB",
+  "byteUnit_TB": "TB",
+  "byteUnit_PB": "PB",
+  "byteUnit_EB": "EB",
+  "byteUnit_ZB": "ZB",
+  "byteUnit_YB": "YB",
+  "groupDetails_addPerson": "Person hinzufügen",
+  "groupDetails_seeAll": "Alle anzeigen",
+  "groupDetails_memberCount": "{count, plural, one {{count} Mitgleid} other {{count} Mitglieder}}",
+  "@groupDetails_memberCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupMembersScreen_title": "Gruppenmitglieder",
+  "groupMembersScreen_searchHint": "Suchen",
+  "groupCreationScreen_title": "Mitglieder hinzufügen",
+  "groupCreationScreen_cancel": "Abbrechen",
+  "groupCreationScreen_next": "Weiter",
+  "groupCreationScreen_skip": "Überspringen",
+  "groupCreationDetails_title": "Gruppendetails",
+  "groupCreationDetails_groupNameHint": "Gruppenname (erforderlich)",
+  "groupCreationDetails_groupNameHintFocused": "Gruppenname",
+  "groupCreationDetails_groupNameHelper": "Mindestens ein Zeichen, bitte",
+  "groupCreationDetails_descriptionHint": "Gruppenbeschreibung (optional)",
+  "groupCreationDetails_descriptionHintFocused": "Gruppenbeschreibung",
+  "groupCreationDetails_create": "Erstellen",
+  "groupCreationDetails_emptySelection": "Keine Mitglieder",
+
+  "addMembersScreen_addMembers": "Mitglieder hinzufügen",
+  "addMembersScreen_done": "Fertig"
+}

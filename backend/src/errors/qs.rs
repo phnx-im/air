@@ -5,23 +5,6 @@
 use thiserror::Error;
 use tonic::Status;
 
-/// Error fetching a message from the QS.
-#[derive(Debug, Error)]
-pub(crate) enum QsDequeueError {
-    /// Storage provider error
-    #[error("Storage provider error")]
-    StorageError,
-}
-
-impl From<QsDequeueError> for Status {
-    fn from(e: QsDequeueError) -> Self {
-        let msg = e.to_string();
-        match e {
-            QsDequeueError::StorageError => Status::internal(msg),
-        }
-    }
-}
-
 // === Client ===
 
 #[derive(Debug, Error)]

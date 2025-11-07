@@ -7,7 +7,7 @@ use aircommon::{
     identifiers::{QualifiedGroupId, SealedClientReference},
 };
 use sqlx::{
-    PgExecutor, query,
+    PgConnection, PgExecutor, query,
     types::chrono::{DateTime, Utc},
 };
 
@@ -15,11 +15,11 @@ use crate::{ds::group_state::EncryptedDsGroupState, errors::StorageError};
 
 use super::StorableDsGroupData;
 
-impl StorableDsGroupData {
+impl StorableDsGroupData<false> {
     pub(super) async fn store(&self, connection: impl PgExecutor<'_>) -> Result<(), StorageError> {
         query!(
             "INSERT INTO
-                encrypted_groups
+                encrypted_group
                 (group_id, ciphertext, last_used, deleted_queues)
             VALUES
                 ($1, $2, $3, $4)
@@ -34,48 +34,64 @@ impl StorableDsGroupData {
         Ok(())
     }
 
-    pub(crate) async fn load(
-        connection: impl PgExecutor<'_>,
+    #[cfg(test)]
+    pub(crate) async fn load_immutable(
+        connection: &mut PgConnection,
         qgid: &QualifiedGroupId,
     ) -> Result<Option<Self>, StorageError> {
-        let record = query!(
-            r#"SELECT
+        Self::load(connection, qgid).await
+    }
+}
+
+impl<const LOADED_FOR_UPDATE: bool> StorableDsGroupData<LOADED_FOR_UPDATE> {
+    pub(crate) async fn load(
+        connection: &mut PgConnection,
+        qgid: &QualifiedGroupId,
+    ) -> Result<Option<Self>, StorageError> {
+        if LOADED_FOR_UPDATE {
+            let record = query!(
+                r#"SELECT
                 group_id,
                 ciphertext AS "ciphertext: BlobDecoded<EncryptedDsGroupState>",
                 last_used,
                 deleted_queues AS "deleted_queues: BlobDecoded<Vec<SealedClientReference>>"
             FROM
-                encrypted_groups
+                encrypted_group
+            WHERE
+                group_id = $1
+            FOR UPDATE"#,
+                qgid.group_uuid()
+            )
+            .fetch_optional(connection)
+            .await?;
+            Ok(record.map(|record| Self {
+                group_id: record.group_id,
+                encrypted_group_state: record.ciphertext.into_inner(),
+                last_used: record.last_used.into(),
+                deleted_queues: record.deleted_queues.into_inner(),
+            }))
+        } else {
+            let record = query!(
+                r#"SELECT
+                group_id,
+                ciphertext AS "ciphertext: BlobDecoded<EncryptedDsGroupState>",
+                last_used,
+                deleted_queues AS "deleted_queues: BlobDecoded<Vec<SealedClientReference>>"
+            FROM
+                encrypted_group
             WHERE
                 group_id = $1"#,
-            qgid.group_uuid()
-        )
-        .fetch_optional(connection)
-        .await?;
-        Ok(record.map(|record| Self {
-            group_id: record.group_id,
-            encrypted_group_state: record.ciphertext.into_inner(),
-            last_used: record.last_used.into(),
-            deleted_queues: record.deleted_queues.into_inner(),
-        }))
-    }
-
-    pub(crate) async fn update(&self, connection: impl PgExecutor<'_>) -> Result<(), StorageError> {
-        query!(
-            "UPDATE
-                encrypted_groups
-            SET
-                ciphertext = $2, last_used = $3, deleted_queues = $4
-            WHERE
-                group_id = $1",
-            self.group_id,
-            BlobEncoded(&self.encrypted_group_state) as _,
-            DateTime::<Utc>::from(self.last_used),
-            BlobEncoded(&self.deleted_queues) as _,
-        )
-        .execute(connection)
-        .await?;
-        Ok(())
+                qgid.group_uuid()
+            )
+            .fetch_optional(connection)
+            .await?;
+            Ok(record.map(|record| Self {
+                group_id: record.group_id,
+                encrypted_group_state: record.ciphertext.into_inner(),
+                last_used: record.last_used.into(),
+                deleted_queues: record.deleted_queues.into_inner(),
+            }))
+        }
     }
 
     pub(crate) async fn delete(
@@ -84,10 +100,38 @@ impl StorableDsGroupData {
     ) -> Result<(), StorageError> {
         query!(
             "DELETE FROM
-                encrypted_groups
+                encrypted_group
             WHERE
                 group_id = $1",
             qgid.group_uuid()
+        )
+        .execute(connection)
+        .await?;
+        Ok(())
+    }
+}
+
+impl StorableDsGroupData<true> {
+    #[cfg(test)]
+    pub(crate) async fn load_for_update(
+        connection: &mut PgConnection,
+        qgid: &QualifiedGroupId,
+    ) -> Result<Option<Self>, StorageError> {
+        Self::load(connection, qgid).await
+    }
+
+    pub(crate) async fn update(&self, connection: &mut PgConnection) -> Result<(), StorageError> {
+        query!(
+            "UPDATE
+                encrypted_group
+            SET
+                ciphertext = $2, last_used = $3, deleted_queues = $4
+            WHERE
+                group_id = $1",
+            self.group_id,
+            BlobEncoded(&self.encrypted_group_state) as _,
+            DateTime::<Utc>::from(self.last_used),
+            BlobEncoded(&self.deleted_queues) as _,
         )
         .execute(connection)
         .await?;
@@ -102,12 +146,23 @@ mod test {
     use uuid::Uuid;
 
     use crate::{
+        air_service::BackendService,
         ds::{
             Ds,
             group_state::{EncryptedDsGroupState, StorableDsGroupData},
         },
-        infra_service::InfraService,
     };
+
+    impl From<StorableDsGroupData<true>> for StorableDsGroupData<false> {
+        fn from(value: StorableDsGroupData<true>) -> Self {
+            Self {
+                group_id: value.group_id,
+                encrypted_group_state: value.encrypted_group_state,
+                last_used: value.last_used,
+                deleted_queues: value.deleted_queues,
+            }
+        }
+    }
 
     #[sqlx::test]
     async fn reserve_group_id(pool: PgPool) {
@@ -146,13 +201,14 @@ mod test {
         let reserved_group_id = ds.claim_reserved_group_id(qgid.group_uuid()).await.unwrap();
 
         // Create and store a new group state
-        let mut storable_group_data =
+        let storable_group_data =
             StorableDsGroupData::new_and_store(&ds.db_pool, reserved_group_id, test_state.clone())
                 .await
                 .unwrap();
 
         // Load the group state again
-        let loaded_group_state = StorableDsGroupData::load(&ds.db_pool, &qgid)
+        let mut connection = ds.db_pool.acquire().await.unwrap();
+        let loaded_group_state = StorableDsGroupData::load_immutable(&mut connection, &qgid)
             .await
             .unwrap()
             .unwrap();
@@ -162,13 +218,19 @@ mod test {
             storable_group_data.encrypted_group_state
         );
 
+        // Load the group state for update
+        let mut storable_group_data = StorableDsGroupData::load_for_update(&mut connection, &qgid)
+            .await
+            .unwrap()
+            .unwrap();
+
         // Update that group state.
         storable_group_data.encrypted_group_state.flip_bit();
 
-        storable_group_data.update(&ds.db_pool).await.unwrap();
+        storable_group_data.update(&mut connection).await.unwrap();
 
         // Load the group state again
-        let loaded_group_state = StorableDsGroupData::load(&ds.db_pool, &qgid)
+        let loaded_group_state = StorableDsGroupData::load_immutable(&mut connection, &qgid)
             .await
             .unwrap()
             .unwrap();
@@ -182,7 +244,7 @@ mod test {
     async fn store_random_group(
         pool: &PgPool,
         ds: &Ds,
-    ) -> anyhow::Result<(QualifiedGroupId, StorableDsGroupData)> {
+    ) -> anyhow::Result<(QualifiedGroupId, StorableDsGroupData<false>)> {
         let group_uuid = Uuid::new_v4();
         let was_reserved = ds.reserve_group_id(group_uuid).await;
         assert!(was_reserved);
@@ -196,7 +258,7 @@ mod test {
         Ok((qgid, group))
     }
 
-    fn random_group(group_id: Uuid) -> StorableDsGroupData {
+    fn random_group(group_id: Uuid) -> StorableDsGroupData<false> {
         StorableDsGroupData {
             group_id,
             encrypted_group_state: EncryptedDsGroupState::from(Ciphertext::random()),
@@ -210,7 +272,8 @@ mod test {
         let ds = Ds::new_from_pool(pool.clone(), "example.com".parse().unwrap()).await?;
         let (qgid, group) = store_random_group(&pool, &ds).await?;
 
-        let loaded = StorableDsGroupData::load(&pool, &qgid).await?;
+        let mut connection = pool.acquire().await?;
+        let loaded = StorableDsGroupData::load(&mut connection, &qgid).await?;
         assert_eq!(loaded.unwrap(), group);
 
         Ok(())
@@ -221,14 +284,18 @@ mod test {
         let ds = Ds::new_from_pool(pool.clone(), "example.com".parse().unwrap()).await?;
         let (qgid, group) = store_random_group(&pool, &ds).await?;
 
-        let loaded = StorableDsGroupData::load(&pool, &qgid).await?;
+        let mut connection = pool.acquire().await?;
+        let loaded = StorableDsGroupData::load(&mut connection, &qgid).await?;
         assert_eq!(loaded.unwrap(), group);
 
-        let updated_group = random_group(group.group_id);
-        updated_group.update(&pool).await?;
+        random_group(group.group_id);
+        let updated_group = StorableDsGroupData::load_for_update(&mut connection, &qgid)
+            .await?
+            .unwrap();
+        updated_group.update(&mut connection).await?;
 
-        let loaded = StorableDsGroupData::load(&pool, &qgid).await?;
-        assert_eq!(loaded.unwrap(), updated_group);
+        let loaded = StorableDsGroupData::load_immutable(&mut connection, &qgid).await?;
+        assert_eq!(loaded.unwrap(), updated_group.into());
 
         Ok(())
     }
@@ -238,12 +305,13 @@ mod test {
         let ds = Ds::new_from_pool(pool.clone(), "example.com".parse().unwrap()).await?;
         let (qgid, group) = store_random_group(&pool, &ds).await?;
 
-        let loaded = StorableDsGroupData::load(&pool, &qgid).await?;
+        let mut connection = pool.acquire().await?;
+        let loaded = StorableDsGroupData::load(&mut connection, &qgid).await?;
         assert_eq!(loaded.unwrap(), group);
 
-        StorableDsGroupData::delete(&pool, &qgid).await?;
+        StorableDsGroupData::<true>::delete(&pool, &qgid).await?;
 
-        let loaded = StorableDsGroupData::load(&pool, &qgid).await?;
+        let loaded = StorableDsGroupData::load_immutable(&mut connection, &qgid).await?;
         assert!(loaded.is_none());
 
         Ok(())

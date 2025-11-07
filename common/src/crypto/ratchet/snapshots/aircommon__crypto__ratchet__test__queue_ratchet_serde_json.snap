@@ -1,6 +1,5 @@
 ---
 source: common/src/crypto/ratchet/mod.rs
-assertion_line: 193
 expression: queue_ratchet()
 ---
 {

@@ -1,0 +1,66 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO as_client_record (\n                    user_uuid,\n                    user_domain,\n                    activity_time,\n                    credential,\n                    remaining_tokens\n                ) VALUES ($1, $2, $3, $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Timestamptz",
+        {
+          "Custom": {
+            "name": "client_credential",
+            "kind": {
+              "Composite": [
+                [
+                  "version",
+                  "Bytea"
+                ],
+                [
+                  "signature_scheme",
+                  "Bytea"
+                ],
+                [
+                  "verifying_key",
+                  "Bytea"
+                ],
+                [
+                  "expiration_data",
+                  {
+                    "Custom": {
+                      "name": "expiration",
+                      "kind": {
+                        "Composite": [
+                          [
+                            "not_before",
+                            "Timestamptz"
+                          ],
+                          [
+                            "not_after",
+                            "Timestamptz"
+                          ]
+                        ]
+                      }
+                    }
+                  }
+                ],
+                [
+                  "signer_fingerprint",
+                  "Bytea"
+                ],
+                [
+                  "signature",
+                  "Bytea"
+                ]
+              ]
+            }
+          }
+        },
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "82b8a7359cdbda499a9a0b410241c974a9c3e827c9ad699e8787b31dbe7bceea"
+}

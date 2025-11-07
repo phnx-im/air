@@ -8,40 +8,45 @@ import 'package:air/core/core.dart';
 import 'package:air/util/platform.dart';
 import 'package:uuid/uuid.dart';
 
-extension UiConversationDetailsExtension on UiConversationDetails {
-  /// ClientId of the conversation (for group it is null)
-  UiUserId? get userId => switch (conversationType) {
-    UiConversationType_HandleConnection() => null,
-    UiConversationType_Connection(field0: final profile) => profile.userId,
-    UiConversationType_Group() => null,
+extension UiChatDetailsExtension on UiChatDetails {
+  /// ClientId of the chat (for group it is null)
+  UiUserId? get userId => switch (chatType) {
+    UiChatType_HandleConnection() => null,
+    UiChatType_Connection(field0: final profile) => profile.userId,
+    UiChatType_Group() => null,
   };
 
-  /// Title of the conversation
-  String get title => switch (conversationType) {
-    UiConversationType_HandleConnection(field0: final handle) =>
+  /// Title of the chat
+  String get title => switch (chatType) {
+    UiChatType_HandleConnection(field0: final handle) =>
       "⏳ ${handle.plaintext}",
-    UiConversationType_Connection(field0: final profile) => profile.displayName,
-    UiConversationType_Group() => attributes.title,
+    UiChatType_Connection(field0: final profile) => profile.displayName,
+    UiChatType_Group() => attributes.title,
   };
 
-  /// Picture of the conversation
+  /// Display name of the user if this is a 1:1 chat
+  String? get displayName => switch (chatType) {
+    UiChatType_Connection(field0: final profile) => profile.displayName,
+    _ => null,
+  };
+
+  /// Picture of the chat
   ///
-  /// The picture is either the one from the conversation attributes (when this is a group
-  /// conversation) or the one from the user profile (when this is a 1:1 conversation).
-  ImageData? get picture => switch (conversationType) {
-    UiConversationType_Connection(field0: final profile) =>
-      profile.profilePicture,
-    UiConversationType_HandleConnection() => null,
-    UiConversationType_Group() => attributes.picture,
+  /// The picture is either the one from the chat attributes (when this is a group
+  /// chat) or the one from the user profile (when this is a 1:1 chat).
+  ImageData? get picture => switch (chatType) {
+    UiChatType_Connection(field0: final profile) => profile.profilePicture,
+    UiChatType_HandleConnection() => null,
+    UiChatType_Group() => attributes.picture,
   };
 }
 
-extension UiConversationTypeExtension on UiConversationType {
-  /// Description of the conversation type which can show in the UI
+extension UiChatTypeExtension on UiChatType {
+  /// Description of the chat type which can show in the UI
   String get description => switch (this) {
-    UiConversationType_HandleConnection() => "Pending connection request",
-    UiConversationType_Connection() => "1:1 conversation",
-    UiConversationType_Group() => 'Group conversation',
+    UiChatType_HandleConnection() => "Pending connection request",
+    UiChatType_Connection() => "1:1 chat",
+    UiChatType_Group() => 'Group chat',
   };
 }
 
@@ -70,14 +75,13 @@ extension ImageDataExtension on Uint8List {
 }
 
 extension NavigationStateExtension on NavigationState {
-  ConversationId? get conversationId => switch (this) {
-    NavigationState_Home(:final home) => home.conversationId,
+  ChatId? get chatId => switch (this) {
+    NavigationState_Home(:final home) => home.chatId,
     NavigationState_Intro() => null,
   };
 
-  ConversationId? get openConversationId => switch (this) {
-    NavigationState_Home(:final home) when home.conversationOpen =>
-      home.conversationId,
+  ChatId? get openChatId => switch (this) {
+    NavigationState_Home(:final home) when home.chatOpen => home.chatId,
     NavigationState_Intro() || NavigationState_Home() => null,
   };
 }
@@ -90,11 +94,11 @@ extension DartNotificationServiceExtension on DartNotificationService {
   );
 }
 
-extension ConversationIdExtension on ConversationId {
-  static ConversationId? fromString(String value) {
+extension ChatIdExtension on ChatId {
+  static ChatId? fromString(String value) {
     try {
       final uuid = UuidValue.withValidation(value);
-      return ConversationId(uuid: uuid);
+      return ChatId(uuid: uuid);
     } on FormatException catch (_) {
       return null;
     }
@@ -121,13 +125,17 @@ extension NotificationHandleExtension on NotificationHandle {
     if (identifier == null) {
       return null;
     }
-    final ConversationId? conversationId = switch (map['conversationId']) {
-      String s => ConversationIdExtension.fromString(s),
+    final ChatId? chatId = switch (map['chatId']) {
+      String s => ChatIdExtension.fromString(s),
       _ => null,
     };
-    return NotificationHandle(
-      identifier: identifier,
-      conversationId: conversationId,
-    );
+    return NotificationHandle(identifier: identifier, chatId: chatId);
   }
+}
+
+extension UiChatMessageExtension on UiChatMessage {
+  UiUserId? get sender => switch (message) {
+    UiMessage_Content(field0: final content) => content.sender,
+    UiMessage_Display() => null,
+  };
 }

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM connection_package WHERE connection_package_hash = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "2b365af522aa1b3c078670cb69d84826ac85a4db0cf452a14f86398c744e7972"
+}

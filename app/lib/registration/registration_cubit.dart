@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/core/core.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:logging/logging.dart';
-import 'package:air/core/core.dart';
 
 part 'registration_cubit.freezed.dart';
 
@@ -25,7 +25,7 @@ sealed class RegistrationState with _$RegistrationState {
 
   const factory RegistrationState({
     // Domain choice screen data
-    @Default('') String domain,
+    @Default('air.ms') String domain,
 
     // Display name/avatar screen data
     ImageData? avatar,
@@ -34,6 +34,7 @@ sealed class RegistrationState with _$RegistrationState {
   }) = _RegistrationState;
 
   bool get isDomainValid => _domainRegex.hasMatch(domain);
+  bool get isValid => isDomainValid && displayName.trim().isNotEmpty;
 }
 
 class RegistrationCubit extends Cubit<RegistrationState> {
@@ -67,10 +68,9 @@ class RegistrationCubit extends Cubit<RegistrationState> {
       _log.info("Registering user...");
       await _coreClient.createUser(url, state.displayName, state.avatar?.data);
     } catch (e) {
-      final message = "Error when registering user: ${e.toString()}";
-      _log.severe(message);
+      _log.severe("Error when registering user: ${e.toString()}");
       emit(state.copyWith(isSigningUp: false));
-      return SignUpError(message);
+      return SignUpError(e.toString());
     }
 
     emit(state.copyWith(isSigningUp: false));

@@ -17,9 +17,12 @@ use aircommon::{
     identifiers::{Fqdn, UserId},
 };
 use openmls::prelude::SignatureScheme;
+use sqlx::SqlitePool;
 
 use crate::{
     DisplayName, UserProfile,
+    key_stores::indexed_keys::StorableIndexedKey,
+    store::StoreNotifier,
     user_profiles::{IndexedUserProfile, update::UserProfileUpdate},
 };
 
@@ -129,4 +132,44 @@ fn backend_interaction() {
         .into_user_profile(new_user_profile_key.index())
         .unwrap();
     assert_eq!(returned_user_profile, new_encrypted_user_profile);
+}
+
+#[sqlx::test]
+fn profile_deletion_trigger(pool: SqlitePool) {
+    // Create a user profile
+    let user_id = UserId::random("localhost".parse().unwrap());
+    let display_name = DisplayName::from_str("Alice").unwrap();
+    let profile_picture = Some(Asset::Value(vec![1, 2, 3]));
+    let (_credential_csr, signing_key) =
+        ClientCredentialCsr::new(user_id.clone(), SignatureScheme::ED25519).unwrap();
+
+    let user_profile_key = UserProfileKey::random(&user_id).unwrap();
+    user_profile_key.store(&pool).await.unwrap();
+
+    let _user_profile = NewUserProfile::new(
+        &signing_key,
+        user_id.clone(),
+        user_profile_key.index().clone(),
+        display_name.clone(),
+        profile_picture.clone(),
+    )
+    .unwrap()
+    .store(&pool, &mut StoreNotifier::noop())
+    .await
+    .unwrap();
+
+    // The user profile key should be removed when we delete the user profile
+    // (We delete directly here. In practice, profiles are deleted via a trigger
+    // when the user is removed from the last shared group. This is tested in the
+    // integration test called `user_deletion_triggers`.)
+    delete_user_profile(&pool).await.unwrap();
+    let loaded_key = UserProfileKey::load(&pool, user_profile_key.index()).await;
+    assert!(matches!(loaded_key, Err(sqlx::Error::RowNotFound)));
+}
+
+async fn delete_user_profile(
+    executor: impl sqlx::Executor<'_, Database = sqlx::Sqlite>,
+) -> anyhow::Result<()> {
+    sqlx::query("DELETE FROM user").execute(executor).await?;
+    Ok(())
 }

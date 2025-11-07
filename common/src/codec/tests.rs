@@ -5,7 +5,7 @@
 use mls_assist::memory_provider::Codec;
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::codec::AirCodec;
+use crate::codec::PersistenceCodec;
 
 pub(super) struct Json;
 
@@ -38,10 +38,10 @@ impl super::Codec for Json {
 
 fn run_for_all_versions<F>(f: F)
 where
-    F: Fn(super::AirCodec),
+    F: Fn(super::PersistenceCodec),
 {
     for version in 0..u8::MAX {
-        let Ok(codec) = super::AirCodec::try_from(version) else {
+        let Ok(codec) = super::PersistenceCodec::try_from(version) else {
             return;
         };
         f(codec)
@@ -60,7 +60,7 @@ fn serde_json() {
 #[test]
 fn functional_correctness() {
     let value = 42;
-    let functional_correctness_inner = |codec: super::AirCodec| {
+    let functional_correctness_inner = |codec: super::PersistenceCodec| {
         println!("Testing codec: {codec:?}");
         let serialized = codec.serialize(&value).unwrap();
         // The first byte should be the codec version
@@ -72,8 +72,8 @@ fn functional_correctness() {
     run_for_all_versions(functional_correctness_inner);
 
     // For good measure, check that the public API works as well
-    let serialized = AirCodec::to_vec(&value).unwrap();
-    let deserialized: i32 = AirCodec::from_slice(&serialized).unwrap();
+    let serialized = PersistenceCodec::to_vec(&value).unwrap();
+    let deserialized: i32 = PersistenceCodec::from_slice(&serialized).unwrap();
     assert_eq!(value, deserialized);
 }
 
@@ -82,9 +82,9 @@ fn functional_correctness() {
 #[test]
 fn default_codec_deserialization() {
     let value = 42;
-    let default_codec_deserialization_inner = |codec: super::AirCodec| {
+    let default_codec_deserialization_inner = |codec: super::PersistenceCodec| {
         let serialized = codec.serialize(&value).unwrap();
-        let deserialized: i32 = super::AirCodec::from_slice(&serialized).unwrap();
+        let deserialized: i32 = super::PersistenceCodec::from_slice(&serialized).unwrap();
         assert_eq!(value, deserialized);
     };
 

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT decryption_key\n                AS \"decryption_key: _\"\n            FROM connection_package\n            WHERE connection_package_hash = $1",
+  "describe": {
+    "columns": [
+      {
+        "name": "decryption_key: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "fa06f3c8fdd1e9e5a30b530a7bd096d79a12c742264dad74e01fff2c177ccb45"
+}

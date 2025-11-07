@@ -14,6 +14,8 @@ class UserSettingsCubit implements StateStreamableSource<UserSettings> {
 
   final UserSettingsCubitBase _impl;
 
+  UserSettingsCubitBase get impl => _impl;
+
   @override
   FutureOr<void> close() {
     _impl.close();
@@ -48,4 +50,9 @@ class UserSettingsCubit implements StateStreamableSource<UserSettings> {
     required UserCubit userCubit,
     required bool value,
   }) => _impl.setSendOnEnter(userCubit: userCubit.impl, value: value);
+
+  Future<void> setReadReceipts({
+    required UserCubit userCubit,
+    required bool value,
+  }) => _impl.setReadReceipts(userCubit: userCubit.impl, value: value);
 }

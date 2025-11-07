@@ -47,7 +47,7 @@ pub(crate) trait StorableIndexedKey<KT: IndexedKeyType + Send + Unpin + Debug>:
         let key = self.key();
         let index = self.index();
         query!(
-            "INSERT OR IGNORE INTO indexed_keys (base_secret, key_value, key_index)
+            "INSERT OR IGNORE INTO indexed_key (base_secret, key_value, key_index)
                 VALUES ($1, $2, $3)",
             base_secret,
             key,
@@ -66,19 +66,19 @@ pub(crate) trait StorableIndexedKey<KT: IndexedKeyType + Send + Unpin + Debug>:
         let mut transaction = connection.begin().await?;
         // Delete the old own key
         query!(
-            "DELETE FROM indexed_keys
+            "DELETE FROM indexed_key
                WHERE key_index IN (
-                   SELECT key_index FROM own_key_indices WHERE key_type = ?
+                   SELECT key_index FROM own_key_index WHERE key_type = ?
                )",
             key_type
         )
         .execute(&mut *transaction)
         .await?;
-        query!("DELETE FROM own_key_indices WHERE key_type = ?", key_type)
+        query!("DELETE FROM own_key_index WHERE key_type = ?", key_type)
             .execute(&mut *transaction)
             .await?;
         query!(
-            "INSERT OR REPLACE INTO indexed_keys (base_secret, key_value, key_index)
+            "INSERT OR REPLACE INTO indexed_key (base_secret, key_value, key_index)
                 VALUES ($1, $2, $3)",
             base_secret,
             key,
@@ -87,7 +87,7 @@ pub(crate) trait StorableIndexedKey<KT: IndexedKeyType + Send + Unpin + Debug>:
         .execute(&mut *transaction)
         .await?;
         query!(
-            "INSERT OR REPLACE INTO own_key_indices (key_index, key_type) VALUES ($1, $2)",
+            "INSERT OR REPLACE INTO own_key_index (key_index, key_type) VALUES ($1, $2)",
             index,
             key_type
         )
@@ -108,7 +108,7 @@ pub(crate) trait StorableIndexedKey<KT: IndexedKeyType + Send + Unpin + Debug>:
                     base_secret AS "base_secret: _",
                     key_value AS "key: _",
                     key_index AS "index: _"
-                FROM indexed_keys
+                FROM indexed_key
                 WHERE key_index = ?
                 LIMIT 1"#,
             index,
@@ -126,8 +126,8 @@ pub(crate) trait StorableIndexedKey<KT: IndexedKeyType + Send + Unpin + Debug>:
                     ik.key_index as "index: _",
                     ik.key_value as "key: _",
                     ik.base_secret as "base_secret: _"
-                FROM own_key_indices oki
-                JOIN indexed_keys ik ON oki.key_index = ik.key_index
+                FROM own_key_index oki
+                JOIN indexed_key ik ON oki.key_index = ik.key_index
                 WHERE oki.key_type = ?"#,
             key_type
         )
@@ -140,7 +140,7 @@ pub(crate) trait StorableIndexedKey<KT: IndexedKeyType + Send + Unpin + Debug>:
         connection: impl SqliteExecutor<'_>,
         index: &Index<KT>,
     ) -> Result<(), sqlx::Error> {
-        query!("DELETE FROM indexed_keys WHERE key_index = ?", index)
+        query!("DELETE FROM indexed_key WHERE key_index = ?", index)
             .execute(connection)
             .await?;
         Ok(())

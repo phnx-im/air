@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                timestamp AS \"timestamp: _\"\n            FROM message WHERE message_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "timestamp: _",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "00f053f3c6cbe5ae51f46bd81411db461340ea34769c1b4f1b079b1b374072f2"
+}

@@ -28,14 +28,14 @@ pub type QsUserSigningKey = SigningKey<QsUserVerifyingKeyType>;
 
 #[cfg(test)]
 mod test {
-    use crate::codec::AirCodec;
+    use crate::codec::PersistenceCodec;
 
     use super::*;
 
     #[test]
     fn qs_client_verifying_key_serde_codec() {
         let key = QsClientVerifyingKey::new_for_test(vec![1, 2, 3]);
-        insta::assert_binary_snapshot!(".cbor", AirCodec::to_vec(&key).unwrap());
+        insta::assert_binary_snapshot!(".cbor", PersistenceCodec::to_vec(&key).unwrap());
     }
 
     #[test]

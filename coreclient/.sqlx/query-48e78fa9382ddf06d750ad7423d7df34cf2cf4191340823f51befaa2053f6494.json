@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                COUNT(*) AS \"count: _\"\n            FROM\n                message\n            WHERE\n                chat_id = ?1\n                AND sender_user_uuid IS NOT NULL\n                AND sender_user_domain IS NOT NULL\n                AND timestamp >\n                (\n                    SELECT\n                        last_read\n                    FROM\n                        chat\n                    WHERE\n                        chat_id = ?1\n                )",
+  "describe": {
+    "columns": [
+      {
+        "name": "count: _",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "48e78fa9382ddf06d750ad7423d7df34cf2cf4191340823f51befaa2053f6494"
+}

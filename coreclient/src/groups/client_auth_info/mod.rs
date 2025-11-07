@@ -70,21 +70,14 @@ impl StorableClientCredential {
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct GroupMembership {
     user_id: UserId,
-    client_credential_fingerprint: Hash<ClientCredential>,
     group_id: GroupId,
     leaf_index: LeafNodeIndex,
 }
 
 impl GroupMembership {
-    pub(super) fn new(
-        user_id: UserId,
-        group_id: GroupId,
-        leaf_index: LeafNodeIndex,
-        client_credential_fingerprint: Hash<ClientCredential>,
-    ) -> Self {
+    pub(super) fn new(user_id: UserId, group_id: GroupId, leaf_index: LeafNodeIndex) -> Self {
         Self {
             user_id,
-            client_credential_fingerprint,
             group_id,
             leaf_index,
         }
@@ -197,7 +190,6 @@ impl ClientAuthInfo {
             client_credential.identity().clone(),
             group_id.clone(),
             leaf_index,
-            client_credential.fingerprint(),
         );
         let client_auth_info = ClientAuthInfo {
             client_credential,
@@ -240,14 +232,12 @@ impl ClientAuthInfo {
         else {
             return Ok(None);
         };
-        let client_credential = StorableClientCredential::load(
-            &mut *connection,
-            &group_membership.client_credential_fingerprint,
-        )
-        .await?
-        .ok_or_else(|| {
-            anyhow!("Found a matching Groupmembership, but no matching ClientCredential")
-        })?;
+        let client_credential =
+            StorableClientCredential::load_by_user_id(&mut *connection, &group_membership.user_id)
+                .await?
+                .ok_or_else(|| {
+                    anyhow!("Found a matching Groupmembership, but no matching ClientCredential")
+                })?;
         Ok(Some(Self::new(client_credential, group_membership)))
     }
 
@@ -261,14 +251,12 @@ impl ClientAuthInfo {
         else {
             return Ok(None);
         };
-        let client_credential = StorableClientCredential::load(
-            connection,
-            &group_membership.client_credential_fingerprint,
-        )
-        .await?
-        .ok_or_else(|| {
-            anyhow!("Found a matching Groupmembership, but no matching ClientCredential")
-        })?;
+        let client_credential =
+            StorableClientCredential::load_by_user_id(connection, &group_membership.user_id)
+                .await?
+                .ok_or_else(|| {
+                    anyhow!("Found a matching Groupmembership, but no matching ClientCredential")
+                })?;
         Ok(Some(Self::new(client_credential, group_membership)))
     }
 

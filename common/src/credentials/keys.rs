@@ -14,7 +14,7 @@ use tls_codec::{Serialize as _, TlsDeserializeBytes, TlsSerialize, TlsSize};
 use tracing::error;
 
 use crate::{
-    codec::AirCodec,
+    codec::PersistenceCodec,
     crypto::{
         RawKey,
         signatures::{private_keys::Convertible, signable::Signature},
@@ -160,7 +160,7 @@ impl<'q> Encode<'q, Sqlite> for ClientSigningKey {
         &self,
         buf: &mut <Sqlite as Database>::ArgumentBuffer<'q>,
     ) -> Result<IsNull, BoxDynError> {
-        let bytes = AirCodec::to_vec(self)?;
+        let bytes = PersistenceCodec::to_vec(self)?;
         Encode::<Sqlite>::encode(bytes, buf)
     }
 }
@@ -168,7 +168,7 @@ impl<'q> Encode<'q, Sqlite> for ClientSigningKey {
 impl<'r> Decode<'r, Sqlite> for ClientSigningKey {
     fn decode(value: <Sqlite as Database>::ValueRef<'r>) -> Result<Self, BoxDynError> {
         let bytes: &[u8] = Decode::<Sqlite>::decode(value)?;
-        let value = AirCodec::from_slice(bytes)?;
+        let value = PersistenceCodec::from_slice(bytes)?;
         Ok(value)
     }
 }

@@ -1,6 +1,8 @@
 import Flutter
 import UIKit
 
+private let kProtectedBlockedCategory = "protected-blocked"
+
 @main
 @objc class AppDelegate: FlutterAppDelegate {
   private var deviceToken: String?
@@ -27,6 +29,17 @@ import UIKit
 
     // Set the handler function for the method channel
     methodChannel.setMethodCallHandler(handleMethodCall)
+
+    // Clear any lingering "blocked" notifications at launch
+    clearProtectedBlockedNotifications()
+
+    // When protected data becomes available (e.g. first unlock after reboot), clear again
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(handleProtectedDataAvailable(_:)),
+      name: UIApplication.protectedDataDidBecomeAvailableNotification,
+      object: nil
+    )
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
@@ -72,6 +85,15 @@ import UIKit
     completionHandler()
   }
 
+  override func applicationDidBecomeActive(_ application: UIApplication) {
+    clearProtectedBlockedNotifications()
+    super.applicationDidBecomeActive(application)
+  }
+
+  @objc private func handleProtectedDataAvailable(_ notification: Notification) {
+    clearProtectedBlockedNotifications()
+  }
+
   // Call Flutter by passing a method and customData as payload
   private func notifyFlutter(method: String, arguments: [String: Any?]) {
     let controller = window?.rootViewController as! FlutterViewController
@@ -85,7 +107,27 @@ import UIKit
     if call.method == "getDeviceToken" {
       self.getDeviceToken(result: result)
     } else if call.method == "getDatabasesDirectory" {
-      self.getSharedDocumentsDirectory(result: result)
+      if let path = self.getDatabasesDirectoryPath() {
+        result(path)
+      } else {
+        result(
+          FlutterError(
+            code: "DIRECTORY_ERROR",
+            message: "Failed to get databases directory path",
+            details: nil
+          ))
+      }
+    } else if call.method == "getSharedCacheDirectory" {
+      if let path = self.getSharedCacheDirectory() {
+        result(path)
+      } else {
+        result(
+          FlutterError(
+            code: "DIRECTORY_ERROR",
+            message: "Failed to get shared cache directory path",
+            details: nil
+          ))
+      }
     } else if call.method == "setBadgeCount" {
       if let args = call.arguments as? [String: Any], let count = args["count"] as? Int {
         self.setBadgeCount(count, result: result)
@@ -100,13 +142,13 @@ import UIKit
         let identifier = UUID(uuidString: identifierStr),
         let title = args["title"] as? String,
         let body = args["body"] as? String,
-        let conversationIdStr = args["conversationId"] as? String?
+        let chatIdStr = args["chatId"] as? String?
       {
         sendNotification(
           identifier: identifier,
           title: title,
           body: body,
-          conversationId: conversationIdStr.flatMap { UUID(uuidString: $0) })
+          chatId: chatIdStr.flatMap { UUID(uuidString: $0) })
         result(nil)
       } else {
         result(
@@ -149,30 +191,72 @@ import UIKit
     }
   }
 
-  // Get the shared documents path
-  private func getSharedDocumentsDirectory(result: FlutterResult) {
-    if let containerURL = FileManager.default.containerURL(
-      forSecurityApplicationGroupIdentifier: "group.ms.air")
-    {
-      let documentsURL = containerURL.appendingPathComponent("Documents")
-      // Create the "Documents" directory if it doesn't exist
-      let fileManager = FileManager.default
-      if !fileManager.fileExists(atPath: documentsURL.path) {
-        do {
-          try fileManager.createDirectory(
-            at: documentsURL, withIntermediateDirectories: true, attributes: nil)
-        } catch {
-          print("Failed to create Documents directory: \(error)")
-        }
-      }
-      result(documentsURL.path)
-    } else {
-      result(
-        FlutterError(
-          code: "UNAVAILABLE",
-          message: "App group container not found",
-          details: nil))
+  // Apply file protection
+  private func applyProtection(_ url: URL) {
+    let path = url.path
+    try? FileManager.default.setAttributes(
+      [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+      ofItemAtPath: path
+    )
+  }
+
+  // Get a databases directory path that is NOT backed up to iCloud
+  private func getDatabasesDirectoryPath() -> String? {
+    // Use the App Group container so extensions can also access it
+    guard
+      let containerURL = FileManager.default.containerURL(
+        forSecurityApplicationGroupIdentifier: "group.ms.air"
+      )
+    else {
+      return nil
     }
+
+    // Prefer Library/Application Support for persistent, non-user‑visible data
+    let dbsURL =
+      containerURL
+      .appendingPathComponent("Library", isDirectory: true)
+      .appendingPathComponent("Application Support", isDirectory: true)
+      .appendingPathComponent("Databases", isDirectory: true)
+
+    do {
+      try createBackupExcludedDirectory(at: dbsURL)
+      return dbsURL.path
+    } catch {
+      return nil
+    }
+  }
+
+  // Get a cache directory path that is shared between the application and the
+  // background extension
+  private func getSharedCacheDirectory() -> String? {
+    guard
+      let sharedContainer = FileManager.default.containerURL(
+        forSecurityApplicationGroupIdentifier: "group.ms.air"
+      )
+    else {
+      return nil
+    }
+
+    let sharedCaches = sharedContainer.appendingPathComponent("Caches")
+
+    do {
+      try createBackupExcludedDirectory(at: sharedCaches)
+      return sharedCaches.path
+    } catch {
+      return nil
+    }
+  }
+
+  private func createBackupExcludedDirectory(at url: URL) throws {
+    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    // exclude from backups
+    var vals = URLResourceValues()
+    vals.isExcludedFromBackup = true
+    var u = url
+    try? u.setResourceValues(vals)
+
+    // enforce protection class
+    applyProtection(url)
   }
 
   // Set the badge count
@@ -182,14 +266,28 @@ import UIKit
   }
 }
 
-func sendNotification(identifier: UUID, title: String, body: String, conversationId: UUID?) {
+// Remove any delivered notifications that were shown due to protected data being unavailable
+private func clearProtectedBlockedNotifications() {
+  let center = UNUserNotificationCenter.current()
+  center.getDeliveredNotifications { notes in
+    let ids =
+      notes
+      .filter { $0.request.content.categoryIdentifier == kProtectedBlockedCategory }
+      .map { $0.request.identifier }
+    if !ids.isEmpty {
+      center.removeDeliveredNotifications(withIdentifiers: ids)
+    }
+  }
+}
+
+func sendNotification(identifier: UUID, title: String, body: String, chatId: UUID?) {
   let center = UNUserNotificationCenter.current()
 
   let content = UNMutableNotificationContent()
   content.title = title
   content.body = body
   content.sound = UNNotificationSound.default
-  content.userInfo["conversationId"] = conversationId?.uuidString
+  content.userInfo["chatId"] = chatId?.uuidString
 
   let request = UNNotificationRequest(
     identifier: identifier.uuidString,
@@ -205,7 +303,7 @@ func sendNotification(identifier: UUID, title: String, body: String, conversatio
 
 struct NotificationHandle {
   let identifier: UUID
-  let conversationId: UUID?
+  let chatId: UUID?
 
   init?(notification: UNNotification) {
     let identifierStr = notification.request.identifier
@@ -213,15 +311,15 @@ struct NotificationHandle {
       return nil
     }
     self.identifier = identifier
-    let conversationIdStr: String? =
-      notification.request.content.userInfo["conversationId"] as? String? ?? nil
-    self.conversationId = conversationIdStr.flatMap { UUID(uuidString: $0) }
+    let chatIdStr: String? =
+      notification.request.content.userInfo["chatId"] as? String? ?? nil
+    self.chatId = chatIdStr.flatMap { UUID(uuidString: $0) }
   }
 
   func toDict() -> [String: Any?] {
     [
       "identifier": identifier.uuidString,
-      "conversationId": conversationId?.uuidString,
+      "chatId": chatId?.uuidString,
     ]
   }
 }

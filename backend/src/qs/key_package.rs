@@ -44,9 +44,8 @@ pub(super) trait StorableKeyPackage:
         is_last_resort: bool,
     ) -> Result<(), StorageError> {
         let mut query_args = PgArguments::default();
-        let mut query_string = String::from(
-            "INSERT INTO key_packages (client_id, key_package, is_last_resort) VALUES",
-        );
+        let mut query_string =
+            String::from("INSERT INTO key_package (client_id, key_package, is_last_resort) VALUES");
 
         for (i, key_package) in key_packages.iter().enumerate() {
             // Add values to the query arguments. None of these should throw an error.
@@ -87,19 +86,19 @@ pub(super) trait StorableKeyPackage:
         let key_package = sqlx::query_scalar!(
                 r#"WITH user_info AS (
                     -- Step 1: Fetch the user_id based on the friendship token.
-                    SELECT user_id FROM qs_user_records WHERE friendship_token = $1
+                        SELECT user_id FROM qs_user_record WHERE friendship_token = $1
                 ),
 
                 client_ids AS (
                     -- Step 2: Retrieve client IDs for the user from the `user_info`.
-                    SELECT client_id FROM qs_client_records WHERE user_id = (SELECT user_id FROM user_info)
+                        SELECT client_id FROM qs_client_record WHERE user_id = (SELECT user_id FROM user_info)
                 ),
 
                 ranked_packages AS (
                     -- Step 3: Rank key packages for each client.
-                    SELECT p.id, p.key_package, p.is_last_resort,
+                        SELECT p.id, p.key_package, p.is_last_resort,
                            ROW_NUMBER() OVER (PARTITION BY p.client_id ORDER BY p.is_last_resort ASC) AS rn
-                    FROM key_packages p
+                        FROM key_package p
                     INNER JOIN client_ids c ON p.client_id = c.client_id
                 ),
 
@@ -113,7 +112,7 @@ pub(super) trait StorableKeyPackage:
 
                 deleted_packages AS (
                     -- Step 5: Delete the selected packages that are not marked as last_resort.
-                    DELETE FROM key_packages
+                        DELETE FROM key_package
                     WHERE id IN (SELECT id FROM selected_key_packages WHERE is_last_resort = FALSE)
                     RETURNING key_package
                 )

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                member_user_uuid AS \"member_user_uuid: _\",\n                member_user_domain AS \"member_user_domain: _\"\n            FROM chat_past_member\n            WHERE chat_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "member_user_uuid: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "member_user_domain: _",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "7792694b11ed1790c0db6170bc05d4cb5081c49e4329980c2e1136a9781a0ad3"
+}

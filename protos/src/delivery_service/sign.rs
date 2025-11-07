@@ -5,16 +5,15 @@
 use prost::Message;
 
 use crate::delivery_service::v1::{
-    GetAttachmentUrlPayload, GetAttachmentUrlRequest, ProvisionAttachmentPayload,
-    ProvisionAttachmentRequest,
+    AssistedMessage, GetAttachmentUrlPayload, GetAttachmentUrlRequest, GroupStateEarKey,
+    LeafNodeIndex, ProvisionAttachmentPayload, ProvisionAttachmentRequest,
 };
 
 use super::v1::{
     CreateGroupPayload, CreateGroupRequest, DeleteGroupPayload, DeleteGroupRequest,
     GroupOperationPayload, GroupOperationRequest, ResyncPayload, ResyncRequest, SelfRemovePayload,
-    SelfRemoveRequest, SendMessagePayload, SendMessageRequest, UpdatePayload,
-    UpdateProfileKeyPayload, UpdateProfileKeyRequest, UpdateRequest, WelcomeInfoPayload,
-    WelcomeInfoRequest,
+    SelfRemoveRequest, SendMessagePayload, SendMessageRequest, UpdateProfileKeyPayload,
+    UpdateProfileKeyRequest, WelcomeInfoPayload, WelcomeInfoRequest,
 };
 
 use aircommon::{
@@ -53,13 +52,34 @@ impl VerifiedStruct<SendMessageRequest> for SendMessagePayload {
     }
 }
 
+/// For backwards compatibility, we need to be able to verify signatures over the
+/// old payload format that did not include the `suppress_notifications` field.
+#[derive(Clone, PartialEq, Eq, Hash, prost::Message)]
+pub struct SendMessagePayloadV1 {
+    #[prost(message, optional, tag = "1")]
+    pub group_state_ear_key: Option<GroupStateEarKey>,
+    #[prost(message, optional, tag = "2")]
+    pub message: Option<AssistedMessage>,
+    #[prost(message, optional, tag = "3")]
+    pub sender: Option<LeafNodeIndex>,
+}
+
 impl Verifiable for SendMessageRequest {
     fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
-        Ok(self
-            .payload
-            .as_ref()
-            .ok_or(MissingPayloadError)?
-            .encode_to_vec())
+        let payload = self.payload.as_ref().ok_or(MissingPayloadError)?;
+        let bytes = if payload.suppress_notifications.is_some() {
+            payload.encode_to_vec()
+        } else {
+            // Convert to old payload without optional field for backwards
+            // compatible signature verification.
+            SendMessagePayloadV1 {
+                group_state_ear_key: payload.group_state_ear_key.clone(),
+                message: payload.message.clone(),
+                sender: payload.sender,
+            }
+            .encode_to_vec()
+        };
+        Ok(bytes)
     }
 
     fn signature(&self) -> impl AsRef<[u8]> {
@@ -279,58 +299,6 @@ impl Verifiable for GroupOperationRequest {
 
     fn label(&self) -> &str {
         GROUP_OPERATION_PAYLOAD_LABEL
-    }
-}
-
-const UPDATE_PAYLOAD_LABEL: &str = "UpdatePayload";
-
-impl SignedStruct<UpdatePayload, ClientKeyType> for UpdateRequest {
-    fn from_payload(payload: UpdatePayload, signature: ClientSignature) -> Self {
-        Self {
-            payload: Some(payload),
-            signature: Some(signature.into()),
-        }
-    }
-}
-
-impl Signable for UpdatePayload {
-    type SignedOutput = UpdateRequest;
-
-    fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
-        Ok(self.encode_to_vec())
-    }
-
-    fn label(&self) -> &str {
-        UPDATE_PAYLOAD_LABEL
-    }
-}
-
-impl VerifiedStruct<UpdateRequest> for UpdatePayload {
-    type SealingType = private_mod::Seal;
-
-    fn from_verifiable(verifiable: UpdateRequest, _seal: Self::SealingType) -> Self {
-        verifiable.payload.unwrap()
-    }
-}
-
-impl Verifiable for UpdateRequest {
-    fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
-        Ok(self
-            .payload
-            .as_ref()
-            .ok_or(MissingPayloadError)?
-            .encode_to_vec())
-    }
-
-    fn signature(&self) -> impl AsRef<[u8]> {
-        self.signature
-            .as_ref()
-            .map(|s| s.value.as_slice())
-            .unwrap_or_default()
-    }
-
-    fn label(&self) -> &str {
-        UPDATE_PAYLOAD_LABEL
     }
 }
 

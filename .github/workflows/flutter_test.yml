@@ -32,6 +32,7 @@ jobs:
         uses: kuhnroyal/flutter-fvm-config-action/setup@v3
         with:
           path: 'app/.fvmrc'
+          cache: false
 
       - name: Check Flutter lockfile
         run: just check-flutter-lockfile

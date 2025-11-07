@@ -101,7 +101,6 @@ impl GrpcAs {
             .ok_or_else(|| Status::not_found("unknown handle"))
     }
 
-    #[expect(clippy::result_large_err)]
     fn verify_request<R, P>(
         &self,
         request: R,
@@ -317,6 +316,20 @@ impl auth_service_server::AuthService for GrpcAs {
         Ok(Response::new(IssueTokensResponse { token_response }))
     }
 
+    async fn report_spam(
+        &self,
+        request: Request<ReportSpamRequest>,
+    ) -> Result<Response<ReportSpamResponse>, Status> {
+        let request = request.into_inner();
+        let (_user_id, _payload) = self
+            .verify_user_auth::<_, ReportSpamPayload>(request)
+            .await?;
+
+        // TODO: forward to the spam reporting service
+
+        Ok(Response::new(ReportSpamResponse {}))
+    }
+
     async fn create_handle(
         &self,
         request: Request<CreateHandleRequest>,
@@ -444,7 +457,6 @@ impl From<ListenHandleProtocolViolation> for Status {
 trait WithUserId {
     fn user_id_proto(&self) -> Option<UserId>;
 
-    #[expect(clippy::result_large_err)]
     fn user_id(&self) -> Result<identifiers::UserId, Status> {
         Ok(self
             .user_id_proto()
@@ -477,10 +489,15 @@ impl WithUserId for IssueTokensRequest {
     }
 }
 
+impl WithUserId for ReportSpamRequest {
+    fn user_id_proto(&self) -> Option<UserId> {
+        self.payload.as_ref()?.reporter_id.clone()
+    }
+}
+
 trait WithUserHandleHash {
     fn user_handle_hash_proto(&self) -> Option<UserHandleHash>;
 
-    #[expect(clippy::result_large_err)]
     fn user_handle_hash(&self) -> Result<identifiers::UserHandleHash, Status> {
         Ok(self
             .user_handle_hash_proto()

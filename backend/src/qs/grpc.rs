@@ -13,39 +13,85 @@ use aircommon::{
     identifiers,
     messages::client_qs::{
         CreateClientRecordParams, CreateUserRecordParams, DeleteClientRecordParams,
-        DeleteUserRecordParams, DequeueMessagesParams, KeyPackageParams, PublishKeyPackagesParams,
+        DeleteUserRecordParams, KeyPackageParams, PublishKeyPackagesParams,
         UpdateClientRecordParams, UpdateUserRecordParams,
     },
 };
-use tokio::sync::mpsc::{self, unbounded_channel};
-use tokio_stream::{Stream, StreamExt, wrappers::UnboundedReceiverStream};
-use tonic::{Request, Response, Status, async_trait};
+use displaydoc::Display;
+use tokio_stream::{Stream, StreamExt};
+use tonic::{Request, Response, Status, Streaming, async_trait};
 use tracing::error;
+
+use crate::{errors::QueueError, qs::queue::Queues};
 
 use super::Qs;
 
-pub struct GrpcQs<L: GrpcListen> {
+pub struct GrpcQs {
     qs: Qs,
-    listen: L,
 }
 
-impl<L: GrpcListen> GrpcQs<L> {
-    pub fn new(qs: Qs, listen: L) -> Self {
-        Self { qs, listen }
+impl GrpcQs {
+    pub fn new(qs: Qs) -> Self {
+        Self { qs }
+    }
+
+    async fn process_listen_queue_requests_task(
+        queues: Queues,
+        queue_id: identifiers::QsClientId,
+        mut requests: Streaming<ListenRequest>,
+    ) {
+        while let Some(request) = requests.next().await {
+            if let Err(error) = Self::process_listen_queue_request(&queues, queue_id, request).await
+            {
+                // We report the error, but don't stop processing requests.
+                // TODO(#466): Send this to the client.
+                error!(%error, "error processing listen queue request");
+            }
+        }
+        // Listening stream was closed
+        queues.stop_listening(queue_id).await;
+    }
+
+    async fn process_listen_queue_request(
+        queues: &Queues,
+        queue_id: identifiers::QsClientId,
+        request: Result<ListenRequest, Status>,
+    ) -> Result<(), ProcessListenQueueRequestError> {
+        match request?.request {
+            Some(listen_request::Request::Ack(AckListenRequest {
+                up_to_sequence_number,
+            })) => {
+                queues.ack(queue_id, up_to_sequence_number).await?;
+            }
+            Some(listen_request::Request::Fetch(FetchListenRequest {})) => {
+                queues.trigger_fetch(queue_id).await?;
+            }
+            Some(listen_request::Request::Init(_)) => {
+                return Err(ProcessListenQueueRequestError::UnexpectedInitRequest);
+            }
+            None => {
+                return Err(ProcessListenQueueRequestError::EmptyRequest);
+            }
+        }
+        Ok(())
     }
 }
 
-pub trait GrpcListen: Send + Sync + 'static {
-    fn register_connection(
-        &self,
-        queue_id: identifiers::QsClientId,
-        tx: mpsc::UnboundedSender<QueueEvent>,
-    ) -> impl Future<Output = ()> + Send + Sync;
+#[derive(Debug, thiserror::Error, Display)]
+enum ProcessListenQueueRequestError {
+    /// {0}
+    Queue(#[from] QueueError),
+    /// Unexpected init request
+    UnexpectedInitRequest,
+    /// {0}
+    Status(#[from] Status),
+    /// Received empty request
+    EmptyRequest,
 }
 
 // Note: currently, *no* authentication is done
 #[async_trait]
-impl<L: GrpcListen> QueueService for GrpcQs<L> {
+impl QueueService for GrpcQs {
     async fn create_user(
         &self,
         request: Request<CreateUserRequest>,
@@ -237,27 +283,6 @@ impl<L: GrpcListen> QueueService for GrpcQs<L> {
         }))
     }
 
-    async fn dequeue_messages(
-        &self,
-        request: Request<DequeueMessagesRequest>,
-    ) -> Result<Response<DequeueMessagesResponse>, Status> {
-        let request = request.into_inner();
-        let params = DequeueMessagesParams {
-            sender: request.sender.ok_or_missing_field("sender")?.try_into()?,
-            sequence_number_start: request.sequence_number_start,
-            max_message_number: request.max_message_number,
-        };
-        let response = self.qs.qs_dequeue_messages(params).await?;
-        Ok(Response::new(DequeueMessagesResponse {
-            messages: response
-                .messages
-                .into_iter()
-                .map(|message| message.into())
-                .collect(),
-            remaining_messages_number: response.remaining_messages_number,
-        }))
-    }
-
     async fn qs_encryption_key(
         &self,
         _request: Request<QsEncryptionKeyRequest>,
@@ -272,20 +297,54 @@ impl<L: GrpcListen> QueueService for GrpcQs<L> {
 
     async fn listen(
         &self,
-        request: Request<ListenRequest>,
+        request: Request<Streaming<ListenRequest>>,
     ) -> Result<Response<Self::ListenStream>, Status> {
-        let request = request.into_inner();
-        let client_id = request
-            .client_id
-            .ok_or_missing_field("client_id")?
-            .try_into()?;
+        let mut requests = request.into_inner();
 
-        let (tx, rx) = unbounded_channel();
+        let request = requests
+            .next()
+            .await
+            .ok_or(ListenQueueProtocolViolation::MissingInitRequest)??;
+        let Some(listen_request::Request::Init(InitListenRequest {
+            client_id,
+            sequence_number_start,
+        })) = request.request
+        else {
+            return Err(ListenQueueProtocolViolation::MissingInitRequest.into());
+        };
 
-        self.listen.register_connection(client_id, tx).await;
+        let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
 
-        Ok(Response::new(Box::pin(
-            UnboundedReceiverStream::new(rx).map(Ok),
-        )))
+        let queue_messages = self
+            .qs
+            .queues
+            .listen(client_id, sequence_number_start)
+            .await?;
+        let responses = queue_messages.map(|message| match message {
+            Some(event) => event,
+            None => QueueEvent {
+                event: Some(queue_event::Event::Empty(QueueEmpty {})),
+            },
+        });
+
+        tokio::spawn(Self::process_listen_queue_requests_task(
+            self.qs.queues.clone(),
+            client_id,
+            requests,
+        ));
+
+        Ok(Response::new(Box::pin(responses.map(Ok))))
+    }
+}
+
+#[derive(Debug, thiserror::Error, Display)]
+enum ListenQueueProtocolViolation {
+    /// Missing initial request
+    MissingInitRequest,
+}
+
+impl From<ListenQueueProtocolViolation> for Status {
+    fn from(error: ListenQueueProtocolViolation) -> Self {
+        Status::failed_precondition(error.to_string())
     }
 }

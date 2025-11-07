@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                epoch AS \"epoch: _\",\n                decryption_key_index AS \"decryption_key_index: _\",\n                display_name AS \"display_name: _\",\n                profile_picture AS \"profile_picture: _\"\n            FROM user\n            WHERE user_uuid = ? AND user_domain = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "epoch: _",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "decryption_key_index: _",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "display_name: _",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "profile_picture: _",
+        "ordinal": 3,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "20634555a019acd54a2bdcae51550f17506d8640b607caee666d016d5965f038"
+}

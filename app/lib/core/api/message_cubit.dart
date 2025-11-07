@@ -42,9 +42,8 @@ abstract class MessageCubitBase implements RustOpaqueInterface {
   Stream<MessageState> stream();
 }
 
-/// State of a single message in a conversation
+/// State of a single message in a chat
 @freezed
 sealed class MessageState with _$MessageState {
-  const factory MessageState({required UiConversationMessage message}) =
-      _MessageState;
+  const factory MessageState({required UiChatMessage message}) = _MessageState;
 }

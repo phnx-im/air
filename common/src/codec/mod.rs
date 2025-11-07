@@ -19,27 +19,27 @@ pub use persistence::{BlobDecoded, BlobEncoded};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(u8)]
 #[non_exhaustive]
-pub enum AirCodec {
+pub enum PersistenceCodec {
     #[cfg(test)]
     OlderTestVersion = 0,
     #[default]
     V1 = 1,
 }
 
-impl TryFrom<u8> for AirCodec {
+impl TryFrom<u8> for PersistenceCodec {
     type Error = Error;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             #[cfg(test)]
-            0 => Ok(AirCodec::OlderTestVersion),
-            1 => Ok(AirCodec::V1),
+            0 => Ok(PersistenceCodec::OlderTestVersion),
+            1 => Ok(PersistenceCodec::V1),
             _ => Err(Error::UnknownCodecVersion),
         }
     }
 }
 
-impl AirCodec {
+impl PersistenceCodec {
     fn serialize_to_writer<T: Serialize>(
         &self,
         value: &T,
@@ -49,8 +49,8 @@ impl AirCodec {
         writer.write_all(&[*self as u8])?;
         match self {
             #[cfg(test)]
-            AirCodec::OlderTestVersion => tests::Json::to_writer(value, writer)?,
-            AirCodec::V1 => Cbor::to_writer(value, writer)?,
+            PersistenceCodec::OlderTestVersion => tests::Json::to_writer(value, writer)?,
+            PersistenceCodec::V1 => Cbor::to_writer(value, writer)?,
         }
         Ok(())
     }
@@ -70,8 +70,8 @@ impl AirCodec {
     ) -> Result<T, Box<dyn std::error::Error + Send + Sync + 'static>> {
         let res = match self {
             #[cfg(test)]
-            AirCodec::OlderTestVersion => tests::Json::from_slice(bytes)?,
-            AirCodec::V1 => Cbor::from_slice(bytes)?,
+            PersistenceCodec::OlderTestVersion => tests::Json::from_slice(bytes)?,
+            PersistenceCodec::V1 => Cbor::from_slice(bytes)?,
         };
         Ok(res)
     }
@@ -80,7 +80,7 @@ impl AirCodec {
     where
         T: Sized + Serialize,
     {
-        let codec_version = AirCodec::default();
+        let codec_version = PersistenceCodec::default();
         let res = codec_version.serialize(value).map_err(|error| CodecError {
             codec_version,
             error,
@@ -92,8 +92,8 @@ impl AirCodec {
     where
         T: DeserializeOwned,
     {
-        let codec_version_byte = bytes.first().ok_or(Error::EmptyyInputSlice)?;
-        let codec_version = AirCodec::try_from(*codec_version_byte)?;
+        let codec_version_byte = bytes.first().ok_or(Error::EmptyInputSlice)?;
+        let codec_version = PersistenceCodec::try_from(*codec_version_byte)?;
         codec_version.deserialize(&bytes[1..]).map_err(|error| {
             CodecError {
                 codec_version,
@@ -104,7 +104,7 @@ impl AirCodec {
     }
 }
 
-impl Codec for AirCodec {
+impl Codec for PersistenceCodec {
     type Error = Error;
 
     fn to_vec<T>(value: &T) -> Result<Vec<u8>, Self::Error>

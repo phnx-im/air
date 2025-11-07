@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{identifiers::Fqdn, messages::MlsInfraVersion};
+use aircommon::{identifiers::Fqdn, messages::AirProtocolVersion};
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 use super::intra_backend::DsFanOutMessage;
@@ -15,7 +15,7 @@ pub enum QsToQsPayload {
 
 #[derive(TlsSerialize, TlsDeserializeBytes, TlsSize)]
 pub struct QsToQsMessage {
-    pub protocol_version: MlsInfraVersion,
+    pub protocol_version: AirProtocolVersion,
     pub sender: Fqdn,
     pub recipient: Fqdn,
     pub payload: QsToQsPayload,

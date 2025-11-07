@@ -76,7 +76,7 @@ where
     ///
     /// # State transitions
     ///
-    /// ```norun
+    /// ```text
     /// Initial --> Running
     ///   ^       |
     ///   |       v
@@ -139,45 +139,63 @@ where
                 match event {
                     NextEvent::Event(Some(event)) => {
                         debug!(name = %self.name, id = %self.id, ?event, "received event");
-                        self.context.handle_event(event).await;
-                        self.backoff.reset();
-                        State::Running { stream, started_at }
+                        if self.context.handle_event(event).await {
+                            // Continue processing
+                            self.backoff.reset();
+                            State::Running { stream, started_at }
+                        } else {
+                            self.context.on_stream_end().await;
+                            State::Stopped { started_at }
+                        }
                     }
                     // stream exhausted
-                    NextEvent::Event(None) | NextEvent::InBackground => State::Stopped {
-                        started_at,
-                        result: Ok(()),
-                    },
-                    NextEvent::Cancelled => State::Finished,
+                    NextEvent::Event(None) => {
+                        self.context.on_stream_end().await;
+                        State::Stopped { started_at }
+                    }
+                    NextEvent::InBackground => {
+                        self.context.on_stream_end().await;
+                        State::Initial
+                    }
+                    NextEvent::Cancelled => {
+                        self.context.on_stream_end().await;
+                        State::Finished
+                    }
                 }
             }
 
-            State::Stopped { started_at, result } => {
-                match result {
-                    Ok(()) if started_at.elapsed() >= self.regular_stop_timeout => {
-                        // reset backoff after a regular stop timeout
-                        self.backoff.reset();
-                        State::Initial
-                    }
-                    _ => {
-                        // if failed faster than regular stop, retry with backoff
-                        State::Backoff {
-                            error: result.err(),
-                            timeout: self.backoff.next_backoff(),
-                        }
+            State::Stopped { started_at } => {
+                if started_at.elapsed() >= self.regular_stop_timeout {
+                    // reset backoff after a regular stop timeout
+                    self.backoff.reset();
+                    State::Initial
+                } else {
+                    // if failed faster than regular stop, retry with backoff
+                    State::Backoff {
+                        error: None,
+                        timeout: self.backoff.next_backoff(),
                     }
                 }
             }
 
             // Waits for the backoff to expire before starting again.
             State::Backoff { error, timeout } => {
-                error!(
-                    name = %self.name,
-                    id = %self.id,
-                    ?error,
-                    retry_in =? timeout,
-                    "background stream backoff"
-                );
+                if let Some(error) = error {
+                    error!(
+                        name = %self.name,
+                        id = %self.id,
+                        retry_in =? timeout,
+                        %error,
+                        "background stream backoff"
+                    );
+                } else {
+                    info!(
+                        name = %self.name,
+                        id = %self.id,
+                        retry_in =? timeout,
+                        "background stream backoff"
+                    );
+                }
                 time::sleep(timeout).await;
                 State::Initial
             }
@@ -206,10 +224,7 @@ enum State<Event> {
         started_at: Instant,
     },
     /// The event stream has been stopped with an error or gracefully.
-    Stopped {
-        result: anyhow::Result<()>,
-        started_at: Instant,
-    },
+    Stopped { started_at: Instant },
     /// The event stream has failed or stopped too fast, and is waiting for a backoff period before
     /// retrying.
     Backoff {
@@ -231,10 +246,9 @@ impl<Event: fmt::Debug> fmt::Debug for State<Event> {
                 .debug_struct("Running")
                 .field("started_at", started_at)
                 .finish_non_exhaustive(),
-            Self::Stopped { started_at, result } => f
+            Self::Stopped { started_at } => f
                 .debug_struct("Stopped")
                 .field("started_at", started_at)
-                .field("result", result)
                 .finish(),
             Self::Backoff { error, timeout } => f
                 .debug_struct("Backoff")
@@ -258,11 +272,21 @@ impl<Event> Default for State<Event> {
 pub(crate) trait BackgroundStreamContext<Event>: Send {
     /// Create the backtrack stream
     fn create_stream(
-        &self,
+        &mut self,
     ) -> impl Future<Output = anyhow::Result<impl Stream<Item = Event> + Send + 'static>> + Send;
 
+    /// Called when the stream ends
+    ///
+    /// Default implementation does nothing.
+    fn on_stream_end(&mut self) -> impl Future<Output = ()> + Send {
+        std::future::ready(())
+    }
+
     /// Handle a stream event
-    fn handle_event(&self, event: Event) -> impl Future<Output = ()> + Send;
+    ///
+    /// Returns `true` if the stream should continue to be processed, otherwise
+    /// the stream should be stopped.
+    fn handle_event(&mut self, event: Event) -> impl Future<Output = bool> + Send;
 
     /// Resolves when the app is in the foreground
     fn in_foreground(&self) -> impl Future<Output = ()> + Send;
@@ -331,7 +355,7 @@ mod test {
 
     impl BackgroundStreamContext<TestEvent> for TestContext {
         fn create_stream(
-            &self,
+            &mut self,
         ) -> impl Future<Output = anyhow::Result<impl Stream<Item = TestEvent> + 'static>> {
             let rx = self.create_stream_rx.clone();
             async move {
@@ -340,8 +364,9 @@ mod test {
             }
         }
 
-        async fn handle_event(&self, event: TestEvent) {
+        async fn handle_event(&mut self, event: TestEvent) -> bool {
             let _ = event.ack_tx.send(event.value);
+            true
         }
 
         async fn in_foreground(&self) {
@@ -368,9 +393,7 @@ mod test {
     }
 
     async fn step_with_timeout(task: &mut BackgroundStreamTask<TestContext, TestEvent>) {
-        timeout(Duration::from_millis(1100), task.step())
-            .await
-            .unwrap()
+        timeout(Duration::from_secs(2), task.step()).await.unwrap()
     }
 
     #[tokio::test]
@@ -433,7 +456,7 @@ mod test {
         drop(event_tx); // close stream
 
         step_with_timeout(&mut task).await;
-        assert_state!(task.state, State::Stopped { result: Ok(()), .. });
+        assert_state!(task.state, State::Stopped { .. });
 
         step_with_timeout(&mut task).await;
         assert_state!(
@@ -491,7 +514,7 @@ mod test {
         drop(event_tx); // close stream
 
         step_with_timeout(&mut task).await;
-        assert_state!(task.state, State::Stopped { result: Ok(()), .. });
+        assert_state!(task.state, State::Stopped { .. });
 
         step_with_timeout(&mut task).await;
         assert_state!(task.state, State::Initial); // No backoff
@@ -577,7 +600,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn background_stream_task_runnning_to_background() {
+    async fn background_stream_task_running_to_background() {
         init_test_tracing();
 
         let (context, app_state_tx, create_stream_tx) = TestContext::new();
@@ -597,17 +620,7 @@ mod test {
         app_state_tx.send(AppState::Background).unwrap();
 
         step_with_timeout(&mut task).await;
-        assert_state!(task.state, State::Stopped { result: Ok(()), .. });
-
-        step_with_timeout(&mut task).await;
-        assert_state!(
-            task.state,
-            State::Backoff {
-                error: None,
-                timeout
-            }
-            if timeout == Duration::from_secs(1)
-        );
+        assert_state!(task.state, State::Initial);
     }
 
     #[tokio::test]

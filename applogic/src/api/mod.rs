@@ -17,10 +17,12 @@
 //! without the `Base` suffix.
 
 pub mod attachments_repository;
-pub mod conversation_details_cubit;
-pub mod conversation_list_cubit;
+pub mod chat_details_cubit;
+pub mod chat_list_cubit;
+pub mod chats_repository;
 pub mod logging;
 pub mod markdown;
+pub mod member_details_cubit;
 pub mod message_content;
 pub mod message_cubit;
 pub mod message_list_cubit;

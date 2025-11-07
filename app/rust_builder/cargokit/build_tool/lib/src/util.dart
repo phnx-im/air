@@ -106,7 +106,7 @@ ProcessResult runCommand(
       result.stderr,
     );
   }
-  log.finer('Running command $executable ${arguments.join(' ')}');
+  log.info('Running command $executable ${arguments.join(' ')}');
   final res = Process.runSync(
     _resolveExecutable(executable),
     arguments,
@@ -124,6 +124,8 @@ ProcessResult runCommand(
       result: res,
     );
   } else {
+    log.info('Command ouput: ${res.stdout}');
+    log.info('Command err ouput: ${res.stderr}');
     return res;
   }
 }

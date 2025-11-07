@@ -103,7 +103,12 @@ impl BackgroundStreamContext<HandleQueueMessage> for HandleContext {
             .cubit_context
             .app_state
             .clone()
-            .wait_for(|app_state| matches!(app_state, AppState::Foreground))
+            .wait_for(|app_state| {
+                matches!(
+                    app_state,
+                    AppState::Foreground | AppState::DesktopBackground
+                )
+            })
             .await;
     }
 
@@ -112,12 +117,12 @@ impl BackgroundStreamContext<HandleQueueMessage> for HandleContext {
             .cubit_context
             .app_state
             .clone()
-            .wait_for(|app_state| matches!(app_state, AppState::Background))
+            .wait_for(|app_state| matches!(app_state, AppState::MobileBackground))
             .await;
     }
 
     async fn create_stream(
-        &self,
+        &mut self,
     ) -> anyhow::Result<impl Stream<Item = HandleQueueMessage> + 'static> {
         let (stream, responder) = self
             .cubit_context
@@ -128,7 +133,7 @@ impl BackgroundStreamContext<HandleQueueMessage> for HandleContext {
         Ok(stream.filter_map(identity))
     }
 
-    async fn handle_event(&self, message: HandleQueueMessage) {
+    async fn handle_event(&mut self, message: HandleQueueMessage) -> bool {
         let message_id = message.message_id.map(From::from);
         match self
             .cubit_context
@@ -136,10 +141,10 @@ impl BackgroundStreamContext<HandleQueueMessage> for HandleContext {
             .process_handle_queue_message(&self.handle_record.handle.clone(), message)
             .await
         {
-            Ok(conversation_id) => {
+            Ok(chat_id) => {
                 let user = User::from_core_user(self.cubit_context.core_user.clone());
                 let mut notifications = Vec::with_capacity(1);
-                user.new_connection_request_notifications(&[conversation_id], &mut notifications)
+                user.new_connection_request_notifications(&[chat_id], &mut notifications)
                     .await;
                 self.cubit_context.show_notifications(notifications).await;
             }
@@ -149,6 +154,7 @@ impl BackgroundStreamContext<HandleQueueMessage> for HandleContext {
         }
         // ack the message independently of the result of processing the message
         self.ack(message_id).await;
+        true // continue
     }
 }
 

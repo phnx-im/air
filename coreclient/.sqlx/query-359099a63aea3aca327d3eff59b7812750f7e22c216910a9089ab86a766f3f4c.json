@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT\n                    pa.size AS \"size: _\",\n                    pa.enc_alg AS \"enc_alg: _\",\n                    pa.enc_key AS \"enc_key: _\",\n                    pa.nonce AS \"nonce: _\",\n                    pa.aad AS \"aad: _\",\n                    pa.hash_alg AS \"hash_alg: _\",\n                    pa.hash AS \"hash: _\"\n                FROM pending_attachment pa\n                INNER JOIN attachment a ON a.attachment_id = pa.attachment_id\n                WHERE pa.attachment_id = ? AND a.status = 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "size: _",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "enc_alg: _",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "enc_key: _",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "nonce: _",
+        "ordinal": 3,
+        "type_info": "Blob"
+      },
+      {
+        "name": "aad: _",
+        "ordinal": 4,
+        "type_info": "Blob"
+      },
+      {
+        "name": "hash_alg: _",
+        "ordinal": 5,
+        "type_info": "Integer"
+      },
+      {
+        "name": "hash: _",
+        "ordinal": 6,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "359099a63aea3aca327d3eff59b7812750f7e22c216910a9089ab86a766f3f4c"
+}

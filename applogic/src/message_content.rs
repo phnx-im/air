@@ -19,6 +19,7 @@ pub(crate) trait MimiContentExt {
 }
 
 impl MimiContentExt for MimiContent {
+    // Message editing relies on this function returning the original input again. When we add processing to the input or the plain_body function, we need to adjust message editing.
     fn plain_body(&self) -> Option<&str> {
         match &self.nested_part.part {
             // single part message
@@ -81,6 +82,9 @@ impl From<MimiContent> for UiMimiContent {
                     .unwrap_or_else(|_| "Invalid non-UTF8 message".to_owned());
                 res.content = Some(MessageContent::parse_markdown(&plain_body));
                 res.plain_body = Some(plain_body);
+            }
+            (_, NestedPartContent::NullPart) => {
+                res.content = None;
             }
 
             // any other message

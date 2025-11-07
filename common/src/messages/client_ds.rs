@@ -21,7 +21,7 @@ use crate::{
     credentials::keys::ClientVerifyingKey,
     crypto::{
         ear::{
-            EarDecryptable, EarEncryptable, GenericDeserializable, GenericSerializable,
+            EarDecryptable, EarEncryptable,
             keys::{EncryptedUserProfileKey, GroupStateEarKey, RatchetKey},
         },
         hpke::{HpkeDecryptable, HpkeEncryptable, JoinerInfoKeyType},
@@ -32,7 +32,7 @@ use crate::{
 };
 
 use super::{
-    EncryptedQsQueueMessageCtype, MlsInfraVersion, client_as::EncryptedFriendshipPackage,
+    AirProtocolVersion, EncryptedQsQueueMessageCtype, client_as::EncryptedFriendshipPackage,
     welcome_attribution_info::EncryptedWelcomeAttributionInfo,
 };
 
@@ -62,6 +62,7 @@ pub enum QsQueueMessageType {
 pub struct QsQueueMessagePayload {
     pub timestamp: TimeStamp,
     pub message_type: QsQueueMessageType,
+    #[serde(with = "serde_bytes")]
     pub payload: Vec<u8>,
 }
 
@@ -143,35 +144,34 @@ impl EarEncryptable<RatchetKey, EncryptedQsQueueMessageCtype> for QsQueueMessage
 impl EarDecryptable<RatchetKey, EncryptedQsQueueMessageCtype> for QsQueueMessagePayload {}
 
 #[derive(TlsSerialize, TlsDeserializeBytes, TlsSize)]
-pub struct InfraAadMessage {
-    version: MlsInfraVersion,
-    payload: InfraAadPayload,
+pub struct AadMessage {
+    version: AirProtocolVersion,
+    payload: AadPayload,
 }
 
-impl From<InfraAadPayload> for InfraAadMessage {
-    fn from(payload: InfraAadPayload) -> Self {
+impl From<AadPayload> for AadMessage {
+    fn from(payload: AadPayload) -> Self {
         Self {
-            version: MlsInfraVersion::default(),
+            version: AirProtocolVersion::default(),
             payload,
         }
     }
 }
 
-impl InfraAadMessage {
-    pub fn version(&self) -> MlsInfraVersion {
+impl AadMessage {
+    pub fn version(&self) -> AirProtocolVersion {
         self.version
     }
 
-    pub fn into_payload(self) -> InfraAadPayload {
+    pub fn into_payload(self) -> AadPayload {
         self.payload
     }
 }
 
 #[derive(TlsSerialize, TlsDeserializeBytes, TlsSize)]
 #[repr(u8)]
-pub enum InfraAadPayload {
+pub enum AadPayload {
     GroupOperation(GroupOperationParamsAad),
-    Update,
     JoinConnectionGroup(JoinConnectionGroupParamsAad),
     Resync,
     DeleteGroup,
@@ -189,6 +189,7 @@ pub struct DsEventMessage {
     pub epoch: GroupEpoch,
     // Timestamp set by the DS at the time of processing the message.
     pub timestamp: TimeStamp,
+    #[serde(with = "serde_bytes")]
     pub payload: Vec<u8>,
 }
 
@@ -283,12 +284,6 @@ pub struct SelfRemoveParams {
 }
 
 #[derive(Debug)]
-pub struct SendMessageParams {
-    pub message: AssistedMessageIn,
-    pub sender: LeafNodeIndex,
-}
-
-#[derive(Debug)]
 pub struct DeleteGroupParams {
     pub commit: AssistedMessageIn,
 }
@@ -303,14 +298,6 @@ pub struct UserProfileKeyUpdateParams {
 #[derive(TlsSerialize, TlsSize, Clone, TlsDeserializeBytes)]
 pub struct DsJoinerInformation {
     pub group_state_ear_key: GroupStateEarKey,
-}
-
-impl GenericSerializable for DsJoinerInformation {
-    type Error = tls_codec::Error;
-
-    fn serialize(&self) -> Result<Vec<u8>, Self::Error> {
-        self.tls_serialize_detached()
-    }
 }
 
 #[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize, Clone)]
@@ -332,14 +319,6 @@ impl From<HpkeCiphertext> for EncryptedDsJoinerInformation {
 
 impl HpkeEncryptable<JoinerInfoKeyType, EncryptedDsJoinerInformation> for DsJoinerInformation {}
 impl HpkeDecryptable<JoinerInfoKeyType, EncryptedDsJoinerInformation> for DsJoinerInformation {}
-
-impl GenericDeserializable for DsJoinerInformation {
-    type Error = tls_codec::Error;
-
-    fn deserialize(bytes: &[u8]) -> Result<Self, Self::Error> {
-        Self::tls_deserialize_exact_bytes(bytes)
-    }
-}
 
 #[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize, Clone)]
 pub struct WelcomeBundle {

@@ -4,12 +4,13 @@
 
 [package]
 name = "airbackend"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Phoenix R&D <hello@phnx.im>"]
 edition = "2024"
 include = ["./migrations/**"]
 publish = false
 description = "Implements the local and the federation part of the protocol logic on the server side"
+license = "AGPL-3.0-or-later"
 
 [dependencies]
 aircommon = { workspace = true }
@@ -23,11 +24,11 @@ tracing = { version = "0.1.35", features = ["log"] }
 # Rust crypto dependencies
 sqlx = { workspace = true, features = ["postgres", "tls-rustls"] }
 mimi-room-policy = { workspace = true }
-tokio = "1"
+tokio = { workspace = true }
 mls-assist = { workspace = true }
 tls_codec = { workspace = true }
 privacypass = { workspace = true }
-tokio-stream = "0.1.17"
+tokio-stream = { workspace = true }
 tonic = { workspace = true }
 rand = "0.8"
 tokio-util.workspace = true
@@ -51,7 +52,7 @@ aircommon = { path = "../common", features = ["test_utils"] }
 anyhow = "1.0.97"
 insta = { workspace = true }
 serde_json = "1.0.140"
-mockall = "0.13.1"
+mockall = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 [features]

@@ -34,7 +34,7 @@ jobs:
         uses: kuhnroyal/flutter-fvm-config-action/setup@v3
         with:
           path: 'app/.fvmrc'
-          cache: false # no need caching in a manual workflow
+          cache: false
 
       - name: Run Flutter tests and update goldens
         run: just test-flutter --update-goldens

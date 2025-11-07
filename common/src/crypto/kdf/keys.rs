@@ -30,10 +30,5 @@ impl KdfDerivable<RatchetSecret, Vec<u8>, KDF_KEY_SIZE> for RatchetSecret {
 
 #[derive(Debug)]
 pub struct ConnectionKeyType;
-pub type ConnectionKey = Key<ConnectionKeyType>;
-impl RandomlyGeneratable for ConnectionKeyType {}
-impl RawKey for ConnectionKeyType {}
 
-impl KdfKey for ConnectionKey {
-    const ADDITIONAL_LABEL: &'static str = "FriendshipSecret";
-}
+impl RawKey for ConnectionKeyType {}

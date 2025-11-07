@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT message_id AS \"message_id: MessageId\"\n                        FROM message\n                        WHERE mimi_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "message_id: MessageId",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5c7f999011f3ac9abbd77fba2cc1b7a7eff98b93a54580daae695c6b0ae00c48"
+}

@@ -6,40 +6,26 @@ import 'package:flutter/material.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
 
-class EditDisplayNameScreen extends StatefulWidget {
+class EditDisplayNameScreen extends HookWidget {
   const EditDisplayNameScreen({super.key});
 
   @override
-  State<EditDisplayNameScreen> createState() => _EditDisplayNameScreenState();
-}
-
-class _EditDisplayNameScreenState extends State<EditDisplayNameScreen> {
-  final _controller = TextEditingController();
-
-  @override
-  initState() {
-    super.initState();
-    _controller.text = context.read<UsersCubit>().state.displayName();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final profilePicture = context.select(
-      (UsersCubit cubit) => cubit.state.profilePicture(),
+    final (displayName, profilePicture) = context.select(
+      (UsersCubit cubit) => (
+        cubit.state.displayName(),
+        cubit.state.profilePicture(),
+      ),
     );
 
     final loc = AppLocalizations.of(context);
+
+    final controller = useTextEditingController(text: displayName);
 
     return Scaffold(
       appBar: AppBar(
@@ -57,17 +43,18 @@ class _EditDisplayNameScreenState extends State<EditDisplayNameScreen> {
             child: Column(
               children: [
                 UserAvatar(
-                  displayName: _controller.text.trim(),
+                  displayName: controller.text.trim(),
                   image: profilePicture,
                   size: 100,
                 ),
                 const SizedBox(height: Spacings.m),
                 TextFormField(
                   autofocus: true,
-                  controller: _controller,
+                  controller: controller,
                   decoration: InputDecoration(
                     hintText: loc.userHandleScreen_inputHint,
                   ),
+                  onFieldSubmitted: (text) => _submit(context, text),
                 ),
                 const SizedBox(height: Spacings.s),
                 Align(
@@ -84,8 +71,7 @@ class _EditDisplayNameScreenState extends State<EditDisplayNameScreen> {
                 ),
                 const Spacer(),
                 OutlinedButton(
-                  onPressed: () => _submit(context),
-                  style: buttonStyle(CustomColorScheme.of(context), true),
+                  onPressed: () => _submit(context, controller.text),
                   child: Text(loc.editDisplayNameScreen_save),
                 ),
               ],
@@ -96,10 +82,10 @@ class _EditDisplayNameScreenState extends State<EditDisplayNameScreen> {
     );
   }
 
-  void _submit(BuildContext context) async {
+  void _submit(BuildContext context, String text) async {
     final userCubit = context.read<UserCubit>();
     final navigationCubit = context.read<NavigationCubit>();
-    await userCubit.setProfile(displayName: _controller.text.trim());
+    await userCubit.setProfile(displayName: text.trim());
     navigationCubit.pop();
   }
 }

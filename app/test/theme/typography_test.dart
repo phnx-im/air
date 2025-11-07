@@ -5,7 +5,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
 
 void main() {
   group('Typography', () {
@@ -13,10 +12,7 @@ void main() {
       builder: (context) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          theme: themeData(
-            MediaQuery.platformBrightnessOf(context),
-            CustomColorScheme.of(context),
-          ),
+          theme: themeData(MediaQuery.platformBrightnessOf(context)),
           home: Scaffold(
             body: SafeArea(
               child: Padding(

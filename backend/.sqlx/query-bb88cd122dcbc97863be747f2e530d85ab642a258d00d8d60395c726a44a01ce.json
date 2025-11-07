@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n                group_id,\n                ciphertext AS \"ciphertext: BlobDecoded<EncryptedDsGroupState>\",\n                last_used,\n                deleted_queues AS \"deleted_queues: BlobDecoded<Vec<SealedClientReference>>\"\n            FROM\n                encrypted_group\n            WHERE\n                group_id = $1\n            FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "group_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "ciphertext: BlobDecoded<EncryptedDsGroupState>",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "last_used",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "deleted_queues: BlobDecoded<Vec<SealedClientReference>>",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "bb88cd122dcbc97863be747f2e530d85ab642a258d00d8d60395c726a44a01ce"
+}

@@ -9,13 +9,8 @@ import 'package:air/core/core.dart';
 import 'package:air/user/user.dart';
 
 class MessageListCubit extends StateStreamableSource<MessageListState> {
-  MessageListCubit({
-    required UserCubit userCubit,
-    required ConversationId conversationId,
-  }) : _impl = MessageListCubitBase(
-         userCubit: userCubit.impl,
-         conversationId: conversationId,
-       );
+  MessageListCubit({required UserCubit userCubit, required ChatId chatId})
+    : _impl = MessageListCubitBase(userCubit: userCubit.impl, chatId: chatId);
 
   final MessageListCubitBase _impl;
 

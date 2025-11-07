@@ -20,8 +20,6 @@ service DeliveryService {
 
   rpc ConnectionGroupInfo(ConnectionGroupInfoRequest) returns (ConnectionGroupInfoResponse);
 
-  rpc Update(UpdateRequest) returns (UpdateResponse);
-
   rpc JoinConnectionGroup(JoinConnectionGroupRequest) returns (JoinConnectionGroupResponse);
 
   rpc Resync(ResyncRequest) returns (ResyncResponse);
@@ -177,22 +175,6 @@ message ConnectionGroupInfoResponse {
   RoomState room_state = 5;
 }
 
-// update
-
-message UpdateRequest {
-  UpdatePayload payload = 1;
-  common.v1.Signature signature = 2;
-}
-
-message UpdatePayload {
-  GroupStateEarKey group_state_ear_key = 1;
-  AssistedMessage commit = 2;
-}
-
-message UpdateResponse {
-  common.v1.Timestamp fanout_timestamp = 1;
-}
-
 // join connection group
 
 message JoinConnectionGroupRequest {
@@ -249,6 +231,7 @@ message SendMessagePayload {
   GroupStateEarKey group_state_ear_key = 1;
   AssistedMessage message = 2;
   LeafNodeIndex sender = 3;
+  optional bool suppress_notifications = 4;
 }
 
 message SendMessageResponse {

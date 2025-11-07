@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT last_read FROM chat\n            WHERE chat_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "last_read",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b9d43ba557a481a9ab07f867e794a7799613be36ee20a902de440a9287d55405"
+}

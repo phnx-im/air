@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                    ik.key_index as \"index: _\",\n                    ik.key_value as \"key: _\",\n                    ik.base_secret as \"base_secret: _\"\n                FROM own_key_index oki\n                JOIN indexed_key ik ON oki.key_index = ik.key_index\n                WHERE oki.key_type = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "index: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "key: _",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "base_secret: _",
+        "ordinal": 2,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "63c0a7889d7b50829d8649abe5382f6f1ce1fd260910deae59b4d3f6124f4229"
+}

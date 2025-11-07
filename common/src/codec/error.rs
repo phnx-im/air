@@ -4,12 +4,12 @@
 
 use thiserror::Error;
 
-use super::AirCodec;
+use super::PersistenceCodec;
 
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Empty input slice")]
-    EmptyyInputSlice,
+    EmptyInputSlice,
     #[error("Invalid codec version")]
     UnknownCodecVersion,
     #[error("Codec error: {0}")]
@@ -18,7 +18,7 @@ pub enum Error {
 
 #[derive(Debug, Error)]
 pub struct CodecError {
-    pub(super) codec_version: AirCodec,
+    pub(super) codec_version: PersistenceCodec,
     pub(super) error: Box<dyn std::error::Error + Send + Sync + 'static>,
 }
 

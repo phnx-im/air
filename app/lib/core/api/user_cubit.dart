@@ -15,7 +15,7 @@ import 'user.dart';
 
 // These functions are ignored because they are not marked as `pub`: `core_user`, `emit_stored_notifications`, `new`, `show_notifications`, `spawn_emit_stored_notifications`, `spawn_load`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CubitContext`, `NotificationContext`, `UiUserInner`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `drop`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `drop`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UiUser>>
 abstract class UiUser implements RustOpaqueInterface {
@@ -28,20 +28,23 @@ abstract class UiUser implements RustOpaqueInterface {
 abstract class UserCubitBase implements RustOpaqueInterface {
   Future<bool> addUserHandle({required UiUserHandle userHandle});
 
-  Future<void> addUserToConversation(
-    ConversationId conversationId,
-    UiUserId userId,
-  );
+  Future<void> addUserToChat(ChatId chatId, UiUserId userId);
 
-  Future<List<UiContact>> addableContacts({
-    required ConversationId conversationId,
-  });
+  Future<List<UiContact>> addableContacts({required ChatId chatId});
+
+  Future<void> blockContact({required UiUserId userId});
 
   Future<void> close();
 
   Future<List<UiContact>> get contacts;
 
+  Future<void> deleteAccount({required String dbPath});
+
+  Future<void> deleteChat(ChatId chatId);
+
   bool get isClosed;
+
+  Future<void> leaveChat(ChatId chatId);
 
   factory UserCubitBase({
     required User user,
@@ -51,12 +54,11 @@ abstract class UserCubitBase implements RustOpaqueInterface {
     navigation: navigation,
   );
 
-  Future<void> removeUserFromConversation(
-    ConversationId conversationId,
-    UiUserId userId,
-  );
+  Future<void> removeUserFromChat(ChatId chatId, UiUserId userId);
 
   Future<void> removeUserHandle({required UiUserHandle userHandle});
+
+  Future<void> reportSpam({required UiUserId spammerId});
 
   Future<void> setAppState({required AppState appState});
 
@@ -66,6 +68,8 @@ abstract class UserCubitBase implements RustOpaqueInterface {
   UiUser get state;
 
   Stream<UiUser> stream();
+
+  Future<void> unblockContact({required UiUserId userId});
 }
 
-enum AppState { background, foreground }
+enum AppState { mobileBackground, desktopBackground, foreground }

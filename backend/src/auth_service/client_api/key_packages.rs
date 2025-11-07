@@ -4,7 +4,7 @@
 
 use aircommon::{
     identifiers::UserHandleHash,
-    messages::connection_package::{ConnectionPackage, ConnectionPackageIn},
+    messages::connection_package::{VersionedConnectionPackage, VersionedConnectionPackageIn},
 };
 
 use crate::{
@@ -16,7 +16,7 @@ impl AuthService {
     pub(crate) async fn as_publish_connection_packages_for_handle(
         &self,
         hash: &UserHandleHash,
-        connection_packages: Vec<ConnectionPackageIn>,
+        connection_packages: Vec<VersionedConnectionPackageIn>,
     ) -> Result<(), PublishConnectionPackageError> {
         // TODO(#496): Last resort connection package
         let connection_packages = connection_packages
@@ -25,7 +25,7 @@ impl AuthService {
                 cp.verify()
                     .map_err(|_| PublishConnectionPackageError::InvalidKeyPackage)
             })
-            .collect::<Result<Vec<ConnectionPackage>, PublishConnectionPackageError>>()?;
+            .collect::<Result<Vec<VersionedConnectionPackage>, PublishConnectionPackageError>>()?;
 
         StorableConnectionPackage::store_multiple_for_handle(
             &self.db_pool,

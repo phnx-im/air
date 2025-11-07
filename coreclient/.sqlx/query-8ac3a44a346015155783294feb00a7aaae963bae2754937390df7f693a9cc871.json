@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COALESCE(MAX(status), 0) AS max\n                    FROM message_status\n                    WHERE message_id = ?1 AND (status = 1 OR status = 2)",
+  "describe": {
+    "columns": [
+      {
+        "name": "max",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8ac3a44a346015155783294feb00a7aaae963bae2754937390df7f693a9cc871"
+}

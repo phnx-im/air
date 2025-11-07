@@ -18,7 +18,8 @@ use aircommon::{
             AsCredentialsResponseIn, EncryptedUserProfile, GetUserProfileResponse,
             RegisterUserResponseIn, UserHandleDeleteResponse,
         },
-        connection_package::{ConnectionPackage, ConnectionPackageIn},
+        connection_package::ConnectionPackage,
+        connection_package::VersionedConnectionPackageIn,
     },
 };
 use airprotos::auth_service::v1::{
@@ -26,12 +27,15 @@ use airprotos::auth_service::v1::{
     CreateHandlePayload, DeleteHandlePayload, DeleteUserPayload, EnqueueConnectionOfferStep,
     FetchConnectionPackageStep, GetUserProfileRequest, HandleQueueMessage, InitListenHandlePayload,
     ListenHandleRequest, MergeUserProfilePayload, PublishConnectionPackagesPayload,
-    RegisterUserRequest, StageUserProfilePayload, connect_request, connect_response,
-    listen_handle_request,
+    RegisterUserRequest, ReportSpamPayload, StageUserProfilePayload, connect_request,
+    connect_response, listen_handle_request,
 };
 use futures_util::{FutureExt, future::BoxFuture};
 use thiserror::Error;
-use tokio::sync::{mpsc, oneshot};
+use tokio::{
+    sync::{mpsc, oneshot},
+    task::spawn_blocking,
+};
 use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
 use tonic::Request;
 use tracing::error;
@@ -192,14 +196,35 @@ impl ApiClient {
         Ok(())
     }
 
+    pub async fn as_report_spam(
+        &self,
+        reporter_id: UserId,
+        spammer_id: UserId,
+        signing_key: &ClientSigningKey,
+    ) -> Result<(), AsRequestError> {
+        let payload = ReportSpamPayload {
+            reporter_id: Some(reporter_id.into()),
+            spammer_id: Some(spammer_id.into()),
+        };
+        let request = payload.sign(signing_key)?;
+        self.as_grpc_client.client().report_spam(request).await?;
+        Ok(())
+    }
+
     pub async fn as_connect_handle(
         &self,
-        handle: &UserHandle,
-    ) -> Result<(ConnectionPackageIn, ConnectionOfferResponder), AsRequestError> {
-        let hash = handle.hash().map_err(|error| {
-            error!(%error, "failed to hash user handle");
-            AsRequestError::LibraryError
-        })?;
+        handle: UserHandle,
+    ) -> Result<(VersionedConnectionPackageIn, ConnectionOfferResponder), AsRequestError> {
+        let hash = spawn_blocking(move || handle.calculate_hash())
+            .await
+            .map_err(|error| {
+                error!(%error, "hash calculation task failed");
+                AsRequestError::LibraryError
+            })?
+            .map_err(|error| {
+                error!(%error, "failed to hash user handle");
+                AsRequestError::LibraryError
+            })?;
 
         // Step 1: Fetch connection package
         let fetch_request = ConnectRequest {
@@ -235,7 +260,7 @@ impl ApiClient {
             AsRequestError::UnexpectedResponse
         })??;
 
-        let connection_package: ConnectionPackageIn = match response {
+        let connection_package: VersionedConnectionPackageIn = match response {
             ConnectResponse {
                 step: Some(connect_response::Step::FetchResponse(fetch)),
             } => fetch

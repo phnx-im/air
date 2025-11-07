@@ -3,9 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 export 'api/attachments_repository.dart';
-export 'api/conversation_details_cubit.dart';
-export 'api/conversation_list_cubit.dart';
+export 'api/chat_details_cubit.dart';
+export 'api/chat_list_cubit.dart';
+export 'api/chats_repository.dart';
 export 'api/logging.dart';
+export 'api/member_details_cubit.dart';
 export 'api/message_content.dart';
 export 'api/message_cubit.dart';
 export 'api/message_list_cubit.dart';

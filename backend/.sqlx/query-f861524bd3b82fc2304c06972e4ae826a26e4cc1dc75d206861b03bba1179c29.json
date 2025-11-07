@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH user_info AS (\n                    -- Step 1: Fetch the user_id based on the friendship token.\n                        SELECT user_id FROM qs_user_record WHERE friendship_token = $1\n                ),\n\n                client_ids AS (\n                    -- Step 2: Retrieve client IDs for the user from the `user_info`.\n                        SELECT client_id FROM qs_client_record WHERE user_id = (SELECT user_id FROM user_info)\n                ),\n\n                ranked_packages AS (\n                    -- Step 3: Rank key packages for each client.\n                        SELECT p.id, p.key_package, p.is_last_resort,\n                           ROW_NUMBER() OVER (PARTITION BY p.client_id ORDER BY p.is_last_resort ASC) AS rn\n                        FROM key_package p\n                    INNER JOIN client_ids c ON p.client_id = c.client_id\n                ),\n\n                selected_key_packages AS (\n                    -- Step 4: Select the best-ranked package per client (rn = 1), skipping locked rows.\n                    SELECT id, key_package, is_last_resort\n                    FROM ranked_packages\n                    WHERE rn = 1\n                    FOR UPDATE SKIP LOCKED\n                ),\n\n                deleted_packages AS (\n                    -- Step 5: Delete the selected packages that are not marked as last_resort.\n                        DELETE FROM key_package\n                    WHERE id IN (SELECT id FROM selected_key_packages WHERE is_last_resort = FALSE)\n                    RETURNING key_package\n                )\n\n                -- Step 6: Return the key_package from the selected packages.\n                SELECT key_package as \"key_package: BlobDecoded<Self>\" FROM selected_key_packages",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "key_package: BlobDecoded<Self>",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f861524bd3b82fc2304c06972e4ae826a26e4cc1dc75d206861b03bba1179c29"
+}

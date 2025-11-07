@@ -4,8 +4,8 @@
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:air/conversation_details/conversation_details.dart';
-import 'package:air/conversation_list/conversation_list_cubit.dart';
+import 'package:air/chat/chat_details.dart';
+import 'package:air/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/message_list/message_cubit.dart';
 import 'package:air/message_list/message_list_cubit.dart';
@@ -73,19 +73,22 @@ class MockUsersState implements UsersState {
   bool get isDisposed => false;
 }
 
-class MockConversationDetailsCubit extends MockCubit<ConversationDetailsState>
-    implements ConversationDetailsCubit {}
+class MockChatDetailsCubit extends MockCubit<ChatDetailsState>
+    implements ChatDetailsCubit {}
 
-class MockConversationListCubit extends MockCubit<ConversationListState>
-    implements ConversationListCubit {}
+class MockChatListCubit extends MockCubit<ChatListState>
+    implements ChatListCubit {}
 
 class MockMessageListCubit extends MockCubit<MessageListState>
     implements MessageListCubit {}
 
 class MockMessageListState implements MessageListState {
-  MockMessageListState(this.messages);
+  MockMessageListState(this.messages, {this.isConnectionChat = false});
 
-  final List<UiConversationMessage> messages;
+  final List<UiChatMessage> messages;
+
+  @override
+  final bool isConnectionChat;
 
   @override
   void dispose() {}
@@ -97,13 +100,17 @@ class MockMessageListState implements MessageListState {
   int get loadedMessagesCount => messages.length;
 
   @override
-  UiConversationMessage? messageAt(int index) =>
-      messages.elementAtOrNull(index);
+  UiChatMessage? messageAt(int index) => messages.elementAtOrNull(index);
 
   @override
-  int? messageIdIndex(ConversationMessageId messageId) {
+  int? messageIdIndex(MessageId messageId) {
     final index = messages.indexWhere((element) => element.id == messageId);
     return index != -1 ? index : null;
+  }
+
+  @override
+  bool isNewMessage(MessageId messageId) {
+    return false;
   }
 }
 
@@ -125,3 +132,5 @@ class MockAttachmentsRepository extends Mock implements AttachmentsRepository {}
 
 class MockUserSettingsCubit extends MockCubit<UserSettings>
     implements UserSettingsCubit {}
+
+class MockChatsRepository extends Mock implements ChatsRepository {}

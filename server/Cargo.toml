@@ -4,10 +4,11 @@
 
 [package]
 name = "airserver"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 publish = false
 description = "Server that makes the logic implemented in the backend available to clients via a REST API"
+license = "AGPL-3.0-or-later"
 
 [lib]
 path = "src/lib.rs"
@@ -43,10 +44,10 @@ tls_codec = { workspace = true }
 reqwest = { workspace = true }
 tonic = { workspace = true }
 tower-http = { workspace = true }
-tokio-stream = { workspace = true, features = ["net"] }
-tower_governor = "0.7.0"
+tokio-stream = { workspace = true }
+tower_governor = { workspace = true }
 anyhow = "1.0.98"
-tonic-health = "0.13.0"
+tonic-health = { workspace = true }
 
 [dev-dependencies]
 tracing-futures = "^0.2.5"

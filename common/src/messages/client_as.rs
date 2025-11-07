@@ -11,7 +11,12 @@ use crate::{
         AsCredential, AsCredentialBody, AsIntermediateCredential, ClientCredential,
         ClientCredentialPayload,
     },
-    crypto::{RatchetEncryptionKey, ear::Ciphertext, hash::Hash, kdf::keys::RatchetSecret},
+    crypto::{
+        Labeled, RatchetEncryptionKey,
+        ear::Ciphertext,
+        hash::{Hash, Hashable},
+        kdf::keys::RatchetSecret,
+    },
     messages::connection_package::ConnectionPackageHash,
 };
 
@@ -38,6 +43,14 @@ pub struct RegisterUserResponse {
 pub struct EncryptedFriendshipPackageCtype;
 pub type EncryptedFriendshipPackage = Ciphertext<EncryptedFriendshipPackageCtype>;
 
+impl Labeled for EncryptedConnectionOffer {
+    const LABEL: &'static str = "EncryptedConnectionOffer";
+}
+
+impl Hashable for EncryptedConnectionOffer {}
+
+pub type ConnectionOfferHash = Hash<EncryptedConnectionOffer>;
+
 #[derive(Debug, TlsDeserializeBytes, TlsSerialize, TlsSize)]
 pub struct EncryptedConnectionOffer {
     ciphertext: HpkeCiphertext,
@@ -58,6 +71,10 @@ impl ConnectionOfferMessage {
             connection_package_hash,
             ciphertext,
         }
+    }
+
+    pub fn connection_offer_hash(&self) -> ConnectionOfferHash {
+        self.ciphertext.hash()
     }
 
     pub fn into_parts(self) -> (EncryptedConnectionOffer, ConnectionPackageHash) {

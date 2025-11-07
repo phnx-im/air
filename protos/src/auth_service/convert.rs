@@ -26,12 +26,12 @@ use crate::{
 };
 
 use super::v1::{
-    AsCredential, AsCredentialBody, AsIntermediateCredential, AsIntermediateCredentialBody,
-    AsIntermediateCredentialCsr, AsIntermediateCredentialPayload, AsIntermediateVerifyingKey,
-    AsVerifyingKey, ClientCredential, ClientCredentialCsr, ClientCredentialPayload,
-    ClientVerifyingKey, ConnectionEncryptionKey, ConnectionOfferMessage, ConnectionPackage,
-    ConnectionPackagePayload, EncryptedUserProfile, HandleSignature, HandleVerifyingKey, Hash,
-    MlsInfraVersion, SignatureScheme, UserHandleHash, UserId,
+    AirProtocolVersion, AsCredential, AsCredentialBody, AsIntermediateCredential,
+    AsIntermediateCredentialBody, AsIntermediateCredentialCsr, AsIntermediateCredentialPayload,
+    AsIntermediateVerifyingKey, AsVerifyingKey, ClientCredential, ClientCredentialCsr,
+    ClientCredentialPayload, ClientVerifyingKey, ConnectionEncryptionKey, ConnectionOfferMessage,
+    ConnectionPackage, ConnectionPackagePayload, EncryptedUserProfile, HandleSignature,
+    HandleVerifyingKey, Hash, SignatureScheme, UserHandleHash, UserId,
 };
 
 impl From<identifiers::UserId> for UserId {
@@ -85,7 +85,7 @@ impl TryFrom<ClientCredentialCsr> for credentials::ClientCredentialCsr {
 
     fn try_from(proto: ClientCredentialCsr) -> Result<Self, Self::Error> {
         let version = match proto.msl_version {
-            0 => messages::MlsInfraVersion::Alpha,
+            0 => messages::AirProtocolVersion::Alpha,
             version => return Err(ClientCredentialCsrError::UnexpectedMlsVersion(version)),
         };
         let signature_scheme = SignatureScheme::try_from(proto.signature_scheme)
@@ -167,20 +167,20 @@ impl From<ClientVerifyingKey> for credentials::keys::ClientVerifyingKey {
     }
 }
 
-impl From<messages::MlsInfraVersion> for MlsInfraVersion {
-    fn from(value: messages::MlsInfraVersion) -> Self {
+impl From<messages::AirProtocolVersion> for AirProtocolVersion {
+    fn from(value: messages::AirProtocolVersion) -> Self {
         Self {
             version: value as u32,
         }
     }
 }
 
-impl TryFrom<MlsInfraVersion> for messages::MlsInfraVersion {
+impl TryFrom<AirProtocolVersion> for messages::AirProtocolVersion {
     type Error = UnsupportedMlsVersion;
 
-    fn try_from(value: MlsInfraVersion) -> Result<Self, Self::Error> {
+    fn try_from(value: AirProtocolVersion) -> Result<Self, Self::Error> {
         match value.version {
-            0 => Ok(messages::MlsInfraVersion::Alpha),
+            0 => Ok(messages::AirProtocolVersion::Alpha),
             _ => Err(UnsupportedMlsVersion(value.version)),
         }
     }
@@ -289,6 +289,16 @@ impl From<ClientCredentialPayloadError> for Status {
     }
 }
 
+impl From<messages::connection_package_v1::ConnectionPackageV1> for ConnectionPackage {
+    fn from(value: messages::connection_package_v1::ConnectionPackageV1) -> Self {
+        let (payload, signature) = value.into_parts();
+        Self {
+            payload: Some(payload.into()),
+            signature: Some(signature.into()),
+        }
+    }
+}
+
 impl From<messages::connection_package::ConnectionPackage> for ConnectionPackage {
     fn from(value: messages::connection_package::ConnectionPackage) -> Self {
         let (payload, signature) = value.into_parts();
@@ -299,23 +309,20 @@ impl From<messages::connection_package::ConnectionPackage> for ConnectionPackage
     }
 }
 
-impl TryFrom<ConnectionPackage> for messages::connection_package::ConnectionPackageIn {
-    type Error = ConnectionPackageError;
-
-    fn try_from(proto: ConnectionPackage) -> Result<Self, Self::Error> {
-        Ok(Self::new(
-            proto.payload.ok_or_missing_field("payload")?.try_into()?,
-            proto.signature.ok_or_missing_field("signature")?.into(),
-        ))
-    }
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectionPackageError {
     #[error(transparent)]
     MissingField(#[from] MissingFieldError<&'static str>),
     #[error(transparent)]
-    Payload(#[from] ConnectionPackagePayloadError),
+    Csr(#[from] ClientCredentialCsrError),
+    #[error(transparent)]
+    ExpirationData(#[from] ExpirationDataError),
+    #[error("Invalid credential fingerprint: {0}")]
+    CredentialFingerprint(#[from] HashError),
+    #[error(transparent)]
+    UserHandleHash(#[from] UserHandleHashError),
+    #[error(transparent)]
+    Version(#[from] UnsupportedMlsVersion),
 }
 
 impl From<ConnectionPackageError> for Status {
@@ -332,48 +339,92 @@ impl From<messages::connection_package::ConnectionPackagePayload> for Connection
             lifetime: Some(value.lifetime.into()),
             verifying_key: Some(value.verifying_key.into()),
             user_handle_hash: Some(value.user_handle_hash.into()),
+            is_last_resort: Some(value.is_last_resort.0),
         }
     }
 }
 
-impl TryFrom<ConnectionPackagePayload> for messages::connection_package::ConnectionPackagePayload {
-    type Error = ConnectionPackagePayloadError;
-
-    fn try_from(proto: ConnectionPackagePayload) -> Result<Self, Self::Error> {
-        Ok(Self {
-            protocol_version: proto
-                .protocol_version
-                .ok_or_missing_field("protocol_version")?
-                .try_into()?,
-            encryption_key: proto
-                .encryption_key
-                .ok_or_missing_field("encryption_key")?
-                .into(),
-            lifetime: proto.lifetime.ok_or_missing_field("lifetime")?.try_into()?,
-            verifying_key: proto
-                .verifying_key
-                .ok_or_missing_field("verifying_key")?
-                .into(),
-            user_handle_hash: proto
-                .user_handle_hash
-                .ok_or_missing_field("user_handle_hash")?
-                .try_into()?,
-        })
+impl From<messages::connection_package_v1::ConnectionPackageV1Payload>
+    for ConnectionPackagePayload
+{
+    fn from(value: messages::connection_package_v1::ConnectionPackageV1Payload) -> Self {
+        Self {
+            protocol_version: Some(value.protocol_version.into()),
+            encryption_key: Some(value.encryption_key.into()),
+            lifetime: Some(value.lifetime.into()),
+            verifying_key: Some(value.verifying_key.into()),
+            user_handle_hash: Some(value.user_handle_hash.into()),
+            is_last_resort: None,
+        }
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum ConnectionPackagePayloadError {
-    #[error(transparent)]
-    MissingField(#[from] MissingFieldError<&'static str>),
-    #[error(transparent)]
-    Version(#[from] UnsupportedMlsVersion),
-    #[error(transparent)]
-    Lifetime(#[from] ExpirationDataError),
-    #[error(transparent)]
-    ClientCredential(#[from] ClientCredentialError),
-    #[error(transparent)]
-    UserHandleHash(#[from] UserHandleHashError),
+impl From<messages::connection_package::VersionedConnectionPackage> for ConnectionPackage {
+    fn from(value: messages::connection_package::VersionedConnectionPackage) -> Self {
+        match value {
+            messages::connection_package::VersionedConnectionPackage::V1(cp_v1) => {
+                ConnectionPackage::from(cp_v1)
+            }
+            messages::connection_package::VersionedConnectionPackage::V2(cp_v2) => {
+                ConnectionPackage::from(cp_v2)
+            }
+        }
+    }
+}
+
+impl TryFrom<ConnectionPackage> for messages::connection_package::VersionedConnectionPackageIn {
+    type Error = ConnectionPackageError;
+
+    fn try_from(proto: ConnectionPackage) -> Result<Self, Self::Error> {
+        let payload: ConnectionPackagePayload = proto.payload.ok_or_missing_field("payload")?;
+        let protocol_version = payload
+            .protocol_version
+            .ok_or_missing_field("protocol_version")?
+            .try_into()?;
+        let encryption_key = payload
+            .encryption_key
+            .ok_or_missing_field("encryption_key")?
+            .into();
+        let lifetime = payload
+            .lifetime
+            .ok_or_missing_field("lifetime")?
+            .try_into()?;
+        let verifying_key = payload
+            .verifying_key
+            .ok_or_missing_field("verifying_key")?
+            .into();
+        let user_handle_hash = payload
+            .user_handle_hash
+            .ok_or_missing_field("user_handle_hash")?
+            .try_into()?;
+        let is_last_resort = payload.is_last_resort.map(|b| b.into());
+        let signature = proto.signature.ok_or_missing_field("signature")?.into();
+        let result = if let Some(is_last_resort) = is_last_resort {
+            let payload = messages::connection_package::ConnectionPackagePayload {
+                protocol_version,
+                encryption_key,
+                lifetime,
+                verifying_key,
+                user_handle_hash,
+                is_last_resort,
+            };
+            Self::V2(messages::connection_package::ConnectionPackageIn::new(
+                payload, signature,
+            ))
+        } else {
+            let payload = messages::connection_package_v1::ConnectionPackageV1Payload {
+                protocol_version,
+                encryption_key,
+                lifetime,
+                verifying_key,
+                user_handle_hash,
+            };
+            Self::V1(messages::connection_package_v1::ConnectionPackageV1In::new(
+                payload, signature,
+            ))
+        };
+        Ok(result)
+    }
 }
 
 impl From<crypto::ConnectionEncryptionKey> for ConnectionEncryptionKey {

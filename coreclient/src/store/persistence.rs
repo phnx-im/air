@@ -5,7 +5,7 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
 use aircommon::{
-    codec::AirCodec,
+    codec::PersistenceCodec,
     identifiers::{AttachmentId, UserId},
 };
 use enumset::EnumSet;
@@ -18,7 +18,7 @@ use tokio_stream::StreamExt;
 use tracing::error;
 use uuid::Uuid;
 
-use crate::{ConversationId, ConversationMessageId};
+use crate::{ChatId, MessageId};
 
 use super::{StoreEntityId, StoreNotification, StoreOperation, notification::StoreEntityKind};
 
@@ -38,14 +38,12 @@ impl<'q> Encode<'q, Sqlite> for StoreEntityId {
     ) -> Result<IsNull, BoxDynError> {
         match self {
             StoreEntityId::User(user_id) => {
-                let bytes = AirCodec::to_vec(&StoredUserId(Cow::Borrowed(user_id)))?;
+                let bytes = PersistenceCodec::to_vec(&StoredUserId(Cow::Borrowed(user_id)))?;
                 Encode::<Sqlite>::encode(bytes, buf)
             }
-            StoreEntityId::Conversation(conversation_id) => {
-                Encode::<Sqlite>::encode_by_ref(&conversation_id.uuid, buf)
-            }
-            StoreEntityId::Message(conversation_message_id) => {
-                Encode::<Sqlite>::encode_by_ref(&conversation_message_id.uuid, buf)
+            StoreEntityId::Chat(chat_id) => Encode::<Sqlite>::encode_by_ref(&chat_id.uuid, buf),
+            StoreEntityId::Message(message_id) => {
+                Encode::<Sqlite>::encode_by_ref(&message_id.uuid, buf)
             }
             StoreEntityId::Attachment(attachment_id) => {
                 Encode::<Sqlite>::encode_by_ref(&attachment_id.uuid, buf)
@@ -95,14 +93,14 @@ impl SqlStoreNotification {
         } = self;
         let entity_id = match kind {
             StoreEntityKind::User => {
-                let StoredUserId(user_id) = AirCodec::from_slice(&entity_id)?;
+                let StoredUserId(user_id) = PersistenceCodec::from_slice(&entity_id)?;
                 StoreEntityId::User(user_id.into_owned())
             }
-            StoreEntityKind::Conversation => {
-                StoreEntityId::Conversation(ConversationId::new(Uuid::from_slice(&entity_id)?))
+            StoreEntityKind::Chat => {
+                StoreEntityId::Chat(ChatId::new(Uuid::from_slice(&entity_id)?))
             }
             StoreEntityKind::Message => {
-                StoreEntityId::Message(ConversationMessageId::new(Uuid::from_slice(&entity_id)?))
+                StoreEntityId::Message(MessageId::new(Uuid::from_slice(&entity_id)?))
             }
             StoreEntityKind::Attachment => {
                 StoreEntityId::Attachment(AttachmentId::new(Uuid::from_slice(&entity_id)?))
@@ -134,7 +132,7 @@ impl StoreNotification {
             let updated = operation.contains(StoreOperation::Update);
             let removed = operation.contains(StoreOperation::Remove);
             query!(
-                "INSERT INTO store_notifications (entity_id, kind, added, updated, removed)
+                "INSERT INTO store_notification (entity_id, kind, added, updated, removed)
                 VALUES (?1, ?2, ?3, ?4, ?5)
                 ON CONFLICT DO UPDATE SET
                     added = MAX(?3, added),
@@ -158,7 +156,7 @@ impl StoreNotification {
     ) -> sqlx::Result<StoreNotification> {
         let mut records = query_as!(
             SqlStoreNotification,
-            r#"DELETE FROM store_notifications RETURNING
+            r#"DELETE FROM store_notification RETURNING
                 entity_id,
                 kind AS "kind: _",
                 added,
@@ -189,7 +187,7 @@ mod tests {
     use sqlx::SqlitePool;
     use uuid::Uuid;
 
-    use crate::{ConversationId, ConversationMessageId};
+    use crate::{ChatId, MessageId};
 
     use super::*;
 
@@ -201,13 +199,13 @@ mod tests {
             StoreOperation::Add.into(),
         );
         notification.ops.insert(
-            StoreEntityId::Conversation(ConversationId {
+            StoreEntityId::Chat(ChatId {
                 uuid: Uuid::new_v4(),
             }),
             StoreOperation::Update.into(),
         );
         notification.ops.insert(
-            StoreEntityId::Message(ConversationMessageId {
+            StoreEntityId::Message(MessageId {
                 uuid: uuid::Uuid::new_v4(),
             }),
             StoreOperation::Remove | StoreOperation::Update,
@@ -226,33 +224,30 @@ mod tests {
 
     #[sqlx::test]
     async fn queue_notification_with_conflict(pool: SqlitePool) -> anyhow::Result<()> {
-        let conversation_id = ConversationId::new(Uuid::new_v4());
+        let chat_id = ChatId::new(Uuid::new_v4());
 
         let mut notification = StoreNotification::default();
-        notification.ops.insert(
-            StoreEntityId::Conversation(conversation_id),
-            StoreOperation::Add.into(),
-        );
+        notification
+            .ops
+            .insert(StoreEntityId::Chat(chat_id), StoreOperation::Add.into());
         notification.enqueue(pool.acquire().await?.as_mut()).await?;
 
         let mut notification = StoreNotification::default();
-        notification.ops.insert(
-            StoreEntityId::Conversation(conversation_id),
-            StoreOperation::Update.into(),
-        );
+        notification
+            .ops
+            .insert(StoreEntityId::Chat(chat_id), StoreOperation::Update.into());
         notification.enqueue(pool.acquire().await?.as_mut()).await?;
 
         let mut notification = StoreNotification::default();
-        notification.ops.insert(
-            StoreEntityId::Conversation(conversation_id),
-            StoreOperation::Remove.into(),
-        );
+        notification
+            .ops
+            .insert(StoreEntityId::Chat(chat_id), StoreOperation::Remove.into());
         notification.enqueue(pool.acquire().await?.as_mut()).await?;
 
         let dequeued_notification = StoreNotification::dequeue(&pool).await?;
         let expected = StoreNotification {
             ops: [(
-                StoreEntityId::Conversation(conversation_id),
+                StoreEntityId::Chat(chat_id),
                 StoreOperation::Add | StoreOperation::Update | StoreOperation::Remove,
             )]
             .into(),

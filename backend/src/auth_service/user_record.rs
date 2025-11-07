@@ -103,7 +103,7 @@ pub(crate) mod persistence {
                 r#"SELECT
                     encrypted_user_profile AS "encrypted_user_profile: _",
                     staged_user_profile AS "staged_user_profile: _"
-                FROM as_user_records
+                FROM as_user_record
                 WHERE user_uuid = $1 AND user_domain = $2"#,
                 user_id.uuid(),
                 user_id.domain() as _,
@@ -123,7 +123,7 @@ pub(crate) mod persistence {
             connection: impl PgExecutor<'_>,
         ) -> Result<(), StorageError> {
             query!(
-                "UPDATE as_user_records
+                "UPDATE as_user_record
                 SET encrypted_user_profile = $1, staged_user_profile = $2
                 WHERE user_uuid = $3 AND user_domain = $4",
                 self.encrypted_user_profile as _,
@@ -143,7 +143,7 @@ pub(crate) mod persistence {
             connection: impl PgExecutor<'_>,
         ) -> Result<(), StorageError> {
             query!(
-                "INSERT INTO as_user_records
+                "INSERT INTO as_user_record
                     (user_uuid, user_domain, encrypted_user_profile, staged_user_profile)
                     VALUES ($1, $2, $3, $4)",
                 self.user_id.uuid(),
@@ -169,7 +169,7 @@ pub(crate) mod persistence {
         ) -> Result<(), sqlx::Error> {
             // The database cascades the delete to the clients and their connection packages.
             query!(
-                "DELETE FROM as_user_records WHERE user_uuid = $1 AND user_domain = $2",
+                "DELETE FROM as_user_record WHERE user_uuid = $1 AND user_domain = $2",
                 user_id.uuid(),
                 user_id.domain() as _,
             )

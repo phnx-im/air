@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                group_id AS \"group_id: _\",\n                identity_link_wrapper_key AS \"identity_link_wrapper_key: _\",\n                group_state_ear_key AS \"group_state_ear_key: _\",\n                pending_diff AS \"pending_diff: _\",\n                room_state AS \"room_state: _\"\n            FROM \"group\" WHERE group_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "group_id: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "identity_link_wrapper_key: _",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "group_state_ear_key: _",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "pending_diff: _",
+        "ordinal": 3,
+        "type_info": "Blob"
+      },
+      {
+        "name": "room_state: _",
+        "ordinal": 4,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "dabcb88d9419abc712a4e22bb8a96aafa6d3ef6a513c83f9af2b7695d46776c4"
+}

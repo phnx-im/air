@@ -14,12 +14,14 @@ members = [
     "common",
     "applogic",
     "protos",
+    "mls-assist",
 ]
 
 [workspace.dependencies]
 # internal dependencies
 aircommon = { path = "./common" }
 airprotos = { path = "./protos" }
+mls-assist = { path = "./mls-assist" }
 
 uuid = "1.16.0"
 
@@ -32,7 +34,7 @@ sqlx = { version = "0.8.5", default-features = false, features = [
     "runtime-tokio",
 ] }
 
-mimi-room-policy = { git = "https://github.com/phnx-im/mimi-room-policy", rev = "fdb7c4bd7ad399e8244b3e7db13e120d5d646ad9" }
+mimi-room-policy = { git = "https://github.com/phnx-im/mimi-room-policy", rev = "6406e6d84c1219da3afcccb91007f2fdaaf61193" }
 
 tls_codec = { version = "0.4.1", features = ["derive", "serde", "mls"] }
 
@@ -48,14 +50,10 @@ thiserror = "2.0"
 blake3 = "1.8.2"
 sha2 = "0.10.9"
 
+openmls_traits = { version = "0.4.1" }
 privacypass = { git = "https://github.com/raphaelrobert/privacypass" }
-privacypass-middleware = { git = "https://github.com/phnx-im/pp-middleware" }
-openmls = { git = "https://github.com/openmls/openmls" }
-openmls_memory_storage = { git = "https://github.com/openmls/openmls" }
-openmls_rust_crypto = { git = "https://github.com/openmls/openmls" }
-openmls_traits = { git = "https://github.com/openmls/openmls" }
-mls-assist = { git = "https://github.com/phnx-im/mls-assist" }
-
+openmls = { version = "0.7.1" }
+openmls_rust_crypto = { version = "0.4.1" }
 tracing-subscriber = { version = "0.3", features = [
     "env-filter",
     "tracing-log",
@@ -63,25 +61,29 @@ tracing-subscriber = { version = "0.3", features = [
 ] }
 
 tokio = { version = "1.18.2", features = ["macros"] }
-tokio-stream = "0.1.17"
+tokio-stream = { version = "0.1.17", features = ["sync"] }
 tokio-util = "0.7.13"
 derive_more = { version = "0.99.19", features = ["from"] }
+displaydoc = "0.2.5"
+mockall = "0.13.1"
 
-mimi_content = { git = "https://github.com/phnx-im/mimi-content", rev = "bbb1e2a22a58a9598e4e17d44c70c8d1bb4b5e89" }
+mimi_content = { git = "https://github.com/boxdot/mimi-content", rev = "18af569b6074ed5b63cb2d5086ffea3acfad3f02" }
 
 insta = { version = "1.42.1", features = ["json"] }
 
 # grpc/protobuf
-prost = "0.13.5"
-tonic = { version = "0.13.0", features = ["tls-ring", "tls-webpki-roots"] }
-tonic-build = "0.13.0"
+prost = "0.14.0"
+tonic = { version = "0.14.0", features = ["tls-ring", "tls-webpki-roots"] }
+tonic-prost = "0.14.0"
+tonic-prost-build = "0.14.0"
+tonic-health = "0.14.0"
 tower-http = { version = "0.6.2", features = ["trace"] }
+tower_governor = "0.8.0"
 
 [patch.crates-io]
 # PR: <https://github.com/RustCrypto/formats/pull/1656/files>
 tls_codec = { git = "https://github.com/boxdot/formats", rev = "9846c69f91e732b493dcccf92f4c163bfc711b7d" }
-# PR: <https://github.com/benwis/tower-governor/pull/53>
-tower_governor = { git = "https://github.com/boxdot/tower-governor", rev = "556d9f8" }
+tls_codec_derive = { git = "https://github.com/boxdot/formats", rev = "9846c69f91e732b493dcccf92f4c163bfc711b7d" }
 
 [profile.release]
 strip = true

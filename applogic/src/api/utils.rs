@@ -13,3 +13,11 @@ pub async fn delete_databases(db_path: String) -> anyhow::Result<()> {
 pub async fn delete_client_database(db_path: String, user_id: UiUserId) -> anyhow::Result<()> {
     aircoreclient::delete_client_database(&db_path, &user_id.into()).await
 }
+
+pub async fn export_client_database(db_path: String, user_id: UiUserId) -> anyhow::Result<Vec<u8>> {
+    aircoreclient::export_client_database(&db_path, &user_id.into()).await
+}
+
+pub async fn import_client_database(db_path: String, tar_gz_bytes: Vec<u8>) -> anyhow::Result<()> {
+    aircoreclient::import_client_database(&db_path, &tar_gz_bytes).await
+}

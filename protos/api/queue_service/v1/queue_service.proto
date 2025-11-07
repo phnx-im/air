@@ -21,11 +21,9 @@ service QueueService {
   rpc PublishKeyPackages(PublishKeyPackagesRequest) returns (PublishKeyPackagesResponse);
   rpc KeyPackage(KeyPackageRequest) returns (KeyPackageResponse);
 
-  rpc DequeueMessages(DequeueMessagesRequest) returns (DequeueMessagesResponse);
-
   rpc QsEncryptionKey(QsEncryptionKeyRequest) returns (QsEncryptionKeyResponse);
 
-  rpc Listen(ListenRequest) returns (stream QueueEvent);
+  rpc Listen(stream ListenRequest) returns (stream QueueEvent);
 }
 
 // common
@@ -178,15 +176,36 @@ message ClientIdEncryptionKey {
 // listen
 
 message ListenRequest {
-  QsClientId client_id = 1;
+  oneof request {
+    InitListenRequest init = 1;
+    AckListenRequest ack = 2;
+    FetchListenRequest fetch = 3;
+  }
 }
+
+message InitListenRequest {
+  QsClientId client_id = 1;
+  // Sequence number to start listening from (inclusive)
+  uint64 sequence_number_start = 2;
+}
+
+message AckListenRequest {
+  // Sequence number to acknowledge up to (exclusive)
+  uint64 up_to_sequence_number = 2;
+}
+
+message FetchListenRequest {}
 
 message QueueEvent {
   oneof event {
-    QueueEventUpdate update = 1;
-    QueueEventPayload payload = 2;
+    QueueEmpty empty = 1;
+    QueueMessage message = 2;
+    QueueEventPayload payload = 3;
   }
 }
+
+// Event notifying receipients that the queue is empty
+message QueueEmpty {}
 
 // Event notifying receipients that something was added to their queue
 //

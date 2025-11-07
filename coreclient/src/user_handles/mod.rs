@@ -10,6 +10,7 @@ use aircommon::{
 };
 use anyhow::Context;
 pub use persistence::UserHandleRecord;
+use tokio::task::spawn_blocking;
 use tracing::error;
 
 use crate::{
@@ -27,14 +28,15 @@ impl CoreUser {
     /// Returns a handle record on success, or `None` if the handle was already present.
     pub(crate) async fn add_user_handle(
         &self,
-        handle: &UserHandle,
+        handle: UserHandle,
     ) -> StoreResult<Option<UserHandleRecord>> {
         let signing_key = HandleSigningKey::generate()?;
-        let hash = handle.hash()?;
+        let handle_inner = handle.clone();
+        let hash = spawn_blocking(move || handle_inner.calculate_hash()).await??;
 
         let api_client = self.api_client()?;
         let created = api_client
-            .as_create_handle(handle, hash, &signing_key)
+            .as_create_handle(&handle, hash, &signing_key)
             .await?;
         if !created {
             return Ok(None);
@@ -75,7 +77,7 @@ impl CoreUser {
         let mut connection_packages = Vec::with_capacity(connection_package_bundles.len());
         for (decryption_key, connection_package) in connection_package_bundles {
             connection_package
-                .store_for_handle(&mut txn, handle, &decryption_key)
+                .store_for_handle(&mut txn, &handle, &decryption_key)
                 .await?;
             connection_packages.push(connection_package);
         }
@@ -128,9 +130,12 @@ fn generate_connection_packages(
     hash: UserHandleHash,
 ) -> anyhow::Result<Vec<(ConnectionDecryptionKey, ConnectionPackage)>> {
     let mut connection_packages = Vec::with_capacity(CONNECTION_PACKAGES);
-    for _ in 0..CONNECTION_PACKAGES {
-        let connection_package = ConnectionPackage::new(hash, signing_key)?;
+    for _ in 0..CONNECTION_PACKAGES - 1 {
+        let connection_package = ConnectionPackage::new(hash, signing_key, false)?;
         connection_packages.push(connection_package);
     }
+    // Last resort connection package
+    let connection_package = ConnectionPackage::new(hash, signing_key, true)?;
+    connection_packages.push(connection_package);
     Ok(connection_packages)
 }

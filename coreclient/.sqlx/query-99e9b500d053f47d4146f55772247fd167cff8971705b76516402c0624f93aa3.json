@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT\n                    handle AS \"handle: _\",\n                    hash AS \"hash: _\",\n                    signing_key AS \"signing_key: _\"\n                FROM user_handle\n                ORDER BY created_at ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "handle: _",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "hash: _",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "signing_key: _",
+        "ordinal": 2,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "99e9b500d053f47d4146f55772247fd167cff8971705b76516402c0624f93aa3"
+}

@@ -34,7 +34,7 @@ fn benchmarks(c: &mut Criterion) {
     let alice = UserId::new(Uuid::from_u128(1), "example.com".parse().unwrap());
     let bob = UserId::new(Uuid::from_u128(2), "example.com".parse().unwrap());
 
-    let conversation_alice_bob = runtime.block_on(async {
+    let chat_alice_bob = runtime.block_on(async {
         let mut setup = setup.lock().await;
         setup.add_user(&alice).await;
         setup.add_user(&bob).await;
@@ -97,13 +97,11 @@ fn benchmarks(c: &mut Criterion) {
                 let mut setup = setup.lock().await;
                 for _ in 0..iter {
                     let time = Instant::now();
-                    setup
-                        .send_message(conversation_alice_bob, &alice, vec![&bob])
-                        .await;
+                    setup.send_message(chat_alice_bob, &alice, vec![&bob]).await;
                     elapsed += time.elapsed()
                 }
                 // update group, otherwise we get too far in to the future error from MLS
-                setup.update_group(conversation_alice_bob, &alice).await;
+                setup.update_group(chat_alice_bob, &alice).await;
                 elapsed
             }
         })
@@ -133,10 +131,10 @@ fn benchmarks(c: &mut Criterion) {
                 let mut setup = setup.lock().await;
                 for _ in 0..iter {
                     // Create an independent group for Alice
-                    let conversation_id = setup.create_group(&alice).await;
+                    let chat_id = setup.create_group(&alice).await;
                     let bobs = bobs.iter().collect();
                     let time = Instant::now();
-                    setup.invite_to_group(conversation_id, &alice, bobs).await;
+                    setup.invite_to_group(chat_id, &alice, bobs).await;
                     elapsed += time.elapsed();
                 }
                 elapsed
@@ -144,13 +142,13 @@ fn benchmarks(c: &mut Criterion) {
         });
     });
 
-    let conversation_id = runtime.block_on(async {
+    let chat_id = runtime.block_on(async {
         let mut setup = setup.lock().await;
-        let conversation_id = setup.create_group(&alice).await;
+        let chat_id = setup.create_group(&alice).await;
         setup
-            .invite_to_group(conversation_id, &alice, bobs.iter().collect())
+            .invite_to_group(chat_id, &alice, bobs.iter().collect())
             .await;
-        conversation_id
+        chat_id
     });
 
     group.bench_function("send_message_to_group", |b| {
@@ -164,7 +162,7 @@ fn benchmarks(c: &mut Criterion) {
                 for _ in 0..iter {
                     let bobs = bobs.iter().collect();
                     let time = Instant::now();
-                    setup.send_message(conversation_id, &alice, bobs).await;
+                    setup.send_message(chat_id, &alice, bobs).await;
                     elapsed += time.elapsed();
                 }
                 elapsed

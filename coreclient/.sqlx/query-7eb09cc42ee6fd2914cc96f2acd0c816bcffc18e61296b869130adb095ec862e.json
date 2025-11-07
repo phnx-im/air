@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                user_handle AS \"handle: _\",\n                chat_id AS \"chat_id: _\",\n                friendship_package_ear_key AS \"friendship_package_ear_key: _\",\n                connection_offer_hash AS \"connection_offer_hash: _\"\n            FROM user_handle_contact",
+  "describe": {
+    "columns": [
+      {
+        "name": "handle: _",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "chat_id: _",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "friendship_package_ear_key: _",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "connection_offer_hash: _",
+        "ordinal": 3,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7eb09cc42ee6fd2914cc96f2acd0c816bcffc18e61296b869130adb095ec862e"
+}

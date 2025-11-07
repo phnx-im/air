@@ -2,11 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use chrono::Duration;
-use mls_assist::{
-    openmls::prelude::HashType, openmls_rust_crypto::RustCrypto,
-    openmls_traits::crypto::OpenMlsCrypto,
-};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tls_codec::{Serialize as _, TlsSerialize, TlsSize};
@@ -18,16 +13,72 @@ use crate::{
         ConnectionDecryptionKey, ConnectionEncryptionKey, Labeled,
         errors::RandomnessError,
         hash::{Hash, Hashable},
-        signatures::signable::Signable,
+        signatures::{private_keys::SignatureVerificationError, signable::Signable},
     },
     identifiers::UserHandleHash,
-    messages::MlsInfraVersion,
+    messages::{
+        AirProtocolVersion,
+        connection_package::payload::TlsBool,
+        connection_package_v1::{
+            CONNECTION_PACKAGE_EXPIRATION, ConnectionPackageV1, ConnectionPackageV1In,
+        },
+    },
     time::{ExpirationData, TimeStamp},
 };
 
 pub use payload::{ConnectionPackageIn, ConnectionPackagePayload};
 
-pub(crate) const CONNECTION_PACKAGE_EXPIRATION: Duration = Duration::days(30);
+const LABEL: &str = "ConnectionPackage";
+
+/// This enum holds different versions of `ConnectionPackage`. It exists to
+/// allow separate processing (especially signature verification) of the
+/// ProtoBuf ConnectionPackage. For example, the ProtoBuf version gained an
+/// extra field that indicates whether the connection is a last resort. This
+/// field is not present in the original version of ConnectionPackage and the
+/// presence of the signature means we cannot just change the struct without
+/// breaking backwards compatibility.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VersionedConnectionPackage {
+    V1(ConnectionPackageV1),
+    V2(ConnectionPackage),
+}
+
+impl VersionedConnectionPackage {
+    pub fn is_last_resort(&self) -> Option<bool> {
+        match self {
+            VersionedConnectionPackage::V1(_) => None,
+            VersionedConnectionPackage::V2(cp_v2) => Some(cp_v2.is_last_resort()),
+        }
+    }
+
+    pub fn into_current(self) -> ConnectionPackage {
+        match self {
+            VersionedConnectionPackage::V1(cp) => cp.into(),
+            VersionedConnectionPackage::V2(cp_v2) => cp_v2,
+        }
+    }
+}
+
+/// See [`VersionedConnectionPackage`].
+pub enum VersionedConnectionPackageIn {
+    V1(ConnectionPackageV1In),
+    V2(ConnectionPackageIn),
+}
+
+impl VersionedConnectionPackageIn {
+    pub fn verify(self) -> Result<VersionedConnectionPackage, SignatureVerificationError> {
+        match self {
+            VersionedConnectionPackageIn::V1(cp) => {
+                let verified = cp.verify()?;
+                Ok(VersionedConnectionPackage::V1(verified))
+            }
+            VersionedConnectionPackageIn::V2(cp) => {
+                let verified = cp.verify()?;
+                Ok(VersionedConnectionPackage::V2(verified))
+            }
+        }
+    }
+}
 
 mod payload {
     use super::*;
@@ -41,17 +92,45 @@ mod payload {
             },
         },
         identifiers::UserHandleHash,
-        messages::MlsInfraVersion,
+        messages::AirProtocolVersion,
         time::ExpirationData,
     };
 
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(transparent)]
+    pub struct TlsBool(pub bool);
+
+    impl From<bool> for TlsBool {
+        fn from(value: bool) -> Self {
+            TlsBool(value)
+        }
+    }
+
+    impl tls_codec::Size for TlsBool {
+        fn tls_serialized_len(&self) -> usize {
+            1
+        }
+    }
+
+    impl tls_codec::Serialize for TlsBool {
+        fn tls_serialize<W: std::io::Write>(
+            &self,
+            writer: &mut W,
+        ) -> Result<usize, tls_codec::Error> {
+            let byte = if self.0 { 1u8 } else { 0u8 };
+            writer.write_all(&[byte])?;
+            Ok(1)
+        }
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq, TlsSerialize, TlsSize, Serialize, Deserialize)]
     pub struct ConnectionPackagePayload {
-        pub protocol_version: MlsInfraVersion,
+        pub protocol_version: AirProtocolVersion,
         pub user_handle_hash: UserHandleHash,
         pub encryption_key: ConnectionEncryptionKey,
         pub lifetime: ExpirationData,
         pub verifying_key: HandleVerifyingKey,
+        pub is_last_resort: TlsBool,
     }
 
     mod private_mod {
@@ -67,7 +146,7 @@ mod payload {
         }
 
         fn label(&self) -> &str {
-            "ConnectionPackage"
+            LABEL
         }
     }
 
@@ -104,7 +183,7 @@ mod payload {
         }
 
         fn label(&self) -> &str {
-            "ConnectionPackage"
+            LABEL
         }
     }
 
@@ -121,28 +200,12 @@ mod payload {
 }
 
 impl Labeled for ConnectionPackage {
-    const LABEL: &'static str = "ConnectionPackage";
+    const LABEL: &'static str = LABEL;
 }
 
 pub type ConnectionPackageHash = Hash<ConnectionPackage>;
 
-// Custom implementation of `Hashable` for `ConnectionPackage` to ensure
-// backwards compatibility.
-impl Hashable for ConnectionPackage {
-    fn hash(&self) -> ConnectionPackageHash {
-        let rust_crypto = RustCrypto::default();
-        let payload = self.tls_serialize_detached().unwrap_or_default();
-        debug_assert!(!payload.is_empty());
-        let input = [b"Connection Package".to_vec(), payload].concat();
-        let value: [u8; 32] = rust_crypto
-            .hash(HashType::Sha2_256, &input)
-            .unwrap_or_default()
-            .try_into()
-            // Output length of `hash` is always 32 bytes
-            .unwrap();
-        Hash::from_bytes(value)
-    }
-}
+impl Hashable for ConnectionPackage {}
 
 #[derive(Debug, Clone, PartialEq, Eq, TlsSerialize, TlsSize, Serialize, Deserialize)]
 pub struct ConnectionPackage {
@@ -162,14 +225,16 @@ impl ConnectionPackage {
     pub fn new(
         user_handle_hash: UserHandleHash,
         signing_key: &HandleSigningKey,
+        is_last_resort: bool,
     ) -> Result<(ConnectionDecryptionKey, Self), ConnectionPackageError> {
         let decryption_key = ConnectionDecryptionKey::generate()?;
         let payload = ConnectionPackagePayload {
-            protocol_version: MlsInfraVersion::default(),
+            protocol_version: AirProtocolVersion::default(),
             user_handle_hash,
             encryption_key: decryption_key.encryption_key().clone(),
             lifetime: ExpirationData::new(CONNECTION_PACKAGE_EXPIRATION),
             verifying_key: signing_key.verifying_key().clone(),
+            is_last_resort: TlsBool(is_last_resort),
         };
         let connection_package = payload.sign(signing_key)?;
         Ok((decryption_key, connection_package))
@@ -191,32 +256,27 @@ impl ConnectionPackage {
         self.payload.lifetime.not_after()
     }
 
+    pub fn is_last_resort(&self) -> bool {
+        self.payload.is_last_resort.0
+    }
+
     #[cfg(feature = "test_utils")]
     pub fn new_for_test(payload: ConnectionPackagePayload, signature: HandleSignature) -> Self {
         Self { payload, signature }
     }
 }
 
-pub mod legacy {
-    use super::*;
-
-    use crate::{
-        credentials::{ClientCredential, keys::ClientSignature},
-        messages::MlsInfraVersion,
-        time::ExpirationData,
-    };
-
-    #[derive(Debug, Clone, PartialEq, Eq, TlsSerialize, TlsSize, Serialize, Deserialize)]
-    pub struct ConnectionPackagePayloadV1 {
-        pub protocol_version: MlsInfraVersion,
-        pub encryption_key: ConnectionEncryptionKey,
-        pub lifetime: ExpirationData,
-        pub client_credential: ClientCredential,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, TlsSerialize, TlsSize, Serialize, Deserialize)]
-    pub struct ConnectionPackageV1 {
-        payload: ConnectionPackagePayloadV1,
-        signature: ClientSignature,
+impl From<ConnectionPackageV1> for ConnectionPackage {
+    fn from(v1: ConnectionPackageV1) -> Self {
+        let (payload, signature) = v1.into_parts();
+        let payload = ConnectionPackagePayload {
+            protocol_version: payload.protocol_version,
+            user_handle_hash: payload.user_handle_hash,
+            encryption_key: payload.encryption_key,
+            lifetime: payload.lifetime,
+            verifying_key: payload.verifying_key,
+            is_last_resort: false.into(),
+        };
+        Self { payload, signature }
     }
 }

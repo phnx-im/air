@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT verifying_key AS \"verifying_key: HandleVerifyingKey\"\n                FROM as_user_handle WHERE hash = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "verifying_key: HandleVerifyingKey",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "51eaef39a37921d9e2ca0ec0903e3893811a40bb851bffd32f672510dc362469"
+}

@@ -18,9 +18,6 @@ For security, the protocol relies mainly on the strong security guarantees
 provided by the underlying MLS protocol. The authentication service required by
 the MLS protocol is a simple signature-based PKI.
 
-The documentation including the full specification for the Air Protocol can
-be found [here](https://docs.phnx.im).
-
 ## Code structure
 
 The implementation spans client, server and test-specific components. It is
@@ -39,7 +36,7 @@ split across multiple crates:
   expose the HTTP endpoints. A `Dockerfile` is available to build a Docker image
   that contains the server binary.
 - `coreclient`: Implements the protocol logic of the client component. The
-  `coreclient` stores and manages a user's contacts, conversations, as well as
+  `coreclient` stores and manages a user's contacts, chats, as well as
   the underlying MLS groups. It provides a high-level API to make use of the
   protocol in the context of a messaging application. Just like the `backend`,
   the `coreclient` uses a type-based message verification approach. The crate
@@ -72,7 +69,7 @@ Before starting, ensure you have the following tools installed:
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/phnx-im/infra
+git clone https://github.com/phnx-im/air
 ```
 
 2. Install [Rust](https://www.rust-lang.org/tools/install)

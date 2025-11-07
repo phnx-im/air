@@ -12,8 +12,8 @@ use thiserror::Error;
 use user_handles::UserHandleQueues;
 
 use crate::{
+    air_service::{BackendService, ServiceCreationError},
     errors::StorageError,
-    infra_service::{InfraService, ServiceCreationError},
 };
 
 pub mod client_api;
@@ -45,9 +45,9 @@ impl<T: Into<sqlx::Error>> From<T> for AuthServiceCreationError {
     }
 }
 
-impl InfraService for AuthService {
+impl BackendService for AuthService {
     async fn initialize(db_pool: PgPool, domain: Fqdn) -> Result<Self, ServiceCreationError> {
-        let handle_queues = UserHandleQueues::new(db_pool.clone());
+        let handle_queues = UserHandleQueues::new(db_pool.clone()).await?;
         let auth_service = Self {
             db_pool,
             handle_queues,

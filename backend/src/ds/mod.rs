@@ -10,8 +10,8 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::{
+    air_service::{BackendService, ServiceCreationError},
     ds::storage::Storage,
-    infra_service::{InfraService, ServiceCreationError},
 };
 pub use grpc::GrpcDs;
 
@@ -25,7 +25,6 @@ pub mod process;
 mod resync;
 mod self_remove;
 pub mod storage;
-mod update;
 mod update_user_profile_key;
 
 /// Number of days after its last use upon which a group state is considered
@@ -43,7 +42,7 @@ pub struct Ds {
 #[derive(Debug)]
 pub(crate) struct ReservedGroupId(Uuid);
 
-impl InfraService for Ds {
+impl BackendService for Ds {
     async fn initialize(db_pool: PgPool, domain: Fqdn) -> Result<Self, ServiceCreationError> {
         let ds = Self {
             own_domain: domain,

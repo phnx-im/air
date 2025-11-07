@@ -4,7 +4,7 @@
 
 use std::mem;
 
-use aircoreclient::ConversationId;
+use aircoreclient::ChatId;
 use flutter_rust_bridge::frb;
 use tokio::sync::watch;
 
@@ -36,12 +36,11 @@ pub enum NavigationState {
 #[frb(dart_metadata = ("freezed"))]
 pub enum IntroScreenType {
     Intro,
-    ServerChoice,
-    DisplayNamePicture,
+    SignUp,
     DeveloperSettings(DeveloperSettingsScreenType),
 }
 
-/// Conversations screen: main screen of the app
+/// Chats screen: main screen of the app
 ///
 /// Note: this can be represented in a better way disallowing invalid states.
 /// For now, following KISS we represent the navigation stack in a very simple
@@ -50,23 +49,27 @@ pub enum IntroScreenType {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[frb(dart_metadata = ("freezed"))]
 pub struct HomeNavigationState {
-    /// Indicates whether a conversation is open independently of the state of the conversation id.
+    /// Indicates whether a chat is open independently of the state of the chat id.
     ///
-    /// When this flag is true and a conversation id is set, the conversation is open. When it is
-    /// false, no conversation is open, even if the conversation id is set.
+    /// When this flag is true and a chat id is set, the chat is open. When it is
+    /// false, no chat is open, even if the chat id is set.
     ///
-    /// Allows to close a conversation without setting the conversation id to `None`.
+    /// Allows to close a chat without setting the chat id to `None`.
     #[frb(default = false)]
-    pub conversation_open: bool,
-    pub conversation_id: Option<ConversationId>,
+    pub chat_open: bool,
+    pub chat_id: Option<ChatId>,
     pub developer_settings_screen: Option<DeveloperSettingsScreenType>,
     /// User name of the member that details are currently open
     pub member_details: Option<UiUserId>,
     pub user_settings_screen: Option<UserSettingsScreenType>,
     #[frb(default = false)]
-    pub conversation_details_open: bool,
+    pub chat_details_open: bool,
     #[frb(default = false)]
     pub add_members_open: bool,
+    #[frb(default = false)]
+    pub group_members_open: bool,
+    #[frb(default = false)]
+    pub create_group_open: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,6 +86,8 @@ pub enum UserSettingsScreenType {
     Root,
     EditDisplayName,
     AddUserHandle,
+    Help,
+    DeleteAccount,
 }
 
 impl NavigationState {
@@ -161,42 +166,63 @@ impl NavigationCubitBase {
         });
     }
 
-    pub async fn open_conversation(&self, conversation_id: ConversationId) {
+    pub async fn open_chat(&self, chat_id: ChatId) {
         self.core.state_tx().send_if_modified(|state| match state {
             NavigationState::Intro { .. } => {
                 *state = HomeNavigationState {
-                    conversation_open: true,
-                    conversation_id: Some(conversation_id),
+                    chat_open: true,
+                    chat_id: Some(chat_id),
                     ..Default::default()
                 }
                 .into();
                 true
             }
             NavigationState::Home { home } => {
-                let was_open = mem::replace(&mut home.conversation_open, true);
-                let different_id =
-                    home.conversation_id.replace(conversation_id) != Some(conversation_id);
+                let was_open = mem::replace(&mut home.chat_open, true);
+                let different_id = home.chat_id.replace(chat_id) != Some(chat_id);
                 !was_open || different_id
             }
         });
 
-        // Cancel the active notifications for the current conversation
+        // Cancel the active notifications for the current chat
         let handles = self.notification_service.get_active_notifications().await;
         let identifiers = handles
             .into_iter()
-            .filter_map(|handle| {
-                (handle.conversation_id? == conversation_id).then_some(handle.identifier)
-            })
+            .filter_map(|handle| (handle.chat_id? == chat_id).then_some(handle.identifier))
             .collect();
         self.notification_service
             .cancel_notifications(identifiers)
             .await;
     }
 
-    pub fn close_conversation(&self) {
+    pub fn close_chat(&self) {
         self.core.state_tx().send_if_modified(|state| match state {
             NavigationState::Intro { .. } => false,
-            NavigationState::Home { home } => mem::replace(&mut home.conversation_open, false),
+            NavigationState::Home { home } => {
+                let mut changed = false;
+                if mem::replace(&mut home.chat_open, false) {
+                    changed = true;
+                }
+                if mem::replace(&mut home.chat_details_open, false) {
+                    changed = true;
+                }
+                if mem::replace(&mut home.add_members_open, false) {
+                    changed = true;
+                }
+                if mem::replace(&mut home.group_members_open, false) {
+                    changed = true;
+                }
+                if mem::replace(&mut home.create_group_open, false) {
+                    changed = true;
+                }
+                if home.member_details.take().is_some() {
+                    changed = true;
+                }
+                if home.chat_id.take().is_some() {
+                    changed = true;
+                }
+                changed
+            }
         });
     }
 
@@ -217,12 +243,10 @@ impl NavigationCubitBase {
         });
     }
 
-    pub fn open_conversation_details(&self) {
+    pub fn open_chat_details(&self) {
         self.core.state_tx().send_if_modified(|state| match state {
             NavigationState::Intro { .. } => false,
-            NavigationState::Home { home } => {
-                !mem::replace(&mut home.conversation_details_open, true)
-            }
+            NavigationState::Home { home } => !mem::replace(&mut home.chat_details_open, true),
         });
     }
 
@@ -230,6 +254,20 @@ impl NavigationCubitBase {
         self.core.state_tx().send_if_modified(|state| match state {
             NavigationState::Intro { .. } => false,
             NavigationState::Home { home } => !mem::replace(&mut home.add_members_open, true),
+        });
+    }
+
+    pub fn open_group_members(&self) {
+        self.core.state_tx().send_if_modified(|state| match state {
+            NavigationState::Intro { .. } => false,
+            NavigationState::Home { home } => !mem::replace(&mut home.group_members_open, true),
+        });
+    }
+
+    pub fn open_create_group(&self) {
+        self.core.state_tx().send_if_modified(|state| match state {
+            NavigationState::Intro { .. } => false,
+            NavigationState::Home { home } => !mem::replace(&mut home.create_group_open, true),
         });
     }
 
@@ -326,7 +364,9 @@ impl NavigationCubitBase {
                         user_settings_screen:
                             Some(
                                 UserSettingsScreenType::EditDisplayName
-                                | UserSettingsScreenType::AddUserHandle,
+                                | UserSettingsScreenType::AddUserHandle
+                                | UserSettingsScreenType::Help
+                                | UserSettingsScreenType::DeleteAccount,
                             ),
                         ..
                     },
@@ -339,20 +379,26 @@ impl NavigationCubitBase {
                 home.member_details.take();
                 true
             }
-            NavigationState::Home { home }
-                if home.conversation_id.is_some() && home.add_members_open =>
-            {
+            NavigationState::Home { home } if home.create_group_open => {
+                home.create_group_open = false;
+                true
+            }
+            NavigationState::Home { home } if home.chat_id.is_some() && home.add_members_open => {
                 home.add_members_open = false;
                 true
             }
-            NavigationState::Home { home }
-                if home.conversation_id.is_some() && home.conversation_details_open =>
-            {
-                home.conversation_details_open = false;
+            NavigationState::Home { home } if home.chat_id.is_some() && home.group_members_open => {
+                home.group_members_open = false;
                 true
             }
-            NavigationState::Home { home } if home.conversation_id.is_some() => {
-                home.conversation_open = false;
+            NavigationState::Home { home } if home.chat_id.is_some() && home.chat_details_open => {
+                home.chat_details_open = false;
+                home.group_members_open = false;
+                home.add_members_open = false;
+                true
+            }
+            NavigationState::Home { home } if home.chat_id.is_some() => {
+                home.chat_open = false;
                 true
             }
             NavigationState::Home { .. } => false,

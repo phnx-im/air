@@ -13,7 +13,7 @@ use tracing::error;
 use super::{content::MimiContentExt, persistence::PendingAttachmentRecord};
 
 use crate::{
-    ConversationMessage,
+    ChatMessage,
     clients::{
         CoreUser,
         attachment::{AttachmentRecord, persistence::AttachmentStatus},
@@ -27,12 +27,12 @@ impl CoreUser {
     /// directly, because first the message needs to be stored due to foreign key constraints.
     /// But this function also modifies the message's mimi content.
     pub(crate) fn extract_attachments(
-        message: &mut ConversationMessage,
+        message: &mut ChatMessage,
     ) -> Vec<(AttachmentRecord, PendingAttachmentRecord)> {
         let mut records = Vec::new();
 
-        let conversation_id = message.conversation_id();
-        let conversation_message_id = message.id();
+        let chat_id = message.chat_id();
+        let message_id = message.id();
         let created_at = message.timestamp();
 
         let Some(mimi_content) = message.message_mut().mimi_content_mut() else {
@@ -70,8 +70,8 @@ impl CoreUser {
             // pending attachment record.
             let record = AttachmentRecord {
                 attachment_id,
-                conversation_id,
-                conversation_message_id,
+                chat_id,
+                message_id,
                 content_type: content_type.clone(),
                 status: AttachmentStatus::Pending,
                 created_at,

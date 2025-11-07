@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO as_user_handles_queue (\n                    message_id,\n                    hash,\n                    message_bytes\n                ) VALUES ($1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8064e20fdb04e1f9de29b0dc69d809f4aad190de18807b3b6b1ce8b3573a2444"
+}

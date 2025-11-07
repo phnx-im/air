@@ -10,11 +10,9 @@ import 'package:air/core/core.dart';
 import 'package:uuid/uuid.dart';
 
 extension IntTestExtension on int {
-  ConversationId conversationId() =>
-      ConversationId(uuid: _intToUuidValue(this));
+  ChatId chatId() => ChatId(uuid: _intToUuidValue(this));
 
-  ConversationMessageId conversationMessageId() =>
-      ConversationMessageId(uuid: _intToUuidValue(this));
+  MessageId messageId() => MessageId(uuid: _intToUuidValue(this));
 
   /// Convert an int to a [ClientId].
   UiUserId userId({String domain = "localhost"}) =>
@@ -78,13 +76,4 @@ class LocalFileComparatorWithThreshold extends LocalFileComparator {
       return result.passed;
     }
   }
-}
-
-String platformGolden(String baseName) {
-  if (Platform.isMacOS) return '$baseName.macos.png';
-  if (Platform.isWindows) return '$baseName.windows.png';
-  if (Platform.isLinux) return '$baseName.linux.png';
-  if (Platform.isAndroid) return '$baseName.android.png';
-  if (Platform.isIOS) return '$baseName.ios.png';
-  return '$baseName.png';
 }

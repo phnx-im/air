@@ -4,6 +4,8 @@
 
 //! Server that makes the logic implemented in the backend available to clients via a REST API
 
+#![warn(clippy::large_futures)]
+
 use std::time::Duration;
 
 use airbackend::{
@@ -19,7 +21,6 @@ use airprotos::{
     queue_service::v1::queue_service_server::QueueServiceServer,
 };
 use connect_info::ConnectInfoInterceptor;
-use dispatch::DispatchNotifier;
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::service::InterceptorLayer;
 use tonic_health::pb::health_server::{Health, HealthServer};
@@ -31,7 +32,6 @@ use tracing::{Level, enabled, info};
 
 pub mod configurations;
 mod connect_info;
-pub mod dispatch;
 pub mod enqueue_provider;
 pub mod network_provider;
 pub mod push_notification_provider;
@@ -43,7 +43,6 @@ pub struct ServerRunParams<Qc> {
     pub auth_service: AuthService,
     pub qs: Qs,
     pub qs_connector: Qc,
-    pub dispatch_notifier: DispatchNotifier,
     pub rate_limits: RateLimitsConfig,
 }
 
@@ -65,7 +64,6 @@ pub async fn run<
         auth_service,
         qs,
         qs_connector,
-        dispatch_notifier,
         rate_limits,
     }: ServerRunParams<Qc>,
 ) -> impl Future<Output = Result<(), tonic::transport::Error>> {
@@ -78,7 +76,7 @@ pub async fn run<
     // GRPC server
     let grpc_as = GrpcAs::new(auth_service);
     let grpc_ds = GrpcDs::new(ds, qs_connector);
-    let grpc_qs = GrpcQs::new(qs, dispatch_notifier);
+    let grpc_qs = GrpcQs::new(qs);
 
     let RateLimitsConfig { period, burst_size } = rate_limits;
     let governor_config = GovernorConfigBuilder::default()
@@ -133,8 +131,6 @@ async fn configure_health_service<
     reporter
         .set_serving::<DeliveryServiceServer<GrpcDs<Qc>>>()
         .await;
-    reporter
-        .set_serving::<QueueServiceServer<GrpcQs<DispatchNotifier>>>()
-        .await;
+    reporter.set_serving::<QueueServiceServer<GrpcQs>>().await;
     service
 }

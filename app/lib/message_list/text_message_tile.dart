@@ -2,11 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/core/api/markdown.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/attachments/attachments.dart';
-import 'package:air/conversation_details/conversation_details.dart';
+import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/timestamp.dart';
@@ -16,12 +17,15 @@ import 'package:air/ui/typography/font_size.dart';
 import 'package:air/ui/typography/monospace.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:iconoir_flutter/regular/attachment.dart';
+import 'package:iconoir_flutter/regular/xmark.dart';
 
 import 'message_renderer.dart';
 
 const double largeCornerRadius = Spacings.sm;
 const double smallCornerRadius = Spacings.xxs;
-const double messageHorizontalPadding = Spacings.xs;
+const double messageHorizontalPadding = Spacings.s;
 const double messageVerticalPadding = Spacings.xxs;
 
 const _messagePadding = EdgeInsets.symmetric(
@@ -36,23 +40,24 @@ class TextMessageTile extends StatelessWidget {
     required this.timestamp,
     required this.flightPosition,
     required this.status,
+    required this.isSender,
+    required this.showSender,
     super.key,
   });
 
-  final ConversationMessageId messageId;
+  final MessageId messageId;
   final UiContentMessage contentMessage;
   final String timestamp;
   final UiFlightPosition flightPosition;
   final UiMessageStatus status;
+  final bool isSender;
+  final bool showSender;
 
   @override
   Widget build(BuildContext context) {
-    final userId = context.select((UserCubit cubit) => cubit.state.userId);
-    final isSender = contentMessage.sender == userId;
-
     return Column(
       children: [
-        if (!isSender && flightPosition.isFirst)
+        if (showSender && !isSender && flightPosition.isFirst)
           _Sender(sender: contentMessage.sender, isSender: false),
         _MessageView(
           messageId: messageId,
@@ -67,7 +72,7 @@ class TextMessageTile extends StatelessWidget {
   }
 }
 
-class _MessageView extends StatelessWidget {
+class _MessageView extends HookWidget {
   const _MessageView({
     required this.messageId,
     required this.contentMessage,
@@ -77,7 +82,7 @@ class _MessageView extends StatelessWidget {
     required this.status,
   });
 
-  final ConversationMessageId messageId;
+  final MessageId messageId;
   final UiContentMessage contentMessage;
   final String timestamp;
   final UiFlightPosition flightPosition;
@@ -86,69 +91,90 @@ class _MessageView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // We use this to make an indent on the side of the receiver
-    const flex = Flexible(child: SizedBox.shrink());
+    final isRevealed = useState(false);
 
     final showMessageStatus =
-        isSender && flightPosition.isLast && status != UiMessageStatus.sending;
+        isSender &&
+        flightPosition.isLast &&
+        status != UiMessageStatus.sending &&
+        status != UiMessageStatus.hidden;
 
-    return Row(
-      mainAxisAlignment:
-          isSender ? MainAxisAlignment.end : MainAxisAlignment.start,
-      children: [
-        if (isSender) flex,
-        Flexible(
-          flex: 5,
-          child: Container(
-            padding: EdgeInsets.only(
-              top: flightPosition.isFirst ? 5 : 0,
-              bottom: flightPosition.isLast ? 5 : 0,
-            ),
-            child: Column(
-              crossAxisAlignment:
-                  isSender ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-              children: [
-                InkWell(
-                  mouseCursor: SystemMouseCursors.basic,
-                  onLongPress:
-                      () => context
-                          .read<ConversationDetailsCubit>()
-                          .editMessage(messageId: messageId),
-                  child: _MessageContent(
-                    content: contentMessage.content,
-                    isSender: isSender,
-                    flightPosition: flightPosition,
-                    isEdited: contentMessage.edited,
-                  ),
-                ),
-                if (flightPosition.isLast) ...[
-                  const SizedBox(height: 2),
-                  Row(
-                    mainAxisAlignment:
+    return Align(
+      alignment: isSender ? Alignment.centerRight : Alignment.centerLeft,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: constraints.maxWidth * 5 / 6),
+            child: Container(
+              padding: EdgeInsets.only(
+                top: flightPosition.isFirst ? 5 : 0,
+                bottom: flightPosition.isLast ? 5 : 0,
+              ),
+              child: Column(
+                crossAxisAlignment:
+                    isSender
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
+                children: [
+                  InkWell(
+                    mouseCursor: SystemMouseCursors.basic,
+                    onTap: () => isRevealed.value = true,
+                    onLongPress:
                         isSender
-                            ? MainAxisAlignment.end
-                            : MainAxisAlignment.start,
-                    children: [
-                      const SizedBox(width: Spacings.s),
-                      Timestamp(timestamp),
-                      if (showMessageStatus)
-                        const SizedBox(width: Spacings.xxxs),
-                      if (showMessageStatus)
-                        DoubleCheckIcon(
-                          size: LabelFontSize.small2.size,
-                          singleCheckIcon: status == UiMessageStatus.sent,
-                          inverted: status == UiMessageStatus.read,
-                        ),
-                      const SizedBox(width: Spacings.xs),
-                    ],
+                            ? () => context
+                                .read<ChatDetailsCubit>()
+                                .editMessage(messageId: messageId)
+                            : null,
+                    child: _MessageContent(
+                      content: contentMessage.content,
+                      isSender: isSender,
+                      flightPosition: flightPosition,
+                      isEdited: contentMessage.edited,
+                      isHidden:
+                          status == UiMessageStatus.hidden && !isRevealed.value,
+                    ),
                   ),
+                  if (flightPosition.isLast) ...[
+                    const SizedBox(height: 2),
+                    Row(
+                      mainAxisAlignment:
+                          isSender
+                              ? MainAxisAlignment.end
+                              : MainAxisAlignment.start,
+                      children: [
+                        const SizedBox(width: Spacings.s),
+                        Timestamp(timestamp),
+                        if (showMessageStatus)
+                          const SizedBox(width: Spacings.xxxs),
+                        if (showMessageStatus) _MessageStatus(status: status),
+                        const SizedBox(width: Spacings.xs),
+                      ],
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-        ),
-        if (!isSender) flex,
-      ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MessageStatus extends StatelessWidget {
+  const _MessageStatus({required this.status});
+
+  final UiMessageStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final readReceiptsEnabled = context.select(
+      (UserSettingsCubit cubit) => cubit.state.readReceipts,
+    );
+    return DoubleCheckIcon(
+      size: LabelFontSize.small2.size,
+      singleCheckIcon: status == UiMessageStatus.sent,
+      inverted: readReceiptsEnabled && status == UiMessageStatus.read,
     );
   }
 }
@@ -159,16 +185,70 @@ class _MessageContent extends StatelessWidget {
     required this.isSender,
     required this.flightPosition,
     required this.isEdited,
+    required this.isHidden,
   });
 
   final UiMimiContent content;
   final bool isSender;
   final UiFlightPosition flightPosition;
   final bool isEdited;
+  final bool isHidden;
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
+
+    final bool isDeleted = content.replaces != null && content.content == null;
+
+    final contentElements =
+        isHidden
+            ? [
+              Padding(
+                padding: _messagePadding,
+                child: Text(
+                  loc.textMessage_hiddenPlaceholder,
+                  style: TextStyle(
+                    fontStyle: FontStyle.italic,
+                    fontSize: BodyFontSize.base.size,
+                    color: CustomColorScheme.of(context).text.tertiary,
+                  ),
+                ),
+              ),
+            ]
+            : [
+              if (isDeleted)
+                Padding(
+                  padding: _messagePadding,
+                  child: buildBlockElement(
+                    context,
+                    BlockElement.error(loc.textMessage_deleted),
+                    isSender,
+                  ),
+                ),
+              if (content.attachments.firstOrNull case final attachment?)
+                switch (attachment.imageMetadata) {
+                  null => _FileAttachmentContent(
+                    attachment: attachment,
+                    isSender: isSender,
+                  ),
+                  final imageMetadata => _ImageAttachmentContent(
+                    attachment: attachment,
+                    imageMetadata: imageMetadata,
+                    isSender: isSender,
+                    flightPosition: flightPosition,
+                    hasMessage: content.content?.elements.isNotEmpty ?? false,
+                  ),
+                },
+              ...(content.content?.elements ?? []).map(
+                (inner) => Padding(
+                  padding: _messagePadding.copyWith(
+                    bottom: isEdited ? 0 : null,
+                  ),
+                  child: buildBlockElement(context, inner.element, isSender),
+                ),
+              ),
+              // The edited label is no longer included here
+            ];
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 1.5),
@@ -188,44 +268,44 @@ class _MessageContent extends StatelessWidget {
                     : CustomColorScheme.of(context).message.otherBackground,
           ),
           child: DefaultTextStyle.merge(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            child: Stack(
+              clipBehavior: Clip.none,
               children: [
-                if (content.attachments.firstOrNull case final attachment?)
-                  switch (attachment.imageMetadata) {
-                    null => _FileAttachmentContent(
-                      attachment: attachment,
-                      isSender: isSender,
+                // Main content (reserves space if edited)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: contentElements,
                     ),
-                    final imageMetadata => _ImageAttachmentContent(
-                      attachment: attachment,
-                      imageMetadata: imageMetadata,
-                      isSender: isSender,
-                      flightPosition: flightPosition,
-                      hasMessage: content.content?.elements.isNotEmpty ?? false,
-                    ),
-                  },
-                ...(content.content?.elements ?? []).map(
-                  (inner) => Padding(
-                    padding: _messagePadding.copyWith(
-                      bottom: isEdited ? 0 : null,
-                    ),
-                    child: buildBlockElement(context, inner.element, isSender),
-                  ),
-                ),
-                if (isEdited)
-                  Padding(
-                    padding: _messagePadding.copyWith(top: 0),
-                    child: Text(
-                      loc.textMessage_edited,
-                      style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                        color:
-                            isSender
-                                ? CustomColorScheme.of(context).text.quaternary
-                                : CustomColorScheme.of(context).text.tertiary,
+                    if (!isDeleted && isEdited)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          left: Spacings.s,
+                          right: Spacings.s,
+                          bottom: Spacings.xxs,
+                        ),
+                        child: SelectionContainer.disabled(
+                          child: Text(
+                            loc.textMessage_edited,
+                            style: Theme.of(
+                              context,
+                            ).textTheme.bodySmall!.copyWith(
+                              color:
+                                  isSender
+                                      ? CustomColorScheme.of(
+                                        context,
+                                      ).message.selfEditedLabel
+                                      : CustomColorScheme.of(
+                                        context,
+                                      ).message.otherEditedLabel,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -308,21 +388,38 @@ class _FileAttachmentContent extends StatelessWidget {
       padding: _messagePadding,
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        spacing: Spacings.s,
         children: [
-          Icon(
-            Icons.file_present_sharp,
-            size: 46,
+          Attachment(
+            width: 32,
             color:
                 isSender
                     ? CustomColorScheme.of(context).message.selfText
                     : CustomColorScheme.of(context).message.otherText,
           ),
-          const SizedBox(width: Spacings.xxs),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(attachment.filename),
-              Text(loc.bytesToHumanReadable(attachment.size)),
+              Text(
+                attachment.filename,
+                style: TextStyle(
+                  fontSize: BodyFontSize.base.size,
+                  color:
+                      isSender
+                          ? CustomColorScheme.of(context).message.selfText
+                          : CustomColorScheme.of(context).message.otherText,
+                ),
+              ),
+              Text(
+                loc.bytesToHumanReadable(attachment.size),
+                style: TextStyle(
+                  fontSize: BodyFontSize.small2.size,
+                  color:
+                      isSender
+                          ? CustomColorScheme.of(context).message.selfText
+                          : CustomColorScheme.of(context).message.otherText,
+                ),
+              ),
             ],
           ),
         ],
@@ -361,6 +458,7 @@ class _ImageAttachmentContent extends StatelessWidget {
           ),
       child: GestureDetector(
         onTap: () {
+          FocusScope.of(context).unfocus();
           overlayController.show();
         },
         child: ClipRRect(
@@ -421,7 +519,10 @@ class _ImagePreview extends StatelessWidget {
                 leading: const SizedBox.shrink(),
                 actions: [
                   IconButton(
-                    icon: const Icon(Icons.close),
+                    icon: Xmark(
+                      color: CustomColorScheme.of(context).text.primary,
+                      width: 32,
+                    ),
                     onPressed: () {
                       overlayController.hide();
                     },

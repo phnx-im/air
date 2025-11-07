@@ -1,7 +1,6 @@
 ---
 source: common/src/crypto/mod.rs
-assertion_line: 68
-expression: "AirCodec::to_vec(&key).unwrap()"
+expression: "PersistenceCodec::to_vec(&key).unwrap()"
 extension: cbor
 snapshot_kind: binary
 ---

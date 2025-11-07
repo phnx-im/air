@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH messages_to_fetch AS (\n                    SELECT message_id FROM as_user_handles_queue\n                    WHERE hash = $1 AND (fetched_by IS NULL OR fetched_by != $2)\n                    ORDER BY created_at ASC\n                    LIMIT $3\n                    FOR UPDATE SKIP LOCKED\n                )\n                UPDATE as_user_handles_queue AS q\n                SET fetched_by = $2\n                FROM messages_to_fetch m\n                WHERE q.message_id = m.message_id\n                RETURNING q.message_bytes AS \"message: SqlHandleQueueMessage\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "message: SqlHandleQueueMessage",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1a589f17d2df60f70c9a997d0059d6e07cbf4e7b8a9db95fbe6c47ab44caa601"
+}

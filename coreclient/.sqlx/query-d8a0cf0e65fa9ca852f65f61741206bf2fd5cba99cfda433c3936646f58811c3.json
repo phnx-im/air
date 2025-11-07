@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM user_handle_contact WHERE user_handle = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "d8a0cf0e65fa9ca852f65f61741206bf2fd5cba99cfda433c3936646f58811c3"
+}

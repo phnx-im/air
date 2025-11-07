@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! This module provides structs and functions to interact with users in the
-//! various groups an InfraClient is a member of.
+//! various groups a Client is a member of.
 
 use std::{fmt, mem};
 
@@ -79,7 +79,7 @@ impl SignedStruct<IndexedUserProfile, ClientKeyType> for SignedUserProfile {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, TlsSize, TlsSerialize)]
 pub(crate) struct SignedUserProfile {
     tbs: IndexedUserProfile,
     signature: ClientSignature,
@@ -112,7 +112,7 @@ impl VerifiedStruct<VerifiableUserProfile> for UnvalidatedUserProfile {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, TlsSize, TlsSerialize, TlsDeserializeBytes)]
 pub(crate) struct VerifiableUserProfile {
     tbs: UnvalidatedUserProfile,
     signature: ClientSignature,
@@ -204,6 +204,12 @@ impl UnvalidatedUserProfile {
     }
 }
 
+impl IndexedUserProfile {
+    pub(crate) fn decryption_key_index(&self) -> &UserProfileKeyIndex {
+        &self.decryption_key_index
+    }
+}
+
 #[derive(
     TlsSerialize, TlsDeserializeBytes, TlsSize, Clone, Serialize, Deserialize, PartialEq, Eq,
 )]
@@ -255,8 +261,7 @@ impl Asset {
     }
 }
 
-#[derive(Debug, Serialize)]
-#[serde(transparent)]
+#[derive(Debug, TlsSize, TlsSerialize)]
 pub(crate) struct EncryptableUserProfile(SignedUserProfile);
 
 impl EarEncryptable<UserProfileKey, EncryptedUserProfileCtype> for EncryptableUserProfile {}

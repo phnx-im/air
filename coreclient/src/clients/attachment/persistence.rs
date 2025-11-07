@@ -10,7 +10,7 @@ use sqlx::{
     query, query_as, query_scalar,
 };
 
-use crate::{ConversationId, ConversationMessageId, store::StoreNotifier};
+use crate::{ChatId, MessageId, store::StoreNotifier};
 
 /// A record of an attachment.
 ///
@@ -19,8 +19,8 @@ use crate::{ConversationId, ConversationMessageId, store::StoreNotifier};
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub(crate) struct AttachmentRecord {
     pub(super) attachment_id: AttachmentId,
-    pub(super) conversation_id: ConversationId,
-    pub(super) conversation_message_id: ConversationMessageId,
+    pub(super) chat_id: ChatId,
+    pub(super) message_id: MessageId,
     pub(super) content_type: String,
     pub(super) status: AttachmentStatus,
     pub(super) created_at: DateTime<Utc>,
@@ -125,18 +125,18 @@ impl AttachmentRecord {
         content: Option<&[u8]>,
     ) -> sqlx::Result<()> {
         query!(
-            "INSERT INTO attachments (
+            "INSERT INTO attachment (
                 attachment_id,
-                conversation_id,
-                conversation_message_id,
+                chat_id,
+                message_id,
                 content_type,
                 content,
                 status,
                 created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?)",
             self.attachment_id,
-            self.conversation_id,
-            self.conversation_message_id,
+            self.chat_id,
+            self.message_id,
             self.content_type,
             content,
             self.status,
@@ -154,7 +154,7 @@ impl AttachmentRecord {
         query_scalar!(
             r#"SELECT
                 attachment_id AS "attachment_id: AttachmentId"
-            FROM attachments
+            FROM attachment
             WHERE status = ?
             ORDER BY created_at ASC"#,
             AttachmentStatus::Pending
@@ -172,12 +172,12 @@ impl AttachmentRecord {
             r#"
                 SELECT
                     attachment_id AS "attachment_id: _",
-                    conversation_id AS "conversation_id: _",
-                    conversation_message_id AS "conversation_message_id: _",
+                    chat_id AS "chat_id: _",
+                    message_id AS "message_id: _",
                     content_type AS "content_type: _",
                     status AS "status: _",
                     created_at AS "created_at: _"
-                FROM attachments
+                FROM attachment
                 WHERE attachment_id = ?"#,
             attachment_id
         )
@@ -191,7 +191,7 @@ impl AttachmentRecord {
         status: AttachmentStatus,
     ) -> sqlx::Result<()> {
         query!(
-            "UPDATE attachments SET status = ? WHERE attachment_id = ?",
+            "UPDATE attachment SET status = ? WHERE attachment_id = ?",
             status,
             attachment_id,
         )
@@ -207,7 +207,7 @@ impl AttachmentRecord {
         bytes: &[u8],
     ) -> sqlx::Result<()> {
         query!(
-            "UPDATE attachments SET status = ?, content = ? WHERE attachment_id = ?",
+            "UPDATE attachment SET status = ?, content = ? WHERE attachment_id = ?",
             AttachmentStatus::Ready,
             bytes,
             attachment_id,
@@ -231,7 +231,7 @@ impl AttachmentRecord {
             r#"SELECT
                 content,
                 status AS "status: _"
-            FROM attachments WHERE attachment_id = ?"#,
+            FROM attachment WHERE attachment_id = ?"#,
             attachment_id
         )
         .fetch_optional(executor)
@@ -266,7 +266,7 @@ impl PendingAttachmentRecord {
         let enc_alg: i64 = self.enc_alg.repr().into();
         let hash_alg: i64 = self.hash_alg.repr().into();
         query!(
-            "INSERT INTO pending_attachments (
+            "INSERT INTO pending_attachment (
                 attachment_id,
                 size,
                 enc_alg,
@@ -316,8 +316,8 @@ impl PendingAttachmentRecord {
                     pa.aad AS "aad: _",
                     pa.hash_alg AS "hash_alg: _",
                     pa.hash AS "hash: _"
-                FROM pending_attachments pa
-                INNER JOIN attachments a ON a.attachment_id = pa.attachment_id
+                FROM pending_attachment pa
+                INNER JOIN attachment a ON a.attachment_id = pa.attachment_id
                 WHERE pa.attachment_id = ? AND a.status = 1
             "#,
             attachment_id
@@ -353,7 +353,7 @@ impl PendingAttachmentRecord {
         attachment_id: AttachmentId,
     ) -> sqlx::Result<()> {
         query!(
-            "DELETE FROM pending_attachments WHERE attachment_id = ?",
+            "DELETE FROM pending_attachment WHERE attachment_id = ?",
             attachment_id
         )
         .execute(executor)
@@ -368,21 +368,17 @@ mod test {
     use sqlx::Pool;
     use uuid::Uuid;
 
-    use crate::conversations::{
-        messages::persistence::tests::test_conversation_message,
-        persistence::tests::test_conversation,
+    use crate::chats::{
+        messages::persistence::tests::test_chat_message, persistence::tests::test_chat,
     };
 
     use super::*;
 
-    fn test_attachment_record(
-        conversation_id: ConversationId,
-        message_id: ConversationMessageId,
-    ) -> AttachmentRecord {
+    fn test_attachment_record(chat_id: ChatId, message_id: MessageId) -> AttachmentRecord {
         AttachmentRecord {
             attachment_id: AttachmentId::new(Uuid::new_v4()),
-            conversation_id,
-            conversation_message_id: message_id,
+            chat_id,
+            message_id,
             content_type: "image/png".to_string(),
             status: AttachmentStatus::Pending,
             created_at: Utc::now().round_subsecs(6),
@@ -392,13 +388,12 @@ mod test {
     #[sqlx::test]
     async fn attachment_record_store_and_load(pool: Pool<Sqlite>) -> anyhow::Result<()> {
         let mut notifier = StoreNotifier::noop();
-        let conversation = test_conversation();
-        conversation
-            .store(pool.acquire().await?.as_mut(), &mut notifier)
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
             .await?;
-        let message = test_conversation_message(conversation.id());
+        let message = test_chat_message(chat.id());
         message.store(&pool, &mut notifier).await?;
-        let record = test_attachment_record(conversation.id(), message.id());
+        let record = test_attachment_record(chat.id(), message.id());
 
         // Store the record
         record.store(&pool, &mut notifier, None).await?;
@@ -413,13 +408,12 @@ mod test {
     #[sqlx::test]
     async fn attachment_content_lifecycle(pool: Pool<Sqlite>) -> anyhow::Result<()> {
         let mut notifier = StoreNotifier::noop();
-        let conversation = test_conversation();
-        conversation
-            .store(pool.acquire().await?.as_mut(), &mut notifier)
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
             .await?;
-        let message = test_conversation_message(conversation.id());
+        let message = test_chat_message(chat.id());
         message.store(&pool, &mut notifier).await?;
-        let record = test_attachment_record(conversation.id(), message.id());
+        let record = test_attachment_record(chat.id(), message.id());
 
         // 1. Store the record with no content, status should be Pending.
         record.store(&pool, &mut notifier, None).await?;
@@ -462,26 +456,25 @@ mod test {
     #[sqlx::test]
     async fn load_all_pending_attachments(pool: Pool<Sqlite>) -> anyhow::Result<()> {
         let mut notifier = StoreNotifier::noop();
-        let conversation = test_conversation();
-        conversation
-            .store(pool.acquire().await?.as_mut(), &mut notifier)
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
             .await?;
-        let message = test_conversation_message(conversation.id());
+        let message = test_chat_message(chat.id());
         message.store(&pool, &mut notifier).await?;
 
         // Create and store a few attachments with different statuses
         let created_at = Utc::now().round_subsecs(6);
-        let mut pending_record_1 = test_attachment_record(conversation.id(), message.id());
+        let mut pending_record_1 = test_attachment_record(chat.id(), message.id());
         pending_record_1.created_at = created_at;
         pending_record_1.store(&pool, &mut notifier, None).await?;
 
         let downloading_record = AttachmentRecord {
             status: AttachmentStatus::Downloading,
-            ..test_attachment_record(conversation.id(), message.id())
+            ..test_attachment_record(chat.id(), message.id())
         };
         downloading_record.store(&pool, &mut notifier, None).await?;
 
-        let mut pending_record_2 = test_attachment_record(conversation.id(), message.id());
+        let mut pending_record_2 = test_attachment_record(chat.id(), message.id());
         pending_record_2.created_at = created_at
             .checked_add_signed(chrono::Duration::milliseconds(10))
             .unwrap();
@@ -504,16 +497,17 @@ mod test {
 
     #[sqlx::test]
     async fn pending_attachment_record_cycle(pool: Pool<Sqlite>) -> anyhow::Result<()> {
+        tracing_subscriber::fmt::try_init().ok();
+
         let mut notifier = StoreNotifier::noop();
-        let conversation = test_conversation();
-        conversation
-            .store(pool.acquire().await?.as_mut(), &mut notifier)
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
             .await?;
-        let message = test_conversation_message(conversation.id());
+        let message = test_chat_message(chat.id());
         message.store(&pool, &mut notifier).await?;
 
         // 1. Create the base AttachmentRecord in Pending state
-        let attachment_record = test_attachment_record(conversation.id(), message.id());
+        let attachment_record = test_attachment_record(chat.id(), message.id());
         attachment_record.store(&pool, &mut notifier, None).await?;
 
         // 2. Create and store the PendingAttachmentRecord
@@ -550,15 +544,14 @@ mod test {
         pool: Pool<Sqlite>,
     ) -> anyhow::Result<()> {
         let mut notifier = StoreNotifier::noop();
-        let conversation = test_conversation();
-        conversation
-            .store(pool.acquire().await?.as_mut(), &mut notifier)
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
             .await?;
-        let message = test_conversation_message(conversation.id());
+        let message = test_chat_message(chat.id());
         message.store(&pool, &mut notifier).await?;
 
         // 1. Create the base AttachmentRecord and a PendingAttachmentRecord
-        let attachment_record = test_attachment_record(conversation.id(), message.id());
+        let attachment_record = test_attachment_record(chat.id(), message.id());
         attachment_record.store(&pool, &mut notifier, None).await?;
 
         let pending_record = PendingAttachmentRecord {
@@ -593,11 +586,10 @@ mod test {
     async fn attachment_record_update_status(pool: Pool<Sqlite>) -> anyhow::Result<()> {
         let mut notifier = StoreNotifier::noop();
 
-        let conversation = test_conversation();
-        conversation
-            .store(pool.acquire().await?.as_mut(), &mut notifier)
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
             .await?;
-        let message = test_conversation_message(conversation.id());
+        let message = test_chat_message(chat.id());
         message.store(&pool, &mut notifier).await?;
 
         let attachment_id = AttachmentId::new(Uuid::new_v4());
@@ -605,8 +597,8 @@ mod test {
 
         let record = AttachmentRecord {
             attachment_id,
-            conversation_id: conversation.id(),
-            conversation_message_id: message.id(),
+            chat_id: chat.id(),
+            message_id: message.id(),
             content_type: "image/png".to_string(),
             status: AttachmentStatus::Pending,
             created_at,

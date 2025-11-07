@@ -27,10 +27,10 @@ abstract class MessageListCubitBase implements RustOpaqueInterface {
 
   factory MessageListCubitBase({
     required UserCubitBase userCubit,
-    required ConversationId conversationId,
+    required ChatId chatId,
   }) => RustLib.instance.api.crateApiMessageListCubitMessageListCubitBaseNew(
     userCubit: userCubit,
-    conversationId: conversationId,
+    chatId: chatId,
   );
 
   MessageListState get state;
@@ -43,14 +43,18 @@ abstract class MessageListState implements RustOpaqueInterface {
   static Future<MessageListState> default_() =>
       RustLib.instance.api.crateApiMessageListCubitMessageListStateDefault();
 
+  bool? get isConnectionChat;
+
+  bool isNewMessage(MessageId messageId);
+
   /// The number of loaded messages in the list
   ///
-  /// Note that this is not the number of all messages in the conversation.
+  /// Note that this is not the number of all messages in the chat.
   int get loadedMessagesCount;
 
   /// Returns the message at the given index.
-  UiConversationMessage? messageAt(int index);
+  UiChatMessage? messageAt(int index);
 
   /// Returns the lookup table mapping a message id to the index in the list.
-  int? messageIdIndex(ConversationMessageId messageId);
+  int? messageIdIndex(MessageId messageId);
 }
