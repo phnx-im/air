@@ -14,12 +14,14 @@ class ContextMenuItem extends StatelessWidget {
     required this.onPressed,
     required this.label,
     this.leadingIcon,
+    this.leading,
     this.trailingIcon,
   });
 
   final VoidCallback onPressed;
   final String label;
   final IconData? leadingIcon;
+  final Widget? leading;
   final IconData? trailingIcon;
 
   @override
@@ -38,7 +40,10 @@ class ContextMenuItem extends StatelessWidget {
         mainAxisSize: MainAxisSize.max,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (leadingIcon != null) ...[
+          if (leading != null) ...[
+            leading!,
+            const SizedBox(width: Spacings.xxs),
+          ] else if (leadingIcon != null) ...[
             Icon(leadingIcon, size: 24),
             const SizedBox(width: Spacings.xxs),
           ],
@@ -62,6 +67,7 @@ class ContextMenuItem extends StatelessWidget {
       onPressed: onPressed,
       label: label,
       leadingIcon: leadingIcon,
+      leading: leading,
       trailingIcon: trailingIcon,
     );
   }
