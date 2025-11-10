@@ -46,6 +46,8 @@ aws-config = { version = "1.8.0", default-features = false, features = [
     "behavior-version-latest",
     "rt-tokio",
 ] }
+metrics = { workspace = true }
+dashmap = "6.1.0"
 
 [dev-dependencies]
 aircommon = { path = "../common", features = ["test_utils"] }

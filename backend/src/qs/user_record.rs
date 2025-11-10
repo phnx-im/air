@@ -5,9 +5,13 @@
 use aircommon::{
     crypto::signatures::keys::QsUserVerifyingKey, identifiers::QsUserId, messages::FriendshipToken,
 };
+use metrics::gauge;
 use sqlx::PgExecutor;
 
-use crate::errors::StorageError;
+use crate::{
+    errors::StorageError,
+    qs::{METRIC_AIR_QS_DAU_USERS, METRIC_AIR_QS_MAU_USERS, METRIC_AIR_QS_TOTAL_USERS},
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct UserRecord {
@@ -33,9 +37,26 @@ impl UserRecord {
     }
 }
 
+pub(crate) struct UserMetrics {
+    /// Total number of users
+    pub(crate) total_users: Option<i64>,
+    /// Number of users connected in the last 30 days
+    pub(crate) active_last_month_users: Option<i64>,
+    /// Number of users connected in the last 24 hours
+    pub(crate) active_last_day_users: Option<i64>,
+}
+
+impl UserMetrics {
+    pub(crate) fn report(&self) {
+        gauge!(METRIC_AIR_QS_TOTAL_USERS).set(self.total_users.unwrap_or(0) as i32);
+        gauge!(METRIC_AIR_QS_MAU_USERS).set(self.active_last_month_users.unwrap_or(0) as i32);
+        gauge!(METRIC_AIR_QS_DAU_USERS).set(self.active_last_day_users.unwrap_or(0) as i32);
+    }
+}
+
 pub(crate) mod persistence {
     use aircommon::identifiers::QsUserId;
-    use sqlx::PgExecutor;
+    use sqlx::{PgExecutor, query_as};
 
     use crate::errors::StorageError;
 
@@ -119,11 +140,40 @@ pub(crate) mod persistence {
             .await?;
             Ok(())
         }
+
+        pub(in crate::qs) async fn metrics(
+            connection: impl PgExecutor<'_>,
+        ) -> sqlx::Result<UserMetrics> {
+            query_as!(
+                UserMetrics,
+                "WITH last_activity_time AS (
+                    SELECT MAX(activity_time) AS last_activity_time
+                    FROM qs_client_record
+                    GROUP BY user_id
+                )
+                SELECT
+                    (SELECT COUNT(user_id) FROM qs_user_record) AS total_users,
+                    COUNT(last_activity_time) FILTER (
+                        WHERE last_activity_time >= (NOW() - INTERVAL '1 month')
+                    ) AS active_last_month_users,
+                    COUNT(last_activity_time) FILTER (
+                        WHERE last_activity_time >= (NOW() - INTERVAL '1 day')
+                    ) AS active_last_day_users
+                FROM last_activity_time"
+            )
+            .fetch_one(connection)
+            .await
+        }
     }
 
     #[cfg(test)]
     pub(crate) mod tests {
+        use chrono::{Duration, Utc};
         use sqlx::PgPool;
+
+        use crate::qs::client_record::{
+            QsClientRecord, persistence::tests::store_random_client_record,
+        };
 
         use super::*;
 
@@ -185,6 +235,40 @@ pub(crate) mod persistence {
             UserRecord::delete(&pool, user_record.user_id).await?;
             let loaded = UserRecord::load(&pool, &user_record.user_id).await?;
             assert_eq!(loaded, None);
+
+            Ok(())
+        }
+
+        #[sqlx::test]
+        async fn metrics(pool: PgPool) -> anyhow::Result<()> {
+            // active user right now
+            let user_record_1 = store_random_user_record(&pool).await?;
+            let _client_record_1 = store_random_client_record(&pool, user_record_1.user_id).await?;
+
+            // acitive user in the last month
+            let user_record_2 = store_random_user_record(&pool).await?;
+            let client_record_2 = store_random_client_record(&pool, user_record_2.user_id).await?;
+            QsClientRecord::update_activity_time(
+                &pool,
+                client_record_2.client_id,
+                (Utc::now() - Duration::days(2)).into(),
+            )
+            .await?;
+
+            // active user more than a month ago
+            let user_record_3 = store_random_user_record(&pool).await?;
+            let client_record_3 = store_random_client_record(&pool, user_record_3.user_id).await?;
+            QsClientRecord::update_activity_time(
+                &pool,
+                client_record_3.client_id,
+                (Utc::now() - Duration::days(31)).into(),
+            )
+            .await?;
+
+            let metrics = UserRecord::metrics(&pool).await?;
+            assert_eq!(metrics.total_users, Some(3));
+            assert_eq!(metrics.active_last_month_users, Some(2));
+            assert_eq!(metrics.active_last_day_users, Some(1));
 
             Ok(())
         }

@@ -51,7 +51,7 @@ anyhow = "1.0.98"
 tonic-health = { workspace = true }
 metrics-exporter-prometheus = { version = "0.17.2", default-features = false }
 pin-project = { workspace = true }
-metrics = "0.24.2"
+metrics = { workspace = true }
 axum = { version = "0.8.6", features = ["http2"] }
 
 [dev-dependencies]
