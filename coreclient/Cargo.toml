@@ -16,13 +16,8 @@ license = "AGPL-3.0-or-later"
 [dependencies]
 airapiclient.workspace = true
 aircommon.workspace = true
-anyhow.workspace = true
-openmls_rust_crypto.workspace = true
-openmls_traits.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
-uuid = { workspace = true, features = ["v4", "serde"] }
 airprotos.workspace = true
+anyhow.workspace = true
 blurhash.workspace = true
 chrono.workspace = true
 derive_more.workspace = true
@@ -35,6 +30,8 @@ mimi-room-policy.workspace = true
 mimi_content.workspace = true
 mls-assist.workspace = true
 openmls.workspace = true
+openmls_rust_crypto.workspace = true
+openmls_traits.workspace = true
 pin-project.workspace = true
 rand.workspace = true                                        # TODO: Replace this with a CSPRNG
 rand_chacha.workspace = true
@@ -44,12 +41,15 @@ sha2.workspace = true
 sqlx = { workspace = true, features = ["chrono", "sqlite"] }
 tar.workspace = true
 tempfile = { workspace = true, optional = true }
+thiserror.workspace = true
 tls_codec.workspace = true
 tokio.workspace = true
 tokio-stream = { workspace = true, features = ["sync"] }
 tokio-util.workspace = true
+tracing.workspace = true
 trait-variant.workspace = true
 url.workspace = true
+uuid = { workspace = true, features = ["v4", "serde"] }
 webp.workspace = true
 
 [dev-dependencies]

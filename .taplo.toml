@@ -8,7 +8,8 @@ indent_string = "    "
 
 [[rule]]
 include = ["**/Cargo.toml"]
-keys = ["dependencies", "workspace.dependencies", "workspace.members"]
+keys = ["dependencies", "workspace.dependencies"]
 
 [rule.formatting]
 reorder_keys = true
+array_auto_expand = false

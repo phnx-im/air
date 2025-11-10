@@ -6,15 +6,15 @@
 resolver = "2"
 
 members = [
-    "backend",
-    "server",
     "apiclient",
-    "coreclient",
-    "test_harness",
-    "common",
     "applogic",
-    "protos",
+    "backend",
+    "common",
+    "coreclient",
     "mls-assist",
+    "protos",
+    "server",
+    "test_harness",
 ]
 
 [workspace.dependencies]
@@ -31,14 +31,8 @@ aes-gcm = "0.10"
 anyhow = { version = "1.0.98", features = ["backtrace"] }
 argon2 = "0.5.3"
 async-trait = "0.1.53"
-aws-config = { version = "1.8.0", default-features = false, features = [
-    "behavior-version-latest",
-    "rt-tokio",
-] }
-aws-sdk-s3 = { version = "1.92.0", default-features = false, features = [
-    "behavior-version-latest",
-    "http-1x",
-] }
+aws-config = { version = "1.8.0", default-features = false, features = ["behavior-version-latest", "rt-tokio"] }
+aws-sdk-s3 = { version = "1.92.0", default-features = false, features = ["behavior-version-latest", "http-1x"] }
 axum = { version = "0.8.6", features = ["http2"] }
 base64 = "0.22.1"
 blake3 = "1.8.2"
@@ -47,11 +41,7 @@ bytes = "1.10.0"
 chrono = { version = "0.4.38", features = ["serde"] }
 ciborium = "0.2"
 config = "0.15"
-criterion = { version = "0.6.0", features = [
-    "html_reports",
-    "async",
-    "async_tokio",
-] }
+criterion = { version = "0.6.0", features = ["html_reports", "async", "async_tokio"] }
 derive_more = { version = "0.99.19", features = ["from"] }
 displaydoc = "0.2.5"
 ed25519 = "2.2"
@@ -90,26 +80,13 @@ quickcheck_macros = "1.0.0"
 rand = "0.8"
 rand_chacha = "0.3.1"
 regex = "1.11.1"
-reqwest = { version = "^0.12", features = [
-    "json",
-    "rustls-tls-webpki-roots",
-    "brotli",
-    "http2",
-    "charset",
-], default-features = false }
+reqwest = { version = "^0.12", features = ["json", "rustls-tls-webpki-roots", "brotli", "http2", "charset"], default-features = false }
 secrecy = "0.10"
 serde = { version = "1.0.147", features = ["derive"] }
 serde_bytes = "0.11.17"
 serde_json = "1.0.140"
 sha2 = "0.10.9"
-sqlx = { version = "0.8.5", default-features = false, features = [
-    "macros",
-    "uuid",
-    "chrono",
-    "migrate",
-    "bigdecimal",
-    "runtime-tokio",
-] }
+sqlx = { version = "0.8.5", default-features = false, features = ["macros", "uuid", "chrono", "migrate", "bigdecimal", "runtime-tokio"] }
 tar = "0.4.44"
 tempfile = "3.23.0"
 thiserror = "2.0"
@@ -128,11 +105,7 @@ tracing = "0.1.41"
 tracing-bunyan-formatter = "0.3"
 tracing-futures = "0.2.5"
 tracing-log = "0.2"
-tracing-subscriber = { version = "0.3", features = [
-    "env-filter",
-    "tracing-log",
-    "parking_lot",
-] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "tracing-log", "parking_lot"] }
 trait-variant = "0.1.2"
 url = "2.5.4"
 uuid = "1.16.0"
