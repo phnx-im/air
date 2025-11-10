@@ -59,8 +59,8 @@ libc = "0.2" # required for stack size in background execution on Android/iOS
 notify-rust = "4"
 
 [dev-dependencies]
+mockall.workspace = true
+openmls.workspace = true           # Required for GroupId
 quickcheck.workspace = true
 quickcheck_macros.workspace = true
 tempfile.workspace = true
-openmls.workspace = true           # Required for GroupId
-mockall.workspace = true

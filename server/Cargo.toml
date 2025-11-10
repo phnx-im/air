@@ -54,18 +54,16 @@ tracing-subscriber.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
-tracing-futures.workspace = true
 airapiclient.workspace = true
 aircoreclient.workspace = true
-once_cell.workspace = true
 airserver_test_harness.workspace = true
-image.workspace = true
-png.workspace = true
-mimi_content.workspace = true
-criterion.workspace = true
-rand.workspace = true
-uuid.workspace = true
 base64.workspace = true
-sha2.workspace = true
-hex.workspace = true
 chrono.workspace = true
+criterion.workspace = true
+hex.workspace = true
+image.workspace = true
+mimi_content.workspace = true
+png.workspace = true
+rand.workspace = true
+sha2.workspace = true
+uuid.workspace = true

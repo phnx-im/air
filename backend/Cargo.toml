@@ -43,8 +43,8 @@ uuid = { workspace = true, features = ["v4", "serde"] }
 aircommon = { workspace = true, features = ["test_utils"] }
 anyhow.workspace = true
 insta.workspace = true
-serde_json.workspace = true
 mockall.workspace = true
+serde_json.workspace = true
 tracing-subscriber.workspace = true
 
 [features]

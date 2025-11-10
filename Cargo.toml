@@ -64,7 +64,6 @@ metrics-exporter-prometheus = { version = "0.17.2", default-features = false }
 mimi-room-policy = { git = "https://github.com/phnx-im/mimi-room-policy", rev = "6406e6d84c1219da3afcccb91007f2fdaaf61193" }
 mimi_content = { git = "https://github.com/boxdot/mimi-content", rev = "18af569b6074ed5b63cb2d5086ffea3acfad3f02" }
 mockall = "0.13.1"
-once_cell = "1"
 openmls = { version = "0.7.1" }
 openmls_rust_crypto = { version = "0.4.1" }
 openmls_traits = { version = "0.4.1" }

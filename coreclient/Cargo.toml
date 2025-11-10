@@ -53,13 +53,13 @@ uuid = { workspace = true, features = ["v4", "serde"] }
 webp.workspace = true
 
 [dev-dependencies]
-airserver_test_harness.workspace = true
-aircommon = { workspace = true, features = ["test_utils"] }
-serde_json.workspace = true
-insta = { workspace = true, features = ["json"] }
 airbackend.workspace = true
-tracing-subscriber.workspace = true
+aircommon = { workspace = true, features = ["test_utils"] }
+airserver_test_harness.workspace = true
+insta = { workspace = true, features = ["json"] }
+serde_json.workspace = true
 tempfile.workspace = true
+tracing-subscriber.workspace = true
 
 [features]
 test_utils = ["tempfile"]
