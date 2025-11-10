@@ -547,12 +547,11 @@ impl TestBackend {
 
         sender.fully_process_qs_messages(sender_qs_messages).await;
 
-        test_sender
-            .user
+        sender
             .send_message(chat_id, orig_message.clone(), None)
             .await
             .unwrap();
-        test_sender.user.outbound_service().run_once().await;
+        sender.outbound_service().run_once().await;
         let sender_user_id = test_sender.user.user_id().clone();
 
         let chat = test_sender.user.chat(&chat_id).await.unwrap();
@@ -585,6 +584,8 @@ impl TestBackend {
             let messages = recipient_user
                 .fully_process_qs_messages(recipient_qs_messages)
                 .await;
+            // Send out delivery receipts
+            recipient_user.outbound_service().run_once().await;
 
             let message = messages.new_messages.last().unwrap();
             let chat = recipient_user.chat(&message.chat_id()).await.unwrap();
@@ -600,6 +601,12 @@ impl TestBackend {
                 )))
             );
         }
+
+        // Fetch and process delivery receipts
+        let sender = self.users.get_mut(sender_id).unwrap().user.clone();
+        let delivery_receipts = sender.qs_fetch_messages().await.unwrap();
+        sender.fully_process_qs_messages(delivery_receipts).await;
+
         message.id()
     }
 
