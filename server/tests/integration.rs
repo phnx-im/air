@@ -1373,11 +1373,6 @@ async fn client_sequence_number_race() {
 
     let chat_id = setup.connect_users(&ALICE, &BOB).await;
 
-    tokio::time::sleep(Duration::from_secs(1)).await;
-    let bob = setup.get_user(&BOB);
-    let qs_messages = bob.user.qs_fetch_messages().await.unwrap();
-    bob.user.fully_process_qs_messages(qs_messages).await;
-
     info!("Alice sending messages to queue");
 
     let alice = setup.get_user(&ALICE);
