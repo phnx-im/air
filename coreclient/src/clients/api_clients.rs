@@ -48,7 +48,7 @@ impl ApiClients {
         Ok(client)
     }
 
-    pub(super) fn default_client(&self) -> Result<ApiClient, ApiClientsError> {
+    pub(crate) fn default_client(&self) -> Result<ApiClient, ApiClientsError> {
         let own_domain = self.own_domain.clone();
         self.get(&own_domain)
     }

@@ -19,7 +19,7 @@ use crate::{
     Chat, ChatId, ChatStatus, MessageId,
     chats::StatusRecord,
     groups::{Group, openmls_provider::AirOpenMlsProvider},
-    outbound_service::resync::Resync,
+    outbound_service::{error::OutboundServiceError, resync::Resync},
     utils::connection_ext::StoreExt,
 };
 
@@ -83,12 +83,12 @@ impl OutboundServiceContext {
                     Ok(_) => {
                         ReceiptQueue::remove(&self.pool, task_id).await?;
                     }
-                    Err(SendChatReceiptError::Fatal(error)) => {
+                    Err(OutboundServiceError::Fatal(error)) => {
                         error!(%error, "Failed to send receipt; dropping");
                         ReceiptQueue::remove(&self.pool, task_id).await?;
                         return Err(error);
                     }
-                    Err(SendChatReceiptError::Recoverable(error)) => {
+                    Err(OutboundServiceError::Recoverable(error)) => {
                         error!(%error, "Failed to send receipt; will retry later");
                         // Don't unlock the receipts now; they will be unlocked after a threshold.
                         continue;
@@ -112,7 +112,7 @@ impl OutboundServiceContext {
         &self,
         chat_id: ChatId,
         unsent_receipt: UnsentReceipt,
-    ) -> Result<(), SendChatReceiptError> {
+    ) -> Result<(), OutboundServiceError> {
         debug!(%chat_id, ?unsent_receipt, "sending receipt");
 
         // load chat
@@ -121,12 +121,12 @@ impl OutboundServiceContext {
                 .pool
                 .acquire()
                 .await
-                .map_err(SendChatReceiptError::recoverable)?;
+                .map_err(OutboundServiceError::recoverable)?;
             let chat = Chat::load(&mut connection, &chat_id)
                 .await
-                .map_err(SendChatReceiptError::recoverable)?
+                .map_err(OutboundServiceError::recoverable)?
                 .with_context(|| format!("Can't find chat with id {chat_id}"))
-                .map_err(SendChatReceiptError::fatal)?;
+                .map_err(OutboundServiceError::fatal)?;
             if let ChatStatus::Blocked = chat.status() {
                 return Ok(());
             }
@@ -134,16 +134,18 @@ impl OutboundServiceContext {
         };
 
         // load group and create MLS message
-        let (group_state_ear_key, params) =
-            self.new_mls_message(&chat, unsent_receipt.content).await?;
+        let (group_state_ear_key, params) = self
+            .new_mls_message(&chat, unsent_receipt.content)
+            .await
+            .map_err(OutboundServiceError::fatal)?;
 
         // send MLS message to DS
         self.api_clients
             .get(&chat.owner_domain())
-            .map_err(SendChatReceiptError::fatal)?
-            .ds_send_message(params, &self.signing_key, &group_state_ear_key)
+            .map_err(OutboundServiceError::fatal)?
+            .ds_send_message(params, self.signing_key(), &group_state_ear_key)
             .await
-            .map_err(SendChatReceiptError::recoverable)?;
+            .map_err(OutboundServiceError::recoverable)?;
 
         // store delivery receipt report
         self.with_transaction_and_notifier(async |txn, notifier| {
@@ -153,16 +155,16 @@ impl OutboundServiceContext {
             Ok(())
         })
         .await
-        .map_err(SendChatReceiptError::fatal)?;
+        .map_err(OutboundServiceError::fatal)?;
 
         Ok(())
     }
 
-    async fn new_mls_message(
+    pub(super) async fn new_mls_message(
         &self,
         chat: &Chat,
         mimi_content: MimiContent,
-    ) -> Result<(GroupStateEarKey, SendMessageParamsOut), SendChatReceiptError> {
+    ) -> anyhow::Result<(GroupStateEarKey, SendMessageParamsOut)> {
         self.with_transaction(async |txn| {
             let group_id = chat.group_id();
             let mut group = Group::load_clean(txn.as_mut(), group_id)
@@ -170,32 +172,12 @@ impl OutboundServiceContext {
                 .with_context(|| format!("Can't find group with id {group_id:?}"))?;
             let params = group.create_message(
                 &AirOpenMlsProvider::new(txn.as_mut()),
-                &self.signing_key,
+                self.signing_key(),
                 mimi_content,
             )?;
-            group.store_update(txn.as_mut()).await?;
             Ok((group.group_state_ear_key().clone(), params))
         })
         .await
-        .map_err(SendChatReceiptError::fatal)
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-enum SendChatReceiptError {
-    #[error("Fatal error: {0}")]
-    Fatal(anyhow::Error),
-    #[error("Recoverable error: {0}")]
-    Recoverable(anyhow::Error),
-}
-
-impl SendChatReceiptError {
-    fn fatal(error: impl Into<anyhow::Error>) -> Self {
-        Self::Fatal(error.into())
-    }
-
-    fn recoverable(error: impl Into<anyhow::Error>) -> Self {
-        Self::Recoverable(error.into())
     }
 }
 

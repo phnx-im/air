@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM key_package\n            WHERE key_package_ref IN (\n              SELECT key_package_ref\n              FROM key_package_refs\n              WHERE is_live = 0\n            )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "9ada48e50d3be9fd48983bec0ec2a564b724dee7900c6b2b696a04811c752b14"
+}

@@ -2,14 +2,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{fs, io::Cursor, sync::LazyLock, time::Duration};
+use std::{collections::HashSet, fs, io::Cursor, sync::LazyLock, time::Duration};
 
-use airapiclient::{as_api::AsRequestError, ds_api::DsRequestError};
+use airapiclient::as_api::AsRequestError;
 use airprotos::{
     auth_service::v1::auth_service_server, delivery_service::v1::delivery_service_server,
     queue_service::v1::queue_service_server,
 };
 use base64::{Engine, prelude::BASE64_STANDARD};
+use chrono::Utc;
 use image::{ImageBuffer, Rgba};
 use mimi_content::{MessageStatus, MimiContent, content_container::NestedPartContent};
 use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
@@ -26,6 +27,7 @@ use aircoreclient::{
         CoreUser,
         process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
     },
+    outbound_service::KEY_PACKAGES,
     store::Store,
 };
 use airserver::RateLimitsConfig;
@@ -95,28 +97,29 @@ async fn rate_limit() {
     // should stop with `resource_exhausted = true` at some point
     for i in 0..100 {
         info!(i, "sending message");
-        let res = alice
+        alice
             .user
             .send_message(
                 chat_id,
                 MimiContent::simple_markdown_message("Hello bob".into(), [0; 16]), // simple seed for testing
                 None,
             )
-            .await;
+            .await
+            .unwrap();
+        alice.user.outbound_service().run_once().await;
 
-        let Err(error) = res else {
+        let message = alice.user.last_message(chat_id).await.unwrap().unwrap();
+
+        // Due to the indirection of the outbound service, we can't just check
+        // for errors while sending. Instead, we just check whether the message
+        // was marked as sent.
+        if message.is_sent() {
+            info!(i, "message sent successfully");
             continue;
-        };
-
-        let error: DsRequestError = error.downcast().expect("should be a DsRequestError");
-        match error {
-            DsRequestError::Tonic(status) => {
-                assert_eq!(status.code(), tonic::Code::ResourceExhausted);
-                resource_exhausted = true;
-                break;
-            }
-            _ => panic!("unexpected error type: {error:?}"),
         }
+
+        resource_exhausted = true;
+        break;
     }
     assert!(resource_exhausted);
 
@@ -124,18 +127,20 @@ async fn rate_limit() {
     tokio::time::sleep(Duration::from_secs(1)).await; // replenish
 
     info!("sending message after rate limit tokens replenished");
-    let res = alice
+    alice
         .user
         .send_message(
             chat_id,
             MimiContent::simple_markdown_message("Hello bob".into(), [0; 16]), // simple seed for testing
             None,
         )
-        .await;
+        .await
+        .unwrap();
+    alice.user.outbound_service().run_once().await;
 
-    if let Err(error) = res {
-        panic!("rate limit did not replenish: {error:?}");
-    }
+    let message = alice.user.last_message(chat_id).await.unwrap().unwrap();
+
+    assert!(message.is_sent());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -582,6 +587,7 @@ async fn mark_as_read() {
                 .unwrap();
             messages_sent.push(message);
         }
+        user.outbound_service().run_once().await;
         messages_sent
     }
 
@@ -959,6 +965,9 @@ async fn send_image_attachment() {
         .send_attachment(chat_id, &ALICE, vec![&BOB], &attachment, "test.png")
         .await;
 
+    let alice = setup.get_user(&ALICE);
+    alice.user.outbound_service().run_once().await;
+
     let attachment_id = match &external_part {
         NestedPartContent::ExternalPart {
             content_type,
@@ -1126,6 +1135,7 @@ async fn blocked_contact() {
 
     // Messages from bob are dropped
     bob.user.send_message(chat_id, msg, None).await.unwrap();
+    bob.user.outbound_service().run_once().await;
     // We get the message but it is dropped
     let messages = alice.user.qs_fetch_messages().await.unwrap();
     assert_eq!(messages.len(), 1);
@@ -1306,6 +1316,7 @@ async fn update_and_send_message(
         .send_message(contact_chat_id, msg, None)
         .await
         .unwrap();
+    bob_user.outbound_service().run_once().await;
     // alice fetches and processes bob's message
     let alice = setup.get_user_mut(alice);
     let alice_user = &mut alice.user;
@@ -1336,6 +1347,7 @@ async fn ratchet_tolerance() {
             .await
             .unwrap();
     }
+    alice_user.outbound_service().run_once().await;
 
     let bob = setup.get_user_mut(&BOB);
     let bob_user = &mut bob.user;
@@ -1361,11 +1373,6 @@ async fn client_sequence_number_race() {
 
     let chat_id = setup.connect_users(&ALICE, &BOB).await;
 
-    tokio::time::sleep(Duration::from_secs(1)).await;
-    let bob = setup.get_user(&BOB);
-    let qs_messages = bob.user.qs_fetch_messages().await.unwrap();
-    bob.user.fully_process_qs_messages(qs_messages).await;
-
     info!("Alice sending messages to queue");
 
     let alice = setup.get_user(&ALICE);
@@ -1383,6 +1390,7 @@ async fn client_sequence_number_race() {
                     .send_message(chat_id, message, None)
                     .await
                     .unwrap();
+                alice_user.outbound_service().run_once().await;
             }
         });
     }
@@ -1617,5 +1625,72 @@ async fn resync() {
     assert_eq!(
         participants,
         [BOB.clone(), CHARLIE.clone()].into_iter().collect()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Key Package Upload", skip_all)]
+async fn key_package_upload() {
+    let mut setup = TestBackend::single().await;
+    setup.add_user(&ALICE).await;
+    setup.add_user(&BOB).await;
+    setup.connect_users(&ALICE, &BOB).await;
+    // Exhaust Bob's key packages
+    // We collect Bob's encryption keys. They should be unique every time.
+    let mut encryption_keys = HashSet::new();
+
+    async fn create_chat_and_invite_bob(setup: &mut TestBackend) -> Vec<u8> {
+        let chat_id = setup.create_group(&ALICE).await;
+        let alice = setup.get_user_mut(&ALICE);
+        let alice_user = &mut alice.user;
+        alice_user
+            .invite_users(chat_id, std::slice::from_ref(&BOB))
+            .await
+            .unwrap();
+        let bob = setup.get_user_mut(&BOB);
+        let bob_user = &mut bob.user;
+        let messages = bob_user.qs_fetch_messages().await.unwrap();
+        let res = bob_user.fully_process_qs_messages(messages).await;
+        assert!(
+            res.errors.is_empty(),
+            "Bob should process Alice's invitation without errors"
+        );
+        bob_user
+            .mls_members(chat_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .into_iter()
+            .find(|m| m.index.usize() == 1)
+            .unwrap()
+            .encryption_key
+    }
+
+    for _ in 0..(KEY_PACKAGES + 1) {
+        let bob_encryption_key = create_chat_and_invite_bob(&mut setup).await;
+        assert!(encryption_keys.insert(bob_encryption_key));
+    }
+
+    let bob_encryption_key = create_chat_and_invite_bob(&mut setup).await;
+    assert!(
+        !encryption_keys.insert(bob_encryption_key),
+        "Alice should have reused Bob's last resort KeyPackage"
+    );
+
+    // Bob uploads new KeyPackages
+    let bob = setup.get_user_mut(&BOB);
+    let bob_user = &mut bob.user;
+    let now = Utc::now();
+    bob_user
+        .schedule_key_package_upload(now - chrono::Duration::minutes(5))
+        .await
+        .unwrap();
+    bob_user.outbound_service().run_once().await;
+
+    // Invite Bob again, should get a new KeyPackage
+    let bob_encryption_key = create_chat_and_invite_bob(&mut setup).await;
+    assert!(
+        encryption_keys.insert(bob_encryption_key),
+        "Bob should have a new KeyPackage after uploading new ones"
     );
 }

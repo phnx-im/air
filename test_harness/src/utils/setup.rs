@@ -57,7 +57,10 @@ impl AsMut<CoreUser> for TestUser {
 
 impl TestUser {
     pub async fn new(user_id: &UserId, listen: SocketAddr) -> Self {
-        Self::try_new(user_id, listen).await.unwrap()
+        let user = Self::try_new(user_id, listen).await.unwrap();
+        // Run outbound service to upload KeyPackages
+        user.user.outbound_service().run_once().await;
+        user
     }
 
     pub async fn try_new(user_id: &UserId, listen: SocketAddr) -> anyhow::Result<Self> {
@@ -544,15 +547,23 @@ impl TestBackend {
 
         sender.fully_process_qs_messages(sender_qs_messages).await;
 
-        let message = test_sender
-            .user
+        sender
             .send_message(chat_id, orig_message.clone(), None)
             .await
             .unwrap();
+        sender.outbound_service().run_once().await;
         let sender_user_id = test_sender.user.user_id().clone();
 
         let chat = test_sender.user.chat(&chat_id).await.unwrap();
         let group_id = chat.group_id();
+
+        // Reload message, because we sent it in the background.
+        let message = test_sender
+            .user
+            .last_message(chat_id)
+            .await
+            .unwrap()
+            .unwrap();
 
         assert_eq!(
             message.message(),
@@ -573,6 +584,8 @@ impl TestBackend {
             let messages = recipient_user
                 .fully_process_qs_messages(recipient_qs_messages)
                 .await;
+            // Send out delivery receipts
+            recipient_user.outbound_service().run_once().await;
 
             let message = messages.new_messages.last().unwrap();
             let chat = recipient_user.chat(&message.chat_id()).await.unwrap();
@@ -588,6 +601,12 @@ impl TestBackend {
                 )))
             );
         }
+
+        // Fetch and process delivery receipts
+        let sender = self.users.get_mut(sender_id).unwrap().user.clone();
+        let delivery_receipts = sender.qs_fetch_messages().await.unwrap();
+        sender.fully_process_qs_messages(delivery_receipts).await;
+
         message.id()
     }
 
@@ -616,10 +635,17 @@ impl TestBackend {
 
         sender.fully_process_qs_messages(sender_qs_messages).await;
 
-        let message = test_sender
+        test_sender
             .user
             .send_message(chat_id, orig_message.clone(), Some(last_message.id()))
             .await
+            .unwrap();
+        test_sender.user.outbound_service().run_once().await;
+        let message = test_sender
+            .user
+            .last_message(chat_id)
+            .await
+            .unwrap()
             .unwrap();
         let sender_user_id = test_sender.user.user_id().clone();
 
@@ -694,10 +720,17 @@ impl TestBackend {
 
         sender.fully_process_qs_messages(sender_qs_messages).await;
 
-        let message = test_sender
+        test_sender
             .user
             .send_message(chat_id, orig_message.clone(), Some(last_message.id()))
             .await
+            .unwrap();
+        test_sender.user.outbound_service().run_once().await;
+        let message = test_sender
+            .user
+            .last_message(chat_id)
+            .await
+            .unwrap()
             .unwrap();
 
         let sender_user_id = test_sender.user.user_id().clone();
@@ -767,6 +800,7 @@ impl TestBackend {
         std::fs::write(&path, attachment).unwrap();
 
         let message = sender.upload_attachment(chat_id, &path).await.unwrap();
+        sender.outbound_service().run_once().await;
 
         let mut external_part = None;
         message
@@ -970,7 +1004,12 @@ impl TestBackend {
 
             let qs_messages = invitee.qs_fetch_messages().await.unwrap();
 
-            invitee.fully_process_qs_messages(qs_messages).await;
+            let res = invitee.fully_process_qs_messages(qs_messages).await;
+            assert!(
+                res.errors.is_empty(),
+                "Errors processing QS messages for {invitee_id:?}: {:?}",
+                res.errors
+            );
 
             let mut invitee_chats_after = invitee.chats().await.unwrap();
             let chat_uuid = chat_id.uuid();
@@ -1017,6 +1056,11 @@ impl TestBackend {
             let qs_messages = group_member.qs_fetch_messages().await.unwrap();
 
             let invite_messages = group_member.fully_process_qs_messages(qs_messages).await;
+            assert!(
+                invite_messages.errors.is_empty(),
+                "Errors processing QS messages for {group_member_id:?}: {:?}",
+                invite_messages.errors
+            );
 
             let invite_messages = display_messages_to_string_map(invite_messages.new_messages);
 

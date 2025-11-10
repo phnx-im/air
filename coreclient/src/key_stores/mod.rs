@@ -11,10 +11,11 @@ use aircommon::{
 };
 use anyhow::Result;
 use openmls::prelude::{
-    CredentialWithKey, Extension, Extensions, KeyPackage, LastResortExtension, SignaturePublicKey,
-    UnknownExtension,
+    CredentialWithKey, Extension, Extensions, KeyPackage, KeyPackageRef, LastResortExtension,
+    OpenMlsProvider, SignaturePublicKey, UnknownExtension,
 };
-use sqlx::SqlitePool;
+use openmls_traits::storage::StorageProvider;
+use sqlx::{SqliteConnection, SqlitePool};
 use tls_codec::Serialize as TlsSerializeTrait;
 
 use crate::{
@@ -74,9 +75,9 @@ impl MemoryUserKeyStore {
         }
     }
 
-    pub(crate) async fn generate_key_package(
+    pub(crate) fn generate_key_package(
         &self,
-        pool: &SqlitePool,
+        connection: &mut SqliteConnection,
         qs_client_id: &QsClientId,
         last_resort: bool,
     ) -> Result<KeyPackage> {
@@ -100,8 +101,7 @@ impl MemoryUserKeyStore {
             Extensions::default()
         };
 
-        let mut connection = pool.acquire().await?;
-        let provider = AirOpenMlsProvider::new(&mut connection);
+        let provider = AirOpenMlsProvider::new(connection);
 
         let kp = KeyPackage::builder()
             .key_package_extensions(key_package_extensions)
@@ -115,5 +115,16 @@ impl MemoryUserKeyStore {
             )?;
 
         Ok(kp.key_package().clone())
+    }
+
+    pub(crate) fn delete_key_package(
+        &self,
+        connection: &mut SqliteConnection,
+        key_package_ref: KeyPackageRef,
+    ) -> Result<()> {
+        let provider = AirOpenMlsProvider::new(connection);
+
+        provider.storage().delete_key_package(&key_package_ref)?;
+        Ok(())
     }
 }
