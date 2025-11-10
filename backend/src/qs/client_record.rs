@@ -23,7 +23,6 @@ use aircommon::{
     time::TimeStamp,
 };
 use tracing::{error, info, trace, warn};
-use uuid::Uuid;
 
 use crate::{
     errors::StorageError,

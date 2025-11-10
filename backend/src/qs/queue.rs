@@ -4,7 +4,7 @@
 
 use std::{collections::VecDeque, sync::Arc};
 
-use aircommon::{identifiers::QsClientId, time::TimeStamp};
+use aircommon::identifiers::QsClientId;
 use airprotos::queue_service::v1::{
     QueueEmpty, QueueEvent, QueueEventPayload, QueueMessage, queue_event,
 };
@@ -21,7 +21,7 @@ use uuid::Uuid;
 use crate::{
     errors::QueueError,
     pg_listen::{PgChannelName, PgListenerTaskHandle, spawn_pg_listener_task},
-    qs::{METRIC_AIR_ACTIVE_USERS, client_record::QsClientRecord},
+    qs::METRIC_AIR_ACTIVE_USERS,
 };
 
 /// Maximum number of messages to fetch at once.
@@ -251,12 +251,6 @@ impl<S: Stream<Item = ()> + Send + Unpin> QueueStreamContext<S> {
                     // buffer is empty
                     match context.state {
                         FetchState::Init => {
-                            let _ = QsClientRecord::update_activity_time(
-                                &context.pool,
-                                context.queue_id,
-                                TimeStamp::now(),
-                            )
-                            .await;
                             context.state = FetchState::Fetch;
                         }
                         FetchState::Fetch => {

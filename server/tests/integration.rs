@@ -1426,7 +1426,6 @@ async fn client_sequence_number_race() {
                         _ = finished => break,
                         event = stream.next() => event
                     };
-                    dbg!(*processed_rx.borrow());
                     let Some(event) = event else {
                         break;
                     };
@@ -1447,7 +1446,6 @@ async fn client_sequence_number_race() {
     }
     join_set.join_all().await; // panics on error
 
-    dbg!(*processed.borrow());
     assert_eq!(*processed.borrow(), NUM_SENDERS * NUM_MESSAGES);
 }
 
