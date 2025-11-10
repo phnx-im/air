@@ -14,7 +14,6 @@ airbackend = { workspace = true, features = ["test_utils"] }
 aircommon.workspace = true
 aircoreclient = { workspace = true, features = ["test_utils"] }
 airserver.workspace = true
-
 anyhow.workspace = true
 mimi_content.workspace = true
 rand.workspace = true

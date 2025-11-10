@@ -28,7 +28,6 @@ harness = false
 airbackend.workspace = true
 aircommon.workspace = true
 airprotos.workspace = true
-
 anyhow.workspace = true
 axum.workspace = true
 config.workspace = true

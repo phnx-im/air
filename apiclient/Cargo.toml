@@ -13,7 +13,6 @@ license = "AGPL-3.0-or-later"
 [dependencies]
 aircommon.workspace = true
 airprotos.workspace = true
-
 futures-util.workspace = true
 mimi-room-policy.workspace = true
 mls-assist.workspace = true
