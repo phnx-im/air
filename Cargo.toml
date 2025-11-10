@@ -42,6 +42,7 @@ chrono = { version = "0.4.38", features = ["serde"] }
 ciborium = "0.2"
 config = "0.15"
 criterion = { version = "0.6.0", features = ["html_reports", "async", "async_tokio"] }
+dashmap = "6.1.0"
 derive_more = { version = "0.99.19", features = ["from"] }
 displaydoc = "0.2.5"
 ed25519 = "2.2"
