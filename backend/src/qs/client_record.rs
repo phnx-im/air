@@ -196,7 +196,7 @@ pub(crate) mod persistence {
         ) -> sqlx::Result<()> {
             query!(
                 "UPDATE qs_client_record SET activity_time = $1 WHERE client_id = $2",
-                activity_time as _,
+                &activity_time as &TimeStamp,
                 client_id as _,
             )
             .execute(connection)
@@ -543,21 +543,27 @@ impl QsClientRecord {
     ) -> Result<(QsClientRecord, bool), EnqueueError> {
         let mut txn = pool.begin().await?;
 
+        tracing::info!("################### ENQUEUE ####################");
         let mut client_record = Self::load_for_update(txn.as_mut(), &client_id)
             .await?
             .ok_or(EnqueueError::ClientNotFound)?;
+        tracing::info!("################### ENQUEUE LOADED ####################");
 
         let queue_message = client_record.ratchet_key.encrypt(&queue_message)?;
         let queue_message_proto: airprotos::queue_service::v1::QueueMessage = queue_message.into();
         trace!("Enqueueing message in storage provider");
+        tracing::info!("################### ENQUEUE ENCRYPTED ####################");
 
         let has_listener = queues
             .enqueue(&mut txn, client_id, &queue_message_proto)
             .await?;
+        tracing::info!("################### ENQUEUE ENQUEUED ####################");
 
         client_record.update_queue_ratchet(txn.as_mut()).await?;
+        tracing::info!("################### ENQUEUE UPDATED ####################");
 
         txn.commit().await?;
+        tracing::info!("################### ENQUEUE COMMITTED ####################");
 
         Ok((client_record, has_listener))
     }

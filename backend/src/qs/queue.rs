@@ -23,7 +23,7 @@ use uuid::Uuid;
 use crate::{
     errors::QueueError,
     pg_listen::{PgChannelName, PgListenerTaskHandle, spawn_pg_listener_task},
-    qs::{METRIC_AIR_ACTIVE_USERS, client_record::QsClientRecord, user_record::UserRecord},
+    qs::{METRIC_AIR_ACTIVE_USERS, client_record::QsClientRecord},
 };
 
 /// Maximum number of messages to fetch at once.
@@ -85,7 +85,7 @@ impl Queues {
             sequence_number: sequence_number_start,
             cancel,
             buffer: VecDeque::with_capacity(MAX_BUFFER_SIZE),
-            state: FetchState::Fetch,
+            state: FetchState::Init,
         };
 
         let message_stream = context.into_stream().map(|message| match message {
@@ -173,9 +173,6 @@ impl Queues {
         let cancel = CancellationToken::new();
         let context = ListenerContext::new(cancel.clone(), payload_tx);
 
-        QsClientRecord::update_activity_time(&self.pool, client_id, TimeStamp::now()).await?;
-        UserRecord::metrics(&self.pool).await?.report();
-
         if listeners.insert(client_id, context).is_none() {
             self.pg_listener_task_handle.listen(client_id).await;
         }
@@ -215,6 +212,8 @@ struct QueueStreamContext<S> {
 }
 
 enum FetchState {
+    /// Update the activity time of the client record.
+    Init,
     /// Fetch the next message.
     Fetch,
     /// Wait for a notification to fetch the next message.
@@ -237,6 +236,15 @@ impl<S: Stream<Item = ()> + Send + Unpin> QueueStreamContext<S> {
                     }
                     // buffer is empty
                     match context.state {
+                        FetchState::Init => {
+                            let _ = QsClientRecord::update_activity_time(
+                                &context.pool,
+                                context.queue_id,
+                                TimeStamp::now(),
+                            )
+                            .await;
+                            context.state = FetchState::Fetch;
+                        }
                         FetchState::Fetch => {
                             context.fetch_next_messages().await?;
                             if context.buffer.is_empty() {
