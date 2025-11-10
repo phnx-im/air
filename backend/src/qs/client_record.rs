@@ -544,29 +544,21 @@ impl QsClientRecord {
     ) -> Result<(QsClientRecord, bool), EnqueueError> {
         let mut txn = pool.begin().await?;
 
-        let tag = Uuid::new_v4();
-
-        tracing::info!(%tag, "################### ENQUEUE ####################");
         let mut client_record = Self::load_for_update(txn.as_mut(), &client_id)
             .await?
             .ok_or(EnqueueError::ClientNotFound)?;
-        tracing::info!(%tag, "################### ENQUEUE LOADED ####################");
 
         let queue_message = client_record.ratchet_key.encrypt(&queue_message)?;
         let queue_message_proto: airprotos::queue_service::v1::QueueMessage = queue_message.into();
         trace!("Enqueueing message in storage provider");
-        tracing::info!(%tag, "################### ENQUEUE ENCRYPTED ####################");
 
         let has_listener = queues
             .enqueue(&mut txn, client_id, &queue_message_proto)
             .await?;
-        tracing::info!(%tag, "################### ENQUEUE ENQUEUED ####################");
 
         client_record.update_queue_ratchet(txn.as_mut()).await?;
-        tracing::info!(%tag, "################### ENQUEUE UPDATED ####################");
 
         txn.commit().await?;
-        tracing::info!(%tag, "################### ENQUEUE COMMITTED ####################");
 
         Ok((client_record, has_listener))
     }
