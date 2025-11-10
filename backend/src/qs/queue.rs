@@ -2,19 +2,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::Arc,
-};
+use std::{collections::VecDeque, sync::Arc};
 
 use aircommon::{identifiers::QsClientId, time::TimeStamp};
 use airprotos::queue_service::v1::{
     QueueEmpty, QueueEvent, QueueEventPayload, QueueMessage, queue_event,
 };
+use dashmap::DashMap;
 use futures_util::{Stream, stream};
 use metrics::gauge;
 use sqlx::{PgExecutor, PgPool, PgTransaction};
-use tokio::sync::{Mutex, mpsc};
+use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::error;
@@ -32,7 +30,7 @@ const MAX_BUFFER_SIZE: usize = 32;
 #[derive(Debug, Clone)]
 pub(crate) struct Queues {
     pool: PgPool,
-    listeners: Arc<Mutex<HashMap<QsClientId, ListenerContext>>>,
+    listeners: Arc<DashMap<QsClientId, ListenerContext>>,
     pg_listener_task_handle: PgListenerTaskHandle<QsClientId>,
 }
 
@@ -119,8 +117,8 @@ impl Queues {
         let query = format!(r#"NOTIFY "{}""#, pg_queue_label(queue_id));
         sqlx::query(&query).execute(txn.as_mut()).await?;
 
-        let listeners = self.listeners.lock().await;
-        let is_listening = listeners
+        let is_listening = self
+            .listeners
             .get(&queue_id)
             .map(|context| !context.cancel.is_cancelled())
             .unwrap_or(false);
@@ -149,8 +147,6 @@ impl Queues {
     ) -> Result<bool, QueueError> {
         let Some(tx) = self
             .listeners
-            .lock()
-            .await
             .get(&queue_id)
             .map(|context| context.payload_tx.clone())
         else {
@@ -165,23 +161,35 @@ impl Queues {
         client_id: QsClientId,
         payload_tx: mpsc::Sender<QueueEventPayload>,
     ) -> sqlx::Result<CancellationToken> {
-        let mut listeners = self.listeners.lock().await;
-        for (id, _) in listeners.extract_if(|_, context| context.cancel.is_cancelled()) {
-            self.pg_listener_task_handle.unlisten(id).await;
-        }
+        self.clean_up_cancelled_listeners().await;
 
         let cancel = CancellationToken::new();
         let context = ListenerContext::new(cancel.clone(), payload_tx);
 
-        if listeners.insert(client_id, context).is_none() {
+        if self.listeners.insert(client_id, context).is_none() {
             self.pg_listener_task_handle.listen(client_id).await;
         }
 
         Ok(cancel)
     }
 
+    async fn clean_up_cancelled_listeners(&self) {
+        let mut removed_ids = Vec::new();
+        self.listeners.retain(|id, context| {
+            if context.cancel.is_cancelled() {
+                removed_ids.push(*id);
+                false // remove
+            } else {
+                true // keep
+            }
+        });
+        for id in removed_ids {
+            self.pg_listener_task_handle.unlisten(id).await;
+        }
+    }
+
     pub(crate) async fn stop_listening(&self, queue_id: QsClientId) {
-        if let Some(context) = self.listeners.lock().await.remove(&queue_id) {
+        if let Some((_, context)) = self.listeners.remove(&queue_id) {
             context.cancel.cancel();
         }
     }
@@ -211,6 +219,7 @@ struct QueueStreamContext<S> {
     state: FetchState,
 }
 
+#[derive(Debug, PartialEq, Eq)]
 enum FetchState {
     /// Update the activity time of the client record.
     Init,
@@ -228,12 +237,17 @@ impl<S: Stream<Item = ()> + Send + Unpin> QueueStreamContext<S> {
             self,
             async |mut context| -> Option<(Option<QueueMessage>, Self)> {
                 loop {
-                    if context.cancel.is_cancelled() {
-                        return None;
-                    }
                     if let Some(message) = context.buffer.pop_front() {
                         return Some((Some(message), context));
                     }
+
+                    // Check if the task is cancelled, but do it *after* fetching messages at least
+                    // once. Otherwise, concurrent streams might cancel each other before any
+                    // progress is done.
+                    if context.cancel.is_cancelled() && context.state != FetchState::Init {
+                        return None;
+                    }
+
                     // buffer is empty
                     match context.state {
                         FetchState::Init => {
