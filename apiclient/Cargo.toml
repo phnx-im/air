@@ -4,7 +4,7 @@
 
 [package]
 name = "airapiclient"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 publish = false
 description = "HTTP and GRPC client for the server API"
