@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE qs_client_record SET activity_time = $1 WHERE client_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5f2d45644f15b12714a0eabb2af5eb2fefb113cdc252ce4f1cab2c8d1cc899dd"
+}

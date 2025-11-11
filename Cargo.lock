@@ -76,7 +76,7 @@ dependencies = [
 
 [[package]]
 name = "airapiclient"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "aircommon",
  "airprotos",
@@ -98,7 +98,7 @@ dependencies = [
 
 [[package]]
 name = "airapplogic"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "aircommon",
  "aircoreclient",
@@ -140,7 +140,7 @@ dependencies = [
 
 [[package]]
 name = "airbackend"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "aircommon",
  "airprotos",
@@ -150,9 +150,11 @@ dependencies = [
  "aws-sdk-s3",
  "base64 0.22.1",
  "chrono",
+ "dashmap 6.1.0",
  "displaydoc",
  "futures-util",
  "insta",
+ "metrics",
  "mimi-room-policy",
  "mls-assist",
  "mockall",
@@ -176,13 +178,13 @@ dependencies = [
 
 [[package]]
 name = "aircommon"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "aes-gcm",
  "argon2",
  "chrono",
  "ciborium",
- "criterion 0.6.0",
+ "criterion",
  "displaydoc",
  "ed25519",
  "hex",
@@ -209,7 +211,7 @@ dependencies = [
 
 [[package]]
 name = "aircoreclient"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "airapiclient",
  "airbackend",
@@ -257,7 +259,7 @@ dependencies = [
 
 [[package]]
 name = "airprotos"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "aircommon",
  "chrono",
@@ -278,7 +280,7 @@ dependencies = [
 
 [[package]]
 name = "airserver"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "airapiclient",
  "airbackend",
@@ -288,17 +290,16 @@ dependencies = [
  "airserver_test_harness",
  "anyhow",
  "axum",
- "base64 0.21.7",
+ "base64 0.22.1",
  "chrono",
  "config",
- "criterion 0.5.1",
+ "criterion",
  "hex",
  "image",
  "jsonwebtoken",
  "metrics",
  "metrics-exporter-prometheus",
  "mimi_content",
- "once_cell",
  "pin-project",
  "png 0.17.16",
  "rand 0.8.5",
@@ -317,7 +318,6 @@ dependencies = [
  "tower_governor",
  "tracing",
  "tracing-bunyan-formatter",
- "tracing-futures",
  "tracing-log 0.2.0",
  "tracing-subscriber",
  "uuid",
@@ -326,7 +326,7 @@ dependencies = [
 
 [[package]]
 name = "airserver_test_harness"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "airbackend",
  "aircommon",
@@ -1648,34 +1648,6 @@ dependencies = [
 
 [[package]]
 name = "criterion"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2b12d017a929603d80db1831cd3a24082f8137ce19c69e6447f54f5fc8d692f"
-dependencies = [
- "anes",
- "cast",
- "ciborium",
- "clap",
- "criterion-plot",
- "futures",
- "is-terminal",
- "itertools 0.10.5",
- "num-traits",
- "once_cell",
- "oorandom",
- "plotters",
- "rayon",
- "regex",
- "serde",
- "serde_derive",
- "serde_json",
- "tinytemplate",
- "tokio",
- "walkdir",
-]
-
-[[package]]
-name = "criterion"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bf7af66b0989381bd0be551bd7cc91912a655a58c6918420c9527b1fd8b4679"
@@ -1694,6 +1666,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tinytemplate",
+ "tokio",
  "walkdir",
 ]
 
@@ -3333,17 +3306,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "is-terminal"
-version = "0.4.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e04d7f318608d35d4b61ddd75cbdaee86b023ebe2bd5a66ee0915f0bf93095a9"
-dependencies = [
- "hermit-abi",
- "libc",
- "windows-sys 0.59.0",
-]
-
-[[package]]
 name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3952,7 +3914,7 @@ dependencies = [
 
 [[package]]
 name = "mls-assist"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "openmls",
@@ -6727,16 +6689,6 @@ checksum = "b9d12581f227e93f094d3af2ae690a574abb8a2b9b7a96e7cfe9647b2b617678"
 dependencies = [
  "once_cell",
  "valuable",
-]
-
-[[package]]
-name = "tracing-futures"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97d095ae15e245a057c8e8451bab9b3ee1e1f68e9ba2b4fbc18d0ac5237835f2"
-dependencies = [
- "pin-project",
- "tracing",
 ]
 
 [[package]]

@@ -4,15 +4,15 @@
 
 [package]
 name = "mls-assist"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 
 [dependencies]
-openmls_traits = { workspace = true }
-openmls = { workspace = true }
-openmls_rust_crypto = { workspace = true }
-thiserror = { workspace = true }
-chrono = { workspace = true }
-serde = { version = "1.0.147", features = ["derive"] }
-serde_bytes = "0.11.17"
+chrono.workspace = true
+openmls.workspace = true
+openmls_rust_crypto.workspace = true
+openmls_traits.workspace = true
+serde.workspace = true
+serde_bytes.workspace = true
+thiserror.workspace = true

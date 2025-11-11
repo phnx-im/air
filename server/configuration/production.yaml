@@ -4,3 +4,4 @@
 
 application:
   listen: 0.0.0.0:80
+  listen_metrics: 0.0.0.0:9090
