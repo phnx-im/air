@@ -146,3 +146,9 @@ path = "app/stores/**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2025 Phoenix R&D GmbH <hello@phnx.im>"
 SPDX-License-Identifier = "CC-BY-SA-4.0"
+
+[[annotations]]
+path = "CHANGELOG.toml"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Phoenix R&D GmbH <hello@phnx.im>"
+SPDX-License-Identifier = "CC-BY-SA-4.0"
