@@ -74,12 +74,12 @@ jobs:
           fi
 
       - name: Build iOS app
-        if: ${{ steps.detect_fork.outputs.is_fork == 'true' }}
+        if: ${{ steps.detect_fork.outputs.is_fork == 'true' || github.actor == 'dependabot[bot]' }}
         run: |
           cd app && fastlane ios build_ios
 
       - name: Build and sign iOS app
-        if: ${{ steps.detect_fork.outputs.is_fork == 'false' }}
+        if: ${{ steps.detect_fork.outputs.is_fork == 'false' && github.actor != 'dependabot[bot]' }}
         env:
           APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
           APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
