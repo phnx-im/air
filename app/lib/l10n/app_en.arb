@@ -63,9 +63,11 @@
     }
   },
 
-  "signUpScreen_title": "Create an Air Account",
+  "signUpScreen_header": "Create your profile",
+  "signUpScreen_subheader": "Your profile is visible to people you connect with and members of groups you’re in.",
+  "signUpScreen_displayNameHeader": "Choose a display name",
+  "signUpScreen_displayNameSubheader": "Your display name is how your name appears on Air.",
   "signUpScreen_actionButton": "Sign Up",
-  "signUpScreen_displayNameLabel": "Add a Profile Picture and Display Name.",
   "signUpScreen_displayNameHint": "Display Name",
   "signUpScreen_serverLabel": "Choose a server where you want to create your account.",
   "signUpScreen_serverHint": "DOMAIN NAME",

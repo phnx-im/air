@@ -39,6 +39,11 @@
     }
   },
 
+  "signUpScreen_header": "Erstelle dein Profil",
+  "signUpScreen_subheader": "Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen.",
+  "signUpScreen_displayNameHeader": "Wähle einen Anzeigenamen",
+  "signUpScreen_displayNameSubheader": "Dein Anzeigename ist der Name, der in Air angezeigt wird.",
+
   "userHandleScreen_title": "Benutzername",
   "userHandleScreen_inputHint": "Benutzername",
   "userHandleScreen_error_emptyHandle": "Benutzername darf nicht leer sein",

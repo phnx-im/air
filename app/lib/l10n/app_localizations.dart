@@ -388,23 +388,35 @@ abstract class AppLocalizations {
   /// **'By signing up, you agree to our {termsOfUseLink}.'**
   String introScreen_termsText(Object termsOfUseLink);
 
-  /// No description provided for @signUpScreen_title.
+  /// No description provided for @signUpScreen_header.
   ///
   /// In en, this message translates to:
-  /// **'Create an Air Account'**
-  String get signUpScreen_title;
+  /// **'Create your profile'**
+  String get signUpScreen_header;
+
+  /// No description provided for @signUpScreen_subheader.
+  ///
+  /// In en, this message translates to:
+  /// **'Your profile is visible to people you connect with and members of groups you’re in.'**
+  String get signUpScreen_subheader;
+
+  /// No description provided for @signUpScreen_displayNameHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a display name'**
+  String get signUpScreen_displayNameHeader;
+
+  /// No description provided for @signUpScreen_displayNameSubheader.
+  ///
+  /// In en, this message translates to:
+  /// **'Your display name is how your name appears on Air.'**
+  String get signUpScreen_displayNameSubheader;
 
   /// No description provided for @signUpScreen_actionButton.
   ///
   /// In en, this message translates to:
   /// **'Sign Up'**
   String get signUpScreen_actionButton;
-
-  /// No description provided for @signUpScreen_displayNameLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Add a Profile Picture and Display Name.'**
-  String get signUpScreen_displayNameLabel;
 
   /// No description provided for @signUpScreen_displayNameHint.
   ///

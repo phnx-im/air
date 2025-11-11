@@ -179,14 +179,21 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get signUpScreen_title => 'Create an Air Account';
+  String get signUpScreen_header => 'Erstelle dein Profil';
+
+  @override
+  String get signUpScreen_subheader =>
+      'Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen.';
+
+  @override
+  String get signUpScreen_displayNameHeader => 'Wähle einen Anzeigenamen';
+
+  @override
+  String get signUpScreen_displayNameSubheader =>
+      'Dein Anzeigename ist der Name, der in Air angezeigt wird.';
 
   @override
   String get signUpScreen_actionButton => 'Sign Up';
-
-  @override
-  String get signUpScreen_displayNameLabel =>
-      'Add a Profile Picture and Display Name.';
 
   @override
   String get signUpScreen_displayNameHint => 'Display Name';
