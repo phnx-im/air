@@ -165,7 +165,7 @@ fn create_signed_post(
         ],
     };
 
-    // Note: sigv4a is not supported by minio used in local deployment.
+    // Note: sigv4a is not supported by minio, which is used in local deployment.
     let signing_key = aws_sigv4::sign::v4::generate_signing_key(
         attributes.secret_access_key.as_ref(),
         not_before.into(),
@@ -176,7 +176,7 @@ fn create_signed_post(
     let policy_base64 = BASE64_STANDARD.encode(policy_json);
     let signature = aws_sigv4::sign::v4::calculate_signature(signing_key, policy_base64.as_bytes());
 
-    // Note: Just use a simpler path style URL here.
+    // Note: We just use a simpler path style URL here.
     let upload_url = format!(
         "{endpoint}/{bucket}",
         endpoint = attributes.endpoint_url,
