@@ -50,6 +50,7 @@ enumset = "1.1.5"
 flate2 = "1.1.0"
 flutter_rust_bridge = { version = "=2.11.1", features = ["chrono", "uuid"] }
 futures-util = "0.3.31"
+h2 = "0.4.12"
 hex = "0.4.3"
 hkdf = "0.12"
 image = "0.25.1"
