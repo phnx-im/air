@@ -6,6 +6,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use chrono::Duration;
 use serde::Deserialize;
+use zeroize::Zeroize;
 
 /// Configuration for the server.
 #[derive(Deserialize, Clone, Debug)]
@@ -84,7 +85,7 @@ pub struct StorageSettings {
     /// Access key ID for the storage provider
     pub access_key_id: String,
     /// Secret access key for the storage provider
-    pub secret_access_key: String,
+    pub secret_access_key: SecretAccessKey,
     /// Force path style for the storage provider
     #[serde(default)]
     pub force_path_style: bool,
@@ -98,6 +99,32 @@ pub struct StorageSettings {
     /// Default is 5 minutes.
     #[serde(default = "default_5min", with = "duration_seconds")]
     pub download_expiration: Duration,
+    /// Maximum size of an attachment in bytes
+    ///
+    /// Default is 20 MiB.
+    #[serde(default = "default_20mib")]
+    pub max_attachment_size: u64,
+}
+
+#[derive(Debug, Deserialize, Clone, Zeroize)]
+pub struct SecretAccessKey(String);
+
+impl AsRef<str> for SecretAccessKey {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<SecretAccessKey> for String {
+    fn from(secret_access_key: SecretAccessKey) -> Self {
+        secret_access_key.0
+    }
+}
+
+impl From<String> for SecretAccessKey {
+    fn from(secret_access_key: String) -> Self {
+        Self(secret_access_key)
+    }
 }
 
 impl DatabaseSettings {
@@ -140,6 +167,10 @@ impl DatabaseSettings {
 
 fn default_5min() -> Duration {
     Duration::seconds(5 * 60)
+}
+
+fn default_20mib() -> u64 {
+    20 * 1024 * 1024
 }
 
 mod duration_seconds {

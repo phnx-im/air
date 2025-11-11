@@ -423,6 +423,7 @@ impl DsGrpcClient {
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
             group_id: Some(qgid.ref_into()),
             sender: Some(sender_index.into()),
+            use_post_policy: true,
         };
         let request = payload.sign(signing_key)?;
         let response = self

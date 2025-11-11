@@ -14,13 +14,18 @@ use aircommon::{
     crypto::ear::{AeadCiphertext, EarEncryptable, keys::AttachmentEarKey},
     identifiers::AttachmentId,
 };
-use anyhow::Context;
-use chrono::Utc;
+use airprotos::delivery_service::v1::SignedPostPolicy;
+use anyhow::{Context, ensure};
+use base64::{Engine, prelude::BASE64_STANDARD};
+use chrono::{DateTime, Utc};
 use infer::MatcherType;
 use mimi_content::{
     MimiContent,
     content_container::{Disposition, NestedPart, NestedPartContent, PartSemantics},
 };
+use reqwest::multipart;
+use serde::Deserialize;
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::{
@@ -271,19 +276,75 @@ async fn encrypt_and_upload(
             group.own_index(),
         )
         .await?;
+
     let attachment_id =
         AttachmentId::new(response.attachment_id.context("no attachment id")?.into());
 
-    // upload encrypted content
-    let mut request = http_client.put(response.upload_url);
-    for header in response.upload_headers {
-        request = request.header(header.key, header.value);
+    if let Some(signed_post_policy) = response.post_policy {
+        // upload encrypted content via multipart upload
+        multipart_upload(
+            http_client,
+            &response.upload_url,
+            signed_post_policy,
+            ciphertext,
+        )
+        .await?;
+    } else {
+        // upload encrypted content via signed PUT url
+        let mut request = http_client.put(response.upload_url);
+        for header in response.upload_headers {
+            request = request.header(header.key, header.value);
+        }
+        request.body(ciphertext).send().await?.error_for_status()?;
     }
-    request.body(ciphertext).send().await?.error_for_status()?;
 
     Ok(AttachmentMetadata {
         attachment_id,
         key,
         nonce,
     })
+}
+
+#[derive(Debug, Deserialize)]
+struct PostPolicy {
+    expiration: DateTime<Utc>,
+    conditions: Vec<Value>,
+}
+
+async fn multipart_upload(
+    http_client: &reqwest::Client,
+    upload_url: &str,
+    signed_post_policy: SignedPostPolicy,
+    ciphertext: Vec<u8>,
+) -> anyhow::Result<()> {
+    let post_policy = BASE64_STANDARD.decode(&signed_post_policy.base64)?;
+    let post_policy: PostPolicy = serde_json::from_slice(&post_policy)?;
+
+    ensure!(Utc::now() < post_policy.expiration, "post policy expired");
+
+    let mut form = multipart::Form::new()
+        .text("policy", signed_post_policy.base64)
+        .text("x-amz-signature", signed_post_policy.signature);
+
+    const KEYS: &[&str] = &["key", "x-amz-credential", "x-amz-algorithm", "x-amz-date"];
+    for condition in post_policy.conditions {
+        if let Value::Object(object) = condition
+            && object.len() == 1
+            && let Some((key, Value::String(value))) = object.into_iter().next()
+            && KEYS.contains(&key.as_str())
+        {
+            form = form.text(key, value);
+        }
+    }
+
+    let form = form.part("file", multipart::Part::bytes(ciphertext));
+
+    http_client
+        .post(upload_url)
+        .multipart(form)
+        .send()
+        .await?
+        .error_for_status()?;
+
+    Ok(())
 }
