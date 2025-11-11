@@ -12,23 +12,22 @@ license = "AGPL-3.0-or-later"
 
 [dependencies]
 aircommon.workspace = true
-
+chrono.workspace = true
+derive_more.workspace = true
+displaydoc.workspace = true
+mimi-room-policy.workspace = true
+mls-assist.workspace = true
+openmls.workspace = true
 prost.workspace = true
+thiserror.workspace = true
+tls_codec.workspace = true
 tonic.workspace = true
 tonic-prost.workspace = true
 uuid.workspace = true
-chrono.workspace = true
-thiserror.workspace = true
-tls_codec.workspace = true
-openmls.workspace = true
-derive_more.workspace = true
-mls-assist.workspace = true
-mimi-room-policy.workspace = true
-displaydoc.workspace = true
 
 [build-dependencies]
+protoc-bin-vendored.workspace = true
 tonic-prost-build.workspace = true
-protoc-bin-vendored = "3.1.0"
 
 [package.metadata.cargo-machete]
 ignored = [

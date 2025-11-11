@@ -11,24 +11,23 @@ description = "HTTP and GRPC client for the server API"
 license = "AGPL-3.0-or-later"
 
 [dependencies]
-airprotos.workspace = true
 aircommon.workspace = true
-
-thiserror = { workspace = true }
-tracing = "0.1.41"
-mls-assist = { workspace = true }
-tls_codec = { workspace = true }
-url = "2"
-tonic.workspace = true
-tokio-stream.workspace = true
-tokio.workspace = true
-tokio-util.workspace = true
+airprotos.workspace = true
+futures-util.workspace = true
 mimi-room-policy.workspace = true
-futures-util = "0.3.31"
-uuid = "1.0.0"
-pin-project = "1.1.10"
+mls-assist.workspace = true
+pin-project.workspace = true
+thiserror.workspace = true
+tls_codec.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tokio-util.workspace = true
+tonic.workspace = true
+tracing.workspace = true
+url.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
-uuid = "1.0.0"
-tracing-subscriber = { workspace = true }
+tracing-subscriber.workspace = true
+uuid.workspace = true

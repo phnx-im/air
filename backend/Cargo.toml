@@ -13,49 +13,41 @@ description = "Implements the local and the federation part of the protocol logi
 license = "AGPL-3.0-or-later"
 
 [dependencies]
-aircommon = { workspace = true }
-airprotos = { workspace = true }
-
-thiserror = { workspace = true }
-serde = { version = "1", features = ["derive"] }
-async-trait = "0.1.53"
-uuid = { version = "1.0.0", features = ["v4", "serde"] }
-tracing = { version = "0.1.35", features = ["log"] }
-# Rust crypto dependencies
-sqlx = { workspace = true, features = ["postgres", "tls-rustls"] }
-mimi-room-policy = { workspace = true }
-tokio = { workspace = true }
-mls-assist = { workspace = true }
-tls_codec = { workspace = true }
-privacypass = { workspace = true }
-tokio-stream = { workspace = true }
-tonic = { workspace = true }
-rand = "0.8"
-tokio-util.workspace = true
-futures-util = "0.3.31"
-chrono = "0.4"
-sha2 = { workspace = true }
-displaydoc = "0.2.5"
+aircommon.workspace = true
+airprotos.workspace = true
+async-trait.workspace = true
+aws-config.workspace = true
+aws-sdk-s3.workspace = true
+base64.workspace = true
+chrono.workspace = true
+dashmap.workspace = true
+displaydoc.workspace = true
+futures-util.workspace = true
+metrics.workspace = true
+mimi-room-policy.workspace = true
+mls-assist.workspace = true
+privacypass.workspace = true
 prost.workspace = true
-base64 = "0.22.1"
-aws-sdk-s3 = { version = "1.92.0", default-features = false, features = [
-    "behavior-version-latest",
-    "http-1x",
-] }
-aws-config = { version = "1.8.0", default-features = false, features = [
-    "behavior-version-latest",
-    "rt-tokio",
-] }
-metrics = { workspace = true }
-dashmap = "6.1.0"
+rand.workspace = true
+serde.workspace = true
+sha2.workspace = true
+sqlx = { workspace = true, features = ["postgres", "tls-rustls"] }
+thiserror.workspace = true
+tls_codec.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tokio-util.workspace = true
+tonic.workspace = true
+tracing.workspace = true
+uuid = { workspace = true, features = ["v4", "serde"] }
 
 [dev-dependencies]
-aircommon = { path = "../common", features = ["test_utils"] }
-anyhow = "1.0.97"
-insta = { workspace = true }
-serde_json = "1.0.140"
-mockall = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
+aircommon = { workspace = true, features = ["test_utils"] }
+anyhow.workspace = true
+insta.workspace = true
+mockall.workspace = true
+serde_json.workspace = true
+tracing-subscriber.workspace = true
 
 [features]
 test_utils = ["aircommon/test_utils"]
