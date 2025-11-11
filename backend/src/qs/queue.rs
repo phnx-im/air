@@ -2,18 +2,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::Arc,
-};
+use std::{collections::VecDeque, sync::Arc};
 
 use aircommon::identifiers::QsClientId;
 use airprotos::queue_service::v1::{
     QueueEmpty, QueueEvent, QueueEventPayload, QueueMessage, queue_event,
 };
+use dashmap::DashMap;
 use futures_util::{Stream, stream};
-use sqlx::{PgExecutor, PgPool, PgTransaction, query_scalar};
-use tokio::sync::{Mutex, mpsc};
+use metrics::gauge;
+use sqlx::{PgExecutor, PgPool, PgTransaction};
+use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::error;
@@ -22,6 +21,7 @@ use uuid::Uuid;
 use crate::{
     errors::QueueError,
     pg_listen::{PgChannelName, PgListenerTaskHandle, spawn_pg_listener_task},
+    qs::METRIC_AIR_ACTIVE_USERS,
 };
 
 /// Maximum number of messages to fetch at once.
@@ -30,7 +30,7 @@ const MAX_BUFFER_SIZE: usize = 32;
 #[derive(Debug, Clone)]
 pub(crate) struct Queues {
     pool: PgPool,
-    listeners: Arc<Mutex<HashMap<QsClientId, ListenerContext>>>,
+    listeners: Arc<DashMap<QsClientId, ListenerContext>>,
     pg_listener_task_handle: PgListenerTaskHandle<QsClientId>,
 }
 
@@ -43,8 +43,16 @@ struct ListenerContext {
     payload_tx: mpsc::Sender<QueueEventPayload>,
 }
 
+impl ListenerContext {
+    fn new(cancel: CancellationToken, payload_tx: mpsc::Sender<QueueEventPayload>) -> Self {
+        gauge!(METRIC_AIR_ACTIVE_USERS).increment(1);
+        Self { cancel, payload_tx }
+    }
+}
+
 impl Drop for ListenerContext {
     fn drop(&mut self) {
+        gauge!(METRIC_AIR_ACTIVE_USERS).decrement(1);
         self.cancel.cancel();
     }
 }
@@ -75,7 +83,7 @@ impl Queues {
             sequence_number: sequence_number_start,
             cancel,
             buffer: VecDeque::with_capacity(MAX_BUFFER_SIZE),
-            state: FetchState::Fetch,
+            state: FetchState::Init,
         };
 
         let message_stream = context.into_stream().map(|message| match message {
@@ -109,8 +117,8 @@ impl Queues {
         let query = format!(r#"NOTIFY "{}""#, pg_queue_label(queue_id));
         sqlx::query(&query).execute(txn.as_mut()).await?;
 
-        let listeners = self.listeners.lock().await;
-        let is_listening = listeners
+        let is_listening = self
+            .listeners
             .get(&queue_id)
             .map(|context| !context.cancel.is_cancelled())
             .unwrap_or(false);
@@ -139,8 +147,6 @@ impl Queues {
     ) -> Result<bool, QueueError> {
         let Some(tx) = self
             .listeners
-            .lock()
-            .await
             .get(&queue_id)
             .map(|context| context.payload_tx.clone())
         else {
@@ -155,26 +161,35 @@ impl Queues {
         client_id: QsClientId,
         payload_tx: mpsc::Sender<QueueEventPayload>,
     ) -> sqlx::Result<CancellationToken> {
-        let mut listeners = self.listeners.lock().await;
-        for (id, _) in listeners.extract_if(|_, context| context.cancel.is_cancelled()) {
-            self.pg_listener_task_handle.unlisten(id).await;
-        }
+        self.clean_up_cancelled_listeners().await;
 
         let cancel = CancellationToken::new();
-        let context = ListenerContext {
-            cancel: cancel.clone(),
-            payload_tx,
-        };
+        let context = ListenerContext::new(cancel.clone(), payload_tx);
 
-        if listeners.insert(client_id, context).is_none() {
+        if self.listeners.insert(client_id, context).is_none() {
             self.pg_listener_task_handle.listen(client_id).await;
         }
 
         Ok(cancel)
     }
 
+    async fn clean_up_cancelled_listeners(&self) {
+        let mut removed_ids = Vec::new();
+        self.listeners.retain(|id, context| {
+            if context.cancel.is_cancelled() {
+                removed_ids.push(*id);
+                false // remove
+            } else {
+                true // keep
+            }
+        });
+        for id in removed_ids {
+            self.pg_listener_task_handle.unlisten(id).await;
+        }
+    }
+
     pub(crate) async fn stop_listening(&self, queue_id: QsClientId) {
-        if let Some(context) = self.listeners.lock().await.remove(&queue_id) {
+        if let Some((_, context)) = self.listeners.remove(&queue_id) {
             context.cancel.cancel();
         }
     }
@@ -204,7 +219,10 @@ struct QueueStreamContext<S> {
     state: FetchState,
 }
 
+#[derive(Debug, PartialEq, Eq)]
 enum FetchState {
+    /// Update the activity time of the client record.
+    Init,
     /// Fetch the next message.
     Fetch,
     /// Wait for a notification to fetch the next message.
@@ -219,14 +237,22 @@ impl<S: Stream<Item = ()> + Send + Unpin> QueueStreamContext<S> {
             self,
             async |mut context| -> Option<(Option<QueueMessage>, Self)> {
                 loop {
-                    if context.cancel.is_cancelled() {
-                        return None;
-                    }
                     if let Some(message) = context.buffer.pop_front() {
                         return Some((Some(message), context));
                     }
+
+                    // Check if the task is cancelled, but do it *after* fetching messages at least
+                    // once. Otherwise, concurrent streams might cancel each other before any
+                    // progress is done.
+                    if context.cancel.is_cancelled() && context.state != FetchState::Init {
+                        return None;
+                    }
+
                     // buffer is empty
                     match context.state {
+                        FetchState::Init => {
+                            context.state = FetchState::Fetch;
+                        }
                         FetchState::Fetch => {
                             context.fetch_next_messages().await?;
                             if context.buffer.is_empty() {
@@ -290,6 +316,7 @@ pub(crate) mod persistence {
     use prost::Message;
     use sqlx::{
         Database, Decode, Encode, Postgres, Type, encode::IsNull, error::BoxDynError, query,
+        query_scalar,
     };
 
     #[derive(Debug)]
@@ -335,7 +362,7 @@ pub(crate) mod persistence {
             queue_id: QsClientId,
             message: &QueueMessage,
         ) -> Result<(), QueueError> {
-            sqlx::query!(
+            query!(
                 "INSERT INTO qs_queues (queue_id, sequence_number, message_bytes)
                 VALUES ($1, $2, $3)",
                 queue_id as QsClientId,

@@ -16,13 +16,17 @@ use aircommon::{
         DeleteUserRecordParams, KeyPackageParams, PublishKeyPackagesParams,
         UpdateClientRecordParams, UpdateUserRecordParams,
     },
+    time::TimeStamp,
 };
 use displaydoc::Display;
 use tokio_stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming, async_trait};
 use tracing::error;
 
-use crate::{errors::QueueError, qs::queue::Queues};
+use crate::{
+    errors::QueueError,
+    qs::{client_record::QsClientRecord, queue::Queues, user_record::UserRecord},
+};
 
 use super::Qs;
 
@@ -73,6 +77,16 @@ impl GrpcQs {
                 return Err(ProcessListenQueueRequestError::EmptyRequest);
             }
         }
+        Ok(())
+    }
+
+    async fn update_client_activity_and_report_metrics(
+        &self,
+        client_id: aircommon::identifiers::QsClientId,
+    ) -> sqlx::Result<()> {
+        let mut connection = self.qs.db_pool.acquire().await?;
+        QsClientRecord::update_activity_time(&mut *connection, client_id, TimeStamp::now()).await?;
+        UserRecord::metrics(&mut *connection).await?.report();
         Ok(())
     }
 }
@@ -326,6 +340,13 @@ impl QueueService for GrpcQs {
                 event: Some(queue_event::Event::Empty(QueueEmpty {})),
             },
         });
+
+        self.update_client_activity_and_report_metrics(client_id)
+            .await
+            .inspect_err(|error| {
+                error!(%error, "Error updating client activity and reporting metrics");
+            })
+            .ok();
 
         tokio::spawn(Self::process_listen_queue_requests_task(
             self.qs.queues.clone(),
