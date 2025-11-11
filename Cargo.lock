@@ -153,6 +153,8 @@ dependencies = [
  "dashmap 6.1.0",
  "displaydoc",
  "futures-util",
+ "h2",
+ "hyper",
  "insta",
  "metrics",
  "mimi-room-policy",
