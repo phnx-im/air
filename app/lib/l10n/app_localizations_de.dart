@@ -171,6 +171,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get introScreen_signUp => 'Registrieren';
 
   @override
+  String get introScreen_termsLinkText => 'Nutzungsbedingungen';
+
+  @override
+  String introScreen_termsText(Object termsOfUseLink) {
+    return 'Mit deiner Registrierung stimmst du unseren $termsOfUseLink zu.';
+  }
+
+  @override
   String get signUpScreen_title => 'Create an Air Account';
 
   @override

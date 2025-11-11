@@ -55,6 +55,13 @@
   "deleteContactDialog_delete": "Delete",
 
   "introScreen_signUp": "Start",
+  "introScreen_termsLinkText": "Terms of Use",
+  "introScreen_termsText": "By signing up, you agree to our {termsOfUseLink}.",
+  "@introScreen_termsText": {
+    "placeholders": {
+      "termsOfUseLink": {}
+    }
+  },
 
   "signUpScreen_title": "Create an Air Account",
   "signUpScreen_actionButton": "Sign Up",

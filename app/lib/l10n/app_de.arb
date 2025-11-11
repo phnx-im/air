@@ -31,6 +31,13 @@
   "removeUserButton_text": "Benutzer entfernen",
 
   "introScreen_signUp": "Registrieren",
+  "introScreen_termsLinkText": "Nutzungsbedingungen",
+  "introScreen_termsText": "Mit deiner Registrierung stimmst du unseren {termsOfUseLink} zu.",
+  "@introScreen_termsText": {
+    "placeholders": {
+      "termsOfUseLink": {}
+    }
+  },
 
   "userHandleScreen_title": "Benutzername",
   "userHandleScreen_inputHint": "Benutzername",

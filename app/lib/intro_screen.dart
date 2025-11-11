@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/l10n/l10n.dart';
@@ -10,9 +11,13 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
 import 'package:air/theme/theme.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class IntroScreen extends StatelessWidget {
   const IntroScreen({super.key});
+
+  static const double _logoSize = 96;
+  static final Uri _termsOfUseUri = Uri.parse('https://phnx.im/terms');
 
   @override
   Widget build(BuildContext context) {
@@ -21,28 +26,27 @@ class IntroScreen extends StatelessWidget {
     });
 
     final loc = AppLocalizations.of(context);
+    final isSmall = isSmallScreen(context);
 
     return Scaffold(
       body: SafeArea(
-        minimum: const EdgeInsets.only(
-          left: Spacings.m,
-          right: Spacings.m,
-          bottom: Spacings.l + Spacings.xxs,
+        minimum: const EdgeInsets.symmetric(
+          horizontal: Spacings.l,
+          vertical: Spacings.l,
         ),
-        child: Center(
-          child: Column(
-            children: [
-              const Spacer(),
-              GestureDetector(
-                onLongPress: () {
-                  context.read<NavigationCubit>().openDeveloperSettings();
-                },
-                child: SizedBox(
-                  width: 64,
-                  height: 64,
+        child: Stack(
+          children: [
+            Align(
+              alignment: Alignment.center,
+              child: SizedBox(
+                width: _logoSize,
+                height: _logoSize,
+                child: GestureDetector(
+                  onLongPress: () {
+                    context.read<NavigationCubit>().openDeveloperSettings();
+                  },
                   child: SvgPicture.asset(
                     'assets/images/tilde.svg',
-                    width: 64,
                     colorFilter: ColorFilter.mode(
                       CustomColorScheme.of(context).text.primary,
                       BlendMode.srcIn,
@@ -50,28 +54,91 @@ class IntroScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              const Spacer(),
-              if (!isUserLoading)
-                Column(
-                  crossAxisAlignment:
-                      isSmallScreen(context)
-                          ? CrossAxisAlignment.stretch
-                          : CrossAxisAlignment.center,
+            ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    OutlinedButton(
-                      onPressed:
-                          () =>
-                              context
-                                  .read<NavigationCubit>()
-                                  .openServerChoice(),
-                      child: Text(loc.introScreen_signUp),
-                    ),
+                    _TermsOfUseText(loc: loc),
+                    if (!isUserLoading) ...[
+                      const SizedBox(height: Spacings.l),
+                      SizedBox(
+                        width: isSmall ? double.infinity : 240,
+                        child: OutlinedButton(
+                          onPressed:
+                              () =>
+                                  context
+                                      .read<NavigationCubit>()
+                                      .openServerChoice(),
+                          child: Text(loc.introScreen_signUp),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
-            ],
-          ),
+              ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+class _TermsOfUseText extends StatelessWidget {
+  const _TermsOfUseText({required this.loc});
+
+  final AppLocalizations loc;
+
+  @override
+  Widget build(BuildContext context) {
+    final baseTextStyle =
+        Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: CustomColorScheme.of(context).text.secondary,
+        ) ??
+        TextStyle(color: CustomColorScheme.of(context).text.secondary);
+
+    final linkText = loc.introScreen_termsLinkText;
+    final agreement = loc.introScreen_termsText(linkText);
+    final linkStart = agreement.indexOf(linkText);
+
+    if (linkStart == -1) {
+      return Text(agreement, style: baseTextStyle, textAlign: TextAlign.center);
+    }
+
+    final beforeLink = agreement.substring(0, linkStart);
+    final afterLink = agreement.substring(linkStart + linkText.length);
+
+    final linkStyle = baseTextStyle.copyWith(
+      color: CustomColorScheme.of(context).function.link,
+      fontWeight: FontWeight.w600,
+    );
+
+    return Text.rich(
+      TextSpan(
+        style: baseTextStyle,
+        children: [
+          TextSpan(text: beforeLink),
+          TextSpan(
+            text: linkText,
+            style: linkStyle,
+            recognizer:
+                TapGestureRecognizer()
+                  ..onTap = () {
+                    launchUrl(
+                      IntroScreen._termsOfUseUri,
+                      mode: LaunchMode.externalApplication,
+                    );
+                  },
+          ),
+          TextSpan(text: afterLink),
+        ],
+      ),
+      textAlign: TextAlign.center,
     );
   }
 }

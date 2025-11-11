@@ -376,6 +376,18 @@ abstract class AppLocalizations {
   /// **'Start'**
   String get introScreen_signUp;
 
+  /// No description provided for @introScreen_termsLinkText.
+  ///
+  /// In en, this message translates to:
+  /// **'Terms of Use'**
+  String get introScreen_termsLinkText;
+
+  /// No description provided for @introScreen_termsText.
+  ///
+  /// In en, this message translates to:
+  /// **'By signing up, you agree to our {termsOfUseLink}.'**
+  String introScreen_termsText(Object termsOfUseLink);
+
   /// No description provided for @signUpScreen_title.
   ///
   /// In en, this message translates to:
