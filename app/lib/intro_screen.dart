@@ -10,6 +10,7 @@ import 'package:air/navigation/navigation.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
 import 'package:air/theme/theme.dart';
+import 'package:air/util/notification_permissions.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -17,7 +18,7 @@ class IntroScreen extends StatelessWidget {
   const IntroScreen({super.key});
 
   static const double _logoSize = 96;
-  static final Uri _termsOfUseUri = Uri.parse('https://phnx.im/terms');
+  static final Uri _termsOfUseUri = Uri.parse('https://air.ms/terms');
 
   @override
   Widget build(BuildContext context) {
@@ -69,11 +70,13 @@ class IntroScreen extends StatelessWidget {
                       SizedBox(
                         width: isSmall ? double.infinity : 240,
                         child: OutlinedButton(
-                          onPressed:
-                              () =>
-                                  context
-                                      .read<NavigationCubit>()
-                                      .openServerChoice(),
+                          onPressed: () async {
+                            await requestNotificationPermissionsIfNeeded();
+                            if (!context.mounted) {
+                              return;
+                            }
+                            context.read<NavigationCubit>().openServerChoice();
+                          },
                           child: Text(loc.introScreen_signUp),
                         ),
                       ),

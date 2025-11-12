@@ -15,13 +15,8 @@ import 'package:air/user/user.dart';
 import 'package:air/util/interface_scale.dart';
 import 'package:air/util/platform.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:logging/logging.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
-
-final _log = Logger('App');
 
 final _appRouter = AppRouter();
 
@@ -54,8 +49,6 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         .listen((chatId) {
           _navigationCubit.openChat(chatId);
         });
-
-    _requestNotificationPermissions();
 
     _backgroundService.start(runImmediately: true);
   }
@@ -239,30 +232,3 @@ class LoadableUserCubitProvider extends StatelessWidget {
 bool _isUserLoadedOrUnloaded(LoadableUser previous, LoadableUser current) =>
     (previous.user != null || current.user != null) &&
     previous.user != current.user;
-
-void _requestNotificationPermissions() async {
-  if (Platform.isMacOS) {
-    // macOS: Use custom method channel
-    _log.info("Requesting notification permission for macOS");
-    try {
-      final granted = await requestNotificationPermission();
-      _log.info("macOS notification permission granted: $granted");
-    } on PlatformException catch (e) {
-      _log.severe(
-        "System error requesting macOS notification permission: ${e.message}",
-      );
-    }
-  } else if (Platform.isAndroid || Platform.isIOS) {
-    // Mobile: Use permission_handler
-    var status = await Permission.notification.status;
-    switch (status) {
-      case PermissionStatus.denied:
-        _log.info("Notification permission denied, will ask the user");
-        var requestStatus = await Permission.notification.request();
-        _log.fine("The status is $requestStatus");
-        break;
-      default:
-        _log.info("Notification permission status: $status");
-    }
-  }
-}
