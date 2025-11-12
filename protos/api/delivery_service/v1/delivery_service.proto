@@ -195,7 +195,7 @@ message ResyncRequest {
   ResyncPayload payload = 1;
   common.v1.Signature signature = 2;
   // Index of the sender before processing the commit
-  LeafNodeIndex sender_index = 3; 
+  LeafNodeIndex sender_index = 3;
 }
 
 message ResyncPayload {
@@ -311,6 +311,7 @@ message ProvisionAttachmentPayload {
   GroupStateEarKey group_state_ear_key = 1;
   common.v1.QualifiedGroupId group_id = 2;
   LeafNodeIndex sender = 3;
+  bool use_post_policy = 4;
 }
 
 message ProvisionAttachmentResponse {
@@ -318,6 +319,13 @@ message ProvisionAttachmentResponse {
   common.v1.ExpirationData upload_url_expiration = 2;
   string upload_url = 4; // non-empty
   repeated HeaderEntry upload_headers = 5; // can be empty
+  // If present, the attachment should be uploaded via POST multipart/form-data
+  optional SignedPostPolicy post_policy = 6;
+}
+
+message SignedPostPolicy {
+  string base64 = 2;
+  string signature = 3;
 }
 
 message HeaderEntry {
