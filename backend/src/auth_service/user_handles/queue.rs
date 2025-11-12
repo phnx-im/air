@@ -115,13 +115,13 @@ impl UserHandleQueues {
     async fn track_listener(&self, hash: UserHandleHash) -> sqlx::Result<CancellationToken> {
         let mut listeners = self.listeners.lock().await;
         for (hash, _) in listeners.extract_if(|_, cancel| cancel.is_cancelled()) {
-            self.pg_listener_task_handle.unlisten(hash).await;
+            self.pg_listener_task_handle.unlisten(hash);
         }
         let cancel = CancellationToken::new();
         if let Some(prev_cancel) = listeners.insert(hash, cancel.clone()) {
             prev_cancel.cancel();
         } else {
-            self.pg_listener_task_handle.listen(hash).await;
+            self.pg_listener_task_handle.listen(hash);
         }
         Ok(cancel)
     }

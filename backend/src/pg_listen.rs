@@ -10,7 +10,7 @@ use sqlx::postgres::{PgListener, PgNotification};
 use thiserror::Error;
 use tokio::sync::{broadcast, mpsc};
 use tokio_stream::StreamExt;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 /// A handle to a running [`PgListener`] task.
 ///
@@ -18,18 +18,18 @@ use tracing::{error, info};
 #[derive(Debug, Clone)]
 pub(crate) struct PgListenerTaskHandle<C> {
     broadcast: broadcast::Sender<C>,
-    listener_tx: mpsc::Sender<Command<C>>,
+    listener_tx: mpsc::UnboundedSender<Command<C>>,
 }
 
 impl<C: PgChannelName> PgListenerTaskHandle<C> {
-    pub(crate) async fn listen(&self, channel: C) {
-        if let Err(error) = self.listener_tx.send(Command::Listen(channel)).await {
+    pub(crate) fn listen(&self, channel: C) {
+        if let Err(error) = self.listener_tx.send(Command::Listen(channel)) {
             error!(%error, "Error sending listen command to pg listener task");
         }
     }
 
-    pub(crate) async fn unlisten(&self, channel: C) {
-        if let Err(error) = self.listener_tx.send(Command::Unlisten(channel)).await {
+    pub(crate) fn unlisten(&self, channel: C) {
+        if let Err(error) = self.listener_tx.send(Command::Unlisten(channel)) {
             error!(%error, "Error sending unlisten command to pg listener task");
         }
     }
@@ -59,7 +59,7 @@ pub(crate) async fn spawn_pg_listener_task<C: PgChannelName>(
 ) -> sqlx::Result<PgListenerTaskHandle<C>> {
     let (broadcast, _) = broadcast::channel(1024);
     let mut listener = PgListener::connect_with(&pool).await?;
-    let (listener_tx, mut listener_rx) = mpsc::channel(1024);
+    let (listener_tx, mut listener_rx) = mpsc::unbounded_channel();
 
     // Cancelled when listener_tx is dropped
     let broadcast_inner = broadcast.clone();
@@ -96,15 +96,20 @@ async fn handle_loop_event<C: PgChannelName>(
         LoopEvent::Notification(notification) => {
             let notification = notification?;
             let channel = notification.channel();
+            debug!(channel, "received notification");
             let channel = C::from_pg_channel(channel)
                 .ok_or_else(|| LoopError::InvalidChannel(channel.to_string()))?;
             broadcast.send(channel).ok();
         }
         LoopEvent::Command(Command::Listen(channel)) => {
-            listener.listen(&channel.pg_channel()).await?;
+            let pg_channel = channel.pg_channel();
+            debug!(pg_channel, "listen");
+            listener.listen(&pg_channel).await?;
         }
         LoopEvent::Command(Command::Unlisten(channel)) => {
-            listener.unlisten(&channel.pg_channel()).await?;
+            let pg_channel = channel.pg_channel();
+            debug!(pg_channel, "unlisten");
+            listener.unlisten(&pg_channel).await?;
         }
     }
     Ok(())
