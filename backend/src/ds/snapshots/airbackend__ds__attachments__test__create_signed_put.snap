@@ -26,7 +26,7 @@ Ok(
                 ),
             },
         ),
-        upload_url: "https://data.s3.us-east-1.amazonaws.com/ba521fc61ec24f8ea85e3dacc1e96989?x-id=PutObject&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE%2F20230101%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20230101T000000Z&X-Amz-Expires=60&X-Amz-SignedHeaders=content-length%3Bhost&X-Amz-Signature=a97f12014d253c1b820df925ffa477b5c5aef4c9bafff112b1d4b0dc44182c54",
+        upload_url: "https://data.region.example.com/ba521fc61ec24f8ea85e3dacc1e96989?x-id=PutObject&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=EXAMPLEKEY%2F20230101%2Fexample-region%2Fs3%2Faws4_request&X-Amz-Date=20230101T000000Z&X-Amz-Expires=60&X-Amz-SignedHeaders=content-length%3Bhost&X-Amz-Signature=15bb1dd360f2748e78292d899b1afeec83115ed9786fe82d86454b65571ce8fb",
         upload_headers: [
             HeaderEntry {
                 key: "content-length",

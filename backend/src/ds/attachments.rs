@@ -327,10 +327,10 @@ mod test {
 
     fn storage() -> Storage {
         let settings = StorageSettings {
-            endpoint: "https://s3.us-east-1.amazonaws.com".to_owned(),
-            region: "eu-west-1".to_owned(),
-            access_key_id: "AKIAIOSFODNN7EXAMPLE".to_owned(),
-            secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY".to_owned().into(),
+            endpoint: "https://region.example.com".to_owned(),
+            region: "example-region".to_owned(),
+            access_key_id: "EXAMPLEKEY".to_owned(),
+            secret_access_key: "EXMPLESECRET".to_owned().into(),
             force_path_style: false,
             upload_expiration: Duration::seconds(60),
             download_expiration: Duration::seconds(60),
