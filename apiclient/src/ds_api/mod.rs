@@ -215,9 +215,16 @@ impl ApiClient {
         group_state_ear_key: &GroupStateEarKey,
         group_id: &GroupId,
         sender_index: LeafNodeIndex,
+        content_length: i64,
     ) -> Result<ProvisionAttachmentResponse, DsRequestError> {
         self.ds_grpc_client
-            .provision_attachment(signing_key, group_state_ear_key, group_id, sender_index)
+            .provision_attachment(
+                signing_key,
+                group_state_ear_key,
+                group_id,
+                sender_index,
+                content_length,
+            )
             .await
     }
 

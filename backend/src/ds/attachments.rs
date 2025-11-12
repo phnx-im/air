@@ -40,7 +40,9 @@ impl Ds {
         let response = if storage.settings().use_post_policy && payload.use_post_policy {
             create_signed_post(storage, attachment_id, expiration)
         } else {
-            create_signed_put(storage, attachment_id, expiration).await?
+            let content_length =
+                (payload.content_length > 0).then_some(payload.content_length as u64);
+            create_signed_put(storage, attachment_id, expiration, content_length).await?
         };
         Ok(Response::new(response))
     }
@@ -93,6 +95,7 @@ async fn create_signed_put(
     storage: &Storage,
     attachment_id: Uuid,
     expiration: ExpirationData,
+    content_length: Option<u64>,
 ) -> Result<ProvisionAttachmentResponse, ProvisionAttachmentError> {
     let not_before: DateTime<Utc> = expiration.not_before().into();
     let not_after: DateTime<Utc> = expiration.not_after().into();
@@ -107,7 +110,25 @@ async fn create_signed_put(
         .client()
         .put_object()
         .bucket("data")
-        .key(attachment_id.as_simple().to_string())
+        .key(attachment_id.as_simple().to_string());
+
+    let settings = storage.settings();
+
+    let request = if let Some(content_length) = content_length {
+        if settings.max_attachment_size < content_length {
+            return Err(ProvisionAttachmentError::AttachmentTooLarge {
+                max_size: settings.max_attachment_size,
+                actual_size: content_length,
+            });
+        }
+        request.set_content_length(Some(content_length as i64))
+    } else if settings.require_content_length {
+        return Err(ProvisionAttachmentError::ContentLengthRequired);
+    } else {
+        request
+    };
+
+    let request = request
         .presigned(presigning_config)
         .await
         .map_err(Box::new)?;
@@ -209,6 +230,10 @@ pub(super) enum ProvisionAttachmentError {
     Presigning(#[from] PresigningConfigError),
     /// Internal error
     Sdk(#[from] Box<SdkError<put_object::PutObjectError, http::HttpResponse>>),
+    /// Content length is required
+    ContentLengthRequired,
+    /// Attachment is too large
+    AttachmentTooLarge { max_size: u64, actual_size: u64 },
 }
 
 impl From<ProvisionAttachmentError> for Status {
@@ -235,6 +260,16 @@ impl From<ProvisionAttachmentError> for Status {
                 error!(%error, "Failed to build S3 request");
                 Status::internal(msg)
             }
+            ProvisionAttachmentError::ContentLengthRequired => {
+                Status::invalid_argument("content length is required")
+            }
+            ProvisionAttachmentError::AttachmentTooLarge {
+                max_size,
+                actual_size,
+            } => Status::invalid_argument(format!(
+                "attachment is too large; maximum size is {max_size} bytes, \
+                    actual size is {actual_size} bytes",
+            )),
         }
     }
 }
@@ -301,6 +336,7 @@ mod test {
             download_expiration: Duration::seconds(60),
             max_attachment_size: 20 * 1024 * 1024,
             use_post_policy: false,
+            require_content_length: true,
         };
         Storage::new(settings)
     }
@@ -314,7 +350,11 @@ mod test {
         let expiration = ExpirationData::from_parts(at.into(), (at + Duration::seconds(60)).into());
 
         let storage = storage();
-        let response = create_signed_put(&storage, attachment_id, expiration).await;
+
+        let response = create_signed_put(&storage, attachment_id, expiration.clone(), None).await;
+        assert!(response.is_err());
+
+        let response = create_signed_put(&storage, attachment_id, expiration, Some(42)).await;
 
         insta::assert_debug_snapshot!(response);
     }
