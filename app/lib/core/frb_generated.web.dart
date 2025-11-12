@@ -25,6 +25,7 @@ import 'api/types.dart';
 import 'api/user.dart';
 import 'api/user_cubit.dart';
 import 'api/user_settings_cubit.dart';
+import 'api/username_suggestions.dart';
 import 'api/users_cubit.dart';
 import 'api/utils.dart';
 import 'dart:async';

@@ -313,9 +313,28 @@ void _submit(BuildContext context, GlobalKey<FormState> formKey) async {
   }
 
   final navigationCubit = context.read<NavigationCubit>();
-  final error = await context.read<RegistrationCubit>().signUp();
+  final registrationCubit = context.read<RegistrationCubit>();
+  final error = await registrationCubit.signUp();
   if (error == null) {
-    navigationCubit.openHome();
+    String suggestion = registrationCubit.state.usernameSuggestion ?? '';
+    if (suggestion.isEmpty) {
+      try {
+        suggestion = usernameFromDisplay(
+          display: registrationCubit.state.displayName,
+        );
+      } catch (_) {
+        suggestion = registrationCubit.state.displayName.trim().toLowerCase();
+      }
+      if (suggestion.isEmpty) {
+        suggestion = 'user';
+      }
+    }
+    if (!context.mounted) {
+      return;
+    }
+    registrationCubit.startUsernameOnboarding(suggestion);
+    navigationCubit.pop();
+    navigationCubit.openIntroScreen(const IntroScreenType.usernameOnboarding());
   } else if (context.mounted) {
     final loc = AppLocalizations.of(context);
     showErrorBanner(context, loc.signUpScreen_error_register(error.message));

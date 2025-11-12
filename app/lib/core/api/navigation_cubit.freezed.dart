@@ -261,6 +261,38 @@ String toString() {
 /// @nodoc
 
 
+class IntroScreenType_UsernameOnboarding extends IntroScreenType {
+  const IntroScreenType_UsernameOnboarding(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is IntroScreenType_UsernameOnboarding);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'IntroScreenType.usernameOnboarding()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
 class IntroScreenType_DeveloperSettings extends IntroScreenType {
   const IntroScreenType_DeveloperSettings(this.field0): super._();
   

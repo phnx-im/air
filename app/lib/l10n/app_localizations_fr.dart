@@ -193,6 +193,26 @@ class AppLocalizationsFr extends AppLocalizations {
       'Votre nom d\'affichage est la façon dont votre nom apparaît dans Air.';
 
   @override
+  String get usernameOnboarding_title => 'Bienvenue sur Air';
+
+  @override
+  String get usernameOnboarding_header => 'Ajoutez un nom d\'utilisateur';
+
+  @override
+  String get usernameOnboarding_body =>
+      'On peut se connecter à d\'autres grace aux noms d\'utilisateur sur Air. Ils ne seront plus visibles pour les autres une fois la connexion établie.\n\nAjoutez, modifiez ou supprimez des noms d\'utilisateur à tout moment dans votre profil.';
+
+  @override
+  String get usernameOnboarding_syntax =>
+      'Utilisez des lettres, des chiffres ou des traits de soulignement. Minimum 5 caractères.';
+
+  @override
+  String get usernameOnboarding_addButton => 'Ajouter';
+
+  @override
+  String get usernameOnboarding_skip => 'Ignorer';
+
+  @override
   String get signUpScreen_actionButton => 'Sign Up';
 
   @override

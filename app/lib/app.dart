@@ -172,7 +172,14 @@ class LoadableUserCubitProvider extends StatelessWidget {
         // screen, depending on whether the user was loaded or unloaded.
         switch (loadableUser) {
           case LoadedUser(user: final user?):
-            context.read<NavigationCubit>().openHome();
+            final registrationState = context.read<RegistrationCubit>().state;
+            if (registrationState.needsUsernameOnboarding) {
+              context.read<NavigationCubit>().openIntroScreen(
+                const IntroScreenType.usernameOnboarding(),
+              );
+            } else {
+              context.read<NavigationCubit>().openHome();
+            }
             context.read<UserSettingsCubit>().loadState(user: user);
           case LoadingUser() || LoadedUser(user: null):
             context.read<NavigationCubit>().openIntro();

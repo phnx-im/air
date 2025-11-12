@@ -412,6 +412,42 @@ abstract class AppLocalizations {
   /// **'Your display name is how your name appears on Air.'**
   String get signUpScreen_displayNameSubheader;
 
+  /// No description provided for @usernameOnboarding_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Welcome to Air'**
+  String get usernameOnboarding_title;
+
+  /// No description provided for @usernameOnboarding_header.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a username'**
+  String get usernameOnboarding_header;
+
+  /// No description provided for @usernameOnboarding_body.
+  ///
+  /// In en, this message translates to:
+  /// **'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.'**
+  String get usernameOnboarding_body;
+
+  /// No description provided for @usernameOnboarding_syntax.
+  ///
+  /// In en, this message translates to:
+  /// **'Use letters, numbers, or underscores. Minimum 5 characters.'**
+  String get usernameOnboarding_syntax;
+
+  /// No description provided for @usernameOnboarding_addButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get usernameOnboarding_addButton;
+
+  /// No description provided for @usernameOnboarding_skip.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get usernameOnboarding_skip;
+
   /// No description provided for @signUpScreen_actionButton.
   ///
   /// In en, this message translates to:

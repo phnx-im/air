@@ -191,6 +191,26 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your display name is how your name appears on Air.';
 
   @override
+  String get usernameOnboarding_title => 'Welcome to Air';
+
+  @override
+  String get usernameOnboarding_header => 'Add a username';
+
+  @override
+  String get usernameOnboarding_body =>
+      'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.';
+
+  @override
+  String get usernameOnboarding_syntax =>
+      'Use letters, numbers, or underscores. Minimum 5 characters.';
+
+  @override
+  String get usernameOnboarding_addButton => 'Add';
+
+  @override
+  String get usernameOnboarding_skip => 'Skip';
+
+  @override
   String get signUpScreen_actionButton => 'Sign Up';
 
   @override

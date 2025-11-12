@@ -149,6 +149,9 @@ extension on IntroScreenType {
   ValueKey<String> get key => switch (this) {
     IntroScreenType_Intro() => const ValueKey("intro-screen"),
     IntroScreenType_SignUp() => const ValueKey("sign-up-screen"),
+    IntroScreenType_UsernameOnboarding() => const ValueKey(
+      "username-onboarding-screen",
+    ),
     IntroScreenType_DeveloperSettings(field0: final screen) => ValueKey(
       "developer-settings-screen-$screen",
     ),
@@ -157,6 +160,7 @@ extension on IntroScreenType {
   Widget get screen => switch (this) {
     IntroScreenType_Intro() => const IntroScreen(),
     IntroScreenType_SignUp() => const SignUpScreen(),
+    IntroScreenType_UsernameOnboarding() => const UsernameOnboardingScreen(),
     IntroScreenType_DeveloperSettings(field0: final screen) => switch (screen) {
       DeveloperSettingsScreenType.root => const DeveloperSettingsScreen(),
       DeveloperSettingsScreenType.changeUser => const ChangeUserScreen(),
