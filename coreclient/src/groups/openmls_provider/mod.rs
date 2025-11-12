@@ -27,7 +27,7 @@ pub(crate) mod signature_key_pairs;
 pub(crate) mod storage_provider;
 
 #[derive(Debug, Serialize)]
-struct KeyRefWrapper<'a, T: Key<CURRENT_VERSION>>(pub &'a T);
+pub(crate) struct KeyRefWrapper<'a, T: Key<CURRENT_VERSION>>(pub &'a T);
 
 struct EntityWrapper<T: Entity<CURRENT_VERSION>>(pub T);
 
