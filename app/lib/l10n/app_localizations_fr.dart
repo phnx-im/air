@@ -186,13 +186,6 @@ class AppLocalizationsFr extends AppLocalizations {
       'Votre profil est visible pour les personnes avec lesquelles vous vous connectez et les membres de vos groupes.';
 
   @override
-  String get signUpScreen_displayNameHeader => 'Choisissez un nom d\'affichage';
-
-  @override
-  String get signUpScreen_displayNameSubheader =>
-      'Votre nom d\'affichage est la façon dont votre nom apparaît dans Air.';
-
-  @override
   String get usernameOnboarding_title => 'Bienvenue sur Air';
 
   @override
@@ -213,10 +206,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get usernameOnboarding_skip => 'Ignorer';
 
   @override
-  String get signUpScreen_actionButton => 'Sign Up';
+  String get signUpScreen_actionButton => 'Sign up';
 
   @override
-  String get signUpScreen_displayNameHint => 'Display Name';
+  String get signUpScreen_displayNameHint => 'Nom d\'utillisateur (nécessaire)';
 
   @override
   String get signUpScreen_serverLabel =>

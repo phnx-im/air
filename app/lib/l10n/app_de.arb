@@ -41,8 +41,7 @@
 
   "signUpScreen_header": "Erstelle dein Profil",
   "signUpScreen_subheader": "Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen.",
-  "signUpScreen_displayNameHeader": "Wähle einen Anzeigenamen",
-  "signUpScreen_displayNameSubheader": "Dein Anzeigename ist der Name, der in Air angezeigt wird.",
+  "signUpScreen_displayNameHint": "Benutzername (erforderlich)",
   "usernameOnboarding_title": "Willkommen bei Air",
   "usernameOnboarding_header": "Füge einen Benutzernamen hinzu",
   "usernameOnboarding_body": "Über Benutzernamen kann man sich in Air mit anderen verbinden. Sie sind für andere nicht mehr sichtbar, sobald man verbunden ist.\n\nDu kannst Benutzernamen jederzeit in deinem Profil hinzufügen, ändern oder löschen.",

@@ -33,6 +33,7 @@ class SignUpScreen extends HookWidget {
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
         automaticallyImplyLeading: false,
+        leading: const AppBarBackButton(),
         title: Text(loc.signUpScreen_header),
         toolbarHeight: isPointer() ? 100 : null,
       ),
@@ -118,19 +119,7 @@ class _Form extends HookWidget {
               onLongPress: () => serverFieldVisible.value = true,
               child: const _UserAvatarPicker(),
             ),
-            const SizedBox(height: Spacings.m),
-
-            Text(
-              loc.signUpScreen_displayNameHeader,
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: Spacings.xs),
-            Text(
-              loc.signUpScreen_displayNameSubheader,
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: Spacings.m),
+            const SizedBox(height: Spacings.l),
 
             ConstrainedBox(
               constraints: textFormContstraints,

@@ -400,18 +400,6 @@ abstract class AppLocalizations {
   /// **'Your profile is visible to people you connect with and members of groups you’re in.'**
   String get signUpScreen_subheader;
 
-  /// No description provided for @signUpScreen_displayNameHeader.
-  ///
-  /// In en, this message translates to:
-  /// **'Choose a display name'**
-  String get signUpScreen_displayNameHeader;
-
-  /// No description provided for @signUpScreen_displayNameSubheader.
-  ///
-  /// In en, this message translates to:
-  /// **'Your display name is how your name appears on Air.'**
-  String get signUpScreen_displayNameSubheader;
-
   /// No description provided for @usernameOnboarding_title.
   ///
   /// In en, this message translates to:
@@ -451,13 +439,13 @@ abstract class AppLocalizations {
   /// No description provided for @signUpScreen_actionButton.
   ///
   /// In en, this message translates to:
-  /// **'Sign Up'**
+  /// **'Sign up'**
   String get signUpScreen_actionButton;
 
   /// No description provided for @signUpScreen_displayNameHint.
   ///
   /// In en, this message translates to:
-  /// **'Display Name'**
+  /// **'Display name (required)'**
   String get signUpScreen_displayNameHint;
 
   /// No description provided for @signUpScreen_serverLabel.

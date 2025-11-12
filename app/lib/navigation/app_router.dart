@@ -69,16 +69,15 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
     // routing
     final List<MaterialPage> pages = switch (navigationState) {
       NavigationState_Intro(:final screens) => [
-        if (screens.isEmpty)
-          MaterialPage(
-            key: const IntroScreenType.intro().key,
-            canPop: false,
-            child: const IntroScreenType.intro().screen,
-          ),
+        MaterialPage(
+          key: const IntroScreenType.intro().key,
+          canPop: false,
+          child: const IntroScreenType.intro().screen,
+        ),
         for (final screenType in screens)
           MaterialPage(
             key: screenType.key,
-            canPop: screenType != const IntroScreenType.intro(),
+            canPop: true,
             child: screenType.screen,
           ),
       ],
