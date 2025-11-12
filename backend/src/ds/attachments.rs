@@ -35,12 +35,12 @@ impl Ds {
 
         let attachment_id = Uuid::new_v4();
 
-        let expiration = ExpirationData::now(storage.attributes().upload_expiration);
+        let expiration = ExpirationData::now(storage.settings().upload_expiration);
 
-        let response = if !payload.use_post_policy {
-            create_signed_put(storage, attachment_id, expiration).await?
-        } else {
+        let response = if storage.settings().use_post_policy && payload.use_post_policy {
             create_signed_post(storage, attachment_id, expiration)
+        } else {
+            create_signed_put(storage, attachment_id, expiration).await?
         };
         Ok(Response::new(response))
     }
@@ -53,7 +53,7 @@ impl Ds {
             return Err(GetAttachmentUrlError::NoStorageConfigured);
         };
 
-        let expiration = ExpirationData::now(storage.attributes().download_expiration);
+        let expiration = ExpirationData::now(storage.settings().download_expiration);
         let not_before: DateTime<Utc> = expiration.not_before().into();
         let not_after: DateTime<Utc> = expiration.not_after().into();
         let duration = not_after - not_before;
@@ -144,13 +144,13 @@ fn create_signed_post(
     let not_before: DateTime<Utc> = expiration.not_before().into();
     let not_after: DateTime<Utc> = expiration.not_after().into();
 
-    let attributes = storage.attributes();
+    let settings = storage.settings();
 
     let x_amz_credential = format!(
         "{access_key}/{date}/{region}/s3/aws4_request",
-        access_key = attributes.access_key_id,
+        access_key = settings.access_key_id,
         date = not_before.format("%Y%m%d"),
-        region = attributes.region,
+        region = settings.region,
     );
 
     let policy = Policy {
@@ -158,7 +158,7 @@ fn create_signed_post(
         conditions: [
             json!({"bucket": "data"}),
             json!({"key": attachment_id.as_simple().to_string()}),
-            json!(["content-length-range", 0, attributes.max_attachment_size]),
+            json!(["content-length-range", 0, settings.max_attachment_size]),
             json!({"x-amz-credential": x_amz_credential}),
             json!({"x-amz-algorithm": "AWS4-HMAC-SHA256"}),
             json!({"x-amz-date": not_before.format("%Y%m%dT%H%M%SZ").to_string()}),
@@ -167,9 +167,9 @@ fn create_signed_post(
 
     // Note: sigv4a is not supported by minio, which is used in local deployment.
     let signing_key = aws_sigv4::sign::v4::generate_signing_key(
-        attributes.secret_access_key.as_ref(),
+        settings.secret_access_key.as_ref(),
         not_before.into(),
-        &attributes.region,
+        &settings.region,
         "s3",
     );
     let policy_json = serde_json::to_string(&policy).expect("policy is always serializable");
@@ -179,7 +179,7 @@ fn create_signed_post(
     // Note: We just use a simpler path style URL here.
     let upload_url = format!(
         "{endpoint}/{bucket}",
-        endpoint = attributes.endpoint_url,
+        endpoint = settings.endpoint,
         bucket = "data",
     );
 
@@ -300,6 +300,7 @@ mod test {
             upload_expiration: Duration::seconds(60),
             download_expiration: Duration::seconds(60),
             max_attachment_size: 20 * 1024 * 1024,
+            use_post_policy: false,
         };
         Storage::new(settings)
     }

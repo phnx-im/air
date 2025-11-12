@@ -104,6 +104,9 @@ pub struct StorageSettings {
     /// Default is 20 MiB.
     #[serde(default = "default_20mib")]
     pub max_attachment_size: u64,
+    /// Enables attachment provisioning for uploads via POST policy
+    #[serde(default)]
+    pub use_post_policy: bool,
 }
 
 #[derive(Debug, Deserialize, Clone, Zeroize)]
