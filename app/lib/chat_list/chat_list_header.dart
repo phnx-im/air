@@ -53,7 +53,12 @@ class _AvatarState extends State<_Avatar> {
 
   @override
   Widget build(BuildContext context) {
-    final profile = context.select((UsersCubit cubit) => cubit.state.profile());
+    late final UiUserProfile profile;
+    try {
+      profile = context.select((UsersCubit cubit) => cubit.state.profile());
+    } on ProviderNotFoundException {
+      return const SizedBox.shrink();
+    }
 
     return Padding(
       padding: const EdgeInsets.only(left: Spacings.sm),
