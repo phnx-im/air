@@ -134,6 +134,7 @@ impl GrpcAs {
                     && io_error.kind() == io::ErrorKind::BrokenPipe
                 {
                     // Client closed connection => not an error
+                    continue;
                 } else {
                     // We report the error, but don't stop processing requests.
                     // TODO(#466): Send this to the client.
