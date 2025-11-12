@@ -46,14 +46,14 @@
   "usernameOnboarding_title": "Willkommen bei Air",
   "usernameOnboarding_header": "Füge einen Benutzernamen hinzu",
   "usernameOnboarding_body": "Über Benutzernamen kann man sich in Air mit anderen verbinden. Sie sind für andere nicht mehr sichtbar, sobald man verbunden ist.\n\nDu kannst Benutzernamen jederzeit in deinem Profil hinzufügen, ändern oder löschen.",
-  "usernameOnboarding_syntax": "Verwende Buchstaben, Zahlen oder Unterstriche. Mindestens 5 Zeichen.",
+  "usernameOnboarding_syntax": "Verwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.",
   "usernameOnboarding_addButton": "Hinzufügen",
   "usernameOnboarding_skip": "Überspringen",
 
   "userHandleScreen_title": "Benutzername",
   "userHandleScreen_inputHint": "Benutzername",
   "userHandleScreen_error_emptyHandle": "Benutzername darf nicht leer sein",
-  "userHandleScreen_description": "Wähle einen Benutzernamen, den andere verwenden können, um sich mit dir zu verbinden.\n\nVerwende Buchstaben, Zahlen oder Unterstriche. Mindestens 5 Zeichen.",
+  "userHandleScreen_description": "Wähle einen Benutzernamen, den andere verwenden können, um sich mit dir zu verbinden.\n\nVerwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.",
   "userHandleScreen_save": "Speichern",
 
   "editDisplayNameScreen_title": "Anzeigename",

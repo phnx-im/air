@@ -46,14 +46,14 @@
   "usernameOnboarding_title": "Bienvenue sur Air",
   "usernameOnboarding_header": "Ajoutez un nom d'utilisateur",
   "usernameOnboarding_body": "On peut se connecter à d'autres grace aux noms d'utilisateur sur Air. Ils ne seront plus visibles pour les autres une fois la connexion établie.\n\nAjoutez, modifiez ou supprimez des noms d'utilisateur à tout moment dans votre profil.",
-  "usernameOnboarding_syntax": "Utilisez des lettres, des chiffres ou des traits de soulignement. Minimum 5 caractères.",
+  "usernameOnboarding_syntax": "Utilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.",
   "usernameOnboarding_addButton": "Ajouter",
   "usernameOnboarding_skip": "Ignorer",
 
   "userHandleScreen_title": "Nom d'utilisateur",
   "userHandleScreen_inputHint": "Nom d'utilisateur",
   "userHandleScreen_error_emptyHandle": "Le nom d'utilisateur ne peut pas être vide",
-  "userHandleScreen_description": "Choisissez un nom d'utilisateur que d'autres peuvent utiliser pour se connecter avec vous.\n\nUtilisez des lettres, des chiffres ou des traits de soulignement. Minimum 5 caractères.",
+  "userHandleScreen_description": "Choisissez un nom d'utilisateur que d'autres peuvent utiliser pour se connecter avec vous.\n\nUtilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.",
   "userHandleScreen_save": "Enregistrer",
 
   "editDisplayNameScreen_title": "Nom d'affichage",

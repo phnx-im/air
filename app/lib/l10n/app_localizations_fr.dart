@@ -204,7 +204,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get usernameOnboarding_syntax =>
-      'Utilisez des lettres, des chiffres ou des traits de soulignement. Minimum 5 caractères.';
+      'Utilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.';
 
   @override
   String get usernameOnboarding_addButton => 'Ajouter';
@@ -253,7 +253,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get userHandleScreen_description =>
-      'Choisissez un nom d\'utilisateur que d\'autres peuvent utiliser pour se connecter avec vous.\n\nUtilisez des lettres, des chiffres ou des traits de soulignement. Minimum 5 caractères.';
+      'Choisissez un nom d\'utilisateur que d\'autres peuvent utiliser pour se connecter avec vous.\n\nUtilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.';
 
   @override
   String get userHandleScreen_save => 'Enregistrer';

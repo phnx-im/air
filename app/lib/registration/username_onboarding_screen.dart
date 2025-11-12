@@ -36,9 +36,11 @@ class UsernameOnboardingScreen extends HookWidget {
       if (!formKey.currentState!.validate()) {
         return;
       }
-      final handle = UiUserHandle(
-        plaintext: controller.text.trim().toLowerCase(),
+      final normalized = controller.text.trim().toLowerCase().replaceAll(
+        '_',
+        '-',
       );
+      final handle = UiUserHandle(plaintext: normalized);
       final userCubit = context.read<UserCubit>();
       final navigationCubit = context.read<NavigationCubit>();
       final registrationCubit = context.read<RegistrationCubit>();
@@ -177,7 +179,9 @@ class UsernameOnboardingScreen extends HookWidget {
     if (value == null || value.trim().isEmpty) {
       return loc.userHandleScreen_error_emptyHandle;
     }
-    final handle = UiUserHandle(plaintext: value.trim().toLowerCase());
+    final handle = UiUserHandle(
+      plaintext: value.trim().toLowerCase().replaceAll('_', '-'),
+    );
     return handle.validationError();
   }
 }

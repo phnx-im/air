@@ -204,7 +204,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get usernameOnboarding_syntax =>
-      'Verwende Buchstaben, Zahlen oder Unterstriche. Mindestens 5 Zeichen.';
+      'Verwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.';
 
   @override
   String get usernameOnboarding_addButton => 'Hinzufügen';
@@ -253,7 +253,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get userHandleScreen_description =>
-      'Wähle einen Benutzernamen, den andere verwenden können, um sich mit dir zu verbinden.\n\nVerwende Buchstaben, Zahlen oder Unterstriche. Mindestens 5 Zeichen.';
+      'Wähle einen Benutzernamen, den andere verwenden können, um sich mit dir zu verbinden.\n\nVerwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.';
 
   @override
   String get userHandleScreen_save => 'Speichern';

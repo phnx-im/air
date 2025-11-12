@@ -202,7 +202,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get usernameOnboarding_syntax =>
-      'Use letters, numbers, or underscores. Minimum 5 characters.';
+      'Use letters, numbers, or dashes. Minimum 5 characters.';
 
   @override
   String get usernameOnboarding_addButton => 'Add';
@@ -250,7 +250,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get userHandleScreen_description =>
-      'Choose a username that others can use to connect with you.\n\nUse letters, numbers, or underscores. Minimum 5 characters.';
+      'Choose a username that others can use to connect with you.\n\nUse letters, numbers, or dashes. Minimum 5 characters.';
 
   @override
   String get userHandleScreen_save => 'Save';

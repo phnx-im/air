@@ -433,7 +433,7 @@ abstract class AppLocalizations {
   /// No description provided for @usernameOnboarding_syntax.
   ///
   /// In en, this message translates to:
-  /// **'Use letters, numbers, or underscores. Minimum 5 characters.'**
+  /// **'Use letters, numbers, or dashes. Minimum 5 characters.'**
   String get usernameOnboarding_syntax;
 
   /// No description provided for @usernameOnboarding_addButton.
@@ -517,7 +517,7 @@ abstract class AppLocalizations {
   /// No description provided for @userHandleScreen_description.
   ///
   /// In en, this message translates to:
-  /// **'Choose a username that others can use to connect with you.\n\nUse letters, numbers, or underscores. Minimum 5 characters.'**
+  /// **'Choose a username that others can use to connect with you.\n\nUse letters, numbers, or dashes. Minimum 5 characters.'**
   String get userHandleScreen_description;
 
   /// No description provided for @userHandleScreen_save.
