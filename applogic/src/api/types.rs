@@ -433,7 +433,7 @@ impl UiFlightPosition {
         match (&a.message, &b.message) {
             (UiMessage::Content(a_content), UiMessage::Content(b_content)) => {
                 a_content.sender != b_content.sender
-                    || TIME_THRESHOLD <= b.timestamp().signed_duration_since(b.timestamp()).abs()
+                    || TIME_THRESHOLD <= b.timestamp().signed_duration_since(a.timestamp()).abs()
             }
             // all non-content messages are considered to be flight breaks
             _ => true,
