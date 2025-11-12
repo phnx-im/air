@@ -140,7 +140,6 @@ impl OutboundServiceContext {
 mod persistence {
     use openmls::prelude::KeyPackageRef;
     use sqlx::{QueryBuilder, SqliteTransaction};
-    use tracing::info;
 
     use crate::groups::openmls_provider::KeyRefWrapper;
 
@@ -174,7 +173,6 @@ mod persistence {
             QueryBuilder::new("INSERT INTO key_package_refs (key_package_ref, is_live) VALUES ");
         let mut vals = qb.separated(", ");
         for r in key_package_refs {
-            info!("pushing key_package_ref: {}", hex::encode(r.as_slice()));
             let r = KeyRefWrapper(r);
             vals.push("(")
                 .push_bind_unseparated(r)
