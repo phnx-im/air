@@ -18,7 +18,7 @@ void main() {
       final a = UiChatMessage(
         id: 1.messageId(),
         chatId: 1.chatId(),
-        timestamp: '2023-01-01T00:00:00.000Z',
+        timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
         message: UiMessage_Content(
           UiContentMessage(
             sender: bobId,
@@ -38,7 +38,7 @@ void main() {
       final b = UiChatMessage(
         id: 1.messageId(),
         chatId: 1.chatId(),
-        timestamp: '2023-01-01T00:00:00.000Z',
+        timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
         message: UiMessage_Content(
           UiContentMessage(
             sender: bobId,

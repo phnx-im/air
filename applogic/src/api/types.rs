@@ -16,7 +16,7 @@ use aircoreclient::{
     ErrorMessage, EventMessage, InactiveChat, Message, SystemMessage, UserProfile, store::Store,
 };
 pub use aircoreclient::{ChatId, MessageDraft, MessageId};
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, Local, Utc};
 use flutter_rust_bridge::frb;
 use mimi_content::MessageStatus;
 use uuid::Uuid;
@@ -80,7 +80,7 @@ pub struct UiChatDetails {
     pub id: ChatId,
     pub status: UiChatStatus,
     pub chat_type: UiChatType,
-    pub last_used: String,
+    pub last_used: DateTime<Local>,
     pub attributes: UiChatAttributes,
     pub messages_count: usize,
     pub unread_messages: usize,
@@ -223,7 +223,7 @@ pub struct _MessageId {
 pub struct UiChatMessage {
     pub chat_id: ChatId,
     pub id: MessageId,
-    pub timestamp: String, // We don't convert this to a DateTime because Dart can't handle nanoseconds.
+    pub timestamp: DateTime<Local>,
     pub message: UiMessage,
     pub position: UiFlightPosition,
     pub status: UiMessageStatus,
@@ -256,7 +256,7 @@ impl From<ChatMessage> for UiChatMessage {
         Self {
             chat_id: message.chat_id(),
             id: message.id(),
-            timestamp: message.timestamp().to_rfc3339(),
+            timestamp: message.timestamp().with_timezone(&Local),
             message: UiMessage::from(message.message().clone()),
             position: UiFlightPosition::Single,
             status,
@@ -265,8 +265,8 @@ impl From<ChatMessage> for UiChatMessage {
 }
 
 impl UiChatMessage {
-    pub(crate) fn timestamp(&self) -> Option<DateTime<Utc>> {
-        self.timestamp.parse().ok()
+    pub(crate) fn timestamp(&self) -> DateTime<Utc> {
+        self.timestamp.with_timezone(&Utc)
     }
 }
 
@@ -433,12 +433,7 @@ impl UiFlightPosition {
         match (&a.message, &b.message) {
             (UiMessage::Content(a_content), UiMessage::Content(b_content)) => {
                 a_content.sender != b_content.sender
-                    || a.timestamp()
-                        .zip(b.timestamp())
-                        .map(|(a_timestamp, b_timestamp)| {
-                            TIME_THRESHOLD <= b_timestamp.signed_duration_since(a_timestamp).abs()
-                        })
-                        .unwrap_or(true)
+                    || TIME_THRESHOLD <= b.timestamp().signed_duration_since(b.timestamp()).abs()
             }
             // all non-content messages are considered to be flight breaks
             _ => true,

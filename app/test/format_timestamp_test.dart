@@ -19,18 +19,12 @@ void main() {
 
     test('returns "Now" for timestamps less than 60 seconds ago', () {
       final timestamp = fixedNow.subtract(const Duration(seconds: 59));
-      expect(
-        formatTimestamp(timestamp.toIso8601String(), now: fixedNow),
-        equals('Now'),
-      );
+      expect(formatTimestamp(timestamp, now: fixedNow), equals('Now'));
     });
 
     test('returns minutes for timestamps less than 60 minutes ago', () {
       final timestamp = fixedNow.subtract(const Duration(minutes: 59));
-      expect(
-        formatTimestamp(timestamp.toIso8601String(), now: fixedNow),
-        equals('59m'),
-      );
+      expect(formatTimestamp(timestamp, now: fixedNow), equals('59m'));
     });
 
     test('returns hour and minutes for today\'s timestamp', () {
@@ -41,10 +35,7 @@ void main() {
         11,
         32,
       );
-      expect(
-        formatTimestamp(timestamp.toIso8601String(), now: fixedNow),
-        equals('11:32'),
-      );
+      expect(formatTimestamp(timestamp, now: fixedNow), equals('11:32'));
     });
 
     test('returns "Yesterday" for timestamps from the previous day', () {
@@ -55,10 +46,7 @@ void main() {
         15,
         30,
       );
-      expect(
-        formatTimestamp(yesterday.toIso8601String(), now: fixedNow),
-        equals('Yesterday'),
-      );
+      expect(formatTimestamp(yesterday, now: fixedNow), equals('Yesterday'));
     });
 
     test(
@@ -66,7 +54,7 @@ void main() {
       () {
         final timestamp = fixedNow.subtract(const Duration(days: 3));
         expect(
-          formatTimestamp(timestamp.toIso8601String(), now: fixedNow),
+          formatTimestamp(timestamp, now: fixedNow),
           equals(DateFormat('E').format(timestamp)),
         );
       },
@@ -79,7 +67,7 @@ void main() {
         fixedNow.day,
       );
       expect(
-        formatTimestamp(timestamp.toIso8601String(), now: fixedNow),
+        formatTimestamp(timestamp, now: fixedNow),
         equals(DateFormat('dd.MM').format(timestamp)),
       );
     });
@@ -91,7 +79,7 @@ void main() {
         fixedNow.day,
       );
       expect(
-        formatTimestamp(timestamp.toIso8601String(), now: fixedNow),
+        formatTimestamp(timestamp, now: fixedNow),
         equals(DateFormat('dd.MM.yy').format(timestamp)),
       );
     });
@@ -99,7 +87,7 @@ void main() {
     test('handles timestamps on New Year\'s Eve correctly', () {
       final timestamp = DateTime(fixedNow.year - 1, 12, 31, 23, 59);
       expect(
-        formatTimestamp(timestamp.toIso8601String(), now: fixedNow),
+        formatTimestamp(timestamp, now: fixedNow),
         equals('31.12.${(fixedNow.year - 1).toString().substring(2)}'),
       );
     });
@@ -113,10 +101,7 @@ void main() {
         0,
         0,
       );
-      expect(
-        formatTimestamp(timestamp.toIso8601String(), now: fixedNow),
-        equals('00:00'),
-      );
+      expect(formatTimestamp(timestamp, now: fixedNow), equals('00:00'));
     });
 
     test('handles timestamps exactly one year ago', () {
@@ -126,7 +111,7 @@ void main() {
         fixedNow.day,
       );
       expect(
-        formatTimestamp(timestamp.toIso8601String(), now: fixedNow),
+        formatTimestamp(timestamp, now: fixedNow),
         equals(DateFormat('dd.MM.yy').format(timestamp)),
       );
     });
