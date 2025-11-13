@@ -107,6 +107,9 @@ pub struct StorageSettings {
     /// Enables attachment provisioning for uploads via POST policy
     #[serde(default)]
     pub use_post_policy: bool,
+    /// Requires content length to be present when provisioning an attachment
+    #[serde(default)]
+    pub require_content_length: bool,
 }
 
 #[derive(Debug, Deserialize, Clone, Zeroize)]

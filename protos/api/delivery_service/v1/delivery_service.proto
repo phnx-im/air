@@ -312,6 +312,7 @@ message ProvisionAttachmentPayload {
   common.v1.QualifiedGroupId group_id = 2;
   LeafNodeIndex sender = 3;
   bool use_post_policy = 4;
+  int64 content_length = 5;
 }
 
 message ProvisionAttachmentResponse {

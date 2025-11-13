@@ -417,6 +417,7 @@ impl DsGrpcClient {
         group_state_ear_key: &GroupStateEarKey,
         group_id: &GroupId,
         sender_index: LeafNodeIndex,
+        content_length: i64,
     ) -> Result<ProvisionAttachmentResponse, DsRequestError> {
         let qgid: QualifiedGroupId = group_id.try_into()?;
         let payload = ProvisionAttachmentPayload {
@@ -424,6 +425,7 @@ impl DsGrpcClient {
             group_id: Some(qgid.ref_into()),
             sender: Some(sender_index.into()),
             use_post_policy: true,
+            content_length,
         };
         let request = payload.sign(signing_key)?;
         let response = self
