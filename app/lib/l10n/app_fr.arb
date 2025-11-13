@@ -9,7 +9,7 @@
   "userSettingsScreen_deleteAccount": "Supprimer le compte Air",
   "userSettingsScreen_sendWithEnter": "Envoyer avec Entrée",
   "userSettingsScreen_readReceipts": "Accusés de lecture",
-  "userSettingsScreen_readReceiptsDescription": "Si vous les désactivez, les autres ne verront pas quand vous avez lu leurs messages et vous ne verrez pas quand ils ont lu les leurs.",
+  "userSettingsScreen_readReceiptsDescription": "Si vous les désactivez, les autres ne verront pas quand vous aurez lu leurs messages et vous ne verrez pas quand ils auront lu les vôtres.",
 
   "removeUsernameDialog_title": "Supprimer le nom d'utilisateur",
   "removeUsernameDialog_content": "Si vous continuez, votre nom d'utilisateur sera supprimé et pourra être réclamé par quelqu'un d'autre. Vous ne serez plus accessible par son intermédiaire.",
@@ -107,12 +107,12 @@
   "newChatDialog_error": "Impossible d'ajouter un chat avec le nom {chatName}",
 
   "newConnectionDialog_newConnectionTitle": "Nouvelle connexion",
-  "newConnectionDialog_newConnectionDescription": "Saisissez le pseudo de l'utilisateur avec lequel vous souhaitez vous connecter",
+  "newConnectionDialog_newConnectionDescription": "Saisissez le nom d'utilisateur de la personne avec laquelle vous souhaitez vous connecter",
   "newConnectionDialog_usernamePlaceholder": "Nom d'utilisateur",
   "newConnectionDialog_actionButton": "Se connecter",
-  "newConnectionDialog_error": "Impossible d'ajouter l'utilisateur avec le pseudo {username}. Veuillez réessayer.",
-  "newConnectionDialog_error_emptyHandle": "Le pseudo ne peut pas être vide",
-  "newConnectionDialog_error_handleNotFound": "Le pseudo {username} n'existe pas",
+  "newConnectionDialog_error": "Impossible d'ajouter l'utilisateur avec le nom d'utilisateur {username}. Veuillez réessayer.",
+  "newConnectionDialog_error_emptyHandle": "Le nom d'utilisateur ne peut pas être vide",
+  "newConnectionDialog_error_handleNotFound": "Le nom d'utilisateur {username} n'existe pas",
 
   "composer_inputHint": "Message à {chatTitle}",
   "composer_editMessage": "Modifier le message",

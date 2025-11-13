@@ -7,8 +7,8 @@ Ce glossaire fournit les définitions des termes clés utilisés dans l'interfac
 | Terme | Définition | Contexte |
 |-------|------------|----------|
 | **Air** | Le nom de l'application | Toujours garder "Air", ne pas traduire |
-| **Pseudo** | Un identifiant unique que les utilisateurs peuvent partager pour se connecter | Uniquement utilisé pour les connexions |
-| **Nom d'affichage** | Le nom qui apparaît dans les chats et est visible aux autres utilisateurs | Différent du pseudo; c'est ce que les gens voient quand vous leur envoyez des messages |
+| **Nom d'utilisateur** | Un identifiant unique que les utilisateurs peuvent partager pour se connecter | Uniquement utilisé pour les connexions |
+| **Nom d'affichage** | Le nom qui apparaît dans les chats et est visible aux autres utilisateurs | Différent du nom d'utilisateur; c'est ce que les gens voient quand vous leur envoyez des messages |
 | **Chat** | Un fil de discussion entre deux personnes ou plus | Peut être en tête-à-tête ou en groupe |
 | **Contact** | Un autre utilisateur à qui vous pouvez envoyer des messages | Quelqu'un dans votre liste de contacts |
 | **Membre** | Un participant dans un chat de groupe | Utilisé dans le contexte des chats de groupe |
@@ -30,7 +30,7 @@ Ce glossaire fournit les définitions des termes clés utilisés dans l'interfac
 
 | Terme | Définition | Contexte |
 |-------|------------|----------|
-| **Se connecter** | Ajouter quelqu'un comme contact en utilisant son pseudo | Action initiale pour commencer à échanger avec quelqu'un de nouveau |
+| **Se connecter** | Ajouter quelqu'un comme contact en utilisant son nom d'utilisateur | Action initiale pour commencer à échanger avec quelqu'un de nouveau |
 | **Ajouter** | Inclure quelqu'un dans un groupe ou l'ajouter aux contacts | |
 | **Retirer** | Enlever quelqu'un d'un chat de groupe | Utiliser "retirer" pour les personnes |
 | **Supprimer** | Enlever définitivement du contenu (messages, fichiers, etc.) | Utiliser "supprimer" pour le contenu, "retirer" pour les personnes |
@@ -71,9 +71,9 @@ Ce glossaire fournit les définitions des termes clés utilisés dans l'interfac
 ## Notes pour les Traducteurs
 
 - **Air** ne doit jamais être traduit - c'est le nom du produit
-- **Pseudo** vs **Nom d'affichage** : Le pseudo sert à trouver les gens, le nom d'affichage pour l'identification dans les chats
+- **Nom d'utilisateur** vs **Nom d'affichage** : Le nom d'utilisateur sert à trouver les gens, le nom d'affichage pour l'identification dans les chats
 - **Retirer** vs **Supprimer** : Utiliser "retirer" pour les personnes, "supprimer" pour le contenu
-- **Se connecter** implique l'action initiale d'ajouter quelqu'un via son pseudo
+- **Se connecter** implique l'action initiale d'ajouter quelqu'un via son nom d'utilisateur
 - Utiliser le vouvoiement (vous) de manière cohérente dans toute l'app, comme dans les traductions actuelles
 - Considérer le contexte culturel français pour la terminologie de messagerie
 - **Octets** : Utiliser les unités françaises (o, Ko, Mo, Go) au lieu des unités anglaises (B, KB, MB, GB)
