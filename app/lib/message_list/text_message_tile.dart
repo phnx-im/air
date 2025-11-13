@@ -54,7 +54,7 @@ class TextMessageTile extends StatelessWidget {
 
   final MessageId messageId;
   final UiContentMessage contentMessage;
-  final String timestamp;
+  final DateTime timestamp;
   final UiFlightPosition flightPosition;
   final UiMessageStatus status;
   final bool isSender;
@@ -91,7 +91,7 @@ class _MessageView extends HookWidget {
 
   final MessageId messageId;
   final UiContentMessage contentMessage;
-  final String timestamp;
+  final DateTime timestamp;
   final UiFlightPosition flightPosition;
   final bool isSender;
   final UiMessageStatus status;

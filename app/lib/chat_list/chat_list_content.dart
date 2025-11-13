@@ -461,17 +461,8 @@ String _localizedTimestamp(String original, AppLocalizations loc) =>
       _ => original,
     };
 
-String formatTimestamp(String t, {DateTime? now}) {
-  DateTime timestamp;
-  try {
-    timestamp = DateTime.parse(t);
-  } catch (e) {
-    return '';
-  }
-
+String formatTimestamp(DateTime timestamp, {DateTime? now}) {
   now ??= DateTime.now();
-
-  now = now.toLocal();
 
   final difference = now.difference(timestamp);
   final yesterday = DateTime(now.year, now.month, now.day - 1);

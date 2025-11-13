@@ -151,7 +151,7 @@ as bool,
 /// @nodoc
 mixin _$UiChatMessage {
 
- ChatId get chatId; MessageId get id; String get timestamp; UiMessage get message; UiFlightPosition get position; UiMessageStatus get status;
+ ChatId get chatId; MessageId get id; DateTime get timestamp; UiMessage get message; UiFlightPosition get position; UiMessageStatus get status;
 /// Create a copy of UiChatMessage
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -182,7 +182,7 @@ abstract mixin class $UiChatMessageCopyWith<$Res>  {
   factory $UiChatMessageCopyWith(UiChatMessage value, $Res Function(UiChatMessage) _then) = _$UiChatMessageCopyWithImpl;
 @useResult
 $Res call({
- ChatId chatId, MessageId id, String timestamp, UiMessage message, UiFlightPosition position, UiMessageStatus status
+ ChatId chatId, MessageId id, DateTime timestamp, UiMessage message, UiFlightPosition position, UiMessageStatus status
 });
 
 
@@ -204,7 +204,7 @@ class _$UiChatMessageCopyWithImpl<$Res>
 chatId: null == chatId ? _self.chatId : chatId // ignore: cast_nullable_to_non_nullable
 as ChatId,id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as MessageId,timestamp: null == timestamp ? _self.timestamp : timestamp // ignore: cast_nullable_to_non_nullable
-as String,message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as DateTime,message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
 as UiMessage,position: null == position ? _self.position : position // ignore: cast_nullable_to_non_nullable
 as UiFlightPosition,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as UiMessageStatus,
@@ -233,7 +233,7 @@ class _UiChatMessage implements UiChatMessage {
 
 @override final  ChatId chatId;
 @override final  MessageId id;
-@override final  String timestamp;
+@override final  DateTime timestamp;
 @override final  UiMessage message;
 @override final  UiFlightPosition position;
 @override final  UiMessageStatus status;
@@ -268,7 +268,7 @@ abstract mixin class _$UiChatMessageCopyWith<$Res> implements $UiChatMessageCopy
   factory _$UiChatMessageCopyWith(_UiChatMessage value, $Res Function(_UiChatMessage) _then) = __$UiChatMessageCopyWithImpl;
 @override @useResult
 $Res call({
- ChatId chatId, MessageId id, String timestamp, UiMessage message, UiFlightPosition position, UiMessageStatus status
+ ChatId chatId, MessageId id, DateTime timestamp, UiMessage message, UiFlightPosition position, UiMessageStatus status
 });
 
 
@@ -290,7 +290,7 @@ class __$UiChatMessageCopyWithImpl<$Res>
 chatId: null == chatId ? _self.chatId : chatId // ignore: cast_nullable_to_non_nullable
 as ChatId,id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as MessageId,timestamp: null == timestamp ? _self.timestamp : timestamp // ignore: cast_nullable_to_non_nullable
-as String,message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as DateTime,message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
 as UiMessage,position: null == position ? _self.position : position // ignore: cast_nullable_to_non_nullable
 as UiFlightPosition,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as UiMessageStatus,
