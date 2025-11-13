@@ -2,11 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::time::Duration;
+use std::{cmp::Ordering, time::Duration};
 
 use aircommon::identifiers::MimiId;
 use aircoreclient::ChatId;
 use aircoreclient::{MessageId, clients::CoreUser, store::Store};
+use anyhow::Context;
 use chrono::{DateTime, Utc};
 use mimi_content::MessageStatus;
 use tokio::{sync::watch, time::sleep};
@@ -27,6 +28,8 @@ pub(crate) trait MarkAsReadService {
         chat_id: ChatId,
         statuses: Vec<(MessageId, MimiId)>,
     ) -> anyhow::Result<()>;
+
+    async fn message_ordering(&self, a: MessageId, b: MessageId) -> anyhow::Result<Ordering>;
 }
 
 impl MarkAsReadService for CoreUser {
@@ -50,6 +53,16 @@ impl MarkAsReadService for CoreUser {
             .enqueue_receipts(chat_id, statuses)
             .await
     }
+
+    async fn message_ordering(&self, a: MessageId, b: MessageId) -> anyhow::Result<Ordering> {
+        let message_a = self.message(a).await?.context("no message")?;
+        let message_b = self.message(b).await?.context("no message")?;
+        // Tie break by message id
+        Ok(message_a
+            .timestamp()
+            .cmp(&message_b.timestamp())
+            .then(a.cmp(&b)))
+    }
 }
 
 pub(crate) async fn mark_as_read(
@@ -61,7 +74,9 @@ pub(crate) async fn mark_as_read(
     until_timestamp: DateTime<Utc>,
     mark_as_read_debounce: Duration,
 ) -> anyhow::Result<()> {
-    let scheduled = mark_as_read_tx.send_if_modified(|state| match &state {
+    // Corner case: scheduled for a different message but with the same timestamp.
+    let mut corner_case_id = None;
+    let mut scheduled = mark_as_read_tx.send_if_modified(|state| match &state {
         MarkAsReadState::NotLoaded => {
             error!("Marking as read while chat is not loaded");
             false
@@ -77,6 +92,17 @@ pub(crate) async fn mark_as_read(
             };
             true
         }
+        MarkAsReadState::Scheduled {
+            until_timestamp: at,
+            until_message_id: id,
+        } if *id != until_message_id && *at == until_timestamp => {
+            // Corner case: scheduled for a different message but with the same timestamp. Since
+            // `until_timestamp` is a date time sent from Dart, it is truncated to microseconds,
+            // and therefore we might have a different ordering in the database (nanoseconds
+            // precision).
+            corner_case_id = Some(*id);
+            false
+        }
         MarkAsReadState::Marked { .. } => {
             false // already marked as read
         }
@@ -84,6 +110,22 @@ pub(crate) async fn mark_as_read(
             false // already scheduled at a later timestamp
         }
     });
+
+    // Resolve equal timestamp corner case
+    if let Some(scheduled_id) = corner_case_id
+        && let Ordering::Less = service
+            .message_ordering(scheduled_id, until_message_id)
+            .await?
+    {
+        scheduled = true;
+        mark_as_read_tx.send_modify(|state| {
+            *state = MarkAsReadState::Scheduled {
+                until_timestamp,
+                until_message_id,
+            }
+        });
+    }
+
     if !scheduled {
         return Ok(());
     }
@@ -236,5 +278,112 @@ mod test {
         )
         .await
         .unwrap();
+    }
+
+    #[tokio::test]
+    async fn mark_as_read_corner_case() {
+        let mut service = MockMarkAsReadService::new();
+
+        let scheduled_id = MessageId::new(Uuid::from_u128(1));
+        let timestamp: DateTime<Utc> = "2023-01-01T00:00:00Z".parse().unwrap();
+
+        let until_message_id = MessageId::new(Uuid::from_u128(2));
+
+        let (mark_as_read_tx, _) = watch::channel(MarkAsReadState::Scheduled {
+            until_timestamp: timestamp,
+            until_message_id: scheduled_id,
+        });
+        let (_user_settings_tx, user_settings_rx) = watch::channel(UserSettings {
+            read_receipts: false,
+            ..Default::default()
+        });
+
+        let chat_id = ChatId::new(Uuid::from_u128(1));
+        let mark_as_read_debounce = Duration::ZERO;
+
+        let mimi_id = MimiId::from_slice(&[0; 32]).unwrap();
+
+        // Corner case resolved as scheduled_id < until_message_id
+        service
+            .expect_message_ordering()
+            .withf(move |a, b| *a == scheduled_id && *b == until_message_id)
+            .returning(|_, _| Ok(Ordering::Less))
+            .times(1);
+
+        // Mark as read called with until_message_id
+        service
+            .expect_mark_chat_as_read()
+            .withf(move |cid, mid| *cid == chat_id && *mid == until_message_id)
+            .returning(move |_, _| Ok((true, vec![(until_message_id, mimi_id)])))
+            .times(1);
+
+        mark_as_read(
+            &service,
+            &mark_as_read_tx,
+            &user_settings_rx,
+            chat_id,
+            until_message_id,
+            timestamp,
+            mark_as_read_debounce,
+        )
+        .await
+        .unwrap();
+
+        service.checkpoint();
+
+        mark_as_read_tx.send_modify(|state| {
+            *state = MarkAsReadState::Scheduled {
+                until_timestamp: timestamp,
+                until_message_id: scheduled_id,
+            }
+        });
+
+        // Corner case resolved as scheduled_id > until_message_id
+        service
+            .expect_message_ordering()
+            .withf(move |a, b| *a == scheduled_id && *b == until_message_id)
+            .returning(|_, _| Ok(Ordering::Greater))
+            .times(1);
+
+        // Mark as read is not called
+        service.expect_mark_chat_as_read().times(0);
+
+        mark_as_read(
+            &service,
+            &mark_as_read_tx,
+            &user_settings_rx,
+            chat_id,
+            until_message_id,
+            timestamp,
+            mark_as_read_debounce,
+        )
+        .await
+        .unwrap();
+
+        service.checkpoint();
+
+        // Impossible case where scheduled_id == until_message_id as tie breaker
+        service
+            .expect_message_ordering()
+            .withf(move |a, b| *a == scheduled_id && *b == until_message_id)
+            .returning(|_, _| Ok(Ordering::Equal))
+            .times(1);
+
+        // Mark as read
+        service.expect_message_ordering().times(0);
+
+        mark_as_read(
+            &service,
+            &mark_as_read_tx,
+            &user_settings_rx,
+            chat_id,
+            until_message_id,
+            timestamp,
+            mark_as_read_debounce,
+        )
+        .await
+        .unwrap();
+
+        service.checkpoint();
     }
 }
