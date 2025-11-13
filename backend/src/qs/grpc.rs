@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::pin::Pin;
+use std::{io, pin::Pin};
 
 use airprotos::{
     queue_service::v1::{queue_service_server::QueueService, *},
@@ -20,12 +20,13 @@ use aircommon::{
 };
 use displaydoc::Display;
 use tokio_stream::{Stream, StreamExt};
-use tonic::{Request, Response, Status, Streaming, async_trait};
+use tonic::{Code, Request, Response, Status, Streaming, async_trait};
 use tracing::error;
 
 use crate::{
     errors::QueueError,
     qs::{client_record::QsClientRecord, queue::Queues, user_record::UserRecord},
+    util::find_cause,
 };
 
 use super::Qs;
@@ -47,13 +48,21 @@ impl GrpcQs {
         while let Some(request) = requests.next().await {
             if let Err(error) = Self::process_listen_queue_request(&queues, queue_id, request).await
             {
-                // We report the error, but don't stop processing requests.
-                // TODO(#466): Send this to the client.
-                error!(%error, "error processing listen queue request");
+                if let ProcessListenQueueRequestError::Status(error) = &error
+                    && let Code::Unknown = error.code()
+                    && let Some(h2_error) = find_cause::<h2::Error>(&error)
+                    && let Some(io_error) = h2_error.get_io()
+                    && io_error.kind() == io::ErrorKind::BrokenPipe
+                {
+                    // Client closed connection => not an error
+                    continue;
+                } else {
+                    // We report the error, but don't stop processing requests.
+                    // TODO(#466): Send this to the client.
+                    error!(%error, "error processing listen queue request");
+                }
             }
         }
-        // Listening stream was closed
-        queues.stop_listening(queue_id).await;
     }
 
     async fn process_listen_queue_request(

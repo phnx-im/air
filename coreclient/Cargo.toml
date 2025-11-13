@@ -18,6 +18,7 @@ airapiclient.workspace = true
 aircommon.workspace = true
 airprotos.workspace = true
 anyhow.workspace = true
+base64.workspace = true
 blurhash.workspace = true
 chrono.workspace = true
 derive_more.workspace = true
@@ -33,10 +34,11 @@ openmls.workspace = true
 openmls_rust_crypto.workspace = true
 openmls_traits.workspace = true
 pin-project.workspace = true
-rand.workspace = true                                        # TODO: Replace this with a CSPRNG
+rand.workspace = true                                              # TODO: Replace this with a CSPRNG
 rand_chacha.workspace = true
-reqwest = { workspace = true, features = ["stream"] }
+reqwest = { workspace = true, features = ["stream", "multipart"] }
 serde.workspace = true
+serde_json.workspace = true
 sha2.workspace = true
 sqlx = { workspace = true, features = ["chrono", "sqlite"] }
 tar.workspace = true
@@ -57,7 +59,6 @@ airbackend.workspace = true
 aircommon = { workspace = true, features = ["test_utils"] }
 airserver_test_harness.workspace = true
 insta = { workspace = true, features = ["json"] }
-serde_json.workspace = true
 tempfile.workspace = true
 tracing-subscriber.workspace = true
 

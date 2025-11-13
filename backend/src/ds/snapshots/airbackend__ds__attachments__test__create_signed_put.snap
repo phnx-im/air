@@ -1,0 +1,33 @@
+---
+source: backend/src/ds/attachments.rs
+expression: response
+---
+Ok(
+    ProvisionAttachmentResponse {
+        attachment_id: Some(
+            Uuid {
+                lo: 12132202258379663753,
+                hi: 13425828374924906382,
+            },
+        ),
+        upload_url_expiration: Some(
+            ExpirationData {
+                not_before: Some(
+                    Timestamp {
+                        seconds: 1672531200,
+                        nanos: 0,
+                    },
+                ),
+                not_after: Some(
+                    Timestamp {
+                        seconds: 1672531260,
+                        nanos: 0,
+                    },
+                ),
+            },
+        ),
+        upload_url: "https://data.s3.us-east-1.amazonaws.com/ba521fc61ec24f8ea85e3dacc1e96989?x-id=PutObject&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE%2F20230101%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20230101T000000Z&X-Amz-Expires=60&X-Amz-SignedHeaders=host&X-Amz-Signature=e5d26a27e2069cffa5a50a662fd8fa226b25b8392dd8e81814abf3a447d28211",
+        upload_headers: [],
+        post_policy: None,
+    },
+)

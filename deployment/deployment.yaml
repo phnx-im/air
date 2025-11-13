@@ -14,9 +14,14 @@ spec:
     metadata:
       labels:
         app: airserver
+      annotations:
+        k8s.grafana.com/scrape: "true"
+        k8s.grafana.com/metrics.portNumber: "9090"
     spec:
       containers:
       - env:
+        - name: AIR_APPLICATION_LISTEN
+          value: 0.0.0.0:80
         - name: AIR_APPLICATION_DOMAIN
           value: air.ms
         - name: AIR_DATABASE_HOST

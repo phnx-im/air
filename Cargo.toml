@@ -33,6 +33,7 @@ argon2 = "0.5.3"
 async-trait = "0.1.53"
 aws-config = { version = "1.8.0", default-features = false, features = ["behavior-version-latest", "rt-tokio"] }
 aws-sdk-s3 = { version = "1.92.0", default-features = false, features = ["behavior-version-latest", "http-1x"] }
+aws-sigv4 = { version = "1.3.6", default-features = false }
 axum = { version = "0.8.6", features = ["http2"] }
 base64 = "0.22.1"
 blake3 = "1.8.2"
@@ -51,6 +52,7 @@ enumset = "1.1.5"
 flate2 = "1.1.0"
 flutter_rust_bridge = { version = "=2.11.1", features = ["chrono", "uuid"] }
 futures-util = "0.3.31"
+h2 = "0.4.12"
 hex = "0.4.3"
 hkdf = "0.12"
 image = "0.25.1"
