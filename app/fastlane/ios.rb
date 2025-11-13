@@ -10,13 +10,22 @@ platform :ios do
       app_identifier_nse: 'ms.air.nse',
     }
 
-    @app_store_api_key = app_store_connect_api_key(
-      key_id: ENV['APP_STORE_KEY_ID'],
-      issuer_id: ENV['APP_STORE_ISSUER_ID'],
-      key_content: ENV['APP_STORE_KEY_P8_BASE64'],
-      is_key_content_base64: true,
-      in_house: false
-    )
+    key_id = ENV['APP_STORE_KEY_ID']
+    issuer_id = ENV['APP_STORE_ISSUER_ID']
+    key_content = ENV['APP_STORE_KEY_P8_BASE64']
+
+    if [key_id, issuer_id, key_content].all? { |value| value && !value.empty? }
+      @app_store_api_key = app_store_connect_api_key(
+        key_id: key_id,
+        issuer_id: issuer_id,
+        key_content: key_content,
+        is_key_content_base64: true,
+        in_house: false
+      )
+    else
+      @app_store_api_key = nil
+      UI.message("App Store Connect credentials not available, skipping API key setup")
+    end
   end
 
   desc "Build iOS app for TestFlight"
@@ -30,8 +39,11 @@ platform :ios do
     app_identifier = @app_store_params[:app_identifier]
     app_identifier_nse = @app_store_params[:app_identifier_nse]
   
+    UI.user_error!("TEAM_ID must be provided for the beta_ios lane") if team_id.to_s.empty?
+
     # Load the app store connect API key
     api_key = @app_store_api_key
+    UI.user_error!("App Store Connect credentials are required for the beta_ios lane") unless api_key
   
     # Read app version from pubspec.yaml
     pubspec = YAML.load_file("../pubspec.yaml")
