@@ -6970,10 +6970,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
       case 0:
-        return IntroScreenType_Intro();
-      case 1:
         return IntroScreenType_SignUp();
-      case 2:
+      case 1:
         return IntroScreenType_DeveloperSettings(
           dco_decode_developer_settings_screen_type(raw[1]),
         );
@@ -9043,10 +9041,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var tag_ = sse_decode_i_32(deserializer);
     switch (tag_) {
       case 0:
-        return IntroScreenType_Intro();
-      case 1:
         return IntroScreenType_SignUp();
-      case 2:
+      case 1:
         var var_field0 = sse_decode_developer_settings_screen_type(
           deserializer,
         );
@@ -11572,12 +11568,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     switch (self) {
-      case IntroScreenType_Intro():
-        sse_encode_i_32(0, serializer);
       case IntroScreenType_SignUp():
-        sse_encode_i_32(1, serializer);
+        sse_encode_i_32(0, serializer);
       case IntroScreenType_DeveloperSettings(field0: final field0):
-        sse_encode_i_32(2, serializer);
+        sse_encode_i_32(1, serializer);
         sse_encode_developer_settings_screen_type(field0, serializer);
     }
   }

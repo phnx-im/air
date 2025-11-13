@@ -56,6 +56,7 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   final PageStorageBucket _bucket = PageStorageBucket();
+  // final RouteTrackingObserver _routeTrackingObserver = RouteTrackingObserver();
 
   @override
   Widget build(BuildContext context) {
@@ -69,18 +70,14 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
     // routing
     final List<MaterialPage> pages = switch (navigationState) {
       NavigationState_Intro(:final screens) => [
-        if (screens.isEmpty)
-          MaterialPage(
-            key: const IntroScreenType.intro().key,
-            canPop: false,
-            child: const IntroScreenType.intro().screen,
-          ),
+        // The first screen is always the intro screen
+        const MaterialPage(
+          key: ValueKey("intro-screen"),
+          canPop: false,
+          child: IntroScreen(),
+        ),
         for (final screenType in screens)
-          MaterialPage(
-            key: screenType.key,
-            canPop: screenType != const IntroScreenType.intro(),
-            child: screenType.screen,
-          ),
+          MaterialPage(key: screenType.key, child: screenType.screen),
       ],
       NavigationState_Home(:final home) => home.pages(screenType),
     };
@@ -93,6 +90,7 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
       bucket: _bucket,
       child: Navigator(
         key: _navigatorKey,
+        // observers: [_routeTrackingObserver],
         pages: pages,
         // Note: onPopPage is deprecated, and instead we should use
         // onDidRemovePage. However, the latter does not allow to distinguish
@@ -120,9 +118,23 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
   /// Back button handler
   @override
   Future<bool> popRoute() {
-    return SynchronousFuture(
-      _navigatorKey.currentContext?.read<NavigationCubit>().pop() ?? false,
-    );
+    // Pop the last route if it is pageless. See `isPageless`.
+    var poppedPagelessRoute = false;
+    var triedToPop = false;
+    _navigatorKey.currentState?.popUntil((route) {
+      if (triedToPop) {
+        return true; // stop popping
+      }
+      triedToPop = true;
+      poppedPagelessRoute = isPageless(route);
+      return !poppedPagelessRoute; // pop if is pageless
+    });
+
+    return poppedPagelessRoute
+        ? SynchronousFuture(true)
+        : SynchronousFuture(
+          _navigatorKey.currentContext?.read<NavigationCubit>().pop() ?? false,
+        );
   }
 
   @override
@@ -147,7 +159,6 @@ class AppBackButtonDispatcher extends RootBackButtonDispatcher {}
 /// Convert an [IntroScreenType] into a [ValueKey] and a screen [Widget].
 extension on IntroScreenType {
   ValueKey<String> get key => switch (this) {
-    IntroScreenType_Intro() => const ValueKey("intro-screen"),
     IntroScreenType_SignUp() => const ValueKey("sign-up-screen"),
     IntroScreenType_DeveloperSettings(field0: final screen) => ValueKey(
       "developer-settings-screen-$screen",
@@ -155,7 +166,6 @@ extension on IntroScreenType {
   };
 
   Widget get screen => switch (this) {
-    IntroScreenType_Intro() => const IntroScreen(),
     IntroScreenType_SignUp() => const SignUpScreen(),
     IntroScreenType_DeveloperSettings(field0: final screen) => switch (screen) {
       DeveloperSettingsScreenType.root => const DeveloperSettingsScreen(),
@@ -317,3 +327,9 @@ class NoAnimationMaterialPageRoute<T> extends MaterialPageRoute<T> {
     return child;
   }
 }
+
+/// A route which does not correspond to a page in the app.
+///
+/// Such a route is added by [`Navigator.push`] and does not correspond to a state in the
+/// `NavigationState` inside `NavigationCubit`.
+bool isPageless(Route<dynamic> route) => route.settings is! Page;

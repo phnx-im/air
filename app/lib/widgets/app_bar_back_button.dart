@@ -21,7 +21,10 @@ class AppBarBackButton extends StatelessWidget {
         child: InkWell(
           customBorder: const CircleBorder(),
           overlayColor: WidgetStateProperty.all(Colors.transparent),
-          onTap: () => Navigator.of(context).maybePop(),
+          onTap: () async {
+            final popped = await Navigator.of(context).maybePop();
+            debugPrint('back button popped: $popped');
+          },
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: colors.backgroundBase.secondary,

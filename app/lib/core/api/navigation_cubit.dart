@@ -92,7 +92,6 @@ sealed class HomeNavigationState with _$HomeNavigationState {
 sealed class IntroScreenType with _$IntroScreenType {
   const IntroScreenType._();
 
-  const factory IntroScreenType.intro() = IntroScreenType_Intro;
   const factory IntroScreenType.signUp() = IntroScreenType_SignUp;
   const factory IntroScreenType.developerSettings(
     DeveloperSettingsScreenType field0,
@@ -104,6 +103,8 @@ sealed class NavigationState with _$NavigationState {
   const NavigationState._();
 
   /// Intro screen: welcome and registration screen
+  ///
+  /// The first screen is always the intro screen is not part of the list of screens.
   const factory NavigationState.intro({
     @Default([]) List<IntroScreenType> screens,
   }) = NavigationState_Intro;

@@ -21,6 +21,8 @@ use super::{notifications::DartNotificationService, types::UiUserId};
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::From)]
 pub enum NavigationState {
     /// Intro screen: welcome and registration screen
+    ///
+    /// The first screen is always the intro screen is not part of the list of screens.
     Intro {
         #[frb(default = "[]")]
         screens: Vec<IntroScreenType>,
@@ -31,11 +33,10 @@ pub enum NavigationState {
     },
 }
 
-/// Possible intro screens
+/// Possible intro screens *on top* of the root intro screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[frb(dart_metadata = ("freezed"))]
 pub enum IntroScreenType {
-    Intro,
     SignUp,
     DeveloperSettings(DeveloperSettingsScreenType),
 }
@@ -322,7 +323,10 @@ impl NavigationCubitBase {
     #[frb(sync)]
     pub fn pop(&self) -> bool {
         self.core.state_tx().send_if_modified(|state| match state {
-            NavigationState::Intro { screens } => screens.pop().is_some(),
+            NavigationState::Intro { screens } => {
+                tracing::info!(?screens, "pop intro screen");
+                screens.pop().is_some()
+            }
             NavigationState::Home {
                 home:
                     home @ HomeNavigationState {
@@ -397,7 +401,7 @@ impl NavigationCubitBase {
                 home.add_members_open = false;
                 true
             }
-            NavigationState::Home { home } if home.chat_id.is_some() => {
+            NavigationState::Home { home } if home.chat_id.is_some() && home.chat_open => {
                 home.chat_open = false;
                 true
             }
