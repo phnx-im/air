@@ -27,8 +27,7 @@ class InterfaceScale extends StatelessWidget {
         WidgetsBinding.instance.platformDispatcher.textScaleFactor >= 1.5;
 
     // Default to 1.0 everywhere, but bump Linux on large text scale (e.g. 4k displays).
-    final defaultUiFactor =
-        Platform.isLinux && platformTextScaled ? 1.5 : 1.0;
+    final defaultUiFactor = Platform.isLinux && platformTextScaled ? 1.5 : 1.0;
     final userUiFactor = interfaceScale ?? defaultUiFactor;
 
     final scalingFactors = getScalingFactors(context);
