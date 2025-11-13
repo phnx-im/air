@@ -75,7 +75,7 @@ class IntroScreen extends StatelessWidget {
                             if (!context.mounted) {
                               return;
                             }
-                            context.read<NavigationCubit>().openServerChoice();
+                            context.read<NavigationCubit>().openSignUp();
                           },
                           child: Text(loc.introScreen_signUp),
                         ),

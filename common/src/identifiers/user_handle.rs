@@ -59,6 +59,11 @@ impl UserHandle {
                 return Err(UserHandleValidationError::ConsecutiveDashes);
             }
         }
+        if let Some(first_char) = plaintext.chars().next()
+            && first_char.is_ascii_digit()
+        {
+            return Err(UserHandleValidationError::LeadingDigit);
+        }
         Ok(())
     }
 
@@ -111,6 +116,8 @@ pub enum UserHandleValidationError {
     InvalidCharacter,
     /// User handle contains consecutive dashes
     ConsecutiveDashes,
+    /// Leading characters are not allowed to be digits
+    LeadingDigit,
 }
 
 #[derive(Debug, thiserror::Error)]

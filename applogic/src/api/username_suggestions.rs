@@ -130,11 +130,12 @@ fn first_tokens(display: &str, limit: usize) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
+    use aircommon::identifiers::UserHandle;
+
     use super::*;
 
     fn assert_valid(username: &str) {
-        assert!(username.len() <= MAX_USERNAME_LENGTH);
-        assert!(username.contains('-'));
+        UserHandle::new(username.to_string()).unwrap();
         let suffix = username.rsplit('-').next().unwrap();
         assert_eq!(suffix.len(), SUFFIX_LENGTH);
         assert!(suffix.chars().all(|c| c.is_ascii_digit()));
@@ -192,7 +193,6 @@ mod tests {
     #[test]
     fn handles_accents_latin() {
         let out = username_from_display("Hélène D'Açaïre".to_string());
-        println!("Generated username: {}", out);
         assert!(out.starts_with("helene-d-acaire-"));
         assert_valid(&out);
     }
