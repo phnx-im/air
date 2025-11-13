@@ -120,9 +120,7 @@ class UsernameOnboardingScreen extends HookWidget {
                           hintText: loc.userHandleScreen_inputHint,
                         ),
                         // Temporary strict enforcement until legacy underscores are fully removed.
-                        inputFormatters: const [
-                          UserHandleInputFormatter(),
-                        ],
+                        inputFormatters: const [UserHandleInputFormatter()],
                         onChanged: (_) {
                           if (handleExists.value) {
                             handleExists.value = false;

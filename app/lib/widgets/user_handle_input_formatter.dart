@@ -23,10 +23,7 @@ class UserHandleInputFormatter extends TextInputFormatter {
   static const int _z = 122;
 
   /// Normalizes raw input. Returns an empty string if the input violates the syntax.
-  static String normalize(
-    String input, {
-    bool allowUnderscore = false,
-  }) {
+  static String normalize(String input, {bool allowUnderscore = false}) {
     final lower = input.trim().toLowerCase();
     return _isValid(lower, allowUnderscore: allowUnderscore) ? lower : '';
   }
@@ -45,7 +42,10 @@ class UserHandleInputFormatter extends TextInputFormatter {
       text: lower,
       selection: TextSelection(
         baseOffset: _clampSelectionIndex(lower, newValue.selection.baseOffset),
-        extentOffset: _clampSelectionIndex(lower, newValue.selection.extentOffset),
+        extentOffset: _clampSelectionIndex(
+          lower,
+          newValue.selection.extentOffset,
+        ),
       ),
       composing: TextRange.empty,
     );
@@ -104,6 +104,5 @@ class UserHandleInputFormatter extends TextInputFormatter {
     return codeUnit >= _a && codeUnit <= _z;
   }
 
-  static bool _isDigit(int codeUnit) =>
-      codeUnit >= _zero && codeUnit <= _nine;
+  static bool _isDigit(int codeUnit) => codeUnit >= _zero && codeUnit <= _nine;
 }

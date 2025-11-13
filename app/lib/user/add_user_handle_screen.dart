@@ -58,9 +58,7 @@ class AddUserHandleScreen extends HookWidget {
                       hintText: loc.userHandleScreen_inputHint,
                     ),
                     // Temporary strict enforcement until legacy underscores are fully removed.
-                    inputFormatters: const [
-                      UserHandleInputFormatter(),
-                    ],
+                    inputFormatters: const [UserHandleInputFormatter()],
                     validator:
                         (value) => _validate(loc, userHandleExists, value),
                     onChanged: (_) {
