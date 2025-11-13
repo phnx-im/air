@@ -7133,6 +7133,21 @@ impl SseDecode for UsersState {
     }
 }
 
+impl SseDecode for chrono::DateTime<chrono::Local> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i64>::sse_decode(deserializer);
+        return chrono::DateTime::<chrono::Local>::from(
+            chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+                chrono::DateTime::from_timestamp_micros(inner)
+                    .expect("invalid or out-of-range datetime")
+                    .naive_utc(),
+                chrono::Utc,
+            ),
+        );
+    }
+}
+
 impl SseDecode for chrono::DateTime<chrono::Utc> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -8455,7 +8470,7 @@ impl SseDecode for crate::api::types::UiChatDetails {
         let mut var_id = <crate::api::types::ChatId>::sse_decode(deserializer);
         let mut var_status = <crate::api::types::UiChatStatus>::sse_decode(deserializer);
         let mut var_chatType = <crate::api::types::UiChatType>::sse_decode(deserializer);
-        let mut var_lastUsed = <String>::sse_decode(deserializer);
+        let mut var_lastUsed = <chrono::DateTime<chrono::Local>>::sse_decode(deserializer);
         let mut var_attributes = <crate::api::types::UiChatAttributes>::sse_decode(deserializer);
         let mut var_messagesCount = <usize>::sse_decode(deserializer);
         let mut var_unreadMessages = <usize>::sse_decode(deserializer);
@@ -8481,7 +8496,7 @@ impl SseDecode for crate::api::types::UiChatMessage {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_chatId = <crate::api::types::ChatId>::sse_decode(deserializer);
         let mut var_id = <crate::api::types::MessageId>::sse_decode(deserializer);
-        let mut var_timestamp = <String>::sse_decode(deserializer);
+        let mut var_timestamp = <chrono::DateTime<chrono::Local>>::sse_decode(deserializer);
         let mut var_message = <crate::api::types::UiMessage>::sse_decode(deserializer);
         let mut var_position = <crate::api::types::UiFlightPosition>::sse_decode(deserializer);
         let mut var_status = <crate::api::types::UiMessageStatus>::sse_decode(deserializer);
@@ -10722,6 +10737,13 @@ impl SseEncode for UsersState {
     }
 }
 
+impl SseEncode for chrono::DateTime<chrono::Local> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.timestamp_micros(), serializer);
+    }
+}
+
 impl SseEncode for chrono::DateTime<chrono::Utc> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -11870,7 +11892,7 @@ impl SseEncode for crate::api::types::UiChatDetails {
         <crate::api::types::ChatId>::sse_encode(self.id, serializer);
         <crate::api::types::UiChatStatus>::sse_encode(self.status, serializer);
         <crate::api::types::UiChatType>::sse_encode(self.chat_type, serializer);
-        <String>::sse_encode(self.last_used, serializer);
+        <chrono::DateTime<chrono::Local>>::sse_encode(self.last_used, serializer);
         <crate::api::types::UiChatAttributes>::sse_encode(self.attributes, serializer);
         <usize>::sse_encode(self.messages_count, serializer);
         <usize>::sse_encode(self.unread_messages, serializer);
@@ -11884,7 +11906,7 @@ impl SseEncode for crate::api::types::UiChatMessage {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <crate::api::types::ChatId>::sse_encode(self.chat_id, serializer);
         <crate::api::types::MessageId>::sse_encode(self.id, serializer);
-        <String>::sse_encode(self.timestamp, serializer);
+        <chrono::DateTime<chrono::Local>>::sse_encode(self.timestamp, serializer);
         <crate::api::types::UiMessage>::sse_encode(self.message, serializer);
         <crate::api::types::UiFlightPosition>::sse_encode(self.position, serializer);
         <crate::api::types::UiMessageStatus>::sse_encode(self.status, serializer);

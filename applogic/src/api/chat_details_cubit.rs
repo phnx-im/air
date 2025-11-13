@@ -10,7 +10,7 @@ use std::time::Duration;
 use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId};
 use aircoreclient::{Chat, ChatId, MessageDraft};
 use aircoreclient::{MessageId, clients::CoreUser, store::Store};
-use chrono::{DateTime, SubsecRound, Utc};
+use chrono::{DateTime, Local, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
 use mimi_content::{ByteBuf, Disposition, MimiContent, NestedPart, NestedPartContent};
 use tokio::{sync::watch, time::sleep};
@@ -501,7 +501,7 @@ pub(super) async fn load_chat_details(store: &impl Store, chat: Chat) -> UiChatD
         .map(From::from);
     let last_used = last_message
         .as_ref()
-        .map(|m: &UiChatMessage| m.timestamp.clone())
+        .map(|m: &UiChatMessage| m.timestamp.with_timezone(&Local))
         .unwrap_or_default();
     // default is UNIX_EPOCH
 

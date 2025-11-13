@@ -28,7 +28,7 @@ final _mobileMessages = [
   UiChatMessage(
     id: 1.messageId(),
     chatId: _chatId,
-    timestamp: '2023-01-01T00:00:00.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 2.userId(),
@@ -48,7 +48,7 @@ final _mobileMessages = [
   UiChatMessage(
     id: 2.messageId(),
     chatId: _chatId,
-    timestamp: '2023-01-01T00:01:00.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:01:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 3.userId(),
@@ -68,7 +68,7 @@ final _mobileMessages = [
   UiChatMessage(
     id: 3.messageId(),
     chatId: _chatId,
-    timestamp: '2023-01-01T00:02:00.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:02:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -88,7 +88,7 @@ final _mobileMessages = [
   UiChatMessage(
     id: 4.messageId(),
     chatId: _chatId,
-    timestamp: '2023-01-01T00:03:00.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:03:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -108,7 +108,7 @@ final _mobileMessages = [
   UiChatMessage(
     id: 5.messageId(),
     chatId: _chatId,
-    timestamp: '2023-01-01T00:03:30.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:03:30.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -130,7 +130,7 @@ final _mobileMessages = [
   UiChatMessage(
     id: 6.messageId(),
     chatId: _chatId,
-    timestamp: '2023-01-01T00:04:00.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:04:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 2.userId(),

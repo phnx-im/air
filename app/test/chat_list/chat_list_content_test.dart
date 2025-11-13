@@ -36,11 +36,11 @@ final chats = [
     unreadMessages: 10,
     messagesCount: 10,
     attributes: const UiChatAttributes(title: 'Bob', picture: null),
-    lastUsed: '2023-01-01T00:00:00.000Z',
+    lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 1.messageId(),
       chatId: 1.chatId(),
-      timestamp: '2023-01-01T00:00:00.000Z',
+      timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
       message: UiMessage_Content(
         UiContentMessage(
           sender: 2.userId(),
@@ -68,11 +68,11 @@ final chats = [
     unreadMessages: 0,
     messagesCount: 10,
     attributes: const UiChatAttributes(title: 'Eve', picture: null),
-    lastUsed: '2023-01-01T00:00:00.000Z',
+    lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 2.messageId(),
       chatId: 2.chatId(),
-      timestamp: '2023-01-01T00:00:00.000Z',
+      timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
       message: UiMessage_Content(
         UiContentMessage(
           sender: 3.userId(),
@@ -101,11 +101,11 @@ final chats = [
     unreadMessages: 0,
     messagesCount: 10,
     attributes: const UiChatAttributes(title: 'Group', picture: null),
-    lastUsed: '2023-01-01T00:00:00.000Z',
+    lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 3.messageId(),
       chatId: 3.chatId(),
-      timestamp: '2023-01-01T00:00:00.000Z',
+      timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
       message: UiMessage_Content(
         UiContentMessage(
           sender: 4.userId(),
@@ -131,11 +131,11 @@ final chats = [
     unreadMessages: 0,
     messagesCount: 10,
     attributes: const UiChatAttributes(title: 'Group', picture: null),
-    lastUsed: '2023-01-01T00:00:00.000Z',
+    lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 3.messageId(),
       chatId: 3.chatId(),
-      timestamp: '2023-01-01T00:00:00.000Z',
+      timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
       message: UiMessage_Content(
         UiContentMessage(
           sender: 4.userId(),
@@ -167,7 +167,7 @@ final chats = [
     unreadMessages: 0,
     messagesCount: 10,
     attributes: const UiChatAttributes(title: 'Charlie', picture: null),
-    lastUsed: '2023-01-01T00:00:00.000Z',
+    lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: null,
   ),
 ];

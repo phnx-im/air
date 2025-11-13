@@ -12,7 +12,7 @@ import 'package:air/ui/typography/font_size.dart';
 class Timestamp extends StatefulWidget {
   const Timestamp(this.timestamp, {super.key});
 
-  final String timestamp;
+  final DateTime timestamp;
 
   @override
   State<Timestamp> createState() => TimestampState();
@@ -66,8 +66,7 @@ class TimestampState extends State<Timestamp> {
     );
   }
 
-  String _calcTimeString(String time) {
-    final t = DateTime.parse(time);
+  String _calcTimeString(DateTime t) {
     // If the elapsed time is less than 60 seconds, show "now"
     if (DateTime.now().difference(t).inSeconds < 60) {
       return "now";

@@ -125,7 +125,7 @@ class UiChatDetails {
   final ChatId id;
   final UiChatStatus status;
   final UiChatType chatType;
-  final String lastUsed;
+  final DateTime lastUsed;
   final UiChatAttributes attributes;
   final int messagesCount;
   final int unreadMessages;
@@ -178,7 +178,7 @@ sealed class UiChatMessage with _$UiChatMessage {
   const factory UiChatMessage({
     required ChatId chatId,
     required MessageId id,
-    required String timestamp,
+    required DateTime timestamp,
     required UiMessage message,
     required UiFlightPosition position,
     required UiMessageStatus status,
