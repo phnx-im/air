@@ -18,7 +18,6 @@ import 'package:air/ui/typography/font_size.dart';
 import 'package:air/ui/typography/monospace.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
-import 'package:provider/provider.dart';
 
 import 'chat_list_cubit.dart';
 
