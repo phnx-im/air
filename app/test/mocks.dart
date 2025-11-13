@@ -18,7 +18,10 @@ import 'helpers.dart';
 class MockNavigationCubit extends MockCubit<NavigationState>
     implements NavigationCubit {}
 
-class MockUserCubit extends MockCubit<UiUser> implements UserCubit {}
+class MockUserCubit extends MockCubit<UiUser> implements UserCubit {
+  @override
+  AppState get appState => AppState.foreground;
+}
 
 class MockUsersCubit extends MockCubit<UsersState> implements UsersCubit {}
 
