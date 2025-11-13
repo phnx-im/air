@@ -8,23 +8,23 @@ Ce glossaire fournit les définitions des termes clés utilisés dans l'interfac
 |-------|------------|----------|
 | **Air** | Le nom de l'application | Toujours garder "Air", ne pas traduire |
 | **Pseudo** | Un identifiant unique que les utilisateurs peuvent partager pour se connecter | Uniquement utilisé pour les connexions |
-| **Nom d'affichage** | Le nom qui apparaît dans les conversations et est visible aux autres utilisateurs | Différent du pseudo; c'est ce que les gens voient quand vous leur envoyez des messages |
-| **Conversation** | Un fil de discussion entre deux personnes ou plus | Peut être en tête-à-tête ou en groupe |
+| **Nom d'affichage** | Le nom qui apparaît dans les chats et est visible aux autres utilisateurs | Différent du pseudo; c'est ce que les gens voient quand vous leur envoyez des messages |
+| **Chat** | Un fil de discussion entre deux personnes ou plus | Peut être en tête-à-tête ou en groupe |
 | **Contact** | Un autre utilisateur à qui vous pouvez envoyer des messages | Quelqu'un dans votre liste de contacts |
-| **Membre** | Un participant dans une conversation de groupe | Utilisé dans le contexte des conversations de groupe |
+| **Membre** | Un participant dans un chat de groupe | Utilisé dans le contexte des chats de groupe |
 
 ## Termes de Messagerie
 
 | Terme | Définition | Contexte |
 |-------|------------|----------|
-| **Message** | Un texte, une image ou un fichier envoyé dans une conversation | |
-| **Brouillon** | Un message non envoyé qui a été tapé mais pas encore envoyé | Apparaît dans la liste des conversations |
+| **Message** | Un texte, une image ou un fichier envoyé dans un chat | |
+| **Brouillon** | Un message non envoyé qui a été tapé mais pas encore envoyé | Apparaît dans la liste des chats |
 | **Pièce jointe** | Un fichier ou une image envoyé avec un message | |
 | **Composer** | Écrire un nouveau message | |
 | **Modifier** | Changer un message qui a déjà été envoyé | |
-| **Répondre** | Réagir à un message spécifique dans une conversation | |
-| **Un-à-un** | Une conversation privée entre deux utilisateurs | Traduction littérale de "1-to-1" |
-| **Groupe** | Une conversation avec plusieurs participants | |
+| **Répondre** | Réagir à un message spécifique dans un chat | |
+| **Un-à-un** | Un chat privé entre deux utilisateurs | Traduction littérale de "1-to-1" |
+| **Groupe** | Un chat avec plusieurs participants | |
 
 ## Actions & Interface
 
@@ -32,7 +32,7 @@ Ce glossaire fournit les définitions des termes clés utilisés dans l'interfac
 |-------|------------|----------|
 | **Se connecter** | Ajouter quelqu'un comme contact en utilisant son pseudo | Action initiale pour commencer à échanger avec quelqu'un de nouveau |
 | **Ajouter** | Inclure quelqu'un dans un groupe ou l'ajouter aux contacts | |
-| **Retirer** | Enlever quelqu'un d'une conversation de groupe | Utiliser "retirer" pour les personnes |
+| **Retirer** | Enlever quelqu'un d'un chat de groupe | Utiliser "retirer" pour les personnes |
 | **Supprimer** | Enlever définitivement du contenu (messages, fichiers, etc.) | Utiliser "supprimer" pour le contenu, "retirer" pour les personnes |
 | **Signaler comme spam** | Marquer un utilisateur ou un message comme indésirable/spam | Fonction de modération |
 | **Échelle de l'interface** | Paramètre pour ajuster la taille des éléments UI | Fonction d'accessibilité |
@@ -71,7 +71,7 @@ Ce glossaire fournit les définitions des termes clés utilisés dans l'interfac
 ## Notes pour les Traducteurs
 
 - **Air** ne doit jamais être traduit - c'est le nom du produit
-- **Pseudo** vs **Nom d'affichage** : Le pseudo sert à trouver les gens, le nom d'affichage pour l'identification dans les conversations
+- **Pseudo** vs **Nom d'affichage** : Le pseudo sert à trouver les gens, le nom d'affichage pour l'identification dans les chats
 - **Retirer** vs **Supprimer** : Utiliser "retirer" pour les personnes, "supprimer" pour le contenu
 - **Se connecter** implique l'action initiale d'ajouter quelqu'un via son pseudo
 - Utiliser le vouvoiement (vous) de manière cohérente dans toute l'app, comme dans les traductions actuelles
