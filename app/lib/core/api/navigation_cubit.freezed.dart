@@ -197,38 +197,6 @@ $IntroScreenTypeCopyWith(IntroScreenType _, $Res Function(IntroScreenType) __);
 /// @nodoc
 
 
-class IntroScreenType_Intro extends IntroScreenType {
-  const IntroScreenType_Intro(): super._();
-  
-
-
-
-
-
-
-@override
-bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is IntroScreenType_Intro);
-}
-
-
-@override
-int get hashCode => runtimeType.hashCode;
-
-@override
-String toString() {
-  return 'IntroScreenType.intro()';
-}
-
-
-}
-
-
-
-
-/// @nodoc
-
-
 class IntroScreenType_SignUp extends IntroScreenType {
   const IntroScreenType_SignUp(): super._();
   

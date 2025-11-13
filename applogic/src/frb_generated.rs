@@ -7749,15 +7749,12 @@ impl SseDecode for crate::api::navigation_cubit::IntroScreenType {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
-                return crate::api::navigation_cubit::IntroScreenType::Intro;
-            }
-            1 => {
                 return crate::api::navigation_cubit::IntroScreenType::SignUp;
             }
-            2 => {
+            1 => {
                 return crate::api::navigation_cubit::IntroScreenType::UsernameOnboarding;
             }
-            3 => {
+            2 => {
                 let mut var_field0 =
                     <crate::api::navigation_cubit::DeveloperSettingsScreenType>::sse_decode(
                         deserializer,
@@ -9703,13 +9700,12 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::markdown::InlineElement>
 impl flutter_rust_bridge::IntoDart for crate::api::navigation_cubit::IntroScreenType {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
-            crate::api::navigation_cubit::IntroScreenType::Intro => [0.into_dart()].into_dart(),
-            crate::api::navigation_cubit::IntroScreenType::SignUp => [1.into_dart()].into_dart(),
+            crate::api::navigation_cubit::IntroScreenType::SignUp => [0.into_dart()].into_dart(),
             crate::api::navigation_cubit::IntroScreenType::UsernameOnboarding => {
-                [2.into_dart()].into_dart()
+                [1.into_dart()].into_dart()
             }
             crate::api::navigation_cubit::IntroScreenType::DeveloperSettings(field0) => {
-                [3.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+                [2.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
             _ => {
                 unimplemented!("");
@@ -11309,17 +11305,14 @@ impl SseEncode for crate::api::navigation_cubit::IntroScreenType {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
-            crate::api::navigation_cubit::IntroScreenType::Intro => {
+            crate::api::navigation_cubit::IntroScreenType::SignUp => {
                 <i32>::sse_encode(0, serializer);
             }
-            crate::api::navigation_cubit::IntroScreenType::SignUp => {
+            crate::api::navigation_cubit::IntroScreenType::UsernameOnboarding => {
                 <i32>::sse_encode(1, serializer);
             }
-            crate::api::navigation_cubit::IntroScreenType::UsernameOnboarding => {
-                <i32>::sse_encode(2, serializer);
-            }
             crate::api::navigation_cubit::IntroScreenType::DeveloperSettings(field0) => {
-                <i32>::sse_encode(3, serializer);
+                <i32>::sse_encode(2, serializer);
                 <crate::api::navigation_cubit::DeveloperSettingsScreenType>::sse_encode(
                     field0, serializer,
                 );

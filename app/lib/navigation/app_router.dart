@@ -69,17 +69,14 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
     // routing
     final List<MaterialPage> pages = switch (navigationState) {
       NavigationState_Intro(:final screens) => [
-        MaterialPage(
-          key: const IntroScreenType.intro().key,
+        // The first screen is always the intro screen
+        const MaterialPage(
+          key: ValueKey("intro-screen"),
           canPop: false,
-          child: const IntroScreenType.intro().screen,
+          child: IntroScreen(),
         ),
         for (final screenType in screens)
-          MaterialPage(
-            key: screenType.key,
-            canPop: true,
-            child: screenType.screen,
-          ),
+          MaterialPage(key: screenType.key, child: screenType.screen),
       ],
       NavigationState_Home(:final home) => home.pages(screenType),
     };
@@ -119,9 +116,23 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
   /// Back button handler
   @override
   Future<bool> popRoute() {
-    return SynchronousFuture(
-      _navigatorKey.currentContext?.read<NavigationCubit>().pop() ?? false,
-    );
+    // Pop the last route if it is pageless. See `isPageless`.
+    var poppedPagelessRoute = false;
+    var triedToPop = false;
+    _navigatorKey.currentState?.popUntil((route) {
+      if (triedToPop) {
+        return true; // stop popping
+      }
+      triedToPop = true;
+      poppedPagelessRoute = isPageless(route);
+      return !poppedPagelessRoute; // pop if is pageless
+    });
+
+    return poppedPagelessRoute
+        ? SynchronousFuture(true)
+        : SynchronousFuture(
+          _navigatorKey.currentContext?.read<NavigationCubit>().pop() ?? false,
+        );
   }
 
   @override
@@ -146,7 +157,6 @@ class AppBackButtonDispatcher extends RootBackButtonDispatcher {}
 /// Convert an [IntroScreenType] into a [ValueKey] and a screen [Widget].
 extension on IntroScreenType {
   ValueKey<String> get key => switch (this) {
-    IntroScreenType_Intro() => const ValueKey("intro-screen"),
     IntroScreenType_SignUp() => const ValueKey("sign-up-screen"),
     IntroScreenType_UsernameOnboarding() => const ValueKey(
       "username-onboarding-screen",
@@ -157,7 +167,6 @@ extension on IntroScreenType {
   };
 
   Widget get screen => switch (this) {
-    IntroScreenType_Intro() => const IntroScreen(),
     IntroScreenType_SignUp() => const SignUpScreen(),
     IntroScreenType_UsernameOnboarding() => const UsernameOnboardingScreen(),
     IntroScreenType_DeveloperSettings(field0: final screen) => switch (screen) {
@@ -320,3 +329,9 @@ class NoAnimationMaterialPageRoute<T> extends MaterialPageRoute<T> {
     return child;
   }
 }
+
+/// A route which does not correspond to a page in the app.
+///
+/// Such a route is added by [`Navigator.push`] and does not correspond to a state in the
+/// `NavigationState` inside `NavigationCubit`.
+bool isPageless(Route<dynamic> route) => route.settings is! Page;
