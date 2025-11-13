@@ -50,7 +50,6 @@ pub struct GrpcAs {
 
 impl GrpcAs {
     pub fn new(inner: AuthService) -> Self {
-        tracing::debug!("new");
         Self { inner }
     }
 
@@ -134,12 +133,13 @@ impl GrpcAs {
                     && let Some(io_error) = h2_error.get_io()
                     && io_error.kind() == io::ErrorKind::BrokenPipe
                 {
-                    return; // Client closed connection => not an error
+                    // Client closed connection => not an error
+                    continue;
+                } else {
+                    // We report the error, but don't stop processing requests.
+                    // TODO(#466): Send this to the client.
+                    error!(%error, "error processing listen request");
                 }
-
-                // We report the error, but don't stop processing requests.
-                // TODO(#466): Send this to the client.
-                error!(%error, "error processing listen request");
             }
         }
     }

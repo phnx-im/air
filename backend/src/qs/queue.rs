@@ -15,7 +15,7 @@ use sqlx::{PgExecutor, PgPool, PgTransaction};
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
-use tracing::error;
+use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{
@@ -52,7 +52,6 @@ impl ListenerContext {
 
 impl Drop for ListenerContext {
     fn drop(&mut self) {
-        gauge!(METRIC_AIR_ACTIVE_USERS).decrement(1);
         self.cancel.cancel();
     }
 }
@@ -78,6 +77,7 @@ impl Queues {
         let cancel = self.track_listener(queue_id, payload_tx).await?;
         let context = QueueStreamContext {
             pool: self.pool.clone(),
+            pg_listener_task_handle: self.pg_listener_task_handle.clone(),
             notifications,
             queue_id,
             sequence_number: sequence_number_start,
@@ -161,37 +161,18 @@ impl Queues {
         client_id: QsClientId,
         payload_tx: mpsc::Sender<QueueEventPayload>,
     ) -> sqlx::Result<CancellationToken> {
-        self.clean_up_cancelled_listeners().await;
+        // Clean up cancelled listeners
+        self.listeners
+            .retain(|_id, context| !context.cancel.is_cancelled());
 
         let cancel = CancellationToken::new();
         let context = ListenerContext::new(cancel.clone(), payload_tx);
 
         if self.listeners.insert(client_id, context).is_none() {
-            self.pg_listener_task_handle.listen(client_id).await;
+            self.pg_listener_task_handle.listen(client_id);
         }
 
         Ok(cancel)
-    }
-
-    async fn clean_up_cancelled_listeners(&self) {
-        let mut removed_ids = Vec::new();
-        self.listeners.retain(|id, context| {
-            if context.cancel.is_cancelled() {
-                removed_ids.push(*id);
-                false // remove
-            } else {
-                true // keep
-            }
-        });
-        for id in removed_ids {
-            self.pg_listener_task_handle.unlisten(id).await;
-        }
-    }
-
-    pub(crate) async fn stop_listening(&self, queue_id: QsClientId) {
-        if let Some((_, context)) = self.listeners.remove(&queue_id) {
-            context.cancel.cancel();
-        }
     }
 }
 
@@ -208,6 +189,7 @@ impl PgChannelName for QsClientId {
 
 struct QueueStreamContext<S> {
     pool: PgPool,
+    pg_listener_task_handle: PgListenerTaskHandle<QsClientId>,
     notifications: S,
     queue_id: QsClientId,
     sequence_number: u64,
@@ -217,6 +199,15 @@ struct QueueStreamContext<S> {
     /// Invariant: the messages are stored in ascending order by sequence number.
     buffer: VecDeque<QueueMessage>,
     state: FetchState,
+}
+
+impl<S> Drop for QueueStreamContext<S> {
+    fn drop(&mut self) {
+        self.cancel.cancel();
+        self.pg_listener_task_handle.unlisten(self.queue_id);
+        gauge!(METRIC_AIR_ACTIVE_USERS).decrement(1);
+        debug!(queue_id =? self.queue_id, "QS queue stream stopped");
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -235,6 +226,8 @@ impl<S: Stream<Item = ()> + Send + Unpin> QueueStreamContext<S> {
     fn into_stream(self) -> impl Stream<Item = Option<QueueMessage>> + Send {
         stream::unfold(
             self,
+            // Note: This function must be cancellation safe, because the stream can be dropped any
+            // time, when the client disconnects.
             async |mut context| -> Option<(Option<QueueMessage>, Self)> {
                 loop {
                     if let Some(message) = context.buffer.pop_front() {
