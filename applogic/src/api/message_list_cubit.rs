@@ -298,7 +298,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
     fn notify_neghbors_of_added_message(&self, message: ChatMessage) {
         let state = self.state_tx.borrow();
         let messages = &state.inner.messages;
-        match messages.binary_search_by_key(&Some(message.timestamp()), |m| m.timestamp()) {
+        match messages.binary_search_by_key(&message.timestamp(), UiChatMessage::timestamp) {
             Ok(_idx) => {
                 warn!("Added message is already in the list");
             }
