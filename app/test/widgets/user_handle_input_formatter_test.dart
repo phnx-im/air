@@ -10,9 +10,9 @@ void main() {
   const formatter = UserHandleInputFormatter();
 
   TextEditingValue value(String text) => TextEditingValue(
-        text: text,
-        selection: TextSelection.collapsed(offset: text.length),
-      );
+    text: text,
+    selection: TextSelection.collapsed(offset: text.length),
+  );
 
   test('allows valid usernames and lowercases characters', () {
     final result = formatter.formatEditUpdate(
