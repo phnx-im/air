@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
@@ -32,7 +31,8 @@ Future<void> main(List<String> arguments) async {
     return;
   }
 
-  final projectRoot = Directory(argResults['project-root'] as String).absolute.path;
+  final projectRoot =
+      Directory(argResults['project-root'] as String).absolute.path;
   String resolve(String input) =>
       p.normalize(p.isAbsolute(input) ? input : p.join(projectRoot, input));
 
@@ -44,11 +44,16 @@ Future<void> main(List<String> arguments) async {
     return;
   }
 
-  final searchRoots = (argResults['search-root'] as List<String>).map(resolve).toList();
+  final searchRoots =
+      (argResults['search-root'] as List<String>).map(resolve).toList();
   final includeExts =
-      (argResults['ext'] as List<String>).map((ext) => ext.startsWith('.') ? ext : '.$ext').toSet();
-  final excludeDirs = (argResults['exclude-dir'] as List<String>).map(resolve).toList();
-  final includeFiles = (argResults['include-file'] as List<String>).map(resolve).toSet();
+      (argResults['ext'] as List<String>)
+          .map((ext) => ext.startsWith('.') ? ext : '.$ext')
+          .toSet();
+  final excludeDirs =
+      (argResults['exclude-dir'] as List<String>).map(resolve).toList();
+  final includeFiles =
+      (argResults['include-file'] as List<String>).map(resolve).toSet();
   final keepMetadata = argResults['keep-metadata'] as bool;
   final verbose = argResults['verbose'] as bool;
   final apply = argResults['apply'] as bool;
@@ -94,7 +99,9 @@ Future<void> main(List<String> arguments) async {
   if (unusedKeys.isEmpty) {
     stdout.writeln('✅ All localization keys are referenced.');
     if (safeMode) {
-      stdout.writeln('Safe mode: skipping flutter commands because nothing was pruned.');
+      stdout.writeln(
+        'Safe mode: skipping flutter commands because nothing was pruned.',
+      );
     }
     return;
   }
@@ -109,12 +116,10 @@ Future<void> main(List<String> arguments) async {
     return;
   }
 
-  final mirrorArbs = (argResults['mirror-arb'] as List<String>).map(resolve).toList();
+  final mirrorArbs =
+      (argResults['mirror-arb'] as List<String>).map(resolve).toList();
   final autoMirrors = _discoverSiblingArbs(arbPath);
-  final targetSet = LinkedHashSet<String>()
-    ..add(arbPath)
-    ..addAll(mirrorArbs)
-    ..addAll(autoMirrors);
+  final targetSet = <String>{arbPath, ...mirrorArbs, ...autoMirrors};
   final allTargets = targetSet.toList();
   final totalFiles = allTargets.length;
 
@@ -133,7 +138,8 @@ Future<void> main(List<String> arguments) async {
   if (safeMode) {
     _runFlutterCommand(['gen-l10n'], workingDirectory: projectRoot);
     final analyzeTargets = _buildAnalyzeTargets(searchRoots, projectRoot);
-    final analyzeArgs = analyzeTargets.isEmpty ? ['analyze'] : ['analyze', ...analyzeTargets];
+    final analyzeArgs =
+        analyzeTargets.isEmpty ? ['analyze'] : ['analyze', ...analyzeTargets];
     _runFlutterCommand(analyzeArgs, workingDirectory: projectRoot);
   }
 }
@@ -149,7 +155,8 @@ ArgParser _buildParser() {
     ..addFlag(
       'apply',
       negatable: false,
-      help: 'Rewrite ARB file(s). Without this flag the script only reports unused keys.',
+      help:
+          'Rewrite ARB file(s). Without this flag the script only reports unused keys.',
     )
     ..addFlag(
       'verbose',
@@ -164,7 +171,8 @@ ArgParser _buildParser() {
     ..addOption(
       'project-root',
       defaultsTo: '.',
-      help: 'Resolve relative paths against this directory (defaults to current working directory).',
+      help:
+          'Resolve relative paths against this directory (defaults to current working directory).',
     )
     ..addOption(
       'arb',
@@ -174,7 +182,8 @@ ArgParser _buildParser() {
     ..addMultiOption(
       'mirror-arb',
       valueHelp: 'path',
-      help: 'Additional ARB files that should be pruned alongside the canonical file.',
+      help:
+          'Additional ARB files that should be pruned alongside the canonical file.',
     )
     ..addMultiOption(
       'search-root',
@@ -198,7 +207,8 @@ ArgParser _buildParser() {
       'include-file',
       valueHelp: 'path',
       defaultsTo: _defaultIncludeFiles,
-      help: 'Files that are always scanned even if they live in excluded directories.',
+      help:
+          'Files that are always scanned even if they live in excluded directories.',
     )
     ..addFlag(
       'safe',
@@ -231,7 +241,10 @@ List<File> _collectCandidateFiles({
     if (!directory.existsSync()) {
       continue;
     }
-    for (final entity in directory.listSync(recursive: true, followLinks: false)) {
+    for (final entity in directory.listSync(
+      recursive: true,
+      followLinks: false,
+    )) {
       if (entity is! File) {
         continue;
       }
@@ -292,11 +305,10 @@ Set<String> _findUnusedKeys({
 }
 
 void _ensureCleanGitWorkspace(String workingDirectory) {
-  final result = Process.runSync(
-    'git',
-    ['status', '--porcelain'],
-    workingDirectory: workingDirectory,
-  );
+  final result = Process.runSync('git', [
+    'status',
+    '--porcelain',
+  ], workingDirectory: workingDirectory);
   if (result.exitCode != 0) {
     stderr
       ..writeln('Failed to run git status in $workingDirectory')
@@ -315,12 +327,15 @@ void _ensureCleanGitWorkspace(String workingDirectory) {
 
 int _pruneArbFile(File file, Set<String> unusedKeys, bool keepMetadata) {
   final contents = file.readAsStringSync();
-  final data = Map<String, dynamic>.from(jsonDecode(contents) as Map<String, dynamic>);
+  final data = Map<String, dynamic>.from(
+    jsonDecode(contents) as Map<String, dynamic>,
+  );
 
   final baseCount = unusedKeys.where(data.containsKey).length;
-  final metadataCount = keepMetadata
-      ? 0
-      : unusedKeys.map((key) => '@$key').where(data.containsKey).length;
+  final metadataCount =
+      keepMetadata
+          ? 0
+          : unusedKeys.map((key) => '@$key').where(data.containsKey).length;
   final removed = baseCount + metadataCount;
 
   if (removed == 0) {
@@ -384,8 +399,11 @@ List<String> _discoverSiblingArbs(String arbPath) {
   return files;
 }
 
-List<String> _buildAnalyzeTargets(List<String> searchRoots, String projectRoot) {
-  final targets = LinkedHashSet<String>();
+List<String> _buildAnalyzeTargets(
+  List<String> searchRoots,
+  String projectRoot,
+) {
+  final targets = <String>{};
   for (final path in searchRoots) {
     if (Directory(path).existsSync()) {
       targets.add(_relative(path, projectRoot));
@@ -434,7 +452,8 @@ String _removeKeysPreservingWhitespace(
     final keyName = match.group(1)!;
     final isMetadata = keyName.startsWith('@');
     final baseKey = isMetadata ? keyName.substring(1) : keyName;
-    final shouldRemove = unusedKeys.contains(baseKey) && (!isMetadata || !keepMetadata);
+    final shouldRemove =
+        unusedKeys.contains(baseKey) && (!isMetadata || !keepMetadata);
 
     if (!shouldRemove) {
       kept.add(line);
