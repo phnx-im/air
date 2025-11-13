@@ -116,6 +116,11 @@ check-dart-format: dart-format
 gen-l10n:
     flutter gen-l10n
 
+# prune unused localization keys (dry run by default; pass --apply and optionally --safe to prevent data loss)
+[working-directory: 'app']
+prune-l10n *args='':
+    dart run tool/prune_unused_l10n.dart {{args}}
+
 # check that the localization files are up to date
 [working-directory: 'app']
 check-l10n: gen-l10n

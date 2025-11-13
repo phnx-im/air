@@ -55,6 +55,7 @@ dependencies:
   iconoir_flutter: ^7.11.0
 
 dev_dependencies:
+  args: ^2.5.0
   build_runner: ^2.4.9
   flutter_lints: ^6.0.0
   flutter_test:
