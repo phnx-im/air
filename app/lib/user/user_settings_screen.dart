@@ -23,7 +23,12 @@ class UserSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final profile = context.select((UsersCubit cubit) => cubit.state.profile());
+    UiUserProfile profile;
+    try {
+      profile = context.select((UsersCubit cubit) => cubit.state.profile());
+    } on ProviderNotFoundException {
+      return const SizedBox.shrink();
+    }
 
     final loc = AppLocalizations.of(context);
 
@@ -98,9 +103,14 @@ class _UserProfileData extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayName = context.select(
-      (UsersCubit cubit) => cubit.state.displayName(),
-    );
+    String displayName;
+    try {
+      displayName = context.select(
+        (UsersCubit cubit) => cubit.state.displayName(),
+      );
+    } on ProviderNotFoundException {
+      return const SizedBox.shrink();
+    }
 
     final loc = AppLocalizations.of(context);
 
@@ -133,9 +143,14 @@ class _UserHandles extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final userHandles = context.select(
-      (UserCubit cubit) => cubit.state.userHandles,
-    );
+    List<UiUserHandle> userHandles;
+    try {
+      userHandles = context.select(
+        (UserCubit cubit) => cubit.state.userHandles,
+      );
+    } on ProviderNotFoundException {
+      return const SizedBox.shrink();
+    }
 
     final loc = AppLocalizations.of(context);
 

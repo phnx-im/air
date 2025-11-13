@@ -22,6 +22,7 @@ import 'api/types.dart';
 import 'api/user.dart';
 import 'api/user_cubit.dart';
 import 'api/user_settings_cubit.dart';
+import 'api/username_suggestions.dart';
 import 'api/users_cubit.dart';
 import 'api/utils.dart';
 import 'dart:async';
@@ -86,7 +87,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 1744644455;
+  int get rustContentHash => -1794326595;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -650,6 +651,10 @@ abstract class RustLibApi extends BaseApi {
 
   String? crateApiTypesUiUserHandleValidationError({
     required UiUserHandle that,
+  });
+
+  String crateApiUsernameSuggestionsUsernameFromDisplay({
+    required String display,
   });
 
   RustArcIncrementStrongCountFnType
@@ -5571,6 +5576,38 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         argNames: ["that"],
       );
 
+  @override
+  String crateApiUsernameSuggestionsUsernameFromDisplay({
+    required String display,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(display, serializer);
+          return pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 133,
+          )!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiUsernameSuggestionsUsernameFromDisplayConstMeta,
+        argValues: [display],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiUsernameSuggestionsUsernameFromDisplayConstMeta =>
+      const TaskConstMeta(
+        debugName: "username_from_display",
+        argNames: ["display"],
+      );
+
   Future<void> Function(int)
   encode_DartFn_Inputs__Output_list_notification_handle_AnyhowException(
     FutureOr<List<NotificationHandle>> Function() raw,
@@ -6974,6 +7011,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 1:
         return IntroScreenType_SignUp();
       case 2:
+        return IntroScreenType_UsernameOnboarding();
+      case 3:
         return IntroScreenType_DeveloperSettings(
           dco_decode_developer_settings_screen_type(raw[1]),
         );
@@ -9047,6 +9086,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 1:
         return IntroScreenType_SignUp();
       case 2:
+        return IntroScreenType_UsernameOnboarding();
+      case 3:
         var var_field0 = sse_decode_developer_settings_screen_type(
           deserializer,
         );
@@ -11576,8 +11617,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_32(0, serializer);
       case IntroScreenType_SignUp():
         sse_encode_i_32(1, serializer);
-      case IntroScreenType_DeveloperSettings(field0: final field0):
+      case IntroScreenType_UsernameOnboarding():
         sse_encode_i_32(2, serializer);
+      case IntroScreenType_DeveloperSettings(field0: final field0):
+        sse_encode_i_32(3, serializer);
         sse_encode_developer_settings_screen_type(field0, serializer);
     }
   }

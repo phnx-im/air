@@ -169,17 +169,45 @@ class AppLocalizationsEn extends AppLocalizations {
   String get introScreen_signUp => 'Start';
 
   @override
-  String get signUpScreen_title => 'Create an Air Account';
+  String get introScreen_termsLinkText => 'Terms of Use';
 
   @override
-  String get signUpScreen_actionButton => 'Sign Up';
+  String introScreen_termsText(Object termsOfUseLink) {
+    return 'By signing up, you agree to our $termsOfUseLink.';
+  }
 
   @override
-  String get signUpScreen_displayNameLabel =>
-      'Add a Profile Picture and Display Name.';
+  String get signUpScreen_header => 'Create your profile';
 
   @override
-  String get signUpScreen_displayNameHint => 'Display Name';
+  String get signUpScreen_subheader =>
+      'Your profile is visible to people you connect with and members of groups you’re in.';
+
+  @override
+  String get usernameOnboarding_title => 'Welcome to Air';
+
+  @override
+  String get usernameOnboarding_header => 'Add a username';
+
+  @override
+  String get usernameOnboarding_body =>
+      'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.';
+
+  @override
+  String get usernameOnboarding_syntax =>
+      'Use letters, numbers, or dashes. Minimum 5 characters.';
+
+  @override
+  String get usernameOnboarding_addButton => 'Add';
+
+  @override
+  String get usernameOnboarding_skip => 'Skip';
+
+  @override
+  String get signUpScreen_actionButton => 'Sign up';
+
+  @override
+  String get signUpScreen_displayNameHint => 'Display name (required)';
 
   @override
   String get signUpScreen_serverLabel =>
@@ -215,7 +243,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get userHandleScreen_description =>
-      'Choose a username that others can use to connect with you.\n\nUse letters, numbers, or underscores. Minimum 5 characters.';
+      'Choose a username that others can use to connect with you.\n\nUse letters, numbers, or dashes. Minimum 5 characters.';
 
   @override
   String get userHandleScreen_save => 'Save';

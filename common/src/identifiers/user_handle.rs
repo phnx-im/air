@@ -14,7 +14,9 @@ use super::TlsString;
 
 const MIN_USER_HANDLE_LENGTH: usize = 5;
 const MAX_USER_HANDLE_LENGTH: usize = 63;
-const USER_HANDLE_CHARSET: &[u8] = b"_0123456789abcdefghijklmnopqrstuvwxyz";
+// TODO: Temporarily allow both '-' and '_' so older clients remain compatible while new
+// ones emit dashes. Remove '_' once the transition is complete.
+const USER_HANDLE_CHARSET: &[u8] = b"-_0123456789abcdefghijklmnopqrstuvwxyz";
 
 pub const USER_HANDLE_VALIDITY_PERIOD: Duration = Duration::days(30);
 
@@ -53,9 +55,14 @@ impl UserHandle {
             }
         }
         for pair in plaintext.as_bytes().windows(2) {
-            if pair[0] == b'_' && pair[1] == b'_' {
-                return Err(UserHandleValidationError::ConsecutiveUnderscores);
+            if pair[0] == b'-' && pair[1] == b'-' {
+                return Err(UserHandleValidationError::ConsecutiveDashes);
             }
+        }
+        if let Some(first_char) = plaintext.chars().next()
+            && first_char.is_ascii_digit()
+        {
+            return Err(UserHandleValidationError::LeadingDigit);
         }
         Ok(())
     }
@@ -107,8 +114,10 @@ pub enum UserHandleValidationError {
     TooLong,
     /// User handle contains invalid characters
     InvalidCharacter,
-    /// User handle contains consecutive underscores
-    ConsecutiveUnderscores,
+    /// User handle contains consecutive dashes
+    ConsecutiveDashes,
+    /// Leading characters are not allowed to be digits
+    LeadingDigit,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -190,7 +199,7 @@ mod tests {
     use super::*;
 
     fn valid_user_handle_string() -> String {
-        "test_user_123".to_string()
+        "test-user-123".to_string()
     }
 
     #[test]
@@ -222,7 +231,7 @@ mod tests {
 
     #[test]
     fn test_user_handle_new_invalid_character() {
-        let handle_str = "user_handle!".to_string(); // '!' is not in USER_HANDLE_CHARSET
+        let handle_str = "user-handle!".to_string(); // '!' is not in USER_HANDLE_CHARSET
         let handle = UserHandle::new(handle_str);
         assert!(matches!(
             handle.unwrap_err(),
@@ -237,9 +246,16 @@ mod tests {
         ));
     }
 
+    // TODO: Remove this test once underscores are no longer allowed
+    #[test]
+    fn test_user_handle_temporarily_allows_underscore() {
+        let handle = UserHandle::new("legacy_name".to_string());
+        assert!(handle.is_ok());
+    }
+
     #[test]
     fn test_user_handle_new_unicode_character() {
-        let handle_str = "user_hændle".to_string(); // 'æ' is a Unicode character, not in USER_HANDLE_CHARSET
+        let handle_str = "user-hændle".to_string(); // 'æ' is a Unicode character, not in USER_HANDLE_CHARSET
         let handle = UserHandle::new(handle_str);
         assert!(matches!(
             handle.unwrap_err(),
@@ -255,12 +271,12 @@ mod tests {
     }
 
     #[test]
-    fn test_user_handle_new_consecutive_underscores() {
-        let handle_str = "aaa__bbbb".to_string(); // Consecutive underscores
+    fn test_user_handle_new_consecutive_dashes() {
+        let handle_str = "aaa--bbbb".to_string(); // Consecutive dashes
         let handle = UserHandle::new(handle_str);
         assert!(matches!(
             handle.unwrap_err(),
-            UserHandleValidationError::ConsecutiveUnderscores
+            UserHandleValidationError::ConsecutiveDashes
         ));
     }
 
@@ -269,7 +285,7 @@ mod tests {
         let handle = UserHandle::new(valid_user_handle_string()).unwrap();
         let debug_output = format!("{handle:?}");
         assert!(debug_output.contains("<redacted>"));
-        assert!(!debug_output.contains("test_user_123")); // Ensure original plaintext is not visible
+        assert!(!debug_output.contains("test-user-123")); // Ensure original plaintext is not visible
     }
 
     #[test]
@@ -278,7 +294,7 @@ mod tests {
         let handle_hash = handle.calculate_hash().unwrap();
         assert_eq!(
             hex::encode(handle_hash.hash),
-            "67eedaa506238ce0774d7ee8bbda5cf5bef329607dbbad4c2cccd96ae8024a76"
+            "c637090294208e446deb561ee0020e9e9f75f269da55cada75da5e2b973cd90e"
         );
     }
 
