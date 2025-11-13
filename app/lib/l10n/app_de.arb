@@ -2,7 +2,6 @@
   "appTitle": "Air",
 
   "userSettingsScreen_title": "Benutzereinstellungen",
-  "userSettingsScreen_idCopied": "Benutzer-ID in Zwischenablage kopiert",
   "userSettingsScreen_profileDescription": "Andere sehen dein Bild und deinen Namen, wenn du mit ihnen kommunizierst.",
   "userSettingsScreen_userNamesDescription": "Teile Benutzernamen mit anderen, damit sie sich mit dir verbinden können. Nach der Verbindung sind Benutzernamen für andere nicht mehr sichtbar. Du kannst bis zu 5 Benutzernamen haben.",
   "userSettingsScreen_interfaceScale": "Oberflächenskalierung",
@@ -12,21 +11,17 @@
   "removeUsernameDialog_content": "Wenn du fortfährst, wird dein Benutzername entfernt und kann von jemand anderem beansprucht werden. Du wirst über ihn nicht mehr erreichbar sein.",
   "removeUsernameDialog_cancel": "Abbrechen",
   "removeUsernameDialog_remove": "Entfernen",
-  "userSettingsScreen_noUserHandles": "noch keine Benutzernamen",
   "userSettingsScreen_userHandlePlaceholder": "Benutzername",
 
-  "addMembersScreen_title": "Mitglieder hinzufügen",
   "addMembersScreen_addMembers": "Mitglied(er) hinzufügen",
   "addMembersScreen_error_noActiveChat": "eine aktive Unterhaltung ist erforderlich",
 
-  "chatDetailsScreen_title": "Details",
   "chatDetailsScreen_unknownChat": "Unbekannte Unterhaltung",
 
   "chatScreen_emptyChat": "Wähle eine Unterhaltung aus, um mit dem Nachrichten schreiben zu beginnen",
 
   "removeUserDialog_title": "Benutzer entfernen",
   "removeUserDialog_content": "Bist du sicher, dass du diesen Benutzer aus der Gruppe entfernen möchtest?",
-  "removeUserDialog_cancel": "Abbrechen",
   "removeUserDialog_removeUser": "Benutzer entfernen",
   "removeUserButton_text": "Benutzer entfernen",
 
@@ -56,7 +51,6 @@
   "userHandleScreen_save": "Speichern",
 
   "editDisplayNameScreen_title": "Anzeigename",
-  "editDisplayNameScreen_hintText": "Anzeigename",
   "editDisplayNameScreen_description": "Wähle einen Namen, den andere sehen werden, wenn du mit ihnen kommunizierst.",
   "editDisplayNameScreen_save": "Speichern",
 
@@ -80,12 +74,7 @@
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
 
-  "newChatDialog_newChatTitle": "Neue Unterhaltung",
-  "newChatDialog_newChatDescription": "Wähle einen Namen für die neue Unterhaltung",
-  "newChatDialog_chatNamePlaceholder": "Unterhaltungsname",
-  "newChatDialog_actionButton": "Unterhaltung erstellen",
   "newChatDialog_error": "Unterhaltung mit Name {chatName} konnte nicht hinzugefügt werden",
-  "newChatDialog_error_emptyGroupName": "Unterhaltungsname darf nicht leer sein",
 
   "newConnectionDialog_newConnectionTitle": "Neue Verbindung",
   "newConnectionDialog_newConnectionDescription": "Gib den Benutzernamen des Benutzers ein, mit dem du dich verbinden möchtest",
@@ -168,7 +157,6 @@
   "groupMembersScreen_title": "Gruppenmitglieder",
   "groupMembersScreen_searchHint": "Suchen",
   "groupCreationScreen_title": "Mitglieder hinzufügen",
-  "groupCreationScreen_cancel": "Abbrechen",
   "groupCreationScreen_next": "Weiter",
   "groupCreationScreen_skip": "Überspringen",
   "groupCreationDetails_title": "Gruppendetails",
