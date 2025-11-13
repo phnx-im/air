@@ -97,9 +97,7 @@ impl TestUser {
             return Ok(record);
         }
 
-        let user_id_str = format!("{:?}", self.user.user_id())
-            .replace('-', "")
-            .replace(['@', '.'], "_");
+        let user_id_str = format!("uuid-{:?}", self.user.user_id()).replace(['@', '.'], "-");
         let handle = UserHandle::new(user_id_str)?;
         info!(
             user_id = ?self.user.user_id(),

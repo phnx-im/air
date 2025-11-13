@@ -190,7 +190,12 @@ class _ListTileBottom extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ownClientId = context.select((UserCubit cubit) => cubit.state.userId);
+    late final UiUserId ownClientId;
+    try {
+      ownClientId = context.select((UserCubit cubit) => cubit.state.userId);
+    } on ProviderNotFoundException {
+      return const SizedBox.shrink();
+    }
     final isBlocked = chat.status == const UiChatStatus.blocked();
 
     return Row(

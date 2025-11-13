@@ -2,10 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/spacings.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:flutter/material.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
+import 'package:provider/provider.dart';
 
 class AppBarBackButton extends StatelessWidget {
   const AppBarBackButton({super.key});
@@ -22,8 +24,11 @@ class AppBarBackButton extends StatelessWidget {
           customBorder: const CircleBorder(),
           overlayColor: WidgetStateProperty.all(Colors.transparent),
           onTap: () async {
-            final popped = await Navigator.of(context).maybePop();
-            debugPrint('back button popped: $popped');
+            final navigator = Navigator.of(context);
+            final popped = await navigator.maybePop();
+            if (!popped && context.mounted) {
+              context.read<NavigationCubit>().pop();
+            }
           },
           child: DecoratedBox(
             decoration: BoxDecoration(

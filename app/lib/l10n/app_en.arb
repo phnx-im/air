@@ -55,11 +55,24 @@
   "deleteContactDialog_delete": "Delete",
 
   "introScreen_signUp": "Start",
+  "introScreen_termsLinkText": "Terms of Use",
+  "introScreen_termsText": "By signing up, you agree to our {termsOfUseLink}.",
+  "@introScreen_termsText": {
+    "placeholders": {
+      "termsOfUseLink": {}
+    }
+  },
 
-  "signUpScreen_title": "Create an Air Account",
-  "signUpScreen_actionButton": "Sign Up",
-  "signUpScreen_displayNameLabel": "Add a Profile Picture and Display Name.",
-  "signUpScreen_displayNameHint": "Display Name",
+  "signUpScreen_header": "Create your profile",
+  "signUpScreen_subheader": "Your profile is visible to people you connect with and members of groups you’re in.",
+  "usernameOnboarding_title": "Welcome to Air",
+  "usernameOnboarding_header": "Add a username",
+  "usernameOnboarding_body": "Usernames are how people connect on Air. They aren't visible to others once you're connected.\n\nAdd, change, or delete usernames at any time in your profile.",
+  "usernameOnboarding_syntax": "Use letters, numbers, or dashes. Minimum 5 characters.",
+  "usernameOnboarding_addButton": "Add",
+  "usernameOnboarding_skip": "Skip",
+  "signUpScreen_actionButton": "Sign up",
+  "signUpScreen_displayNameHint": "Display name (required)",
   "signUpScreen_serverLabel": "Choose a server where you want to create your account.",
   "signUpScreen_serverHint": "DOMAIN NAME",
   "signUpScreen_error_invalidDomain": "Domain is invalid",
@@ -70,7 +83,7 @@
   "userHandleScreen_inputHint": "Username",
   "userHandleScreen_error_emptyHandle": "Username cannot be empty",
   "userHandleScreen_error_alreadyExists": "Username is already in use",
-  "userHandleScreen_description": "Choose a username that others can use to connect with you.\n\nUse letters, numbers, or underscores. Minimum 5 characters.",
+  "userHandleScreen_description": "Choose a username that others can use to connect with you.\n\nUse letters, numbers, or dashes. Minimum 5 characters.",
   "userHandleScreen_save": "Save",
 
   "editDisplayNameScreen_title": "Display Name",

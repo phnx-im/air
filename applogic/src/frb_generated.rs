@@ -51,7 +51,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1744644455;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1794326595;
 
 // Section: executor
 
@@ -6693,6 +6693,38 @@ fn wire__crate__api__types__ui_user_handle_validation_error_impl(
         },
     )
 }
+fn wire__crate__api__username_suggestions__username_from_display_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "username_from_display",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_display = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Result::<_, ()>::Ok(
+                    crate::api::username_suggestions::username_from_display(api_display),
+                )?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
 
 // Section: static_checks
 
@@ -7720,6 +7752,9 @@ impl SseDecode for crate::api::navigation_cubit::IntroScreenType {
                 return crate::api::navigation_cubit::IntroScreenType::SignUp;
             }
             1 => {
+                return crate::api::navigation_cubit::IntroScreenType::UsernameOnboarding;
+            }
+            2 => {
                 let mut var_field0 =
                     <crate::api::navigation_cubit::DeveloperSettingsScreenType>::sse_decode(
                         deserializer,
@@ -9086,6 +9121,11 @@ fn pde_ffi_dispatcher_sync_impl(
             rust_vec_len,
             data_len,
         ),
+        133 => wire__crate__api__username_suggestions__username_from_display_impl(
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
         _ => unreachable!(),
     }
 }
@@ -9661,8 +9701,11 @@ impl flutter_rust_bridge::IntoDart for crate::api::navigation_cubit::IntroScreen
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
             crate::api::navigation_cubit::IntroScreenType::SignUp => [0.into_dart()].into_dart(),
+            crate::api::navigation_cubit::IntroScreenType::UsernameOnboarding => {
+                [1.into_dart()].into_dart()
+            }
             crate::api::navigation_cubit::IntroScreenType::DeveloperSettings(field0) => {
-                [1.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+                [2.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
             _ => {
                 unimplemented!("");
@@ -11265,8 +11308,11 @@ impl SseEncode for crate::api::navigation_cubit::IntroScreenType {
             crate::api::navigation_cubit::IntroScreenType::SignUp => {
                 <i32>::sse_encode(0, serializer);
             }
-            crate::api::navigation_cubit::IntroScreenType::DeveloperSettings(field0) => {
+            crate::api::navigation_cubit::IntroScreenType::UsernameOnboarding => {
                 <i32>::sse_encode(1, serializer);
+            }
+            crate::api::navigation_cubit::IntroScreenType::DeveloperSettings(field0) => {
+                <i32>::sse_encode(2, serializer);
                 <crate::api::navigation_cubit::DeveloperSettingsScreenType>::sse_encode(
                     field0, serializer,
                 );

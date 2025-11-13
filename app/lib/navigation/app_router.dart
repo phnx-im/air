@@ -56,7 +56,6 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   final PageStorageBucket _bucket = PageStorageBucket();
-  // final RouteTrackingObserver _routeTrackingObserver = RouteTrackingObserver();
 
   @override
   Widget build(BuildContext context) {
@@ -90,7 +89,6 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
       bucket: _bucket,
       child: Navigator(
         key: _navigatorKey,
-        // observers: [_routeTrackingObserver],
         pages: pages,
         // Note: onPopPage is deprecated, and instead we should use
         // onDidRemovePage. However, the latter does not allow to distinguish
@@ -160,6 +158,9 @@ class AppBackButtonDispatcher extends RootBackButtonDispatcher {}
 extension on IntroScreenType {
   ValueKey<String> get key => switch (this) {
     IntroScreenType_SignUp() => const ValueKey("sign-up-screen"),
+    IntroScreenType_UsernameOnboarding() => const ValueKey(
+      "username-onboarding-screen",
+    ),
     IntroScreenType_DeveloperSettings(field0: final screen) => ValueKey(
       "developer-settings-screen-$screen",
     ),
@@ -167,6 +168,7 @@ extension on IntroScreenType {
 
   Widget get screen => switch (this) {
     IntroScreenType_SignUp() => const SignUpScreen(),
+    IntroScreenType_UsernameOnboarding() => const UsernameOnboardingScreen(),
     IntroScreenType_DeveloperSettings(field0: final screen) => switch (screen) {
       DeveloperSettingsScreenType.root => const DeveloperSettingsScreen(),
       DeveloperSettingsScreenType.changeUser => const ChangeUserScreen(),
