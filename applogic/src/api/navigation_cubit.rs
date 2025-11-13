@@ -324,10 +324,7 @@ impl NavigationCubitBase {
     #[frb(sync)]
     pub fn pop(&self) -> bool {
         self.core.state_tx().send_if_modified(|state| match state {
-            NavigationState::Intro { screens } => {
-                tracing::info!(?screens, "pop intro screen");
-                screens.pop().is_some()
-            }
+            NavigationState::Intro { screens } => screens.pop().is_some(),
             NavigationState::Home {
                 home:
                     home @ HomeNavigationState {
