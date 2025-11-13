@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/widgets/user_handle_input_formatter.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 class CreateChatView extends HookWidget {
@@ -15,6 +16,7 @@ class CreateChatView extends HookWidget {
   final String action;
   final Future<String?> Function(String)? onAction;
   final FormFieldValidator<String> validator;
+  final bool allowUnderscore;
 
   @override
   const CreateChatView(
@@ -25,6 +27,7 @@ class CreateChatView extends HookWidget {
     this.action, {
     this.onAction,
     required this.validator,
+    this.allowUnderscore = false,
     super.key,
   });
 
@@ -70,6 +73,11 @@ class CreateChatView extends HookWidget {
                     controller: controller,
                     focusNode: focusNode,
                     decoration: InputDecoration(hintText: hint),
+                    inputFormatters: [
+                      UserHandleInputFormatter(
+                        allowUnderscore: allowUnderscore,
+                      ),
+                    ],
                     onChanged: (text) => customValidationError.value = null,
                     validator:
                         (input) => _validator(

@@ -10,6 +10,7 @@ import 'package:air/registration/registration.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
+import 'package:air/widgets/user_handle_input_formatter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -21,7 +22,9 @@ class UsernameOnboardingScreen extends HookWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final registrationState = context.watch<RegistrationCubit>().state;
-    final initialHandle = registrationState.usernameSuggestion ?? '';
+    final initialHandle = UserHandleInputFormatter.normalize(
+      registrationState.usernameSuggestion ?? '',
+    );
 
     final formKey = useMemoized(() => GlobalKey<FormState>());
     final controller = useTextEditingController(text: initialHandle);
@@ -36,10 +39,7 @@ class UsernameOnboardingScreen extends HookWidget {
       if (!formKey.currentState!.validate()) {
         return;
       }
-      final normalized = controller.text.trim().toLowerCase().replaceAll(
-        '_',
-        '-',
-      );
+      final normalized = UserHandleInputFormatter.normalize(controller.text);
       final handle = UiUserHandle(plaintext: normalized);
       final userCubit = context.read<UserCubit>();
       final navigationCubit = context.read<NavigationCubit>();
@@ -119,6 +119,10 @@ class UsernameOnboardingScreen extends HookWidget {
                         decoration: InputDecoration(
                           hintText: loc.userHandleScreen_inputHint,
                         ),
+                        // Temporary strict enforcement until legacy underscores are fully removed.
+                        inputFormatters: const [
+                          UserHandleInputFormatter(),
+                        ],
                         onChanged: (_) {
                           if (handleExists.value) {
                             handleExists.value = false;
@@ -179,9 +183,12 @@ class UsernameOnboardingScreen extends HookWidget {
     if (value == null || value.trim().isEmpty) {
       return loc.userHandleScreen_error_emptyHandle;
     }
-    final handle = UiUserHandle(
-      plaintext: value.trim().toLowerCase().replaceAll('_', '-'),
-    );
+    final safeValue = value;
+    final normalized = UserHandleInputFormatter.normalize(safeValue);
+    if (normalized.isEmpty) {
+      return loc.userHandleScreen_error_emptyHandle;
+    }
+    final handle = UiUserHandle(plaintext: normalized);
     return handle.validationError();
   }
 }

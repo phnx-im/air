@@ -157,8 +157,11 @@ class _PlusButtonState extends State<_PlusButton> {
     String? customError;
 
     String? validator(String? value) {
-      final plaintext = value?.trim().toLowerCase();
-      if (plaintext == null || plaintext.isEmpty) {
+      final normalized = UserHandleInputFormatter.normalize(
+        value ?? '',
+        allowUnderscore: true,
+      );
+      if (normalized.isEmpty) {
         return loc.newConnectionDialog_error_emptyHandle;
       }
       if (customError != null) {
@@ -166,12 +169,19 @@ class _PlusButtonState extends State<_PlusButton> {
         customError = null;
         return error;
       }
-      UiUserHandle handle = UiUserHandle(plaintext: plaintext);
+      UiUserHandle handle = UiUserHandle(plaintext: normalized);
       return handle.validationError();
     }
 
     Future<String?> onAction(String input) async {
-      final handle = UiUserHandle(plaintext: input.trim().toLowerCase());
+      final normalized = UserHandleInputFormatter.normalize(
+        input,
+        allowUnderscore: true,
+      );
+      if (normalized.isEmpty) {
+        return loc.newConnectionDialog_error_emptyHandle;
+      }
+      final handle = UiUserHandle(plaintext: normalized);
       try {
         final chatId = await chatListCubit.createContactChat(handle: handle);
         if (context.mounted) {
@@ -209,6 +219,7 @@ class _PlusButtonState extends State<_PlusButton> {
             loc.newConnectionDialog_actionButton,
             validator: validator,
             onAction: onAction,
+            allowUnderscore: true,
           ),
     );
   }

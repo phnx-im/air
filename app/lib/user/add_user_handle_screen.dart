@@ -57,6 +57,10 @@ class AddUserHandleScreen extends HookWidget {
                     decoration: InputDecoration(
                       hintText: loc.userHandleScreen_inputHint,
                     ),
+                    // Temporary strict enforcement until legacy underscores are fully removed.
+                    inputFormatters: const [
+                      UserHandleInputFormatter(),
+                    ],
                     validator:
                         (value) => _validate(loc, userHandleExists, value),
                     onChanged: (_) {
@@ -128,10 +132,7 @@ class AddUserHandleScreen extends HookWidget {
     if (!formKey.currentState!.validate()) {
       return;
     }
-    final normalized = controller.text.trim().toLowerCase().replaceAll(
-      '_',
-      '-',
-    );
+    final normalized = UserHandleInputFormatter.normalize(controller.text);
     final handle = UiUserHandle(plaintext: normalized);
     final userCubit = context.read<UserCubit>();
     final navigationCubit = context.read<NavigationCubit>();
@@ -163,9 +164,12 @@ class AddUserHandleScreen extends HookWidget {
     if (value == null || value.trim().isEmpty) {
       return loc.userHandleScreen_error_emptyHandle;
     }
-    final handle = UiUserHandle(
-      plaintext: value.trim().toLowerCase().replaceAll('_', '-'),
-    );
+    final safeValue = value;
+    final normalized = UserHandleInputFormatter.normalize(safeValue);
+    if (normalized.isEmpty) {
+      return loc.userHandleScreen_error_emptyHandle;
+    }
+    final handle = UiUserHandle(plaintext: normalized);
     return handle.validationError();
   }
 }
