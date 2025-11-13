@@ -26,19 +26,13 @@ class InterfaceScale extends StatelessWidget {
     final platformTextScaled =
         WidgetsBinding.instance.platformDispatcher.textScaleFactor >= 1.5;
 
-    // On Linux with a 4k display, set the default text scaling to 1.5x
-    final userUiFactor =
-        Platform.isLinux
-            ? (interfaceScale ?? (platformTextScaled ? 1.5 : 1.0))
-            : interfaceScale;
+    // Default to 1.0 everywhere, but bump Linux on large text scale (e.g. 4k displays).
+    final defaultUiFactor =
+        Platform.isLinux && platformTextScaled ? 1.5 : 1.0;
+    final userUiFactor = interfaceScale ?? defaultUiFactor;
 
     final scalingFactors = getScalingFactors(context);
-    final uiScalingFactor =
-        userUiFactor != null ? scalingFactors.uiFactor * userUiFactor : null;
-
-    if (uiScalingFactor == null) {
-      return child;
-    }
+    final uiScalingFactor = scalingFactors.uiFactor * userUiFactor;
 
     final mediaQuery = MediaQuery.of(context);
     final wrappedChild = MediaQuery(
