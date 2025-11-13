@@ -25,12 +25,12 @@ ProvisionAttachmentResponse {
             ),
         },
     ),
-    upload_url: "https://s3.us-east-1.amazonaws.com/data",
+    upload_url: "https://region.example.com/data",
     upload_headers: [],
     post_policy: Some(
         SignedPostPolicy {
-            base64: "eyJleHBpcmF0aW9uIjoiMjAyMy0wMS0wMVQwMDowMTowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJkYXRhIn0seyJrZXkiOiJiYTUyMWZjNjFlYzI0ZjhlYTg1ZTNkYWNjMWU5Njk4OSJ9LFsiY29udGVudC1sZW5ndGgtcmFuZ2UiLDAsMjA5NzE1MjBdLHsieC1hbXotY3JlZGVudGlhbCI6IkFLSUFJT1NGT0ROTjdFWEFNUExFLzIwMjMwMTAxL2V1LXdlc3QtMS9zMy9hd3M0X3JlcXVlc3QifSx7IngtYW16LWFsZ29yaXRobSI6IkFXUzQtSE1BQy1TSEEyNTYifSx7IngtYW16LWRhdGUiOiIyMDIzMDEwMVQwMDAwMDBaIn1dfQ==",
-            signature: "94c115f409fe5c7896c48d50da8afc0e5f292b69ff8d63bc5b02b3abb98a153a",
+            base64: "eyJleHBpcmF0aW9uIjoiMjAyMy0wMS0wMVQwMDowMTowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJkYXRhIn0seyJrZXkiOiJiYTUyMWZjNjFlYzI0ZjhlYTg1ZTNkYWNjMWU5Njk4OSJ9LFsiY29udGVudC1sZW5ndGgtcmFuZ2UiLDAsMjA5NzE1MjBdLHsieC1hbXotY3JlZGVudGlhbCI6IkVYQU1QTEVLRVkvMjAyMzAxMDEvZXhhbXBsZS1yZWdpb24vczMvYXdzNF9yZXF1ZXN0In0seyJ4LWFtei1hbGdvcml0aG0iOiJBV1M0LUhNQUMtU0hBMjU2In0seyJ4LWFtei1kYXRlIjoiMjAyMzAxMDFUMDAwMDAwWiJ9XX0=",
+            signature: "1acb569427932f07a866f5523ee85d3fd45d40c27dd0c40051ba4e1828f6cd0d",
         },
     ),
 }

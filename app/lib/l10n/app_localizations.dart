@@ -376,28 +376,76 @@ abstract class AppLocalizations {
   /// **'Start'**
   String get introScreen_signUp;
 
-  /// No description provided for @signUpScreen_title.
+  /// No description provided for @introScreen_termsLinkText.
   ///
   /// In en, this message translates to:
-  /// **'Create an Air Account'**
-  String get signUpScreen_title;
+  /// **'Terms of Use'**
+  String get introScreen_termsLinkText;
+
+  /// No description provided for @introScreen_termsText.
+  ///
+  /// In en, this message translates to:
+  /// **'By signing up, you agree to our {termsOfUseLink}.'**
+  String introScreen_termsText(Object termsOfUseLink);
+
+  /// No description provided for @signUpScreen_header.
+  ///
+  /// In en, this message translates to:
+  /// **'Create your profile'**
+  String get signUpScreen_header;
+
+  /// No description provided for @signUpScreen_subheader.
+  ///
+  /// In en, this message translates to:
+  /// **'Your profile is visible to people you connect with and members of groups you’re in.'**
+  String get signUpScreen_subheader;
+
+  /// No description provided for @usernameOnboarding_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Welcome to Air'**
+  String get usernameOnboarding_title;
+
+  /// No description provided for @usernameOnboarding_header.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a username'**
+  String get usernameOnboarding_header;
+
+  /// No description provided for @usernameOnboarding_body.
+  ///
+  /// In en, this message translates to:
+  /// **'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.'**
+  String get usernameOnboarding_body;
+
+  /// No description provided for @usernameOnboarding_syntax.
+  ///
+  /// In en, this message translates to:
+  /// **'Use letters, numbers, or dashes. Minimum 5 characters.'**
+  String get usernameOnboarding_syntax;
+
+  /// No description provided for @usernameOnboarding_addButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get usernameOnboarding_addButton;
+
+  /// No description provided for @usernameOnboarding_skip.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get usernameOnboarding_skip;
 
   /// No description provided for @signUpScreen_actionButton.
   ///
   /// In en, this message translates to:
-  /// **'Sign Up'**
+  /// **'Sign up'**
   String get signUpScreen_actionButton;
-
-  /// No description provided for @signUpScreen_displayNameLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Add a Profile Picture and Display Name.'**
-  String get signUpScreen_displayNameLabel;
 
   /// No description provided for @signUpScreen_displayNameHint.
   ///
   /// In en, this message translates to:
-  /// **'Display Name'**
+  /// **'Display name (required)'**
   String get signUpScreen_displayNameHint;
 
   /// No description provided for @signUpScreen_serverLabel.
@@ -457,7 +505,7 @@ abstract class AppLocalizations {
   /// No description provided for @userHandleScreen_description.
   ///
   /// In en, this message translates to:
-  /// **'Choose a username that others can use to connect with you.\n\nUse letters, numbers, or underscores. Minimum 5 characters.'**
+  /// **'Choose a username that others can use to connect with you.\n\nUse letters, numbers, or dashes. Minimum 5 characters.'**
   String get userHandleScreen_description;
 
   /// No description provided for @userHandleScreen_save.

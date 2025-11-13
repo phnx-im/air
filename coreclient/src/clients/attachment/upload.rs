@@ -268,12 +268,14 @@ async fn encrypt_and_upload(
     let (ciphertext, nonce) = ciphertext.into_parts();
 
     // provision attachment
+    let content_length = ciphertext.len().try_into().context("usize overflow")?;
     let response = api_client
         .ds_provision_attachment(
             signing_key,
             group.group_state_ear_key(),
             group.group_id(),
             group.own_index(),
+            content_length,
         )
         .await?;
 

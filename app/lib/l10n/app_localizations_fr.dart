@@ -171,17 +171,45 @@ class AppLocalizationsFr extends AppLocalizations {
   String get introScreen_signUp => 'S\'inscrire';
 
   @override
-  String get signUpScreen_title => 'Create an Air Account';
+  String get introScreen_termsLinkText => 'Conditions d\'utilisation';
 
   @override
-  String get signUpScreen_actionButton => 'Sign Up';
+  String introScreen_termsText(Object termsOfUseLink) {
+    return 'En vous inscrivant, vous acceptez nos $termsOfUseLink.';
+  }
 
   @override
-  String get signUpScreen_displayNameLabel =>
-      'Add a Profile Picture and Display Name.';
+  String get signUpScreen_header => 'Créez votre profil';
 
   @override
-  String get signUpScreen_displayNameHint => 'Display Name';
+  String get signUpScreen_subheader =>
+      'Votre profil est visible pour les personnes avec lesquelles vous vous connectez et les membres de vos groupes.';
+
+  @override
+  String get usernameOnboarding_title => 'Bienvenue sur Air';
+
+  @override
+  String get usernameOnboarding_header => 'Ajoutez un nom d\'utilisateur';
+
+  @override
+  String get usernameOnboarding_body =>
+      'On peut se connecter à d\'autres grace aux noms d\'utilisateur sur Air. Ils ne seront plus visibles pour les autres une fois la connexion établie.\n\nAjoutez, modifiez ou supprimez des noms d\'utilisateur à tout moment dans votre profil.';
+
+  @override
+  String get usernameOnboarding_syntax =>
+      'Utilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.';
+
+  @override
+  String get usernameOnboarding_addButton => 'Ajouter';
+
+  @override
+  String get usernameOnboarding_skip => 'Ignorer';
+
+  @override
+  String get signUpScreen_actionButton => 'Sign up';
+
+  @override
+  String get signUpScreen_displayNameHint => 'Nom d\'utillisateur (nécessaire)';
 
   @override
   String get signUpScreen_serverLabel =>
@@ -218,7 +246,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get userHandleScreen_description =>
-      'Choisissez un nom d\'utilisateur que d\'autres peuvent utiliser pour se connecter avec vous.\n\nUtilisez des lettres, des chiffres ou des traits de soulignement. Minimum 5 caractères.';
+      'Choisissez un nom d\'utilisateur que d\'autres peuvent utiliser pour se connecter avec vous.\n\nUtilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.';
 
   @override
   String get userHandleScreen_save => 'Enregistrer';

@@ -171,17 +171,45 @@ class AppLocalizationsDe extends AppLocalizations {
   String get introScreen_signUp => 'Registrieren';
 
   @override
-  String get signUpScreen_title => 'Create an Air Account';
+  String get introScreen_termsLinkText => 'Nutzungsbedingungen';
 
   @override
-  String get signUpScreen_actionButton => 'Sign Up';
+  String introScreen_termsText(Object termsOfUseLink) {
+    return 'Mit deiner Registrierung stimmst du unseren $termsOfUseLink zu.';
+  }
 
   @override
-  String get signUpScreen_displayNameLabel =>
-      'Add a Profile Picture and Display Name.';
+  String get signUpScreen_header => 'Erstelle dein Profil';
 
   @override
-  String get signUpScreen_displayNameHint => 'Display Name';
+  String get signUpScreen_subheader =>
+      'Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen.';
+
+  @override
+  String get usernameOnboarding_title => 'Willkommen bei Air';
+
+  @override
+  String get usernameOnboarding_header => 'Füge einen Benutzernamen hinzu';
+
+  @override
+  String get usernameOnboarding_body =>
+      'Über Benutzernamen kann man sich in Air mit anderen verbinden. Sie sind für andere nicht mehr sichtbar, sobald man verbunden ist.\n\nDu kannst Benutzernamen jederzeit in deinem Profil hinzufügen, ändern oder löschen.';
+
+  @override
+  String get usernameOnboarding_syntax =>
+      'Verwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.';
+
+  @override
+  String get usernameOnboarding_addButton => 'Hinzufügen';
+
+  @override
+  String get usernameOnboarding_skip => 'Überspringen';
+
+  @override
+  String get signUpScreen_actionButton => 'Sign up';
+
+  @override
+  String get signUpScreen_displayNameHint => 'Benutzername (erforderlich)';
 
   @override
   String get signUpScreen_serverLabel =>
@@ -218,7 +246,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get userHandleScreen_description =>
-      'Wähle einen Benutzernamen, den andere verwenden können, um sich mit dir zu verbinden.\n\nVerwende Buchstaben, Zahlen oder Unterstriche. Mindestens 5 Zeichen.';
+      'Wähle einen Benutzernamen, den andere verwenden können, um sich mit dir zu verbinden.\n\nVerwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.';
 
   @override
   String get userHandleScreen_save => 'Speichern';

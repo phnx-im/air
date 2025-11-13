@@ -54,16 +54,15 @@ impl GrpcQs {
                     && let Some(io_error) = h2_error.get_io()
                     && io_error.kind() == io::ErrorKind::BrokenPipe
                 {
-                    return; // Client closed connection => not an error
+                    // Client closed connection => not an error
+                    continue;
+                } else {
+                    // We report the error, but don't stop processing requests.
+                    // TODO(#466): Send this to the client.
+                    error!(%error, "error processing listen queue request");
                 }
-
-                // We report the error, but don't stop processing requests.
-                // TODO(#466): Send this to the client.
-                error!(%error, "error processing listen queue request");
             }
         }
-        // Listening stream was closed
-        queues.stop_listening(queue_id).await;
     }
 
     async fn process_listen_queue_request(

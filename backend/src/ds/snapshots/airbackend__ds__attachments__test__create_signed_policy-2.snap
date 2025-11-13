@@ -16,7 +16,7 @@ Object {
             Number(20971520),
         ],
         Object {
-            "x-amz-credential": String("AKIAIOSFODNN7EXAMPLE/20230101/eu-west-1/s3/aws4_request"),
+            "x-amz-credential": String("EXAMPLEKEY/20230101/example-region/s3/aws4_request"),
         },
         Object {
             "x-amz-algorithm": String("AWS4-HMAC-SHA256"),

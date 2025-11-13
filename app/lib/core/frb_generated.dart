@@ -22,6 +22,7 @@ import 'api/types.dart';
 import 'api/user.dart';
 import 'api/user_cubit.dart';
 import 'api/user_settings_cubit.dart';
+import 'api/username_suggestions.dart';
 import 'api/users_cubit.dart';
 import 'api/utils.dart';
 import 'dart:async';
@@ -86,7 +87,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 1744644455;
+  int get rustContentHash => -1794326595;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -650,6 +651,10 @@ abstract class RustLibApi extends BaseApi {
 
   String? crateApiTypesUiUserHandleValidationError({
     required UiUserHandle that,
+  });
+
+  String crateApiUsernameSuggestionsUsernameFromDisplay({
+    required String display,
   });
 
   RustArcIncrementStrongCountFnType
@@ -5571,6 +5576,38 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         argNames: ["that"],
       );
 
+  @override
+  String crateApiUsernameSuggestionsUsernameFromDisplay({
+    required String display,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(display, serializer);
+          return pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 133,
+          )!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiUsernameSuggestionsUsernameFromDisplayConstMeta,
+        argValues: [display],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiUsernameSuggestionsUsernameFromDisplayConstMeta =>
+      const TaskConstMeta(
+        debugName: "username_from_display",
+        argNames: ["display"],
+      );
+
   Future<void> Function(int)
   encode_DartFn_Inputs__Output_list_notification_handle_AnyhowException(
     FutureOr<List<NotificationHandle>> Function() raw,
@@ -6289,6 +6326,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DateTime dco_decode_Chrono_Local(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeTimestamp(ts: dco_decode_i_64(raw).toInt(), isUtc: false);
+  }
+
+  @protected
   DateTime dco_decode_Chrono_Utc(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dcoDecodeTimestamp(ts: dco_decode_i_64(raw).toInt(), isUtc: true);
@@ -6968,6 +7011,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 1:
         return IntroScreenType_SignUp();
       case 2:
+        return IntroScreenType_UsernameOnboarding();
+      case 3:
         return IntroScreenType_DeveloperSettings(
           dco_decode_developer_settings_screen_type(raw[1]),
         );
@@ -7461,7 +7506,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       id: dco_decode_chat_id(arr[0]),
       status: dco_decode_ui_chat_status(arr[1]),
       chatType: dco_decode_ui_chat_type(arr[2]),
-      lastUsed: dco_decode_String(arr[3]),
+      lastUsed: dco_decode_Chrono_Local(arr[3]),
       attributes: dco_decode_ui_chat_attributes(arr[4]),
       messagesCount: dco_decode_CastedPrimitive_usize(arr[5]),
       unreadMessages: dco_decode_CastedPrimitive_usize(arr[6]),
@@ -7479,7 +7524,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return UiChatMessage(
       chatId: dco_decode_chat_id(arr[0]),
       id: dco_decode_message_id(arr[1]),
-      timestamp: dco_decode_String(arr[2]),
+      timestamp: dco_decode_Chrono_Local(arr[2]),
       message: dco_decode_ui_message(arr[3]),
       position: dco_decode_ui_flight_position(arr[4]),
       status: dco_decode_ui_message_status(arr[5]),
@@ -8297,6 +8342,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DateTime sse_decode_Chrono_Local(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_64(deserializer);
+    return DateTime.fromMicrosecondsSinceEpoch(inner.toInt(), isUtc: false);
+  }
+
+  @protected
   DateTime sse_decode_Chrono_Utc(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_i_64(deserializer);
@@ -9034,6 +9086,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 1:
         return IntroScreenType_SignUp();
       case 2:
+        return IntroScreenType_UsernameOnboarding();
+      case 3:
         var var_field0 = sse_decode_developer_settings_screen_type(
           deserializer,
         );
@@ -9730,7 +9784,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_id = sse_decode_chat_id(deserializer);
     var var_status = sse_decode_ui_chat_status(deserializer);
     var var_chatType = sse_decode_ui_chat_type(deserializer);
-    var var_lastUsed = sse_decode_String(deserializer);
+    var var_lastUsed = sse_decode_Chrono_Local(deserializer);
     var var_attributes = sse_decode_ui_chat_attributes(deserializer);
     var var_messagesCount = sse_decode_CastedPrimitive_usize(deserializer);
     var var_unreadMessages = sse_decode_CastedPrimitive_usize(deserializer);
@@ -9756,7 +9810,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_chatId = sse_decode_chat_id(deserializer);
     var var_id = sse_decode_message_id(deserializer);
-    var var_timestamp = sse_decode_String(deserializer);
+    var var_timestamp = sse_decode_Chrono_Local(deserializer);
     var var_message = sse_decode_ui_message(deserializer);
     var var_position = sse_decode_ui_flight_position(deserializer);
     var var_status = sse_decode_ui_message_status(deserializer);
@@ -10626,6 +10680,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_CastedPrimitive_usize(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(sseEncodeCastedPrimitiveU64(self), serializer);
+  }
+
+  @protected
+  void sse_encode_Chrono_Local(DateTime self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(
+      PlatformInt64Util.from(self.microsecondsSinceEpoch),
+      serializer,
+    );
   }
 
   @protected
@@ -11554,8 +11617,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_32(0, serializer);
       case IntroScreenType_SignUp():
         sse_encode_i_32(1, serializer);
-      case IntroScreenType_DeveloperSettings(field0: final field0):
+      case IntroScreenType_UsernameOnboarding():
         sse_encode_i_32(2, serializer);
+      case IntroScreenType_DeveloperSettings(field0: final field0):
+        sse_encode_i_32(3, serializer);
         sse_encode_developer_settings_screen_type(field0, serializer);
     }
   }
@@ -12206,7 +12271,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_chat_id(self.id, serializer);
     sse_encode_ui_chat_status(self.status, serializer);
     sse_encode_ui_chat_type(self.chatType, serializer);
-    sse_encode_String(self.lastUsed, serializer);
+    sse_encode_Chrono_Local(self.lastUsed, serializer);
     sse_encode_ui_chat_attributes(self.attributes, serializer);
     sse_encode_CastedPrimitive_usize(self.messagesCount, serializer);
     sse_encode_CastedPrimitive_usize(self.unreadMessages, serializer);
@@ -12222,7 +12287,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_chat_id(self.chatId, serializer);
     sse_encode_message_id(self.id, serializer);
-    sse_encode_String(self.timestamp, serializer);
+    sse_encode_Chrono_Local(self.timestamp, serializer);
     sse_encode_ui_message(self.message, serializer);
     sse_encode_ui_flight_position(self.position, serializer);
     sse_encode_ui_message_status(self.status, serializer);

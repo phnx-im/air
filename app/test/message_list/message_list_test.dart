@@ -29,7 +29,7 @@ final messages = [
   UiChatMessage(
     id: 1.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:00:00.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 2.userId(),
@@ -49,7 +49,7 @@ final messages = [
   UiChatMessage(
     id: 2.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:01:00.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:01:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 3.userId(),
@@ -72,7 +72,7 @@ final messages = [
   UiChatMessage(
     id: 100.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:04:01.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:04:01.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 3.userId(),
@@ -87,7 +87,7 @@ final messages = [
   UiChatMessage(
     id: 3.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:02:00.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:02:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -107,7 +107,7 @@ final messages = [
   UiChatMessage(
     id: 4.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:03:00.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:03:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -127,7 +127,7 @@ final messages = [
   UiChatMessage(
     id: 5.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:03:00.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:03:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -153,7 +153,7 @@ This is a message with multiple lines. It should be properly displayed in the me
   UiChatMessage(
     id: 7.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:04:01.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:04:01.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -168,7 +168,7 @@ This is a message with multiple lines. It should be properly displayed in the me
   UiChatMessage(
     id: 8.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:04:01.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:04:01.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -188,7 +188,7 @@ This is a message with multiple lines. It should be properly displayed in the me
   UiChatMessage(
     id: 9.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:04:02.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:04:02.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -290,7 +290,7 @@ final attachmentMessages = [
   UiChatMessage(
     id: 6.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:04:00.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:04:00.000Z'),
     position: UiFlightPosition.start,
     message: UiMessage_Content(
       UiContentMessage(
@@ -318,7 +318,7 @@ final attachmentMessages = [
   UiChatMessage(
     id: 7.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:04:01.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:04:01.000Z'),
     position: UiFlightPosition.end,
     message: UiMessage_Content(
       UiContentMessage(
@@ -338,7 +338,7 @@ final attachmentMessages = [
   UiChatMessage(
     id: 8.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:04:02.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:04:02.000Z'),
     position: UiFlightPosition.single,
     message: UiMessage_Content(
       UiContentMessage(
@@ -356,7 +356,7 @@ final attachmentMessages = [
   UiChatMessage(
     id: 9.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:04:03.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:04:03.000Z'),
     position: UiFlightPosition.single,
     message: UiMessage_Content(
       UiContentMessage(

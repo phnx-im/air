@@ -31,6 +31,8 @@ sealed class RegistrationState with _$RegistrationState {
     ImageData? avatar,
     @Default('') String displayName,
     @Default(false) bool isSigningUp,
+    @Default(false) bool needsUsernameOnboarding,
+    String? usernameSuggestion,
   }) = _RegistrationState;
 
   bool get isDomainValid => _domainRegex.hasMatch(domain);
@@ -54,6 +56,21 @@ class RegistrationCubit extends Cubit<RegistrationState> {
 
   void setDisplayName(String value) {
     emit(state.copyWith(displayName: value));
+  }
+
+  void startUsernameOnboarding(String suggestion) {
+    emit(
+      state.copyWith(
+        needsUsernameOnboarding: true,
+        usernameSuggestion: suggestion,
+      ),
+    );
+  }
+
+  void clearUsernameOnboarding() {
+    emit(
+      state.copyWith(needsUsernameOnboarding: false, usernameSuggestion: null),
+    );
   }
 
   Future<SignUpError?> signUp() async {
