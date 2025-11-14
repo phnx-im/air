@@ -35,17 +35,17 @@ class AppLocalizationsDe extends AppLocalizations {
   String get userSettingsScreen_help => 'Hilfe';
 
   @override
-  String get userSettingsScreen_deleteAccount => 'Delete Air Account';
+  String get userSettingsScreen_deleteAccount => 'Air-Konto löschen';
 
   @override
-  String get userSettingsScreen_sendWithEnter => 'Send with Enter';
+  String get userSettingsScreen_sendWithEnter => 'Mit Eingabetaste senden';
 
   @override
-  String get userSettingsScreen_readReceipts => 'Read Receipts';
+  String get userSettingsScreen_readReceipts => 'Lesebestätigungen';
 
   @override
   String get userSettingsScreen_readReceiptsDescription =>
-      'If disabled, others won\'t be able to see when you\'ve read their messages and you won\'t be able to see when they\'ve read yours.';
+      'Wenn deaktiviert, sehen andere nicht, wann du ihre Nachrichten gelesen hast, und du siehst nicht, wann sie deine gelesen haben.';
 
   @override
   String get removeUsernameDialog_title => 'Benutzername entfernen';
@@ -68,19 +68,19 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get addMembersScreen_error_noActiveChat =>
-      'eine aktive Unterhaltung ist erforderlich';
+      'ein aktiver Chat ist erforderlich';
 
   @override
-  String get chatDetailsScreen_unknownChat => 'Unbekannte Unterhaltung';
+  String get chatDetailsScreen_unknownChat => 'Unbekannter Chat';
 
   @override
   String blockedChatFooter_message(Object displayName) {
-    return 'You won’t receive messages from $displayName unless you unblock them.';
+    return 'Du erhältst keine Nachrichten von $displayName, solange du $displayName nicht entsperrst.';
   }
 
   @override
   String get chatScreen_emptyChat =>
-      'Wähle eine Unterhaltung aus, um mit dem Nachrichten schreiben zu beginnen';
+      'Wähle einen Chat aus, um mit dem Nachrichten schreiben zu beginnen';
 
   @override
   String get removeUserDialog_title => 'Benutzer entfernen';
@@ -97,59 +97,59 @@ class AppLocalizationsDe extends AppLocalizations {
   String get removeUserButton_text => 'Benutzer entfernen';
 
   @override
-  String get blockContactButton_text => 'Block';
+  String get blockContactButton_text => 'Blockieren';
 
   @override
   String blockContactDialog_title(Object displayName) {
-    return 'Block $displayName?';
+    return '$displayName blockieren?';
   }
 
   @override
   String blockContactDialog_content(Object displayName) {
-    return 'You won’t receive messages from $displayName and they won’t be able to view any updates to your profile. They won’t be able to see that you blocked them. You can unblock them anytime.';
+    return 'Du erhältst keine Nachrichten von $displayName, und die Person sieht keine Aktualisierungen deines Profils. Sie sieht nicht, dass du sie blockiert hast. Du kannst sie jederzeit wieder freigeben.';
   }
 
   @override
-  String get blockContactDialog_cancel => 'Cancel';
+  String get blockContactDialog_cancel => 'Abbrechen';
 
   @override
-  String get blockContactDialog_block => 'Block';
+  String get blockContactDialog_block => 'Blockieren';
 
   @override
-  String get unblockContactButton_text => 'Unblock';
+  String get unblockContactButton_text => 'Entsperren';
 
   @override
   String unblockContactDialog_title(Object displayName) {
-    return 'Unblock $displayName?';
+    return '$displayName entsperren?';
   }
 
   @override
   String unblockContactDialog_content(Object displayName) {
-    return 'You’ll be able to send and receive messages from $displayName and they’ll be able to view your current profile.';
+    return 'Du kannst Nachrichten mit $displayName austauschen, und die Person sieht dein aktuelles Profil.';
   }
 
   @override
-  String get unblockContactDialog_cancel => 'Cancel';
+  String get unblockContactDialog_cancel => 'Abbrechen';
 
   @override
-  String get unblockContactDialog_unblock => 'Unblock';
+  String get unblockContactDialog_unblock => 'Entsperren';
 
   @override
-  String get deleteContactButton_text => 'Delete Air Contact';
+  String get deleteContactButton_text => 'Air-Kontakt löschen';
 
   @override
-  String get deleteContactDialog_title => 'Delete Air Contact';
+  String get deleteContactDialog_title => 'Air-Kontakt löschen';
 
   @override
   String deleteContactDialog_content(Object displayName) {
-    return 'Are you sure you want to delete your Air Contact $displayName? If you do, the chat and its message history will be deleted.';
+    return 'Möchtest du deinen Air-Kontakt $displayName wirklich löschen? Dadurch werden der Chat und sein Nachrichtenverlauf gelöscht.';
   }
 
   @override
-  String get deleteContactDialog_cancel => 'Cancel';
+  String get deleteContactDialog_cancel => 'Abbrechen';
 
   @override
-  String get deleteContactDialog_delete => 'Delete';
+  String get deleteContactDialog_delete => 'Löschen';
 
   @override
   String get introScreen_signUp => 'Registrieren';
@@ -190,28 +190,28 @@ class AppLocalizationsDe extends AppLocalizations {
   String get usernameOnboarding_skip => 'Überspringen';
 
   @override
-  String get signUpScreen_actionButton => 'Sign up';
+  String get signUpScreen_actionButton => 'Registrieren';
 
   @override
   String get signUpScreen_displayNameHint => 'Benutzername (erforderlich)';
 
   @override
   String get signUpScreen_serverLabel =>
-      'Choose a server where you want to create your account.';
+      'Wähle den Server aus, auf dem du dein Konto erstellen möchtest.';
 
   @override
-  String get signUpScreen_serverHint => 'DOMAIN NAME';
+  String get signUpScreen_serverHint => 'DOMAIN-NAME';
 
   @override
-  String get signUpScreen_error_invalidDomain => 'Domain is invalid';
+  String get signUpScreen_error_invalidDomain => 'Domain ist ungültig';
 
   @override
   String get signUpScreen_error_emptyDisplayName =>
-      'Add a Display Name of at least one character';
+      'Füge einen Anzeigenamen mit mindestens einem Zeichen hinzu';
 
   @override
   String signUpScreen_error_register(Object error) {
-    return 'Error when registering user: $error';
+    return 'Fehler beim Registrieren des Benutzers: $error';
   }
 
   @override
@@ -226,7 +226,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get userHandleScreen_error_alreadyExists =>
-      'Username is already in use';
+      'Benutzername wird bereits verwendet';
 
   @override
   String get userHandleScreen_description =>
@@ -292,11 +292,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatList_fileEmoji => '📎';
 
   @override
-  String get chatList_blocked => 'Blocked';
+  String get chatList_blocked => 'Blockiert';
 
   @override
   String newChatDialog_error(Object chatName) {
-    return 'Unterhaltung mit Name $chatName konnte nicht hinzugefügt werden';
+    return 'Chat mit dem Namen $chatName konnte nicht hinzugefügt werden';
   }
 
   @override
@@ -355,10 +355,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get textMessage_hiddenPlaceholder =>
-      'Blocked user, tap to reveal message';
+      'Blockierter Benutzer, tippe, um die Nachricht anzuzeigen';
 
   @override
-  String get textMessage_deleted => 'Deleted message';
+  String get textMessage_deleted => 'Nachricht gelöscht';
 
   @override
   String get messageContextMenu_copy => 'Kopieren';
@@ -443,10 +443,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'E-Mail-Client konnte nicht geöffnet werden';
 
   @override
-  String get groupDetails_leaveChat => 'Leave';
+  String get groupDetails_leaveChat => 'Verlassen';
 
   @override
-  String get groupDetails_deleteChat => 'Delete';
+  String get groupDetails_deleteChat => 'Löschen';
 
   @override
   String get groupDetails_seeAll => 'Alle anzeigen';
@@ -508,28 +508,28 @@ class AppLocalizationsDe extends AppLocalizations {
   String get addMembersScreen_done => 'Fertig';
 
   @override
-  String get leaveChatDialog_title => 'Leave Group';
+  String get leaveChatDialog_title => 'Chat verlassen';
 
   @override
   String leaveChatDialog_content(Object chatName) {
-    return 'Are you sure you want to leave $chatName?';
+    return 'Möchtest du $chatName wirklich verlassen?';
   }
 
   @override
-  String get leaveChatDialog_cancel => 'Cancel';
+  String get leaveChatDialog_cancel => 'Abbrechen';
 
   @override
-  String get leaveChatDialog_leave => 'Leave';
+  String get leaveChatDialog_leave => 'Verlassen';
 
   @override
-  String get deleteChatDialog_title => 'Delete Chat?';
+  String get deleteChatDialog_title => 'Chat löschen?';
 
   @override
   String get deleteChatDialog_content =>
-      'This Chat will be deleted. There is no way to undo this.';
+      'Dieser Chat wird gelöscht. Dies kann nicht rückgängig gemacht werden.';
 
   @override
-  String get deleteChatDialog_delete => 'Delete';
+  String get deleteChatDialog_delete => 'Löschen';
 
   @override
   String get byteUnit_B => 'B';
@@ -559,26 +559,26 @@ class AppLocalizationsDe extends AppLocalizations {
   String get byteUnit_YB => 'YB';
 
   @override
-  String get deleteAccountScreen_title => 'Delete My Account';
+  String get deleteAccountScreen_title => 'Mein Konto löschen';
 
   @override
   String get deleteAccountScreen_explanatoryText =>
-      'This will delete your Air Account and reset the application. You will not be able to recover your account.';
+      'Dadurch wird dein Air-Konto gelöscht und die App zurückgesetzt. Du kannst dein Konto nicht wiederherstellen.';
 
   @override
-  String get deleteAccountScreen_confirmationInputHint => 'Confirmation';
+  String get deleteAccountScreen_confirmationInputHint => 'Bestätigung';
 
   @override
   String get deleteAccountScreen_confirmationInputLabel =>
-      'Type \'delete\' to confirm';
+      'Gib \'delete\' ein, um zu bestätigen';
 
   @override
-  String get deleteAccountScreen_confirmButtonText => 'Delete Air Account';
+  String get deleteAccountScreen_confirmButtonText => 'Air-Konto löschen';
 
   @override
-  String get deleteAccountScreen_cancelButtonText => 'Cancel';
+  String get deleteAccountScreen_cancelButtonText => 'Abbrechen';
 
   @override
   String get deleteAccountScreen_deleteAccountError =>
-      'Something went wrong on our end. Wait a moment, then try again.';
+      'Bei uns ist ein Fehler aufgetreten. Warte einen Moment und versuche es dann erneut.';
 }
