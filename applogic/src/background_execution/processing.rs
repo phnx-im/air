@@ -10,27 +10,22 @@ use crate::{
     api::user::User,
     background_execution::{IncomingNotificationContent, stack},
     logging::init_logger,
-    notifications::NotificationId,
 };
 
 use aircoreclient::store::Store;
 
-use super::{NotificationBatch, NotificationContent};
+use super::NotificationBatch;
 
 const SECOND_THREAD_STACK_SIZE: usize = 1024 * 1024; // 1 MB
 const TOKIO_THREAD_STACK_SIZE: usize = 1024 * 1024; // 1 MB
 const TOKIO_WORKER_THREADS: usize = 2; // Two threads for background tasks should be enough
 
 pub(crate) fn error_batch(title: String, body: String) -> NotificationBatch {
+    error!(%title, %body, "Error notification batch");
     NotificationBatch {
         badge_count: 0,
         removals: Vec::new(),
-        additions: vec![NotificationContent {
-            identifier: NotificationId::invalid(),
-            title,
-            body,
-            chat_id: None,
-        }],
+        additions: Vec::new(),
     }
 }
 
@@ -162,12 +157,7 @@ pub(crate) async fn retrieve_messages(path: String) -> NotificationBatch {
         }
         Err(e) => {
             error!(?e, "Failed to fetch messages");
-            vec![NotificationContent {
-                identifier: NotificationId::invalid(),
-                title: "Error fetching messages".to_string(),
-                body: e.to_string(),
-                chat_id: None,
-            }]
+            Vec::new()
         }
     };
 
