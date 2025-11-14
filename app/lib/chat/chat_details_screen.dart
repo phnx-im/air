@@ -75,7 +75,7 @@ class ChatDetailsScreenView extends StatelessWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: const AppBarBackButton(),
-        title: Text(chatTitle),
+        title: Text(chatTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
       ),
       body: SafeArea(
         child: switch (chatType) {
