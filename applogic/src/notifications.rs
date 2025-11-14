@@ -96,10 +96,6 @@ impl NotificationId {
     pub(crate) fn random() -> Self {
         Self(Uuid::new_v4())
     }
-
-    pub(crate) fn invalid() -> Self {
-        Self(Uuid::nil())
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
