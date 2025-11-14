@@ -368,8 +368,10 @@ class _MessageInput extends StatelessWidget {
           maxLines: 10,
           decoration: InputDecoration(
             hintText: loc.composer_inputHint(chatTitle ?? ""),
+            hintMaxLines: 1,
             hintStyle: TextStyle(
               color: CustomColorScheme.of(context).text.tertiary,
+              overflow: TextOverflow.ellipsis,
             ),
           ).copyWith(filled: false),
           textInputAction:

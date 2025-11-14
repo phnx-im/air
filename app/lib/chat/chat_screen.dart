@@ -160,28 +160,34 @@ class _ChatHeader extends StatelessWidget {
             context.responsiveScreenType == ResponsiveScreenType.mobile
                 ? const _BackButton()
                 : const SizedBox.shrink(),
-            GestureDetector(
-              onTap: () {
-                context.read<NavigationCubit>().openChatDetails();
-              },
-              child: Row(
-                spacing: Spacings.m,
-                children: [
-                  UserAvatar(
-                    displayName: title ?? "",
-                    image: image,
-                    size: Spacings.l,
-                  ),
-                  Text(
-                    (title ?? "").toUpperCase(),
-                    style: TextStyle(
-                      fontSize: LabelFontSize.small1.size,
-                      color: CustomColorScheme.of(context).text.tertiary,
-                      fontFamily: getSystemMonospaceFontFamily(),
-                      letterSpacing: 1,
+            Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  context.read<NavigationCubit>().openChatDetails();
+                },
+                child: Row(
+                  spacing: Spacings.m,
+                  children: [
+                    UserAvatar(
+                      displayName: title ?? "",
+                      image: image,
+                      size: Spacings.l,
                     ),
-                  ),
-                ],
+                    Expanded(
+                      child: Text(
+                        (title ?? "").toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: LabelFontSize.small1.size,
+                          color: CustomColorScheme.of(context).text.tertiary,
+                          fontFamily: getSystemMonospaceFontFamily(),
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             title != null ? const _DetailsButton() : const SizedBox.shrink(),
