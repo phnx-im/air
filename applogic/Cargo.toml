@@ -30,6 +30,7 @@ bytes.workspace = true
 chrono.workspace = true
 derive_more.workspace = true
 deunicode.workspace = true
+emojis = "0.8.0"
 flate2.workspace = true
 flutter_rust_bridge.workspace = true
 jni.workspace = true
