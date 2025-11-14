@@ -2,7 +2,6 @@
   "appTitle": "Air",
 
   "userSettingsScreen_title": "User Settings",
-  "userSettingsScreen_idCopied": "User ID copied to clipboard",
   "userSettingsScreen_profileDescription": "Your Display Name and Profile Picture are visible to your Air Contacts and members of groups you're in.",
   "userSettingsScreen_userNamesDescription": "Share Usernames with anyone you want to connect with. Usernames aren't visible to other users, even your Air Contacts. You can have up to 5 Usernames.",
   "userSettingsScreen_interfaceScale": "Interface scale",
@@ -16,14 +15,11 @@
   "removeUsernameDialog_content": "People won't be able to send you a Contact Request using this Username, and it may be claimed by someone else.",
   "removeUsernameDialog_cancel": "Cancel",
   "removeUsernameDialog_remove": "Remove",
-  "userSettingsScreen_noUserHandles": "no usernames yet",
   "userSettingsScreen_userHandlePlaceholder": "Username",
 
-  "addMembersScreen_title": "Add members",
   "addMembersScreen_addMembers": "Add member(s)",
   "addMembersScreen_error_noActiveChat": "an active chat is obligatory",
 
-  "chatDetailsScreen_title": "Details",
   "chatDetailsScreen_unknownChat": "Unknown chat",
 
   "blockedChatFooter_message": "You won’t receive messages from {displayName} unless you unblock them.",
@@ -32,7 +28,6 @@
 
   "removeUserDialog_title": "Remove user",
   "removeUserDialog_content": "Are you sure you want to remove {displayName} from the group?",
-  "removeUserDialog_cancel": "Cancel",
   "removeUserDialog_removeUser": "Remove user",
   "removeUserButton_text": "Remove",
 
@@ -87,7 +82,6 @@
   "userHandleScreen_save": "Save",
 
   "editDisplayNameScreen_title": "Display Name",
-  "editDisplayNameScreen_hintText": "Display Name",
   "editDisplayNameScreen_description": "Choose a name that others will see when you communicate with them.",
   "editDisplayNameScreen_save": "Save",
 
@@ -112,12 +106,7 @@
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blocked",
 
-  "newChatDialog_newChatTitle": "New Group Chat",
-  "newChatDialog_newChatDescription": "Choose a name for the Group Chat",
-  "newChatDialog_chatNamePlaceholder": "Chat name",
-  "newChatDialog_actionButton": "Create Group",
   "newChatDialog_error": "Failed to create new Group Chat with name {chatName}",
-  "newChatDialog_error_emptyGroupName": "Add a name for the Group Chat",
 
   "newConnectionDialog_newConnectionTitle": "New Air Contact",
   "newConnectionDialog_newConnectionDescription": "Type the Username of the person you want to connect to",
@@ -180,8 +169,6 @@
   "contactUsScreen_body_tooShort": "Provide more information",
   "contactUsScreen_errorLaunchingEmail": "Couldn't launch email client",
 
-  "groupDetails_members": "Members",
-  "groupDetails_addMembers": "Add members",
   "groupDetails_leaveChat": "Leave",
   "groupDetails_deleteChat": "Delete",
   "groupDetails_seeAll": "See all",
@@ -196,7 +183,6 @@
   "groupMembersScreen_title": "Group members",
   "groupMembersScreen_searchHint": "Search",
   "groupCreationScreen_title": "Add members",
-  "groupCreationScreen_cancel": "Cancel",
   "groupCreationScreen_next": "Next",
   "groupCreationScreen_skip": "Skip",
   "groupCreationDetails_title": "Group details",
@@ -217,7 +203,6 @@
 
   "deleteChatDialog_title": "Delete Chat?",
   "deleteChatDialog_content": "This Chat will be deleted. There is no way to undo this.",
-  "deleteChatDialog_cancel": "Cancel",
   "deleteChatDialog_delete": "Delete",
 
   "byteUnit_B": "B",

@@ -21,10 +21,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get userSettingsScreen_title => 'Paramètres utilisateur';
 
   @override
-  String get userSettingsScreen_idCopied =>
-      'ID utilisateur copié dans le presse-papiers';
-
-  @override
   String get userSettingsScreen_profileDescription =>
       'Les autres verront votre photo et votre nom lorsque vous communiquez avec eux.';
 
@@ -65,13 +61,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get removeUsernameDialog_remove => 'Supprimer';
 
   @override
-  String get userSettingsScreen_noUserHandles => 'aucun pseudo pour le moment';
-
-  @override
   String get userSettingsScreen_userHandlePlaceholder => 'Nom d\'utilisateur';
-
-  @override
-  String get addMembersScreen_title => 'Ajouter des membres';
 
   @override
   String get addMembersScreen_addMembers => 'Ajouter des membres';
@@ -79,9 +69,6 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get addMembersScreen_error_noActiveChat =>
       'une chat active est obligatoire';
-
-  @override
-  String get chatDetailsScreen_title => 'Détails';
 
   @override
   String get chatDetailsScreen_unknownChat => 'Chat inconnue';
@@ -102,9 +89,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String removeUserDialog_content(Object displayName) {
     return 'Êtes-vous sûr de vouloir retirer cet utilisateur du groupe ?';
   }
-
-  @override
-  String get removeUserDialog_cancel => 'Annuler';
 
   @override
   String get removeUserDialog_removeUser => 'Retirer l\'utilisateur';
@@ -255,9 +239,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get editDisplayNameScreen_title => 'Nom d\'affichage';
 
   @override
-  String get editDisplayNameScreen_hintText => 'Nom d\'affichage';
-
-  @override
   String get editDisplayNameScreen_description =>
       'Choisissez un nom que les autres verront lorsque vous communiquez avec eux.';
 
@@ -314,26 +295,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get chatList_blocked => 'Blocked';
 
   @override
-  String get newChatDialog_newChatTitle => 'Nouvelle chat';
-
-  @override
-  String get newChatDialog_newChatDescription =>
-      'Choisissez un nom pour la nouvelle chat';
-
-  @override
-  String get newChatDialog_chatNamePlaceholder => 'Nom de la chat';
-
-  @override
-  String get newChatDialog_actionButton => 'Créer une chat';
-
-  @override
   String newChatDialog_error(Object chatName) {
     return 'Impossible d\'ajouter une chat avec le nom $chatName';
   }
-
-  @override
-  String get newChatDialog_error_emptyGroupName =>
-      'Le nom de la chat ne peut pas être vide';
 
   @override
   String get newConnectionDialog_newConnectionTitle => 'Nouvelle connexion';
@@ -481,12 +445,6 @@ class AppLocalizationsFr extends AppLocalizations {
       'Impossible de lancer le client de messagerie';
 
   @override
-  String get groupDetails_members => 'Members';
-
-  @override
-  String get groupDetails_addMembers => 'Add members';
-
-  @override
   String get groupDetails_leaveChat => 'Leave';
 
   @override
@@ -514,9 +472,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get groupCreationScreen_title => 'Ajouter des membres';
-
-  @override
-  String get groupCreationScreen_cancel => 'Annuler';
 
   @override
   String get groupCreationScreen_next => 'Suivant';
@@ -575,9 +530,6 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get deleteChatDialog_content =>
       'This Chat will be deleted. There is no way to undo this.';
-
-  @override
-  String get deleteChatDialog_cancel => 'Cancel';
 
   @override
   String get deleteChatDialog_delete => 'Delete';

@@ -21,10 +21,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get userSettingsScreen_title => 'Benutzereinstellungen';
 
   @override
-  String get userSettingsScreen_idCopied =>
-      'Benutzer-ID in Zwischenablage kopiert';
-
-  @override
   String get userSettingsScreen_profileDescription =>
       'Andere sehen dein Bild und deinen Namen, wenn du mit ihnen kommunizierst.';
 
@@ -65,13 +61,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get removeUsernameDialog_remove => 'Entfernen';
 
   @override
-  String get userSettingsScreen_noUserHandles => 'noch keine Benutzernamen';
-
-  @override
   String get userSettingsScreen_userHandlePlaceholder => 'Benutzername';
-
-  @override
-  String get addMembersScreen_title => 'Mitglieder hinzufügen';
 
   @override
   String get addMembersScreen_addMembers => 'Mitglieder hinzufügen';
@@ -79,9 +69,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get addMembersScreen_error_noActiveChat =>
       'eine aktive Unterhaltung ist erforderlich';
-
-  @override
-  String get chatDetailsScreen_title => 'Details';
 
   @override
   String get chatDetailsScreen_unknownChat => 'Unbekannte Unterhaltung';
@@ -102,9 +89,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String removeUserDialog_content(Object displayName) {
     return 'Bist du sicher, dass du diesen Benutzer aus der Gruppe entfernen möchtest?';
   }
-
-  @override
-  String get removeUserDialog_cancel => 'Abbrechen';
 
   @override
   String get removeUserDialog_removeUser => 'Benutzer entfernen';
@@ -255,9 +239,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get editDisplayNameScreen_title => 'Anzeigename';
 
   @override
-  String get editDisplayNameScreen_hintText => 'Anzeigename';
-
-  @override
   String get editDisplayNameScreen_description =>
       'Wähle einen Namen, den andere sehen werden, wenn du mit ihnen kommunizierst.';
 
@@ -314,26 +295,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatList_blocked => 'Blocked';
 
   @override
-  String get newChatDialog_newChatTitle => 'Neue Unterhaltung';
-
-  @override
-  String get newChatDialog_newChatDescription =>
-      'Wähle einen Namen für die neue Unterhaltung';
-
-  @override
-  String get newChatDialog_chatNamePlaceholder => 'Unterhaltungsname';
-
-  @override
-  String get newChatDialog_actionButton => 'Unterhaltung erstellen';
-
-  @override
   String newChatDialog_error(Object chatName) {
     return 'Unterhaltung mit Name $chatName konnte nicht hinzugefügt werden';
   }
-
-  @override
-  String get newChatDialog_error_emptyGroupName =>
-      'Unterhaltungsname darf nicht leer sein';
 
   @override
   String get newConnectionDialog_newConnectionTitle => 'Neue Verbindung';
@@ -479,12 +443,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'E-Mail-Client konnte nicht geöffnet werden';
 
   @override
-  String get groupDetails_members => 'Members';
-
-  @override
-  String get groupDetails_addMembers => 'Add members';
-
-  @override
   String get groupDetails_leaveChat => 'Leave';
 
   @override
@@ -512,9 +470,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get groupCreationScreen_title => 'Mitglieder hinzufügen';
-
-  @override
-  String get groupCreationScreen_cancel => 'Abbrechen';
 
   @override
   String get groupCreationScreen_next => 'Weiter';
@@ -572,9 +527,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get deleteChatDialog_content =>
       'This Chat will be deleted. There is no way to undo this.';
-
-  @override
-  String get deleteChatDialog_cancel => 'Cancel';
 
   @override
   String get deleteChatDialog_delete => 'Delete';

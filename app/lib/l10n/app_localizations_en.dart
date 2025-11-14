@@ -21,9 +21,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get userSettingsScreen_title => 'User Settings';
 
   @override
-  String get userSettingsScreen_idCopied => 'User ID copied to clipboard';
-
-  @override
   String get userSettingsScreen_profileDescription =>
       'Your Display Name and Profile Picture are visible to your Air Contacts and members of groups you\'re in.';
 
@@ -64,13 +61,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get removeUsernameDialog_remove => 'Remove';
 
   @override
-  String get userSettingsScreen_noUserHandles => 'no usernames yet';
-
-  @override
   String get userSettingsScreen_userHandlePlaceholder => 'Username';
-
-  @override
-  String get addMembersScreen_title => 'Add members';
 
   @override
   String get addMembersScreen_addMembers => 'Add members';
@@ -78,9 +69,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get addMembersScreen_error_noActiveChat =>
       'an active chat is obligatory';
-
-  @override
-  String get chatDetailsScreen_title => 'Details';
 
   @override
   String get chatDetailsScreen_unknownChat => 'Unknown chat';
@@ -100,9 +88,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String removeUserDialog_content(Object displayName) {
     return 'Are you sure you want to remove $displayName from the group?';
   }
-
-  @override
-  String get removeUserDialog_cancel => 'Cancel';
 
   @override
   String get removeUserDialog_removeUser => 'Remove user';
@@ -252,9 +237,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get editDisplayNameScreen_title => 'Display Name';
 
   @override
-  String get editDisplayNameScreen_hintText => 'Display Name';
-
-  @override
   String get editDisplayNameScreen_description =>
       'Choose a name that others will see when you communicate with them.';
 
@@ -311,26 +293,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatList_blocked => 'Blocked';
 
   @override
-  String get newChatDialog_newChatTitle => 'New Group Chat';
-
-  @override
-  String get newChatDialog_newChatDescription =>
-      'Choose a name for the Group Chat';
-
-  @override
-  String get newChatDialog_chatNamePlaceholder => 'Chat name';
-
-  @override
-  String get newChatDialog_actionButton => 'Create Group';
-
-  @override
   String newChatDialog_error(Object chatName) {
     return 'Failed to create new Group Chat with name $chatName';
   }
-
-  @override
-  String get newChatDialog_error_emptyGroupName =>
-      'Add a name for the Group Chat';
 
   @override
   String get newConnectionDialog_newConnectionTitle => 'New Air Contact';
@@ -474,12 +439,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Couldn\'t launch email client';
 
   @override
-  String get groupDetails_members => 'Members';
-
-  @override
-  String get groupDetails_addMembers => 'Add members';
-
-  @override
   String get groupDetails_leaveChat => 'Leave';
 
   @override
@@ -507,9 +466,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get groupCreationScreen_title => 'Add members';
-
-  @override
-  String get groupCreationScreen_cancel => 'Cancel';
 
   @override
   String get groupCreationScreen_next => 'Next';
@@ -566,9 +522,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get deleteChatDialog_content =>
       'This Chat will be deleted. There is no way to undo this.';
-
-  @override
-  String get deleteChatDialog_cancel => 'Cancel';
 
   @override
   String get deleteChatDialog_delete => 'Delete';

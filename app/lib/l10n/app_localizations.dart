@@ -118,12 +118,6 @@ abstract class AppLocalizations {
   /// **'User Settings'**
   String get userSettingsScreen_title;
 
-  /// No description provided for @userSettingsScreen_idCopied.
-  ///
-  /// In en, this message translates to:
-  /// **'User ID copied to clipboard'**
-  String get userSettingsScreen_idCopied;
-
   /// No description provided for @userSettingsScreen_profileDescription.
   ///
   /// In en, this message translates to:
@@ -196,23 +190,11 @@ abstract class AppLocalizations {
   /// **'Remove'**
   String get removeUsernameDialog_remove;
 
-  /// No description provided for @userSettingsScreen_noUserHandles.
-  ///
-  /// In en, this message translates to:
-  /// **'no usernames yet'**
-  String get userSettingsScreen_noUserHandles;
-
   /// No description provided for @userSettingsScreen_userHandlePlaceholder.
   ///
   /// In en, this message translates to:
   /// **'Username'**
   String get userSettingsScreen_userHandlePlaceholder;
-
-  /// No description provided for @addMembersScreen_title.
-  ///
-  /// In en, this message translates to:
-  /// **'Add members'**
-  String get addMembersScreen_title;
 
   /// No description provided for @addMembersScreen_addMembers.
   ///
@@ -225,12 +207,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'an active chat is obligatory'**
   String get addMembersScreen_error_noActiveChat;
-
-  /// No description provided for @chatDetailsScreen_title.
-  ///
-  /// In en, this message translates to:
-  /// **'Details'**
-  String get chatDetailsScreen_title;
 
   /// No description provided for @chatDetailsScreen_unknownChat.
   ///
@@ -261,12 +237,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Are you sure you want to remove {displayName} from the group?'**
   String removeUserDialog_content(Object displayName);
-
-  /// No description provided for @removeUserDialog_cancel.
-  ///
-  /// In en, this message translates to:
-  /// **'Cancel'**
-  String get removeUserDialog_cancel;
 
   /// No description provided for @removeUserDialog_removeUser.
   ///
@@ -520,12 +490,6 @@ abstract class AppLocalizations {
   /// **'Display Name'**
   String get editDisplayNameScreen_title;
 
-  /// No description provided for @editDisplayNameScreen_hintText.
-  ///
-  /// In en, this message translates to:
-  /// **'Display Name'**
-  String get editDisplayNameScreen_hintText;
-
   /// No description provided for @editDisplayNameScreen_description.
   ///
   /// In en, this message translates to:
@@ -634,41 +598,11 @@ abstract class AppLocalizations {
   /// **'Blocked'**
   String get chatList_blocked;
 
-  /// No description provided for @newChatDialog_newChatTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'New Group Chat'**
-  String get newChatDialog_newChatTitle;
-
-  /// No description provided for @newChatDialog_newChatDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Choose a name for the Group Chat'**
-  String get newChatDialog_newChatDescription;
-
-  /// No description provided for @newChatDialog_chatNamePlaceholder.
-  ///
-  /// In en, this message translates to:
-  /// **'Chat name'**
-  String get newChatDialog_chatNamePlaceholder;
-
-  /// No description provided for @newChatDialog_actionButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Create Group'**
-  String get newChatDialog_actionButton;
-
   /// No description provided for @newChatDialog_error.
   ///
   /// In en, this message translates to:
   /// **'Failed to create new Group Chat with name {chatName}'**
   String newChatDialog_error(Object chatName);
-
-  /// No description provided for @newChatDialog_error_emptyGroupName.
-  ///
-  /// In en, this message translates to:
-  /// **'Add a name for the Group Chat'**
-  String get newChatDialog_error_emptyGroupName;
 
   /// No description provided for @newConnectionDialog_newConnectionTitle.
   ///
@@ -910,18 +844,6 @@ abstract class AppLocalizations {
   /// **'Couldn\'t launch email client'**
   String get contactUsScreen_errorLaunchingEmail;
 
-  /// No description provided for @groupDetails_members.
-  ///
-  /// In en, this message translates to:
-  /// **'Members'**
-  String get groupDetails_members;
-
-  /// No description provided for @groupDetails_addMembers.
-  ///
-  /// In en, this message translates to:
-  /// **'Add members'**
-  String get groupDetails_addMembers;
-
   /// No description provided for @groupDetails_leaveChat.
   ///
   /// In en, this message translates to:
@@ -963,12 +885,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add members'**
   String get groupCreationScreen_title;
-
-  /// No description provided for @groupCreationScreen_cancel.
-  ///
-  /// In en, this message translates to:
-  /// **'Cancel'**
-  String get groupCreationScreen_cancel;
 
   /// No description provided for @groupCreationScreen_next.
   ///
@@ -1071,12 +987,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This Chat will be deleted. There is no way to undo this.'**
   String get deleteChatDialog_content;
-
-  /// No description provided for @deleteChatDialog_cancel.
-  ///
-  /// In en, this message translates to:
-  /// **'Cancel'**
-  String get deleteChatDialog_cancel;
 
   /// No description provided for @deleteChatDialog_delete.
   ///
