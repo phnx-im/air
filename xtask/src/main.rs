@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 mod bump_version;
 mod prune_unused_l10n;
 mod util;
