@@ -190,7 +190,10 @@ class _ChatHeader extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: LabelFontSize.small1.size,
-                                  color: CustomColorScheme.of(context).text.tertiary,
+                                  color:
+                                      CustomColorScheme.of(
+                                        context,
+                                      ).text.tertiary,
                                   fontFamily: getSystemMonospaceFontFamily(),
                                   letterSpacing: 1,
                                 ),
