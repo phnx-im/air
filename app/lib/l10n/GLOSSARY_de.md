@@ -8,23 +8,23 @@ Dieses Glossar definiert Schlüsselbegriffe, die in der Benutzeroberfläche von 
 |---------|------------|---------|
 | **Air** | Der Name der Anwendung | Immer als "Air" beibehalten, nicht übersetzen |
 | **Benutzername** | Eine eindeutige Kennung, die Benutzer teilen können, um sich zu verbinden | Nur für Verbindungen verwendet |
-| **Anzeigename** | Der Name, der in Unterhaltungen erscheint und für andere Benutzer sichtbar ist | Unterscheidet sich vom Benutzernamen; das sehen andere beim Nachrichten schreiben |
-| **Unterhaltung** | Ein Chat-Thread zwischen zwei oder mehr Personen | Kann 1:1 oder Gruppengespräche sein |
+| **Anzeigename** | Der Name, der in Chats erscheint und für andere Benutzer sichtbar ist | Unterscheidet sich vom Benutzernamen; das sehen andere beim Nachrichten schreiben |
+| **Chat** | Ein Chat-Thread zwischen zwei oder mehr Personen | Kann 1:1 oder Gruppenchats sein |
 | **Kontakt** | Ein anderer Benutzer, dem man Nachrichten senden kann | Jemand in der Kontaktliste |
-| **Mitglied** | Ein Teilnehmer in einer Gruppenunterhaltung | Wird im Kontext von Gruppenunterhaltungen verwendet |
+| **Mitglied** | Ein Teilnehmer in einem Gruppenchat | Wird im Kontext von Gruppenchats verwendet |
 
 ## Nachrichten-Begriffe
 
 | Begriff | Definition | Kontext |
 |---------|------------|---------|
-| **Nachricht** | Ein Text, Bild oder eine Datei, die in einer Unterhaltung gesendet wird | |
-| **Entwurf** | Eine nicht gesendete Nachricht, die getippt, aber noch nicht gesendet wurde | Erscheint in der Unterhaltungsliste |
+| **Nachricht** | Ein Text, Bild oder eine Datei, die in einem Chat gesendet wird | |
+| **Entwurf** | Eine nicht gesendete Nachricht, die getippt, aber noch nicht gesendet wurde | Erscheint in der Chatliste |
 | **Anhang** | Eine Datei oder ein Bild, das mit einer Nachricht gesendet wird | |
 | **Verfassen** | Eine neue Nachricht schreiben | |
 | **Bearbeiten** | Eine bereits gesendete Nachricht ändern | |
-| **Antworten** | Auf eine bestimmte Nachricht in einer Unterhaltung antworten | |
-| **Eins-zu-eins** | Eine private Unterhaltung zwischen zwei Benutzern | Wörtliche Übersetzung von "1-to-1" |
-| **Gruppe** | Eine Unterhaltung mit mehreren Teilnehmern | |
+| **Antworten** | Auf eine bestimmte Nachricht in einem Chat antworten | |
+| **Eins-zu-eins** | Ein privater Chat zwischen zwei Benutzern | Wörtliche Übersetzung von "1-to-1" |
+| **Gruppe** | Ein Chat mit mehreren Teilnehmern | |
 
 ## Aktionen & Benutzeroberfläche
 
@@ -32,7 +32,7 @@ Dieses Glossar definiert Schlüsselbegriffe, die in der Benutzeroberfläche von 
 |---------|------------|---------|
 | **Verbinden** | Jemanden mit seinem Benutzernamen als Kontakt hinzufügen | Erste Aktion, um mit jemandem neuen zu chatten |
 | **Hinzufügen** | Jemanden in eine Gruppe einbeziehen oder zu Kontakten hinzufügen | |
-| **Entfernen** | Jemanden aus einer Gruppenunterhaltung nehmen | "Entfernen" für Personen verwenden |
+| **Entfernen** | Jemanden aus einem Gruppenchat nehmen | "Entfernen" für Personen verwenden |
 | **Löschen** | Inhalte (Nachrichten, Dateien usw.) dauerhaft entfernen | "Löschen" für Inhalte, "entfernen" für Personen |
 | **Spam melden** | Einen Benutzer oder eine Nachricht als unerwünscht/Spam markieren | Moderationsfunktion |
 | **Oberflächenskalierung** | Einstellung zur Anpassung der Größe von UI-Elementen | Barrierefreiheitsfunktion |
@@ -71,7 +71,7 @@ Dieses Glossar definiert Schlüsselbegriffe, die in der Benutzeroberfläche von 
 ## Hinweise für Übersetzer
 
 - **Air** sollte niemals übersetzt werden - es ist der Produktname
-- **Benutzername** vs **Anzeigename**: Benutzername ist zum Finden von Personen, Anzeigename zur Identifikation in Unterhaltungen
+- **Benutzername** vs **Anzeigename**: Benutzername ist zum Finden von Personen, Anzeigename zur Identifikation in Chats
 - **Entfernen** vs **Löschen**: "Entfernen" für Personen, "löschen" für Inhalte verwenden
 - **Verbinden** impliziert die erste Aktion des Hinzufügens über Benutzername
 - Durchgehend das "Du" (informell) verwenden, wie in den aktuellen Übersetzungen

@@ -6,6 +6,10 @@
   "userSettingsScreen_userNamesDescription": "Teile Benutzernamen mit anderen, damit sie sich mit dir verbinden können. Nach der Verbindung sind Benutzernamen für andere nicht mehr sichtbar. Du kannst bis zu 5 Benutzernamen haben.",
   "userSettingsScreen_interfaceScale": "Oberflächenskalierung",
   "userSettingsScreen_help": "Hilfe",
+  "userSettingsScreen_deleteAccount": "Air-Konto löschen",
+  "userSettingsScreen_sendWithEnter": "Mit Eingabetaste senden",
+  "userSettingsScreen_readReceipts": "Lesebestätigungen",
+  "userSettingsScreen_readReceiptsDescription": "Wenn deaktiviert, sehen andere nicht, wann du ihre Nachrichten gelesen hast, und du siehst nicht, wann sie deine gelesen haben.",
 
   "removeUsernameDialog_title": "Benutzername entfernen",
   "removeUsernameDialog_content": "Wenn du fortfährst, wird dein Benutzername entfernt und kann von jemand anderem beansprucht werden. Du wirst über ihn nicht mehr erreichbar sein.",
@@ -14,16 +18,34 @@
   "userSettingsScreen_userHandlePlaceholder": "Benutzername",
 
   "addMembersScreen_addMembers": "Mitglied(er) hinzufügen",
-  "addMembersScreen_error_noActiveChat": "eine aktive Unterhaltung ist erforderlich",
+  "addMembersScreen_error_noActiveChat": "ein aktiver Chat ist erforderlich",
 
-  "chatDetailsScreen_unknownChat": "Unbekannte Unterhaltung",
+  "chatDetailsScreen_unknownChat": "Unbekannter Chat",
+  "blockedChatFooter_message": "Du erhältst keine Nachrichten von {displayName}, solange du {displayName} nicht entsperrst.",
 
-  "chatScreen_emptyChat": "Wähle eine Unterhaltung aus, um mit dem Nachrichten schreiben zu beginnen",
+  "chatScreen_emptyChat": "Wähle einen Chat aus, um mit dem Nachrichten schreiben zu beginnen",
 
   "removeUserDialog_title": "Benutzer entfernen",
   "removeUserDialog_content": "Bist du sicher, dass du diesen Benutzer aus der Gruppe entfernen möchtest?",
   "removeUserDialog_removeUser": "Benutzer entfernen",
   "removeUserButton_text": "Benutzer entfernen",
+  "blockContactButton_text": "Blockieren",
+  "blockContactDialog_title": "{displayName} blockieren?",
+  "blockContactDialog_content": "Du erhältst keine Nachrichten von {displayName}, und die Person sieht keine Aktualisierungen deines Profils. Sie sieht nicht, dass du sie blockiert hast. Du kannst sie jederzeit wieder freigeben.",
+  "blockContactDialog_cancel": "Abbrechen",
+  "blockContactDialog_block": "Blockieren",
+
+  "unblockContactButton_text": "Entsperren",
+  "unblockContactDialog_title": "{displayName} entsperren?",
+  "unblockContactDialog_content": "Du kannst Nachrichten mit {displayName} austauschen, und die Person sieht dein aktuelles Profil.",
+  "unblockContactDialog_cancel": "Abbrechen",
+  "unblockContactDialog_unblock": "Entsperren",
+
+  "deleteContactButton_text": "Air-Kontakt löschen",
+  "deleteContactDialog_title": "Air-Kontakt löschen",
+  "deleteContactDialog_content": "Möchtest du deinen Air-Kontakt {displayName} wirklich löschen? Dadurch werden der Chat und sein Nachrichtenverlauf gelöscht.",
+  "deleteContactDialog_cancel": "Abbrechen",
+  "deleteContactDialog_delete": "Löschen",
 
   "introScreen_signUp": "Registrieren",
   "introScreen_termsLinkText": "Nutzungsbedingungen",
@@ -36,17 +58,24 @@
 
   "signUpScreen_header": "Erstelle dein Profil",
   "signUpScreen_subheader": "Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen.",
-  "signUpScreen_displayNameHint": "Benutzername (erforderlich)",
   "usernameOnboarding_title": "Willkommen bei Air",
   "usernameOnboarding_header": "Füge einen Benutzernamen hinzu",
   "usernameOnboarding_body": "Über Benutzernamen kann man sich in Air mit anderen verbinden. Sie sind für andere nicht mehr sichtbar, sobald man verbunden ist.\n\nDu kannst Benutzernamen jederzeit in deinem Profil hinzufügen, ändern oder löschen.",
   "usernameOnboarding_syntax": "Verwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.",
   "usernameOnboarding_addButton": "Hinzufügen",
   "usernameOnboarding_skip": "Überspringen",
+  "signUpScreen_actionButton": "Registrieren",
+  "signUpScreen_displayNameHint": "Benutzername (erforderlich)",
+  "signUpScreen_serverLabel": "Wähle den Server aus, auf dem du dein Konto erstellen möchtest.",
+  "signUpScreen_serverHint": "DOMAIN-NAME",
+  "signUpScreen_error_invalidDomain": "Domain ist ungültig",
+  "signUpScreen_error_emptyDisplayName": "Füge einen Anzeigenamen mit mindestens einem Zeichen hinzu",
+  "signUpScreen_error_register": "Fehler beim Registrieren des Benutzers: {error}",
 
   "userHandleScreen_title": "Benutzername",
   "userHandleScreen_inputHint": "Benutzername",
   "userHandleScreen_error_emptyHandle": "Benutzername darf nicht leer sein",
+  "userHandleScreen_error_alreadyExists": "Benutzername wird bereits verwendet",
   "userHandleScreen_description": "Wähle einen Benutzernamen, den andere verwenden können, um sich mit dir zu verbinden.\n\nVerwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.",
   "userHandleScreen_save": "Speichern",
 
@@ -73,8 +102,9 @@
   "chatList_you": "Du",
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
+  "chatList_blocked": "Blockiert",
 
-  "newChatDialog_error": "Unterhaltung mit Name {chatName} konnte nicht hinzugefügt werden",
+  "newChatDialog_error": "Chat mit dem Namen {chatName} konnte nicht hinzugefügt werden",
 
   "newConnectionDialog_newConnectionTitle": "Neue Verbindung",
   "newConnectionDialog_newConnectionDescription": "Gib den Benutzernamen des Benutzers ein, mit dem du dich verbinden möchtest",
@@ -102,6 +132,8 @@
   },
 
   "textMessage_edited": "bearbeitet",
+  "textMessage_hiddenPlaceholder": "Blockierter Benutzer, tippe, um die Nachricht anzuzeigen",
+  "textMessage_deleted": "Nachricht gelöscht",
   "messageContextMenu_copy": "Kopieren",
   "messageContextMenu_edit": "Bearbeiten",
 
@@ -135,16 +167,9 @@
   "contactUsScreen_body_tooShort": "Bitte gib mehr Informationen an",
   "contactUsScreen_errorLaunchingEmail": "E-Mail-Client konnte nicht geöffnet werden",
 
-  "byteUnit_B": "B",
-  "byteUnit_KB": "KB",
-  "byteUnit_MB": "MB",
-  "byteUnit_GB": "GB",
-  "byteUnit_TB": "TB",
-  "byteUnit_PB": "PB",
-  "byteUnit_EB": "EB",
-  "byteUnit_ZB": "ZB",
-  "byteUnit_YB": "YB",
   "groupDetails_addPerson": "Person hinzufügen",
+  "groupDetails_leaveChat": "Verlassen",
+  "groupDetails_deleteChat": "Löschen",
   "groupDetails_seeAll": "Alle anzeigen",
   "groupDetails_memberCount": "{count, plural, one {{count} Mitgleid} other {{count} Mitglieder}}",
   "@groupDetails_memberCount": {
@@ -169,5 +194,31 @@
   "groupCreationDetails_emptySelection": "Keine Mitglieder",
 
   "addMembersScreen_addMembers": "Mitglieder hinzufügen",
-  "addMembersScreen_done": "Fertig"
+  "addMembersScreen_done": "Fertig",
+  "leaveChatDialog_title": "Chat verlassen",
+  "leaveChatDialog_content": "Möchtest du {chatName} wirklich verlassen?",
+  "leaveChatDialog_cancel": "Abbrechen",
+  "leaveChatDialog_leave": "Verlassen",
+
+  "deleteChatDialog_title": "Chat löschen?",
+  "deleteChatDialog_content": "Dieser Chat wird gelöscht. Dies kann nicht rückgängig gemacht werden.",
+  "deleteChatDialog_delete": "Löschen",
+
+  "byteUnit_B": "B",
+  "byteUnit_KB": "KB",
+  "byteUnit_MB": "MB",
+  "byteUnit_GB": "GB",
+  "byteUnit_TB": "TB",
+  "byteUnit_PB": "PB",
+  "byteUnit_EB": "EB",
+  "byteUnit_ZB": "ZB",
+  "byteUnit_YB": "YB",
+
+  "deleteAccountScreen_title": "Mein Konto löschen",
+  "deleteAccountScreen_explanatoryText": "Dadurch wird dein Air-Konto gelöscht und die App zurückgesetzt. Du kannst dein Konto nicht wiederherstellen.",
+  "deleteAccountScreen_confirmationInputHint": "Bestätigung",
+  "deleteAccountScreen_confirmationInputLabel": "Gib 'delete' ein, um zu bestätigen",
+  "deleteAccountScreen_confirmButtonText": "Air-Konto löschen",
+  "deleteAccountScreen_cancelButtonText": "Abbrechen",
+  "deleteAccountScreen_deleteAccountError": "Bei uns ist ein Fehler aufgetreten. Warte einen Moment und versuche es dann erneut."
 }
