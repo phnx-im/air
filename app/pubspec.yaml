@@ -53,6 +53,7 @@ dependencies:
   flutter_hooks: ^0.21.3+1
   url_launcher: ^6.3.2
   iconoir_flutter: ^7.11.0
+  photo_view: ^0.15.0
 
 dev_dependencies:
   args: ^2.5.0

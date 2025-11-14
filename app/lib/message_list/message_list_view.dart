@@ -107,12 +107,15 @@ class _VisibilityChatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final userCubit = context.read<UserCubit>();
+    final chatDetailsCubit = context.read<ChatDetailsCubit>();
     return VisibilityDetector(
       key: ValueKey(VisibilityKeyValue(messageId)),
       child: child,
       onVisibilityChanged: (visibilityInfo) {
-        if (visibilityInfo.visibleFraction > 0) {
-          context.read<ChatDetailsCubit>().markAsRead(
+        if (visibilityInfo.visibleFraction > 0 &&
+            userCubit.appState == AppState.foreground) {
+          chatDetailsCubit.markAsRead(
             untilMessageId: messageId,
             untilTimestamp: timestamp,
           );

@@ -25,8 +25,8 @@ import 'package:air/widgets/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:iconoir_flutter/regular/attachment.dart';
-import 'package:iconoir_flutter/regular/xmark.dart';
 
+import 'image_viewer.dart';
 import 'message_renderer.dart';
 
 const double _bubbleMaxWidthFactor = 5 / 6;
@@ -659,7 +659,7 @@ class _FileAttachmentContent extends StatelessWidget {
 }
 
 class _ImageAttachmentContent extends StatelessWidget {
-  _ImageAttachmentContent({
+  const _ImageAttachmentContent({
     required this.attachment,
     required this.imageMetadata,
     required this.isSender,
@@ -673,113 +673,36 @@ class _ImageAttachmentContent extends StatelessWidget {
   final UiFlightPosition flightPosition;
   final bool hasMessage;
 
-  final overlayController = OverlayPortalController();
-
   @override
   Widget build(BuildContext context) {
-    return OverlayPortal(
-      controller: overlayController,
-      overlayChildBuilder:
-          (BuildContext context) => _ImagePreview(
+    return GestureDetector(
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder:
+                (context) => ImageViewer(
+                  attachment: attachment,
+                  imageMetadata: imageMetadata,
+                  isSender: isSender,
+                ),
+          ),
+        );
+      },
+      child: ClipRRect(
+        borderRadius: _messageBorderRadius(
+          isSender,
+          flightPosition,
+          stackedOnTop: hasMessage,
+        ),
+        child: Container(
+          constraints: const BoxConstraints(maxHeight: 300),
+          child: AttachmentImage(
             attachment: attachment,
             imageMetadata: imageMetadata,
             isSender: isSender,
-            overlayController: overlayController,
-          ),
-      child: GestureDetector(
-        onTap: () {
-          FocusScope.of(context).unfocus();
-          overlayController.show();
-        },
-        child: ClipRRect(
-          borderRadius: _messageBorderRadius(
-            isSender,
-            flightPosition,
-            stackedOnTop: hasMessage,
-          ),
-          child: Container(
-            constraints: const BoxConstraints(maxHeight: 300),
-            child: AttachmentImage(
-              attachment: attachment,
-              imageMetadata: imageMetadata,
-              isSender: isSender,
-              fit: BoxFit.cover,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ImagePreview extends StatelessWidget {
-  const _ImagePreview({
-    required this.attachment,
-    required this.imageMetadata,
-    required this.isSender,
-    required this.overlayController,
-  });
-
-  final UiAttachment attachment;
-  final UiImageMetadata imageMetadata;
-  final bool isSender;
-  final OverlayPortalController overlayController;
-
-  @override
-  Widget build(BuildContext context) {
-    return Focus(
-      autofocus: true,
-      onKeyEvent: (node, event) {
-        if (event.logicalKey == LogicalKeyboardKey.escape &&
-            event is KeyDownEvent) {
-          overlayController.hide();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        child: Container(
-          height: MediaQuery.of(context).size.height,
-          width: MediaQuery.of(context).size.width,
-          color: CustomColorScheme.of(context).backgroundBase.primary,
-          child: Column(
-            children: [
-              AppBar(
-                leading: const SizedBox.shrink(),
-                actions: [
-                  IconButton(
-                    icon: Xmark(
-                      color: CustomColorScheme.of(context).text.primary,
-                      width: 32,
-                    ),
-                    onPressed: () {
-                      overlayController.hide();
-                    },
-                  ),
-                  const SizedBox(width: Spacings.s),
-                ],
-                title: Text(attachment.filename),
-                centerTitle: true,
-              ),
-              Expanded(
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.only(
-                      bottom: Spacings.l,
-                      left: Spacings.s,
-                      right: Spacings.s,
-                    ),
-                    child: AttachmentImage(
-                      attachment: attachment,
-                      imageMetadata: imageMetadata,
-                      isSender: isSender,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            fit: BoxFit.cover,
           ),
         ),
       ),
