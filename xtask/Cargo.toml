@@ -1,0 +1,16 @@
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+camino.workspace = true
+cargo_metadata.workspace = true
+clap.workspace = true
+ignore.workspace = true
+once_cell.workspace = true
+regex.workspace = true
+semver.workspace = true
+serde_json.workspace = true
+xshell.workspace = true
