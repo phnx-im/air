@@ -198,3 +198,9 @@ run-app-linux *args='':
 [working-directory: 'coreclient']
 add-client-migration migration_name:
     sqlx migrate add {{migration_name}}
+
+# === Release utilities ===
+
+[working-directory: 'app']
+bump-version:
+    dart run tool/bump_version.dart

@@ -1,3 +1,36 @@
+## [0.4.0] - 2025-11-14
+
+### 🚀 Features
+
+- *(server)* Add max attachment size limit (#811)
+- *(server)*Add server configuration to enable/disable post policy uploads (#812)
+- *(server)* Add content length to attachment provisioning (#813)
+- *(app)*New onboarding flow (#817)
+- *(app)* Zoomable and pannable image viewer (#820)
+
+### 🐛 Bug Fixes
+
+- *(server)* Suppress disconnect errors in queues (#808)
+- *(server)* Stale qs listeners are not cleaned up (#814)
+- *(app)* Use localized date and time (#815)
+- *(app)* Query in scheduled KeyPackage uploads (#816)
+- *(app)* Fix mark as read datetime truncation corner case (#818)
+- *(app)* Various navigation issues (#819)
+- *(app)* Messages are no longer marked as read when the desktop is in the background (#821)
+- *(app)* Default UI scale (#823)
+- *(app)* Don't show processing errors in notifications (#826)
+- *(app)* Constrain long chat names (#827)
+
+### 💼 Other
+
+- Tool to prune unused UI text strings in ARB files (#824)
+
+### ⚙️ Miscellaneous Tasks
+
+- Enable scraping metrics (#807)
+- Add merge group trigger to required actions (#822)
+- *(app)* L10n improvements (#825)
+
 ## [0.3.0] - 2025-11-11
 
 ### 🚀 Features
