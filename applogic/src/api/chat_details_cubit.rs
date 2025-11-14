@@ -4,8 +4,8 @@
 
 //! A single chat details feature
 
-use std::path::PathBuf;
 use std::time::Duration;
+use std::{borrow::Cow, path::PathBuf, sync::LazyLock};
 
 use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId};
 use aircoreclient::{Chat, ChatId, MessageDraft};
@@ -13,6 +13,7 @@ use aircoreclient::{MessageId, clients::CoreUser, store::Store};
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
 use mimi_content::{ByteBuf, Disposition, MimiContent, NestedPart, NestedPartContent};
+use regex::{Captures, Regex};
 use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
 use tracing::error;
@@ -221,6 +222,7 @@ impl ChatDetailsCubitBase {
                 },
             }
         } else {
+            let message_text = replace_shortcodes(message_text);
             MimiContent::simple_markdown_message(message_text, salt)
         };
 
@@ -519,5 +521,26 @@ pub(super) async fn load_chat_details(store: &impl Store, chat: Chat) -> UiChatD
         unread_messages,
         last_message,
         draft,
+    }
+}
+
+fn replace_shortcodes(text: String) -> String {
+    static SHORTCODE_REGEX: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r":([a-z1238+-][a-z0-9_-]*):").unwrap());
+
+    struct Replacer;
+
+    impl regex::Replacer for Replacer {
+        fn replace_append(&mut self, caps: &Captures, dst: &mut String) {
+            match emojis::get_by_shortcode(&caps[1]) {
+                Some(emoji) => dst.push_str(emoji.as_str()),
+                None => dst.push_str(&caps[0]),
+            }
+        }
+    }
+
+    match SHORTCODE_REGEX.replace_all(&text, Replacer) {
+        Cow::Borrowed(_) => text, // nothing was replaced
+        Cow::Owned(text) => text,
     }
 }
