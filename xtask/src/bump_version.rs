@@ -4,12 +4,12 @@
 
 use std::fs;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use camino::Utf8Path;
 use cargo_metadata::MetadataCommand;
 use regex::Regex;
 use semver::Version;
-use xshell::{cmd, Shell};
+use xshell::{Shell, cmd};
 
 use crate::util::workspace_root;
 
