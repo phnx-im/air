@@ -4,13 +4,13 @@
 
 use std::{collections::HashSet, fs, sync::LazyLock};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use camino::{Utf8Path, Utf8PathBuf};
 use clap::Args;
 use ignore::WalkBuilder;
 use regex::Regex;
 use serde_json::Value;
-use xshell::{cmd, Shell};
+use xshell::{Shell, cmd};
 
 use crate::util::workspace_root;
 
@@ -392,16 +392,16 @@ fn build_analyze_targets(search_roots: &[Utf8PathBuf], project_root: &Utf8Path) 
 
 fn discover_sibling_arbs(arb_path: &Utf8Path) -> Vec<Utf8PathBuf> {
     let mut siblings = Vec::new();
-    if let Some(directory) = arb_path.parent() {
-        if let Ok(entries) = directory.read_dir_utf8() {
-            for entry in entries.flatten() {
-                let path = entry.path().to_path_buf();
-                if path == arb_path {
-                    continue;
-                }
-                if path.extension() == Some("arb") {
-                    siblings.push(path);
-                }
+    if let Some(directory) = arb_path.parent()
+        && let Ok(entries) = directory.read_dir_utf8()
+    {
+        for entry in entries.flatten() {
+            let path = entry.path().to_path_buf();
+            if path == arb_path {
+                continue;
+            }
+            if path.extension() == Some("arb") {
+                siblings.push(path);
             }
         }
     }
