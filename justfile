@@ -117,9 +117,8 @@ gen-l10n:
     flutter gen-l10n
 
 # prune unused localization keys (dry run by default; pass --apply and optionally --safe to prevent data loss)
-[working-directory: 'app']
 prune-l10n *args='':
-    dart run tool/prune_unused_l10n.dart {{args}}
+    cargo xtask prune-unused-l10n {{args}}
 
 # check that the localization files are up to date
 [working-directory: 'app']
@@ -201,6 +200,5 @@ add-client-migration migration_name:
 
 # === Release utilities ===
 
-[working-directory: 'app']
 bump-version:
-    dart run tool/bump_version.dart
+    cargo xtask bump-version
