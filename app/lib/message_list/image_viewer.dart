@@ -22,14 +22,12 @@ class ImageViewer extends HookWidget {
     required this.attachment,
     required this.imageMetadata,
     required this.isSender,
-    // required this.overlayController,
     super.key,
   });
 
   final UiAttachment attachment;
   final UiImageMetadata imageMetadata;
   final bool isSender;
-  // final OverlayPortalController overlayController;
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +74,7 @@ class ImageViewer extends HookWidget {
                           ),
                           color: CustomColorScheme.of(context).text.primary,
                           onPressed: () {
-                            // overlayController.show();
+                            // currently nothing to show: later show a context menu
                           },
                         ),
                         const SizedBox(width: Spacings.s),
