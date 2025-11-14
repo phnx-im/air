@@ -3,9 +3,9 @@
 ### 🚀 Features
 
 - *(server)* Add max attachment size limit (#811)
-- Add server configuration to enable/disable post policy uploads (#812)
+- *(server)*Add server configuration to enable/disable post policy uploads (#812)
 - *(server)* Add content length to attachment provisioning (#813)
-- New onboarding flow (#817)
+- *(app)*New onboarding flow (#817)
 - *(app)* Zoomable and pannable image viewer (#820)
 
 ### 🐛 Bug Fixes
