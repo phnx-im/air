@@ -2,10 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use camino::{Utf8Path, Utf8PathBuf};
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
-static WORKSPACE_ROOT: Lazy<Utf8PathBuf> = Lazy::new(|| {
+use camino::{Utf8Path, Utf8PathBuf};
+
+static WORKSPACE_ROOT: LazyLock<Utf8PathBuf> = LazyLock::new(|| {
     let manifest_dir = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     manifest_dir
         .parent()

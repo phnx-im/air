@@ -7884,7 +7884,6 @@ dependencies = [
  "cargo_metadata",
  "clap",
  "ignore",
- "once_cell",
  "regex",
  "semver",
  "serde_json",

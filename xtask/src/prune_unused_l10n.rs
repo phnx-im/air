@@ -2,14 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::collections::HashSet;
-use std::fs;
+use std::{collections::HashSet, fs, sync::LazyLock};
 
 use anyhow::{bail, Context, Result};
 use camino::{Utf8Path, Utf8PathBuf};
 use clap::Args;
 use ignore::WalkBuilder;
-use once_cell::sync::Lazy;
 use regex::Regex;
 use serde_json::Value;
 use xshell::{cmd, Shell};
@@ -415,8 +413,9 @@ fn remove_keys_preserving_whitespace(
     unused_keys: &HashSet<String>,
     keep_metadata: bool,
 ) -> String {
-    static KEY_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r#"^\"([^\"]+)\":"#).unwrap());
-    static TRAILING_COMMA: Lazy<Regex> = Lazy::new(|| Regex::new(r",(\s*})").unwrap());
+    static KEY_PATTERN: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r#"^\"([^\"]+)\":"#).unwrap());
+    static TRAILING_COMMA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r",(\s*})").unwrap());
 
     let lines: Vec<&str> = content.split('\n').collect();
     let mut kept = Vec::new();
