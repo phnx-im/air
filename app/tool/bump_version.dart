@@ -15,11 +15,11 @@ Future<void> main() async {
   await _ensureCargoSetVersionAvailable(repoRoot);
   await _ensureGitCliffAvailable(repoRoot);
 
-  await _runProcess(
-    'cargo',
-    ['set-version', '--workspace', nextVersion],
-    workingDirectory: repoRoot,
-  );
+  await _runProcess('cargo', [
+    'set-version',
+    '--workspace',
+    nextVersion,
+  ], workingDirectory: repoRoot);
 
   await _updateFlutterVersion(repoRoot, nextVersion);
   stdout.writeln('Updated Flutter version to $nextVersion+1');
@@ -52,10 +52,11 @@ Future<String> _determineCurrentVersion(Directory repoRoot) async {
     throw StateError('No workspace members found in cargo metadata output');
   }
 
-  final packages = (metadata['packages'] as List)
-      .cast<Map<String, dynamic>>()
-      .map((pkg) => pkg.cast<String, dynamic>())
-      .toList();
+  final packages =
+      (metadata['packages'] as List)
+          .cast<Map<String, dynamic>>()
+          .map((pkg) => pkg.cast<String, dynamic>())
+          .toList();
   final firstId = members.first;
   final package = packages.firstWhere(
     (pkg) => pkg['id'] == firstId,
@@ -82,7 +83,10 @@ String _incrementMinor(String version) {
   return '$major.${minor + 1}.0';
 }
 
-Future<void> _updateFlutterVersion(Directory repoRoot, String newVersion) async {
+Future<void> _updateFlutterVersion(
+  Directory repoRoot,
+  String newVersion,
+) async {
   final pubspec = File('${repoRoot.path}/app/pubspec.yaml');
   if (!pubspec.existsSync()) {
     throw StateError('pubspec.yaml not found at ${pubspec.path}');
@@ -93,8 +97,7 @@ Future<void> _updateFlutterVersion(Directory repoRoot, String newVersion) async 
   if (!versionLine.hasMatch(content)) {
     throw StateError('Could not locate version line in pubspec.yaml');
   }
-  final updated =
-      content.replaceFirst(versionLine, 'version: $newVersion+1');
+  final updated = content.replaceFirst(versionLine, 'version: $newVersion+1');
   pubspec.writeAsStringSync(updated);
 }
 
@@ -113,19 +116,19 @@ Future<void> _prependChangelog(
   }
 
   final previous = changelog.readAsStringSync();
-  final buffer = StringBuffer()
-    ..writeln(newSection)
-    ..writeln()
-    ..write(previous);
+  final buffer =
+      StringBuffer()
+        ..writeln(newSection)
+        ..writeln()
+        ..write(previous);
   changelog.writeAsStringSync(buffer.toString());
 }
 
 Future<void> _ensureCargoSetVersionAvailable(Directory repoRoot) async {
-  final result = await Process.run(
-    'cargo',
-    ['set-version', '--help'],
-    workingDirectory: repoRoot.path,
-  );
+  final result = await Process.run('cargo', [
+    'set-version',
+    '--help',
+  ], workingDirectory: repoRoot.path);
   if (result.exitCode != 0) {
     throw StateError(
       'cargo set-version is unavailable. Install cargo-edit via '
@@ -135,11 +138,9 @@ Future<void> _ensureCargoSetVersionAvailable(Directory repoRoot) async {
 }
 
 Future<void> _ensureGitCliffAvailable(Directory repoRoot) async {
-  final result = await Process.run(
-    'git-cliff',
-    ['--version'],
-    workingDirectory: repoRoot.path,
-  );
+  final result = await Process.run('git-cliff', [
+    '--version',
+  ], workingDirectory: repoRoot.path);
   if (result.exitCode != 0) {
     throw StateError(
       'git-cliff is unavailable. Install it (e.g. `cargo install git-cliff`) '
@@ -159,11 +160,7 @@ Future<void> _createTag(Directory repoRoot, String version) async {
   if (existing.trim().isNotEmpty) {
     throw StateError('Git tag $tagName already exists.');
   }
-  await _runProcess(
-    'git',
-    ['tag', tagName],
-    workingDirectory: repoRoot,
-  );
+  await _runProcess('git', ['tag', tagName], workingDirectory: repoRoot);
 }
 
 Future<String> _runProcess(
