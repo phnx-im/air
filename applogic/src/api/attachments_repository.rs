@@ -2,27 +2,24 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{
-    collections::{HashMap, hash_map},
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use aircommon::identifiers::AttachmentId;
 use aircoreclient::{
-    AttachmentContent, DownloadProgress, DownloadProgressEvent,
+    AttachmentContent, AttachmentProgress, AttachmentProgressEvent, AttachmentStatus,
     clients::CoreUser,
     store::{Store, StoreEntityId, StoreOperation},
 };
 use anyhow::{Context, bail};
+use dashmap::{DashMap, Entry};
 use flutter_rust_bridge::{DartFnFuture, frb};
-use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
 use tokio_util::sync::{CancellationToken, DropGuard};
 use tracing::{debug, error, info};
 
-use crate::{api::user_cubit::UserCubitBase, util::spawn_from_sync};
+use crate::{StreamSink, api::user_cubit::UserCubitBase, util::spawn_from_sync};
 
-type InProgressMap = Arc<Mutex<HashMap<AttachmentId, DownloadTaskHandle>>>;
+pub(crate) type InProgressMap = Arc<DashMap<AttachmentId, AttachmentTaskHandle>>;
 
 /// Repository managing attachments
 ///
@@ -33,6 +30,7 @@ type InProgressMap = Arc<Mutex<HashMap<AttachmentId, DownloadTaskHandle>>>;
 pub struct AttachmentsRepository {
     store: CoreUser,
     cancel: CancellationToken,
+    /// Upload or download tasks that are currently in progress
     in_progress: InProgressMap,
     _cancel: DropGuard,
 }
@@ -54,18 +52,70 @@ impl AttachmentsRepository {
         }
     }
 
+    pub async fn status_stream(
+        &self,
+        attachment_id: AttachmentId,
+        sink: StreamSink<UiAttachmentStatus>,
+    ) {
+        let handle = self
+            .in_progress
+            .get(&attachment_id)
+            .as_deref()
+            .cloned()
+            .filter(|handle| !handle.is_cancelled());
+        if let Some(handle) = handle {
+            let mut stream = handle.progress.stream();
+            // Note: this stream will always emit at least one event.
+            while let Some(event) = stream.next().await {
+                match event {
+                    AttachmentProgressEvent::Init => {
+                        if sink.add(UiAttachmentStatus::Progress(0)).is_err() {
+                            return;
+                        }
+                    }
+                    AttachmentProgressEvent::Progress { bytes_loaded } => {
+                        if sink
+                            .add(UiAttachmentStatus::Progress(bytes_loaded))
+                            .is_err()
+                        {
+                            return;
+                        }
+                    }
+                    AttachmentProgressEvent::Completed => {
+                        let _ = sink.add(UiAttachmentStatus::Completed);
+                        return;
+                    }
+                    AttachmentProgressEvent::Failed => {
+                        let _ = sink.add(UiAttachmentStatus::Failed);
+                        return;
+                    }
+                }
+            }
+        } else if let Ok(Some(AttachmentStatus::Ready)) =
+            self.store.attachment_status(attachment_id).await
+        {
+            let _ = sink.add(UiAttachmentStatus::Completed);
+        } else {
+            let _ = sink.add(UiAttachmentStatus::Failed);
+        }
+    }
+
     pub async fn load_image_attachment(
         &self,
         attachment_id: AttachmentId,
         chunk_event_callback: impl Fn(u64) -> DartFnFuture<()> + Send + 'static,
     ) -> anyhow::Result<Vec<u8>> {
+        // Remove cancelled handles
+        self.in_progress.retain(|_, handle| !handle.is_cancelled());
+
         match self.store.load_attachment(attachment_id).await? {
             AttachmentContent::Ready(bytes) => Ok(bytes),
+            AttachmentContent::Uploading(bytes) => Ok(bytes),
             AttachmentContent::Pending => {
                 debug!(?attachment_id, "Attachment is pending; spawn download task");
                 let handle = spawn_download_task(
                     &self.store,
-                    &mut *self.in_progress.lock().await,
+                    &self.in_progress,
                     &self.cancel,
                     attachment_id,
                 );
@@ -73,7 +123,7 @@ impl AttachmentsRepository {
                     .await
             }
             AttachmentContent::Downloading => {
-                let handle = self.in_progress.lock().await.get(&attachment_id).cloned();
+                let handle = self.in_progress.get(&attachment_id).as_deref().cloned();
                 if let Some(handle) = handle {
                     self.track_attachment_download(attachment_id, handle, chunk_event_callback)
                         .await
@@ -94,20 +144,20 @@ impl AttachmentsRepository {
     async fn track_attachment_download(
         &self,
         attachment_id: AttachmentId,
-        handle: DownloadTaskHandle,
+        handle: AttachmentTaskHandle,
         chunk_event_callback: impl Fn(u64) -> DartFnFuture<()> + Send + 'static,
     ) -> anyhow::Result<Vec<u8>> {
         debug!(?attachment_id, "Tracking attachment download");
         let mut events_stream = handle.progress.stream();
         while let Some(event) = events_stream.next().await {
             match event {
-                DownloadProgressEvent::Init => {
+                AttachmentProgressEvent::Init => {
                     chunk_event_callback(0).await;
                 }
-                DownloadProgressEvent::Progress { bytes_loaded } => {
+                AttachmentProgressEvent::Progress { bytes_loaded } => {
                     chunk_event_callback(bytes_loaded.try_into()?).await;
                 }
-                DownloadProgressEvent::Completed => {
+                AttachmentProgressEvent::Completed => {
                     return self
                         .store
                         .load_attachment(attachment_id)
@@ -115,10 +165,14 @@ impl AttachmentsRepository {
                         .into_bytes()
                         .context("Attachment download failed");
                 }
-                DownloadProgressEvent::Failed => bail!("Attachment download failed"),
+                AttachmentProgressEvent::Failed => bail!("Attachment download failed"),
             }
         }
         bail!("Attachment download aborted")
+    }
+
+    pub(crate) fn in_progress(&self) -> &InProgressMap {
+        &self.in_progress
     }
 }
 
@@ -151,9 +205,8 @@ async fn attachment_downloads_loop(
                     ?pending_attachments,
                     "Spawn download for pending attachments"
                 );
-                let mut in_progress = in_progress.lock().await;
                 for attachment_id in pending_attachments {
-                    spawn_download_task(&store, &mut in_progress, &cancel, attachment_id);
+                    spawn_download_task(&store, &in_progress, &cancel, attachment_id);
                 }
             }
             Err(error) => {
@@ -177,8 +230,7 @@ async fn attachment_downloads_loop(
             match id {
                 StoreEntityId::Attachment(attachment_id) if ops.contains(StoreOperation::Add) => {
                     debug!(?attachment_id, "Spawn download for added attachment");
-                    let mut in_progress = in_progress.lock().await;
-                    spawn_download_task(&store, &mut in_progress, &cancel, *attachment_id);
+                    spawn_download_task(&store, &in_progress, &cancel, *attachment_id);
                 }
                 _ => (),
             }
@@ -188,56 +240,65 @@ async fn attachment_downloads_loop(
 
 fn spawn_download_task(
     store: &CoreUser,
-    in_progress: &mut HashMap<AttachmentId, DownloadTaskHandle>,
+    in_progress: &InProgressMap,
     cancel: &CancellationToken,
     attachment_id: AttachmentId,
-) -> DownloadTaskHandle {
+) -> AttachmentTaskHandle {
     let (task, cancel, handle) = match in_progress.entry(attachment_id) {
-        hash_map::Entry::Occupied(mut entry) if entry.get().cancel.is_cancelled() => {
+        Entry::Occupied(mut entry) if entry.get().is_cancelled() => {
             let (progress, task) = store.download_attachment(attachment_id);
             let cancel = cancel.child_token();
-            let handle = DownloadTaskHandle {
-                progress,
-                cancel: cancel.clone(),
-                _drop_guard: Arc::new(cancel.clone().drop_guard()),
-            };
+            let handle = AttachmentTaskHandle::new(progress, cancel.clone());
             entry.insert(handle.clone());
             (task, cancel, handle)
         }
-        hash_map::Entry::Occupied(entry) => {
+        Entry::Occupied(entry) => {
             return entry.get().clone();
         }
-        hash_map::Entry::Vacant(entry) => {
+        Entry::Vacant(entry) => {
             let (progress, task) = store.download_attachment(attachment_id);
             let cancel = cancel.child_token();
-            let handle = DownloadTaskHandle {
-                progress,
-                cancel: cancel.clone(),
-                _drop_guard: Arc::new(cancel.clone().drop_guard()),
-            };
+            let handle = AttachmentTaskHandle::new(progress, cancel.clone());
             entry.insert(handle.clone());
             (task, cancel, handle)
         }
     };
 
-    tokio::spawn(async move {
-        tokio::select! {
-            _ = cancel.cancelled() => {},
-            res = task => {
-                if let Err(error) = res {
-                    error!(%error, "Failed to download attachment");
-                }
-                cancel.cancel(); // mark as done
-            }
+    tokio::spawn(cancel.run_until_cancelled_owned(async move {
+        if let Err(error) = task.await {
+            error!(%error, "Failed to download attachment");
         }
-    });
+    }));
 
     handle
 }
 
+/// A handle to a download or upload attachment task
 #[derive(Debug, Clone)]
-struct DownloadTaskHandle {
-    progress: DownloadProgress,
+pub(crate) struct AttachmentTaskHandle {
+    progress: AttachmentProgress,
     cancel: CancellationToken,
     _drop_guard: Arc<DropGuard>,
+}
+
+impl AttachmentTaskHandle {
+    pub(crate) fn new(progress: AttachmentProgress, cancel: CancellationToken) -> Self {
+        let drop_guard = Arc::new(cancel.clone().drop_guard());
+        Self {
+            progress,
+            cancel,
+            _drop_guard: drop_guard,
+        }
+    }
+
+    fn is_cancelled(&self) -> bool {
+        self.cancel.is_cancelled()
+    }
+}
+
+pub enum UiAttachmentStatus {
+    Pending,         // Not in progress
+    Progress(usize), // Uploading or downloading
+    Completed,       // Done uploading or downloading
+    Failed,          // Failed to upload or download
 }

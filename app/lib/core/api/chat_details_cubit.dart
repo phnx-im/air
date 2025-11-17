@@ -7,6 +7,7 @@ import 'package:convert/convert.dart';
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import 'attachments_repository.dart';
 import 'chats_repository.dart';
 import 'markdown.dart';
 import 'message_content.dart';
@@ -49,12 +50,14 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
     required UserSettingsCubitBase userSettingsCubit,
     required ChatId chatId,
     required ChatsRepository chatsRepository,
+    required AttachmentsRepository attachmentsRepository,
     required bool withMembers,
   }) => RustLib.instance.api.crateApiChatDetailsCubitChatDetailsCubitBaseNew(
     userCubit: userCubit,
     userSettingsCubit: userSettingsCubit,
     chatId: chatId,
     chatsRepository: chatsRepository,
+    attachmentsRepository: attachmentsRepository,
     withMembers: withMembers,
   );
 

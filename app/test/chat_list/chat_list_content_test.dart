@@ -200,6 +200,7 @@ ChatDetailsCubitCreate createMockChatDetailsCubitFactory(
       required UserSettingsCubit userSettingsCubit,
       required ChatId chatId,
       required ChatsRepository chatsRepository,
+      required AttachmentsRepository attachmentsRepository,
       bool withMembers = true,
     }) {
       final chat = chats.firstWhere((chat) => chat.id == chatId);

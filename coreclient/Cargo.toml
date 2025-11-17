@@ -45,7 +45,7 @@ tar.workspace = true
 tempfile = { workspace = true, optional = true }
 thiserror.workspace = true
 tls_codec.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream = { workspace = true, features = ["sync"] }
 tokio-util.workspace = true
 tracing.workspace = true

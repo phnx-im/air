@@ -21,7 +21,7 @@ use aircommon::{
     mls_group_config::MAX_PAST_EPOCHS,
 };
 use aircoreclient::{
-    Asset, BlockedContactError, ChatId, ChatMessage, DisplayName, DownloadProgressEvent,
+    Asset, AttachmentProgressEvent, BlockedContactError, ChatId, ChatMessage, DisplayName,
     UserProfile,
     clients::{
         CoreUser,
@@ -918,11 +918,11 @@ async fn send_attachment() {
 
     assert_matches!(
         progress_events.first().unwrap(),
-        DownloadProgressEvent::Init
+        AttachmentProgressEvent::Init
     );
     assert_matches!(
         progress_events.last().unwrap(),
-        DownloadProgressEvent::Completed
+        AttachmentProgressEvent::Completed
     );
 
     let content = bob
@@ -1004,11 +1004,11 @@ async fn send_image_attachment() {
 
     assert_matches!(
         progress_events.first().unwrap(),
-        DownloadProgressEvent::Init
+        AttachmentProgressEvent::Init
     );
     assert_matches!(
         progress_events.last().unwrap(),
-        DownloadProgressEvent::Completed
+        AttachmentProgressEvent::Completed
     );
 
     let content = bob

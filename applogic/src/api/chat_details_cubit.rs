@@ -15,9 +15,10 @@ use flutter_rust_bridge::frb;
 use mimi_content::{ByteBuf, Disposition, MimiContent, NestedPart, NestedPartContent};
 use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::api::{
+    attachments_repository::{AttachmentTaskHandle, AttachmentsRepository, InProgressMap},
     chats_repository::ChatsRepository,
     types::{UiChatMessage, UiChatType, UiUserId},
     user_settings_cubit::{UserSettings, UserSettingsCubitBase},
@@ -49,6 +50,7 @@ pub struct ChatDetailsCubitBase {
     context: ChatDetailsContext,
     core: CubitCore<ChatDetailsState>,
     user_settings_rx: watch::Receiver<UserSettings>,
+    attachment_in_progress: InProgressMap,
 }
 
 impl ChatDetailsCubitBase {
@@ -62,6 +64,7 @@ impl ChatDetailsCubitBase {
         user_settings_cubit: &UserSettingsCubitBase,
         chat_id: ChatId,
         chats_repository: &ChatsRepository,
+        attachments_repository: &AttachmentsRepository,
         with_members: bool,
     ) -> Self {
         let store = user_cubit.core_user().clone();
@@ -101,6 +104,7 @@ impl ChatDetailsCubitBase {
             context,
             core,
             user_settings_rx,
+            attachment_in_progress: attachments_repository.in_progress().clone(),
         }
     }
 
@@ -235,10 +239,27 @@ impl ChatDetailsCubitBase {
 
     pub async fn upload_attachment(&self, path: String) -> anyhow::Result<()> {
         let path = PathBuf::from(path);
-        self.context
+        let (attachment_id, progress, upload_task) = self
+            .context
             .store
             .upload_attachment(self.context.chat_id, &path)
             .await?;
+        let cancel = self.core.cancellation_token().child_token();
+        let handle = AttachmentTaskHandle::new(progress, cancel.clone());
+        self.attachment_in_progress.insert(attachment_id, handle);
+        match cancel.run_until_cancelled_owned(upload_task).await {
+            Some(Ok(message)) => {
+                self.context
+                    .store
+                    .outbound_service()
+                    .enqueue_chat_message(message.id(), Some(attachment_id))
+                    .await?;
+            }
+            Some(Err(error)) => {
+                error!(%error, "Failed to upload attachment");
+            }
+            None => (),
+        }
         Ok(())
     }
 

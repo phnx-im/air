@@ -9,11 +9,13 @@ import 'package:convert/convert.dart';
 import '../frb_generated.dart';
 import 'message_content.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
 import 'user_cubit.dart';
+part 'attachments_repository.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `attachment_downloads_loop`, `spawn_attachment_downloads`, `spawn_download_task`, `track_attachment_download`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `DownloadTaskHandle`
+// These functions are ignored because they are not marked as `pub`: `attachment_downloads_loop`, `in_progress`, `is_cancelled`, `new`, `spawn_attachment_downloads`, `spawn_download_task`, `track_attachment_download`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AttachmentTaskHandle`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentsRepository>>
@@ -29,4 +31,17 @@ abstract class AttachmentsRepository implements RustOpaqueInterface {
       .crateApiAttachmentsRepositoryAttachmentsRepositoryNew(
         userCubit: userCubit,
       );
+
+  Stream<UiAttachmentStatus> statusStream({required AttachmentId attachmentId});
+}
+
+@freezed
+sealed class UiAttachmentStatus with _$UiAttachmentStatus {
+  const UiAttachmentStatus._();
+
+  const factory UiAttachmentStatus.pending() = UiAttachmentStatus_Pending;
+  const factory UiAttachmentStatus.progress(BigInt field0) =
+      UiAttachmentStatus_Progress;
+  const factory UiAttachmentStatus.completed() = UiAttachmentStatus_Completed;
+  const factory UiAttachmentStatus.failed() = UiAttachmentStatus_Failed;
 }
