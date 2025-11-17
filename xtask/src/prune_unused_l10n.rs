@@ -4,7 +4,7 @@
 
 use std::{collections::HashSet, fs, sync::LazyLock};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use camino::{Utf8Path, Utf8PathBuf};
 use clap::Args;
 use ignore::WalkBuilder;
@@ -30,37 +30,37 @@ pub(crate) struct PruneArgs {
     #[arg(long, action = clap::ArgAction::SetTrue)]
     verbose: bool,
     /// Keep @metadata entries even if their base key is removed.
-    #[arg(long = "keep-metadata", action = clap::ArgAction::SetTrue)]
+    #[arg(long, action = clap::ArgAction::SetTrue)]
     keep_metadata: bool,
     /// Resolve relative paths against this directory.
-    #[arg(long = "project-root", default_value = DEFAULT_PROJECT_ROOT)]
+    #[arg(long, default_value = DEFAULT_PROJECT_ROOT)]
     project_root: String,
     /// Canonical ARB file to inspect.
     #[arg(long, default_value = DEFAULT_ARB)]
     arb: String,
     /// Additional ARB files that should be pruned alongside the canonical file.
-    #[arg(long = "mirror-arb", value_name = "path")]
+    #[arg(long, value_name = "path")]
     mirror_arb: Vec<String>,
     /// Directories to scan for localization usages.
     #[arg(
-        long = "search-root",
+        long,
         value_name = "path",
         default_values = DEFAULT_SEARCH_ROOTS
     )]
     search_root: Vec<String>,
     /// File extensions to include while scanning.
-    #[arg(long = "ext", value_name = ".dart", default_values = DEFAULT_EXTENSIONS)]
+    #[arg(long, value_name = ".dart", default_values = DEFAULT_EXTENSIONS)]
     ext: Vec<String>,
     /// Directories to skip when searching for usages.
     #[arg(
-        long = "exclude-dir",
+        long,
         value_name = "path",
         default_values = DEFAULT_EXCLUDE_DIRS
     )]
     exclude_dir: Vec<String>,
     /// Files that are always scanned even if they live in excluded directories.
     #[arg(
-        long = "include-file",
+        long,
         value_name = "path",
         default_values = DEFAULT_INCLUDE_FILES
     )]
@@ -69,26 +69,26 @@ pub(crate) struct PruneArgs {
     #[arg(long = "safe", action = clap::ArgAction::SetTrue)]
     safe: bool,
     /// Skip the git clean check (useful when running with --safe).
-    #[arg(long = "allow-dirty", action = clap::ArgAction::SetTrue)]
+    #[arg(long, action = clap::ArgAction::SetTrue)]
     allow_dirty: bool,
 }
 
 pub(crate) fn run(args: PruneArgs) -> Result<()> {
-    if args.safe && !args.apply {
-        bail!("--safe requires --apply so changes can be written.");
-    }
+    ensure!(
+        !args.safe || args.apply,
+        "--safe requires --apply so changes can be written."
+    );
 
     let shell = Shell::new()?;
 
-    let project_root = resolve_relative(workspace_root(), &args.project_root);
+    let workspace_root_path = workspace_root();
+    let project_root = resolve_relative(workspace_root_path.as_ref(), &args.project_root);
     shell.change_dir(project_root.as_std_path());
 
     let resolve = |input: &str| resolve_relative(project_root.as_ref(), input);
 
     let arb_path = resolve(&args.arb);
-    if !arb_path.exists() {
-        bail!("ARB file not found: {}", arb_path);
-    }
+    ensure!(arb_path.exists(), "ARB file not found: {}", arb_path);
 
     let search_roots: Vec<Utf8PathBuf> =
         args.search_root.iter().map(|root| resolve(root)).collect();
@@ -118,19 +118,16 @@ pub(crate) fn run(args: PruneArgs) -> Result<()> {
     }
 
     let keys = load_keys(&arb_path)?;
-    if keys.is_empty() {
-        println!("No keys found in {}.", arb_path);
-        return Ok(());
-    }
+    ensure!(!keys.is_empty(), "No keys found in {}.", arb_path);
 
     let candidate_files =
-        collect_candidate_files(&search_roots, &include_exts, &exclude_dirs, &include_files);
+        collect_candidate_files(&search_roots, include_exts, &exclude_dirs, include_files);
 
     if candidate_files.is_empty() {
         bail!("No files matched the provided search criteria.");
     }
 
-    let unused_keys = find_unused_keys(&keys, &candidate_files, verbose, project_root.as_ref());
+    let unused_keys = find_unused_keys(keys, &candidate_files, verbose, project_root.as_ref());
 
     if unused_keys.is_empty() {
         println!("✅ All localization keys are referenced.");
@@ -162,7 +159,7 @@ pub(crate) fn run(args: PruneArgs) -> Result<()> {
     let mut total_removed = 0usize;
     for target in target_set {
         if !target.exists() {
-            eprintln!("Skipping missing ARB: {}", target);
+            eprintln!("Skipping missing ARB: {target}");
             continue;
         }
         total_removed += prune_arb_file(&target, &unused_keys, keep_metadata)?;
@@ -175,7 +172,7 @@ pub(crate) fn run(args: PruneArgs) -> Result<()> {
     let mut args = vec!["analyze".to_string()];
     args.extend(analyze_targets);
     let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
-    run_flutter_command(&shell, &arg_refs, project_root.as_ref())?;
+    run_flutter_command(&shell, &arg_refs, &project_root)?;
 
     Ok(())
 }
@@ -194,17 +191,22 @@ fn load_keys(path: &Utf8Path) -> Result<Vec<String>> {
     let data: serde_json::Map<String, Value> =
         serde_json::from_str(&raw).with_context(|| format!("Failed to parse {path}"))?;
     Ok(data
-        .keys()
-        .filter(|key| !key.starts_with('@'))
-        .cloned()
+        .into_iter()
+        .filter_map(|(key, _)| {
+            if !key.starts_with('@') {
+                Some(key)
+            } else {
+                None
+            }
+        })
         .collect())
 }
 
 fn collect_candidate_files(
     search_roots: &[Utf8PathBuf],
-    include_extensions: &HashSet<String>,
+    include_extensions: HashSet<String>,
     exclude_dirs: &[Utf8PathBuf],
-    include_files: &HashSet<Utf8PathBuf>,
+    include_files: HashSet<Utf8PathBuf>,
 ) -> Vec<Utf8PathBuf> {
     let mut files = Vec::new();
     let mut seen = HashSet::new();
@@ -220,7 +222,7 @@ fn collect_candidate_files(
             let entry = match entry {
                 Ok(entry) => entry,
                 Err(err) => {
-                    eprintln!("⚠️  Skipping entry under {}: {}", root, err);
+                    eprintln!("⚠️  Skipping entry under {root}: {err}");
                     continue;
                 }
             };
@@ -230,7 +232,7 @@ fn collect_candidate_files(
             let path = match Utf8PathBuf::from_path_buf(entry.into_path()) {
                 Ok(path) => path,
                 Err(os_string) => {
-                    eprintln!("⚠️  Skipping non-UTF8 path: {:?}", os_string);
+                    eprintln!("⚠️  Skipping non-UTF8 path: {}", os_string.display());
                     continue;
                 }
             };
@@ -268,23 +270,21 @@ fn collect_candidate_files(
 }
 
 fn is_excluded(path: &Utf8Path, exclude_dirs: &[Utf8PathBuf]) -> bool {
-    exclude_dirs
-        .iter()
-        .any(|dir| path.starts_with(dir.as_path()))
+    exclude_dirs.iter().any(|dir| path.starts_with(dir))
 }
 
 fn find_unused_keys(
-    keys: &[String],
+    keys: Vec<String>,
     files: &[Utf8PathBuf],
     verbose: bool,
     project_root: &Utf8Path,
 ) -> HashSet<String> {
-    let mut unused: HashSet<String> = keys.iter().cloned().collect();
+    let mut unused: HashSet<String> = keys.into_iter().collect();
     for file in files {
         let text = match fs::read_to_string(file) {
             Ok(text) => text,
             Err(error) => {
-                eprintln!("⚠️  Skipping {}: {error}", file);
+                eprintln!("⚠️  Skipping {file}: {error}");
                 continue;
             }
         };
@@ -485,7 +485,7 @@ fn starts_object_value(line: &str) -> bool {
 }
 
 fn line_brace_delta(line: &str) -> i32 {
-    let mut delta = 0;
+    let mut delta: i32 = 0;
     let mut in_string = false;
     let mut is_escaped = false;
     for ch in line.chars() {
@@ -500,8 +500,8 @@ fn line_brace_delta(line: &str) -> i32 {
             '"' => {
                 in_string = !in_string;
             }
-            '{' if !in_string => delta += 1,
-            '}' if !in_string => delta -= 1,
+            '{' if !in_string => delta = delta.saturating_add(1),
+            '}' if !in_string => delta = delta.saturating_sub(1),
             _ => {}
         }
     }
