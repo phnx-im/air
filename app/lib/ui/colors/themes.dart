@@ -14,6 +14,7 @@ class CustomColorScheme {
   final FillColors fill;
   final FunctionColors function;
   final MessageColors message;
+  final AccentColors accent;
 
   CustomColorScheme({
     required this.backgroundBase,
@@ -23,6 +24,7 @@ class CustomColorScheme {
     required this.fill,
     required this.function,
     required this.message,
+    required this.accent,
   });
 
   static CustomColorScheme of(BuildContext context) {
@@ -93,6 +95,12 @@ final CustomColorScheme lightCustomColorScheme = CustomColorScheme(
     selfEditedLabel: AppColors.neutral[400]!,
     otherEditedLabel: AppColors.neutral[600]!,
   ),
+  accent: AccentColors(
+    primary: AppColors.neutral[1000]!,
+    secondary: AppColors.neutral[700]!,
+    tertiary: AppColors.neutral[400]!,
+    quaternary: AppColors.neutral[100]!,
+  ),
 );
 
 final CustomColorScheme darkCustomColorScheme = CustomColorScheme(
@@ -155,6 +163,12 @@ final CustomColorScheme darkCustomColorScheme = CustomColorScheme(
     otherCheckboxCheck: AppColors.neutral[0]!,
     selfEditedLabel: AppColors.neutral[600]!,
     otherEditedLabel: AppColors.neutral[400]!,
+  ),
+  accent: AccentColors(
+    primary: AppColors.neutral[0]!,
+    secondary: AppColors.neutral[300]!,
+    tertiary: AppColors.neutral[600]!,
+    quaternary: AppColors.neutral[900]!,
   ),
 );
 

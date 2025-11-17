@@ -134,3 +134,17 @@ class MessageColors {
     required this.otherEditedLabel,
   });
 }
+
+class AccentColors {
+  final Color primary;
+  final Color secondary;
+  final Color tertiary;
+  final Color quaternary;
+
+  AccentColors({
+    required this.primary,
+    required this.secondary,
+    required this.tertiary,
+    required this.quaternary,
+  });
+}
