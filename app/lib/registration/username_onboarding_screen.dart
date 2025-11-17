@@ -128,9 +128,8 @@ class UsernameOnboardingScreen extends HookWidget {
                           }
                         },
                         onFieldSubmitted: (_) => submit(),
-                        validator:
-                            (value) =>
-                                _validateHandle(loc, handleExists.value, value),
+                        validator: (value) =>
+                            _validateHandle(loc, handleExists.value, value),
                       ),
                       const SizedBox(height: Spacings.xs),
                       Text(
@@ -142,21 +141,18 @@ class UsernameOnboardingScreen extends HookWidget {
                       const SizedBox(height: Spacings.m),
                       OutlinedButton(
                         onPressed: isSubmitting.value ? null : submit,
-                        child:
-                            isSubmitting.value
-                                ? SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      CustomColorScheme.of(
-                                        context,
-                                      ).text.primary,
-                                    ),
+                        child: isSubmitting.value
+                            ? SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    CustomColorScheme.of(context).text.primary,
                                   ),
-                                )
-                                : Text(loc.usernameOnboarding_addButton),
+                                ),
+                              )
+                            : Text(loc.usernameOnboarding_addButton),
                       ),
                       const SizedBox(height: Spacings.l),
                     ],

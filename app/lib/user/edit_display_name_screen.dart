@@ -17,10 +17,8 @@ class EditDisplayNameScreen extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final (displayName, profilePicture) = context.select(
-      (UsersCubit cubit) => (
-        cubit.state.displayName(),
-        cubit.state.profilePicture(),
-      ),
+      (UsersCubit cubit) =>
+          (cubit.state.displayName(), cubit.state.profilePicture()),
     );
 
     final loc = AppLocalizations.of(context);
@@ -37,8 +35,9 @@ class EditDisplayNameScreen extends HookWidget {
         child: Align(
           alignment: Alignment.topCenter,
           child: Container(
-            constraints:
-                isPointer() ? const BoxConstraints(maxWidth: 800) : null,
+            constraints: isPointer()
+                ? const BoxConstraints(maxWidth: 800)
+                : null,
             padding: const EdgeInsets.all(Spacings.s),
             child: Column(
               children: [

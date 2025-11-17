@@ -129,14 +129,13 @@ class _TermsOfUseText extends StatelessWidget {
           TextSpan(
             text: linkText,
             style: linkStyle,
-            recognizer:
-                TapGestureRecognizer()
-                  ..onTap = () {
-                    launchUrl(
-                      IntroScreen._termsOfUseUri,
-                      mode: LaunchMode.externalApplication,
-                    );
-                  },
+            recognizer: TapGestureRecognizer()
+              ..onTap = () {
+                launchUrl(
+                  IntroScreen._termsOfUseUri,
+                  mode: LaunchMode.externalApplication,
+                );
+              },
           ),
           TextSpan(text: afterLink),
         ],

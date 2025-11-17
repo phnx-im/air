@@ -31,17 +31,15 @@ class MemberSelectionList extends StatelessWidget {
     final usersState = context.select((UsersCubit cubit) => cubit.state);
     final normalizedQuery = query.trim().toLowerCase();
 
-    final filteredContacts =
-        normalizedQuery.isEmpty
-            ? contacts
-            : contacts.where((contact) {
-              final name =
-                  usersState
-                      .profile(userId: contact.userId)
-                      .displayName
-                      .toLowerCase();
-              return name.contains(normalizedQuery);
-            }).toList();
+    final filteredContacts = normalizedQuery.isEmpty
+        ? contacts
+        : contacts.where((contact) {
+            final name = usersState
+                .profile(userId: contact.userId)
+                .displayName
+                .toLowerCase();
+            return name.contains(normalizedQuery);
+          }).toList();
 
     return ListView.separated(
       padding: const EdgeInsets.symmetric(
@@ -49,12 +47,11 @@ class MemberSelectionList extends StatelessWidget {
         vertical: Spacings.xs,
       ),
       itemCount: filteredContacts.length,
-      separatorBuilder:
-          (context, index) => Divider(
-            height: 1,
-            thickness: 1,
-            color: CustomColorScheme.of(context).backgroundBase.primary,
-          ),
+      separatorBuilder: (context, index) => Divider(
+        height: 1,
+        thickness: 1,
+        color: CustomColorScheme.of(context).backgroundBase.primary,
+      ),
       itemBuilder: (context, index) {
         final contact = filteredContacts[index];
         final profile = usersState.profile(userId: contact.userId);

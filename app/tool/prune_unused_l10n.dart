@@ -31,8 +31,9 @@ Future<void> main(List<String> arguments) async {
     return;
   }
 
-  final projectRoot =
-      Directory(argResults['project-root'] as String).absolute.path;
+  final projectRoot = Directory(
+    argResults['project-root'] as String,
+  ).absolute.path;
   String resolve(String input) =>
       p.normalize(p.isAbsolute(input) ? input : p.join(projectRoot, input));
 
@@ -44,16 +45,18 @@ Future<void> main(List<String> arguments) async {
     return;
   }
 
-  final searchRoots =
-      (argResults['search-root'] as List<String>).map(resolve).toList();
-  final includeExts =
-      (argResults['ext'] as List<String>)
-          .map((ext) => ext.startsWith('.') ? ext : '.$ext')
-          .toSet();
-  final excludeDirs =
-      (argResults['exclude-dir'] as List<String>).map(resolve).toList();
-  final includeFiles =
-      (argResults['include-file'] as List<String>).map(resolve).toSet();
+  final searchRoots = (argResults['search-root'] as List<String>)
+      .map(resolve)
+      .toList();
+  final includeExts = (argResults['ext'] as List<String>)
+      .map((ext) => ext.startsWith('.') ? ext : '.$ext')
+      .toSet();
+  final excludeDirs = (argResults['exclude-dir'] as List<String>)
+      .map(resolve)
+      .toList();
+  final includeFiles = (argResults['include-file'] as List<String>)
+      .map(resolve)
+      .toSet();
   final keepMetadata = argResults['keep-metadata'] as bool;
   final verbose = argResults['verbose'] as bool;
   final apply = argResults['apply'] as bool;
@@ -116,8 +119,9 @@ Future<void> main(List<String> arguments) async {
     return;
   }
 
-  final mirrorArbs =
-      (argResults['mirror-arb'] as List<String>).map(resolve).toList();
+  final mirrorArbs = (argResults['mirror-arb'] as List<String>)
+      .map(resolve)
+      .toList();
   final autoMirrors = _discoverSiblingArbs(arbPath);
   final targetSet = <String>{arbPath, ...mirrorArbs, ...autoMirrors};
   final allTargets = targetSet.toList();
@@ -138,8 +142,9 @@ Future<void> main(List<String> arguments) async {
   if (safeMode) {
     _runFlutterCommand(['gen-l10n'], workingDirectory: projectRoot);
     final analyzeTargets = _buildAnalyzeTargets(searchRoots, projectRoot);
-    final analyzeArgs =
-        analyzeTargets.isEmpty ? ['analyze'] : ['analyze', ...analyzeTargets];
+    final analyzeArgs = analyzeTargets.isEmpty
+        ? ['analyze']
+        : ['analyze', ...analyzeTargets];
     _runFlutterCommand(analyzeArgs, workingDirectory: projectRoot);
   }
 }
@@ -332,10 +337,9 @@ int _pruneArbFile(File file, Set<String> unusedKeys, bool keepMetadata) {
   );
 
   final baseCount = unusedKeys.where(data.containsKey).length;
-  final metadataCount =
-      keepMetadata
-          ? 0
-          : unusedKeys.map((key) => '@$key').where(data.containsKey).length;
+  final metadataCount = keepMetadata
+      ? 0
+      : unusedKeys.map((key) => '@$key').where(data.containsKey).length;
   final removed = baseCount + metadataCount;
 
   if (removed == 0) {

@@ -76,10 +76,9 @@ class RegistrationCubit extends Cubit<RegistrationState> {
   Future<SignUpError?> signUp() async {
     emit(state.copyWith(isSigningUp: true));
 
-    final url =
-        state.domain == "localhost"
-            ? "http://${state.domain}:8080"
-            : "https://${state.domain}";
+    final url = state.domain == "localhost"
+        ? "http://${state.domain}:8080"
+        : "https://${state.domain}";
 
     try {
       _log.info("Registering user...");

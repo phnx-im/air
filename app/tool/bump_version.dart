@@ -52,11 +52,10 @@ Future<String> _determineCurrentVersion(Directory repoRoot) async {
     throw StateError('No workspace members found in cargo metadata output');
   }
 
-  final packages =
-      (metadata['packages'] as List)
-          .cast<Map<String, dynamic>>()
-          .map((pkg) => pkg.cast<String, dynamic>())
-          .toList();
+  final packages = (metadata['packages'] as List)
+      .cast<Map<String, dynamic>>()
+      .map((pkg) => pkg.cast<String, dynamic>())
+      .toList();
   final firstId = members.first;
   final package = packages.firstWhere(
     (pkg) => pkg['id'] == firstId,
@@ -116,11 +115,10 @@ Future<void> _prependChangelog(
   }
 
   final previous = changelog.readAsStringSync();
-  final buffer =
-      StringBuffer()
-        ..writeln(newSection)
-        ..writeln()
-        ..write(previous);
+  final buffer = StringBuffer()
+    ..writeln(newSection)
+    ..writeln()
+    ..write(previous);
   changelog.writeAsStringSync(buffer.toString());
 }
 

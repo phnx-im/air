@@ -138,10 +138,8 @@ class _MessageComposerState extends State<MessageComposer>
   @override
   Widget build(BuildContext context) {
     final (chatTitle, editingId) = context.select(
-      (ChatDetailsCubit cubit) => (
-        cubit.state.chat?.title,
-        cubit.state.chat?.draft?.editingId,
-      ),
+      (ChatDetailsCubit cubit) =>
+          (cubit.state.chat?.title, cubit.state.chat?.draft?.editingId),
     );
 
     if (chatTitle == null) {
@@ -154,10 +152,9 @@ class _MessageComposerState extends State<MessageComposer>
         color: CustomColorScheme.of(context).backgroundBase.primary,
         padding: EdgeInsets.only(
           top: Spacings.xs,
-          bottom:
-              isSmallScreen(context) && !_keyboardVisible
-                  ? Spacings.m
-                  : Spacings.xs,
+          bottom: isSmallScreen(context) && !_keyboardVisible
+              ? Spacings.m
+              : Spacings.xs,
           left: Spacings.xs,
           right: Spacings.xs,
         ),
@@ -215,16 +212,15 @@ class _MessageComposerState extends State<MessageComposer>
                 borderRadius: BorderRadius.circular(Spacings.m),
               ),
               child: IconButton(
-                icon:
-                    _inputIsEmpty
-                        ? Plus(
-                          color: CustomColorScheme.of(context).text.primary,
-                          width: 32,
-                        )
-                        : Send(
-                          color: CustomColorScheme.of(context).text.primary,
-                          width: 32,
-                        ),
+                icon: _inputIsEmpty
+                    ? Plus(
+                        color: CustomColorScheme.of(context).text.primary,
+                        width: 32,
+                      )
+                    : Send(
+                        color: CustomColorScheme.of(context).text.primary,
+                        width: 32,
+                      ),
                 color: CustomColorScheme.of(context).text.primary,
                 hoverColor: const Color(0x00FFFFFF),
                 onPressed: () {
@@ -406,8 +402,9 @@ class _MessageInput extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ).copyWith(filled: false),
-            textInputAction:
-                sendOnEnter ? TextInputAction.send : TextInputAction.newline,
+            textInputAction: sendOnEnter
+                ? TextInputAction.send
+                : TextInputAction.newline,
             onEditingComplete: () => _focusNode.requestFocus(),
             keyboardType: TextInputType.multiline,
             textCapitalization: TextCapitalization.sentences,
