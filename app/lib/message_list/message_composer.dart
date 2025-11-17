@@ -4,10 +4,13 @@
 
 import 'dart:async';
 
+import 'package:air/message_list/emoji_repository.dart';
+import 'package:air/message_list/emoji_autocomplete.dart';
 import 'package:air/user/user_settings_cubit.dart';
 import 'package:air/util/debouncer.dart';
-import 'package:flutter/services.dart';
+import 'package:air/message_list/widgets/text_autocomplete.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:iconoir_flutter/regular/edit_pencil.dart';
 import 'package:iconoir_flutter/regular/plus.dart';
 import 'package:iconoir_flutter/regular/send.dart';
@@ -35,7 +38,7 @@ class MessageComposer extends StatefulWidget {
 }
 
 class _MessageComposerState extends State<MessageComposer>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   final TextEditingController _inputController = CustomTextEditingController();
   final Debouncer _storeDraftDebouncer = Debouncer(
     delay: const Duration(milliseconds: 300),
@@ -45,11 +48,24 @@ class _MessageComposerState extends State<MessageComposer>
   late ChatDetailsCubit _chatDetailsCubit;
   bool _keyboardVisible = false;
   bool _inputIsEmpty = true;
+  final LayerLink _inputFieldLink = LayerLink();
+  final GlobalKey _inputFieldKey = GlobalKey();
+  late final TextAutocompleteController<EmojiEntry> _emojiAutocomplete;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _emojiAutocomplete = TextAutocompleteController<EmojiEntry>(
+      textController: _inputController,
+      focusNode: _focusNode,
+      inputFieldKey: _inputFieldKey,
+      anchorLink: _inputFieldLink,
+      vsync: this,
+      contextProvider: () => context,
+      strategy: EmojiAutocompleteStrategy(),
+    );
+    _focusNode.addListener(_emojiAutocomplete.handleFocusChange);
     _focusNode.onKeyEvent = _onKeyEvent;
     _inputController.addListener(_onTextChanged);
 
@@ -97,6 +113,8 @@ class _MessageComposerState extends State<MessageComposer>
       isCommitted: true,
     );
 
+    _emojiAutocomplete.dispose();
+    _focusNode.removeListener(_emojiAutocomplete.handleFocusChange);
     _inputController.dispose();
 
     _draftLoadingSubscription?.cancel();
@@ -161,6 +179,8 @@ class _MessageComposerState extends State<MessageComposer>
                   controller: _inputController,
                   chatTitle: chatTitle,
                   isEditing: editingId != null,
+                  layerLink: _inputFieldLink,
+                  inputKey: _inputFieldKey,
                 ),
               ),
             ),
@@ -224,6 +244,10 @@ class _MessageComposerState extends State<MessageComposer>
 
   // Key events
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent evt) {
+    final emojiResult = _emojiAutocomplete.handleKeyEvent(evt);
+    if (emojiResult != null) {
+      return emojiResult;
+    }
     final modifierKeyPressed =
         HardwareKeyboard.instance.isShiftPressed ||
         HardwareKeyboard.instance.isAltPressed ||
@@ -312,6 +336,7 @@ class _MessageComposerState extends State<MessageComposer>
         isCommitted: false,
       );
     });
+    _emojiAutocomplete.handleTextChanged();
   }
 }
 
@@ -321,6 +346,8 @@ class _MessageInput extends StatelessWidget {
     required TextEditingController controller,
     required this.chatTitle,
     required this.isEditing,
+    required this.layerLink,
+    required this.inputKey,
   }) : _focusNode = focusNode,
        _controller = controller;
 
@@ -328,6 +355,8 @@ class _MessageInput extends StatelessWidget {
   final TextEditingController _controller;
   final String? chatTitle;
   final bool isEditing;
+  final LayerLink layerLink;
+  final GlobalKey inputKey;
 
   @override
   Widget build(BuildContext context) {
@@ -361,24 +390,28 @@ class _MessageInput extends StatelessWidget {
               ],
             ),
           ),
-        TextField(
-          focusNode: _focusNode,
-          controller: _controller,
-          minLines: 1,
-          maxLines: 10,
-          decoration: InputDecoration(
-            hintText: loc.composer_inputHint(chatTitle ?? ""),
-            hintMaxLines: 1,
-            hintStyle: TextStyle(
-              color: CustomColorScheme.of(context).text.tertiary,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ).copyWith(filled: false),
-          textInputAction:
-              sendOnEnter ? TextInputAction.send : TextInputAction.newline,
-          onEditingComplete: () => _focusNode.requestFocus(),
-          keyboardType: TextInputType.multiline,
-          textCapitalization: TextCapitalization.sentences,
+        CompositedTransformTarget(
+          key: inputKey,
+          link: layerLink,
+          child: TextField(
+            focusNode: _focusNode,
+            controller: _controller,
+            minLines: 1,
+            maxLines: 10,
+            decoration: InputDecoration(
+              hintText: loc.composer_inputHint(chatTitle ?? ""),
+              hintMaxLines: 1,
+              hintStyle: TextStyle(
+                color: CustomColorScheme.of(context).text.tertiary,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ).copyWith(filled: false),
+            textInputAction:
+                sendOnEnter ? TextInputAction.send : TextInputAction.newline,
+            onEditingComplete: () => _focusNode.requestFocus(),
+            keyboardType: TextInputType.multiline,
+            textCapitalization: TextCapitalization.sentences,
+          ),
         ),
       ],
     );
