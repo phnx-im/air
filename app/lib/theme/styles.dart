@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/theme/spacings.dart';
 import 'package:air/ui/theme/font.dart';
 import 'package:flutter/material.dart';
 import 'package:air/ui/colors/themes.dart';
@@ -75,7 +76,10 @@ class CustomOutlineButtonStyle extends ButtonStyle {
          elevation: WidgetStateProperty.all<double>(0),
          shadowColor: WidgetStateProperty.all<Color>(Colors.transparent),
          padding: WidgetStateProperty.all<EdgeInsetsGeometry>(
-           const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+           const EdgeInsets.symmetric(
+             vertical: Spacings.s,
+             horizontal: Spacings.s,
+           ),
          ),
          splashFactory: NoSplash.splashFactory,
          surfaceTintColor: WidgetStateProperty.all<Color>(Colors.transparent),
@@ -92,6 +96,6 @@ class CustomOutlineButtonStyle extends ButtonStyle {
              borderRadius: BorderRadius.circular(12),
            ),
          ),
-         textStyle: WidgetStatePropertyAll(baselineTextTheme.bodyLarge!),
+         textStyle: WidgetStatePropertyAll(baselineTextTheme.labelLarge!),
        );
 }

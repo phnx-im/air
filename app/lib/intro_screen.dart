@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ui/theme/font.dart';
+import 'package:air/ui/typography/font_size.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -17,7 +19,7 @@ import 'package:url_launcher/url_launcher.dart';
 class IntroScreen extends StatelessWidget {
   const IntroScreen({super.key});
 
-  static const double _logoSize = 96;
+  static const double _logoWidth = 104;
   static final Uri _termsOfUseUri = Uri.parse('https://air.ms/terms');
 
   @override
@@ -27,9 +29,9 @@ class IntroScreen extends StatelessWidget {
     });
 
     final loc = AppLocalizations.of(context);
-    final isSmall = isSmallScreen(context);
 
     return Scaffold(
+      backgroundColor: CustomColorScheme.of(context).backgroundBase.secondary,
       body: SafeArea(
         minimum: const EdgeInsets.symmetric(
           horizontal: Spacings.l,
@@ -40,14 +42,13 @@ class IntroScreen extends StatelessWidget {
             Align(
               alignment: Alignment.center,
               child: SizedBox(
-                width: _logoSize,
-                height: _logoSize,
+                width: _logoWidth,
                 child: GestureDetector(
                   onLongPress: () {
                     context.read<NavigationCubit>().openDeveloperSettings();
                   },
                   child: SvgPicture.asset(
-                    'assets/images/tilde.svg',
+                    'assets/images/logo.svg',
                     colorFilter: ColorFilter.mode(
                       CustomColorScheme.of(context).text.primary,
                       BlendMode.srcIn,
@@ -66,18 +67,29 @@ class IntroScreen extends StatelessWidget {
                   children: [
                     _TermsOfUseText(loc: loc),
                     if (!isUserLoading) ...[
-                      const SizedBox(height: Spacings.l),
                       SizedBox(
-                        width: isSmall ? double.infinity : 240,
-                        child: OutlinedButton(
-                          onPressed: () async {
-                            await requestNotificationPermissionsIfNeeded();
-                            if (!context.mounted) {
-                              return;
-                            }
-                            context.read<NavigationCubit>().openSignUp();
-                          },
-                          child: Text(loc.introScreen_signUp),
+                        width: double.infinity,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: Spacings.m),
+                          child: OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              textStyle: customTextScheme.labelMedium,
+                              backgroundColor:
+                                  CustomColorScheme.of(context).accent.primary,
+                              foregroundColor:
+                                  CustomColorScheme.of(
+                                    context,
+                                  ).function.toggleWhite,
+                            ),
+                            onPressed: () async {
+                              await requestNotificationPermissionsIfNeeded();
+                              if (!context.mounted) {
+                                return;
+                              }
+                              context.read<NavigationCubit>().openSignUp();
+                            },
+                            child: Text(loc.introScreen_signUp),
+                          ),
                         ),
                       ),
                     ],
@@ -99,11 +111,10 @@ class _TermsOfUseText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseTextStyle =
-        Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: CustomColorScheme.of(context).text.secondary,
-        ) ??
-        TextStyle(color: CustomColorScheme.of(context).text.secondary);
+    final baseTextStyle = TextStyle(
+      fontSize: LabelFontSize.small2.size,
+      color: CustomColorScheme.of(context).text.tertiary,
+    );
 
     final linkText = loc.introScreen_termsLinkText;
     final agreement = loc.introScreen_termsText(linkText);
@@ -118,7 +129,6 @@ class _TermsOfUseText extends StatelessWidget {
 
     final linkStyle = baseTextStyle.copyWith(
       color: CustomColorScheme.of(context).function.link,
-      fontWeight: FontWeight.w600,
     );
 
     return Text.rich(
