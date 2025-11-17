@@ -12,7 +12,7 @@ use clap::{Parser, Subcommand};
 #[command(
     author,
     version,
-    about = "Developer automation tasks for the Phoenix workspace"
+    about = "Developer automation tasks for the Air workspace"
 )]
 struct Cli {
     #[command(subcommand)]
