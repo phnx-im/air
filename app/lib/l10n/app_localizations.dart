@@ -367,7 +367,7 @@ abstract class AppLocalizations {
   /// No description provided for @signUpScreen_subheader.
   ///
   /// In en, this message translates to:
-  /// **'Your profile is visible to people you connect with and members of groups you’re in.'**
+  /// **'Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.'**
   String get signUpScreen_subheader;
 
   /// No description provided for @usernameOnboarding_title.
@@ -409,14 +409,20 @@ abstract class AppLocalizations {
   /// No description provided for @signUpScreen_actionButton.
   ///
   /// In en, this message translates to:
-  /// **'Sign up'**
+  /// **'Create'**
   String get signUpScreen_actionButton;
 
-  /// No description provided for @signUpScreen_displayNameHint.
+  /// No description provided for @signUpScreen_displayNameInputName.
   ///
   /// In en, this message translates to:
   /// **'Display name (required)'**
-  String get signUpScreen_displayNameHint;
+  String get signUpScreen_displayNameInputName;
+
+  /// No description provided for @signUpScreen_displayNameInputHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a name...'**
+  String get signUpScreen_displayNameInputHint;
 
   /// No description provided for @signUpScreen_serverLabel.
   ///

@@ -167,7 +167,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get signUpScreen_subheader =>
-      'Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen.';
+      'Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen. Air benötigt einen Anzeigenamen, ein Bild ist optional.';
 
   @override
   String get usernameOnboarding_title => 'Willkommen bei Air';
@@ -193,7 +193,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get signUpScreen_actionButton => 'Registrieren';
 
   @override
-  String get signUpScreen_displayNameHint => 'Benutzername (erforderlich)';
+  String get signUpScreen_displayNameInputName => 'Anzeigename (erforderlich)';
+
+  @override
+  String get signUpScreen_displayNameInputHint => 'Name hinzufügen...';
 
   @override
   String get signUpScreen_serverLabel =>

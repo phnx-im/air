@@ -57,7 +57,7 @@
   },
 
   "signUpScreen_header": "Créez votre profil",
-  "signUpScreen_subheader": "Votre profil est visible pour les personnes avec lesquelles vous vous connectez et les membres de vos groupes.",
+  "signUpScreen_subheader": "Votre profil est visible pour les personnes avec lesquelles vous vous connectez et les membres de vos groupes. Air exige un nom d'affichage, mais la photo est facultative.",
   "usernameOnboarding_title": "Bienvenue sur Air",
   "usernameOnboarding_header": "Ajoutez un nom d'utilisateur",
   "usernameOnboarding_body": "On peut se connecter à d'autres grace aux noms d'utilisateur sur Air. Ils ne seront plus visibles pour les autres une fois la connexion établie.\n\nAjoutez, modifiez ou supprimez des noms d'utilisateur à tout moment dans votre profil.",
@@ -65,7 +65,8 @@
   "usernameOnboarding_addButton": "Ajouter",
   "usernameOnboarding_skip": "Ignorer",
   "signUpScreen_actionButton": "S'inscrire",
-  "signUpScreen_displayNameHint": "Nom d'utillisateur (nécessaire)",
+  "signUpScreen_displayNameInputName": "Nom d'affichage (obligatoire)",
+  "signUpScreen_displayNameInputHint": "Ajoutez un nom...",
   "signUpScreen_serverLabel": "Choisissez le serveur sur lequel vous voulez créer votre compte.",
   "signUpScreen_serverHint": "NOM DE DOMAINE",
   "signUpScreen_error_invalidDomain": "Le domaine n'est pas valide",

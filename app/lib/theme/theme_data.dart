@@ -86,7 +86,7 @@ ThemeData themeData(Brightness brightness) {
     inputDecorationTheme: InputDecorationTheme(
       border: InputBorder.none,
       hintStyle: TextStyle(
-        color: colorScheme.text.secondary,
+        color: colorScheme.text.quaternary,
         fontSize: LabelFontSize.small1.size,
       ),
       focusedBorder: _textInputBorder,

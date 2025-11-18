@@ -57,7 +57,7 @@
   },
 
   "signUpScreen_header": "Erstelle dein Profil",
-  "signUpScreen_subheader": "Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen.",
+  "signUpScreen_subheader": "Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen. Air benötigt einen Anzeigenamen, ein Bild ist optional.",
   "usernameOnboarding_title": "Willkommen bei Air",
   "usernameOnboarding_header": "Füge einen Benutzernamen hinzu",
   "usernameOnboarding_body": "Über Benutzernamen kann man sich in Air mit anderen verbinden. Sie sind für andere nicht mehr sichtbar, sobald man verbunden ist.\n\nDu kannst Benutzernamen jederzeit in deinem Profil hinzufügen, ändern oder löschen.",
@@ -65,7 +65,8 @@
   "usernameOnboarding_addButton": "Hinzufügen",
   "usernameOnboarding_skip": "Überspringen",
   "signUpScreen_actionButton": "Registrieren",
-  "signUpScreen_displayNameHint": "Benutzername (erforderlich)",
+  "signUpScreen_displayNameInputName": "Anzeigename (erforderlich)",
+  "signUpScreen_displayNameInputHint": "Name hinzufügen...",
   "signUpScreen_serverLabel": "Wähle den Server aus, auf dem du dein Konto erstellen möchtest.",
   "signUpScreen_serverHint": "DOMAIN-NAME",
   "signUpScreen_error_invalidDomain": "Domain ist ungültig",
