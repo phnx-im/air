@@ -830,7 +830,7 @@ impl Group {
             // create a notification message.
             let (staged_commit_messages, group_data) =
                 if let Some(staged_commit) = self.mls_group.pending_commit() {
-                    let group_data = GroupData::from_staged_commit(&staged_commit);
+                    let group_data = GroupData::from_staged_commit(staged_commit);
                     let messages = TimestampedMessage::from_staged_commit(
                         &mut *connection,
                         self.group_id(),
