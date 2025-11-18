@@ -31,7 +31,7 @@ chrono.workspace = true
 derive_more.workspace = true
 deunicode.workspace = true
 flate2.workspace = true
-flutter_rust_bridge.workspace = true
+flutter_rust_bridge = "=2.11.1"
 jni.workspace = true
 lru.workspace = true
 memmap2.workspace = true

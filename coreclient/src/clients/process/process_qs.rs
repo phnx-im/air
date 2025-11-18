@@ -14,6 +14,7 @@ use aircommon::{
             UserProfileKeyUpdateParams, WelcomeBundle,
         },
     },
+    mls_group_config::GROUP_DATA_EXTENSION_TYPE,
     time::TimeStamp,
     utils::removed_client,
 };
@@ -26,7 +27,7 @@ use mimi_room_policy::RoleIndex;
 use openmls::{
     group::QueuedProposal,
     prelude::{
-        ApplicationMessage, MlsMessageBodyIn, MlsMessageIn, ProcessedMessageContent,
+        ApplicationMessage, MlsMessageBodyIn, MlsMessageIn, ProcessedMessageContent, Proposal,
         ProtocolMessage, Sender,
     },
 };
@@ -232,12 +233,12 @@ impl CoreUser {
         let group_id = protocol_message.group_id().clone();
 
         enum TransactionResult {
-            Ok(
-                Vec<ChatMessage>,
-                bool,
-                ChatId,
-                Vec<(ClientCredential, UserProfileKey)>,
-            ),
+            Ok {
+                messages: Vec<ChatMessage>,
+                chat_changed: bool,
+                chat_id: ChatId,
+                profile_infos: Vec<(ClientCredential, UserProfileKey)>,
+            },
             NeedsResync(Resync),
         }
 
@@ -340,19 +341,22 @@ impl CoreUser {
                     messages.push(updated_message);
                 }
 
-                Ok(TransactionResult::Ok(
+                Ok(TransactionResult::Ok {
                     messages,
                     chat_changed,
                     chat_id,
                     profile_infos,
-                ))
+                })
             })
             .await?;
 
         let (messages, chat_changed, chat_id, profile_infos) = match transaction_result {
-            TransactionResult::Ok(messages, chat_changed, chat_id, profile_infos) => {
-                (messages, chat_changed, chat_id, profile_infos)
-            }
+            TransactionResult::Ok {
+                messages,
+                chat_changed,
+                chat_id,
+                profile_infos,
+            } => (messages, chat_changed, chat_id, profile_infos),
             TransactionResult::NeedsResync(_resync) => {
                 // TODO: Once we have a UX for resyncs, we should schedule one
                 // here and re-enable the resync test in integration.rs
@@ -549,7 +553,43 @@ impl CoreUser {
             _ => false,
         };
 
-        // StagedCommitMessage Phase 2: Merge the staged commit into the group.
+        let mut group_messages = Vec::new();
+
+        // StagedCommitMessage Phase 2: Update the chat attributes if necessary.
+        for proposal in staged_commit.queued_proposals() {
+            if let Proposal::GroupContextExtensions(extensions) = proposal.proposal()
+                && let Some(ext) = extensions.extensions().unknown(GROUP_DATA_EXTENSION_TYPE)
+            {
+                let sender_id = match sender {
+                    Sender::Member(index) => group
+                        .client_by_index(txn.as_mut(), *index)
+                        .await
+                        .context("No sender found")?,
+                    _ => bail!("External senders can't update the title"),
+                };
+                let new_chat_attributes: ChatAttributes = PersistenceCodec::from_slice(&ext.0)?;
+                let new_title = new_chat_attributes.title;
+                if chat.attributes.title != new_title {
+                    chat.set_title(txn.as_mut(), &mut notifier, new_title.clone())
+                        .await?;
+                    let system_message = SystemMessage::ChangeTitle(sender_id.clone(), new_title);
+                    let group_message =
+                        TimestampedMessage::system_message(system_message, ds_timestamp);
+                    group_messages.push(group_message);
+                }
+                if chat.attributes.picture != new_chat_attributes.picture {
+                    chat.set_picture(txn.as_mut(), &mut notifier, new_chat_attributes.picture)
+                        .await?;
+                    let system_message = SystemMessage::ChangePicture(sender_id);
+                    let group_message =
+                        TimestampedMessage::system_message(system_message, ds_timestamp);
+                    group_messages.push(group_message);
+                }
+                break;
+            }
+        }
+
+        // StagedCommitMessage Phase 3: Merge the staged commit into the group.
 
         // If we were removed, we set the group to inactive.
         if we_were_removed {
@@ -557,9 +597,11 @@ impl CoreUser {
             chat.set_inactive(txn.as_mut(), &mut notifier, past_members)
                 .await?;
         }
-        let group_messages = group
+        let messages_from_commit = group
             .merge_pending_commit(txn, staged_commit, ds_timestamp)
             .await?;
+
+        group_messages.extend(messages_from_commit);
 
         notifier.notify();
 

@@ -935,19 +935,32 @@ impl Group {
         &mut self,
         txn: &mut SqliteTransaction<'_>,
         signer: &ClientSigningKey,
+        new_group_data: Option<GroupData>,
     ) -> Result<UpdateParamsOut> {
         // We don't expect there to be a welcome.
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
             new_encrypted_user_profile_keys: Vec::new(),
         }))
         .tls_serialize_detached()?;
+
+        let extensions = new_group_data.map(|gd| {
+            let group_data_extension =
+                Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, UnknownExtension(gd.bytes));
+            let mut exts = self.mls_group().extensions().clone();
+            exts.add_or_replace(group_data_extension);
+            exts
+        });
+
         self.mls_group.set_aad(aad);
         let (mls_message, group_info) = {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
 
-            let (mls_message, _welcome_option, group_info_option) = self
-                .mls_group
-                .commit_builder()
+            let mut builder = self.mls_group.commit_builder();
+            if let Some(extensions) = extensions {
+                builder = builder.propose_group_context_extensions(extensions);
+            };
+
+            let (mls_message, _welcome_option, group_info_option) = builder
                 .force_self_update(true)
                 .create_group_info(true)
                 .load_psks(provider.storage())?

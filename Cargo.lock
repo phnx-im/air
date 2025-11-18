@@ -368,8 +368,6 @@ dependencies = [
  "anyhow",
  "atomic",
  "backtrace",
- "chrono",
- "uuid",
 ]
 
 [[package]]
@@ -2152,9 +2150,9 @@ dependencies = [
 
 [[package]]
 name = "env_filter"
-version = "0.1.3"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "186e05a59d4c50738528153b83b0b0194d3a29507dfec16eccd4b342903397d0"
+checksum = "1bf3c259d255ca70051b30e2e95b5446cdb8949ac4cd22c0d7fd634d89f568e2"
 dependencies = [
  "log",
  "regex",
@@ -2372,7 +2370,6 @@ dependencies = [
  "build-target",
  "bytemuck",
  "byteorder",
- "chrono",
  "console_error_panic_hook",
  "dart-sys",
  "delegate-attr",
@@ -2385,7 +2382,6 @@ dependencies = [
  "portable-atomic",
  "threadpool",
  "tokio",
- "uuid",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",

@@ -99,6 +99,10 @@ impl Store for CoreUser {
         self.set_chat_picture(chat_id, picture).await
     }
 
+    async fn set_chat_title(&self, chat_id: ChatId, title: String) -> StoreResult<()> {
+        self.set_chat_title(chat_id, title).await
+    }
+
     async fn chats(&self) -> StoreResult<Vec<Chat>> {
         Ok(self.chats().await?)
     }
@@ -128,7 +132,7 @@ impl Store for CoreUser {
     }
 
     async fn update_key(&self, chat_id: ChatId) -> StoreResult<Vec<ChatMessage>> {
-        self.update_key(chat_id).await
+        self.update_key(chat_id, None).await
     }
 
     async fn remove_users(

@@ -5,7 +5,7 @@
 use update_key_flow::UpdateKeyData;
 
 use crate::{
-    ChatId, ChatMessage,
+    ChatAttributes, ChatId, ChatMessage,
     utils::connection_ext::{ConnectionExt, StoreExt},
 };
 
@@ -19,12 +19,17 @@ impl CoreUser {
     /// more than one effect on the group. As a result this function returns a
     /// vector of [`ChatMessage`]s that represents the changes to the
     /// group. Note that these returned message have already been persisted.
-    pub(crate) async fn update_key(&self, chat_id: ChatId) -> anyhow::Result<Vec<ChatMessage>> {
+    pub(crate) async fn update_key(
+        &self,
+        chat_id: ChatId,
+        new_chat_attributes: impl Into<Option<&ChatAttributes>>,
+    ) -> anyhow::Result<Vec<ChatMessage>> {
         // Phase 1: Load the chat and the group
         let mut connection = self.pool().acquire().await?;
+        let new_chat_attributes = new_chat_attributes.into();
         let update = connection
             .with_transaction(async |txn| {
-                UpdateKeyData::lock(txn, chat_id, self.signing_key()).await
+                UpdateKeyData::lock(txn, chat_id, self.signing_key(), new_chat_attributes).await
             })
             .await?;
 
@@ -47,16 +52,16 @@ impl CoreUser {
 
 mod update_key_flow {
     use aircommon::{
-        credentials::keys::ClientSigningKey, messages::client_ds_out::UpdateParamsOut,
-        time::TimeStamp,
+        codec::PersistenceCodec, credentials::keys::ClientSigningKey,
+        messages::client_ds_out::UpdateParamsOut, time::TimeStamp,
     };
     use anyhow::Context;
     use sqlx::SqliteTransaction;
 
     use crate::{
-        Chat, ChatId, ChatMessage,
+        Chat, ChatAttributes, ChatId, ChatMessage,
         clients::{CoreUser, api_clients::ApiClients},
-        groups::Group,
+        groups::{Group, GroupData},
     };
 
     pub(super) struct UpdateKeyData {
@@ -70,6 +75,7 @@ mod update_key_flow {
             txn: &mut SqliteTransaction<'_>,
             chat_id: ChatId,
             signer: &ClientSigningKey,
+            new_chat_attributes: Option<&ChatAttributes>,
         ) -> anyhow::Result<Self> {
             let chat = Chat::load(txn.as_mut(), &chat_id)
                 .await?
@@ -78,7 +84,11 @@ mod update_key_flow {
             let mut group = Group::load_clean(txn, group_id)
                 .await?
                 .with_context(|| format!("Can't find group with id {group_id:?}"))?;
-            let params = group.update(txn, signer).await?;
+            let group_data = match new_chat_attributes {
+                Some(attrs) => Some(GroupData::from(PersistenceCodec::to_vec(attrs)?)),
+                None => None,
+            };
+            let params = group.update(txn, signer, group_data).await?;
             Ok(Self {
                 chat,
                 group,
