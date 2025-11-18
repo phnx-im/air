@@ -2,6 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:ui';
+
+import 'package:air/chat/chat_details_cubit.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:flutter/material.dart';
@@ -49,7 +52,7 @@ class AttachmentImage extends StatelessWidget {
             fit: fit,
             alignment: Alignment.center,
             errorBuilder: (context, error, stackTrace) {
-              _log.severe('Failed to load attachment', error, stackTrace);
+              _log.severe('Failed to load attachment: $error');
               return Align(
                 child: iconoir.WarningCircle(
                   width: 32,
@@ -113,7 +116,11 @@ class _UploadStatus extends HookWidget {
         null || UiAttachmentStatus_Completed() => const SizedBox.shrink(),
         UiAttachmentStatus_Pending() ||
         UiAttachmentStatus_Failed() => OutlinedButton(
-          onPressed: () {},
+          onPressed: () {
+            context.read<ChatDetailsCubit>().retryUploadAttachment(
+              attachmentId,
+            );
+          },
           child: Row(
             mainAxisAlignment: .center,
             mainAxisSize: MainAxisSize.min,
@@ -134,14 +141,38 @@ class _UploadStatus extends HookWidget {
             ],
           ),
         ),
-        UiAttachmentStatus_Progress(field0: final loaded) =>
-          CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(
-              CustomColorScheme.of(context).backgroundBase.tertiary,
+        UiAttachmentStatus_Progress(field0: final loaded) => ClipRRect(
+          borderRadius: BorderRadius.circular(100),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Padding(
+              padding: const EdgeInsets.all(Spacings.xs),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      CustomColorScheme.of(context).text.primary,
+                    ),
+                    backgroundColor: Colors.transparent,
+                    value: loaded / BigInt.from(size),
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      context.read<AttachmentsRepository>().cancel(
+                        attachmentId: attachmentId,
+                      );
+                    },
+                    icon: iconoir.Xmark(
+                      color: CustomColorScheme.of(context).text.primary,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            backgroundColor: Colors.transparent,
-            value: loaded / BigInt.from(size),
           ),
+        ),
       },
     );
   }

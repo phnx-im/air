@@ -7,6 +7,7 @@ use std::{
     io::Cursor,
     mem,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 use airapiclient::{ApiClient, ds_api::ProvisionAttachmentResponse};
@@ -16,7 +17,7 @@ use aircommon::{
     identifiers::AttachmentId,
 };
 use airprotos::delivery_service::v1::SignedPostPolicy;
-use anyhow::{Context, ensure};
+use anyhow::{Context, bail, ensure};
 use base64::{Engine, prelude::BASE64_STANDARD};
 use chrono::{DateTime, Utc};
 use infer::MatcherType;
@@ -32,7 +33,7 @@ use tokio_stream::StreamExt;
 use tokio_util::io::ReaderStream;
 
 use crate::{
-    AttachmentStatus, AttachmentUrl, Chat, ChatId, ChatMessage, MessageId,
+    AttachmentContent, AttachmentStatus, AttachmentUrl, Chat, ChatId, ChatMessage, MessageId,
     clients::{
         CoreUser,
         attachment::{
@@ -42,6 +43,7 @@ use crate::{
         },
     },
     groups::Group,
+    store::{Store, StoreNotifier},
     utils::{
         connection_ext::StoreExt,
         image::{ReencodedAttachmentImage, reencode_attachment_image},
@@ -130,11 +132,124 @@ impl CoreUser {
             .await?;
 
         // upload the encrypted attachment
-        let (progress_tx, progress) = AttachmentProgress::new();
+        let (progress, task) =
+            self.upload_attachment_task(attachment_id, message, ciphertext, provision_response);
+        Ok((attachment_id, progress, task))
+    }
 
+    pub async fn retry_upload_attachment(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> anyhow::Result<(
+        AttachmentId,
+        AttachmentProgress,
+        impl Future<Output = anyhow::Result<ChatMessage>> + use<>,
+    )> {
+        // load locally stored data
+        let (group, mut message, content) = self
+            .with_transaction(async |txn| {
+                let AttachmentContent::Uploading(bytes) =
+                    self.load_attachment(attachment_id).await?
+                else {
+                    bail!("Attachment {attachment_id:?} is not uploading");
+                };
+                let content = AttachmentBytes::from(bytes);
+
+                let attachment_record = AttachmentRecord::load(self.pool(), attachment_id)
+                    .await?
+                    .context("Attachment not found")?;
+                ensure!(
+                    matches!(attachment_record.status, AttachmentStatus::Uploading),
+                    "Attachment is not uploading"
+                );
+
+                let message = self
+                    .message(attachment_record.message_id)
+                    .await?
+                    .context("Message not found")?;
+                ensure!(!message.is_sent(), "Message is already sent");
+
+                let chat_id = message.chat_id();
+                let chat = Chat::load(txn, &chat_id)
+                    .await?
+                    .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+
+                let group_id = chat.group_id();
+                let group = Group::load_clean(txn, group_id)
+                    .await?
+                    .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+                Ok((group, message, content))
+            })
+            .await?;
+
+        // encrypt the content and provision the attachment, but don't upload it yet
+        let (attachment_metadata, ciphertext, provision_response) =
+            encrypt_and_provision(&self.api_client()?, self.signing_key(), &group, &content)
+                .await?;
+
+        // update local attachment message
+
+        // Note: The url of the attachment also changes here, so the relationship between the old
+        // attachment record and this message is broken. We must copy the attachment record with
+        // the new attachment id.
+        if let Some(mimi_content) = message.message_mut().mimi_content_mut()
+            && let NestedPartContent::MultiPart { parts, .. } = &mut mimi_content.nested_part.part
+            && let Some(attachment_part) = parts
+                .iter_mut()
+                .find(|part| part.disposition == Disposition::Attachment)
+            && let NestedPartContent::ExternalPart {
+                url, key, nonce, ..
+            } = &mut attachment_part.part
+            && let Ok(attachment_url) = AttachmentUrl::from_url(&url.parse()?)
+        {
+            *url = AttachmentUrl::new(attachment_metadata.attachment_id, attachment_url.dimensions)
+                .to_string();
+            *key = attachment_metadata.key.into_bytes().to_vec().into();
+            *nonce = attachment_metadata.nonce.to_vec().into();
+
+            self.with_transaction_and_notifier(async |txn, notifier| {
+                message.update(txn.as_mut(), notifier).await?;
+                // Since we just move the attachment record, we don't need to notify the store.
+                let mut noop_notifier = StoreNotifier::noop();
+                AttachmentRecord::copy(
+                    txn.as_mut(),
+                    &mut noop_notifier,
+                    attachment_id,
+                    attachment_metadata.attachment_id,
+                )
+                .await?;
+                AttachmentRecord::delete(txn.as_mut(), &mut noop_notifier, attachment_id).await?;
+                Ok(())
+            })
+            .await?;
+        } else {
+            bail!("Invalid attachment mimi content");
+        }
+
+        // upload task
+        let (progress, upload_task) = self.upload_attachment_task(
+            attachment_metadata.attachment_id,
+            message,
+            ciphertext,
+            provision_response,
+        );
+        Ok((attachment_metadata.attachment_id, progress, upload_task))
+    }
+
+    fn upload_attachment_task(
+        &self,
+        attachment_id: AttachmentId,
+        message: ChatMessage,
+        ciphertext: Vec<u8>,
+        provision_response: ProvisionAttachmentResponse,
+    ) -> (
+        AttachmentProgress,
+        impl Future<Output = anyhow::Result<ChatMessage>> + use<>,
+    ) {
+        let (progress_tx, progress) = AttachmentProgress::new();
         let http_client = self.http_client();
         let pool = self.pool().clone();
-        let message_fut = async move {
+        let task = async move {
             let res = upload_encrypted_attachment(
                 &http_client,
                 provision_response,
@@ -150,8 +265,7 @@ impl CoreUser {
             AttachmentRecord::update_status(&pool, attachment_id, status).await?;
             Ok(message)
         };
-
-        Ok((attachment_id, progress, message_fut))
+        (progress, task)
     }
 }
 

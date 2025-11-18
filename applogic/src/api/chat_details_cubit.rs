@@ -7,15 +7,18 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId};
-use aircoreclient::{Chat, ChatId, MessageDraft};
+use aircommon::{
+    OpenMlsRand, RustCrypto,
+    identifiers::{AttachmentId, UserId},
+};
+use aircoreclient::{AttachmentProgress, Chat, ChatId, ChatMessage, MessageDraft};
 use aircoreclient::{MessageId, clients::CoreUser, store::Store};
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
 use mimi_content::{ByteBuf, Disposition, MimiContent, NestedPart, NestedPartContent};
 use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
-use tracing::{error, warn};
+use tracing::error;
 
 use crate::api::{
     attachments_repository::{AttachmentTaskHandle, AttachmentsRepository, InProgressMap},
@@ -244,8 +247,28 @@ impl ChatDetailsCubitBase {
             .store
             .upload_attachment(self.context.chat_id, &path)
             .await?;
-        let cancel = self.core.cancellation_token().child_token();
-        let handle = AttachmentTaskHandle::new(progress, cancel.clone());
+        self.upload_attachment_impl(attachment_id, progress, upload_task)
+            .await
+    }
+
+    pub async fn retry_upload_attachment(&self, attachment_id: AttachmentId) -> anyhow::Result<()> {
+        let (new_attachment_id, progress, upload_task) = self
+            .context
+            .store
+            .retry_upload_attachment(attachment_id)
+            .await?;
+        self.upload_attachment_impl(new_attachment_id, progress, upload_task)
+            .await
+    }
+
+    async fn upload_attachment_impl(
+        &self,
+        attachment_id: AttachmentId,
+        progress: AttachmentProgress,
+        upload_task: impl Future<Output = anyhow::Result<ChatMessage>> + Send + 'static,
+    ) -> anyhow::Result<()> {
+        let handle = AttachmentTaskHandle::new(progress);
+        let cancel = handle.cancellation_token().clone();
         self.attachment_in_progress.insert(attachment_id, handle);
         match cancel.run_until_cancelled_owned(upload_task).await {
             Some(Ok(message)) => {
