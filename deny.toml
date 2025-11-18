@@ -69,7 +69,6 @@ allow-git = [
     "https://github.com/boxdot/formats",
     "https://github.com/boxdot/mimi-content",
     "https://github.com/facebook/voprf",
-    "https://github.com/openmls/openmls",
     "https://github.com/raphaelrobert/privacypass",
 ]
 
