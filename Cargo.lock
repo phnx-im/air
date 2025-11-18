@@ -368,6 +368,8 @@ dependencies = [
  "anyhow",
  "atomic",
  "backtrace",
+ "chrono",
+ "uuid",
 ]
 
 [[package]]
@@ -2370,6 +2372,7 @@ dependencies = [
  "build-target",
  "bytemuck",
  "byteorder",
+ "chrono",
  "console_error_panic_hook",
  "dart-sys",
  "delegate-attr",
@@ -2382,6 +2385,7 @@ dependencies = [
  "portable-atomic",
  "threadpool",
  "tokio",
+ "uuid",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",

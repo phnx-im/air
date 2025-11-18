@@ -11,7 +11,7 @@ use mimi_room_policy::VerifiedRoomState;
 use tracing::error;
 
 use crate::{
-    MessageId,
+    ChatAttributes, MessageId,
     chats::{Chat, messages::ChatMessage},
     groups::{Group, openmls_provider::AirOpenMlsProvider},
     utils::{connection_ext::StoreExt, image::resize_profile_image},
@@ -149,51 +149,46 @@ impl CoreUser {
         picture: Option<Vec<u8>>,
     ) -> Result<()> {
         let mut connection = self.pool().acquire().await?;
-        let mut chat = Chat::load(&mut connection, &chat_id)
+        let chat = Chat::load(&mut connection, &chat_id)
             .await?
             .ok_or_else(|| {
                 let id = chat_id.uuid();
                 anyhow!("Can't find chat with id {id}")
             })?;
+        drop(connection);
         let resized_picture_option =
             picture.and_then(|picture| resize_profile_image(&picture).ok());
-        let mut notifier = self.store_notifier();
         if resized_picture_option == chat.attributes().picture {
             // No change
             return Ok(());
         }
-        chat.set_picture(&mut *connection, &mut notifier, resized_picture_option)
-            .await?;
-        drop(connection);
+        let new_attributes =
+            ChatAttributes::new(chat.attributes.title.clone(), resized_picture_option);
 
         // Update the group and send out the update
-        self.update_key(chat_id, chat.attributes()).await?;
+        self.update_key(chat_id, &new_attributes).await?;
 
-        notifier.notify();
         Ok(())
     }
 
     pub(crate) async fn set_chat_title(&self, chat_id: ChatId, title: String) -> Result<()> {
         let mut connection = self.pool().acquire().await?;
-        let mut chat = Chat::load(&mut connection, &chat_id)
+        let chat = Chat::load(&mut connection, &chat_id)
             .await?
             .ok_or_else(|| {
                 let id = chat_id.uuid();
                 anyhow!("Can't find chat with id {id}")
             })?;
-        let mut notifier = self.store_notifier();
+        drop(connection);
         if title == chat.attributes().title {
             // No change
             return Ok(());
         }
-        chat.set_title(&mut *connection, &mut notifier, title)
-            .await?;
-        drop(connection);
+        let new_attributes = ChatAttributes::new(title.clone(), chat.attributes().picture.clone());
 
         // Update the group and send out the update
-        self.update_key(chat_id, chat.attributes()).await?;
+        self.update_key(chat_id, &new_attributes).await?;
 
-        notifier.notify();
         Ok(())
     }
 
@@ -536,7 +531,7 @@ mod delete_chat_flow {
                 state: DeletedGroupOnDs(ds_timestamp),
             } = self;
 
-            let messages = group
+            let (messages, _) = group
                 .merge_pending_commit(connection, None, ds_timestamp)
                 .await?;
 

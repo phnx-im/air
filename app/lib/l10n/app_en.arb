@@ -93,6 +93,15 @@
   "systemMessage_userRemovedUser_infix": " removed ",
   "systemMessage_userRemovedUser_suffix": "",
 
+  "systemMessage_userChangedTitle_prefix": "",
+  "systemMessage_userChangedTitle_infix_1": " changed the group name from ",
+  "systemMessage_userChangedTitle_infix_2": " to ",
+  "systemMessage_userChangedTitle_suffix": "",
+
+  "systemMessage_userChangedPicture_prefix": "",
+  "systemMessage_userChangedPicture_infix": " changed the group picture",
+  "systemMessage_userChangedPicture_suffix": "",
+
   "timestamp_now": "Now",
   "timestamp_yesterday": "Yesterday",
 

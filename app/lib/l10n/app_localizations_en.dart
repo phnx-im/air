@@ -262,6 +262,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String get systemMessage_userRemovedUser_suffix => '';
 
   @override
+  String get systemMessage_userChangedTitle_prefix => '';
+
+  @override
+  String get systemMessage_userChangedTitle_infix_1 =>
+      ' changed the group name from ';
+
+  @override
+  String get systemMessage_userChangedTitle_infix_2 => ' to ';
+
+  @override
+  String get systemMessage_userChangedTitle_suffix => '';
+
+  @override
+  String get systemMessage_userChangedPicture_prefix => '';
+
+  @override
+  String get systemMessage_userChangedPicture_infix =>
+      ' changed the group picture';
+
+  @override
+  String get systemMessage_userChangedPicture_suffix => '';
+
+  @override
   String get timestamp_now => 'Now';
 
   @override

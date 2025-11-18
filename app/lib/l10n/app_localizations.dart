@@ -538,6 +538,48 @@ abstract class AppLocalizations {
   /// **''**
   String get systemMessage_userRemovedUser_suffix;
 
+  /// No description provided for @systemMessage_userChangedTitle_prefix.
+  ///
+  /// In en, this message translates to:
+  /// **''**
+  String get systemMessage_userChangedTitle_prefix;
+
+  /// No description provided for @systemMessage_userChangedTitle_infix_1.
+  ///
+  /// In en, this message translates to:
+  /// **' changed the group name from '**
+  String get systemMessage_userChangedTitle_infix_1;
+
+  /// No description provided for @systemMessage_userChangedTitle_infix_2.
+  ///
+  /// In en, this message translates to:
+  /// **' to '**
+  String get systemMessage_userChangedTitle_infix_2;
+
+  /// No description provided for @systemMessage_userChangedTitle_suffix.
+  ///
+  /// In en, this message translates to:
+  /// **''**
+  String get systemMessage_userChangedTitle_suffix;
+
+  /// No description provided for @systemMessage_userChangedPicture_prefix.
+  ///
+  /// In en, this message translates to:
+  /// **''**
+  String get systemMessage_userChangedPicture_prefix;
+
+  /// No description provided for @systemMessage_userChangedPicture_infix.
+  ///
+  /// In en, this message translates to:
+  /// **' changed the group picture'**
+  String get systemMessage_userChangedPicture_infix;
+
+  /// No description provided for @systemMessage_userChangedPicture_suffix.
+  ///
+  /// In en, this message translates to:
+  /// **''**
+  String get systemMessage_userChangedPicture_suffix;
+
   /// No description provided for @timestamp_now.
   ///
   /// In en, this message translates to:

@@ -14,7 +14,6 @@ use aircommon::{
             UserProfileKeyUpdateParams, WelcomeBundle,
         },
     },
-    mls_group_config::GROUP_DATA_EXTENSION_TYPE,
     time::TimeStamp,
     utils::removed_client,
 };
@@ -27,7 +26,7 @@ use mimi_room_policy::RoleIndex;
 use openmls::{
     group::QueuedProposal,
     prelude::{
-        ApplicationMessage, MlsMessageBodyIn, MlsMessageIn, ProcessedMessageContent, Proposal,
+        ApplicationMessage, MlsMessageBodyIn, MlsMessageIn, ProcessedMessageContent,
         ProtocolMessage, Sender,
     },
 };
@@ -41,6 +40,7 @@ use crate::{
     clients::{
         QsListenResponder,
         block_contact::{BlockedContact, BlockedContactError},
+        update_key::update_chat_attributes,
     },
     contacts::HandleContact,
     groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
@@ -555,41 +555,7 @@ impl CoreUser {
 
         let mut group_messages = Vec::new();
 
-        // StagedCommitMessage Phase 2: Update the chat attributes if necessary.
-        for proposal in staged_commit.queued_proposals() {
-            if let Proposal::GroupContextExtensions(extensions) = proposal.proposal()
-                && let Some(ext) = extensions.extensions().unknown(GROUP_DATA_EXTENSION_TYPE)
-            {
-                let sender_id = match sender {
-                    Sender::Member(index) => group
-                        .client_by_index(txn.as_mut(), *index)
-                        .await
-                        .context("No sender found")?,
-                    _ => bail!("External senders can't update the title"),
-                };
-                let new_chat_attributes: ChatAttributes = PersistenceCodec::from_slice(&ext.0)?;
-                let new_title = new_chat_attributes.title;
-                if chat.attributes.title != new_title {
-                    chat.set_title(txn.as_mut(), &mut notifier, new_title.clone())
-                        .await?;
-                    let system_message = SystemMessage::ChangeTitle(sender_id.clone(), new_title);
-                    let group_message =
-                        TimestampedMessage::system_message(system_message, ds_timestamp);
-                    group_messages.push(group_message);
-                }
-                if chat.attributes.picture != new_chat_attributes.picture {
-                    chat.set_picture(txn.as_mut(), &mut notifier, new_chat_attributes.picture)
-                        .await?;
-                    let system_message = SystemMessage::ChangePicture(sender_id);
-                    let group_message =
-                        TimestampedMessage::system_message(system_message, ds_timestamp);
-                    group_messages.push(group_message);
-                }
-                break;
-            }
-        }
-
-        // StagedCommitMessage Phase 3: Merge the staged commit into the group.
+        // StagedCommitMessage Phase 2: Merge the staged commit into the group.
 
         // If we were removed, we set the group to inactive.
         if we_were_removed {
@@ -597,11 +563,25 @@ impl CoreUser {
             chat.set_inactive(txn.as_mut(), &mut notifier, past_members)
                 .await?;
         }
-        let messages_from_commit = group
+        let (messages_from_commit, group_data) = group
             .merge_pending_commit(txn, staged_commit, ds_timestamp)
             .await?;
 
         group_messages.extend(messages_from_commit);
+
+        if let Some(group_data) = group_data {
+            // Update chat attributes according to new group data
+            let updated_messages = update_chat_attributes(
+                txn,
+                &mut notifier,
+                &mut chat,
+                sender_client_credential.identity().clone(),
+                group_data,
+                ds_timestamp,
+            )
+            .await?;
+            group_messages.extend(updated_messages);
+        }
 
         notifier.notify();
 

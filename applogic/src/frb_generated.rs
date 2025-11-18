@@ -8801,7 +8801,10 @@ impl SseDecode for crate::api::types::UiSystemMessage {
             2 => {
                 let mut var_field0 = <crate::api::types::UiUserId>::sse_decode(deserializer);
                 let mut var_field1 = <String>::sse_decode(deserializer);
-                return crate::api::types::UiSystemMessage::ChangeTitle(var_field0, var_field1);
+                let mut var_field2 = <String>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::ChangeTitle(
+                    var_field0, var_field1, var_field2,
+                );
             }
             3 => {
                 let mut var_field0 = <crate::api::types::UiUserId>::sse_decode(deserializer);
@@ -10516,10 +10519,11 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
                 field1.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::api::types::UiSystemMessage::ChangeTitle(field0, field1) => [
+            crate::api::types::UiSystemMessage::ChangeTitle(field0, field1, field2) => [
                 2.into_dart(),
                 field0.into_into_dart().into_dart(),
                 field1.into_into_dart().into_dart(),
+                field2.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::api::types::UiSystemMessage::ChangePicture(field0) => {
@@ -12180,10 +12184,11 @@ impl SseEncode for crate::api::types::UiSystemMessage {
                 <crate::api::types::UiUserId>::sse_encode(field0, serializer);
                 <crate::api::types::UiUserId>::sse_encode(field1, serializer);
             }
-            crate::api::types::UiSystemMessage::ChangeTitle(field0, field1) => {
+            crate::api::types::UiSystemMessage::ChangeTitle(field0, field1, field2) => {
                 <i32>::sse_encode(2, serializer);
                 <crate::api::types::UiUserId>::sse_encode(field0, serializer);
                 <String>::sse_encode(field1, serializer);
+                <String>::sse_encode(field2, serializer);
             }
             crate::api::types::UiSystemMessage::ChangePicture(field0) => {
                 <i32>::sse_encode(3, serializer);

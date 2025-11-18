@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/theme/theme.dart';
@@ -11,6 +9,9 @@ import 'package:air/ui/colors/palette.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/users_cubit.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
 import 'timestamp.dart';
 
 class DisplayMessageTile extends StatefulWidget {
@@ -54,29 +55,91 @@ class SystemMessageContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final (user1, user2, prefix, infix, suffix) = switch (message) {
-      UiSystemMessage_Add(:final field0, :final field1) => (
-        context.select((UsersCubit c) => c.state.profile(userId: field0)),
-        context.select((UsersCubit c) => c.state.profile(userId: field1)),
-        loc.systemMessage_userAddedUser_prefix,
-        loc.systemMessage_userAddedUser_infix,
-        loc.systemMessage_userAddedUser_suffix,
-      ),
-      UiSystemMessage_Remove(:final field0, :final field1) => (
-        context.select((UsersCubit c) => c.state.profile(userId: field0)),
-        context.select((UsersCubit c) => c.state.profile(userId: field1)),
-        loc.systemMessage_userRemovedUser_prefix,
-        loc.systemMessage_userRemovedUser_infix,
-        loc.systemMessage_userRemovedUser_suffix,
-      ),
-    };
-
     final textStyle = TextStyle(
       color: CustomColorScheme.of(context).text.tertiary,
       fontSize: LabelFontSize.small1.size,
     );
 
     final profileNameStyle = textStyle.copyWith(fontWeight: FontWeight.bold);
+
+    final messageText = switch (message) {
+      UiSystemMessage_Add(:final field0, :final field1) => RichText(
+        text: TextSpan(
+          style: textStyle,
+          children: [
+            TextSpan(
+              text: context.select(
+                (UsersCubit c) => c.state.profile(userId: field0).displayName,
+              ),
+              style: profileNameStyle,
+            ),
+            TextSpan(text: loc.systemMessage_userAddedUser_infix),
+            TextSpan(
+              text: context.select(
+                (UsersCubit c) => c.state.profile(userId: field1).displayName,
+              ),
+              style: profileNameStyle,
+            ),
+          ],
+        ),
+      ),
+      UiSystemMessage_Remove(:final field0, :final field1) => RichText(
+        text: TextSpan(
+          style: textStyle,
+          children: [
+            TextSpan(
+              text: context.select(
+                (UsersCubit c) => c.state.profile(userId: field0).displayName,
+              ),
+              style: profileNameStyle,
+            ),
+            TextSpan(text: loc.systemMessage_userRemovedUser_infix),
+            TextSpan(
+              text: context.select(
+                (UsersCubit c) => c.state.profile(userId: field1).displayName,
+              ),
+              style: profileNameStyle,
+            ),
+          ],
+        ),
+      ),
+      UiSystemMessage_ChangeTitle(
+        :final field0,
+        :final field1,
+        :final field2,
+      ) =>
+        RichText(
+          text: TextSpan(
+            style: textStyle,
+            children: [
+              TextSpan(
+                text: context.select(
+                  (UsersCubit c) => c.state.profile(userId: field0).displayName,
+                ),
+                style: profileNameStyle,
+              ),
+              TextSpan(text: loc.systemMessage_userChangedTitle_infix_1),
+              TextSpan(text: field1, style: profileNameStyle),
+              TextSpan(text: loc.systemMessage_userChangedTitle_infix_2),
+              TextSpan(text: field2, style: profileNameStyle),
+            ],
+          ),
+        ),
+      UiSystemMessage_ChangePicture(:final field0) => RichText(
+        text: TextSpan(
+          style: textStyle,
+          children: [
+            TextSpan(
+              text: context.select(
+                (UsersCubit c) => c.state.profile(userId: field0).displayName,
+              ),
+              style: profileNameStyle,
+            ),
+            TextSpan(text: loc.systemMessage_userChangedPicture_infix),
+          ],
+        ),
+      ),
+    };
 
     return Center(
       child: Container(
@@ -91,18 +154,7 @@ class SystemMessageContent extends StatelessWidget {
           horizontal: Spacings.s,
           vertical: Spacings.xs,
         ),
-        child: RichText(
-          text: TextSpan(
-            style: textStyle,
-            children: [
-              if (prefix.isNotEmpty) TextSpan(text: prefix),
-              TextSpan(text: user1.displayName, style: profileNameStyle),
-              if (infix.isNotEmpty) TextSpan(text: infix),
-              TextSpan(text: user2.displayName, style: profileNameStyle),
-              if (suffix.isNotEmpty) TextSpan(text: suffix),
-            ],
-          ),
-        ),
+        child: messageText,
       ),
     );
   }

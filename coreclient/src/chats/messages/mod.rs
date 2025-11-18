@@ -443,7 +443,11 @@ pub enum SystemMessage {
     // The first UserName is the adder/remover the second is the added/removed.
     Add(UserId, UserId),
     Remove(UserId, UserId),
-    ChangeTitle(UserId, String),
+    ChangeTitle {
+        user_id: UserId,
+        old_title: String,
+        new_title: String,
+    },
     ChangePicture(UserId),
 }
 
@@ -460,9 +464,15 @@ impl SystemMessage {
                 let removed_display_name = store.user_profile(removed).await.display_name;
                 format!("{remover_display_name} removed {removed_display_name} from the chat")
             }
-            SystemMessage::ChangeTitle(user_id, new_title) => {
+            SystemMessage::ChangeTitle {
+                user_id,
+                old_title,
+                new_title,
+            } => {
                 let user_display_name = store.user_profile(user_id).await.display_name;
-                format!("{user_display_name} changed the group name to \"{new_title}\"")
+                format!(
+                    "{user_display_name} changed the group name from \"{old_title}\" to \"{new_title}\""
+                )
             }
             SystemMessage::ChangePicture(user_id) => {
                 let user_display_name = store.user_profile(user_id).await.display_name;

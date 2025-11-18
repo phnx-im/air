@@ -1521,11 +1521,12 @@ as UiUserId,
 
 
 class UiSystemMessage_ChangeTitle extends UiSystemMessage {
-  const UiSystemMessage_ChangeTitle(this.field0, this.field1): super._();
+  const UiSystemMessage_ChangeTitle(this.field0, this.field1, this.field2): super._();
   
 
 @override final  UiUserId field0;
  final  String field1;
+ final  String field2;
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
@@ -1537,16 +1538,16 @@ $UiSystemMessage_ChangeTitleCopyWith<UiSystemMessage_ChangeTitle> get copyWith =
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ChangeTitle&&(identical(other.field0, field0) || other.field0 == field0)&&(identical(other.field1, field1) || other.field1 == field1));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ChangeTitle&&(identical(other.field0, field0) || other.field0 == field0)&&(identical(other.field1, field1) || other.field1 == field1)&&(identical(other.field2, field2) || other.field2 == field2));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0,field1);
+int get hashCode => Object.hash(runtimeType,field0,field1,field2);
 
 @override
 String toString() {
-  return 'UiSystemMessage.changeTitle(field0: $field0, field1: $field1)';
+  return 'UiSystemMessage.changeTitle(field0: $field0, field1: $field1, field2: $field2)';
 }
 
 
@@ -1557,7 +1558,7 @@ abstract mixin class $UiSystemMessage_ChangeTitleCopyWith<$Res> implements $UiSy
   factory $UiSystemMessage_ChangeTitleCopyWith(UiSystemMessage_ChangeTitle value, $Res Function(UiSystemMessage_ChangeTitle) _then) = _$UiSystemMessage_ChangeTitleCopyWithImpl;
 @override @useResult
 $Res call({
- UiUserId field0, String field1
+ UiUserId field0, String field1, String field2
 });
 
 
@@ -1574,10 +1575,11 @@ class _$UiSystemMessage_ChangeTitleCopyWithImpl<$Res>
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? field0 = null,Object? field1 = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? field0 = null,Object? field1 = null,Object? field2 = null,}) {
   return _then(UiSystemMessage_ChangeTitle(
 null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
 as UiUserId,null == field1 ? _self.field1 : field1 // ignore: cast_nullable_to_non_nullable
+as String,null == field2 ? _self.field2 : field2 // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }

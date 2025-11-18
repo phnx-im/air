@@ -7756,6 +7756,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiSystemMessage_ChangeTitle(
           dco_decode_box_autoadd_ui_user_id(raw[1]),
           dco_decode_String(raw[2]),
+          dco_decode_String(raw[3]),
         );
       case 3:
         return UiSystemMessage_ChangePicture(
@@ -10059,7 +10060,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 2:
         var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
         var var_field1 = sse_decode_String(deserializer);
-        return UiSystemMessage_ChangeTitle(var_field0, var_field1);
+        var var_field2 = sse_decode_String(deserializer);
+        return UiSystemMessage_ChangeTitle(var_field0, var_field1, var_field2);
       case 3:
         var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
         return UiSystemMessage_ChangePicture(var_field0);
@@ -12515,10 +12517,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case UiSystemMessage_ChangeTitle(
         field0: final field0,
         field1: final field1,
+        field2: final field2,
       ):
         sse_encode_i_32(2, serializer);
         sse_encode_box_autoadd_ui_user_id(field0, serializer);
         sse_encode_String(field1, serializer);
+        sse_encode_String(field2, serializer);
       case UiSystemMessage_ChangePicture(field0: final field0):
         sse_encode_i_32(3, serializer);
         sse_encode_box_autoadd_ui_user_id(field0, serializer);

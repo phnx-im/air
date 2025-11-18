@@ -81,8 +81,8 @@ use openmls::{
     prelude::{
         BasicCredentialError, CredentialWithKey, Extension, Extensions, GroupId, KeyPackage,
         LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
-        OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, ProposalType,
-        ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
+        OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal,
+        ProposalType, ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
         UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
@@ -140,6 +140,18 @@ pub(crate) struct GroupData {
 impl GroupData {
     pub(crate) fn bytes(&self) -> &[u8] {
         &self.bytes
+    }
+
+    fn from_staged_commit(staged_commit: &StagedCommit) -> Option<Self> {
+        staged_commit.queued_proposals().find_map(|p| {
+            if let Proposal::GroupContextExtensions(extensions) = p.proposal()
+                && let Some(ext) = extensions.extensions().unknown(GROUP_DATA_EXTENSION_TYPE)
+            {
+                Some(GroupData::from(ext.0.clone()))
+            } else {
+                None
+            }
+        })
     }
 }
 
@@ -782,16 +794,19 @@ impl Group {
     /// If a [`StagedCommit`] is given, merge it and apply the pending group
     /// diff. If no [`StagedCommit`] is given, merge any pending commit and
     /// apply the pending group diff.
+    ///
+    /// Returns the messages resulting from the commit and any group data
+    /// extracted from the staged commit.
     pub(super) async fn merge_pending_commit(
         &mut self,
         connection: &mut sqlx::SqliteConnection,
         staged_commit_option: impl Into<Option<StagedCommit>>,
         ds_timestamp: TimeStamp,
-    ) -> Result<Vec<TimestampedMessage>> {
+    ) -> Result<(Vec<TimestampedMessage>, Option<GroupData>)> {
         let free_indices = GroupMembership::free_indices(&mut *connection, self.group_id()).await?;
         let staged_commit_option: Option<StagedCommit> = staged_commit_option.into();
 
-        let event_messages = if let Some(staged_commit) = staged_commit_option {
+        let (event_messages, group_data) = if let Some(staged_commit) = staged_commit_option {
             // Compute the messages we want to emit from the staged commit and the
             // client info diff.
             let staged_commit_messages = TimestampedMessage::from_staged_commit(
@@ -803,30 +818,34 @@ impl Group {
             )
             .await?;
 
+            let group_data = GroupData::from_staged_commit(&staged_commit);
+
             let provider = AirOpenMlsProvider::new(&mut *connection);
             self.mls_group
                 .merge_staged_commit(&provider, staged_commit)?;
-            staged_commit_messages
+            (staged_commit_messages, group_data)
         } else {
             // If we're merging a pending commit, we need to check if we have
             // committed a remove proposal by reference. If we have, we need to
             // create a notification message.
-            let staged_commit_messages =
+            let (staged_commit_messages, group_data) =
                 if let Some(staged_commit) = self.mls_group.pending_commit() {
-                    TimestampedMessage::from_staged_commit(
+                    let group_data = GroupData::from_staged_commit(&staged_commit);
+                    let messages = TimestampedMessage::from_staged_commit(
                         &mut *connection,
                         self.group_id(),
                         free_indices,
                         staged_commit,
                         ds_timestamp,
                     )
-                    .await?
+                    .await?;
+                    (messages, group_data)
                 } else {
-                    vec![]
+                    (vec![], None)
                 };
             let provider = AirOpenMlsProvider::new(&mut *connection);
             self.mls_group.merge_pending_commit(&provider)?;
-            staged_commit_messages
+            (staged_commit_messages, group_data)
         };
 
         // We now apply the diff (if present)
@@ -867,7 +886,7 @@ impl Group {
                 debug_assert!(client_indices.contains(&index));
             });
         }
-        Ok(event_messages)
+        Ok((event_messages, group_data))
     }
 
     /// Send an application message to the group.

@@ -2,10 +2,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircommon::{codec::PersistenceCodec, identifiers::UserId, time::TimeStamp};
+use sqlx::SqliteConnection;
 use update_key_flow::UpdateKeyData;
 
 use crate::{
-    ChatAttributes, ChatId, ChatMessage,
+    Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage,
+    chats::messages::TimestampedMessage,
+    groups::GroupData,
+    store::StoreNotifier,
     utils::connection_ext::{ConnectionExt, StoreExt},
 };
 
@@ -50,9 +55,43 @@ impl CoreUser {
     }
 }
 
+pub(crate) async fn update_chat_attributes(
+    connection: &mut SqliteConnection,
+    notifier: &mut StoreNotifier,
+    chat: &mut Chat,
+    sender_id: UserId,
+    group_data: GroupData,
+    ds_timestamp: TimeStamp,
+) -> anyhow::Result<Vec<TimestampedMessage>> {
+    let mut group_messages = Vec::new();
+    let new_chat_attributes: ChatAttributes = PersistenceCodec::from_slice(group_data.bytes())?;
+    let new_title = new_chat_attributes.title;
+    let old_title = chat.attributes.title.clone();
+    if chat.attributes.title != new_title {
+        chat.set_title(&mut *connection, notifier, new_title.clone())
+            .await?;
+        let system_message = SystemMessage::ChangeTitle {
+            user_id: sender_id.clone(),
+            old_title,
+            new_title,
+        };
+        let group_message = TimestampedMessage::system_message(system_message, ds_timestamp);
+        group_messages.push(group_message);
+    }
+    if chat.attributes.picture != new_chat_attributes.picture {
+        chat.set_picture(connection, notifier, new_chat_attributes.picture)
+            .await?;
+        let system_message = SystemMessage::ChangePicture(sender_id);
+        let group_message = TimestampedMessage::system_message(system_message, ds_timestamp);
+        group_messages.push(group_message);
+    }
+
+    Ok(group_messages)
+}
+
 mod update_key_flow {
     use aircommon::{
-        codec::PersistenceCodec, credentials::keys::ClientSigningKey,
+        codec::PersistenceCodec, credentials::keys::ClientSigningKey, identifiers::UserId,
         messages::client_ds_out::UpdateParamsOut, time::TimeStamp,
     };
     use anyhow::Context;
@@ -60,7 +99,7 @@ mod update_key_flow {
 
     use crate::{
         Chat, ChatAttributes, ChatId, ChatMessage,
-        clients::{CoreUser, api_clients::ApiClients},
+        clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
         groups::{Group, GroupData},
     };
 
@@ -113,14 +152,18 @@ mod update_key_flow {
                 .await?;
             Ok(UpdatedKey {
                 group,
+                chat,
                 ds_timestamp,
+                own_id: signer.credential().identity().clone(),
             })
         }
     }
 
     pub(super) struct UpdatedKey {
         group: Group,
+        chat: Chat,
         ds_timestamp: TimeStamp,
+        own_id: UserId,
     }
     impl UpdatedKey {
         pub(crate) async fn merge_pending_commit(
@@ -131,11 +174,27 @@ mod update_key_flow {
         ) -> anyhow::Result<Vec<ChatMessage>> {
             let Self {
                 mut group,
+                mut chat,
                 ds_timestamp,
+                own_id,
             } = self;
-            let group_messages = group
+            let (mut group_messages, group_data) = group
                 .merge_pending_commit(&mut *connection, None, ds_timestamp)
                 .await?;
+
+            if let Some(group_data) = group_data {
+                let attribute_messages = update_chat_attributes(
+                    connection,
+                    notifier,
+                    &mut chat,
+                    own_id,
+                    group_data,
+                    ds_timestamp,
+                )
+                .await?;
+                group_messages.extend(attribute_messages);
+            }
+
             group.store_update(&mut *connection).await?;
             CoreUser::store_new_messages(&mut *connection, notifier, chat_id, group_messages).await
         }
