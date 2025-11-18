@@ -370,12 +370,6 @@ abstract class AppLocalizations {
   /// **'Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.'**
   String get signUpScreen_subheader;
 
-  /// No description provided for @usernameOnboarding_title.
-  ///
-  /// In en, this message translates to:
-  /// **'Welcome to Air'**
-  String get usernameOnboarding_title;
-
   /// No description provided for @usernameOnboarding_header.
   ///
   /// In en, this message translates to:

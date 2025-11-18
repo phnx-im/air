@@ -169,9 +169,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.';
 
   @override
-  String get usernameOnboarding_title => 'Welcome to Air';
-
-  @override
   String get usernameOnboarding_header => 'Add a username';
 
   @override
