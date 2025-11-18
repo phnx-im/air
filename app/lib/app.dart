@@ -112,10 +112,8 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         ),
         BlocProvider<LoadableUserCubit>(
           // loads the user on startup
-          create:
-              (context) => LoadableUserCubit(
-                (_coreClient..loadDefaultUser()).userStream,
-              ),
+          create: (context) =>
+              LoadableUserCubit((_coreClient..loadDefaultUser()).userStream),
           lazy: false, // immediately try to load the user
         ),
         BlocProvider<UserSettingsCubit>(
@@ -131,11 +129,10 @@ class _AppState extends State<App> with WidgetsBindingObserver {
           theme: lightTheme,
           darkTheme: darkTheme,
           routerConfig: _appRouter,
-          builder:
-              (context, router) => LoadableUserCubitProvider(
-                appStateController: _appStateController,
-                child: router!,
-              ),
+          builder: (context, router) => LoadableUserCubitProvider(
+            appStateController: _appStateController,
+            child: router!,
+          ),
         ),
       ),
     );
@@ -179,51 +176,44 @@ class LoadableUserCubitProvider extends StatelessWidget {
             context.read<UserSettingsCubit>().reset();
         }
       },
-      builder:
-          (context, loadableUser) =>
-              loadableUser.user == null
-                  ? child
-                  : MultiBlocProvider(
-                    providers: [
-                      // Logged-in user and contacts are accessible everywhere inside the app after
-                      // the user is loaded.
-                      BlocProvider<UserCubit>(
-                        create:
-                            (context) => UserCubit(
-                              coreClient: context.read<CoreClient>(),
-                              navigationCubit: context.read<NavigationCubit>(),
-                              appStateStream: appStateController.stream,
-                            ),
-                      ),
-                      BlocProvider<UsersCubit>(
-                        create:
-                            (context) => UsersCubit(
-                              userCubit: context.read<UserCubit>(),
-                            ),
-                      ),
-                    ],
-                    child: MultiRepositoryProvider(
-                      providers: [
-                        RepositoryProvider<AttachmentsRepository>(
-                          create:
-                              (context) => AttachmentsRepository(
-                                userCubit: context.read<UserCubit>().impl,
-                              ),
-                          // immediately download pending attachments
-                          lazy: false,
-                        ),
-                        RepositoryProvider<ChatsRepository>(
-                          create:
-                              (context) => ChatsRepository(
-                                userCubit: context.read<UserCubit>().impl,
-                              ),
-                          // immediately cache chats
-                          lazy: false,
-                        ),
-                      ],
-                      child: child,
-                    ),
+      builder: (context, loadableUser) => loadableUser.user == null
+          ? child
+          : MultiBlocProvider(
+              providers: [
+                // Logged-in user and contacts are accessible everywhere inside the app after
+                // the user is loaded.
+                BlocProvider<UserCubit>(
+                  create: (context) => UserCubit(
+                    coreClient: context.read<CoreClient>(),
+                    navigationCubit: context.read<NavigationCubit>(),
+                    appStateStream: appStateController.stream,
                   ),
+                ),
+                BlocProvider<UsersCubit>(
+                  create: (context) =>
+                      UsersCubit(userCubit: context.read<UserCubit>()),
+                ),
+              ],
+              child: MultiRepositoryProvider(
+                providers: [
+                  RepositoryProvider<AttachmentsRepository>(
+                    create: (context) => AttachmentsRepository(
+                      userCubit: context.read<UserCubit>().impl,
+                    ),
+                    // immediately download pending attachments
+                    lazy: false,
+                  ),
+                  RepositoryProvider<ChatsRepository>(
+                    create: (context) => ChatsRepository(
+                      userCubit: context.read<UserCubit>().impl,
+                    ),
+                    // immediately cache chats
+                    lazy: false,
+                  ),
+                ],
+                child: child,
+              ),
+            ),
     );
   }
 }

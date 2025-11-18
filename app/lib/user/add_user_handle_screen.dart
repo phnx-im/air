@@ -39,8 +39,9 @@ class AddUserHandleScreen extends HookWidget {
         child: Align(
           alignment: Alignment.topCenter,
           child: Container(
-            constraints:
-                isPointer() ? const BoxConstraints(maxWidth: 800) : null,
+            constraints: isPointer()
+                ? const BoxConstraints(maxWidth: 800)
+                : null,
             padding: const EdgeInsets.all(Spacings.s),
             child: Form(
               key: formKey,
@@ -59,8 +60,8 @@ class AddUserHandleScreen extends HookWidget {
                     ),
                     // Temporary strict enforcement until legacy underscores are fully removed.
                     inputFormatters: const [UserHandleInputFormatter()],
-                    validator:
-                        (value) => _validate(loc, userHandleExists, value),
+                    validator: (value) =>
+                        _validate(loc, userHandleExists, value),
                     onChanged: (_) {
                       if (userHandleExists.value) {
                         userHandleExists.value = false;
@@ -93,23 +94,21 @@ class AddUserHandleScreen extends HookWidget {
                   ),
                   const Spacer(),
                   OutlinedButton(
-                    onPressed:
-                        () => _submit(
-                          context,
-                          formKey,
-                          controller,
-                          userHandleExists,
-                          isSubmitting,
-                        ),
-                    child:
-                        !isSubmitting.value
-                            ? Text(loc.userHandleScreen_save)
-                            : CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                CustomColorScheme.of(context).text.secondary,
-                              ),
-                              backgroundColor: Colors.transparent,
+                    onPressed: () => _submit(
+                      context,
+                      formKey,
+                      controller,
+                      userHandleExists,
+                      isSubmitting,
+                    ),
+                    child: !isSubmitting.value
+                        ? Text(loc.userHandleScreen_save)
+                        : CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              CustomColorScheme.of(context).text.secondary,
                             ),
+                            backgroundColor: Colors.transparent,
+                          ),
                   ),
                 ],
               ),

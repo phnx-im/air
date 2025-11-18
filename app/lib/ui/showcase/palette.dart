@@ -31,49 +31,47 @@ class PaletteShowcase extends StatelessWidget {
           Wrap(
             spacing: 12,
             runSpacing: 12,
-            children:
-                shades.map((shade) {
-                  final color = swatch[shade]!;
-                  final textColor =
-                      color.computeLuminance() > 0.5
-                          ? Colors.black
-                          : Colors.white;
-                  return Tooltip(
-                    message: 'Copy value',
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: GestureDetector(
-                        onTap: () {
-                          Clipboard.setData(
-                            ClipboardData(
-                              text:
-                                  '#${color.toARGB32().toRadixString(16).padLeft(8, '0').toUpperCase()}',
-                            ),
-                          );
-                        },
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          alignment: Alignment.bottomLeft,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(4),
-                            color: color,
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            child: Text(
-                              shade.toString(),
-                              style: TextStyle(fontSize: 8, color: textColor),
-                            ),
-                          ),
+            children: shades.map((shade) {
+              final color = swatch[shade]!;
+              final textColor = color.computeLuminance() > 0.5
+                  ? Colors.black
+                  : Colors.white;
+              return Tooltip(
+                message: 'Copy value',
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: () {
+                      Clipboard.setData(
+                        ClipboardData(
+                          text:
+                              '#${color.toARGB32().toRadixString(16).padLeft(8, '0').toUpperCase()}',
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      alignment: Alignment.bottomLeft,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(4),
+                        color: color,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        child: Text(
+                          shade.toString(),
+                          style: TextStyle(fontSize: 8, color: textColor),
                         ),
                       ),
                     ),
-                  );
-                }).toList(),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
           const SizedBox(height: 16),
         ],

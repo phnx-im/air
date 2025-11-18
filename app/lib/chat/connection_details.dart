@@ -64,13 +64,13 @@ class ConnectionDetails extends StatelessWidget {
 
           isBlocked
               ? UnblockContactButton(
-                userId: profile.userId,
-                displayName: profile.displayName,
-              )
+                  userId: profile.userId,
+                  displayName: profile.displayName,
+                )
               : BlockContactButton(
-                userId: profile.userId,
-                displayName: profile.displayName,
-              ),
+                  userId: profile.userId,
+                  displayName: profile.displayName,
+                ),
           const SizedBox(height: Spacings.s),
 
           DeleteContactButton(
