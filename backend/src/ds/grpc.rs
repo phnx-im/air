@@ -1049,6 +1049,13 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
         Ok(self.ds.get_attachment_url(attachment_id).await?)
     }
+
+    async fn targeted_message(
+        &self,
+        request: Request<TargetedMessageRequest>,
+    ) -> Result<Response<TargetedMessageResponse>, Status> {
+        todo!()
+    }
 }
 
 #[derive(Debug, Error)]

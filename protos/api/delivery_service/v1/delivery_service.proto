@@ -32,6 +32,9 @@ service DeliveryService {
 
   rpc GroupOperation(GroupOperationRequest) returns (GroupOperationResponse);
 
+  // Sends a message to a member of a given group (and only to that member).
+  rpc TargetedMessage(TargetedMessageRequest) returns (TargetedMessageResponse);
+
   rpc UpdateProfileKey(UpdateProfileKeyRequest) returns (UpdateProfileKeyResponse);
 
   // Generates an attachment ID and returns a pre-signed URL for uploading an attachment.
@@ -281,6 +284,35 @@ message EncryptedWelcomeAttributionInfo {
 }
 
 message GroupOperationResponse {
+  common.v1.Timestamp fanout_timestamp = 1;
+}
+
+// targeted messages
+
+message TargetedMessageRequest {
+  TargetedMessagePayload payload = 1;
+  common.v1.Signature signature = 2;
+}
+
+message TargetedMessagePayload {
+  GroupStateEarKey group_state_ear_key = 1;
+  LeafNodeIndex sender = 2;
+  TargetedMessage message = 3;
+}
+
+message TargetedMessage {
+  oneof message_type {
+    TargetedApplicationMessage request = 1;
+  }
+}
+
+// This is meant to be replaced later after we implement MLS's targeted message
+// feature
+message TargetedApplicationMessage {
+  AssistedMessage message = 1;
+}
+
+message TargetedMessageResponse {
   common.v1.Timestamp fanout_timestamp = 1;
 }
 
