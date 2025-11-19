@@ -173,6 +173,17 @@ impl Chat {
         Ok(())
     }
 
+    pub(crate) async fn set_title(
+        &mut self,
+        executor: impl SqliteExecutor<'_>,
+        notifier: &mut StoreNotifier,
+        title: String,
+    ) -> sqlx::Result<()> {
+        Self::update_title(executor, notifier, self.id, &title).await?;
+        self.attributes.set_title(title);
+        Ok(())
+    }
+
     pub(crate) async fn set_inactive(
         &mut self,
         executor: &mut SqliteConnection,
@@ -240,8 +251,8 @@ pub enum ChatType {
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ChatAttributes {
-    title: String,
-    picture: Option<Vec<u8>>,
+    pub title: String,
+    pub picture: Option<Vec<u8>>,
 }
 
 impl ChatAttributes {

@@ -340,6 +340,8 @@ impl From<EventMessage> for UiEventMessage {
 pub enum UiSystemMessage {
     Add(UiUserId, UiUserId),
     Remove(UiUserId, UiUserId),
+    ChangeTitle(UiUserId, String, String),
+    ChangePicture(UiUserId),
 }
 
 impl From<SystemMessage> for UiSystemMessage {
@@ -351,6 +353,12 @@ impl From<SystemMessage> for UiSystemMessage {
             SystemMessage::Remove(user_id, contact_id) => {
                 UiSystemMessage::Remove(user_id.into(), contact_id.into())
             }
+            SystemMessage::ChangeTitle {
+                user_id,
+                old_title,
+                new_title,
+            } => UiSystemMessage::ChangeTitle(user_id.into(), old_title, new_title),
+            SystemMessage::ChangePicture(user_id) => UiSystemMessage::ChangePicture(user_id.into()),
         }
     }
 }
