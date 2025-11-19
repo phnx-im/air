@@ -250,9 +250,8 @@ class TextAutocompleteController<T> {
       offset: offset,
       suggestions: results,
       style: style,
-      itemBuilder:
-          (ctx, item, isHighlighted) =>
-              _strategy.buildSuggestionItem(ctx, item, isHighlighted),
+      itemBuilder: (ctx, item, isHighlighted) =>
+          _strategy.buildSuggestionItem(ctx, item, isHighlighted),
       onSelected: _applySuggestion,
     );
   }
@@ -303,8 +302,8 @@ class TextAutocompleteController<T> {
     if (focusContext == null) {
       return null;
     }
-    final editableState =
-        focusContext.findAncestorStateOfType<EditableTextState>();
+    final editableState = focusContext
+        .findAncestorStateOfType<EditableTextState>();
     return editableState?.renderEditable;
   }
 }

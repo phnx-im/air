@@ -32,13 +32,12 @@ class ProgressButton extends HookWidget {
 
     return OutlinedButton(
       style: style,
-      onPressed:
-          onPressed != null && !inProgress.value
-              ? () {
-                inProgress.value = true;
-                onPressed!(inProgress);
-              }
-              : null,
+      onPressed: onPressed != null && !inProgress.value
+          ? () {
+              inProgress.value = true;
+              onPressed!(inProgress);
+            }
+          : null,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

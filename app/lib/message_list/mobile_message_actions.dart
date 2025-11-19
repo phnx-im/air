@@ -37,8 +37,8 @@ Future<void> showMobileMessageActions({
     barrierColor: Colors.transparent,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     transitionDuration: const Duration(milliseconds: 250),
-    pageBuilder:
-        (context, animation, secondaryAnimation) => const SizedBox.shrink(),
+    pageBuilder: (context, animation, secondaryAnimation) =>
+        const SizedBox.shrink(),
     transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
       final curvedAnimation = CurvedAnimation(
         parent: animation,
@@ -94,8 +94,9 @@ class _MobileMessageActionView extends StatelessWidget {
     double clampedStartTop = anchorRect.top.clamp(safeTop, maxTop);
     final double startLeft = anchorRect.left;
 
-    final double sheetHeight =
-        actions.isEmpty ? 0.0 : actions.length * _mobileActionRowHeight;
+    final double sheetHeight = actions.isEmpty
+        ? 0.0
+        : actions.length * _mobileActionRowHeight;
 
     double targetTop = clampedStartTop;
     double finalSheetTop = targetTop + messageHeight + gap;
@@ -151,8 +152,11 @@ class _MobileMessageActionView extends StatelessWidget {
         final double left = targetLeft;
         final double width = messageWidth;
 
-        final double sheetTop =
-            lerpDouble(clampedStartSheetTop, clampedFinalSheetTop, eased)!;
+        final double sheetTop = lerpDouble(
+          clampedStartSheetTop,
+          clampedFinalSheetTop,
+          eased,
+        )!;
 
         return Stack(
           children: [
@@ -198,19 +202,18 @@ class _MobileContextMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items =
-        actions
-            .map(
-              (action) => ContextMenuItem(
-                label: action.label,
-                leading: action.leading,
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  action.onSelected();
-                },
-              ),
-            )
-            .toList();
+    final items = actions
+        .map(
+          (action) => ContextMenuItem(
+            label: action.label,
+            leading: action.leading,
+            onPressed: () {
+              Navigator.of(context).pop();
+              action.onSelected();
+            },
+          ),
+        )
+        .toList();
 
     final slideAnimation = animation.drive(
       Tween<Offset>(begin: const Offset(0, 0.12), end: Offset.zero),

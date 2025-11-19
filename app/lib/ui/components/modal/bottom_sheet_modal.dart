@@ -209,8 +209,9 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
     final contentPadding = basePadding.add(
       EdgeInsets.only(bottom: bottomPadding),
     );
-    final handleHitExtent =
-        widget.enableDrag ? _handleHeight + (_handleTopSpacing * 2) : 0.0;
+    final handleHitExtent = widget.enableDrag
+        ? _handleHeight + (_handleTopSpacing * 2)
+        : 0.0;
     var sheetMaxHeight = maxSheetHeight - handleHitExtent;
     if (sheetMaxHeight <= 0) {
       sheetMaxHeight = maxSheetHeight;
@@ -338,16 +339,15 @@ class BottomSheetDialogContent extends StatelessWidget {
     );
     final dangerBackground = colors.function.danger;
     final dangerForeground = colors.function.white;
-    final buttonStyle =
-        isPrimaryDanger
-            ? baseStyle.copyWith(
-              backgroundColor: WidgetStateProperty.all(dangerBackground),
-              foregroundColor: WidgetStateProperty.all(dangerForeground),
-              overlayColor: WidgetStateProperty.all(
-                dangerBackground.withValues(alpha: 0.9),
-              ),
-            )
-            : baseStyle;
+    final buttonStyle = isPrimaryDanger
+        ? baseStyle.copyWith(
+            backgroundColor: WidgetStateProperty.all(dangerBackground),
+            foregroundColor: WidgetStateProperty.all(dangerForeground),
+            overlayColor: WidgetStateProperty.all(
+              dangerBackground.withValues(alpha: 0.9),
+            ),
+          )
+        : baseStyle;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -416,16 +416,15 @@ Future<bool> showBottomSheetDialog({
 }) async {
   final result = await showBottomSheetModal<bool>(
     context: context,
-    builder:
-        (sheetContext) => BottomSheetDialogContent(
-          title: title,
-          description: description,
-          primaryActionText: primaryActionText,
-          onPrimaryAction: onPrimaryAction,
-          titleAlignment: titleAlignment,
-          descriptionAlignment: descriptionAlignment,
-          isPrimaryDanger: isPrimaryDanger,
-        ),
+    builder: (sheetContext) => BottomSheetDialogContent(
+      title: title,
+      description: description,
+      primaryActionText: primaryActionText,
+      onPrimaryAction: onPrimaryAction,
+      titleAlignment: titleAlignment,
+      descriptionAlignment: descriptionAlignment,
+      isPrimaryDanger: isPrimaryDanger,
+    ),
     maxHeight: maxHeight,
     maxHeightFraction: maxHeightFraction,
     contentPadding: contentPadding,

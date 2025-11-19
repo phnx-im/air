@@ -98,26 +98,14 @@ class LogsScreenView extends StatelessWidget {
           leading: const AppBarBackButton(),
           actions: [
             PopupMenuButton(
-              itemBuilder:
-                  (context) => [
-                    if (Platform.isLinux ||
-                        Platform.isMacOS ||
-                        Platform.isWindows)
-                      PopupMenuItem(
-                        onTap: _saveLogs,
-                        child: const Text('Save'),
-                      ),
-                    if (Platform.isAndroid || Platform.isIOS)
-                      PopupMenuItem(
-                        onTap: _shareLogs,
-                        child: const Text('Share'),
-                      ),
-                    PopupMenuItem(
-                      onTap: reloadLogs,
-                      child: const Text('Reload'),
-                    ),
-                    PopupMenuItem(onTap: clearLogs, child: const Text('Clear')),
-                  ],
+              itemBuilder: (context) => [
+                if (Platform.isLinux || Platform.isMacOS || Platform.isWindows)
+                  PopupMenuItem(onTap: _saveLogs, child: const Text('Save')),
+                if (Platform.isAndroid || Platform.isIOS)
+                  PopupMenuItem(onTap: _shareLogs, child: const Text('Share')),
+                PopupMenuItem(onTap: reloadLogs, child: const Text('Reload')),
+                PopupMenuItem(onTap: clearLogs, child: const Text('Clear')),
+              ],
             ),
           ],
         ),
@@ -126,7 +114,12 @@ class LogsScreenView extends StatelessWidget {
           right: false,
           top: false,
           bottom: true,
-          child: TabBar(tabs: [Tab(text: 'App'), Tab(text: 'Background')]),
+          child: TabBar(
+            tabs: [
+              Tab(text: 'App'),
+              Tab(text: 'Background'),
+            ],
+          ),
         ),
         body: SafeArea(
           child: Padding(

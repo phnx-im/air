@@ -194,19 +194,20 @@ MessageContent simpleMessage(String msg) {
 
 ChatDetailsCubitCreate createMockChatDetailsCubitFactory(
   List<UiChatDetails> chats,
-) => ({
-  required UserCubit userCubit,
-  required UserSettingsCubit userSettingsCubit,
-  required ChatId chatId,
-  required ChatsRepository chatsRepository,
-  bool withMembers = true,
-}) {
-  final chat = chats.firstWhere((chat) => chat.id == chatId);
-  final state = ChatDetailsState(chat: chat, members: []);
-  final cubit = MockChatDetailsCubit();
-  when(() => cubit.state).thenReturn(state);
-  return cubit;
-};
+) =>
+    ({
+      required UserCubit userCubit,
+      required UserSettingsCubit userSettingsCubit,
+      required ChatId chatId,
+      required ChatsRepository chatsRepository,
+      bool withMembers = true,
+    }) {
+      final chat = chats.firstWhere((chat) => chat.id == chatId);
+      final state = ChatDetailsState(chat: chat, members: []);
+      final cubit = MockChatDetailsCubit();
+      when(() => cubit.state).thenReturn(state);
+      return cubit;
+    };
 
 void main() {
   group('ChatListContent', () {

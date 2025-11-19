@@ -34,12 +34,10 @@ class Typescale extends StatelessWidget {
     addAll(BodyFontSize.values, 'Body', (b) => b.size, (b) => b.name);
     addAll(LabelFontSize.values, 'Label', (l) => l.size, (l) => l.name);
 
-    final entries =
-        grouped.entries.map((e) {
-            e.value.sort();
-            return _Entry(e.value, e.key);
-          }).toList()
-          ..sort((a, b) => b.size.compareTo(a.size));
+    final entries = grouped.entries.map((e) {
+      e.value.sort();
+      return _Entry(e.value, e.key);
+    }).toList()..sort((a, b) => b.size.compareTo(a.size));
 
     Widget row(_Entry e) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 16.0),
@@ -58,23 +56,21 @@ class Typescale extends StatelessWidget {
                 child: Text(
                   actualUiSize(e.size, context).toStringAsFixed(2),
                   softWrap: false,
-                  style:
-                      TextStyle(
-                        fontSize: LabelFontSize.base.size,
-                        color: CustomColorScheme.of(context).text.tertiary,
-                      ).withSystemMonospace(),
+                  style: TextStyle(
+                    fontSize: LabelFontSize.base.size,
+                    color: CustomColorScheme.of(context).text.tertiary,
+                  ).withSystemMonospace(),
                 ),
               ),
               Expanded(
                 child: Text(
                   e.labels.join(', '),
                   softWrap: false,
-                  style:
-                      TextStyle(
-                        fontSize: LabelFontSize.small2.size,
-                        color: CustomColorScheme.of(context).text.quaternary,
-                        fontWeight: FontWeight.w500,
-                      ).withSystemMonospace(),
+                  style: TextStyle(
+                    fontSize: LabelFontSize.small2.size,
+                    color: CustomColorScheme.of(context).text.quaternary,
+                    fontWeight: FontWeight.w500,
+                  ).withSystemMonospace(),
                 ),
               ),
             ],

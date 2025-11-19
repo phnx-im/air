@@ -43,9 +43,9 @@ class InterfaceScale extends StatelessWidget {
     return uiScalingFactor == 1.0
         ? wrappedChild
         : FractionallySizedBox(
-          widthFactor: 1 / uiScalingFactor,
-          heightFactor: 1 / uiScalingFactor,
-          child: Transform.scale(scale: uiScalingFactor, child: wrappedChild),
-        );
+            widthFactor: 1 / uiScalingFactor,
+            heightFactor: 1 / uiScalingFactor,
+            child: Transform.scale(scale: uiScalingFactor, child: wrappedChild),
+          );
   }
 }

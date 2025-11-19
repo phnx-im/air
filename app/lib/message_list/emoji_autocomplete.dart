@@ -38,10 +38,9 @@ class EmojiAutocompleteStrategy
     }
     final start = match.start;
     final fragment = untilCaret.substring(match.start + 1);
-    final trimmed =
-        fragment.endsWith(':')
-            ? fragment.substring(0, fragment.length - 1)
-            : fragment;
+    final trimmed = fragment.endsWith(':')
+        ? fragment.substring(0, fragment.length - 1)
+        : fragment;
     if (trimmed.isEmpty) {
       return null;
     }
@@ -111,8 +110,9 @@ class EmojiAutocompleteStrategy
     bool isHighlighted,
   ) {
     final scheme = CustomColorScheme.of(context);
-    final backgroundColor =
-        isHighlighted ? scheme.fill.primary : scheme.backgroundElevated.primary;
+    final backgroundColor = isHighlighted
+        ? scheme.fill.primary
+        : scheme.backgroundElevated.primary;
     return Container(
       color: backgroundColor,
       padding: const EdgeInsets.symmetric(

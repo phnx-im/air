@@ -25,14 +25,13 @@ class ShowcaseApp extends StatelessWidget {
       theme: buildThemeData(context),
       home: const ShowcaseHome(),
       debugShowCheckedModeBanner: false,
-      builder:
-          (context, child) => Stack(
-            fit: StackFit.expand,
-            children: [
-              if (child != null) child,
-              const GridOverlayInteractive(gridSize: 4),
-            ],
-          ),
+      builder: (context, child) => Stack(
+        fit: StackFit.expand,
+        children: [
+          if (child != null) child,
+          const GridOverlayInteractive(gridSize: 4),
+        ],
+      ),
     );
 
     // Add text scaling

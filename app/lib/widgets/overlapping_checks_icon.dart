@@ -24,13 +24,16 @@ class DoubleCheckIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final systemForegroundColor =
-        CustomColorScheme.of(context).message.selfBackground;
-    final systemBackgroundColor =
-        CustomColorScheme.of(context).message.selfText;
+    final systemForegroundColor = CustomColorScheme.of(
+      context,
+    ).message.selfBackground;
+    final systemBackgroundColor = CustomColorScheme.of(
+      context,
+    ).message.selfText;
     final color = inverted ? systemBackgroundColor : systemForegroundColor;
-    final backgroundColor =
-        inverted ? systemForegroundColor : systemBackgroundColor;
+    final backgroundColor = inverted
+        ? systemForegroundColor
+        : systemBackgroundColor;
 
     return SizedBox(
       width: singleCheckIcon ? size : size * 1.5,

@@ -39,23 +39,21 @@ class ChatScreen extends StatelessWidget {
         BlocProvider(
           // rebuilds the cubit when a different chat is selected
           key: ValueKey("message-list-cubit-$chatId"),
-          create:
-              (context) => ChatDetailsCubit(
-                userCubit: context.read<UserCubit>(),
-                userSettingsCubit: context.read<UserSettingsCubit>(),
-                chatId: chatId,
-                chatsRepository: context.read<ChatsRepository>(),
-                withMembers: false,
-              ),
+          create: (context) => ChatDetailsCubit(
+            userCubit: context.read<UserCubit>(),
+            userSettingsCubit: context.read<UserSettingsCubit>(),
+            chatId: chatId,
+            chatsRepository: context.read<ChatsRepository>(),
+            withMembers: false,
+          ),
         ),
         BlocProvider(
           // rebuilds the cubit when a different chat is selected
           key: ValueKey("message-list-cubit-$chatId"),
-          create:
-              (context) => MessageListCubit(
-                userCubit: context.read<UserCubit>(),
-                chatId: chatId,
-              ),
+          create: (context) => MessageListCubit(
+            userCubit: context.read<UserCubit>(),
+            chatId: chatId,
+          ),
         ),
       ],
       child: const ChatScreenView(),
@@ -118,10 +116,10 @@ class ChatScreenView extends StatelessWidget {
             blockedUserId == null || blockedUserDisplayName == null
                 ? const MessageComposer()
                 : _BlockedChatFooter(
-                  chatId: chatId,
-                  userId: blockedUserId,
-                  displayName: blockedUserDisplayName,
-                ),
+                    chatId: chatId,
+                    userId: blockedUserId,
+                    displayName: blockedUserDisplayName,
+                  ),
           ],
         ),
       ),
@@ -135,18 +133,15 @@ class _ChatHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (title, image) = context.select(
-      (ChatDetailsCubit cubit) => (
-        cubit.state.chat?.title,
-        cubit.state.chat?.picture,
-      ),
+      (ChatDetailsCubit cubit) =>
+          (cubit.state.chat?.title, cubit.state.chat?.picture),
     );
 
     return Container(
       padding: EdgeInsets.only(
-        top:
-            context.responsiveScreenType == ResponsiveScreenType.mobile
-                ? kToolbarHeight
-                : Spacings.xxs,
+        top: context.responsiveScreenType == ResponsiveScreenType.mobile
+            ? kToolbarHeight
+            : Spacings.xxs,
         bottom: Spacings.xxs,
         left: Spacings.xs,
         right: Spacings.xs,
@@ -190,10 +185,9 @@ class _ChatHeader extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: LabelFontSize.small1.size,
-                                  color:
-                                      CustomColorScheme.of(
-                                        context,
-                                      ).text.tertiary,
+                                  color: CustomColorScheme.of(
+                                    context,
+                                  ).text.tertiary,
                                   fontFamily: getSystemMonospaceFontFamily(),
                                   letterSpacing: 1,
                                 ),
