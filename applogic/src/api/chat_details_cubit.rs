@@ -15,7 +15,7 @@ use flutter_rust_bridge::frb;
 use mimi_content::{ByteBuf, Disposition, MimiContent, NestedPart, NestedPartContent};
 use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
-use tracing::error;
+use tracing::{error, info};
 
 use crate::api::{
     attachments_repository::{AttachmentTaskHandle, AttachmentsRepository, InProgressMap},
@@ -256,9 +256,11 @@ impl ChatDetailsCubitBase {
                     .await?;
             }
             Some(Err(error)) => {
-                error!(%error, "Failed to upload attachment");
+                error!(%error, ?attachment_id, "Failed to upload attachment");
             }
-            None => (),
+            None => {
+                info!(?attachment_id, "Upload was cancelled");
+            }
         }
         Ok(())
     }
