@@ -571,16 +571,16 @@ impl CoreUser {
 
         if let Some(group_data) = group_data {
             // Update chat attributes according to new group data
-            let updated_messages = update_chat_attributes(
+            update_chat_attributes(
                 txn,
                 &mut notifier,
                 &mut chat,
                 sender_client_credential.identity().clone(),
                 group_data,
                 ds_timestamp,
+                &mut group_messages,
             )
             .await?;
-            group_messages.extend(updated_messages);
         }
 
         notifier.notify();

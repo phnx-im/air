@@ -148,14 +148,12 @@ impl CoreUser {
         chat_id: ChatId,
         picture: Option<Vec<u8>>,
     ) -> Result<()> {
-        let mut connection = self.pool().acquire().await?;
-        let chat = Chat::load(&mut connection, &chat_id)
+        let chat = Chat::load(self.pool().acquire().await?.as_mut(), &chat_id)
             .await?
             .ok_or_else(|| {
                 let id = chat_id.uuid();
                 anyhow!("Can't find chat with id {id}")
             })?;
-        drop(connection);
         let resized_picture_option = tokio::task::spawn_blocking(|| {
             picture.and_then(|picture| resize_profile_image(&picture).ok())
         })
@@ -164,32 +162,29 @@ impl CoreUser {
             // No change
             return Ok(());
         }
-        let new_attributes =
-            ChatAttributes::new(chat.attributes.title.clone(), resized_picture_option);
+        let new_attributes = ChatAttributes::new(chat.attributes.title, resized_picture_option);
 
         // Update the group and send out the update
-        self.update_key(chat_id, &new_attributes).await?;
+        self.update_key(chat_id, Some(&new_attributes)).await?;
 
         Ok(())
     }
 
     pub(crate) async fn set_chat_title(&self, chat_id: ChatId, title: String) -> Result<()> {
-        let mut connection = self.pool().acquire().await?;
-        let chat = Chat::load(&mut connection, &chat_id)
+        let chat = Chat::load(self.pool().acquire().await?.as_mut(), &chat_id)
             .await?
             .ok_or_else(|| {
                 let id = chat_id.uuid();
                 anyhow!("Can't find chat with id {id}")
             })?;
-        drop(connection);
         if title == chat.attributes().title {
             // No change
             return Ok(());
         }
-        let new_attributes = ChatAttributes::new(title.clone(), chat.attributes().picture.clone());
+        let new_attributes = ChatAttributes::new(title, chat.attributes.picture);
 
         // Update the group and send out the update
-        self.update_key(chat_id, &new_attributes).await?;
+        self.update_key(chat_id, Some(&new_attributes)).await?;
 
         Ok(())
     }

@@ -7,11 +7,8 @@ use sqlx::SqliteConnection;
 use update_key_flow::UpdateKeyData;
 
 use crate::{
-    Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage,
-    chats::messages::TimestampedMessage,
-    groups::GroupData,
-    store::StoreNotifier,
-    utils::connection_ext::{ConnectionExt, StoreExt},
+    Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage, chats::messages::TimestampedMessage,
+    groups::GroupData, store::StoreNotifier, utils::connection_ext::StoreExt,
 };
 
 use super::CoreUser;
@@ -27,12 +24,10 @@ impl CoreUser {
     pub(crate) async fn update_key(
         &self,
         chat_id: ChatId,
-        new_chat_attributes: impl Into<Option<&ChatAttributes>>,
+        new_chat_attributes: Option<&ChatAttributes>,
     ) -> anyhow::Result<Vec<ChatMessage>> {
         // Phase 1: Load the chat and the group
-        let mut connection = self.pool().acquire().await?;
-        let new_chat_attributes = new_chat_attributes.into();
-        let update = connection
+        let update = self
             .with_transaction(async |txn| {
                 UpdateKeyData::lock(txn, chat_id, self.signing_key(), new_chat_attributes).await
             })
@@ -44,12 +39,8 @@ impl CoreUser {
             .await?;
 
         // Phase 3: Merge the commit into the group
-        self.with_notifier(async |notifier| {
-            connection
-                .with_transaction(async |txn| {
-                    updated.merge_pending_commit(txn, notifier, chat_id).await
-                })
-                .await
+        self.with_transaction_and_notifier(async |txn, notifier| {
+            updated.merge_pending_commit(txn, notifier, chat_id).await
         })
         .await
     }
@@ -62,8 +53,8 @@ pub(crate) async fn update_chat_attributes(
     sender_id: UserId,
     group_data: GroupData,
     ds_timestamp: TimeStamp,
-) -> anyhow::Result<Vec<TimestampedMessage>> {
-    let mut group_messages = Vec::new();
+    message_buffer: &mut Vec<TimestampedMessage>,
+) -> anyhow::Result<()> {
     let new_chat_attributes: ChatAttributes = PersistenceCodec::from_slice(group_data.bytes())?;
     let new_title = new_chat_attributes.title;
     let old_title = chat.attributes.title.clone();
@@ -76,17 +67,17 @@ pub(crate) async fn update_chat_attributes(
             new_title,
         };
         let group_message = TimestampedMessage::system_message(system_message, ds_timestamp);
-        group_messages.push(group_message);
+        message_buffer.push(group_message);
     }
     if chat.attributes.picture != new_chat_attributes.picture {
         chat.set_picture(connection, notifier, new_chat_attributes.picture)
             .await?;
         let system_message = SystemMessage::ChangePicture(sender_id);
         let group_message = TimestampedMessage::system_message(system_message, ds_timestamp);
-        group_messages.push(group_message);
+        message_buffer.push(group_message);
     }
 
-    Ok(group_messages)
+    Ok(())
 }
 
 mod update_key_flow {
@@ -183,16 +174,16 @@ mod update_key_flow {
                 .await?;
 
             if let Some(group_data) = group_data {
-                let attribute_messages = update_chat_attributes(
+                update_chat_attributes(
                     connection,
                     notifier,
                     &mut chat,
                     own_id,
                     group_data,
                     ds_timestamp,
+                    &mut group_messages,
                 )
                 .await?;
-                group_messages.extend(attribute_messages);
             }
 
             group.store_update(&mut *connection).await?;
