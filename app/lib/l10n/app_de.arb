@@ -22,6 +22,7 @@
 
   "chatDetailsScreen_unknownChat": "Unbekannter Chat",
   "blockedChatFooter_message": "Du erhältst keine Nachrichten von {displayName}, solange du {displayName} nicht entsperrst.",
+  "inactiveChatFooter_message": "Du bist kein Mitglied dieses Chats mehr.",
 
   "chatScreen_emptyChat": "Wähle einen Chat aus, um mit dem Nachrichten schreiben zu beginnen",
 
