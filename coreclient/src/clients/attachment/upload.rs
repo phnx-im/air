@@ -4,11 +4,12 @@
 
 use std::{
     ffi::OsStr,
+    io::Cursor,
     mem,
     path::{Path, PathBuf},
 };
 
-use airapiclient::ApiClient;
+use airapiclient::{ApiClient, ds_api::ProvisionAttachmentResponse};
 use aircommon::{
     credentials::keys::ClientSigningKey,
     crypto::ear::{AeadCiphertext, EarEncryptable, keys::AttachmentEarKey},
@@ -23,10 +24,12 @@ use mimi_content::{
     MimiContent,
     content_container::{Disposition, NestedPart, NestedPartContent, PartSemantics},
 };
-use reqwest::multipart;
+use reqwest::{Body, multipart};
 use serde::Deserialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use tokio_stream::StreamExt;
+use tokio_util::io::ReaderStream;
 
 use crate::{
     AttachmentStatus, AttachmentUrl, Chat, ChatId, ChatMessage, MessageId,
@@ -35,6 +38,7 @@ use crate::{
         attachment::{
             AttachmentBytes, AttachmentRecord,
             ear::{AIR_ATTACHMENT_ENCRYPTION_ALG, AIR_ATTACHMENT_HASH_ALG},
+            progress::{AttachmentProgress, AttachmentProgressSender},
         },
     },
     groups::Group,
@@ -50,7 +54,11 @@ impl CoreUser {
         &self,
         chat_id: ChatId,
         path: &Path,
-    ) -> anyhow::Result<ChatMessage> {
+    ) -> anyhow::Result<(
+        AttachmentId,
+        AttachmentProgress,
+        impl Future<Output = anyhow::Result<ChatMessage>> + use<>,
+    )> {
         let (chat, group) = self
             .with_transaction(async |txn| {
                 let chat = Chat::load(txn, &chat_id)
@@ -68,20 +76,16 @@ impl CoreUser {
         // load the attachment data
         let mut attachment = ProcessedAttachment::from_file(path)?;
 
-        // encrypt the content and upload the content
-        let api_client = self.api_client()?;
-        let http_client = self.http_client();
-
-        let attachment_metadata = encrypt_and_upload(
-            &api_client,
-            &http_client,
+        // encrypt the content and provision the attachment, but don't upload it yet
+        let (attachment_metadata, ciphertext, provision_response) = encrypt_and_provision(
+            &self.api_client()?,
             self.signing_key(),
-            &attachment.content,
             &group,
+            &attachment.content,
         )
         .await?;
 
-        // send attachment message
+        // store local attachment message
         let attachment_id = attachment_metadata.attachment_id;
         let content_bytes = mem::replace(&mut attachment.content.bytes, Vec::new().into());
         let content_type = attachment.content_type;
@@ -114,7 +118,7 @@ impl CoreUser {
                     chat_id: chat.id(),
                     message_id,
                     content_type: content_type.to_owned(),
-                    status: AttachmentStatus::Ready,
+                    status: AttachmentStatus::Uploading,
                     created_at: Utc::now(),
                 };
                 record
@@ -125,11 +129,29 @@ impl CoreUser {
             })
             .await?;
 
-        self.outbound_service()
-            .enqueue_chat_message(message.id(), Some(attachment_id))
-            .await?;
+        // upload the encrypted attachment
+        let (progress_tx, progress) = AttachmentProgress::new();
 
-        Ok(message)
+        let http_client = self.http_client();
+        let pool = self.pool().clone();
+        let message_fut = async move {
+            let res = upload_encrypted_attachment(
+                &http_client,
+                provision_response,
+                progress_tx,
+                ciphertext,
+            )
+            .await;
+            let status = if res.is_ok() {
+                AttachmentStatus::Ready
+            } else {
+                AttachmentStatus::Failed
+            };
+            AttachmentRecord::update_status(&pool, attachment_id, status).await?;
+            Ok(message)
+        };
+
+        Ok((attachment_id, progress, message_fut))
     }
 }
 
@@ -255,13 +277,12 @@ struct AttachmentMetadata {
     nonce: [u8; 12],
 }
 
-async fn encrypt_and_upload(
+async fn encrypt_and_provision(
     api_client: &ApiClient,
-    http_client: &reqwest::Client,
     signing_key: &ClientSigningKey,
-    content: &AttachmentBytes,
     group: &Group,
-) -> anyhow::Result<AttachmentMetadata> {
+    content: &AttachmentBytes,
+) -> anyhow::Result<(AttachmentMetadata, Vec<u8>, ProvisionAttachmentResponse)> {
     // encrypt the content
     let key = AttachmentEarKey::random()?;
     let ciphertext: AeadCiphertext = content.encrypt(&key)?.into();
@@ -282,29 +303,63 @@ async fn encrypt_and_upload(
     let attachment_id =
         AttachmentId::new(response.attachment_id.context("no attachment id")?.into());
 
-    if let Some(signed_post_policy) = response.post_policy {
+    let metadata = AttachmentMetadata {
+        attachment_id,
+        key,
+        nonce,
+    };
+    Ok((metadata, ciphertext, response))
+}
+
+async fn upload_encrypted_attachment(
+    http_client: &reqwest::Client,
+    provision_response: ProvisionAttachmentResponse,
+    mut progress_tx: AttachmentProgressSender,
+    ciphertext: Vec<u8>,
+) -> anyhow::Result<()> {
+    if let Some(signed_post_policy) = provision_response.post_policy {
         // upload encrypted content via multipart upload
+        progress_tx.report(0);
+        let total_len = ciphertext.len();
         multipart_upload(
             http_client,
-            &response.upload_url,
+            &provision_response.upload_url,
             signed_post_policy,
             ciphertext,
         )
         .await?;
+        // Note: multipart does not support reporting progress for now
+        progress_tx.report(total_len);
+        progress_tx.finish();
     } else {
         // upload encrypted content via signed PUT url
-        let mut request = http_client.put(response.upload_url);
-        for header in response.upload_headers {
+        let mut request = http_client.put(provision_response.upload_url);
+        for header in provision_response.upload_headers {
             request = request.header(header.key, header.value);
         }
-        request.body(ciphertext).send().await?.error_for_status()?;
-    }
 
-    Ok(AttachmentMetadata {
-        attachment_id,
-        key,
-        nonce,
-    })
+        let mut uploaded = 0;
+        let total_len = ciphertext.len();
+
+        let stream = ReaderStream::new(Cursor::new(ciphertext)).map(move |chunk| {
+            if let Ok(chunk) = &chunk {
+                uploaded += chunk.len();
+                if uploaded == total_len {
+                    progress_tx.finish();
+                } else {
+                    progress_tx.report(uploaded);
+                }
+            }
+            chunk
+        });
+
+        request
+            .body(Body::wrap_stream(stream))
+            .send()
+            .await?
+            .error_for_status()?;
+    }
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]

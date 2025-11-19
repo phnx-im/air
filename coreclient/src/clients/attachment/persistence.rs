@@ -36,6 +36,8 @@ pub enum AttachmentStatus {
     Pending = 1,
     /// The download is in progress.
     Downloading = 2,
+    /// The upload is in progress.
+    Uploading = 5,
     /// The download has completed successfully.
     Ready = 3,
     /// The download has failed.
@@ -49,6 +51,7 @@ impl AttachmentStatus {
             2 => Self::Downloading,
             3 => Self::Ready,
             4 => Self::Failed,
+            5 => Self::Uploading,
             _ => Self::Unknown,
         }
     }
@@ -65,6 +68,8 @@ pub enum AttachmentContent {
     Pending,
     /// Currently downloading
     Downloading,
+    /// Currently uploading
+    Uploading(Vec<u8>),
     /// Failed to download
     Failed,
     /// Unknown status
@@ -85,6 +90,8 @@ impl AttachmentContent {
             (None, AttachmentStatus::Ready) => AttachmentContent::Unknown,
             (_, AttachmentStatus::Pending) => AttachmentContent::Pending,
             (_, AttachmentStatus::Downloading) => AttachmentContent::Downloading,
+            (Some(content), AttachmentStatus::Uploading) => AttachmentContent::Uploading(content),
+            (None, AttachmentStatus::Uploading) => AttachmentContent::Unknown,
             (_, AttachmentStatus::Failed) => AttachmentContent::Failed,
             (_, AttachmentStatus::Unknown) => AttachmentContent::Unknown,
         }
@@ -180,6 +187,19 @@ impl AttachmentRecord {
                 FROM attachment
                 WHERE attachment_id = ?"#,
             attachment_id
+        )
+        .fetch_optional(executor)
+        .await
+    }
+
+    pub(crate) async fn status(
+        executor: impl SqliteExecutor<'_>,
+        attachment_id: AttachmentId,
+    ) -> sqlx::Result<Option<AttachmentStatus>> {
+        query_scalar!(
+            r#"SELECT status AS "status: _"
+            FROM attachment WHERE attachment_id = ?"#,
+            attachment_id,
         )
         .fetch_optional(executor)
         .await

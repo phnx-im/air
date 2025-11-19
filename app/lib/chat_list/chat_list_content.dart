@@ -27,6 +27,7 @@ typedef ChatDetailsCubitCreate =
       required UserSettingsCubit userSettingsCubit,
       required ChatId chatId,
       required ChatsRepository chatsRepository,
+      required AttachmentsRepository attachmentsRepository,
       bool withMembers,
     });
 
@@ -62,6 +63,7 @@ class ChatListContent extends StatelessWidget {
             userSettingsCubit: context.read<UserSettingsCubit>(),
             chatId: chatIds[index],
             chatsRepository: context.read<ChatsRepository>(),
+            attachmentsRepository: context.read<AttachmentsRepository>(),
             withMembers: false,
           ),
           lazy: false,

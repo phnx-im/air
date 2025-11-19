@@ -387,6 +387,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get attachment_tryAgain => 'Try again';
+
+  @override
   String get textMessage_edited => 'edited';
 
   @override
