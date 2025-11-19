@@ -156,8 +156,10 @@ impl CoreUser {
                 anyhow!("Can't find chat with id {id}")
             })?;
         drop(connection);
-        let resized_picture_option =
-            picture.and_then(|picture| resize_profile_image(&picture).ok());
+        let resized_picture_option = tokio::task::spawn_blocking(|| {
+            picture.and_then(|picture| resize_profile_image(&picture).ok())
+        })
+        .await?;
         if resized_picture_option == chat.attributes().picture {
             // No change
             return Ok(());
