@@ -14,6 +14,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/timestamp.dart';
 import 'package:air/message_list/mobile_message_actions.dart';
+import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/context_menu/context_menu.dart';
@@ -556,6 +557,9 @@ class _Sender extends StatelessWidget {
     final profile = context.select(
       (UsersCubit cubit) => cubit.state.profile(userId: sender),
     );
+    void openMemberDetails() {
+      unawaited(context.read<NavigationCubit>().openMemberDetails(sender));
+    }
 
     return Padding(
       padding: const EdgeInsets.only(top: Spacings.xs, bottom: Spacings.xxs),
@@ -566,9 +570,14 @@ class _Sender extends StatelessWidget {
             displayName: profile.displayName,
             image: profile.profilePicture,
             size: Spacings.m,
+            onPressed: openMemberDetails,
           ),
           const SizedBox(width: Spacings.xs),
-          _DisplayName(displayName: profile.displayName, isSender: isSender),
+          _DisplayName(
+            displayName: profile.displayName,
+            isSender: isSender,
+            onTap: openMemberDetails,
+          ),
         ],
       ),
     );
@@ -576,26 +585,39 @@ class _Sender extends StatelessWidget {
 }
 
 class _DisplayName extends StatelessWidget {
-  const _DisplayName({required this.displayName, required this.isSender});
+  const _DisplayName({
+    required this.displayName,
+    required this.isSender,
+    this.onTap,
+  });
 
   final String displayName;
   final bool isSender;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final text = isSender ? "You" : displayName;
     final textUpper = text.toUpperCase();
-    return SelectionContainer.disabled(
-      child: Text(
-        textUpper,
-        style: TextStyle(
-          color: CustomColorScheme.of(context).text.tertiary,
-          fontSize: LabelFontSize.small2.size,
-          fontWeight: FontWeight.w100,
-          fontFamily: getSystemMonospaceFontFamily(),
-          letterSpacing: 1,
+    return MouseRegion(
+      cursor:
+          onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SelectionContainer.disabled(
+          child: Text(
+            textUpper,
+            style: TextStyle(
+              color: CustomColorScheme.of(context).text.tertiary,
+              fontSize: LabelFontSize.small2.size,
+              fontWeight: FontWeight.w100,
+              fontFamily: getSystemMonospaceFontFamily(),
+              letterSpacing: 1,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
-        overflow: TextOverflow.ellipsis,
       ),
     );
   }

@@ -255,7 +255,7 @@ extension on HomeNavigationState {
           key: ValueKey("chat-group-members-screen"),
           child: GroupMembersScreen(),
         ),
-      if (openChatId != null && chatDetailsOpen && memberDetails != null)
+      if (openChatId != null && memberDetails != null)
         const MaterialPage(
           key: ValueKey("chat-member-details-screen"),
           child: MemberDetailsScreen(),
