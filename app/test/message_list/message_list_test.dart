@@ -520,6 +520,11 @@ void main() {
           chunkEventCallback: any(named: "chunkEventCallback"),
         ),
       ).thenAnswer((_) async => Future.any([]));
+      when(
+        () => attachmentsRepository.statusStream(
+          attachmentId: imageAttachment.attachmentId,
+        ),
+      ).thenAnswer((_) => Stream.value(const UiAttachmentStatus.completed()));
 
       VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
