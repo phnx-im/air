@@ -7,7 +7,6 @@ use std::{
     io::Cursor,
     mem,
     path::{Path, PathBuf},
-    time::Duration,
 };
 
 use airapiclient::{ApiClient, ds_api::ProvisionAttachmentResponse};

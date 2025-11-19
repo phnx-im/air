@@ -283,9 +283,11 @@ impl ChatDetailsCubitBase {
                     .await?;
             }
             Some(Err(error)) => {
-                error!(%error, "Failed to upload attachment");
+                error!(%error, ?attachment_id, "Failed to upload attachment");
             }
-            None => (),
+            None => {
+                info!(?attachment_id, "Upload was cancelled");
+            }
         }
         Ok(())
     }
