@@ -21,8 +21,7 @@ class AttachmentCategoryPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
-    final iconColor = colors.text.primary;
+    final iconColor = CustomColorScheme.of(context).text.primary;
     final isMobile = Platform.isAndroid || Platform.isIOS;
     final loc = AppLocalizations.of(context);
     return Row(
