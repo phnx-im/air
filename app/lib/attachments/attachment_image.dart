@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:flutter/material.dart';
@@ -107,7 +108,7 @@ class _UploadStatus extends HookWidget {
     );
     final uploadStatus = useStream<UiAttachmentStatus>(uploadStatusSteam);
 
-    final loc = Localizations.of(context);
+    final loc = AppLocalizations.of(context);
 
     return Align(
       alignment: Alignment.center,
