@@ -1546,6 +1546,16 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                     SystemMessage::Remove(remover, removed) => {
                         Some(format!("{remover:?} removed {removed:?} from the chat"))
                     }
+                    SystemMessage::ChangeTitle {
+                        user_id,
+                        old_title,
+                        new_title,
+                    } => Some(format!(
+                        "{user_id:?} changed the group name from {old_title} to {new_title}"
+                    )),
+                    SystemMessage::ChangePicture(user_id) => {
+                        Some(format!("{user_id:?} changed the group picture"))
+                    }
                 }
             } else {
                 None

@@ -45,7 +45,7 @@ impl CoreUser {
 
         if needs_update {
             // TODO race condition: Before or after this update, new proposals could arrive
-            self.update_key(chat_id).await?;
+            self.update_key(chat_id, None).await?;
         }
 
         let unsent_group_message = self

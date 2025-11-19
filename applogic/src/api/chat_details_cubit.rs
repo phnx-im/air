@@ -133,6 +133,10 @@ impl ChatDetailsCubitBase {
         Store::set_chat_picture(&self.context.store, self.context.chat_id, bytes.clone()).await
     }
 
+    pub async fn set_chat_title(&mut self, title: String) -> anyhow::Result<()> {
+        Store::set_chat_title(&self.context.store, self.context.chat_id, title).await
+    }
+
     pub async fn delete_message(&self) -> anyhow::Result<()> {
         let mut draft = None;
         self.core.state_tx().send_if_modified(|state| {
