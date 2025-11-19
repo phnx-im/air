@@ -247,7 +247,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String systemMessage_userAddedUser_prefix(Object user1) {
-    return '';
+    return '$user1';
   }
 
   @override
@@ -255,12 +255,12 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String systemMessage_userAddedUser_suffix(Object user2) {
-    return '';
+    return '$user2';
   }
 
   @override
   String systemMessage_userRemovedUser_prefix(Object user1) {
-    return '';
+    return '$user1';
   }
 
   @override
@@ -268,7 +268,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String systemMessage_userRemovedUser_suffix(Object user2) {
-    return '';
+    return '$user2';
   }
 
   @override
@@ -379,11 +379,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String attachmentSize(double size, Object byteUnit) {
-    final intl.NumberFormat sizeNumberFormat = intl
-        .NumberFormat.decimalPatternDigits(
-      locale: localeName,
-      decimalDigits: 2,
-    );
+    final intl.NumberFormat sizeNumberFormat =
+        intl.NumberFormat.decimalPatternDigits(
+          locale: localeName,
+          decimalDigits: 2,
+        );
     final String sizeString = sizeNumberFormat.format(size);
 
     return '$sizeString $byteUnit';
