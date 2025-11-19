@@ -261,6 +261,49 @@ impl AttachmentRecord {
             None => Ok(AttachmentContent::None),
         }
     }
+
+    pub(crate) async fn copy(
+        executor: impl SqliteExecutor<'_>,
+        notifier: &mut StoreNotifier,
+        src_id: AttachmentId,
+        dst_id: AttachmentId,
+    ) -> sqlx::Result<()> {
+        query!(
+            "INSERT INTO attachment (
+                attachment_id,
+                chat_id,
+                message_id,
+                content_type,
+                content,
+                status,
+                created_at
+            )
+            SELECT ?2, chat_id, message_id, content_type, content, status, created_at
+            FROM attachment
+            WHERE attachment_id = ?1",
+            src_id,
+            dst_id,
+        )
+        .execute(executor)
+        .await?;
+        notifier.add(dst_id);
+        Ok(())
+    }
+
+    pub(crate) async fn delete(
+        executor: impl SqliteExecutor<'_>,
+        notifier: &mut StoreNotifier,
+        attachment_id: AttachmentId,
+    ) -> sqlx::Result<()> {
+        query!(
+            "DELETE FROM attachment WHERE attachment_id = ?",
+            attachment_id
+        )
+        .execute(executor)
+        .await?;
+        notifier.remove(attachment_id);
+        Ok(())
+    }
 }
 
 #[derive(Debug)]

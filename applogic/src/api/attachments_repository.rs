@@ -141,6 +141,12 @@ impl AttachmentsRepository {
         }
     }
 
+    pub fn cancel(&self, attachment_id: AttachmentId) {
+        if let Some((_, handle)) = self.in_progress.remove(&attachment_id) {
+            handle.cancel.cancel();
+        }
+    }
+
     async fn track_attachment_download(
         &self,
         attachment_id: AttachmentId,
@@ -248,7 +254,7 @@ fn spawn_download_task(
         Entry::Occupied(mut entry) if entry.get().is_cancelled() => {
             let (progress, task) = store.download_attachment(attachment_id);
             let cancel = cancel.child_token();
-            let handle = AttachmentTaskHandle::new(progress, cancel.clone());
+            let handle = AttachmentTaskHandle::with_cancellation(progress, cancel.clone());
             entry.insert(handle.clone());
             (task, cancel, handle)
         }
@@ -258,7 +264,7 @@ fn spawn_download_task(
         Entry::Vacant(entry) => {
             let (progress, task) = store.download_attachment(attachment_id);
             let cancel = cancel.child_token();
-            let handle = AttachmentTaskHandle::new(progress, cancel.clone());
+            let handle = AttachmentTaskHandle::with_cancellation(progress, cancel.clone());
             entry.insert(handle.clone());
             (task, cancel, handle)
         }
@@ -282,7 +288,14 @@ pub(crate) struct AttachmentTaskHandle {
 }
 
 impl AttachmentTaskHandle {
-    pub(crate) fn new(progress: AttachmentProgress, cancel: CancellationToken) -> Self {
+    pub(crate) fn new(progress: AttachmentProgress) -> Self {
+        Self::with_cancellation(progress, CancellationToken::new())
+    }
+
+    pub(crate) fn with_cancellation(
+        progress: AttachmentProgress,
+        cancel: CancellationToken,
+    ) -> Self {
         let drop_guard = Arc::new(cancel.clone().drop_guard());
         Self {
             progress,
@@ -291,12 +304,15 @@ impl AttachmentTaskHandle {
         }
     }
 
+    pub(crate) fn cancellation_token(&self) -> &CancellationToken {
+        &self.cancel
+    }
+
     fn is_cancelled(&self) -> bool {
         self.cancel.is_cancelled()
     }
 }
 
-/// Attachment status exposed to the UI
 pub enum UiAttachmentStatus {
     /// Not in progress
     Pending,

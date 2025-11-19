@@ -289,6 +289,17 @@ impl Store for CoreUser {
         self.upload_attachment(chat_id, path).await
     }
 
+    async fn retry_upload_attachment(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> StoreResult<(
+        AttachmentId,
+        AttachmentProgress,
+        impl Future<Output = StoreResult<ChatMessage>> + use<>,
+    )> {
+        self.retry_upload_attachment(attachment_id).await
+    }
+
     fn download_attachment(
         &self,
         attachment_id: AttachmentId,

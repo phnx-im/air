@@ -239,6 +239,15 @@ pub trait Store {
         impl Future<Output = StoreResult<ChatMessage>> + use<Self>,
     )>;
 
+    async fn retry_upload_attachment(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> StoreResult<(
+        AttachmentId,
+        AttachmentProgress,
+        impl Future<Output = StoreResult<ChatMessage>> + use<Self>,
+    )>;
+
     fn download_attachment(
         &self,
         attachment_id: AttachmentId,

@@ -57,6 +57,9 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
   Future<void> uploadAttachment(String path) =>
       _impl.uploadAttachment(path: path);
 
+  Future<void> retryUploadAttachment(AttachmentId attachmentId) =>
+      _impl.retryUploadAttachment(attachmentId: attachmentId);
+
   Future<void> markAsRead({
     required MessageId untilMessageId,
     required DateTime untilTimestamp,

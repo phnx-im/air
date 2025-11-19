@@ -19,7 +19,7 @@ import 'user_cubit.dart';
 import 'user_settings_cubit.dart';
 part 'chat_details_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `store_draft_from_state`, `update_state_task`
+// These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `store_draft_from_state`, `update_state_task`, `upload_attachment_impl`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChatDetailsContext`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `eq`, `fmt`, `hash`
 
@@ -62,6 +62,8 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   );
 
   Future<void> resetDraft();
+
+  Future<void> retryUploadAttachment({required AttachmentId attachmentId});
 
   /// Sends a message to the chat.
   ///
