@@ -131,6 +131,8 @@
     }
   },
 
+  "attachment_tryAgain": "Erneut versuchen",
+
   "textMessage_edited": "bearbeitet",
   "textMessage_hiddenPlaceholder": "Blockierter Benutzer, tippe, um die Nachricht anzuzeigen",
   "textMessage_deleted": "Nachricht gelöscht",

@@ -351,6 +351,9 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get attachment_tryAgain => 'Erneut versuchen';
+
+  @override
   String get textMessage_edited => 'bearbeitet';
 
   @override
