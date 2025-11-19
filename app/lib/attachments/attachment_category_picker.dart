@@ -4,6 +4,7 @@
 
 import 'dart:io';
 
+import 'package:air/l10n/l10n.dart' show AppLocalizations;
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:flutter/material.dart';
@@ -23,12 +24,13 @@ class AttachmentCategoryPicker extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
     final iconColor = colors.text.primary;
     final isMobile = Platform.isAndroid || Platform.isIOS;
+    final loc = AppLocalizations.of(context);
     return Row(
       mainAxisAlignment: .spaceEvenly,
       children: [
         _AttachmentCategoryButton(
           icon: iconoir.MediaImage(color: iconColor),
-          label: "Gallery", // TODO: l10n
+          label: loc.attachment_gallery,
           onPressed: () {
             onCategorySelected?.call(AttachmentCategory.gallery);
           },
@@ -36,14 +38,14 @@ class AttachmentCategoryPicker extends StatelessWidget {
         if (isMobile)
           _AttachmentCategoryButton(
             icon: iconoir.Camera(color: iconColor),
-            label: "Camera", // TODO: l10n
+            label: loc.attachment_camera,
             onPressed: () {
               onCategorySelected?.call(AttachmentCategory.camera);
             },
           ),
         _AttachmentCategoryButton(
           icon: iconoir.Attachment(color: iconColor),
-          label: "File", // TODO: l10n
+          label: loc.attachment_file,
           onPressed: () {
             onCategorySelected?.call(AttachmentCategory.file);
           },

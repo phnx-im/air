@@ -132,6 +132,9 @@
   },
 
   "attachment_tryAgain": "Erneut versuchen",
+  "attachment_gallery": "Galerie",
+  "attachment_camera": "Kamera",
+  "attachment_file": "Datei",
 
   "textMessage_edited": "bearbeitet",
   "textMessage_hiddenPlaceholder": "Blockierter Benutzer, tippe, um die Nachricht anzuzeigen",
