@@ -111,8 +111,6 @@ class _UploadStatus extends HookWidget {
     );
     final uploadStatus = useStream<UiAttachmentStatus>(uploadStatusSteam);
 
-    final loc = AppLocalizations.of(context);
-
     return Align(
       alignment: Alignment.center,
       child: switch (uploadStatus.data) {
@@ -135,7 +133,7 @@ class _UploadStatus extends HookWidget {
               ),
               const SizedBox(width: Spacings.xxxs),
               Text(
-                loc.attachment_tryAgain,
+                "Try again",
                 style: TextStyle(
                   color: CustomColorScheme.of(context).text.primary,
                   fontSize: LabelFontSize.base.size,
