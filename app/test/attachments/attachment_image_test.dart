@@ -10,7 +10,6 @@ import 'package:air/attachments/attachments.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,7 +18,7 @@ import 'package:mocktail/mocktail.dart';
 import '../helpers.dart';
 import '../mocks.dart';
 
-const physicalSize = Size(1800, 2000);
+const physicalSize = Size(1000, 1800);
 
 final file = UiAttachment(
   attachmentId: 42.attachmentId(),
@@ -33,14 +32,6 @@ final file = UiAttachment(
   ),
 );
 
-List<(Color, Color)> testColors(BuildContext context) {
-  final colors = CustomColorScheme.of(context);
-  return [
-    (colors.message.selfText, colors.message.selfBackground),
-    (colors.message.otherText, colors.message.otherBackground),
-  ];
-}
-
 Map<AttachmentId, UiAttachmentStatus> testStatuses = {
   1.attachmentId(): const UiAttachmentStatus.pending(),
   2.attachmentId(): UiAttachmentStatus.progress(BigInt.from(7 * 1024 * 1024)),
@@ -49,15 +40,9 @@ Map<AttachmentId, UiAttachmentStatus> testStatuses = {
 };
 
 class _ImageTestBubble extends StatelessWidget {
-  const _ImageTestBubble({
-    required this.attachmentId,
-    required this.color,
-    required this.backgroundColor,
-  });
+  const _ImageTestBubble({required this.attachmentId});
 
   final AttachmentId attachmentId;
-  final Color color;
-  final Color backgroundColor;
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +51,6 @@ class _ImageTestBubble extends StatelessWidget {
       child: Container(
         constraints: const BoxConstraints(maxHeight: 300, maxWidth: 300),
         decoration: BoxDecoration(
-          color: backgroundColor,
           borderRadius: BorderRadius.circular(Spacings.sm),
         ),
         child: AttachmentImage(
@@ -113,32 +97,13 @@ void main() {
                 padding: const EdgeInsets.all(Spacings.s),
                 child: SizedBox(
                   width: double.infinity,
-                  child: Row(
+                  child: Column(
                     spacing: Spacings.s,
+                    crossAxisAlignment: .center,
                     children: [
-                      for (final (color, backgroundColor) in testColors(
-                        context,
-                      ))
-                        Column(
-                          spacing: Spacings.s,
-                          crossAxisAlignment: .end,
-                          children: [
-                            for (final attachmentId in testStatuses.keys) ...[
-                              // Container(
-                              //   width: 100,
-                              //   height: 100,
-                              //   decoration: BoxDecoration(
-                              //     border: Border.all(color: Colors.yellow),
-                              //   ),
-                              // ),
-                              _ImageTestBubble(
-                                attachmentId: attachmentId,
-                                color: color,
-                                backgroundColor: backgroundColor,
-                              ),
-                            ],
-                          ],
-                        ),
+                      for (final attachmentId in testStatuses.keys) ...[
+                        _ImageTestBubble(attachmentId: attachmentId),
+                      ],
                     ],
                   ),
                 ),
