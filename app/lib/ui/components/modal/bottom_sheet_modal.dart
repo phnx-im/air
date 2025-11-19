@@ -312,18 +312,18 @@ class _BottomSheetHandle extends StatelessWidget {
 class BottomSheetDialogContent extends StatelessWidget {
   const BottomSheetDialogContent({
     super.key,
-    required this.title,
+    this.title,
     this.description,
-    required this.primaryActionText,
+    this.primaryActionText,
     this.onPrimaryAction,
     this.titleAlignment = TextAlign.center,
     this.descriptionAlignment = TextAlign.center,
     this.isPrimaryDanger = false,
   });
 
-  final String title;
+  final String? title;
   final String? description;
-  final String primaryActionText;
+  final String? primaryActionText;
   final FutureOr<void> Function(BuildContext context)? onPrimaryAction;
   final TextAlign titleAlignment;
   final TextAlign descriptionAlignment;
@@ -353,14 +353,15 @@ class BottomSheetDialogContent extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          title,
-          style: textTheme.titleLarge!.copyWith(
-            fontWeight: FontWeight.bold,
-            color: colors.text.primary,
+        if (title != null)
+          Text(
+            title!,
+            style: textTheme.titleLarge!.copyWith(
+              fontWeight: FontWeight.bold,
+              color: colors.text.primary,
+            ),
+            textAlign: titleAlignment,
           ),
-          textAlign: titleAlignment,
-        ),
         if (description != null) ...[
           const SizedBox(height: Spacings.s),
           Text(
@@ -373,24 +374,25 @@ class BottomSheetDialogContent extends StatelessWidget {
           ),
         ],
         const SizedBox(height: Spacings.m),
-        OutlinedButton(
-          onPressed: () async {
-            final navigator = Navigator.of(context);
-            if (onPrimaryAction != null) {
-              await onPrimaryAction!(context);
-            }
-            if (navigator.mounted) {
-              navigator.pop(true);
-            }
-          },
-          style: buttonStyle,
-          child: Text(
-            primaryActionText,
-            style: textTheme.bodyLarge!.copyWith(
-              color: buttonStyle.foregroundColor?.resolve({}),
+        if (primaryActionText != null)
+          OutlinedButton(
+            onPressed: () async {
+              final navigator = Navigator.of(context);
+              if (onPrimaryAction != null) {
+                await onPrimaryAction!(context);
+              }
+              if (navigator.mounted) {
+                navigator.pop(true);
+              }
+            },
+            style: buttonStyle,
+            child: Text(
+              primaryActionText!,
+              style: textTheme.bodyLarge!.copyWith(
+                color: buttonStyle.foregroundColor?.resolve({}),
+              ),
             ),
           ),
-        ),
       ],
     );
   }

@@ -5,6 +5,7 @@
 import 'dart:ui';
 
 import 'package:air/chat/chat_details_cubit.dart';
+import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:flutter/material.dart';
@@ -110,6 +111,8 @@ class _UploadStatus extends HookWidget {
     );
     final uploadStatus = useStream<UiAttachmentStatus>(uploadStatusSteam);
 
+    final loc = AppLocalizations.of(context);
+
     return Align(
       alignment: Alignment.center,
       child: switch (uploadStatus.data) {
@@ -132,9 +135,9 @@ class _UploadStatus extends HookWidget {
               ),
               const SizedBox(width: Spacings.xxxs),
               Text(
-                "Try again",
+                loc.attachment_tryAgain,
                 style: TextStyle(
-                  color: Colors.white,
+                  color: CustomColorScheme.of(context).text.primary,
                   fontSize: LabelFontSize.base.size,
                 ),
               ),
