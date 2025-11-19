@@ -505,8 +505,8 @@ abstract class AppLocalizations {
   /// No description provided for @systemMessage_userAddedUser_prefix.
   ///
   /// In en, this message translates to:
-  /// **''**
-  String get systemMessage_userAddedUser_prefix;
+  /// **'{user1}'**
+  String systemMessage_userAddedUser_prefix(Object user1);
 
   /// No description provided for @systemMessage_userAddedUser_infix.
   ///
@@ -517,14 +517,14 @@ abstract class AppLocalizations {
   /// No description provided for @systemMessage_userAddedUser_suffix.
   ///
   /// In en, this message translates to:
-  /// **''**
-  String get systemMessage_userAddedUser_suffix;
+  /// **'{user2}'**
+  String systemMessage_userAddedUser_suffix(Object user2);
 
   /// No description provided for @systemMessage_userRemovedUser_prefix.
   ///
   /// In en, this message translates to:
-  /// **''**
-  String get systemMessage_userRemovedUser_prefix;
+  /// **'{user1}'**
+  String systemMessage_userRemovedUser_prefix(Object user1);
 
   /// No description provided for @systemMessage_userRemovedUser_infix.
   ///
@@ -535,14 +535,14 @@ abstract class AppLocalizations {
   /// No description provided for @systemMessage_userRemovedUser_suffix.
   ///
   /// In en, this message translates to:
-  /// **''**
-  String get systemMessage_userRemovedUser_suffix;
+  /// **'{user2}'**
+  String systemMessage_userRemovedUser_suffix(Object user2);
 
   /// No description provided for @systemMessage_userChangedTitle_prefix.
   ///
   /// In en, this message translates to:
-  /// **''**
-  String get systemMessage_userChangedTitle_prefix;
+  /// **'{user}'**
+  String systemMessage_userChangedTitle_prefix(Object user);
 
   /// No description provided for @systemMessage_userChangedTitle_infix_1.
   ///
@@ -553,32 +553,32 @@ abstract class AppLocalizations {
   /// No description provided for @systemMessage_userChangedTitle_infix_2.
   ///
   /// In en, this message translates to:
+  /// **'{old_name}'**
+  String systemMessage_userChangedTitle_infix_2(Object old_name);
+
+  /// No description provided for @systemMessage_userChangedTitle_infix_3.
+  ///
+  /// In en, this message translates to:
   /// **' to '**
-  String get systemMessage_userChangedTitle_infix_2;
+  String get systemMessage_userChangedTitle_infix_3;
 
   /// No description provided for @systemMessage_userChangedTitle_suffix.
   ///
   /// In en, this message translates to:
-  /// **''**
-  String get systemMessage_userChangedTitle_suffix;
+  /// **'{new_name}'**
+  String systemMessage_userChangedTitle_suffix(Object new_name);
 
   /// No description provided for @systemMessage_userChangedPicture_prefix.
   ///
   /// In en, this message translates to:
-  /// **''**
-  String get systemMessage_userChangedPicture_prefix;
+  /// **'{user}'**
+  String systemMessage_userChangedPicture_prefix(Object user);
 
   /// No description provided for @systemMessage_userChangedPicture_infix.
   ///
   /// In en, this message translates to:
   /// **' changed the group picture'**
   String get systemMessage_userChangedPicture_infix;
-
-  /// No description provided for @systemMessage_userChangedPicture_suffix.
-  ///
-  /// In en, this message translates to:
-  /// **''**
-  String get systemMessage_userChangedPicture_suffix;
 
   /// No description provided for @timestamp_now.
   ///

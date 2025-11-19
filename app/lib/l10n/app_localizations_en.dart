@@ -244,45 +244,61 @@ class AppLocalizationsEn extends AppLocalizations {
   String get editDisplayNameScreen_save => 'Save';
 
   @override
-  String get systemMessage_userAddedUser_prefix => '';
+  String systemMessage_userAddedUser_prefix(Object user1) {
+    return '$user1';
+  }
 
   @override
   String get systemMessage_userAddedUser_infix => ' added ';
 
   @override
-  String get systemMessage_userAddedUser_suffix => '';
+  String systemMessage_userAddedUser_suffix(Object user2) {
+    return '$user2';
+  }
 
   @override
-  String get systemMessage_userRemovedUser_prefix => '';
+  String systemMessage_userRemovedUser_prefix(Object user1) {
+    return '$user1';
+  }
 
   @override
   String get systemMessage_userRemovedUser_infix => ' removed ';
 
   @override
-  String get systemMessage_userRemovedUser_suffix => '';
+  String systemMessage_userRemovedUser_suffix(Object user2) {
+    return '$user2';
+  }
 
   @override
-  String get systemMessage_userChangedTitle_prefix => '';
+  String systemMessage_userChangedTitle_prefix(Object user) {
+    return '$user';
+  }
 
   @override
   String get systemMessage_userChangedTitle_infix_1 =>
       ' changed the group name from ';
 
   @override
-  String get systemMessage_userChangedTitle_infix_2 => ' to ';
+  String systemMessage_userChangedTitle_infix_2(Object old_name) {
+    return '$old_name';
+  }
 
   @override
-  String get systemMessage_userChangedTitle_suffix => '';
+  String get systemMessage_userChangedTitle_infix_3 => ' to ';
 
   @override
-  String get systemMessage_userChangedPicture_prefix => '';
+  String systemMessage_userChangedTitle_suffix(Object new_name) {
+    return '$new_name';
+  }
+
+  @override
+  String systemMessage_userChangedPicture_prefix(Object user) {
+    return '$user';
+  }
 
   @override
   String get systemMessage_userChangedPicture_infix =>
       ' changed the group picture';
-
-  @override
-  String get systemMessage_userChangedPicture_suffix => '';
 
   @override
   String get timestamp_now => 'Now';
@@ -360,11 +376,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String attachmentSize(double size, Object byteUnit) {
-    final intl.NumberFormat sizeNumberFormat =
-        intl.NumberFormat.decimalPatternDigits(
-          locale: localeName,
-          decimalDigits: 2,
-        );
+    final intl.NumberFormat sizeNumberFormat = intl
+        .NumberFormat.decimalPatternDigits(
+      locale: localeName,
+      decimalDigits: 2,
+    );
     final String sizeString = sizeNumberFormat.format(size);
 
     return '$sizeString $byteUnit';

@@ -63,82 +63,102 @@ class SystemMessageContent extends StatelessWidget {
     final profileNameStyle = textStyle.copyWith(fontWeight: FontWeight.bold);
 
     final messageText = switch (message) {
-      UiSystemMessage_Add(:final field0, :final field1) => RichText(
-        text: TextSpan(
-          style: textStyle,
-          children: [
-            TextSpan(
-              text: context.select(
-                (UsersCubit c) => c.state.profile(userId: field0).displayName,
+      UiSystemMessage_Add(:final field0, :final field1) => () {
+        final user1Name = context.select(
+          (UsersCubit c) => c.state.profile(userId: field0).displayName,
+        );
+        final user2Name = context.select(
+          (UsersCubit c) => c.state.profile(userId: field1).displayName,
+        );
+        return RichText(
+          text: TextSpan(
+            style: textStyle,
+            children: [
+              TextSpan(
+                text: loc.systemMessage_userAddedUser_prefix(user1Name),
+                style: profileNameStyle,
               ),
-              style: profileNameStyle,
-            ),
-            TextSpan(text: loc.systemMessage_userAddedUser_infix),
-            TextSpan(
-              text: context.select(
-                (UsersCubit c) => c.state.profile(userId: field1).displayName,
+              TextSpan(text: loc.systemMessage_userAddedUser_infix),
+              TextSpan(
+                text: loc.systemMessage_userAddedUser_suffix(user2Name),
+                style: profileNameStyle,
               ),
-              style: profileNameStyle,
-            ),
-          ],
-        ),
-      ),
-      UiSystemMessage_Remove(:final field0, :final field1) => RichText(
-        text: TextSpan(
-          style: textStyle,
-          children: [
-            TextSpan(
-              text: context.select(
-                (UsersCubit c) => c.state.profile(userId: field0).displayName,
+            ],
+          ),
+        );
+      }(),
+      UiSystemMessage_Remove(:final field0, :final field1) => () {
+        final user1Name = context.select(
+          (UsersCubit c) => c.state.profile(userId: field0).displayName,
+        );
+        final user2Name = context.select(
+          (UsersCubit c) => c.state.profile(userId: field1).displayName,
+        );
+        return RichText(
+          text: TextSpan(
+            style: textStyle,
+            children: [
+              TextSpan(
+                text: loc.systemMessage_userRemovedUser_prefix(user1Name),
+                style: profileNameStyle,
               ),
-              style: profileNameStyle,
-            ),
-            TextSpan(text: loc.systemMessage_userRemovedUser_infix),
-            TextSpan(
-              text: context.select(
-                (UsersCubit c) => c.state.profile(userId: field1).displayName,
+              TextSpan(text: loc.systemMessage_userRemovedUser_infix),
+              TextSpan(
+                text: loc.systemMessage_userRemovedUser_suffix(user2Name),
+                style: profileNameStyle,
               ),
-              style: profileNameStyle,
-            ),
-          ],
-        ),
-      ),
+            ],
+          ),
+        );
+      }(),
       UiSystemMessage_ChangeTitle(
         :final field0,
         :final field1,
         :final field2,
       ) =>
-        RichText(
+        () {
+          final userName = context.select(
+            (UsersCubit c) => c.state.profile(userId: field0).displayName,
+          );
+          return RichText(
+            text: TextSpan(
+              style: textStyle,
+              children: [
+                TextSpan(
+                  text: loc.systemMessage_userChangedTitle_prefix(userName),
+                  style: profileNameStyle,
+                ),
+                TextSpan(text: loc.systemMessage_userChangedTitle_infix_1),
+                TextSpan(
+                  text: loc.systemMessage_userChangedTitle_infix_2(field1),
+                  style: profileNameStyle,
+                ),
+                TextSpan(text: loc.systemMessage_userChangedTitle_infix_3),
+                TextSpan(
+                  text: loc.systemMessage_userChangedTitle_suffix(field2),
+                  style: profileNameStyle,
+                ),
+              ],
+            ),
+          );
+        }(),
+      UiSystemMessage_ChangePicture(:final field0) => () {
+        final userName = context.select(
+          (UsersCubit c) => c.state.profile(userId: field0).displayName,
+        );
+        return RichText(
           text: TextSpan(
             style: textStyle,
             children: [
               TextSpan(
-                text: context.select(
-                  (UsersCubit c) => c.state.profile(userId: field0).displayName,
-                ),
+                text: loc.systemMessage_userChangedPicture_prefix(userName),
                 style: profileNameStyle,
               ),
-              TextSpan(text: loc.systemMessage_userChangedTitle_infix_1),
-              TextSpan(text: field1, style: profileNameStyle),
-              TextSpan(text: loc.systemMessage_userChangedTitle_infix_2),
-              TextSpan(text: field2, style: profileNameStyle),
+              TextSpan(text: loc.systemMessage_userChangedPicture_infix),
             ],
           ),
-        ),
-      UiSystemMessage_ChangePicture(:final field0) => RichText(
-        text: TextSpan(
-          style: textStyle,
-          children: [
-            TextSpan(
-              text: context.select(
-                (UsersCubit c) => c.state.profile(userId: field0).displayName,
-              ),
-              style: profileNameStyle,
-            ),
-            TextSpan(text: loc.systemMessage_userChangedPicture_infix),
-          ],
-        ),
-      ),
+        );
+      }(),
     };
 
     return Center(
