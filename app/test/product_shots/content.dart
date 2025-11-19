@@ -192,7 +192,7 @@ final chats = [
     lastMessage: _lastChatMessage(
       gardeningPartyId,
       samId,
-      "Last year I grew 5 different varieties of carrots! Let me if I can find a good primer about how to grow them...",
+      "Last year I grew 5 different varieties of carrots! Let me see if I can find a good primer about how to grow them...",
     ),
   ),
   // Frank
@@ -449,7 +449,7 @@ final gardeningPartyMessages = [
           plainBody: "",
           topicId: Uint8List(0),
           content: _simpleMessage(
-            'Last year I grew 5 different varieties of carrots! Let me if I can find a good primer about how to grow them...',
+            'Last year I grew 5 different varieties of carrots! Let me see if I can find a good primer about how to grow them...',
           ),
           attachments: [],
         ),
