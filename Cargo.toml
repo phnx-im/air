@@ -15,6 +15,7 @@ members = [
     "protos",
     "server",
     "test_harness",
+    "xtask",
 ]
 
 [workspace.dependencies]
@@ -39,9 +40,12 @@ base64 = "0.22.1"
 blake3 = "1.8.2"
 blurhash = "0.2.3"
 bytes = "1.10.0"
+camino = "1.1"
+cargo_metadata = "0.23"
 chrono = { version = "0.4.38", features = ["serde"] }
 ciborium = "0.2"
-config = "0.15"
+clap = { version = "4.5", features = ["derive"] }
+config = { version = "0.15", default-features = false, features = ["yaml"] }
 criterion = { version = "0.6.0", features = ["html_reports", "async", "async_tokio"] }
 dashmap = "6.1.0"
 derive_more = { version = "0.99.19", features = ["from"] }
@@ -55,6 +59,7 @@ futures-util = "0.3.31"
 h2 = "0.4.12"
 hex = "0.4.3"
 hkdf = "0.12"
+ignore = "0.4"
 image = "0.25.1"
 infer = "0.19.0"
 insta = { version = "1.42.1", features = ["json"] }
@@ -85,6 +90,7 @@ rand_chacha = "0.3.1"
 regex = "1.11.1"
 reqwest = { version = "^0.12", features = ["json", "rustls-tls-webpki-roots", "brotli", "http2", "charset"], default-features = false }
 secrecy = "0.10"
+semver = "1.0"
 serde = { version = "1.0.147", features = ["derive"] }
 serde_bytes = "0.11.17"
 serde_json = "1.0.140"
@@ -112,6 +118,7 @@ trait-variant = "0.1.2"
 url = "2.5.4"
 uuid = "1.16.0"
 webp = "0.3.0"
+xshell = "0.2"
 zeroize = "1.8.1"
 
 [patch.crates-io]

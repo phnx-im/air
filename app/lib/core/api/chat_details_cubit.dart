@@ -76,6 +76,8 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   /// When `bytes` is `None`, the chat picture is removed.
   Future<void> setChatPicture({Uint8List? bytes});
 
+  Future<void> setChatTitle({required String title});
+
   ChatDetailsState get state;
 
   Future<void> storeDraft({

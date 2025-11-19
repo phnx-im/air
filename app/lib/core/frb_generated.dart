@@ -172,6 +172,11 @@ abstract class RustLibApi extends BaseApi {
     Uint8List? bytes,
   });
 
+  Future<void> crateApiChatDetailsCubitChatDetailsCubitBaseSetChatTitle({
+    required ChatDetailsCubitBase that,
+    required String title,
+  });
+
   ChatDetailsState crateApiChatDetailsCubitChatDetailsCubitBaseState({
     required ChatDetailsCubitBase that,
   });
@@ -1415,6 +1420,46 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "ChatDetailsCubitBase_set_chat_picture",
         argNames: ["that", "bytes"],
+      );
+
+  @override
+  Future<void> crateApiChatDetailsCubitChatDetailsCubitBaseSetChatTitle({
+    required ChatDetailsCubitBase that,
+    required String title,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
+            that,
+            serializer,
+          );
+          sse_encode_String(title, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 13,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kCrateApiChatDetailsCubitChatDetailsCubitBaseSetChatTitleConstMeta,
+        argValues: [that, title],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiChatDetailsCubitChatDetailsCubitBaseSetChatTitleConstMeta =>
+      const TaskConstMeta(
+        debugName: "ChatDetailsCubitBase_set_chat_title",
+        argNames: ["that", "title"],
       );
 
   @override
@@ -7885,6 +7930,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           dco_decode_box_autoadd_ui_user_id(raw[1]),
           dco_decode_box_autoadd_ui_user_id(raw[2]),
         );
+      case 2:
+        return UiSystemMessage_ChangeTitle(
+          dco_decode_box_autoadd_ui_user_id(raw[1]),
+          dco_decode_String(raw[2]),
+          dco_decode_String(raw[3]),
+        );
+      case 3:
+        return UiSystemMessage_ChangePicture(
+          dco_decode_box_autoadd_ui_user_id(raw[1]),
+        );
       default:
         throw Exception("unreachable");
     }
@@ -10209,6 +10264,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
         var var_field1 = sse_decode_box_autoadd_ui_user_id(deserializer);
         return UiSystemMessage_Remove(var_field0, var_field1);
+      case 2:
+        var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
+        var var_field1 = sse_decode_String(deserializer);
+        var var_field2 = sse_decode_String(deserializer);
+        return UiSystemMessage_ChangeTitle(var_field0, var_field1, var_field2);
+      case 3:
+        var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
+        return UiSystemMessage_ChangePicture(var_field0);
       default:
         throw UnimplementedError('');
     }
@@ -12694,6 +12757,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_32(1, serializer);
         sse_encode_box_autoadd_ui_user_id(field0, serializer);
         sse_encode_box_autoadd_ui_user_id(field1, serializer);
+      case UiSystemMessage_ChangeTitle(
+        field0: final field0,
+        field1: final field1,
+        field2: final field2,
+      ):
+        sse_encode_i_32(2, serializer);
+        sse_encode_box_autoadd_ui_user_id(field0, serializer);
+        sse_encode_String(field1, serializer);
+        sse_encode_String(field2, serializer);
+      case UiSystemMessage_ChangePicture(field0: final field0):
+        sse_encode_i_32(3, serializer);
+        sse_encode_box_autoadd_ui_user_id(field0, serializer);
     }
   }
 
@@ -12891,6 +12966,12 @@ class ChatDetailsCubitBaseImpl extends RustOpaque
       .crateApiChatDetailsCubitChatDetailsCubitBaseSetChatPicture(
         that: this,
         bytes: bytes,
+      );
+
+  Future<void> setChatTitle({required String title}) => RustLib.instance.api
+      .crateApiChatDetailsCubitChatDetailsCubitBaseSetChatTitle(
+        that: this,
+        title: title,
       );
 
   ChatDetailsState get state => RustLib.instance.api

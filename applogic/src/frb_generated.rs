@@ -816,6 +816,67 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_set_chat_picture_i
         },
     )
 }
+fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_set_chat_title_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "ChatDetailsCubitBase_set_chat_title",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>,
+            >>::sse_decode(&mut deserializer);
+            let api_title = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, true,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref_mut().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let mut api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::chat_details_cubit::ChatDetailsCubitBase::set_chat_title(
+                                &mut *api_that_guard,
+                                api_title,
+                            )
+                            .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_state_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8899,6 +8960,18 @@ impl SseDecode for crate::api::types::UiSystemMessage {
                 let mut var_field1 = <crate::api::types::UiUserId>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::Remove(var_field0, var_field1);
             }
+            2 => {
+                let mut var_field0 = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                let mut var_field1 = <String>::sse_decode(deserializer);
+                let mut var_field2 = <String>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::ChangeTitle(
+                    var_field0, var_field1, var_field2,
+                );
+            }
+            3 => {
+                let mut var_field0 = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::ChangePicture(var_field0);
+            }
             _ => {
                 unimplemented!("");
             }
@@ -10643,6 +10716,16 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
                 field1.into_into_dart().into_dart(),
             ]
             .into_dart(),
+            crate::api::types::UiSystemMessage::ChangeTitle(field0, field1, field2) => [
+                2.into_dart(),
+                field0.into_into_dart().into_dart(),
+                field1.into_into_dart().into_dart(),
+                field2.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::api::types::UiSystemMessage::ChangePicture(field0) => {
+                [3.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
             _ => {
                 unimplemented!("");
             }
@@ -12333,6 +12416,16 @@ impl SseEncode for crate::api::types::UiSystemMessage {
                 <i32>::sse_encode(1, serializer);
                 <crate::api::types::UiUserId>::sse_encode(field0, serializer);
                 <crate::api::types::UiUserId>::sse_encode(field1, serializer);
+            }
+            crate::api::types::UiSystemMessage::ChangeTitle(field0, field1, field2) => {
+                <i32>::sse_encode(2, serializer);
+                <crate::api::types::UiUserId>::sse_encode(field0, serializer);
+                <String>::sse_encode(field1, serializer);
+                <String>::sse_encode(field2, serializer);
+            }
+            crate::api::types::UiSystemMessage::ChangePicture(field0) => {
+                <i32>::sse_encode(3, serializer);
+                <crate::api::types::UiUserId>::sse_encode(field0, serializer);
             }
             _ => {
                 unimplemented!("");

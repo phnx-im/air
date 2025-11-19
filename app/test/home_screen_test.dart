@@ -67,8 +67,13 @@ void main() {
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
     });
 
-    Widget buildSubject() => RepositoryProvider<ChatsRepository>.value(
-      value: MockChatsRepository(),
+    Widget buildSubject() => MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider<ChatsRepository>.value(value: MockChatsRepository()),
+        RepositoryProvider<AttachmentsRepository>.value(
+          value: MockAttachmentsRepository(),
+        ),
+      ],
       child: MultiBlocProvider(
         providers: [
           BlocProvider<NavigationCubit>.value(value: navigationCubit),

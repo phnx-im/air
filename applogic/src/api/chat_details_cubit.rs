@@ -18,7 +18,7 @@ use flutter_rust_bridge::frb;
 use mimi_content::{ByteBuf, Disposition, MimiContent, NestedPart, NestedPartContent};
 use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
-use tracing::error;
+use tracing::{error, info};
 
 use crate::api::{
     attachments_repository::{AttachmentTaskHandle, AttachmentsRepository, InProgressMap},
@@ -138,6 +138,10 @@ impl ChatDetailsCubitBase {
     /// When `bytes` is `None`, the chat picture is removed.
     pub async fn set_chat_picture(&mut self, bytes: Option<Vec<u8>>) -> anyhow::Result<()> {
         Store::set_chat_picture(&self.context.store, self.context.chat_id, bytes.clone()).await
+    }
+
+    pub async fn set_chat_title(&mut self, title: String) -> anyhow::Result<()> {
+        Store::set_chat_title(&self.context.store, self.context.chat_id, title).await
     }
 
     pub async fn delete_message(&self) -> anyhow::Result<()> {
