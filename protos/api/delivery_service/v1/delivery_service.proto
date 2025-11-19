@@ -302,7 +302,7 @@ message TargetedMessagePayload {
 
 message TargetedMessage {
   oneof message_type {
-    TargetedApplicationMessage request = 1;
+    TargetedApplicationMessage application_message = 1;
   }
 }
 
@@ -310,6 +310,7 @@ message TargetedMessage {
 // feature
 message TargetedApplicationMessage {
   AssistedMessage message = 1;
+  LeafNodeIndex recipient = 2;
 }
 
 message TargetedMessageResponse {

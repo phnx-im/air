@@ -197,6 +197,15 @@ impl DsGroupState {
                 }
             })
     }
+
+    pub(crate) fn qs_client_ref_by_index(
+        &self,
+        member_index: LeafNodeIndex,
+    ) -> Option<QsReference> {
+        self.member_profiles
+            .get(&member_index)
+            .map(|cp| cp.client_queue_config.clone())
+    }
 }
 
 #[derive(Debug, Error)]
