@@ -41,9 +41,16 @@ abstract class AttachmentsRepository implements RustOpaqueInterface {
 sealed class UiAttachmentStatus with _$UiAttachmentStatus {
   const UiAttachmentStatus._();
 
+  /// Not in progress
   const factory UiAttachmentStatus.pending() = UiAttachmentStatus_Pending;
+
+  /// Uploading or downloading
   const factory UiAttachmentStatus.progress(BigInt field0) =
       UiAttachmentStatus_Progress;
+
+  /// Done uploading or downloading
   const factory UiAttachmentStatus.completed() = UiAttachmentStatus_Completed;
+
+  /// Failed to upload or download
   const factory UiAttachmentStatus.failed() = UiAttachmentStatus_Failed;
 }
