@@ -8,17 +8,18 @@ use aircommon::{
 };
 use anyhow::{Context, anyhow, ensure};
 use sha2::{Digest, Sha256};
-use tokio::sync::watch;
-use tokio_stream::{Stream, StreamExt, wrappers::WatchStream};
+use tokio_stream::StreamExt;
 use tracing::{debug, info};
 
 use crate::{
+    AttachmentProgress,
     clients::{
         CoreUser,
         attachment::{
             AttachmentBytes, AttachmentRecord,
             ear::{AIR_ATTACHMENT_ENCRYPTION_ALG, AIR_ATTACHMENT_HASH_ALG, EncryptedAttachment},
             persistence::{AttachmentStatus, PendingAttachmentRecord},
+            progress::AttachmentProgressSender,
         },
     },
     groups::Group,
@@ -30,10 +31,10 @@ impl CoreUser {
         &self,
         attachment_id: AttachmentId,
     ) -> (
-        DownloadProgress,
+        AttachmentProgress,
         impl Future<Output = anyhow::Result<()>> + use<>,
     ) {
-        let (progress_tx, progress) = DownloadProgress::new();
+        let (progress_tx, progress) = AttachmentProgress::new();
         let fut = self
             .clone()
             .download_attachment_impl(attachment_id, progress_tx);
@@ -43,7 +44,7 @@ impl CoreUser {
     async fn download_attachment_impl(
         self,
         attachment_id: AttachmentId,
-        mut progress_tx: DownloadProgressSender,
+        mut progress_tx: AttachmentProgressSender,
     ) -> anyhow::Result<()> {
         info!(?attachment_id, "downloading attachment");
         progress_tx.report(0);
@@ -166,55 +167,5 @@ impl CoreUser {
         progress_tx.finish();
 
         Ok(())
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct DownloadProgress {
-    rx: watch::Receiver<DownloadProgressEvent>,
-}
-
-impl DownloadProgress {
-    fn new() -> (DownloadProgressSender, Self) {
-        let (tx, rx) = watch::channel(DownloadProgressEvent::Init);
-        (DownloadProgressSender { tx: Some(tx) }, Self { rx })
-    }
-
-    pub fn stream(&self) -> impl Stream<Item = DownloadProgressEvent> + Send + use<> {
-        WatchStream::new(self.rx.clone())
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum DownloadProgressEvent {
-    Init,
-    Progress { bytes_loaded: usize },
-    Completed,
-    Failed,
-}
-
-struct DownloadProgressSender {
-    tx: Option<watch::Sender<DownloadProgressEvent>>,
-}
-
-impl DownloadProgressSender {
-    fn report(&mut self, bytes_loaded: usize) {
-        if let Some(tx) = &mut self.tx {
-            let _ignore_closed = tx.send(DownloadProgressEvent::Progress { bytes_loaded });
-        }
-    }
-
-    fn finish(&mut self) {
-        if let Some(tx) = self.tx.take() {
-            let _ignore_closed = tx.send(DownloadProgressEvent::Completed);
-        }
-    }
-}
-
-impl Drop for DownloadProgressSender {
-    fn drop(&mut self) {
-        if let Some(tx) = self.tx.take() {
-            let _ignore_closed = tx.send(DownloadProgressEvent::Failed);
-        }
     }
 }

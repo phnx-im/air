@@ -142,6 +142,8 @@
     }
   },
 
+  "attachment_tryAgain": "Try again",
+
   "textMessage_edited": "edited",
   "textMessage_hiddenPlaceholder": "Blocked user, tap to reveal message",
   "textMessage_deleted": "Deleted message",

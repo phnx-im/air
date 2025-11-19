@@ -2,10 +2,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/l10n/l10n.dart';
+import 'package:air/theme/theme.dart';
+import 'package:air/ui/typography/font_size.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
-import 'package:iconoir_flutter/regular/warning_circle.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ui/colors/themes.dart';
@@ -22,13 +26,11 @@ class AttachmentImage extends StatelessWidget {
     super.key,
     required this.attachment,
     required this.imageMetadata,
-    required this.isSender,
     required this.fit,
   });
 
   final UiAttachment attachment;
   final UiImageMetadata imageMetadata;
-  final bool isSender;
   final BoxFit fit;
 
   @override
@@ -49,11 +51,18 @@ class AttachmentImage extends StatelessWidget {
             alignment: Alignment.center,
             errorBuilder: (context, error, stackTrace) {
               _log.severe('Failed to load attachment', error, stackTrace);
-              return WarningCircle(
-                width: 32,
-                color: CustomColorScheme.of(context).text.primary,
+              return Align(
+                child: iconoir.WarningCircle(
+                  width: 32,
+                  height: 32,
+                  color: CustomColorScheme.of(context).text.primary,
+                ),
               );
             },
+          ),
+          _UploadStatus(
+            attachmentId: attachment.attachmentId,
+            size: attachment.size,
           ),
         ],
       ),
@@ -79,6 +88,64 @@ class AttachmentImage extends StatelessWidget {
                   loadingProgress.expectedTotalBytes!
             : null,
       ),
+    );
+  }
+}
+
+class _UploadStatus extends HookWidget {
+  const _UploadStatus({required this.attachmentId, required this.size});
+
+  final AttachmentId attachmentId;
+  final int size;
+
+  @override
+  Widget build(BuildContext context) {
+    final uploadStatusSteam = useMemoized(
+      () => context.read<AttachmentsRepository>().statusStream(
+        attachmentId: attachmentId,
+      ),
+      [attachmentId],
+    );
+    final uploadStatus = useStream<UiAttachmentStatus>(uploadStatusSteam);
+
+    final loc = AppLocalizations.of(context);
+
+    return Align(
+      alignment: Alignment.center,
+      child: switch (uploadStatus.data) {
+        null || UiAttachmentStatus_Completed() => const SizedBox.shrink(),
+        UiAttachmentStatus_Pending() ||
+        UiAttachmentStatus_Failed() => OutlinedButton(
+          onPressed: () {},
+          child: Row(
+            mainAxisAlignment: .center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              iconoir.Upload(
+                width: 32,
+                height: 32,
+                color: CustomColorScheme.of(context).text.primary,
+              ),
+              const SizedBox(width: Spacings.xxxs),
+              Text(
+                loc.attachment_tryAgain,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: LabelFontSize.base.size,
+                ),
+              ),
+            ],
+          ),
+        ),
+        UiAttachmentStatus_Progress(field0: final loaded) =>
+          CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(
+              CustomColorScheme.of(context).backgroundBase.tertiary,
+            ),
+            backgroundColor: Colors.transparent,
+            value: loaded / BigInt.from(size),
+          ),
+      },
     );
   }
 }

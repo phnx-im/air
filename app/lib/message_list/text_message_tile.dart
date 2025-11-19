@@ -691,7 +691,6 @@ class _ImageAttachmentContent extends StatelessWidget {
           child: AttachmentImage(
             attachment: attachment,
             imageMetadata: imageMetadata,
-            isSender: isSender,
             fit: BoxFit.cover,
           ),
         ),
