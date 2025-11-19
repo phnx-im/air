@@ -24,15 +24,13 @@ Widget buildBlockElement(
   return switch (block) {
     BlockElement_Paragraph(:final field0) => Text.rich(
       TextSpan(
-        children:
-            field0
-                .map((child) => buildInlineElement(context, child, isSender))
-                .toList(),
+        children: field0
+            .map((child) => buildInlineElement(context, child, isSender))
+            .toList(),
         style: TextStyle(
-          color:
-              isSender
-                  ? CustomColorScheme.of(context).message.selfText
-                  : CustomColorScheme.of(context).message.otherText,
+          color: isSender
+              ? CustomColorScheme.of(context).message.selfText
+              : CustomColorScheme.of(context).message.otherText,
           fontSize: BodyFontSize.base.size,
           height: 1.4,
         ),
@@ -42,17 +40,15 @@ Widget buildBlockElement(
     ),
     BlockElement_Heading(:final field0) => Text.rich(
       TextSpan(
-        children:
-            field0
-                .map((child) => buildInlineElement(context, child, isSender))
-                .toList(),
+        children: field0
+            .map((child) => buildInlineElement(context, child, isSender))
+            .toList(),
         style: TextStyle(
           fontSize: BodyFontSize.large1.size,
           fontWeight: FontWeight.bold,
-          color:
-              isSender
-                  ? CustomColorScheme.of(context).backgroundBase.primary
-                  : CustomColorScheme.of(context).text.primary,
+          color: isSender
+              ? CustomColorScheme.of(context).backgroundBase.primary
+              : CustomColorScheme.of(context).text.primary,
         ),
       ),
     ),
@@ -65,189 +61,166 @@ Widget buildBlockElement(
         borderRadius: const BorderRadius.all(Radius.circular(12)),
         border: Border(
           left: BorderSide(
-            color:
-                isSender
-                    ? CustomColorScheme.of(context).message.selfQuoteBorder
-                    : CustomColorScheme.of(context).message.otherQuoteBorder,
+            color: isSender
+                ? CustomColorScheme.of(context).message.selfQuoteBorder
+                : CustomColorScheme.of(context).message.otherQuoteBorder,
             width: 4,
           ),
         ),
-        color:
-            isSender
-                ? CustomColorScheme.of(context).message.selfQuoteBackground
-                : CustomColorScheme.of(context).message.otherQuoteBackground,
+        color: isSender
+            ? CustomColorScheme.of(context).message.selfQuoteBackground
+            : CustomColorScheme.of(context).message.otherQuoteBackground,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children:
-            field0
-                .map(
-                  (inner) =>
-                      buildBlockElement(context, inner.element, isSender),
-                )
-                .toList(),
+        children: field0
+            .map((inner) => buildBlockElement(context, inner.element, isSender))
+            .toList(),
       ),
     ),
     BlockElement_UnorderedList(:final field0) => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children:
-          field0
-              .map(
-                (items) => Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text.rich(
-                      const TextSpan(text: " \u2022 "),
-                      style: TextStyle(
-                        color:
-                            isSender
-                                ? CustomColorScheme.of(
-                                  context,
-                                ).message.selfListPrefix
-                                : CustomColorScheme.of(
-                                  context,
-                                ).message.otherListPrefix,
-                        fontSize: BodyFontSize.base.size,
-                      ),
-                    ),
-                    Flexible(
-                      fit: FlexFit.loose,
-                      child: Column(
-                        spacing: Spacings.xxxs,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children:
-                            items
-                                .map(
-                                  (item) => buildBlockElement(
-                                    context,
-                                    item.element,
-                                    isSender,
-                                  ),
-                                )
-                                .toList(),
-                      ),
-                    ),
-                  ],
+      children: field0
+          .map(
+            (items) => Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text.rich(
+                  const TextSpan(text: " \u2022 "),
+                  style: TextStyle(
+                    color: isSender
+                        ? CustomColorScheme.of(context).message.selfListPrefix
+                        : CustomColorScheme.of(context).message.otherListPrefix,
+                    fontSize: BodyFontSize.base.size,
+                  ),
                 ),
-              )
-              .toList(),
+                Flexible(
+                  fit: FlexFit.loose,
+                  child: Column(
+                    spacing: Spacings.xxxs,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: items
+                        .map(
+                          (item) => buildBlockElement(
+                            context,
+                            item.element,
+                            isSender,
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              ],
+            ),
+          )
+          .toList(),
     ),
     BlockElement_OrderedList(:final field0, :final field1) => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children:
-          field1.indexed
-              .map(
-                (items) => Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text.rich(
-                      TextSpan(
-                        text: " ${field0 + BigInt.from(items.$1)}.  ",
-                        style: TextStyle(
-                          color:
-                              isSender
-                                  ? CustomColorScheme.of(
-                                    context,
-                                  ).message.selfListPrefix
-                                  : CustomColorScheme.of(
-                                    context,
-                                  ).message.otherListPrefix,
-                          fontSize: BodyFontSize.base.size,
-                        ),
-                      ),
+      children: field1.indexed
+          .map(
+            (items) => Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text.rich(
+                  TextSpan(
+                    text: " ${field0 + BigInt.from(items.$1)}.  ",
+                    style: TextStyle(
+                      color: isSender
+                          ? CustomColorScheme.of(context).message.selfListPrefix
+                          : CustomColorScheme.of(
+                              context,
+                            ).message.otherListPrefix,
+                      fontSize: BodyFontSize.base.size,
                     ),
-                    Flexible(
-                      fit: FlexFit.loose,
-                      child: Column(
-                        spacing: Spacings.xxxs,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children:
-                            items.$2
-                                .map(
-                                  (item) => buildBlockElement(
-                                    context,
-                                    item.element,
-                                    isSender,
-                                  ),
-                                )
-                                .toList(),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              )
-              .toList(),
+                Flexible(
+                  fit: FlexFit.loose,
+                  child: Column(
+                    spacing: Spacings.xxxs,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: items.$2
+                        .map(
+                          (item) => buildBlockElement(
+                            context,
+                            item.element,
+                            isSender,
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              ],
+            ),
+          )
+          .toList(),
     ),
     BlockElement_Table(:final head, :final rows) => Table(
       border: TableBorder.all(
-        color:
-            isSender
-                ? CustomColorScheme.of(context).message.selfTableBorder
-                : CustomColorScheme.of(context).message.otherTableBorder,
+        color: isSender
+            ? CustomColorScheme.of(context).message.selfTableBorder
+            : CustomColorScheme.of(context).message.otherTableBorder,
         width: 2,
         borderRadius: BorderRadius.circular(8),
       ),
       defaultColumnWidth: const IntrinsicColumnWidth(),
       children: [
         TableRow(
-          children:
-              head
-                  .map(
-                    (itemBlocks) => Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: Spacings.xs,
-                        vertical: Spacings.xxxs,
-                      ),
-                      child: DefaultTextStyle(
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children:
-                              itemBlocks
-                                  .map(
-                                    (item) => buildBlockElement(
-                                      context,
-                                      item.element,
-                                      isSender,
-                                    ),
-                                  )
-                                  .toList(),
-                        ),
-                      ),
+          children: head
+              .map(
+                (itemBlocks) => Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Spacings.xs,
+                    vertical: Spacings.xxxs,
+                  ),
+                  child: DefaultTextStyle(
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: itemBlocks
+                          .map(
+                            (item) => buildBlockElement(
+                              context,
+                              item.element,
+                              isSender,
+                            ),
+                          )
+                          .toList(),
                     ),
-                  )
-                  .toList(),
+                  ),
+                ),
+              )
+              .toList(),
         ),
         ...rows.map(
           (row) => TableRow(
-            children:
-                row
-                    .map(
-                      (itemBlocks) => Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: Spacings.xs,
-                          vertical: Spacings.xxxs,
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children:
-                              itemBlocks
-                                  .map(
-                                    (item) => buildBlockElement(
-                                      context,
-                                      item.element,
-                                      isSender,
-                                    ),
-                                  )
-                                  .toList(),
-                        ),
-                      ),
-                    )
-                    .toList(),
+            children: row
+                .map(
+                  (itemBlocks) => Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: Spacings.xs,
+                      vertical: Spacings.xxxs,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: itemBlocks
+                          .map(
+                            (item) => buildBlockElement(
+                              context,
+                              item.element,
+                              isSender,
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                )
+                .toList(),
           ),
         ),
       ],
@@ -255,10 +228,9 @@ Widget buildBlockElement(
     BlockElement_HorizontalRule() => SizedBox(
       width: 100,
       child: Divider(
-        color:
-            isSender
-                ? CustomColorScheme.of(context).message.selfText
-                : CustomColorScheme.of(context).message.otherText,
+        color: isSender
+            ? CustomColorScheme.of(context).message.selfText
+            : CustomColorScheme.of(context).message.otherText,
       ),
     ),
     BlockElement_CodeBlock(:final field0) => Text.rich(
@@ -267,10 +239,9 @@ Widget buildBlockElement(
         style: TextStyle(
           fontFamily: getSystemMonospaceFontFamily(),
           fontSize: BodyFontSize.small2.size,
-          color:
-              isSender
-                  ? CustomColorScheme.of(context).message.selfText
-                  : CustomColorScheme.of(context).message.otherText,
+          color: isSender
+              ? CustomColorScheme.of(context).message.selfText
+              : CustomColorScheme.of(context).message.otherText,
         ),
       ),
     ),
@@ -309,58 +280,51 @@ InlineSpan buildInlineElement(
       ),
     ),
     InlineElement_Link(:final destUrl, :final children) => TextSpan(
-      children:
-          children
-              .map(
-                (child) => buildInlineElement(
-                  context,
-                  child,
-                  isSender,
-                  destUrl: Uri.tryParse(destUrl),
-                ),
-              )
-              .toList(),
+      children: children
+          .map(
+            (child) => buildInlineElement(
+              context,
+              child,
+              isSender,
+              destUrl: Uri.tryParse(destUrl),
+            ),
+          )
+          .toList(),
       style: TextStyle(
-        color:
-            isSender
-                ? CustomColorScheme.of(context).function.selfLink
-                : CustomColorScheme.of(context).function.link,
-        decorationColor:
-            isSender
-                ? CustomColorScheme.of(context).function.selfLink
-                : CustomColorScheme.of(context).function.link,
+        color: isSender
+            ? CustomColorScheme.of(context).function.selfLink
+            : CustomColorScheme.of(context).function.link,
+        decorationColor: isSender
+            ? CustomColorScheme.of(context).function.selfLink
+            : CustomColorScheme.of(context).function.link,
         decoration: TextDecoration.underline,
       ),
     ),
     InlineElement_Bold(:final field0) => TextSpan(
-      children:
-          field0
-              .map((child) => buildInlineElement(context, child, isSender))
-              .toList(),
+      children: field0
+          .map((child) => buildInlineElement(context, child, isSender))
+          .toList(),
       style: const TextStyle(fontWeight: FontWeight.bold),
       recognizer: destUrl != null ? openLinkRecognizer(destUrl) : null,
     ),
     InlineElement_Italic(:final field0) => TextSpan(
-      children:
-          field0
-              .map((child) => buildInlineElement(context, child, isSender))
-              .toList(),
+      children: field0
+          .map((child) => buildInlineElement(context, child, isSender))
+          .toList(),
       style: const TextStyle(fontStyle: FontStyle.italic),
       recognizer: destUrl != null ? openLinkRecognizer(destUrl) : null,
     ),
     InlineElement_Strikethrough(:final field0) => TextSpan(
-      children:
-          field0
-              .map((child) => buildInlineElement(context, child, isSender))
-              .toList(),
+      children: field0
+          .map((child) => buildInlineElement(context, child, isSender))
+          .toList(),
       style: const TextStyle(decoration: TextDecoration.lineThrough),
       recognizer: destUrl != null ? openLinkRecognizer(destUrl) : null,
     ),
     InlineElement_Spoiler(:final field0) => TextSpan(
-      children:
-          field0
-              .map((child) => buildInlineElement(context, child, isSender))
-              .toList(),
+      children: field0
+          .map((child) => buildInlineElement(context, child, isSender))
+          .toList(),
       style: TextStyle(
         decoration: TextDecoration.combine([
           TextDecoration.overline,
@@ -377,32 +341,21 @@ InlineSpan buildInlineElement(
           left: Spacings.xxxs,
           right: Spacings.xxs,
         ),
-        child:
-            field0
-                ? iconoir.CheckSquare(
-                  width: 20,
-                  height: 20,
-                  color:
-                      isSender
-                          ? CustomColorScheme.of(
-                            context,
-                          ).message.selfCheckboxCheck
-                          : CustomColorScheme.of(
-                            context,
-                          ).message.otherCheckboxCheck,
-                )
-                : iconoir.Square(
-                  width: 20,
-                  height: 20,
-                  color:
-                      isSender
-                          ? CustomColorScheme.of(
-                            context,
-                          ).message.selfCheckboxCheck
-                          : CustomColorScheme.of(
-                            context,
-                          ).message.otherCheckboxCheck,
-                ),
+        child: field0
+            ? iconoir.CheckSquare(
+                width: 20,
+                height: 20,
+                color: isSender
+                    ? CustomColorScheme.of(context).message.selfCheckboxCheck
+                    : CustomColorScheme.of(context).message.otherCheckboxCheck,
+              )
+            : iconoir.Square(
+                width: 20,
+                height: 20,
+                color: isSender
+                    ? CustomColorScheme.of(context).message.selfCheckboxCheck
+                    : CustomColorScheme.of(context).message.otherCheckboxCheck,
+              ),
       ),
     ),
   };

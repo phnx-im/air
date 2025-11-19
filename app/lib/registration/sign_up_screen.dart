@@ -128,8 +128,9 @@ class _Form extends HookWidget {
 
     return Form(
       key: formKey,
-      autovalidateMode:
-          showErrors ? AutovalidateMode.always : AutovalidateMode.disabled,
+      autovalidateMode: showErrors
+          ? AutovalidateMode.always
+          : AutovalidateMode.disabled,
       child: Center(
         child: Column(
           children: [
@@ -195,10 +196,8 @@ class _UserAvatarPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (displayName, avatar) = context.select(
-      (RegistrationCubit cubit) => (
-        cubit.state.displayName,
-        cubit.state.avatar,
-      ),
+      (RegistrationCubit cubit) =>
+          (cubit.state.displayName, cubit.state.avatar),
     );
 
     final colors = CustomColorScheme.of(context);
@@ -277,16 +276,10 @@ class _DisplayNameTextField extends HookWidget {
             focusNode.requestFocus();
             onFieldSubmitted();
           },
-          validator:
-              (value) =>
-                  context
-                          .read<RegistrationCubit>()
-                          .state
-                          .displayName
-                          .trim()
-                          .isEmpty
-                      ? loc.signUpScreen_error_emptyDisplayName
-                      : null,
+          validator: (value) =>
+              context.read<RegistrationCubit>().state.displayName.trim().isEmpty
+              ? loc.signUpScreen_error_emptyDisplayName
+              : null,
         ),
       ],
     );
@@ -315,11 +308,10 @@ class _ServerTextField extends HookWidget {
         focusNode.requestFocus();
         onFieldSubmitted();
       },
-      validator:
-          (value) =>
-              context.read<RegistrationCubit>().state.isDomainValid
-                  ? null
-                  : loc.signUpScreen_error_invalidDomain,
+      validator: (value) =>
+          context.read<RegistrationCubit>().state.isDomainValid
+          ? null
+          : loc.signUpScreen_error_invalidDomain,
     );
   }
 }
@@ -343,20 +335,18 @@ class _SignUpButton extends StatelessWidget {
         backgroundColor: colors.accent.primary,
         foregroundColor: colors.function.toggleWhite,
       ),
-      onPressed:
-          isSigningUp
-              ? null
-              : () {
-                showErrors.value = true;
-                if (!formKey.currentState!.validate()) {
-                  return;
-                }
-                _submit(context, formKey);
-              },
-      child:
-          isSigningUp
-              ? CircularProgressIndicator(color: colors.function.toggleWhite)
-              : Text(loc.signUpScreen_actionButton),
+      onPressed: isSigningUp
+          ? null
+          : () {
+              showErrors.value = true;
+              if (!formKey.currentState!.validate()) {
+                return;
+              }
+              _submit(context, formKey);
+            },
+      child: isSigningUp
+          ? CircularProgressIndicator(color: colors.function.toggleWhite)
+          : Text(loc.signUpScreen_actionButton),
     );
   }
 }

@@ -74,12 +74,12 @@ class IntroScreen extends StatelessWidget {
                           child: OutlinedButton(
                             style: OutlinedButton.styleFrom(
                               textStyle: customTextScheme.labelMedium,
-                              backgroundColor:
-                                  CustomColorScheme.of(context).accent.primary,
-                              foregroundColor:
-                                  CustomColorScheme.of(
-                                    context,
-                                  ).function.toggleWhite,
+                              backgroundColor: CustomColorScheme.of(
+                                context,
+                              ).accent.primary,
+                              foregroundColor: CustomColorScheme.of(
+                                context,
+                              ).function.toggleWhite,
                             ),
                             onPressed: () async {
                               await requestNotificationPermissionsIfNeeded();
@@ -139,14 +139,13 @@ class _TermsOfUseText extends StatelessWidget {
           TextSpan(
             text: linkText,
             style: linkStyle,
-            recognizer:
-                TapGestureRecognizer()
-                  ..onTap = () {
-                    launchUrl(
-                      IntroScreen._termsOfUseUri,
-                      mode: LaunchMode.externalApplication,
-                    );
-                  },
+            recognizer: TapGestureRecognizer()
+              ..onTap = () {
+                launchUrl(
+                  IntroScreen._termsOfUseUri,
+                  mode: LaunchMode.externalApplication,
+                );
+              },
           ),
           TextSpan(text: afterLink),
         ],

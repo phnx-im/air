@@ -15,10 +15,9 @@ class EmojiEntry {
 
   factory EmojiEntry.fromJson(Map<String, dynamic> json) {
     return EmojiEntry(
-      shortcodes:
-          (json['s'] as List<dynamic>)
-              .map((value) => (value as String).toLowerCase())
-              .toList(),
+      shortcodes: (json['s'] as List<dynamic>)
+          .map((value) => (value as String).toLowerCase())
+          .toList(),
       emoji: json['e'] as String,
       supportsSkinTone: (json['t'] as num?) == 1,
     );
@@ -37,11 +36,10 @@ class EmojiRepository {
 
   static Future<EmojiRepository> load() async {
     final raw = await rootBundle.loadString('assets/emoji/emoji.json');
-    final parsed =
-        (jsonDecode(raw) as List<dynamic>)
-            .cast<Map<String, dynamic>>()
-            .map(EmojiEntry.fromJson)
-            .toList();
+    final parsed = (jsonDecode(raw) as List<dynamic>)
+        .cast<Map<String, dynamic>>()
+        .map(EmojiEntry.fromJson)
+        .toList();
     final index = <String, EmojiEntry>{};
     for (final entry in parsed) {
       for (final shortcode in entry.shortcodes) {

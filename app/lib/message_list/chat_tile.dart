@@ -134,8 +134,9 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
         sizeFactor: animation,
         child: ScaleTransition(
           scale: animation,
-          alignment:
-              widget.isSender ? Alignment.bottomRight : Alignment.bottomLeft,
+          alignment: widget.isSender
+              ? Alignment.bottomRight
+              : Alignment.bottomLeft,
           child: widget.child,
         ),
       ),

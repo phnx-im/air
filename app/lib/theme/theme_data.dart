@@ -100,10 +100,9 @@ ThemeData themeData(Brightness brightness) {
       thumbColor: WidgetStateProperty.all(colorScheme.text.secondary),
       trackOutlineColor: WidgetStateProperty.all(colorScheme.separator.primary),
       trackColor: WidgetStateProperty.resolveWith(
-        (states) =>
-            states.contains(WidgetState.selected)
-                ? colorScheme.function.success
-                : Colors.transparent,
+        (states) => states.contains(WidgetState.selected)
+            ? colorScheme.function.success
+            : Colors.transparent,
       ),
     ),
   );

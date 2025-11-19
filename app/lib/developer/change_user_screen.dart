@@ -55,10 +55,9 @@ class ChangeUserScreenView extends StatelessWidget {
       ),
       body: Center(
         child: Container(
-          constraints:
-              isPointer()
-                  ? const BoxConstraints(maxWidth: _maxDesktopWidth)
-                  : null,
+          constraints: isPointer()
+              ? const BoxConstraints(maxWidth: _maxDesktopWidth)
+              : null,
           child: _ClientRecords(clientRecords: clientRecords),
         ),
       ),
@@ -100,50 +99,47 @@ class _ClientRecordsList extends StatelessWidget {
 
     return Center(
       child: ListView(
-        children:
-            clientRecords.map((record) {
-              final isCurrentUser = record.userId == ownClientId;
-              final currentUserSuffix = isCurrentUser ? " (current)" : "";
+        children: clientRecords.map((record) {
+          final isCurrentUser = record.userId == ownClientId;
+          final currentUserSuffix = isCurrentUser ? " (current)" : "";
 
-              final textColor =
-                  isCurrentUser
-                      ? Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.38)
-                      : null;
+          final textColor = isCurrentUser
+              ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38)
+              : null;
 
-              return ListTile(
-                titleAlignment: ListTileTitleAlignment.top,
-                titleTextStyle: Theme.of(context).textTheme.bodyMedium
-                    ?.copyWith(color: textColor, fontWeight: FontWeight.bold),
-                subtitleTextStyle: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: textColor),
-                leading: Transform.translate(
-                  offset: const Offset(0, Spacings.xxs),
-                  child: UserAvatar(
-                    displayName: record.userProfile.displayName,
-                    image: record.userProfile.profilePicture,
-                    size: Spacings.xl,
-                  ),
-                ),
-                title: Text(record.userProfile.displayName + currentUserSuffix),
-                subtitle: Text(
-                  "Domain: ${record.userId.domain}\n"
-                  "ID: ${record.userId.uuid.toString()}\n"
-                  "Created: ${record.createdAt}\n"
-                  "Fully registered: ${record.isFinished ? "yes" : "no"}",
-                ),
-                onTap:
-                    !isCurrentUser
-                        ? () {
-                          final coreClient = context.read<CoreClient>();
-                          coreClient.logout();
-                          coreClient.loadUser(userId: record.userId);
-                        }
-                        : null,
-              );
-            }).toList(),
+          return ListTile(
+            titleAlignment: ListTileTitleAlignment.top,
+            titleTextStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: textColor,
+              fontWeight: FontWeight.bold,
+            ),
+            subtitleTextStyle: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: textColor),
+            leading: Transform.translate(
+              offset: const Offset(0, Spacings.xxs),
+              child: UserAvatar(
+                displayName: record.userProfile.displayName,
+                image: record.userProfile.profilePicture,
+                size: Spacings.xl,
+              ),
+            ),
+            title: Text(record.userProfile.displayName + currentUserSuffix),
+            subtitle: Text(
+              "Domain: ${record.userId.domain}\n"
+              "ID: ${record.userId.uuid.toString()}\n"
+              "Created: ${record.createdAt}\n"
+              "Fully registered: ${record.isFinished ? "yes" : "no"}",
+            ),
+            onTap: !isCurrentUser
+                ? () {
+                    final coreClient = context.read<CoreClient>();
+                    coreClient.logout();
+                    coreClient.loadUser(userId: record.userId);
+                  }
+                : null,
+          );
+        }).toList(),
       ),
     );
   }

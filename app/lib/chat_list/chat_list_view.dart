@@ -60,9 +60,11 @@ class ChatListView extends StatelessWidget {
     );
     return scaffold
         ? Scaffold(
-          backgroundColor: CustomColorScheme.of(context).backgroundBase.primary,
-          body: widget,
-        )
+            backgroundColor: CustomColorScheme.of(
+              context,
+            ).backgroundBase.primary,
+            body: widget,
+          )
         : widget;
   }
 }

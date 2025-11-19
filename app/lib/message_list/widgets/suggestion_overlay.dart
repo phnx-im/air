@@ -266,26 +266,26 @@ class _SuggestionOverlay<T> extends StatelessWidget {
               parent: controller.animationController,
               curve:
                   controller.animationPhase ==
-                          SuggestionOverlayAnimationPhase.entering
-                      ? Curves.easeInOutCubic
-                      : Curves.easeInOutCubic,
+                      SuggestionOverlayAnimationPhase.entering
+                  ? Curves.easeInOutCubic
+                  : Curves.easeInOutCubic,
             );
             final fadeAnimation =
                 controller.animationPhase ==
-                        SuggestionOverlayAnimationPhase.entering
-                    ? curve
-                    : Tween<double>(begin: 1, end: 0).animate(curve);
+                    SuggestionOverlayAnimationPhase.entering
+                ? curve
+                : Tween<double>(begin: 1, end: 0).animate(curve);
             final slideAnimation =
                 controller.animationPhase ==
-                        SuggestionOverlayAnimationPhase.entering
-                    ? Tween<Offset>(
-                      begin: const Offset(0, 0.02),
-                      end: Offset.zero,
-                    ).animate(curve)
-                    : Tween<Offset>(
-                      begin: Offset.zero,
-                      end: const Offset(0, 0.02),
-                    ).animate(curve);
+                    SuggestionOverlayAnimationPhase.entering
+                ? Tween<Offset>(
+                    begin: const Offset(0, 0.02),
+                    end: Offset.zero,
+                  ).animate(curve)
+                : Tween<Offset>(
+                    begin: Offset.zero,
+                    end: const Offset(0, 0.02),
+                  ).animate(curve);
 
             return FadeTransition(
               opacity: fadeAnimation,

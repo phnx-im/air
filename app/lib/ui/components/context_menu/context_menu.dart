@@ -93,10 +93,12 @@ class _CursorMenuLayoutDelegate extends SingleChildLayoutDelegate {
       dy = cursorPosition.dy - childSize.height - offset.dy - Spacings.xs;
     }
 
-    final double maxX =
-        (size.width - childSize.width).clamp(0.0, size.width).toDouble();
-    final double maxY =
-        (size.height - childSize.height).clamp(0.0, size.height).toDouble();
+    final double maxX = (size.width - childSize.width)
+        .clamp(0.0, size.width)
+        .toDouble();
+    final double maxY = (size.height - childSize.height)
+        .clamp(0.0, size.height)
+        .toDouble();
 
     dx = dx.clamp(0.0, maxX).toDouble();
     dy = dy.clamp(0.0, maxY).toDouble();

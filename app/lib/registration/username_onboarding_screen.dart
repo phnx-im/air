@@ -117,12 +117,11 @@ class UsernameOnboardingScreen extends HookWidget {
                                 handleExists: handleExists,
                                 formKey: formKey,
                                 onSubmitted: submit,
-                                validator:
-                                    (value) => _validateHandle(
-                                      loc,
-                                      handleExists.value,
-                                      value,
-                                    ),
+                                validator: (value) => _validateHandle(
+                                  loc,
+                                  handleExists.value,
+                                  value,
+                                ),
                               ),
                             ],
                           ),
@@ -181,19 +180,18 @@ class _AddButton extends StatelessWidget {
           foregroundColor: colors.function.toggleWhite,
         ),
         onPressed: isSubmitting ? null : onPressed,
-        child:
-            isSubmitting
-                ? SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      colors.text.primary,
-                    ),
+        child: isSubmitting
+            ? SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    colors.text.primary,
                   ),
-                )
-                : Text(loc.usernameOnboarding_addButton),
+                ),
+              )
+            : Text(loc.usernameOnboarding_addButton),
       ),
     );
   }
