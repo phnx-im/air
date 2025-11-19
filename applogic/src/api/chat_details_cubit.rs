@@ -15,7 +15,7 @@ use flutter_rust_bridge::frb;
 use mimi_content::{ByteBuf, Disposition, MimiContent, NestedPart, NestedPartContent};
 use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
-use tracing::{error, warn};
+use tracing::error;
 
 use crate::api::{
     attachments_repository::{AttachmentTaskHandle, AttachmentsRepository, InProgressMap},

@@ -70,7 +70,7 @@ impl AttachmentsRepository {
                 match event {
                     AttachmentProgressEvent::Init => {
                         if sink.add(UiAttachmentStatus::Progress(0)).is_err() {
-                            return;
+                            break; // sink is closed
                         }
                     }
                     AttachmentProgressEvent::Progress { bytes_loaded } => {
@@ -78,25 +78,25 @@ impl AttachmentsRepository {
                             .add(UiAttachmentStatus::Progress(bytes_loaded))
                             .is_err()
                         {
-                            return;
+                            break; // sink is closed
                         }
                     }
                     AttachmentProgressEvent::Completed => {
-                        let _ = sink.add(UiAttachmentStatus::Completed);
-                        return;
+                        sink.add(UiAttachmentStatus::Completed).ok();
+                        break;
                     }
                     AttachmentProgressEvent::Failed => {
-                        let _ = sink.add(UiAttachmentStatus::Failed);
-                        return;
+                        sink.add(UiAttachmentStatus::Failed).ok();
+                        break;
                     }
                 }
             }
         } else if let Ok(Some(AttachmentStatus::Ready)) =
             self.store.attachment_status(attachment_id).await
         {
-            let _ = sink.add(UiAttachmentStatus::Completed);
+            sink.add(UiAttachmentStatus::Completed).ok();
         } else {
-            let _ = sink.add(UiAttachmentStatus::Failed);
+            sink.add(UiAttachmentStatus::Failed).ok();
         }
     }
 
@@ -296,9 +296,14 @@ impl AttachmentTaskHandle {
     }
 }
 
+/// Attachment status exposed to the UI
 pub enum UiAttachmentStatus {
-    Pending,         // Not in progress
-    Progress(usize), // Uploading or downloading
-    Completed,       // Done uploading or downloading
-    Failed,          // Failed to upload or download
+    /// Not in progress
+    Pending,
+    /// Uploading or downloading
+    Progress(usize),
+    /// Done uploading or downloading
+    Completed,
+    /// Failed to upload or download
+    Failed,
 }
