@@ -360,6 +360,23 @@ impl Chat {
         Ok(())
     }
 
+    pub(super) async fn update_title(
+        executor: impl SqliteExecutor<'_>,
+        notifier: &mut StoreNotifier,
+        chat_id: ChatId,
+        chat_title: &str,
+    ) -> sqlx::Result<()> {
+        query!(
+            "UPDATE chat SET chat_title = ? WHERE chat_id = ?",
+            chat_title,
+            chat_id,
+        )
+        .execute(executor)
+        .await?;
+        notifier.update(chat_id);
+        Ok(())
+    }
+
     pub(super) async fn update_status(
         connection: &mut SqliteConnection,
         notifier: &mut StoreNotifier,

@@ -360,6 +360,13 @@ sealed class UiSystemMessage with _$UiSystemMessage {
       UiSystemMessage_Add;
   const factory UiSystemMessage.remove(UiUserId field0, UiUserId field1) =
       UiSystemMessage_Remove;
+  const factory UiSystemMessage.changeTitle(
+    UiUserId field0,
+    String field1,
+    String field2,
+  ) = UiSystemMessage_ChangeTitle;
+  const factory UiSystemMessage.changePicture(UiUserId field0) =
+      UiSystemMessage_ChangePicture;
 }
 
 @freezed
