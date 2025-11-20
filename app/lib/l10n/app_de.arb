@@ -141,6 +141,10 @@
   "textMessage_deleted": "Nachricht gelöscht",
   "messageContextMenu_copy": "Kopieren",
   "messageContextMenu_edit": "Bearbeiten",
+  "messageContextMenu_save": "Speichern",
+
+  "messageContextMenu_saveError": "Anhang konnte nicht gespeichert werden",
+  "messageContextMenu_saveConfirmation": "Anhang gespeichert",
 
   "reportSpamButton_text": "Spam melden",
   "reportSpamDialog_title": "Spam melden?",

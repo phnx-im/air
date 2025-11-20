@@ -152,6 +152,10 @@
   "textMessage_deleted": "Deleted message",
   "messageContextMenu_copy": "Copy",
   "messageContextMenu_edit": "Edit",
+  "messageContextMenu_save": "Save",
+
+  "messageContextMenu_saveError": "Failed to save attachment",
+  "messageContextMenu_saveConfirmation": "Attachment saved",
 
   "reportSpamButton_text": "Report spam",
   "reportSpamDialog_title": "Report spam?",

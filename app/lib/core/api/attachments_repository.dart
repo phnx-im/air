@@ -34,6 +34,12 @@ abstract class AttachmentsRepository implements RustOpaqueInterface {
         userCubit: userCubit,
       );
 
+  Future<void> saveAttachment({
+    required String destinationDir,
+    required String filename,
+    required AttachmentId attachmentId,
+  });
+
   Stream<UiAttachmentStatus> statusStream({required AttachmentId attachmentId});
 }
 
