@@ -338,9 +338,9 @@ class _SignUpButton extends StatelessWidget {
       (RegistrationCubit cubit) => cubit.state.isSigningUp,
     );
     return OutlinedButton(
-      style: OutlinedButton.styleFrom(
-        backgroundColor: colors.accent.primary,
-        foregroundColor: colors.function.toggleWhite,
+      style: OutlinedButtonTheme.of(context).style!.copyWith(
+        backgroundColor: WidgetStateProperty.all(colors.accent.primary),
+        foregroundColor: WidgetStateProperty.all(colors.function.toggleWhite),
       ),
       onPressed: isSigningUp
           ? null

@@ -175,9 +175,9 @@ class _AddButton extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: Spacings.m),
       width: isSmallScreen(context) ? double.infinity : null,
       child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          backgroundColor: colors.accent.primary,
-          foregroundColor: colors.function.toggleWhite,
+        style: OutlinedButtonTheme.of(context).style!.copyWith(
+          backgroundColor: WidgetStateProperty.all(colors.accent.primary),
+          foregroundColor: WidgetStateProperty.all(colors.function.toggleWhite),
         ),
         onPressed: isSubmitting ? null : onPressed,
         child: isSubmitting

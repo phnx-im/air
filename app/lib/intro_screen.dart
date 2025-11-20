@@ -29,8 +29,10 @@ class IntroScreen extends StatelessWidget {
 
     final loc = AppLocalizations.of(context);
 
+    final colors = CustomColorScheme.of(context);
+
     return Scaffold(
-      backgroundColor: CustomColorScheme.of(context).backgroundBase.secondary,
+      backgroundColor: colors.backgroundBase.secondary,
       body: SafeArea(
         minimum: const EdgeInsets.only(
           left: Spacings.s,
@@ -50,7 +52,7 @@ class IntroScreen extends StatelessWidget {
                   child: SvgPicture.asset(
                     'assets/images/logo.svg',
                     colorFilter: ColorFilter.mode(
-                      CustomColorScheme.of(context).text.primary,
+                      colors.text.primary,
                       BlendMode.srcIn,
                     ),
                   ),
@@ -74,14 +76,15 @@ class IntroScreen extends StatelessWidget {
                             top: Spacings.l + Spacings.xxs,
                           ),
                           child: OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              backgroundColor: CustomColorScheme.of(
-                                context,
-                              ).accent.primary,
-                              foregroundColor: CustomColorScheme.of(
-                                context,
-                              ).function.toggleWhite,
-                            ),
+                            style: OutlinedButtonTheme.of(context).style!
+                                .copyWith(
+                                  backgroundColor: WidgetStateProperty.all(
+                                    colors.accent.primary,
+                                  ),
+                                  foregroundColor: WidgetStateProperty.all(
+                                    colors.function.toggleWhite,
+                                  ),
+                                ),
                             onPressed: () async {
                               await requestNotificationPermissionsIfNeeded();
                               if (!context.mounted) {
