@@ -297,12 +297,8 @@ message TargetedMessageRequest {
 message TargetedMessagePayload {
   GroupStateEarKey group_state_ear_key = 1;
   LeafNodeIndex sender = 2;
-  TargetedMessage message = 3;
-}
-
-message TargetedMessage {
-  oneof message_type {
-    TargetedApplicationMessage application_message = 1;
+  oneof targeted_message_type {
+    TargetedApplicationMessage application_message = 3;
   }
 }
 

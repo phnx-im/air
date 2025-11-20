@@ -129,7 +129,6 @@ pub struct HandleContact {
     pub handle: UserHandle,
     pub chat_id: ChatId,
     pub friendship_package_ear_key: FriendshipPackageEarKey,
-    // This is Optional only for backwards compatibility
     pub connection_offer_hash: ConnectionOfferHash,
 }
 
@@ -145,6 +144,29 @@ impl HandleContact {
             chat_id,
             friendship_package_ear_key,
             connection_offer_hash,
+        }
+    }
+}
+
+/// Partial contact established via a targeted message
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
+pub struct TargetedMessageContact {
+    pub user_id: UserId,
+    pub chat_id: ChatId,
+    pub friendship_package_ear_key: FriendshipPackageEarKey,
+}
+
+impl TargetedMessageContact {
+    pub(crate) fn new(
+        user_id: UserId,
+        chat_id: ChatId,
+        friendship_package_ear_key: FriendshipPackageEarKey,
+    ) -> Self {
+        Self {
+            user_id,
+            chat_id,
+            friendship_package_ear_key,
         }
     }
 }

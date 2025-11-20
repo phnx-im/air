@@ -225,7 +225,9 @@ impl CoreUser {
         // connection.
 
         let encrypted_user_profile_key = own_user_profile_key.encrypt(
-            &cep_payload.connection_group_identity_link_wrapper_key,
+            &cep_payload
+                .connection_info
+                .connection_group_identity_link_wrapper_key,
             self.user_id(),
         )?;
 
@@ -234,7 +236,7 @@ impl CoreUser {
             wai_ear_key: self.inner.key_store.wai_ear_key.clone(),
             user_profile_base_secret: own_user_profile_key.base_secret().clone(),
         }
-        .encrypt(&cep_payload.friendship_package_ear_key)?;
+        .encrypt(&cep_payload.connection_info.friendship_package_ear_key)?;
 
         let aad: AadMessage = AadPayload::JoinConnectionGroup(JoinConnectionGroupParamsAad {
             encrypted_friendship_package,
@@ -242,7 +244,7 @@ impl CoreUser {
         })
         .into();
         let qgid = QualifiedGroupId::tls_deserialize_exact_bytes(
-            cep_payload.connection_group_id.as_slice(),
+            cep_payload.connection_info.connection_group_id.as_slice(),
         )?;
 
         Ok((aad, qgid))
@@ -258,8 +260,8 @@ impl CoreUser {
             .api_clients
             .get(qgid.owning_domain())?
             .ds_connection_group_info(
-                cep_payload.connection_group_id.clone(),
-                &cep_payload.connection_group_ear_key, //
+                cep_payload.connection_info.connection_group_id.clone(),
+                &cep_payload.connection_info.connection_group_ear_key, //
             )
             .await?)
     }
@@ -277,8 +279,9 @@ impl CoreUser {
             &self.inner.api_clients,
             eci,
             self.signing_key(),
-            cep_payload.connection_group_ear_key.clone(),
+            cep_payload.connection_info.connection_group_ear_key.clone(),
             cep_payload
+                .connection_info
                 .connection_group_identity_link_wrapper_key
                 .clone(),
             aad,
@@ -309,7 +312,7 @@ impl CoreUser {
         let contact = Contact::from_friendship_package(
             sender_user_id.clone(),
             chat.id(),
-            cep_payload.friendship_package.clone(),
+            cep_payload.connection_info.friendship_package.clone(),
         )?;
         Ok((chat, contact))
     }
@@ -343,7 +346,7 @@ impl CoreUser {
                 commit,
                 group_info,
                 qs_client_reference,
-                &cep_payload.connection_group_ear_key,
+                &cep_payload.connection_info.connection_group_ear_key,
             )
             .await?;
         Ok(())

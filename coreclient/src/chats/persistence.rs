@@ -153,6 +153,12 @@ impl Chat {
                 None,
             ),
             ChatType::Group => (true, None, None, None),
+            ChatType::TargetedMessageConnection(user_id) => (
+                false,
+                Some(user_id.uuid()),
+                Some(user_id.domain().clone()),
+                None,
+            ),
         };
         query!(
             "INSERT INTO chat (
@@ -720,6 +726,22 @@ impl Chat {
                         connection_user_uuid = NULL,
                         connection_user_domain = NULL
                     WHERE chat_id = ?",
+                    self.id,
+                )
+                .execute(executor)
+                .await?;
+            }
+            ChatType::TargetedMessageConnection(user_id) => {
+                let uuid = user_id.uuid();
+                let domain = user_id.domain();
+                query!(
+                    "UPDATE chat SET
+                        connection_user_uuid = ?,
+                        connection_user_domain = ?,
+                        is_confirmed_connection = false
+                    WHERE chat_id = ?",
+                    uuid,
+                    domain,
                     self.id,
                 )
                 .execute(executor)

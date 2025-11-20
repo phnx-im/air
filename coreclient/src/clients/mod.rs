@@ -91,6 +91,7 @@ mod persistence;
 pub mod process;
 mod remove_users;
 pub mod store;
+pub mod targeted_message;
 #[cfg(feature = "test_utils")]
 mod test_utils;
 #[cfg(test)]

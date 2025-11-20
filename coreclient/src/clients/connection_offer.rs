@@ -60,27 +60,35 @@ pub(crate) mod payload {
             let client_credential = self.sender_client_credential.verify(verifying_key)?;
             let verified_payload = ConnectionOfferPayload {
                 sender_client_credential: client_credential,
-                connection_group_id: self.connection_group_id,
-                connection_group_ear_key: self.connection_group_ear_key,
-                connection_group_identity_link_wrapper_key: self
-                    .connection_group_identity_link_wrapper_key,
-                friendship_package_ear_key: self.friendship_package_ear_key,
-                friendship_package: self.friendship_package,
+                connection_info: ConnectionInfo {
+                    connection_group_id: self.connection_group_id,
+                    connection_group_ear_key: self.connection_group_ear_key,
+                    connection_group_identity_link_wrapper_key: self
+                        .connection_group_identity_link_wrapper_key,
+                    friendship_package_ear_key: self.friendship_package_ear_key,
+                    friendship_package: self.friendship_package,
+                },
                 connection_package_hash: self.connection_package_hash,
             };
             Ok(verified_payload)
         }
     }
 
-    #[derive(Debug, TlsSerialize, TlsSize, Clone)]
+    #[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize, Clone)]
     #[cfg_attr(test, derive(PartialEq))]
-    pub(crate) struct ConnectionOfferPayload {
-        pub(crate) sender_client_credential: ClientCredential,
+    pub(crate) struct ConnectionInfo {
         pub(crate) connection_group_id: GroupId,
         pub(crate) connection_group_ear_key: GroupStateEarKey,
         pub(crate) connection_group_identity_link_wrapper_key: IdentityLinkWrapperKey,
         pub(crate) friendship_package_ear_key: FriendshipPackageEarKey,
         pub(crate) friendship_package: FriendshipPackage,
+    }
+
+    #[derive(Debug, TlsSerialize, TlsSize, Clone)]
+    #[cfg_attr(test, derive(PartialEq))]
+    pub(crate) struct ConnectionOfferPayload {
+        pub(crate) sender_client_credential: ClientCredential,
+        pub(crate) connection_info: ConnectionInfo,
         pub(crate) connection_package_hash: ConnectionPackageHash,
     }
 
@@ -103,15 +111,17 @@ pub(crate) mod payload {
         pub(super) fn dummy(client_credential: ClientCredential) -> Self {
             Self {
                 sender_client_credential: client_credential,
-                connection_group_id: GroupId::from_slice(b"dummy_group_id"),
-                connection_group_ear_key: GroupStateEarKey::random().unwrap(),
-                connection_group_identity_link_wrapper_key: IdentityLinkWrapperKey::random()
-                    .unwrap(),
-                friendship_package_ear_key: FriendshipPackageEarKey::random().unwrap(),
-                friendship_package: FriendshipPackage {
-                    friendship_token: FriendshipToken::random().unwrap(),
-                    wai_ear_key: WelcomeAttributionInfoEarKey::random().unwrap(),
-                    user_profile_base_secret: UserProfileBaseSecret::random().unwrap(),
+                connection_info: ConnectionInfo {
+                    connection_group_id: GroupId::from_slice(b"dummy_group_id"),
+                    connection_group_ear_key: GroupStateEarKey::random().unwrap(),
+                    connection_group_identity_link_wrapper_key: IdentityLinkWrapperKey::random()
+                        .unwrap(),
+                    friendship_package_ear_key: FriendshipPackageEarKey::random().unwrap(),
+                    friendship_package: FriendshipPackage {
+                        friendship_token: FriendshipToken::random().unwrap(),
+                        wai_ear_key: WelcomeAttributionInfoEarKey::random().unwrap(),
+                        user_profile_base_secret: UserProfileBaseSecret::random().unwrap(),
+                    },
                 },
                 connection_package_hash: ConnectionPackageHash::new_for_test(vec![0; 32]),
             }

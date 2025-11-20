@@ -22,7 +22,8 @@ use aircommon::{
 use airprotos::{
     convert::{RefInto, TryFromRef as _, TryRefInto},
     delivery_service::v1::{
-        self, delivery_service_server::DeliveryService, targeted_message::MessageType, *,
+        self, delivery_service_server::DeliveryService,
+        targeted_message_payload::TargetedMessageType, *,
     },
     validation::{InvalidTlsExt, MissingFieldExt},
 };
@@ -1068,9 +1069,9 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
         let ear_key = request.ear_key()?;
         let message = request.message()?;
-        let targeted_message = payload.message.ok_or_missing_field("targeted message")?;
-        let MessageType::ApplicationMessage(req) = targeted_message
-            .message_type
+        let TargetedMessageType::ApplicationMessage(req) = payload
+            .targeted_message_type
+            .as_ref()
             .ok_or_missing_field("message type")?;
         let recipient_index = req.recipient.ok_or_missing_field("recipient")?.into();
         let qgid = message.validated_qgid(self.ds.own_domain())?;
@@ -1082,6 +1083,15 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .await
             .map_err(to_status)?;
 
+        // verify signature
+        let verifying_key: LeafVerifyingKeyRef = group_state
+            .group()
+            .leaf(sender_index)
+            .ok_or_else(|| Status::invalid_argument("unknown sender"))?
+            .signature_key()
+            .into();
+        let _: TargetedMessagePayload = request.verify(verifying_key).map_err(InvalidSignature)?;
+
         let destination_client = group_state
             .qs_client_ref_by_index(recipient_index)
             .ok_or_else(|| Status::invalid_argument("unknown recipient"))?;
@@ -1089,13 +1099,19 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         // Messages from legacy clients won't have this field set. Default to false.
         let suppress_notifications = false;
 
-        let timestamp = self
-            .fan_out_message(
-                message.into_serialized_mls_message(),
-                std::iter::once(destination_client),
-                suppress_notifications,
-            )
-            .await;
+        let fan_out_message = DsFanOutMessage {
+            payload: QsQueueMessagePayload::targeted_message(message.into_serialized_mls_message())
+                .into(),
+            client_reference: destination_client,
+            suppress_notifications: suppress_notifications.into(),
+        };
+
+        let timestamp = fan_out_message.payload.timestamp();
+
+        self.qs_connector
+            .dispatch(fan_out_message)
+            .await
+            .map_err(DistributeMessageError::Connector)?;
 
         Ok(Response::new(TargetedMessageResponse {
             fanout_timestamp: Some(timestamp.into()),
@@ -1321,12 +1337,10 @@ impl WithMessage for GroupOperationRequest {
 impl WithMessage for TargetedMessageRequest {
     fn message(&self) -> Result<AssistedMessageIn, Status> {
         let payload = self.payload.as_ref().ok_or_missing_field("payload")?;
-        let message = payload.message.as_ref().ok_or_missing_field("message")?;
-        let message_type = message
-            .message_type
+        let TargetedMessageType::ApplicationMessage(req) = payload
+            .targeted_message_type
             .as_ref()
             .ok_or_missing_field("message_type")?;
-        let MessageType::Request(req) = message_type;
         let message = req.message.as_ref().ok_or_missing_field("request")?;
         let message = message.try_ref_into().invalid_tls("message")?;
         Ok(message)

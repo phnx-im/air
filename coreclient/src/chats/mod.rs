@@ -117,6 +117,22 @@ impl Chat {
         }
     }
 
+    pub(crate) fn new_targeted_message_chat(
+        group_id: GroupId,
+        attributes: ChatAttributes,
+        user_id: UserId,
+    ) -> Self {
+        let id = ChatId::try_from(&group_id).unwrap();
+        Self {
+            id,
+            group_id,
+            last_read: Utc::now(),
+            status: ChatStatus::Active,
+            chat_type: ChatType::TargetedMessageConnection(user_id),
+            attributes,
+        }
+    }
+
     pub(crate) fn new_group_chat(group_id: GroupId, attributes: ChatAttributes) -> Self {
         let id = ChatId::try_from(&group_id).unwrap();
         Self {
@@ -247,6 +263,9 @@ pub enum ChatType {
     /// necessary secrets.
     Connection(UserId),
     Group,
+    /// A connection chat which was established via a targeted message and is not yet confirmed by the other
+    /// party.
+    TargetedMessageConnection(UserId),
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]

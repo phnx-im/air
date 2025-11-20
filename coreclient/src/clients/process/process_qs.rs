@@ -11,7 +11,7 @@ use aircommon::{
         QueueMessage,
         client_ds::{
             AadMessage, AadPayload, ExtractedQsQueueMessage, ExtractedQsQueueMessagePayload,
-            UserProfileKeyUpdateParams, WelcomeBundle,
+            QsQueueTargetedMessage, UserProfileKeyUpdateParams, WelcomeBundle,
         },
     },
     time::TimeStamp,
@@ -127,6 +127,10 @@ impl CoreUser {
             ) => {
                 self.handle_user_profile_key_update(user_profile_key_update_params)
                     .await
+            }
+            ExtractedQsQueueMessagePayload::TargetedMessage(targeted_message) => {
+                let QsQueueTargetedMessage::ApplicationMessage(mls_message) = *targeted_message;
+                self.handle_mls_message(mls_message, ds_timestamp).await
             }
         }
     }
