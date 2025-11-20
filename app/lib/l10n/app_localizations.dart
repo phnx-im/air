@@ -766,6 +766,24 @@ abstract class AppLocalizations {
   /// **'Edit'**
   String get messageContextMenu_edit;
 
+  /// No description provided for @messageContextMenu_save.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get messageContextMenu_save;
+
+  /// No description provided for @messageContextMenu_saveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to save attachment'**
+  String get messageContextMenu_saveError;
+
+  /// No description provided for @messageContextMenu_saveConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachment saved'**
+  String get messageContextMenu_saveConfirmation;
+
   /// No description provided for @reportSpamButton_text.
   ///
   /// In en, this message translates to:

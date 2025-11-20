@@ -139,3 +139,7 @@ extension UiChatMessageExtension on UiChatMessage {
     UiMessage_Display() => null,
   };
 }
+
+extension UiAttachmentExtension on UiAttachment {
+  bool get isImage => imageMetadata != null;
+}

@@ -18,6 +18,7 @@ import io.flutter.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import android.os.Environment
 
 class MainActivity : FlutterActivity() {
     companion object {
@@ -79,6 +80,20 @@ class MainActivity : FlutterActivity() {
                     val databasePath = filesDir.absolutePath
                     Log.d(TAG, "Application database path: $databasePath")
                     result.success(databasePath)
+                }
+
+                "getDownloadsDirectory" -> {
+                    val path = Environment
+                        .getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                        .absolutePath
+                    result.success(path)
+                }
+
+                "getPicturesDirectory" -> {
+                    val path = Environment
+                        .getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+                        .absolutePath
+                    result.success(path)
                 }
 
                 "sendNotification" -> {
