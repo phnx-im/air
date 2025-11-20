@@ -214,10 +214,6 @@ impl CoreUser {
         Ok(ChatMessage::next_message(self.pool(), message_id).await?)
     }
 
-    pub(crate) async fn chats(&self) -> sqlx::Result<Vec<Chat>> {
-        Chat::load_all(self.pool().acquire().await?.as_mut()).await
-    }
-
     pub async fn chat(&self, chat: &ChatId) -> Option<Chat> {
         Chat::load(self.pool().acquire().await.ok()?.as_mut(), chat)
             .await
