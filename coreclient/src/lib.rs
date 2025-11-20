@@ -27,7 +27,8 @@ pub use crate::{
     },
     clients::attachment::{
         AttachmentContent, AttachmentStatus, AttachmentUrl, AttachmentUrlParseError,
-        DownloadProgress, DownloadProgressEvent, MimiContentExt,
+        MimiContentExt,
+        progress::{AttachmentProgress, AttachmentProgressEvent},
     },
     clients::block_contact::BlockedContactError,
     contacts::Contact,

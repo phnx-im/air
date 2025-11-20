@@ -106,6 +106,7 @@ dependencies = [
  "blake3",
  "bytes",
  "chrono",
+ "dashmap 6.1.0",
  "derive_more 0.99.20",
  "deunicode",
  "flate2",

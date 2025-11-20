@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO attachment (\n                attachment_id,\n                chat_id,\n                message_id,\n                content_type,\n                content,\n                status,\n                created_at\n            )\n            SELECT ?2, chat_id, message_id, content_type, content, status, created_at\n            FROM attachment\n            WHERE attachment_id = ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "b36df3a26fb61bd51196d3c756aa2339e941e5a16f8cfc445913b1b2e5947a3d"
+}

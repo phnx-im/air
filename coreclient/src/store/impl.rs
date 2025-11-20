@@ -14,9 +14,13 @@ use tracing::error;
 use uuid::Uuid;
 
 use crate::{
-    AttachmentContent, Chat, ChatId, ChatMessage, Contact, DownloadProgress, MessageDraft,
+    AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact, MessageDraft,
     MessageId,
-    clients::{CoreUser, attachment::AttachmentRecord, user_settings::UserSettingRecord},
+    clients::{
+        CoreUser,
+        attachment::{AttachmentRecord, progress::AttachmentProgress},
+        user_settings::UserSettingRecord,
+    },
     contacts::HandleContact,
     store::UserSetting,
     user_handles::UserHandleRecord,
@@ -273,15 +277,34 @@ impl Store for CoreUser {
         self.send_message(chat_id, content, replaces_id).await
     }
 
-    async fn upload_attachment(&self, chat_id: ChatId, path: &Path) -> StoreResult<ChatMessage> {
+    async fn upload_attachment(
+        &self,
+        chat_id: ChatId,
+        path: &Path,
+    ) -> StoreResult<(
+        AttachmentId,
+        AttachmentProgress,
+        impl Future<Output = anyhow::Result<ChatMessage>> + use<>,
+    )> {
         self.upload_attachment(chat_id, path).await
+    }
+
+    async fn retry_upload_attachment(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> StoreResult<(
+        AttachmentId,
+        AttachmentProgress,
+        impl Future<Output = StoreResult<ChatMessage>> + use<>,
+    )> {
+        self.retry_upload_attachment(attachment_id).await
     }
 
     fn download_attachment(
         &self,
         attachment_id: AttachmentId,
     ) -> (
-        DownloadProgress,
+        AttachmentProgress,
         impl Future<Output = StoreResult<()>> + use<>,
     ) {
         self.download_attachment(attachment_id)
@@ -293,6 +316,13 @@ impl Store for CoreUser {
 
     async fn load_attachment(&self, attachment_id: AttachmentId) -> StoreResult<AttachmentContent> {
         Ok(AttachmentRecord::load_content(self.pool(), attachment_id).await?)
+    }
+
+    async fn attachment_status(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> StoreResult<Option<AttachmentStatus>> {
+        Ok(AttachmentRecord::status(self.pool(), attachment_id).await?)
     }
 
     async fn resend_message(&self, local_message_id: Uuid) -> StoreResult<()> {
