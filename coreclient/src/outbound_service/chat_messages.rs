@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::AttachmentId;
-use anyhow::Context;
 use anyhow::anyhow;
+use anyhow::{Context, ensure};
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use tracing::warn;
@@ -109,7 +109,7 @@ impl OutboundServiceContext {
                 return Ok(());
             }
 
-            debug_assert!(!message.is_sent());
+            ensure!(!message.is_sent(), "Message is already sent");
 
             (chat, message)
         };

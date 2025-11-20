@@ -28,6 +28,7 @@ anyhow.workspace = true
 blake3.workspace = true
 bytes.workspace = true
 chrono.workspace = true
+dashmap.workspace = true
 derive_more.workspace = true
 deunicode.workspace = true
 flate2.workspace = true

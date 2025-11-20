@@ -49,36 +49,41 @@ void main() {
       ).thenReturn(ChatDetailsState(chat: chats[1], members: [1.userId()]));
     });
 
-    Widget buildSubject({required List<UiChatDetails> chats}) =>
-        RepositoryProvider<ChatsRepository>.value(
-          value: MockChatsRepository(),
-          child: MultiBlocProvider(
-            providers: [
-              BlocProvider<NavigationCubit>.value(value: navigationCubit),
-              BlocProvider<UserCubit>.value(value: userCubit),
-              BlocProvider<UsersCubit>.value(value: contactsCubit),
-              BlocProvider<ChatListCubit>.value(value: chatListCubit),
-              BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-            ],
-            child: Builder(
-              builder: (context) {
-                return MaterialApp(
-                  debugShowCheckedModeBanner: false,
-                  theme: themeData(MediaQuery.platformBrightnessOf(context)),
-                  localizationsDelegates:
-                      AppLocalizations.localizationsDelegates,
-                  home: Scaffold(
-                    body: ChatListView(
-                      createChatDetailsCubit: createMockChatDetailsCubitFactory(
-                        chats,
-                      ),
-                    ),
+    Widget buildSubject({
+      required List<UiChatDetails> chats,
+    }) => MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider<ChatsRepository>.value(value: MockChatsRepository()),
+        RepositoryProvider<AttachmentsRepository>.value(
+          value: MockAttachmentsRepository(),
+        ),
+      ],
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<NavigationCubit>.value(value: navigationCubit),
+          BlocProvider<UserCubit>.value(value: userCubit),
+          BlocProvider<UsersCubit>.value(value: contactsCubit),
+          BlocProvider<ChatListCubit>.value(value: chatListCubit),
+          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+        ],
+        child: Builder(
+          builder: (context) {
+            return MaterialApp(
+              debugShowCheckedModeBanner: false,
+              theme: themeData(MediaQuery.platformBrightnessOf(context)),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              home: Scaffold(
+                body: ChatListView(
+                  createChatDetailsCubit: createMockChatDetailsCubitFactory(
+                    chats,
                   ),
-                );
-              },
-            ),
-          ),
-        );
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
 
     testWidgets('renders correctly when there are no chats', (tester) async {
       when(

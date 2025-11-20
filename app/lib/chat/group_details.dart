@@ -3,10 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/chat/widgets/member_list_item.dart';
-import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:provider/provider.dart';
-
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
@@ -16,7 +12,10 @@ import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/dialog.dart';
 import 'package:air/widgets/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
+import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 
 import 'chat_details_cubit.dart';
 
