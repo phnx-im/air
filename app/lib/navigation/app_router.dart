@@ -131,8 +131,9 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
     return poppedPagelessRoute
         ? SynchronousFuture(true)
         : SynchronousFuture(
-          _navigatorKey.currentContext?.read<NavigationCubit>().pop() ?? false,
-        );
+            _navigatorKey.currentContext?.read<NavigationCubit>().pop() ??
+                false,
+          );
   }
 
   @override

@@ -74,11 +74,10 @@ class AttachmentImage extends StatelessWidget {
           CustomColorScheme.of(context).backgroundBase.tertiary,
         ),
         backgroundColor: Colors.transparent,
-        value:
-            loadingProgress.expectedTotalBytes != null
-                ? loadingProgress.cumulativeBytesLoaded /
-                    loadingProgress.expectedTotalBytes!
-                : null,
+        value: loadingProgress.expectedTotalBytes != null
+            ? loadingProgress.cumulativeBytesLoaded /
+                  loadingProgress.expectedTotalBytes!
+            : null,
       ),
     );
   }

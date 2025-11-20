@@ -101,10 +101,12 @@ class GroupDetails extends StatelessWidget {
                   Expanded(
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
-                        backgroundColor:
-                            CustomColorScheme.of(context).function.danger,
-                        foregroundColor:
-                            CustomColorScheme.of(context).function.white,
+                        backgroundColor: CustomColorScheme.of(
+                          context,
+                        ).function.danger,
+                        foregroundColor: CustomColorScheme.of(
+                          context,
+                        ).function.white,
                       ),
                       onPressed: () => _delete(context, chat),
                       child: Text(
@@ -211,10 +213,9 @@ class _PeoplePreview extends StatelessWidget {
             for (var i = 0; i < previewIds.length; i++) ...[
               _PeoplePreviewEntry(
                 memberId: previewIds[i],
-                position:
-                    i == 0
-                        ? _PeopleEntryPosition.first
-                        : _PeopleEntryPosition.middle,
+                position: i == 0
+                    ? _PeopleEntryPosition.first
+                    : _PeopleEntryPosition.middle,
               ),
               if (i < previewIds.length)
                 Divider(
@@ -225,10 +226,9 @@ class _PeoplePreview extends StatelessWidget {
             ],
             _SeeAllRow(
               onPressed: onOpenPressed,
-              position:
-                  previewIds.isEmpty
-                      ? _PeopleEntryPosition.single
-                      : _PeopleEntryPosition.last,
+              position: previewIds.isEmpty
+                  ? _PeopleEntryPosition.single
+                  : _PeopleEntryPosition.last,
             ),
           ],
         ),
@@ -277,12 +277,9 @@ class _PeoplePreviewEntry extends StatelessWidget {
         profile: profile,
         displayNameOverride: displayName,
         enabled: !isSelf,
-        onTap:
-            isSelf
-                ? null
-                : () => context
-                    .read<NavigationCubit>()
-                    .openMemberDetails(memberId),
+        onTap: isSelf
+            ? null
+            : () => context.read<NavigationCubit>().openMemberDetails(memberId),
       ),
     );
   }

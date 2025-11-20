@@ -46,8 +46,9 @@ class UserSettingsScreen extends StatelessWidget {
         child: Align(
           alignment: Alignment.topCenter,
           child: Container(
-            constraints:
-                isPointer() ? const BoxConstraints(maxWidth: 800) : null,
+            constraints: isPointer()
+                ? const BoxConstraints(maxWidth: 800)
+                : null,
             child: SingleChildScrollView(
               child: Column(
                 children: [
@@ -121,10 +122,9 @@ class _UserProfileData extends StatelessWidget {
         ListTile(
           leading: const Icon(Icons.person_outline, size: _listIconSize),
           title: Text(displayName),
-          onTap:
-              () => context.read<NavigationCubit>().openUserSettings(
-                screen: UserSettingsScreenType.editDisplayName,
-              ),
+          onTap: () => context.read<NavigationCubit>().openUserSettings(
+            screen: UserSettingsScreenType.editDisplayName,
+          ),
         ),
         const SizedBox(height: Spacings.xs),
         ListTile(
@@ -237,10 +237,9 @@ class _UserHandlePlaceholder extends StatelessWidget {
         style: TextStyle(color: Theme.of(context).hintColor),
         loc.userSettingsScreen_userHandlePlaceholder,
       ),
-      onTap:
-          () => context.read<NavigationCubit>().openUserSettings(
-            screen: UserSettingsScreenType.addUserHandle,
-          ),
+      onTap: () => context.read<NavigationCubit>().openUserSettings(
+        screen: UserSettingsScreenType.addUserHandle,
+      ),
     );
   }
 }
@@ -360,8 +359,10 @@ class _DesktopSettingsState extends State<_DesktopSettings> {
     super.initState();
 
     setState(() {
-      final interfaceScale =
-          context.read<UserSettingsCubit>().state.interfaceScale;
+      final interfaceScale = context
+          .read<UserSettingsCubit>()
+          .state
+          .interfaceScale;
       var isLinuxAndScaled =
           Platform.isLinux &&
           WidgetsBinding.instance.platformDispatcher.textScaleFactor >= 1.5;
@@ -389,8 +390,8 @@ class _DesktopSettingsState extends State<_DesktopSettings> {
             value: _interfaceScaleSliderValue,
             label: _interfaceScaleSliderValue.truncate().toString(),
             activeColor: CustomColorScheme.of(context).text.secondary,
-            onChanged:
-                (value) => setState(() => _interfaceScaleSliderValue = value),
+            onChanged: (value) =>
+                setState(() => _interfaceScaleSliderValue = value),
             onChangeEnd: (value) {
               context.read<UserSettingsCubit>().setInterfaceScale(
                 userCubit: context.read(),

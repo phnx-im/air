@@ -143,7 +143,7 @@ class VisibilityKeyValue {
 
 final ScrollPhysics _scrollPhysics =
     (Platform.isAndroid || Platform.isWindows || Platform.isLinux)
-        ? const ClampingScrollPhysics()
-        : const BouncingScrollPhysics().applyTo(
-          const AlwaysScrollableScrollPhysics(),
-        );
+    ? const ClampingScrollPhysics()
+    : const BouncingScrollPhysics().applyTo(
+        const AlwaysScrollableScrollPhysics(),
+      );

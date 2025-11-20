@@ -44,8 +44,9 @@ class DeleteAccountScreen extends HookWidget {
         child: Align(
           alignment: Alignment.topCenter,
           child: Container(
-            constraints:
-                isPointer() ? const BoxConstraints(maxWidth: 800) : null,
+            constraints: isPointer()
+                ? const BoxConstraints(maxWidth: 800)
+                : null,
             child: Column(
               mainAxisSize: MainAxisSize.max,
               children: [
@@ -66,9 +67,8 @@ class DeleteAccountScreen extends HookWidget {
                       ),
                       const SizedBox(height: Spacings.l),
                       TextField(
-                        onChanged:
-                            (value) =>
-                                isConfirmed.value = value == _confirmationText,
+                        onChanged: (value) =>
+                            isConfirmed.value = value == _confirmationText,
                         decoration: InputDecoration(
                           hintText:
                               loc.deleteAccountScreen_confirmationInputHint,
@@ -140,10 +140,9 @@ class _DeleteAccountButton extends StatelessWidget {
         disabledBackgroundColor: dangerColor.withValues(alpha: 0.7),
         overlayColor: dangerColor,
       ),
-      onPressed:
-          isConfirmed
-              ? (isDeleting) => _deleteAccount(context, isDeleting)
-              : null,
+      onPressed: isConfirmed
+          ? (isDeleting) => _deleteAccount(context, isDeleting)
+          : null,
       label: loc.deleteAccountScreen_confirmButtonText,
     );
   }

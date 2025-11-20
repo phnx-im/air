@@ -40,10 +40,9 @@ class RemoveMemberButton extends StatelessWidget {
         ),
         visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
         textStyle: compact ? Theme.of(context).textTheme.labelSmall! : null,
-        shape:
-            compact
-                ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
-                : null,
+        shape: compact
+            ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
+            : null,
       ),
       onPressed: () => _confirmRemoval(context),
       child: Text(AppLocalizations.of(context).removeUserButton_text),

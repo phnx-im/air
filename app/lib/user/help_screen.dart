@@ -29,8 +29,9 @@ class HelpScreen extends StatelessWidget {
         child: Align(
           alignment: Alignment.topCenter,
           child: Container(
-            constraints:
-                isPointer() ? const BoxConstraints(maxWidth: 800) : null,
+            constraints: isPointer()
+                ? const BoxConstraints(maxWidth: 800)
+                : null,
             child: ListView(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -58,10 +59,9 @@ class _ContactUs extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     return ListTile(
       title: Text(loc.helpScreen_contactUs),
-      onTap:
-          () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (context) => const ContactUsScreen()),
-          ),
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (context) => const ContactUsScreen())),
     );
   }
 }
