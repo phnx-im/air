@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT status AS \"status: _\"\n            FROM attachment WHERE attachment_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "status: _",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "326c8cc6ed3668b65521fbb481043c66db6d1fe949722c0318aa787882d85bcd"
+}

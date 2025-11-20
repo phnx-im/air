@@ -37,6 +37,7 @@ class GroupMembersScreen extends StatelessWidget {
             userCubit: context.read<UserCubit>(),
             userSettingsCubit: context.read<UserSettingsCubit>(),
             chatsRepository: context.read<ChatsRepository>(),
+            attachmentsRepository: context.read<AttachmentsRepository>(),
             chatId: chatId,
           ),
         ),

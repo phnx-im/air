@@ -724,6 +724,12 @@ abstract class AppLocalizations {
   /// **'{size} {byteUnit}'**
   String attachmentSize(double size, Object byteUnit);
 
+  /// No description provided for @attachment_tryAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get attachment_tryAgain;
+
   /// No description provided for @textMessage_edited.
   ///
   /// In en, this message translates to:

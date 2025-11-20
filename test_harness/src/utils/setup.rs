@@ -797,7 +797,14 @@ impl TestBackend {
         let path = tmp_dir.path().join(filename);
         std::fs::write(&path, attachment).unwrap();
 
-        let message = sender.upload_attachment(chat_id, &path).await.unwrap();
+        let (attachment_id, _progress, upload_task) =
+            sender.upload_attachment(chat_id, &path).await.unwrap();
+        let message = upload_task.await.unwrap();
+        sender
+            .outbound_service()
+            .enqueue_chat_message(message.id(), Some(attachment_id))
+            .await
+            .unwrap();
         sender.outbound_service().run_once().await;
 
         let mut external_part = None;

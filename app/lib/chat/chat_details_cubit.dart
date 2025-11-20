@@ -14,6 +14,7 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
     required UserCubit userCubit,
     required UserSettingsCubit userSettingsCubit,
     required ChatsRepository chatsRepository,
+    required AttachmentsRepository attachmentsRepository,
     required ChatId chatId,
 
     /// Whether to load the chat members too.
@@ -23,6 +24,7 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
          userSettingsCubit: userSettingsCubit.impl,
          chatId: chatId,
          chatsRepository: chatsRepository,
+         attachmentsRepository: attachmentsRepository,
          withMembers: withMembers,
        );
 
@@ -54,6 +56,9 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
 
   Future<void> uploadAttachment(String path) =>
       _impl.uploadAttachment(path: path);
+
+  Future<void> retryUploadAttachment(AttachmentId attachmentId) =>
+      _impl.retryUploadAttachment(attachmentId: attachmentId);
 
   Future<void> markAsRead({
     required MessageId untilMessageId,
