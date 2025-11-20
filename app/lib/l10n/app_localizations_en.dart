@@ -186,6 +186,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get usernameOnboarding_skip => 'Skip';
 
   @override
+  String get usernameOnboarding_userameInputName => 'Username (optional)';
+
+  @override
+  String get usernameOnboarding_userameInputHint => 'Add a username...';
+
+  @override
   String get signUpScreen_actionButton => 'Create';
 
   @override

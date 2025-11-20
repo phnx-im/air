@@ -63,6 +63,8 @@
   "usernameOnboarding_syntax": "Utilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.",
   "usernameOnboarding_addButton": "Ajouter",
   "usernameOnboarding_skip": "Ignorer",
+  "usernameOnboarding_userameInputName": "Nom d'utilisateur (facultatif)",
+  "usernameOnboarding_userameInputHint": "Ajoutez un nom...",
   "signUpScreen_actionButton": "S'inscrire",
   "signUpScreen_displayNameInputName": "Nom d'affichage (obligatoire)",
   "signUpScreen_displayNameInputHint": "Ajoutez un nom...",

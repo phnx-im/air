@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ui/theme/font.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -33,9 +32,10 @@ class IntroScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: CustomColorScheme.of(context).backgroundBase.secondary,
       body: SafeArea(
-        minimum: const EdgeInsets.symmetric(
-          horizontal: Spacings.l,
-          vertical: Spacings.l,
+        minimum: const EdgeInsets.only(
+          left: Spacings.s,
+          right: Spacings.s,
+          bottom: Spacings.l + Spacings.xxs,
         ),
         child: Stack(
           children: [
@@ -70,10 +70,11 @@ class IntroScreen extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         child: Padding(
-                          padding: const EdgeInsets.only(top: Spacings.m),
+                          padding: const EdgeInsets.only(
+                            top: Spacings.l + Spacings.xxs,
+                          ),
                           child: OutlinedButton(
                             style: OutlinedButton.styleFrom(
-                              textStyle: customTextScheme.labelMedium,
                               backgroundColor: CustomColorScheme.of(
                                 context,
                               ).accent.primary,

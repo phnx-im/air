@@ -63,6 +63,8 @@
   "usernameOnboarding_syntax": "Verwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.",
   "usernameOnboarding_addButton": "Hinzufügen",
   "usernameOnboarding_skip": "Überspringen",
+  "usernameOnboarding_usernameNameInputName": "Nutzername (optional)",
+  "usernameOnboarding_userameInputHint": "Nutzername hinzufügen...",
   "signUpScreen_actionButton": "Registrieren",
   "signUpScreen_displayNameInputName": "Anzeigename (erforderlich)",
   "signUpScreen_displayNameInputHint": "Name hinzufügen...",

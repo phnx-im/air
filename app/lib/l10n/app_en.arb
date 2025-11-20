@@ -65,6 +65,8 @@
   "usernameOnboarding_syntax": "Use letters, numbers, or dashes. Minimum 5 characters.",
   "usernameOnboarding_addButton": "Add",
   "usernameOnboarding_skip": "Skip",
+  "usernameOnboarding_userameInputName": "Username (optional)",
+  "usernameOnboarding_userameInputHint": "Add a username...",
   "signUpScreen_actionButton": "Create",
   "signUpScreen_displayNameInputName": "Display name (required)",
   "signUpScreen_displayNameInputHint": "Add a name...",

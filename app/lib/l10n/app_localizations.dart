@@ -400,6 +400,18 @@ abstract class AppLocalizations {
   /// **'Skip'**
   String get usernameOnboarding_skip;
 
+  /// No description provided for @usernameOnboarding_userameInputName.
+  ///
+  /// In en, this message translates to:
+  /// **'Username (optional)'**
+  String get usernameOnboarding_userameInputName;
+
+  /// No description provided for @usernameOnboarding_userameInputHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a username...'**
+  String get usernameOnboarding_userameInputHint;
+
   /// No description provided for @signUpScreen_actionButton.
   ///
   /// In en, this message translates to:
