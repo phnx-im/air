@@ -342,6 +342,7 @@ pub enum UiSystemMessage {
     Remove(UiUserId, UiUserId),
     ChangeTitle(UiUserId, String, String),
     ChangePicture(UiUserId),
+    CreateGroup(UiUserId),
 }
 
 impl From<SystemMessage> for UiSystemMessage {
@@ -359,6 +360,7 @@ impl From<SystemMessage> for UiSystemMessage {
                 new_title,
             } => UiSystemMessage::ChangeTitle(user_id.into(), old_title, new_title),
             SystemMessage::ChangePicture(user_id) => UiSystemMessage::ChangePicture(user_id.into()),
+            SystemMessage::CreateGroup(user_id) => UiSystemMessage::CreateGroup(user_id.into()),
         }
     }
 }

@@ -1563,6 +1563,9 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                     SystemMessage::ChangePicture(user_id) => {
                         Some(format!("{user_id:?} changed the group picture"))
                     }
+                    SystemMessage::CreateGroup(user_id) => {
+                        Some(format!("{user_id:?} created the group"))
+                    }
                 }
             } else {
                 None

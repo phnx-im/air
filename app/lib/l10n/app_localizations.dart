@@ -580,6 +580,18 @@ abstract class AppLocalizations {
   /// **' changed the group picture'**
   String get systemMessage_userChangedPicture_infix;
 
+  /// No description provided for @systemMessage_userCreatedGroup_prefix.
+  ///
+  /// In en, this message translates to:
+  /// **'{user}'**
+  String systemMessage_userCreatedGroup_prefix(Object user);
+
+  /// No description provided for @systemMessage_userCreatedGroup_suffix.
+  ///
+  /// In en, this message translates to:
+  /// **' created the group'**
+  String get systemMessage_userCreatedGroup_suffix;
+
   /// No description provided for @timestamp_now.
   ///
   /// In en, this message translates to:

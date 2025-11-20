@@ -56,7 +56,7 @@ use super::{
 
 pub enum ProcessQsMessageResult {
     None,
-    NewChat(ChatId),
+    NewChat(ChatId, Vec<ChatMessage>),
     ChatChanged(ChatId, Vec<ChatMessage>),
     Messages(Vec<ChatMessage>),
 }
@@ -137,9 +137,9 @@ impl CoreUser {
     ) -> Result<ProcessQsMessageResult> {
         // WelcomeBundle Phase 1: Join the group. This might involve
         // loading AS credentials or fetching them from the AS.
-        let (own_profile_key, own_profile_key_in_group, group, chat_id) =
+        let (own_profile_key, own_profile_key_in_group, group, chat_id, system_message) =
             Box::pin(self.with_transaction_and_notifier(async |txn, notifier| {
-                let (group, member_profile_info) = Group::join_group(
+                let (group, sender_user_id, member_profile_info) = Group::join_group(
                     welcome_bundle,
                     &self.inner.key_store.wai_ear_key,
                     txn,
@@ -187,7 +187,20 @@ impl CoreUser {
                 Chat::delete(txn.as_mut(), notifier, chat.id()).await?;
                 chat.store(txn.as_mut(), notifier).await?;
 
-                Ok((own_profile_key, own_profile_key_in_group, group, chat.id()))
+                // Add system message who added us to the group.
+                let system_message = ChatMessage::new_system_message(
+                    chat.id(),
+                    SystemMessage::Add(sender_user_id, self.user_id().clone()),
+                );
+                system_message.store(txn.as_mut(), notifier).await?;
+
+                Ok((
+                    own_profile_key,
+                    own_profile_key_in_group,
+                    group,
+                    chat.id(),
+                    system_message,
+                ))
             }))
             .await?;
 
@@ -211,7 +224,8 @@ impl CoreUser {
                 .await?;
         }
 
-        Ok(ProcessQsMessageResult::NewChat(chat_id))
+        let messages = vec![system_message];
+        Ok(ProcessQsMessageResult::NewChat(chat_id, messages))
     }
 
     async fn handle_mls_message(
@@ -758,9 +772,12 @@ impl CoreUser {
                 }
                 ProcessQsMessageResult::ChatChanged(chat_id, messages) => {
                     result.new_messages.extend(messages);
-                    result.changed_chats.push(chat_id)
+                    result.changed_chats.push(chat_id);
                 }
-                ProcessQsMessageResult::NewChat(chat_id) => result.new_chats.push(chat_id),
+                ProcessQsMessageResult::NewChat(chat_id, messages) => {
+                    result.new_messages.extend(messages);
+                    result.new_chats.push(chat_id);
+                }
                 ProcessQsMessageResult::None => {}
             }
         }
