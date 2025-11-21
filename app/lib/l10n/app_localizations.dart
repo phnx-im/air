@@ -220,6 +220,12 @@ abstract class AppLocalizations {
   /// **'You won’t receive messages from {displayName} unless you unblock them.'**
   String blockedChatFooter_message(Object displayName);
 
+  /// No description provided for @inactiveChatFooter_message.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re no longer a member of this chat.'**
+  String get inactiveChatFooter_message;
+
   /// No description provided for @chatScreen_emptyChat.
   ///
   /// In en, this message translates to:

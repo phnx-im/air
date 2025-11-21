@@ -22,6 +22,7 @@
 
   "chatDetailsScreen_unknownChat": "Chat inconnu",
   "blockedChatFooter_message": "Vous ne recevrez pas de messages de {displayName} tant que vous ne l'aurez pas débloqué.",
+  "inactiveChatFooter_message": "Vous n'êtes plus membre de ce chat.",
 
   "chatScreen_emptyChat": "Sélectionnez un chat pour commencer à envoyer des messages",
 

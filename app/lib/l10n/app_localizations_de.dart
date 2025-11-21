@@ -79,6 +79,10 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get inactiveChatFooter_message =>
+      'Du bist kein Mitglied dieses Chats mehr.';
+
+  @override
   String get chatScreen_emptyChat =>
       'Wähle einen Chat aus, um mit dem Nachrichten schreiben zu beginnen';
 

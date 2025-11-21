@@ -79,6 +79,10 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
+  String get inactiveChatFooter_message =>
+      'Vous n\'êtes plus membre de ce chat.';
+
+  @override
   String get chatScreen_emptyChat =>
       'Sélectionnez un chat pour commencer à envoyer des messages';
 
