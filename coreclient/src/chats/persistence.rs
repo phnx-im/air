@@ -13,7 +13,7 @@ use sqlx::{
     Connection, SqliteConnection, SqliteExecutor, SqliteTransaction, query, query_as, query_scalar,
 };
 use tokio_stream::StreamExt;
-use tracing::{info, warn};
+use tracing::info;
 use uuid::Uuid;
 
 use crate::{

@@ -37,10 +37,7 @@ use tbs::{ConnectionOfferTbs, VerifiableConnectionOffer};
 use tls_codec::{Serialize as TlsSerializeTrait, TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 pub(crate) mod payload {
-    use aircommon::{
-        LibraryError, credentials::keys::ClientSigningKey,
-        crypto::ear::keys::FriendshipPackageEarKeyType, identifiers::UserHandle,
-    };
+    use aircommon::{LibraryError, credentials::keys::ClientSigningKey, identifiers::UserHandle};
 
     use crate::groups::Group;
 

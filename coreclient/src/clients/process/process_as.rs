@@ -306,7 +306,7 @@ impl CoreUser {
         })
         .into();
         let qgid = QualifiedGroupId::tls_deserialize_exact_bytes(
-            &connection_info.connection_group_id.as_slice(),
+            connection_info.connection_group_id.as_slice(),
         )?;
 
         Ok((aad, qgid))

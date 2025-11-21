@@ -36,7 +36,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     ChatMessage, ChatStatus, ContentMessage, Message, SystemMessage,
-    chats::{ChatType, StatusRecord, messages::edit::MessageEdit},
+    chats::{StatusRecord, messages::edit::MessageEdit},
     clients::{
         QsListenResponder,
         block_contact::{BlockedContact, BlockedContactError},
