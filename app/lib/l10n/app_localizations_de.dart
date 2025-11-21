@@ -393,6 +393,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get attachment_tryAgain => 'Erneut versuchen';
 
   @override
+  String get attachment_gallery => 'Galerie';
+
+  @override
+  String get attachment_camera => 'Kamera';
+
+  @override
+  String get attachment_file => 'Datei';
+
+  @override
   String get textMessage_edited => 'bearbeitet';
 
   @override

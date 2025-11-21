@@ -6,9 +6,11 @@ import 'dart:async';
 
 import 'package:air/message_list/emoji_repository.dart';
 import 'package:air/message_list/emoji_autocomplete.dart';
+import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
 import 'package:air/user/user_settings_cubit.dart';
 import 'package:air/util/debouncer.dart';
 import 'package:air/message_list/widgets/text_autocomplete.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:iconoir_flutter/regular/edit_pencil.dart';
@@ -26,6 +28,7 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:provider/provider.dart';
 
+import '../attachments/attachment_category_picker.dart';
 import 'message_renderer.dart';
 
 final _log = Logger("MessageComposer");
@@ -299,8 +302,23 @@ class _MessageComposerState extends State<MessageComposer>
   }
 
   void _uploadAttachment(BuildContext context) async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? file = await picker.pickImage(source: ImageSource.gallery);
+    AttachmentCategory? selectedCategory;
+    await showBottomSheetModal(
+      context: context,
+      builder: (_) => AttachmentCategoryPicker(
+        onCategorySelected: (category) {
+          selectedCategory = category;
+          Navigator.of(context).pop(true);
+        },
+      ),
+    );
+
+    final XFile? file = switch (selectedCategory) {
+      .gallery => await ImagePicker().pickImage(source: .gallery),
+      .camera => await ImagePicker().pickImage(source: .camera),
+      .file => await openFile(),
+      null => null,
+    };
 
     if (file == null) {
       return;

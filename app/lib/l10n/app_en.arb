@@ -143,6 +143,9 @@
   },
 
   "attachment_tryAgain": "Try again",
+  "attachment_gallery": "Gallery",
+  "attachment_camera": "Camera",
+  "attachment_file": "File",
 
   "textMessage_edited": "edited",
   "textMessage_hiddenPlaceholder": "Blocked user, tap to reveal message",

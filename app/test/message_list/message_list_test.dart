@@ -391,6 +391,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(0.messageId());
     registerFallbackValue(0.userId());
+    registerFallbackValue(0.attachmentId());
   });
 
   group('MessageListView', () {
@@ -516,13 +517,13 @@ void main() {
       ).thenReturn(MockMessageListState(messages + attachmentMessages));
       when(
         () => attachmentsRepository.loadImageAttachment(
-          attachmentId: imageAttachment.attachmentId,
+          attachmentId: any(named: 'attachmentId'),
           chunkEventCallback: any(named: "chunkEventCallback"),
         ),
       ).thenAnswer((_) async => Future.any([]));
       when(
         () => attachmentsRepository.statusStream(
-          attachmentId: imageAttachment.attachmentId,
+          attachmentId: any(named: 'attachmentId'),
         ),
       ).thenAnswer((_) => Stream.value(const UiAttachmentStatus.completed()));
 
