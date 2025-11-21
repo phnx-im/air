@@ -60,11 +60,13 @@ class ImageViewer extends HookWidget {
 
     final isDesktop = ResponsiveScreen.isDesktop(context);
     final enableVerticalDrag = !isDesktop && isAtBaseScale.value;
-    final backgroundOpacity =
-        isDesktop ? 1.0 : (1 - (dragOffset.value / 300)).clamp(0.0, 1.0);
+    final backgroundOpacity = isDesktop
+        ? 1.0
+        : (1 - (dragOffset.value / 300)).clamp(0.0, 1.0);
     final verticalOffset = enableVerticalDrag ? dragOffset.value : 0.0;
-    final imageScale =
-        enableVerticalDrag ? math.max(0.3, 1 - (dragOffset.value / 600)) : 1.0;
+    final imageScale = enableVerticalDrag
+        ? math.max(0.3, 1 - (dragOffset.value / 600))
+        : 1.0;
 
     useEffect(() {
       if (!enableVerticalDrag && dragOffset.value != 0) {
@@ -146,11 +148,13 @@ class ImageViewer extends HookWidget {
         },
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onVerticalDragUpdate:
-              enableVerticalDrag ? handleVerticalDragUpdate : null,
+          onVerticalDragUpdate: enableVerticalDrag
+              ? handleVerticalDragUpdate
+              : null,
           onVerticalDragEnd: enableVerticalDrag ? handleVerticalDragEnd : null,
-          onVerticalDragCancel:
-              enableVerticalDrag ? () => dragOffset.value = 0 : null,
+          onVerticalDragCancel: enableVerticalDrag
+              ? () => dragOffset.value = 0
+              : null,
           child: Stack(
             children: [
               Transform(
@@ -269,22 +273,19 @@ class _ZoomableImage extends HookWidget {
                 valueColor: AlwaysStoppedAnimation<Color>(
                   colors.backgroundBase.tertiary,
                 ),
-                value:
-                    event.expectedTotalBytes != null
-                        ? event.cumulativeBytesLoaded /
-                            event.expectedTotalBytes!
-                        : null,
+                value: event.expectedTotalBytes != null
+                    ? event.cumulativeBytesLoaded / event.expectedTotalBytes!
+                    : null,
               ),
             );
           },
-          errorBuilder:
-              (context, error, stackTrace) => Center(
-                child: Icon(
-                  Icons.broken_image_outlined,
-                  color: colors.text.primary,
-                  size: 48,
-                ),
-              ),
+          errorBuilder: (context, error, stackTrace) => Center(
+            child: Icon(
+              Icons.broken_image_outlined,
+              color: colors.text.primary,
+              size: 48,
+            ),
+          ),
           imageProvider: AttachmentImageProvider(
             attachment: attachment,
             attachmentsRepository: RepositoryProvider.of(context),

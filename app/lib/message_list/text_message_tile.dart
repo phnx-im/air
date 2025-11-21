@@ -163,8 +163,9 @@ class _MessageView extends HookWidget {
           children: [
             const SizedBox(height: 2),
             Row(
-              mainAxisAlignment:
-                  isSender ? MainAxisAlignment.end : MainAxisAlignment.start,
+              mainAxisAlignment: isSender
+                  ? MainAxisAlignment.end
+                  : MainAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 const SizedBox(width: Spacings.s),
@@ -209,16 +210,15 @@ class _MessageView extends HookWidget {
         ),
     ];
 
-    final menuItems =
-        actions
-            .map(
-              (action) => ContextMenuItem(
-                label: action.label,
-                leading: action.leading,
-                onPressed: action.onSelected,
-              ),
-            )
-            .toList();
+    final menuItems = actions
+        .map(
+          (action) => ContextMenuItem(
+            label: action.label,
+            leading: action.leading,
+            onPressed: action.onSelected,
+          ),
+        )
+        .toList();
 
     Widget buildMessageShell({
       required VoidCallback? onLongPress,
@@ -241,8 +241,9 @@ class _MessageView extends HookWidget {
           bottom: flightPosition.isLast ? 5 : 0,
         ),
         child: Column(
-          crossAxisAlignment:
-              isSender ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment: isSender
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             MouseRegion(
@@ -272,16 +273,15 @@ class _MessageView extends HookWidget {
       return LayoutBuilder(
         builder: (context, constraints) {
           final hasFiniteWidth = constraints.maxWidth.isFinite;
-          final double maxWidth =
-              hasFiniteWidth
-                  ? constraints.maxWidth * _bubbleMaxWidthFactor
-                  : double.infinity;
-          final alignment =
-              isSender ? Alignment.centerRight : Alignment.centerLeft;
-          final boxConstraints =
-              hasFiniteWidth
-                  ? BoxConstraints(maxWidth: maxWidth)
-                  : const BoxConstraints();
+          final double maxWidth = hasFiniteWidth
+              ? constraints.maxWidth * _bubbleMaxWidthFactor
+              : double.infinity;
+          final alignment = isSender
+              ? Alignment.centerRight
+              : Alignment.centerLeft;
+          final boxConstraints = hasFiniteWidth
+              ? BoxConstraints(maxWidth: maxWidth)
+              : const BoxConstraints();
           return Align(
             alignment: alignment,
             child: ConstrainedBox(constraints: boxConstraints, child: child),
@@ -293,36 +293,35 @@ class _MessageView extends HookWidget {
     if (isMobilePlatform) {
       return wrapWithBubbleWidth(
         buildMessageShell(
-          onLongPress:
-              actions.isEmpty
-                  ? null
-                  : () {
-                    final bubbleContext = bubbleKey.currentContext;
-                    if (bubbleContext == null) return;
-                    final renderObject = bubbleContext.findRenderObject();
-                    if (renderObject is! RenderBox || !renderObject.hasSize) {
-                      return;
-                    }
-                    final origin = renderObject.localToGlobal(Offset.zero);
-                    final anchorRect = origin & renderObject.size;
-                    final overlayBubble = buildMessageBubble(
-                      enableSelection: false,
-                    );
-                    ContextMenu.closeActiveMenu();
-                    isDetached.value = true;
-                    final future = showMobileMessageActions(
-                      context: context,
-                      anchorRect: anchorRect,
-                      actions: actions,
-                      messageContent: overlayBubble,
-                      alignEnd: isSender,
-                    );
-                    unawaited(
-                      future.whenComplete(() {
-                        isDetached.value = false;
-                      }),
-                    );
-                  },
+          onLongPress: actions.isEmpty
+              ? null
+              : () {
+                  final bubbleContext = bubbleKey.currentContext;
+                  if (bubbleContext == null) return;
+                  final renderObject = bubbleContext.findRenderObject();
+                  if (renderObject is! RenderBox || !renderObject.hasSize) {
+                    return;
+                  }
+                  final origin = renderObject.localToGlobal(Offset.zero);
+                  final anchorRect = origin & renderObject.size;
+                  final overlayBubble = buildMessageBubble(
+                    enableSelection: false,
+                  );
+                  ContextMenu.closeActiveMenu();
+                  isDetached.value = true;
+                  final future = showMobileMessageActions(
+                    context: context,
+                    anchorRect: anchorRect,
+                    actions: actions,
+                    messageContent: overlayBubble,
+                    alignEnd: isSender,
+                  );
+                  unawaited(
+                    future.whenComplete(() {
+                      isDetached.value = false;
+                    }),
+                  );
+                },
           onSecondaryTapDown: null,
           enableSelection: false,
           messageKey: messageContainerKey,
@@ -334,8 +333,9 @@ class _MessageView extends HookWidget {
 
     return wrapWithBubbleWidth(
       ContextMenu(
-        direction:
-            isSender ? ContextMenuDirection.left : ContextMenuDirection.right,
+        direction: isSender
+            ? ContextMenuDirection.left
+            : ContextMenuDirection.right,
         width: 200,
         offset: const Offset(Spacings.xxs, 0),
         controller: contextMenuController,
@@ -343,17 +343,16 @@ class _MessageView extends HookWidget {
         cursorPosition: cursorPositionNotifier,
         child: buildMessageShell(
           onLongPress: null,
-          onSecondaryTapDown:
-              actions.isEmpty
-                  ? null
-                  : (details) {
-                    if (contextMenuController.isShowing) {
-                      contextMenuController.hide();
-                    }
-                    ContextMenu.closeActiveMenu();
-                    cursorPositionNotifier.value = details.globalPosition;
-                    contextMenuController.show();
-                  },
+          onSecondaryTapDown: actions.isEmpty
+              ? null
+              : (details) {
+                  if (contextMenuController.isShowing) {
+                    contextMenuController.hide();
+                  }
+                  ContextMenu.closeActiveMenu();
+                  cursorPositionNotifier.value = details.globalPosition;
+                  contextMenuController.show();
+                },
           enableSelection: isDesktopPlatform,
           messageKey: messageContainerKey,
           detached: false,
@@ -474,14 +473,13 @@ class _MessageContent extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: selectableBlocks,
         );
-        final Widget selectableChild =
-            enableSelection
-                ? SelectableRegion(
-                  selectionControls: emptyTextSelectionControls,
-                  contextMenuBuilder: (context, _) => const SizedBox.shrink(),
-                  child: textColumn,
-                )
-                : SelectionContainer.disabled(child: textColumn);
+        final Widget selectableChild = enableSelection
+            ? SelectableRegion(
+                selectionControls: emptyTextSelectionControls,
+                contextMenuBuilder: (context, _) => const SizedBox.shrink(),
+                child: textColumn,
+              )
+            : SelectionContainer.disabled(child: textColumn);
         columnChildren.add(selectableChild);
       }
     }
@@ -489,19 +487,17 @@ class _MessageContent extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 1.5),
       child: Container(
-        alignment:
-            isSender
-                ? AlignmentDirectional.topEnd
-                : AlignmentDirectional.topStart,
+        alignment: isSender
+            ? AlignmentDirectional.topEnd
+            : AlignmentDirectional.topStart,
         child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: _messageBorderRadius(isSender, flightPosition),
-            color:
-                hasImageAttachment
-                    ? Colors.transparent
-                    : isSender
-                    ? CustomColorScheme.of(context).message.selfBackground
-                    : CustomColorScheme.of(context).message.otherBackground,
+            color: hasImageAttachment
+                ? Colors.transparent
+                : isSender
+                ? CustomColorScheme.of(context).message.selfBackground
+                : CustomColorScheme.of(context).message.otherBackground,
           ),
           child: DefaultTextStyle.merge(
             child: Stack(
@@ -525,18 +521,16 @@ class _MessageContent extends StatelessWidget {
                         child: SelectionContainer.disabled(
                           child: Text(
                             loc.textMessage_edited,
-                            style: Theme.of(
-                              context,
-                            ).textTheme.bodySmall!.copyWith(
-                              color:
-                                  isSender
+                            style: Theme.of(context).textTheme.bodySmall!
+                                .copyWith(
+                                  color: isSender
                                       ? CustomColorScheme.of(
-                                        context,
-                                      ).message.selfEditedLabel
+                                          context,
+                                        ).message.selfEditedLabel
                                       : CustomColorScheme.of(
-                                        context,
-                                      ).message.otherEditedLabel,
-                            ),
+                                          context,
+                                        ).message.otherEditedLabel,
+                                ),
                           ),
                         ),
                       ),
@@ -605,8 +599,9 @@ class _DisplayName extends StatelessWidget {
     final text = isSender ? "You" : displayName;
     final textUpper = text.toUpperCase();
     return MouseRegion(
-      cursor:
-          onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      cursor: onTap != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.basic,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
@@ -649,10 +644,9 @@ class _FileAttachmentContent extends StatelessWidget {
         children: [
           Attachment(
             width: 32,
-            color:
-                isSender
-                    ? CustomColorScheme.of(context).message.selfText
-                    : CustomColorScheme.of(context).message.otherText,
+            color: isSender
+                ? CustomColorScheme.of(context).message.selfText
+                : CustomColorScheme.of(context).message.otherText,
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -661,20 +655,18 @@ class _FileAttachmentContent extends StatelessWidget {
                 attachment.filename,
                 style: TextStyle(
                   fontSize: BodyFontSize.base.size,
-                  color:
-                      isSender
-                          ? CustomColorScheme.of(context).message.selfText
-                          : CustomColorScheme.of(context).message.otherText,
+                  color: isSender
+                      ? CustomColorScheme.of(context).message.selfText
+                      : CustomColorScheme.of(context).message.otherText,
                 ),
               ),
               Text(
                 loc.bytesToHumanReadable(attachment.size),
                 style: TextStyle(
                   fontSize: BodyFontSize.small2.size,
-                  color:
-                      isSender
-                          ? CustomColorScheme.of(context).message.selfText
-                          : CustomColorScheme.of(context).message.otherText,
+                  color: isSender
+                      ? CustomColorScheme.of(context).message.selfText
+                      : CustomColorScheme.of(context).message.otherText,
                 ),
               ),
             ],
@@ -743,9 +735,11 @@ BorderRadius _messageBorderRadius(
   return BorderRadius.only(
     topLeft: r(isSender || flightPosition.isFirst),
     topRight: r(!isSender || flightPosition.isFirst),
-    bottomLeft:
-        !stackedOnTop ? r(isSender || flightPosition.isLast) : Radius.zero,
-    bottomRight:
-        !stackedOnTop ? r(!isSender || flightPosition.isLast) : Radius.zero,
+    bottomLeft: !stackedOnTop
+        ? r(isSender || flightPosition.isLast)
+        : Radius.zero,
+    bottomRight: !stackedOnTop
+        ? r(!isSender || flightPosition.isLast)
+        : Radius.zero,
   );
 }
