@@ -170,3 +170,35 @@ impl TargetedMessageContact {
         }
     }
 }
+
+pub enum ContactType {
+    Handle(UserHandle),
+    TargetedMessage(UserId),
+}
+
+impl std::fmt::Debug for ContactType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ContactType::Handle(handle) => {
+                f.debug_tuple("Handle").field(&handle.plaintext()).finish()
+            }
+            ContactType::TargetedMessage(user_id) => {
+                f.debug_tuple("TargetedMessage").field(user_id).finish()
+            }
+        }
+    }
+}
+
+pub enum PartialContact {
+    Handle(HandleContact),
+    TargetedMessage(TargetedMessageContact),
+}
+
+impl PartialContact {
+    pub(crate) fn friendship_package_ear_key(&self) -> &FriendshipPackageEarKey {
+        match self {
+            PartialContact::Handle(contact) => &contact.friendship_package_ear_key,
+            PartialContact::TargetedMessage(contact) => &contact.friendship_package_ear_key,
+        }
+    }
+}

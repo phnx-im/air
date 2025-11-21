@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{SqliteConnection, SqliteExecutor};
 use uuid::Uuid;
 
-use crate::store::StoreNotifier;
+use crate::{contacts::ContactType, store::StoreNotifier};
 
 pub use draft::MessageDraft;
 pub(crate) use status::StatusRecord;
@@ -157,6 +157,13 @@ impl Chat {
         &self.chat_type
     }
 
+    pub fn is_unconfirmed(&self) -> bool {
+        matches!(
+            self.chat_type,
+            ChatType::HandleConnection(_) | ChatType::TargetedMessageConnection(_)
+        )
+    }
+
     pub fn status(&self) -> &ChatStatus {
         &self.status
     }
@@ -219,7 +226,7 @@ impl Chat {
         notifier: &mut StoreNotifier,
         user_id: UserId,
     ) -> sqlx::Result<()> {
-        if let ChatType::HandleConnection(_) = &self.chat_type {
+        if self.is_unconfirmed() {
             let chat_type = ChatType::Connection(user_id);
             self.set_chat_type(executor, notifier, &chat_type).await?;
             self.chat_type = chat_type;
@@ -266,6 +273,18 @@ pub enum ChatType {
     /// A connection chat which was established via a targeted message and is not yet confirmed by the other
     /// party.
     TargetedMessageConnection(UserId),
+}
+
+impl ChatType {
+    pub fn unconfirmed_contact(&self) -> Option<ContactType> {
+        match self {
+            ChatType::HandleConnection(handle) => Some(ContactType::Handle(handle.clone())),
+            ChatType::TargetedMessageConnection(user_id) => {
+                Some(ContactType::TargetedMessage(user_id.clone()))
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]

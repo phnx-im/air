@@ -63,8 +63,7 @@ impl SqlChat {
                 if is_confirmed_connection {
                     ChatType::Connection(connection_user_id)
                 } else {
-                    warn!("Unconfirmed user connections are not supported anymore");
-                    return None;
+                    ChatType::TargetedMessageConnection(connection_user_id)
                 }
             }
 

@@ -44,10 +44,10 @@ pub(crate) struct DsClientId {
 
 // === DS ===
 
-#[derive(Debug, PartialEq, TlsDeserializeBytes, TlsSize, Clone)]
+#[derive(Debug, PartialEq, TlsSerialize, TlsDeserializeBytes, TlsSize, Clone)]
 #[repr(u8)]
 pub enum QsQueueTargetedMessage {
-    ApplicationMessage(MlsMessageIn),
+    ApplicationMessage(Vec<u8>),
 }
 
 pub type QsQueueRatchet = QueueRatchet<EncryptedQsQueueMessageCtype, QsQueueMessagePayload>;
@@ -93,8 +93,7 @@ impl QsQueueMessagePayload {
             QsQueueMessageType::TargetedMessage => {
                 let targeted_message_type =
                     QsQueueTargetedMessage::tls_deserialize_exact_bytes(self.payload.as_slice())?;
-                let QsQueueTargetedMessage::ApplicationMessage(message) = targeted_message_type;
-                ExtractedQsQueueMessagePayload::MlsMessage(Box::new(message))
+                ExtractedQsQueueMessagePayload::TargetedMessage(targeted_message_type)
             }
         };
         Ok(ExtractedQsQueueMessage {
@@ -115,16 +114,20 @@ pub enum ExtractedQsQueueMessagePayload {
     WelcomeBundle(WelcomeBundle),
     MlsMessage(Box<MlsMessageIn>),
     UserProfileKeyUpdate(UserProfileKeyUpdateParams),
-    TargetedMessage(Box<QsQueueTargetedMessage>),
+    TargetedMessage(QsQueueTargetedMessage),
 }
 
 impl QsQueueMessagePayload {
-    pub fn targeted_message(targeted_message: SerializedMlsMessage) -> Self {
-        Self {
+    pub fn targeted_message(
+        targeted_message: SerializedMlsMessage,
+    ) -> Result<Self, tls_codec::Error> {
+        let payload = QsQueueTargetedMessage::ApplicationMessage(targeted_message.0)
+            .tls_serialize_detached()?;
+        Ok(Self {
             timestamp: TimeStamp::now(),
             message_type: QsQueueMessageType::TargetedMessage,
-            payload: targeted_message.0,
-        }
+            payload,
+        })
     }
 }
 

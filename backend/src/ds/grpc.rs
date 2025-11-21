@@ -1101,6 +1101,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
         let fan_out_message = DsFanOutMessage {
             payload: QsQueueMessagePayload::targeted_message(message.into_serialized_mls_message())
+                .map_err(|_| Status::internal("couldn't serialize targeted message"))?
                 .into(),
             client_reference: destination_client,
             suppress_notifications: suppress_notifications.into(),

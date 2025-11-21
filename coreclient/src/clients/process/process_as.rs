@@ -3,8 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    crypto::{hpke::HpkeDecryptable, indexed_aead::keys::UserProfileKey},
-    identifiers::{QualifiedGroupId, UserHandle},
+    crypto::{
+        ear::keys::GroupStateEarKey, hpke::HpkeDecryptable, indexed_aead::keys::UserProfileKey,
+    },
+    identifiers::{QualifiedGroupId, UserHandle, UserId},
     messages::{
         client_as::{ConnectionOfferHash, ConnectionOfferMessage},
         client_ds::{AadMessage, AadPayload, JoinConnectionGroupParamsAad},
@@ -24,7 +26,10 @@ use tracing::error;
 use crate::{
     clients::{
         block_contact::{BlockedContact, BlockedContactError},
-        connection_offer::{ConnectionOfferIn, payload::ConnectionOfferPayload},
+        connection_offer::{
+            ConnectionOfferIn,
+            payload::{ConnectionInfo, ConnectionOfferPayload},
+        },
     },
     groups::{Group, ProfileInfo},
     key_stores::indexed_keys::StorableIndexedKey,
@@ -37,6 +42,57 @@ use super::{
     AsCredentials, Chat, ChatAttributes, ChatId, Contact, CoreUser, EarEncryptable,
     FriendshipPackage, anyhow,
 };
+
+pub(crate) enum ConnectionInfoSource {
+    ConnectionOffer {
+        connection_offer: ConnectionOfferMessage,
+        user_handle: UserHandle,
+    },
+    TargetedMessage {
+        connection_info: ConnectionInfo,
+        sender_user_id: UserId,
+    },
+}
+
+impl ConnectionInfoSource {
+    async fn into_parts(
+        self,
+        core_user: &CoreUser,
+    ) -> Result<(
+        ConnectionInfo,
+        UserId,
+        Option<ConnectionOfferHash>,
+        Option<ConnectionPackageHash>,
+    )> {
+        match self {
+            ConnectionInfoSource::ConnectionOffer {
+                connection_offer,
+                user_handle,
+            } => {
+                let connection_offer_hash = connection_offer.connection_offer_hash();
+                let mut connection = core_user.pool().acquire().await?;
+                let (cep_payload, hash) = core_user
+                    .parse_and_verify_connection_offer(
+                        &mut connection,
+                        connection_offer,
+                        user_handle.clone(),
+                    )
+                    .await?;
+                let sender_user_id = cep_payload.sender_client_credential.identity().clone();
+                Ok((
+                    cep_payload.connection_info,
+                    sender_user_id,
+                    Some(connection_offer_hash),
+                    Some(hash),
+                ))
+            }
+            ConnectionInfoSource::TargetedMessage {
+                connection_info,
+                sender_user_id,
+            } => Ok((connection_info, sender_user_id, None, None)),
+        }
+    }
+}
 
 impl CoreUser {
     /// Process a queue message received from the AS handle queue.
@@ -52,43 +108,42 @@ impl CoreUser {
             .context("no payload in handle queue message")?;
         match payload {
             handle_queue_message::Payload::ConnectionOffer(eco) => {
-                self.process_connection_offer(user_handle.clone(), eco.try_into()?)
-                    .await
+                let connection_info_source = ConnectionInfoSource::ConnectionOffer {
+                    connection_offer: eco.try_into()?,
+                    user_handle: user_handle.clone(),
+                };
+                self.process_connection_offer(connection_info_source).await
             }
         }
     }
 
-    async fn process_connection_offer(
+    pub(crate) async fn process_connection_offer(
         &self,
-        handle: UserHandle,
-        ecep: ConnectionOfferMessage,
+        connection_info_source: ConnectionInfoSource,
     ) -> Result<ChatId> {
+        let (connection_info, sender_user_id, connection_offer_hash, connection_package_hash) =
+            connection_info_source.into_parts(self).await?;
+
         let mut connection = self.pool().acquire().await?;
 
-        let connection_offer_hash = ecep.connection_offer_hash();
-
-        // Parse & verify connection offer
-        let (cep_payload, hash) = self
-            .parse_and_verify_connection_offer(&mut connection, ecep, handle.clone())
-            .await?;
-
         // Deny connection from blocked users
-        let user_id = cep_payload.sender_client_credential.identity();
-        if BlockedContact::check_blocked(&mut *connection, user_id).await? {
+        if BlockedContact::check_blocked(&mut *connection, &sender_user_id).await? {
             bail!(BlockedContactError);
         }
 
         // Prepare group
         let own_user_profile_key = UserProfileKey::load_own(&mut *connection).await?;
-        let (aad, qgid) = self.prepare_group(&cep_payload, &own_user_profile_key)?;
+        let (aad, qgid) = self.prepare_group(&connection_info, &own_user_profile_key)?;
 
         // Fetch external commit info
-        let eci = self.fetch_external_commit_info(&cep_payload, &qgid).await?;
+        let eci = self
+            .fetch_external_commit_info(&connection_info, &qgid)
+            .await?;
 
         // Join group
         let (mut group, commit, group_info, mut member_profile_info) = connection
             .with_transaction(async |txn| {
-                self.join_group_externally(txn, eci, &cep_payload, aad, connection_offer_hash)
+                self.join_group_externally(txn, eci, &connection_info, aad, connection_offer_hash)
                     .await
             })
             .await?;
@@ -104,8 +159,7 @@ impl CoreUser {
         );
 
         ensure!(
-            members.contains(self.user_id())
-                && members.contains(cep_payload.sender_client_credential.identity()),
+            members.contains(self.user_id()) && members.contains(&sender_user_id),
             "Connection group has unexpected members: {:?}",
             members
         );
@@ -131,14 +185,15 @@ impl CoreUser {
         // Create chat
         // Note: For now, the chat is immediately confirmed.
         let (mut chat, contact) = self
-            .create_connection_chat(&mut connection, &group, &cep_payload)
+            .create_connection_chat(
+                &mut connection,
+                &group,
+                sender_user_id.clone(),
+                connection_info.friendship_package,
+            )
             .await?;
 
-        group.room_state_change_role(
-            cep_payload.sender_client_credential.identity(),
-            self.user_id(),
-            RoleIndex::Regular,
-        )?;
+        group.room_state_change_role(&sender_user_id, self.user_id(), RoleIndex::Regular)?;
 
         let mut notifier = self.store_notifier();
 
@@ -151,24 +206,33 @@ impl CoreUser {
             .await?;
 
         // Send confirmation
-        self.send_confirmation_to_ds(commit, group_info, &cep_payload, qgid)
-            .await?;
+        self.send_confirmation_to_ds(
+            commit,
+            group_info,
+            &connection_info.connection_group_ear_key,
+            qgid,
+        )
+        .await?;
 
-        // Delete the connection package if it's not last resort
-        connection
-            .with_transaction(async |txn| {
-                let is_last_resort =
-                    <ConnectionPackage as StorableConnectionPackage>::is_last_resort(txn, &hash)
+        if let Some(hash) = connection_package_hash {
+            // Delete the connection package if it's not last resort
+            connection
+                .with_transaction(async |txn| {
+                    let is_last_resort =
+                        <ConnectionPackage as StorableConnectionPackage>::is_last_resort(
+                            txn, &hash,
+                        )
                         .await?
                         .unwrap_or(false);
-                if !is_last_resort {
-                    ConnectionPackage::delete(txn, &hash)
-                        .await
-                        .context("Failed to delete connection package")?;
-                }
-                Ok(())
-            })
-            .await?;
+                    if !is_last_resort {
+                        ConnectionPackage::delete(txn, &hash)
+                            .await
+                            .context("Failed to delete connection package")?;
+                    }
+                    Ok(())
+                })
+                .await?;
+        }
 
         notifier.notify();
 
@@ -217,7 +281,7 @@ impl CoreUser {
 
     fn prepare_group(
         &self,
-        cep_payload: &ConnectionOfferPayload,
+        connection_info: &ConnectionInfo,
         own_user_profile_key: &UserProfileKey,
     ) -> Result<(AadMessage, QualifiedGroupId)> {
         // We create a new group and signal that fact to the user,
@@ -225,9 +289,7 @@ impl CoreUser {
         // connection.
 
         let encrypted_user_profile_key = own_user_profile_key.encrypt(
-            &cep_payload
-                .connection_info
-                .connection_group_identity_link_wrapper_key,
+            &connection_info.connection_group_identity_link_wrapper_key,
             self.user_id(),
         )?;
 
@@ -236,7 +298,7 @@ impl CoreUser {
             wai_ear_key: self.inner.key_store.wai_ear_key.clone(),
             user_profile_base_secret: own_user_profile_key.base_secret().clone(),
         }
-        .encrypt(&cep_payload.connection_info.friendship_package_ear_key)?;
+        .encrypt(&connection_info.friendship_package_ear_key)?;
 
         let aad: AadMessage = AadPayload::JoinConnectionGroup(JoinConnectionGroupParamsAad {
             encrypted_friendship_package,
@@ -244,7 +306,7 @@ impl CoreUser {
         })
         .into();
         let qgid = QualifiedGroupId::tls_deserialize_exact_bytes(
-            cep_payload.connection_info.connection_group_id.as_slice(),
+            &connection_info.connection_group_id.as_slice(),
         )?;
 
         Ok((aad, qgid))
@@ -252,7 +314,7 @@ impl CoreUser {
 
     async fn fetch_external_commit_info(
         &self,
-        cep_payload: &ConnectionOfferPayload,
+        connection_info: &ConnectionInfo,
         qgid: &QualifiedGroupId,
     ) -> Result<ExternalCommitInfoIn> {
         Ok(self
@@ -260,8 +322,8 @@ impl CoreUser {
             .api_clients
             .get(qgid.owning_domain())?
             .ds_connection_group_info(
-                cep_payload.connection_info.connection_group_id.clone(),
-                &cep_payload.connection_info.connection_group_ear_key, //
+                connection_info.connection_group_id.clone(),
+                &connection_info.connection_group_ear_key, //
             )
             .await?)
     }
@@ -270,22 +332,21 @@ impl CoreUser {
         &self,
         connection: &mut SqliteTransaction<'_>,
         eci: ExternalCommitInfoIn,
-        cep_payload: &ConnectionOfferPayload,
+        connection_info: &ConnectionInfo,
         aad: AadMessage,
-        connection_offer_hash: ConnectionOfferHash,
+        connection_offer_hash: Option<ConnectionOfferHash>,
     ) -> Result<(Group, MlsMessageOut, MlsMessageOut, Vec<ProfileInfo>)> {
         let (group, commit, group_info, member_profile_info) = Group::join_group_externally(
             &mut *connection,
             &self.inner.api_clients,
             eci,
             self.signing_key(),
-            cep_payload.connection_info.connection_group_ear_key.clone(),
-            cep_payload
-                .connection_info
+            connection_info.connection_group_ear_key.clone(),
+            connection_info
                 .connection_group_identity_link_wrapper_key
                 .clone(),
             aad,
-            Some(connection_offer_hash),
+            connection_offer_hash,
         )
         .await?;
         Ok((group, commit, group_info, member_profile_info))
@@ -295,12 +356,11 @@ impl CoreUser {
         &self,
         connection: &mut SqliteConnection,
         group: &Group,
-        cep_payload: &ConnectionOfferPayload,
+        sender_user_id: UserId,
+        friendship_package: FriendshipPackage,
     ) -> Result<(Chat, Contact)> {
-        let sender_user_id = cep_payload.sender_client_credential.identity();
-
         let display_name = self
-            .user_profile_internal(connection, sender_user_id)
+            .user_profile_internal(connection, &sender_user_id)
             .await
             .display_name;
 
@@ -309,11 +369,8 @@ impl CoreUser {
             sender_user_id.clone(),
             ChatAttributes::new(display_name.to_string(), None),
         )?;
-        let contact = Contact::from_friendship_package(
-            sender_user_id.clone(),
-            chat.id(),
-            cep_payload.connection_info.friendship_package.clone(),
-        )?;
+        let contact =
+            Contact::from_friendship_package(sender_user_id, chat.id(), friendship_package)?;
         Ok((chat, contact))
     }
 
@@ -335,19 +392,14 @@ impl CoreUser {
         &self,
         commit: MlsMessageOut,
         group_info: MlsMessageOut,
-        cep_payload: &ConnectionOfferPayload,
+        group_state_ear_key: &GroupStateEarKey,
         qgid: QualifiedGroupId,
     ) -> Result<()> {
         let qs_client_reference = self.create_own_client_reference();
         self.inner
             .api_clients
             .get(qgid.owning_domain())?
-            .ds_join_connection_group(
-                commit,
-                group_info,
-                qs_client_reference,
-                &cep_payload.connection_info.connection_group_ear_key,
-            )
+            .ds_join_connection_group(commit, group_info, qs_client_reference, group_state_ear_key)
             .await?;
         Ok(())
     }

@@ -8,6 +8,6 @@ use crate::clients::connection_offer::payload::ConnectionInfo;
 
 #[derive(Debug, Clone, TlsSize, TlsSerialize, TlsDeserializeBytes)]
 #[repr(u8)]
-pub enum TargetedMessageContent {
+pub(crate) enum TargetedMessageContent {
     ConnectionRequest(ConnectionInfo),
 }

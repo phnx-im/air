@@ -46,7 +46,7 @@ use url::Url;
 
 use crate::{
     Asset, UserHandleRecord,
-    contacts::HandleContact,
+    contacts::{HandleContact, TargetedMessageContact},
     groups::Group,
     key_stores::queue_ratchets::StorableQsQueueRatchet,
     outbound_service::OutboundService,
@@ -438,6 +438,10 @@ impl CoreUser {
 
     pub async fn handle_contacts(&self) -> sqlx::Result<Vec<HandleContact>> {
         HandleContact::load_all(self.pool()).await
+    }
+
+    pub async fn targeted_message_contacts(&self) -> sqlx::Result<Vec<TargetedMessageContact>> {
+        TargetedMessageContact::load_all(self.pool()).await
     }
 
     fn create_own_client_reference(&self) -> QsReference {

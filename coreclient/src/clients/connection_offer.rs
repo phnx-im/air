@@ -37,7 +37,12 @@ use tbs::{ConnectionOfferTbs, VerifiableConnectionOffer};
 use tls_codec::{Serialize as TlsSerializeTrait, TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 pub(crate) mod payload {
-    use aircommon::{LibraryError, credentials::keys::ClientSigningKey, identifiers::UserHandle};
+    use aircommon::{
+        LibraryError, credentials::keys::ClientSigningKey,
+        crypto::ear::keys::FriendshipPackageEarKeyType, identifiers::UserHandle,
+    };
+
+    use crate::groups::Group;
 
     use super::*;
 
@@ -82,6 +87,24 @@ pub(crate) mod payload {
         pub(crate) connection_group_identity_link_wrapper_key: IdentityLinkWrapperKey,
         pub(crate) friendship_package_ear_key: FriendshipPackageEarKey,
         pub(crate) friendship_package: FriendshipPackage,
+    }
+
+    impl ConnectionInfo {
+        pub(crate) fn new(
+            group: &Group,
+            friendship_package: FriendshipPackage,
+            friendship_package_ear_key: FriendshipPackageEarKey,
+        ) -> Self {
+            Self {
+                connection_group_id: group.group_id().clone(),
+                connection_group_ear_key: group.group_state_ear_key().clone(),
+                connection_group_identity_link_wrapper_key: group
+                    .identity_link_wrapper_key()
+                    .clone(),
+                friendship_package_ear_key,
+                friendship_package,
+            }
+        }
     }
 
     #[derive(Debug, TlsSerialize, TlsSize, Clone)]
