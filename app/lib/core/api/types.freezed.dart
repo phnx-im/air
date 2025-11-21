@@ -1322,7 +1322,7 @@ $UiEventMessageCopyWith<$Res> get field0 {
 /// @nodoc
 mixin _$UiSystemMessage {
 
- UiUserId get field0; UiUserId get field1;
+ UiUserId get field0;
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1333,16 +1333,16 @@ $UiSystemMessageCopyWith<UiSystemMessage> get copyWith => _$UiSystemMessageCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage&&(identical(other.field0, field0) || other.field0 == field0)&&(identical(other.field1, field1) || other.field1 == field1));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0,field1);
+int get hashCode => Object.hash(runtimeType,field0);
 
 @override
 String toString() {
-  return 'UiSystemMessage(field0: $field0, field1: $field1)';
+  return 'UiSystemMessage(field0: $field0)';
 }
 
 
@@ -1353,7 +1353,7 @@ abstract mixin class $UiSystemMessageCopyWith<$Res>  {
   factory $UiSystemMessageCopyWith(UiSystemMessage value, $Res Function(UiSystemMessage) _then) = _$UiSystemMessageCopyWithImpl;
 @useResult
 $Res call({
- UiUserId field0, UiUserId field1
+ UiUserId field0
 });
 
 
@@ -1370,10 +1370,9 @@ class _$UiSystemMessageCopyWithImpl<$Res>
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? field0 = null,Object? field1 = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? field0 = null,}) {
   return _then(_self.copyWith(
 field0: null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
-as UiUserId,field1: null == field1 ? _self.field1 : field1 // ignore: cast_nullable_to_non_nullable
 as UiUserId,
   ));
 }
@@ -1390,7 +1389,7 @@ class UiSystemMessage_Add extends UiSystemMessage {
   
 
 @override final  UiUserId field0;
-@override final  UiUserId field1;
+ final  UiUserId field1;
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
@@ -1458,7 +1457,7 @@ class UiSystemMessage_Remove extends UiSystemMessage {
   
 
 @override final  UiUserId field0;
-@override final  UiUserId field1;
+ final  UiUserId field1;
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
@@ -1511,6 +1510,142 @@ class _$UiSystemMessage_RemoveCopyWithImpl<$Res>
   return _then(UiSystemMessage_Remove(
 null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
 as UiUserId,null == field1 ? _self.field1 : field1 // ignore: cast_nullable_to_non_nullable
+as UiUserId,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class UiSystemMessage_ChangeTitle extends UiSystemMessage {
+  const UiSystemMessage_ChangeTitle(this.field0, this.field1, this.field2): super._();
+  
+
+@override final  UiUserId field0;
+ final  String field1;
+ final  String field2;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiSystemMessage_ChangeTitleCopyWith<UiSystemMessage_ChangeTitle> get copyWith => _$UiSystemMessage_ChangeTitleCopyWithImpl<UiSystemMessage_ChangeTitle>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ChangeTitle&&(identical(other.field0, field0) || other.field0 == field0)&&(identical(other.field1, field1) || other.field1 == field1)&&(identical(other.field2, field2) || other.field2 == field2));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0,field1,field2);
+
+@override
+String toString() {
+  return 'UiSystemMessage.changeTitle(field0: $field0, field1: $field1, field2: $field2)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiSystemMessage_ChangeTitleCopyWith<$Res> implements $UiSystemMessageCopyWith<$Res> {
+  factory $UiSystemMessage_ChangeTitleCopyWith(UiSystemMessage_ChangeTitle value, $Res Function(UiSystemMessage_ChangeTitle) _then) = _$UiSystemMessage_ChangeTitleCopyWithImpl;
+@override @useResult
+$Res call({
+ UiUserId field0, String field1, String field2
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiSystemMessage_ChangeTitleCopyWithImpl<$Res>
+    implements $UiSystemMessage_ChangeTitleCopyWith<$Res> {
+  _$UiSystemMessage_ChangeTitleCopyWithImpl(this._self, this._then);
+
+  final UiSystemMessage_ChangeTitle _self;
+  final $Res Function(UiSystemMessage_ChangeTitle) _then;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? field0 = null,Object? field1 = null,Object? field2 = null,}) {
+  return _then(UiSystemMessage_ChangeTitle(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as UiUserId,null == field1 ? _self.field1 : field1 // ignore: cast_nullable_to_non_nullable
+as String,null == field2 ? _self.field2 : field2 // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class UiSystemMessage_ChangePicture extends UiSystemMessage {
+  const UiSystemMessage_ChangePicture(this.field0): super._();
+  
+
+@override final  UiUserId field0;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiSystemMessage_ChangePictureCopyWith<UiSystemMessage_ChangePicture> get copyWith => _$UiSystemMessage_ChangePictureCopyWithImpl<UiSystemMessage_ChangePicture>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ChangePicture&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'UiSystemMessage.changePicture(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiSystemMessage_ChangePictureCopyWith<$Res> implements $UiSystemMessageCopyWith<$Res> {
+  factory $UiSystemMessage_ChangePictureCopyWith(UiSystemMessage_ChangePicture value, $Res Function(UiSystemMessage_ChangePicture) _then) = _$UiSystemMessage_ChangePictureCopyWithImpl;
+@override @useResult
+$Res call({
+ UiUserId field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiSystemMessage_ChangePictureCopyWithImpl<$Res>
+    implements $UiSystemMessage_ChangePictureCopyWith<$Res> {
+  _$UiSystemMessage_ChangePictureCopyWithImpl(this._self, this._then);
+
+  final UiSystemMessage_ChangePicture _self;
+  final $Res Function(UiSystemMessage_ChangePicture) _then;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(UiSystemMessage_ChangePicture(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
 as UiUserId,
   ));
 }

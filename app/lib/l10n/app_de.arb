@@ -84,13 +84,13 @@
   "editDisplayNameScreen_description": "Wähle einen Namen, den andere sehen werden, wenn du mit ihnen kommunizierst.",
   "editDisplayNameScreen_save": "Speichern",
 
-  "systemMessage_userAddedUser_prefix": "",
+  "systemMessage_userAddedUser_prefix": "{user1}",
   "systemMessage_userAddedUser_infix": " hat ",
-  "systemMessage_userAddedUser_suffix": " hinzugefügt",
+  "systemMessage_userAddedUser_suffix": "{user2} hinzugefügt",
 
-  "systemMessage_userRemovedUser_prefix": "",
+  "systemMessage_userRemovedUser_prefix": "{user1}",
   "systemMessage_userRemovedUser_infix": " hat ",
-  "systemMessage_userRemovedUser_suffix": " entfernt",
+  "systemMessage_userRemovedUser_suffix": "{user2} entfernt",
 
   "timestamp_now": "Jetzt",
   "timestamp_yesterday": "Gestern",
@@ -131,6 +131,8 @@
       }
     }
   },
+
+  "attachment_tryAgain": "Erneut versuchen",
 
   "textMessage_edited": "bearbeitet",
   "textMessage_hiddenPlaceholder": "Blockierter Benutzer, tippe, um die Nachricht anzuzeigen",

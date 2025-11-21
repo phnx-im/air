@@ -21,7 +21,7 @@ use aircommon::{
     mls_group_config::MAX_PAST_EPOCHS,
 };
 use aircoreclient::{
-    Asset, BlockedContactError, ChatId, ChatMessage, DisplayName, DownloadProgressEvent,
+    Asset, AttachmentProgressEvent, BlockedContactError, ChatId, ChatMessage, DisplayName,
     UserProfile,
     clients::{
         CoreUser,
@@ -403,15 +403,7 @@ async fn room_policy() {
     // setup.leave_group(chat_id, &CHARLIE).await.unwrap();
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "User profile exchange test", skip_all)]
-async fn exchange_user_profiles() {
-    let mut setup = TestBackend::single().await;
-    setup.add_user(&ALICE).await;
-
-    // Set a user profile for alice
-    let alice_display_name: DisplayName = "4l1c3".parse().unwrap();
-
+fn test_picture_bytes() -> Vec<u8> {
     // Create a new ImgBuf with width: 1px and height: 1px
     let mut img = ImageBuffer::new(200, 200);
 
@@ -433,7 +425,19 @@ async fn exchange_user_profiles() {
     }
 
     // Get the PNG data bytes
-    let png_bytes = buffer.into_inner();
+    buffer.into_inner()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "User profile exchange test", skip_all)]
+async fn exchange_user_profiles() {
+    let mut setup = TestBackend::single().await;
+    setup.add_user(&ALICE).await;
+
+    // Set a user profile for alice
+    let alice_display_name: DisplayName = "4l1c3".parse().unwrap();
+
+    let png_bytes = test_picture_bytes();
 
     let alice_profile_picture = Asset::Value(png_bytes.clone());
 
@@ -918,11 +922,11 @@ async fn send_attachment() {
 
     assert_matches!(
         progress_events.first().unwrap(),
-        DownloadProgressEvent::Init
+        AttachmentProgressEvent::Init
     );
     assert_matches!(
         progress_events.last().unwrap(),
-        DownloadProgressEvent::Completed
+        AttachmentProgressEvent::Completed
     );
 
     let content = bob
@@ -1004,11 +1008,11 @@ async fn send_image_attachment() {
 
     assert_matches!(
         progress_events.first().unwrap(),
-        DownloadProgressEvent::Init
+        AttachmentProgressEvent::Init
     );
     assert_matches!(
         progress_events.last().unwrap(),
-        DownloadProgressEvent::Completed
+        AttachmentProgressEvent::Completed
     );
 
     let content = bob
@@ -1691,4 +1695,121 @@ async fn key_package_upload() {
         encryption_keys.insert(bob_encryption_key),
         "Bob should have a new KeyPackage after uploading new ones"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Update group data", skip_all)]
+async fn update_group_data() {
+    let mut setup = TestBackend::single().await;
+    setup.add_user(&ALICE).await;
+    setup.add_user(&BOB).await;
+    setup.add_user(&CHARLIE).await;
+
+    let _alice_bob_chat = setup.connect_users(&ALICE, &BOB).await;
+    let _alice_charlie_chat = setup.connect_users(&ALICE, &CHARLIE).await;
+
+    // Alice creates a group and invites Bob and Charlie
+    let chat_id = setup.create_group(&ALICE).await;
+    setup
+        .invite_to_group(chat_id, &ALICE, vec![&BOB, &CHARLIE])
+        .await;
+
+    // Alice updates the group picture
+    let alice = setup.get_user_mut(&ALICE);
+    let alice_user = &mut alice.user;
+    let picture = test_picture_bytes();
+    alice_user
+        .set_chat_picture(chat_id, Some(picture.clone()))
+        .await
+        .unwrap();
+
+    let expected_picture = alice_user
+        .chat(&chat_id)
+        .await
+        .unwrap()
+        .attributes
+        .picture
+        .unwrap()
+        .clone();
+
+    // Bob and Charlie should now have the updated group picture
+    for user_id in [&BOB, &CHARLIE] {
+        let user = setup.get_user_mut(user_id);
+        let user_user = &mut user.user;
+        // Fetch and process messages to get the update
+        let qs_messages = user_user.qs_fetch_messages().await.unwrap();
+        let result = user_user.fully_process_qs_messages(qs_messages).await;
+        assert!(
+            result.errors.is_empty(),
+            "{:?} should process Alice's update without errors",
+            user_id
+        );
+        let actual_picture = user_user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .attributes
+            .picture
+            .unwrap()
+            .clone();
+        assert_eq!(actual_picture, expected_picture);
+    }
+
+    // Now Bob updates the group title
+    let title = "New Group Title".to_string();
+    let bob = setup.get_user_mut(&BOB);
+    let bob_user = &mut bob.user;
+    bob_user
+        .set_chat_title(chat_id, title.clone())
+        .await
+        .unwrap();
+
+    for user_id in [&ALICE, &CHARLIE] {
+        let user = setup.get_user_mut(user_id);
+        let user_user = &mut user.user;
+        // Fetch and process messages to get the update
+        let qs_messages = user_user.qs_fetch_messages().await.unwrap();
+        let result = user_user.fully_process_qs_messages(qs_messages).await;
+        assert!(
+            result.errors.is_empty(),
+            "{:?} should process Bob's update without errors",
+            user_id
+        );
+        let actual_title = user_user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .attributes
+            .title
+            .clone();
+        assert_eq!(actual_title, title);
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Handle sanity checks test", skip_all)]
+async fn handle_sanity_checks() {
+    let mut setup = TestBackend::single().await;
+    setup.add_user(&ALICE).await;
+    setup.add_user(&BOB).await;
+
+    let bob = setup.get_user_mut(&BOB);
+    let handle_record = bob.add_user_handle().await.unwrap();
+    let bob_handle = handle_record.handle.clone();
+
+    let alice = setup.get_user_mut(&ALICE);
+    let handle_record = alice.add_user_handle().await.unwrap();
+    let alice_handle = handle_record.handle.clone();
+    let alice_user = &alice.user;
+    let res = alice_user.add_contact(alice_handle.clone()).await;
+    assert!(
+        res.is_err(),
+        "Should not be able to add own handle as contact"
+    );
+
+    // Try to add Bob twice
+    let res = alice_user.add_contact(bob_handle.clone()).await;
+    assert!(res.is_ok(), "Should be able to add Bob as contact");
+    let res = alice_user.add_contact(bob_handle.clone()).await;
+    assert!(res.is_err(), "Should not be able to add Bob twice");
 }

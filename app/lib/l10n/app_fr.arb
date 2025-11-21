@@ -84,13 +84,13 @@
   "editDisplayNameScreen_description": "Choisissez un nom que les autres verront lorsque vous communiquez avec eux.",
   "editDisplayNameScreen_save": "Enregistrer",
 
-  "systemMessage_userAddedUser_prefix": "",
+  "systemMessage_userAddedUser_prefix": "{user1}",
   "systemMessage_userAddedUser_infix": " a ajouté ",
-  "systemMessage_userAddedUser_suffix": "",
+  "systemMessage_userAddedUser_suffix": "{user2}",
 
-  "systemMessage_userRemovedUser_prefix": "",
+  "systemMessage_userRemovedUser_prefix": "{user1}",
   "systemMessage_userRemovedUser_infix": " a retiré ",
-  "systemMessage_userRemovedUser_suffix": "",
+  "systemMessage_userRemovedUser_suffix": "{user2}",
 
   "timestamp_now": "Maintenant",
   "timestamp_yesterday": "Hier",

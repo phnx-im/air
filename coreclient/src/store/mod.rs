@@ -13,8 +13,9 @@ use tokio_stream::Stream;
 use uuid::Uuid;
 
 use crate::{
-    AttachmentContent, Chat, ChatId, ChatMessage, Contact, DownloadProgress, MessageDraft,
-    MessageId, contacts::HandleContact, user_handles::UserHandleRecord, user_profiles::UserProfile,
+    AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact, MessageDraft,
+    MessageId, clients::attachment::progress::AttachmentProgress, contacts::HandleContact,
+    user_handles::UserHandleRecord, user_profiles::UserProfile,
 };
 
 pub use notification::{StoreEntityId, StoreNotification, StoreOperation};
@@ -81,6 +82,8 @@ pub trait Store {
     async fn create_chat(&self, title: String, picture: Option<Vec<u8>>) -> StoreResult<ChatId>;
 
     async fn set_chat_picture(&self, chat_id: ChatId, picture: Option<Vec<u8>>) -> StoreResult<()>;
+
+    async fn set_chat_title(&self, chat_id: ChatId, title: String) -> StoreResult<()>;
 
     async fn chats(&self) -> StoreResult<Vec<Chat>>;
 
@@ -220,19 +223,47 @@ pub trait Store {
 
     // attachments
 
-    async fn upload_attachment(&self, chat_id: ChatId, path: &Path) -> StoreResult<ChatMessage>;
+    /// Stores local attachment incl. the corresponding message, and returns a task for uploading
+    /// attachment and its uploading progress.
+    ///
+    /// The returned task uploads the attachment fully to the server and returns the message corresponding
+    /// to the attachment. The message is *not* enqueued to the outbound service. It is the caller's
+    /// responsibility to enqueue the message.
+    async fn upload_attachment(
+        &self,
+        chat_id: ChatId,
+        path: &Path,
+    ) -> StoreResult<(
+        AttachmentId,
+        AttachmentProgress,
+        impl Future<Output = StoreResult<ChatMessage>> + use<Self>,
+    )>;
+
+    async fn retry_upload_attachment(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> StoreResult<(
+        AttachmentId,
+        AttachmentProgress,
+        impl Future<Output = StoreResult<ChatMessage>> + use<Self>,
+    )>;
 
     fn download_attachment(
         &self,
         attachment_id: AttachmentId,
     ) -> (
-        DownloadProgress,
+        AttachmentProgress,
         impl Future<Output = StoreResult<()>> + use<Self>,
     );
 
     async fn pending_attachments(&self) -> StoreResult<Vec<AttachmentId>>;
 
     async fn load_attachment(&self, attachment_id: AttachmentId) -> StoreResult<AttachmentContent>;
+
+    async fn attachment_status(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> StoreResult<Option<AttachmentStatus>>;
 
     // observability
 

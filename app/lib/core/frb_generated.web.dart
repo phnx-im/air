@@ -578,6 +578,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<UiAttachmentStatus>
+  dco_decode_StreamSink_ui_attachment_status_Sse(dynamic raw);
+
+  @protected
   RustStreamSink<UserSettings> dco_decode_StreamSink_user_settings_Sse(
     dynamic raw,
   );
@@ -903,6 +907,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiAttachment dco_decode_ui_attachment(dynamic raw);
+
+  @protected
+  UiAttachmentStatus dco_decode_ui_attachment_status(dynamic raw);
 
   @protected
   UiChatAttributes dco_decode_ui_chat_attributes(dynamic raw);
@@ -1420,6 +1427,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<UiAttachmentStatus>
+  sse_decode_StreamSink_ui_attachment_status_Sse(SseDeserializer deserializer);
+
+  @protected
   RustStreamSink<UserSettings> sse_decode_StreamSink_user_settings_Sse(
     SseDeserializer deserializer,
   );
@@ -1829,6 +1840,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiAttachment sse_decode_ui_attachment(SseDeserializer deserializer);
+
+  @protected
+  UiAttachmentStatus sse_decode_ui_attachment_status(
+    SseDeserializer deserializer,
+  );
 
   @protected
   UiChatAttributes sse_decode_ui_chat_attributes(SseDeserializer deserializer);
@@ -2451,6 +2467,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_ui_attachment_status_Sse(
+    RustStreamSink<UiAttachmentStatus> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_StreamSink_user_settings_Sse(
     RustStreamSink<UserSettings> self,
     SseSerializer serializer,
@@ -2960,6 +2982,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_ui_attachment(UiAttachment self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ui_attachment_status(
+    UiAttachmentStatus self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_ui_chat_attributes(
