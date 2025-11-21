@@ -70,17 +70,16 @@ impl CoreUser {
     async fn try_leave_all_chats(&self, api_client: &ApiClient) -> anyhow::Result<()> {
         let user_id = self.user_id();
 
-        let chats = self.chats().await?;
-        info!(num_chats = chats.len(), "Leaving all chats");
+        let chat_ids = self.ordered_chat_ids().await?;
+        info!(num_chats = chat_ids.len(), "Leaving all chats");
 
         let removals = self
             .with_transaction(async |txn| -> anyhow::Result<_> {
-                let mut removals = Vec::with_capacity(chats.len());
-                for chat in chats {
-                    let group_id = chat.group_id();
-                    let mut group = Group::load_clean(txn, group_id)
+                let mut removals = Vec::with_capacity(chat_ids.len());
+                for chat_id in chat_ids {
+                    let mut group = Group::load_with_chat_id_clean(txn, chat_id)
                         .await?
-                        .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+                        .with_context(|| format!("Can't find group with chat id {chat_id:?}"))?;
                     group.room_state_change_role(user_id, user_id, RoleIndex::Outsider)?;
                     let params = group.stage_leave_group(txn.as_mut(), self.signing_key())?;
                     let ear_key = group.group_state_ear_key().clone();

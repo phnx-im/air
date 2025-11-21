@@ -367,6 +367,8 @@ sealed class UiSystemMessage with _$UiSystemMessage {
   ) = UiSystemMessage_ChangeTitle;
   const factory UiSystemMessage.changePicture(UiUserId field0) =
       UiSystemMessage_ChangePicture;
+  const factory UiSystemMessage.createGroup(UiUserId field0) =
+      UiSystemMessage_CreateGroup;
 }
 
 @freezed

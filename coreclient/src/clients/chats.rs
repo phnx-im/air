@@ -11,7 +11,7 @@ use mimi_room_policy::VerifiedRoomState;
 use tracing::error;
 
 use crate::{
-    ChatAttributes, MessageId,
+    ChatAttributes, MessageId, SystemMessage,
     chats::{Chat, messages::ChatMessage},
     groups::{Group, openmls_provider::AirOpenMlsProvider},
     utils::{connection_ext::StoreExt, image::resize_profile_image},
@@ -44,13 +44,26 @@ impl CoreUser {
             })
             .await?;
 
-        created_group
+        let chat_id = created_group
             .create_group_on_ds(
                 &self.inner.api_clients,
                 self.signing_key(),
                 self.create_own_client_reference(),
             )
-            .await
+            .await?;
+
+        self.with_transaction_and_notifier(async |txn, notifier| {
+            ChatMessage::new_system_message(
+                chat_id,
+                SystemMessage::CreateGroup(self.user_id().clone()),
+            )
+            .store(txn.as_mut(), notifier)
+            .await?;
+            Ok(())
+        })
+        .await?;
+
+        Ok(chat_id)
     }
 
     /// Delete the chat with the given [`ChatId`].
@@ -199,10 +212,6 @@ impl CoreUser {
 
     pub(crate) async fn next_message(&self, message_id: MessageId) -> Result<Option<ChatMessage>> {
         Ok(ChatMessage::next_message(self.pool(), message_id).await?)
-    }
-
-    pub(crate) async fn chats(&self) -> sqlx::Result<Vec<Chat>> {
-        Chat::load_all(self.pool().acquire().await?.as_mut()).await
     }
 
     pub async fn chat(&self, chat: &ChatId) -> Option<Chat> {

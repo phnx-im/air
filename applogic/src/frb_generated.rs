@@ -8972,6 +8972,10 @@ impl SseDecode for crate::api::types::UiSystemMessage {
                 let mut var_field0 = <crate::api::types::UiUserId>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::ChangePicture(var_field0);
             }
+            4 => {
+                let mut var_field0 = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::CreateGroup(var_field0);
+            }
             _ => {
                 unimplemented!("");
             }
@@ -10727,6 +10731,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
             crate::api::types::UiSystemMessage::ChangePicture(field0) => {
                 [3.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
+            crate::api::types::UiSystemMessage::CreateGroup(field0) => {
+                [4.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
             _ => {
                 unimplemented!("");
             }
@@ -12426,6 +12433,10 @@ impl SseEncode for crate::api::types::UiSystemMessage {
             }
             crate::api::types::UiSystemMessage::ChangePicture(field0) => {
                 <i32>::sse_encode(3, serializer);
+                <crate::api::types::UiUserId>::sse_encode(field0, serializer);
+            }
+            crate::api::types::UiSystemMessage::CreateGroup(field0) => {
+                <i32>::sse_encode(4, serializer);
                 <crate::api::types::UiUserId>::sse_encode(field0, serializer);
             }
             _ => {

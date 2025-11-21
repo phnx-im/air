@@ -23,7 +23,7 @@ use tracing::{error, info};
 use crate::api::{
     attachments_repository::{AttachmentTaskHandle, AttachmentsRepository, InProgressMap},
     chats_repository::ChatsRepository,
-    types::{UiChatMessage, UiChatType, UiUserId},
+    types::{UiChatType, UiUserId},
     user_settings_cubit::{UserSettings, UserSettingsCubitBase},
 };
 use crate::message_content::MimiContentExt;
@@ -543,17 +543,13 @@ pub(super) async fn load_chat_details(store: &impl Store, chat: Chat) -> UiChatD
         .unread_messages_count(chat.id())
         .await
         .unwrap_or_default();
-    let last_message = store
-        .last_message(chat.id())
-        .await
-        .ok()
-        .flatten()
-        .map(From::from);
+    let last_message = store.last_message(chat.id()).await.ok().flatten();
     let last_used = last_message
         .as_ref()
-        .map(|m: &UiChatMessage| m.timestamp.with_timezone(&Local))
-        .unwrap_or_default();
-    // default is UNIX_EPOCH
+        .map(|m| m.timestamp())
+        .or(chat.last_message_at())
+        .unwrap_or_default() // default is UNIX_EPOCH
+        .with_timezone(&Local);
 
     let chat_type = UiChatType::load_from_chat_type(store, chat.chat_type).await;
 
@@ -567,7 +563,7 @@ pub(super) async fn load_chat_details(store: &impl Store, chat: Chat) -> UiChatD
         attributes: chat.attributes.into(),
         messages_count,
         unread_messages,
-        last_message,
+        last_message: last_message.map(From::from),
         draft,
     }
 }

@@ -78,6 +78,10 @@ pub struct Chat {
     pub group_id: GroupId,
     // The timestamp of the last message that was (marked as) read by the user.
     pub last_read: DateTime<Utc>,
+    // The timestamp of the last message (content or system)
+    //
+    // `None` if the chat does not have any messages.
+    pub last_message_at: Option<DateTime<Utc>>,
     pub status: ChatStatus,
     pub chat_type: ChatType,
     pub attributes: ChatAttributes,
@@ -95,6 +99,7 @@ impl Chat {
             id: ChatId::try_from(&group_id)?,
             group_id,
             last_read: Utc::now(),
+            last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::Connection(user_id),
             attributes,
@@ -111,6 +116,7 @@ impl Chat {
             id,
             group_id,
             last_read: Utc::now(),
+            last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::HandleConnection(handle),
             attributes,
@@ -123,6 +129,7 @@ impl Chat {
             id,
             group_id,
             last_read: Utc::now(),
+            last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::Group,
             attributes,
@@ -155,6 +162,10 @@ impl Chat {
 
     pub fn last_read(&self) -> DateTime<Utc> {
         self.last_read
+    }
+
+    pub fn last_message_at(&self) -> Option<DateTime<Utc>> {
+        self.last_message_at
     }
 
     pub(crate) fn owner_domain(&self) -> Fqdn {

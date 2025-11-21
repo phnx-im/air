@@ -7944,6 +7944,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiSystemMessage_ChangePicture(
           dco_decode_box_autoadd_ui_user_id(raw[1]),
         );
+      case 4:
+        return UiSystemMessage_CreateGroup(
+          dco_decode_box_autoadd_ui_user_id(raw[1]),
+        );
       default:
         throw Exception("unreachable");
     }
@@ -10276,6 +10280,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 3:
         var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
         return UiSystemMessage_ChangePicture(var_field0);
+      case 4:
+        var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
+        return UiSystemMessage_CreateGroup(var_field0);
       default:
         throw UnimplementedError('');
     }
@@ -12772,6 +12779,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(field2, serializer);
       case UiSystemMessage_ChangePicture(field0: final field0):
         sse_encode_i_32(3, serializer);
+        sse_encode_box_autoadd_ui_user_id(field0, serializer);
+      case UiSystemMessage_CreateGroup(field0: final field0):
+        sse_encode_i_32(4, serializer);
         sse_encode_box_autoadd_ui_user_id(field0, serializer);
     }
   }
