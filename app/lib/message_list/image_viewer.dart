@@ -9,8 +9,9 @@ import 'package:air/attachments/attachment_image_provider.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/theme/responsive_screen.dart';
-import 'package:air/widgets/app_bar_back_button.dart';
+import 'package:air/widgets/app_bar_x_button.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -48,6 +49,8 @@ class ImageViewer extends HookWidget {
     final initialScale = useRef<double?>(null);
     final pendingTapTimer = useRef<Timer?>(null);
 
+    final colors = CustomColorScheme.of(context);
+
     useEffect(
       () => () {
         pendingTapTimer.value?.cancel();
@@ -60,6 +63,8 @@ class ImageViewer extends HookWidget {
     final backgroundOpacity =
         isDesktop ? 1.0 : (1 - (dragOffset.value / 300)).clamp(0.0, 1.0);
     final verticalOffset = enableVerticalDrag ? dragOffset.value : 0.0;
+    final imageScale =
+        enableVerticalDrag ? math.max(0.3, 1 - (dragOffset.value / 600)) : 1.0;
 
     useEffect(() {
       if (!enableVerticalDrag && dragOffset.value != 0) {
@@ -122,7 +127,7 @@ class ImageViewer extends HookWidget {
     }
 
     return Scaffold(
-      backgroundColor: Colors.black.withValues(alpha: backgroundOpacity),
+      backgroundColor: colors.backgroundBase.primary,
       body: Focus(
         autofocus: true,
         onKeyEvent: (node, event) {
@@ -148,8 +153,13 @@ class ImageViewer extends HookWidget {
               enableVerticalDrag ? () => dragOffset.value = 0 : null,
           child: Stack(
             children: [
-              Transform.translate(
-                offset: Offset(0, verticalOffset),
+              Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.translationValues(
+                  0.0,
+                  verticalOffset,
+                  0.0,
+                ).scaledByDouble(imageScale, imageScale, 1.0, 1.0),
                 child: _ZoomableImage(
                   attachment: attachment,
                   onTap: handleTap,
@@ -184,6 +194,8 @@ class _ZoomableImage extends HookWidget {
   Widget build(BuildContext context) {
     final photoViewController = useMemoized(PhotoViewController.new);
     final scaleStateController = useMemoized(PhotoViewScaleStateController.new);
+    final baseScale = useRef<double?>(null);
+    final currentScale = useRef<double?>(null);
 
     final colors = CustomColorScheme.of(context);
 
@@ -207,54 +219,78 @@ class _ZoomableImage extends HookWidget {
       ) {
         final scale = value.scale;
         if (scale != null) {
+          baseScale.value ??= scale;
+          currentScale.value = scale;
           onScaleChanged(scale);
         }
       });
       return subscription.cancel;
     }, [photoViewController, onScaleChanged]);
 
+    void handlePointerSignal(PointerSignalEvent event) {
+      if (event is! PointerScrollEvent) {
+        return;
+      }
+      final base = baseScale.value;
+      final current = currentScale.value;
+      if (base == null || current == null) {
+        return;
+      }
+      const zoomStep = 0.12;
+      final int direction = event.scrollDelta.dy < 0 ? 1 : -1;
+      final nextScale = (current * (1 + zoomStep * direction)).clamp(
+        base,
+        base * 4.0,
+      );
+      photoViewController.scale = nextScale.toDouble();
+    }
+
     return ClipRect(
-      child: PhotoView(
-        controller: photoViewController,
-        scaleStateController: scaleStateController,
-        heroAttributes: PhotoViewHeroAttributes(
-          tag: imageViewerHeroTag(attachment),
-          transitionOnUserGestures: true,
-        ),
-        backgroundDecoration: const BoxDecoration(color: Colors.transparent),
-        minScale: PhotoViewComputedScale.contained,
-        maxScale: PhotoViewComputedScale.covered * 4.0,
-        scaleStateCycle: _doubleTapScaleStateCycle,
-        filterQuality: FilterQuality.high,
-        loadingBuilder: (context, event) {
-          if (event == null) {
-            return const SizedBox.shrink();
-          }
-          return Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(
-                colors.backgroundBase.tertiary,
+      child: Listener(
+        onPointerSignal: handlePointerSignal,
+        child: PhotoView(
+          controller: photoViewController,
+          scaleStateController: scaleStateController,
+          heroAttributes: PhotoViewHeroAttributes(
+            tag: imageViewerHeroTag(attachment),
+            transitionOnUserGestures: true,
+          ),
+          backgroundDecoration: const BoxDecoration(color: Colors.transparent),
+          minScale: PhotoViewComputedScale.contained,
+          maxScale: PhotoViewComputedScale.covered * 4.0,
+          scaleStateCycle: _doubleTapScaleStateCycle,
+          filterQuality: FilterQuality.medium,
+          loadingBuilder: (context, event) {
+            if (event == null) {
+              return const SizedBox.shrink();
+            }
+            return Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  colors.backgroundBase.tertiary,
+                ),
+                value:
+                    event.expectedTotalBytes != null
+                        ? event.cumulativeBytesLoaded /
+                            event.expectedTotalBytes!
+                        : null,
               ),
-              value:
-                  event.expectedTotalBytes != null
-                      ? event.cumulativeBytesLoaded / event.expectedTotalBytes!
-                      : null,
-            ),
-          );
-        },
-        errorBuilder:
-            (context, error, stackTrace) => Center(
-              child: Icon(
-                Icons.broken_image_outlined,
-                color: colors.text.primary,
-                size: 48,
+            );
+          },
+          errorBuilder:
+              (context, error, stackTrace) => Center(
+                child: Icon(
+                  Icons.broken_image_outlined,
+                  color: colors.text.primary,
+                  size: 48,
+                ),
               ),
-            ),
-        imageProvider: AttachmentImageProvider(
-          attachment: attachment,
-          attachmentsRepository: RepositoryProvider.of(context),
+          imageProvider: AttachmentImageProvider(
+            attachment: attachment,
+            attachmentsRepository: RepositoryProvider.of(context),
+          ),
+          onTapUp: (context, details, value) => onTap(),
         ),
-        onTapUp: (context, details, value) => onTap(),
       ),
     );
   }
@@ -284,9 +320,16 @@ class _ViewerOverlay extends StatelessWidget {
           duration: const Duration(milliseconds: 250),
           opacity: isVisible ? fadeOpacity : 0,
           child: Container(
-            color: colorScheme.backgroundBase.primary.withValues(alpha: 0.7),
+            color: colorScheme.backgroundElevated.primary.withValues(
+              alpha: 0.7,
+            ),
             child: AppBar(
-              leading: const AppBarBackButton(),
+              automaticallyImplyLeading: false,
+              actions: [
+                AppBarXButton(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+              ],
               backgroundColor: Colors.transparent,
               elevation: 0,
               title: Text(title),
