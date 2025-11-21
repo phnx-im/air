@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE chat SET\n                        connection_user_uuid = ?,\n                        connection_user_domain = ?,\n                        is_confirmed_connection = false\n                    WHERE chat_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "7cfd92ff65af13e8e04a121d532a7f9febca0799e6791920c7b1f0da771b11c6"
+}

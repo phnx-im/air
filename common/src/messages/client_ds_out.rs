@@ -77,6 +77,20 @@ pub struct SendMessageParamsOut {
 }
 
 #[derive(Debug)]
+pub enum TargetedMessageType {
+    ApplicationMessage {
+        message: AssistedMessageOut,
+        recipient: LeafNodeIndex,
+    },
+}
+
+#[derive(Debug)]
+pub struct TargetedMessageParamsOut {
+    pub sender: LeafNodeIndex,
+    pub message_type: TargetedMessageType,
+}
+
+#[derive(Debug)]
 pub struct DeleteGroupParamsOut {
     pub commit: AssistedMessageOut,
 }

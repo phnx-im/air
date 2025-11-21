@@ -85,6 +85,7 @@ impl User {
             new_messages,
             errors: _,
             processed: _,
+            mut new_connections,
         } = self.fetch_and_process_qs_messages().await?;
         self.new_chat_notifications(&new_chats, &mut notifications)
             .await;
@@ -93,7 +94,9 @@ impl User {
 
         // Fetch AS connection requests
         debug!("fetch AS messages");
-        let new_connections = self.fetch_and_process_as_messages().await?;
+        let new_handle_connections = self.fetch_and_process_as_messages().await?;
+        new_connections.extend(new_handle_connections);
+
         self.new_connection_request_notifications(&new_connections, &mut notifications)
             .await;
 

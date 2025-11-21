@@ -23,4 +23,12 @@ pub enum GroupOperationError {
     TlsCodecError(#[from] tls_codec::Error),
     #[error(transparent)]
     MimiContentError(#[from] mimi_content::Error),
+    #[error(transparent)]
+    TargetedMessageError(#[from] TargetedMessageError),
+}
+
+#[derive(Error, Debug)]
+pub enum TargetedMessageError {
+    #[error("The targeted message recipient is not part of the group")]
+    RecipientNotInGroup,
 }
