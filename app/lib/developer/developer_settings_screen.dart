@@ -50,8 +50,8 @@ class _DeveloperSettingsScreenState extends State<DeveloperSettingsScreen> {
     return DeveloperSettingsScreenView(
       deviceToken: deviceToken,
       isMobile: Platform.isAndroid || Platform.isIOS,
-      onRefreshPushToken:
-          () => _reRegisterPushToken(context.read<CoreClient>()),
+      onRefreshPushToken: () =>
+          _reRegisterPushToken(context.read<CoreClient>()),
     );
   }
 
@@ -92,12 +92,11 @@ class DeveloperSettingsScreenView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = context.select((LoadableUserCubit cubit) => cubit.state.user);
-    final profile =
-        user != null
-            ? context.select(
-              (UsersCubit cubit) => cubit.state.profile(userId: user.userId),
-            )
-            : null;
+    final profile = user != null
+        ? context.select(
+            (UsersCubit cubit) => cubit.state.profile(userId: user.userId),
+          )
+        : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -107,8 +106,9 @@ class DeveloperSettingsScreenView extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: Container(
-            constraints:
-                isPointer() ? const BoxConstraints(maxWidth: 800) : null,
+            constraints: isPointer()
+                ? const BoxConstraints(maxWidth: 800)
+                : null,
             child: ListTileTheme(
               data: Theme.of(context).listTileTheme.copyWith(
                 titleAlignment: ListTileTitleAlignment.titleHeight,
@@ -127,21 +127,18 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                           IconButton(
                             icon: const Icon(Icons.copy),
                             tooltip: 'Copy',
-                            onPressed:
-                                deviceToken == null
-                                    ? null
-                                    : () {
-                                      Clipboard.setData(
-                                        ClipboardData(text: deviceToken!),
-                                      );
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Device token copied'),
-                                        ),
-                                      );
-                                    },
+                            onPressed: deviceToken == null
+                                ? null
+                                : () {
+                                    Clipboard.setData(
+                                      ClipboardData(text: deviceToken!),
+                                    );
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Device token copied'),
+                                      ),
+                                    );
+                                  },
                           ),
                           IconButton(
                             icon: const Icon(Icons.refresh),
@@ -156,12 +153,10 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                   ListTile(
                     title: const Text("Change User"),
                     trailing: const Icon(Icons.change_circle),
-                    onTap:
-                        () => context
-                            .read<NavigationCubit>()
-                            .openDeveloperSettings(
-                              screen: DeveloperSettingsScreenType.changeUser,
-                            ),
+                    onTap: () =>
+                        context.read<NavigationCubit>().openDeveloperSettings(
+                          screen: DeveloperSettingsScreenType.changeUser,
+                        ),
                   ),
                   if (user != null) ...[
                     ListTile(
@@ -174,12 +169,10 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                   ListTile(
                     title: const Text("Logs"),
                     trailing: const Icon(Icons.text_snippet),
-                    onTap:
-                        () => context
-                            .read<NavigationCubit>()
-                            .openDeveloperSettings(
-                              screen: DeveloperSettingsScreenType.logs,
-                            ),
+                    onTap: () =>
+                        context.read<NavigationCubit>().openDeveloperSettings(
+                          screen: DeveloperSettingsScreenType.logs,
+                        ),
                   ),
                   if (user != null)
                     ListTile(
@@ -202,18 +195,13 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                       ),
                       subtitle: Text("${user.userId}"),
                       trailing: const Icon(Icons.delete),
-                      onTap:
-                          () => _confirmDialog(
-                            context: context,
-                            onConfirm:
-                                () =>
-                                    context
-                                        .read<CoreClient>()
-                                        .deleteUserDatabase(),
-                            label:
-                                "Are you sure you want to erase the database?",
-                            confirmLabel: "Erase",
-                          ),
+                      onTap: () => _confirmDialog(
+                        context: context,
+                        onConfirm: () =>
+                            context.read<CoreClient>().deleteUserDatabase(),
+                        label: "Are you sure you want to erase the database?",
+                        confirmLabel: "Erase",
+                      ),
                     ),
                   ListTile(
                     title: Text(
@@ -224,17 +212,15 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                       ),
                     ),
                     trailing: const Icon(Icons.delete),
-                    onTap:
-                        () => _confirmDialog(
-                          context: context,
-                          onConfirm: () {
-                            context.read<CoreClient>().deleteDatabase();
-                            context.read<NavigationCubit>().openIntro();
-                          },
-                          label:
-                              "Are you sure you want to erase all databases?",
-                          confirmLabel: "Erase",
-                        ),
+                    onTap: () => _confirmDialog(
+                      context: context,
+                      onConfirm: () {
+                        context.read<CoreClient>().deleteDatabase();
+                        context.read<NavigationCubit>().openIntro();
+                      },
+                      label: "Are you sure you want to erase all databases?",
+                      confirmLabel: "Erase",
+                    ),
                   ),
                 ],
               ),

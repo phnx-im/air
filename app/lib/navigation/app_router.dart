@@ -131,8 +131,9 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
     return poppedPagelessRoute
         ? SynchronousFuture(true)
         : SynchronousFuture(
-          _navigatorKey.currentContext?.read<NavigationCubit>().pop() ?? false,
-        );
+            _navigatorKey.currentContext?.read<NavigationCubit>().pop() ??
+                false,
+          );
   }
 
   @override
@@ -255,7 +256,7 @@ extension on HomeNavigationState {
           key: ValueKey("chat-group-members-screen"),
           child: GroupMembersScreen(),
         ),
-      if (openChatId != null && chatDetailsOpen && memberDetails != null)
+      if (openChatId != null && memberDetails != null)
         const MaterialPage(
           key: ValueKey("chat-member-details-screen"),
           child: MemberDetailsScreen(),

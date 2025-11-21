@@ -3,17 +3,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
-import 'package:air/ui/typography/monospace.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/message_list.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ui/typography/monospace.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/user_avatar.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iconoir_flutter/regular/more_horiz.dart';
 
 import 'chat_details_cubit.dart';
@@ -39,23 +39,22 @@ class ChatScreen extends StatelessWidget {
         BlocProvider(
           // rebuilds the cubit when a different chat is selected
           key: ValueKey("message-list-cubit-$chatId"),
-          create:
-              (context) => ChatDetailsCubit(
-                userCubit: context.read<UserCubit>(),
-                userSettingsCubit: context.read<UserSettingsCubit>(),
-                chatId: chatId,
-                chatsRepository: context.read<ChatsRepository>(),
-                withMembers: false,
-              ),
+          create: (context) => ChatDetailsCubit(
+            userCubit: context.read<UserCubit>(),
+            userSettingsCubit: context.read<UserSettingsCubit>(),
+            chatId: chatId,
+            chatsRepository: context.read<ChatsRepository>(),
+            attachmentsRepository: context.read<AttachmentsRepository>(),
+            withMembers: false,
+          ),
         ),
         BlocProvider(
           // rebuilds the cubit when a different chat is selected
           key: ValueKey("message-list-cubit-$chatId"),
-          create:
-              (context) => MessageListCubit(
-                userCubit: context.read<UserCubit>(),
-                chatId: chatId,
-              ),
+          create: (context) => MessageListCubit(
+            userCubit: context.read<UserCubit>(),
+            chatId: chatId,
+          ),
         ),
       ],
       child: const ChatScreenView(),
@@ -118,10 +117,10 @@ class ChatScreenView extends StatelessWidget {
             blockedUserId == null || blockedUserDisplayName == null
                 ? const MessageComposer()
                 : _BlockedChatFooter(
-                  chatId: chatId,
-                  userId: blockedUserId,
-                  displayName: blockedUserDisplayName,
-                ),
+                    chatId: chatId,
+                    userId: blockedUserId,
+                    displayName: blockedUserDisplayName,
+                  ),
           ],
         ),
       ),
@@ -135,18 +134,15 @@ class _ChatHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (title, image) = context.select(
-      (ChatDetailsCubit cubit) => (
-        cubit.state.chat?.title,
-        cubit.state.chat?.picture,
-      ),
+      (ChatDetailsCubit cubit) =>
+          (cubit.state.chat?.title, cubit.state.chat?.picture),
     );
 
     return Container(
       padding: EdgeInsets.only(
-        top:
-            context.responsiveScreenType == ResponsiveScreenType.mobile
-                ? kToolbarHeight
-                : Spacings.xxs,
+        top: context.responsiveScreenType == ResponsiveScreenType.mobile
+            ? kToolbarHeight
+            : Spacings.xxs,
         bottom: Spacings.xxs,
         left: Spacings.xs,
         right: Spacings.xs,
@@ -190,10 +186,9 @@ class _ChatHeader extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: LabelFontSize.small1.size,
-                                  color:
-                                      CustomColorScheme.of(
-                                        context,
-                                      ).text.tertiary,
+                                  color: CustomColorScheme.of(
+                                    context,
+                                  ).text.tertiary,
                                   fontFamily: getSystemMonospaceFontFamily(),
                                   letterSpacing: 1,
                                 ),

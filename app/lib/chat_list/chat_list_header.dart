@@ -210,17 +210,16 @@ class _PlusButtonState extends State<_PlusButton> {
 
     showDialog(
       context: context,
-      builder:
-          (BuildContext context) => CreateChatView(
-            context,
-            loc.newConnectionDialog_newConnectionTitle,
-            loc.newConnectionDialog_newConnectionDescription,
-            loc.newConnectionDialog_usernamePlaceholder,
-            loc.newConnectionDialog_actionButton,
-            validator: validator,
-            onAction: onAction,
-            allowUnderscore: true,
-          ),
+      builder: (BuildContext context) => CreateChatView(
+        context,
+        loc.newConnectionDialog_newConnectionTitle,
+        loc.newConnectionDialog_newConnectionDescription,
+        loc.newConnectionDialog_usernamePlaceholder,
+        loc.newConnectionDialog_actionButton,
+        validator: validator,
+        onAction: onAction,
+        allowUnderscore: true,
+      ),
     );
   }
 

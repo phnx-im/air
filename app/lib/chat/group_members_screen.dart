@@ -33,20 +33,19 @@ class GroupMembersScreen extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider(
-          create:
-              (context) => ChatDetailsCubit(
-                userCubit: context.read<UserCubit>(),
-                userSettingsCubit: context.read<UserSettingsCubit>(),
-                chatsRepository: context.read<ChatsRepository>(),
-                chatId: chatId,
-              ),
+          create: (context) => ChatDetailsCubit(
+            userCubit: context.read<UserCubit>(),
+            userSettingsCubit: context.read<UserSettingsCubit>(),
+            chatsRepository: context.read<ChatsRepository>(),
+            attachmentsRepository: context.read<AttachmentsRepository>(),
+            chatId: chatId,
+          ),
         ),
         BlocProvider(
-          create:
-              (context) => MemberDetailsCubit(
-                userCubit: context.read<UserCubit>(),
-                chatId: chatId,
-              ),
+          create: (context) => MemberDetailsCubit(
+            userCubit: context.read<UserCubit>(),
+            chatId: chatId,
+          ),
         ),
       ],
       child: const _GroupMembersView(),
@@ -92,17 +91,16 @@ class _GroupMembersViewState extends State<_GroupMembersView> {
     }
 
     final query = _query.trim().toLowerCase();
-    final filteredMembers =
-        members.where((memberId) {
-          if (query.isEmpty) return true;
-          final name = usersState.displayName(userId: memberId).toLowerCase();
-          if (name.contains(query)) return true;
-          if (memberId == ownUserId &&
-              loc.chatList_you.toLowerCase().contains(query)) {
-            return true;
-          }
-          return false;
-        }).toList();
+    final filteredMembers = members.where((memberId) {
+      if (query.isEmpty) return true;
+      final name = usersState.displayName(userId: memberId).toLowerCase();
+      if (name.contains(query)) return true;
+      if (memberId == ownUserId &&
+          loc.chatList_you.toLowerCase().contains(query)) {
+        return true;
+      }
+      return false;
+    }).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -120,8 +118,9 @@ class _GroupMembersViewState extends State<_GroupMembersView> {
         child: Align(
           alignment: Alignment.topCenter,
           child: Container(
-            constraints:
-                isPointer() ? const BoxConstraints(maxWidth: 800) : null,
+            constraints: isPointer()
+                ? const BoxConstraints(maxWidth: 800)
+                : null,
             child: Column(
               children: [
                 MemberSearchField(
@@ -136,19 +135,17 @@ class _GroupMembersViewState extends State<_GroupMembersView> {
                       vertical: Spacings.xs,
                     ),
                     itemCount: filteredMembers.length,
-                    separatorBuilder:
-                        (context, index) => Divider(
-                          height: 1,
-                          thickness: 1,
-                          color: colorScheme.backgroundBase.primary,
-                        ),
-                    itemBuilder:
-                        (context, index) => _GroupMemberTile(
-                          chatId: chatId,
-                          memberId: filteredMembers[index],
-                          ownUserId: ownUserId,
-                          roomState: roomState,
-                        ),
+                    separatorBuilder: (context, index) => Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: colorScheme.backgroundBase.primary,
+                    ),
+                    itemBuilder: (context, index) => _GroupMemberTile(
+                      chatId: chatId,
+                      memberId: filteredMembers[index],
+                      ownUserId: ownUserId,
+                      roomState: roomState,
+                    ),
                   ),
                 ),
               ],
@@ -187,21 +184,18 @@ class _GroupMemberTile extends StatelessWidget {
       profile: profile,
       displayNameOverride: displayName,
       enabled: !isSelf,
-      onTap:
-          isSelf
-              ? null
-              : () =>
-                  context.read<NavigationCubit>().openMemberDetails(memberId),
-      trailing:
-          isSelf
-              ? null
-              : RemoveMemberButton(
-                chatId: chatId,
-                memberId: memberId,
-                displayName: profile.displayName,
-                compact: true,
-                enabled: canKick,
-              ),
+      onTap: isSelf
+          ? null
+          : () => context.read<NavigationCubit>().openMemberDetails(memberId),
+      trailing: isSelf
+          ? null
+          : RemoveMemberButton(
+              chatId: chatId,
+              memberId: memberId,
+              displayName: profile.displayName,
+              compact: true,
+              enabled: canKick,
+            ),
     );
   }
 }

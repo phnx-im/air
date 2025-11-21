@@ -114,18 +114,16 @@ class _AndroidSignalPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final path =
-        Path()
-          ..moveTo(0, size.height)
-          ..lineTo(size.width, size.height)
-          ..lineTo(size.width, 0)
-          ..close();
+    final path = Path()
+      ..moveTo(0, size.height)
+      ..lineTo(size.width, size.height)
+      ..lineTo(size.width, 0)
+      ..close();
 
-    final paint =
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.fill
-          ..isAntiAlias = true;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
 
     canvas.drawPath(path, paint);
   }
@@ -158,21 +156,19 @@ class _AndroidWifiPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.fill
-          ..isAntiAlias = true;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
 
     final center = Offset(size.width / 2, size.height);
     final radius = min(size.width, size.height);
 
     final rect = Rect.fromCircle(center: center, radius: radius);
-    final path =
-        Path()
-          ..moveTo(center.dx, center.dy)
-          ..arcTo(rect, -3 * pi / 4, pi / 2, false)
-          ..close();
+    final path = Path()
+      ..moveTo(center.dx, center.dy)
+      ..arcTo(rect, -3 * pi / 4, pi / 2, false)
+      ..close();
 
     canvas.drawPath(path, paint);
   }

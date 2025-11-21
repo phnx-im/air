@@ -793,6 +793,16 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .await
             .map_err(to_status)?;
 
+        // verify signature
+        let verifying_key: LeafVerifyingKeyRef = group_state
+            .group()
+            .leaf(sender_index)
+            .ok_or_else(|| Status::invalid_argument("unknown sender"))?
+            .signature_key()
+            .into();
+        let payload: SendMessagePayload =
+            request.verify(verifying_key).map_err(InvalidSignature)?;
+
         let destination_clients = group_state.other_destination_clients(sender_index);
 
         // Messages from legacy clients won't have this field set. Default to false.

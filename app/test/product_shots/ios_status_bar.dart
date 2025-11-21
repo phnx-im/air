@@ -168,12 +168,11 @@ class _WifiPainter extends CustomPainter {
     const double startAngle = -pi / 2 - pi / 4;
     const double sweepAngle = pi / 2;
 
-    final paint =
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = strokeWidth
-          ..strokeCap = StrokeCap.square;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.square;
     final maxR = size.height;
 
     for (double i = 0.01; i <= .4; i += .2) {
@@ -253,10 +252,9 @@ class _BatteryCapPainter extends CustomPainter {
       return;
     }
 
-    final paint =
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.fill;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
 
     final rect = Offset.zero & size;
     final radius = Radius.circular(size.width / 1.2);
