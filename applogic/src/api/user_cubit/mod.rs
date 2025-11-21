@@ -450,14 +450,11 @@ impl CubitContext {
                     HomeNavigationState {
                         chat_id: None,
                         developer_settings_screen,
-                        user_settings_screen,
+                        user_profile_open,
                         ..
                     },
             } => {
-                if !IS_DESKTOP
-                    && developer_settings_screen.is_none()
-                    && user_settings_screen.is_none()
-                {
+                if !IS_DESKTOP && developer_settings_screen.is_none() && !user_profile_open {
                     NotificationContext::ChatList
                 } else {
                     NotificationContext::Other

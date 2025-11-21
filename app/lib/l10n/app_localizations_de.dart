@@ -41,11 +41,36 @@ class AppLocalizationsDe extends AppLocalizations {
   String get userSettingsScreen_sendWithEnter => 'Mit Eingabetaste senden';
 
   @override
+  String get userSettingsScreen_sendWithEnterDescription =>
+      'If disabled, pressing the Enter key won’t send a message.';
+
+  @override
   String get userSettingsScreen_readReceipts => 'Lesebestätigungen';
 
   @override
   String get userSettingsScreen_readReceiptsDescription =>
       'Wenn deaktiviert, sehen andere nicht, wann du ihre Nachrichten gelesen hast, und du siehst nicht, wann sie deine gelesen haben.';
+
+  @override
+  String get userSettingsScreen_displayNameLabel => 'Display name';
+
+  @override
+  String get userSettingsScreen_usernamesSection => 'Usernames';
+
+  @override
+  String get userSettingsScreen_settingsSection => 'Settings';
+
+  @override
+  String get userSettingsScreen_helpSection => 'Help';
+
+  @override
+  String get userSettingsScreen_accountSection => 'Account';
+
+  @override
+  String get userSettingsScreen_userHandlePlaceholder => 'Benutzername';
+
+  @override
+  String get settingsScreen_copiedToClipboard => 'Copied to clipboard';
 
   @override
   String get removeUsernameDialog_title => 'Benutzername entfernen';
@@ -59,9 +84,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get removeUsernameDialog_remove => 'Entfernen';
-
-  @override
-  String get userSettingsScreen_userHandlePlaceholder => 'Benutzername';
 
   @override
   String get addMembersScreen_addMembers => 'Mitglieder hinzufügen';
@@ -233,6 +255,12 @@ class AppLocalizationsDe extends AppLocalizations {
       'Wähle einen Benutzernamen, den andere verwenden können, um sich mit dir zu verbinden.\n\nVerwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.';
 
   @override
+  String get userHandleScreen_cancel => 'Cancel';
+
+  @override
+  String get userHandleScreen_confirm => 'Add';
+
+  @override
   String get userHandleScreen_save => 'Speichern';
 
   @override
@@ -241,6 +269,9 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get editDisplayNameScreen_description =>
       'Wähle einen Namen, den andere sehen werden, wenn du mit ihnen kommunizierst.';
+
+  @override
+  String get editDisplayNameScreen_cancel => 'Cancel';
 
   @override
   String get editDisplayNameScreen_save => 'Speichern';
