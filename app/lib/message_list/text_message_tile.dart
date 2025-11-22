@@ -402,6 +402,9 @@ class _MessageContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final bool isDeleted = content.replaces != null && content.content == null;
+    final bool hasImageAttachment = content.attachments.any(
+      (attachment) => attachment.imageMetadata != null,
+    );
 
     final List<Widget> columnChildren = [];
 
@@ -490,7 +493,9 @@ class _MessageContent extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: _messageBorderRadius(isSender, flightPosition),
-            color: isSender
+            color: hasImageAttachment
+                ? Colors.transparent
+                : isSender
                 ? CustomColorScheme.of(context).message.selfBackground
                 : CustomColorScheme.of(context).message.otherBackground,
           ),
@@ -692,29 +697,25 @@ class _ImageAttachmentContent extends StatelessWidget {
     return GestureDetector(
       onTap: () {
         FocusScope.of(context).unfocus();
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ImageViewer(
+        HapticFeedback.mediumImpact();
+        Navigator.of(context).push(imageViewerRoute(attachment: attachment));
+      },
+      child: Hero(
+        tag: imageViewerHeroTag(attachment),
+        transitionOnUserGestures: true,
+        child: ClipRRect(
+          borderRadius: _messageBorderRadius(
+            isSender,
+            flightPosition,
+            stackedOnTop: hasMessage,
+          ),
+          child: Container(
+            constraints: const BoxConstraints(maxHeight: 300),
+            child: AttachmentImage(
               attachment: attachment,
               imageMetadata: imageMetadata,
-              isSender: isSender,
+              fit: BoxFit.cover,
             ),
-          ),
-        );
-      },
-      child: ClipRRect(
-        borderRadius: _messageBorderRadius(
-          isSender,
-          flightPosition,
-          stackedOnTop: hasMessage,
-        ),
-        child: Container(
-          constraints: const BoxConstraints(maxHeight: 300),
-          child: AttachmentImage(
-            attachment: attachment,
-            imageMetadata: imageMetadata,
-            fit: BoxFit.cover,
           ),
         ),
       ),
