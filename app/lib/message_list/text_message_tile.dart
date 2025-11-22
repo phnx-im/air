@@ -561,8 +561,7 @@ class _Sender extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           UserAvatar(
-            displayName: profile.displayName,
-            image: profile.profilePicture,
+            userId: sender,
             size: Spacings.m,
             onPressed: openMemberDetails,
           ),

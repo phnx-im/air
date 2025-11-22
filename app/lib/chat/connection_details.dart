@@ -46,8 +46,7 @@ class ConnectionDetails extends StatelessWidget {
           const SizedBox(height: Spacings.l),
           UserAvatar(
             size: 128,
-            displayName: profile.displayName,
-            image: profile.profilePicture,
+            userId: profile.userId,
           ),
           const SizedBox(height: Spacings.l),
           Text(

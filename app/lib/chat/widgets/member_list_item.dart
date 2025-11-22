@@ -35,8 +35,7 @@ class MemberListItem extends StatelessWidget {
       enabled: enabled,
       onTap: onTap,
       leading: UserAvatar(
-        displayName: profile.displayName,
-        image: profile.profilePicture,
+        userId: profile.userId,
         size: Spacings.l,
       ),
       title: Text(

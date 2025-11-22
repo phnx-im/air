@@ -138,10 +138,9 @@ class _ListTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               spacing: Spacings.s,
               children: [
-                UserAvatar(
+                GroupAvatar(
+                  chatId: chat.id,
                   size: 50,
-                  image: chat.picture,
-                  displayName: chat.title,
                 ),
                 Expanded(
                   child: Column(

@@ -2,12 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/core/api/types.dart';
 import 'package:flutter/material.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
 import 'package:air/chat_list/chat_list_cubit.dart';
 import 'package:air/chat_list/create_chat_view.dart';
-import 'package:air/core/api/types.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/main.dart';
 import 'package:air/navigation/navigation.dart';
@@ -74,8 +74,7 @@ class _AvatarState extends State<_Avatar> {
               context.read<NavigationCubit>().openDeveloperSettings();
             },
             child: UserAvatar(
-              displayName: profile.displayName,
-              image: profile.profilePicture,
+              userId: profile.userId,
               size: Spacings.l,
             ),
           ),

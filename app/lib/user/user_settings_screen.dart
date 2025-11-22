@@ -29,7 +29,6 @@ class UserSettingsScreen extends StatelessWidget {
     } on ProviderNotFoundException {
       return const SizedBox.shrink();
     }
-
     final loc = AppLocalizations.of(context);
 
     final isMobilePlatform = Platform.isAndroid || Platform.isIOS;
@@ -53,9 +52,8 @@ class UserSettingsScreen extends StatelessWidget {
               child: Column(
                 children: [
                   UserAvatar(
-                    displayName: profile.displayName,
+                    userId: profile.userId,
                     size: 100,
-                    image: profile.profilePicture,
                     onPressed: () => _pickAvatar(context),
                   ),
                   const SizedBox(height: Spacings.xs),

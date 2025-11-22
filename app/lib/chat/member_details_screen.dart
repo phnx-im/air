@@ -120,8 +120,7 @@ class MemberDetailsView extends StatelessWidget {
             const SizedBox(height: Spacings.l),
             UserAvatar(
               size: 192,
-              displayName: profile.displayName,
-              image: profile.profilePicture,
+              userId: profile.userId,
             ),
             const SizedBox(height: Spacings.l),
             Text(

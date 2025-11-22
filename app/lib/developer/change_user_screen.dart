@@ -119,8 +119,7 @@ class _ClientRecordsList extends StatelessWidget {
             leading: Transform.translate(
               offset: const Offset(0, Spacings.xxs),
               child: UserAvatar(
-                displayName: record.userProfile.displayName,
-                image: record.userProfile.profilePicture,
+                userId: record.userId,
                 size: Spacings.xl,
               ),
             ),

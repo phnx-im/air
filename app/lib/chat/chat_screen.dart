@@ -11,7 +11,7 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/ui/typography/monospace.dart';
 import 'package:air/user/user.dart';
-import 'package:air/widgets/user_avatar.dart';
+import 'package:air/widgets/avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iconoir_flutter/regular/more_horiz.dart';
@@ -168,9 +168,12 @@ class _ChatHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (title, image) = context.select(
-      (ChatDetailsCubit cubit) =>
-          (cubit.state.chat?.title, cubit.state.chat?.picture),
+    final (chatId, title, image) = context.select(
+      (ChatDetailsCubit cubit) => (
+        cubit.state.chat?.id,
+        cubit.state.chat?.title,
+        cubit.state.chat?.picture,
+      ),
     );
 
     return Container(
@@ -208,11 +211,7 @@ class _ChatHeader extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           spacing: Spacings.m,
                           children: [
-                            UserAvatar(
-                              displayName: title ?? "",
-                              image: image,
-                              size: Spacings.l,
-                            ),
+                            GroupAvatar(chatId: chatId, size: Spacings.l),
                             Flexible(
                               child: Text(
                                 (title ?? "").toUpperCase(),

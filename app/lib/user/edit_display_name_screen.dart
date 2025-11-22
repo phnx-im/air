@@ -20,6 +20,7 @@ class EditDisplayNameScreen extends HookWidget {
       (UsersCubit cubit) =>
           (cubit.state.displayName(), cubit.state.profilePicture()),
     );
+    final userId = context.select((UserCubit cubit) => cubit.state.userId);
 
     final loc = AppLocalizations.of(context);
 
@@ -41,11 +42,7 @@ class EditDisplayNameScreen extends HookWidget {
             padding: const EdgeInsets.all(Spacings.s),
             child: Column(
               children: [
-                UserAvatar(
-                  displayName: controller.text.trim(),
-                  image: profilePicture,
-                  size: 100,
-                ),
+                UserAvatar(userId: userId, size: 100),
                 const SizedBox(height: Spacings.m),
                 TextFormField(
                   autofocus: true,
