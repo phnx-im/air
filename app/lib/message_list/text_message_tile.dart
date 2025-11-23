@@ -20,7 +20,6 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/context_menu/context_menu.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/ui/typography/font_size.dart';
-import 'package:air/ui/typography/monospace.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -591,7 +590,6 @@ class _DisplayName extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = isSender ? "You" : displayName;
-    final textUpper = text.toUpperCase();
     return MouseRegion(
       cursor: onTap != null
           ? SystemMouseCursors.click
@@ -601,13 +599,9 @@ class _DisplayName extends StatelessWidget {
         onTap: onTap,
         child: SelectionContainer.disabled(
           child: Text(
-            textUpper,
-            style: TextStyle(
+            text,
+            style: TextTheme.of(context).labelSmall!.copyWith(
               color: CustomColorScheme.of(context).text.tertiary,
-              fontSize: LabelFontSize.small2.size,
-              fontWeight: FontWeight.w100,
-              fontFamily: getSystemMonospaceFontFamily(),
-              letterSpacing: 1,
             ),
             overflow: TextOverflow.ellipsis,
           ),

@@ -8,8 +8,6 @@ import 'package:air/message_list/message_list.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/typography/font_size.dart';
-import 'package:air/ui/typography/monospace.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/avatar.dart';
 import 'package:flutter/material.dart';
@@ -209,23 +207,21 @@ class _ChatHeader extends StatelessWidget {
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
-                          spacing: Spacings.m,
+                          spacing: Spacings.xs,
                           children: [
                             GroupAvatar(chatId: chatId, size: Spacings.l),
                             Flexible(
                               child: Text(
-                                (title ?? "").toUpperCase(),
+                                title ?? "",
                                 textAlign: TextAlign.center,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: LabelFontSize.small1.size,
-                                  color: CustomColorScheme.of(
-                                    context,
-                                  ).text.tertiary,
-                                  fontFamily: getSystemMonospaceFontFamily(),
-                                  letterSpacing: 1,
-                                ),
+                                style: TextTheme.of(context).labelMedium!
+                                    .copyWith(
+                                      color: CustomColorScheme.of(
+                                        context,
+                                      ).text.tertiary,
+                                    ),
                               ),
                             ),
                           ],

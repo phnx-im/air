@@ -15,7 +15,6 @@ import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
-import 'package:air/ui/typography/monospace.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 
@@ -138,10 +137,7 @@ class _ListTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               spacing: Spacings.s,
               children: [
-                GroupAvatar(
-                  chatId: chat.id,
-                  size: 50,
-                ),
+                GroupAvatar(chatId: chat.id, size: 50),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -441,13 +437,10 @@ class _ChatTitle extends StatelessWidget {
       baseline: Spacings.s,
       baselineType: TextBaseline.alphabetic,
       child: Text(
-        title.toUpperCase(),
+        title,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(
+        style: TextTheme.of(context).labelSmall!.copyWith(
           color: CustomColorScheme.of(context).text.tertiary,
-          fontFamily: getSystemMonospaceFontFamily(),
-          fontSize: LabelFontSize.small2.size,
-          letterSpacing: 1,
         ),
       ),
     );
