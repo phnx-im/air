@@ -229,9 +229,9 @@ void main() {
         () => navigationCubit.state,
       ).thenReturn(const NavigationState.home());
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
-      when(() => usersCubit.state).thenReturn(
-        MockUsersState(profiles: userProfiles),
-      );
+      when(
+        () => usersCubit.state,
+      ).thenReturn(MockUsersState(profiles: userProfiles));
     });
 
     Widget buildSubject({

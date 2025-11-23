@@ -118,10 +118,7 @@ class MemberDetailsView extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: Spacings.l),
-            UserAvatar(
-              size: 192,
-              userId: profile.userId,
-            ),
+            UserAvatar(size: 192, userId: profile.userId),
             const SizedBox(height: Spacings.l),
             Text(
               style: Theme.of(

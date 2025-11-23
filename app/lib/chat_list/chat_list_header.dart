@@ -73,10 +73,7 @@ class _AvatarState extends State<_Avatar> {
             onLongPress: () {
               context.read<NavigationCubit>().openDeveloperSettings();
             },
-            child: UserAvatar(
-              userId: profile.userId,
-              size: Spacings.l,
-            ),
+            child: UserAvatar(userId: profile.userId, size: Spacings.l),
           ),
         ],
       ),
