@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ui/colors/palette.dart';
 import 'package:flutter/material.dart';
 import 'package:air/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
@@ -101,7 +102,7 @@ class _Avatar extends StatelessWidget {
         ? CachedMemoryImage.fromImageData(image!)
         : null;
     final colors = CustomColorScheme.of(context);
-    final gradientColors = _gradientColors[_gradientIndexForUuid(gradientKey)];
+    final gradient = _AvatarGradient.fromUuid(gradientKey);
 
     return GestureDetector(
       onTap: onPressed,
@@ -117,7 +118,7 @@ class _Avatar extends StatelessWidget {
               shape: BoxShape.circle,
               gradient: foregroundImage == null
                   ? LinearGradient(
-                      colors: gradientColors,
+                      colors: gradient.colors,
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     )
@@ -144,41 +145,44 @@ class _Avatar extends StatelessWidget {
   }
 }
 
-const _gradients = [
-  ('#FDD819', '#E80505'),
-  ('#DAE2F8', '#D6A4A4'),
-  ('#ED4264', '#ACA89E'),
-  ('#24C6DC', '#514A9D'),
-  ('#1CD8D2', '#93EDC7'),
-  ('#9C2CFF', '#4389A2'),
-  ('#134E5E', '#71B280'),
-  ('#FF8008', '#FFE8AD'),
-  ('#8F971D', '#93F9B9'),
-  ('#95EB33', '#F45C43'),
-  ('#AA076B', '#61045F'),
-  ('#FFE259', '#ABFF51'),
-  ('#5465D9', '#F8D365'),
-  ('#6B8C56', '#282638'),
-  ('#F9AE68', '#EC54C1'),
-];
+class _AvatarGradient {
+  const _AvatarGradient({required this.start, required this.end});
 
-final _gradientColors = _gradients
-    .map((pair) => [_hexToColor(pair.$1), _hexToColor(pair.$2)])
-    .toList(growable: false);
+  final Color start;
+  final Color end;
 
-Color _hexToColor(String hex) {
-  final value = hex.replaceFirst('#', '');
-  final buffer = value.length == 6 ? 'ff$value' : value;
-  return Color(int.parse(buffer, radix: 16));
-}
+  List<Color> get colors => [start, end];
 
-int _gradientIndexForUuid(UuidValue? uuid) {
-  if (uuid == null) {
-    return 0;
+  factory _AvatarGradient.fromUuid(UuidValue? uuid) {
+    final index = _gradientIndexForUuid(uuid);
+    final (start, end) = _gradients[index];
+    return _AvatarGradient(start: start, end: end);
   }
-  var hash = 0;
-  for (final codeUnit in uuid.uuid.codeUnits) {
-    hash = (hash * 31 + codeUnit) & 0x7fffffff;
+
+  static const _start = 300;
+  static const _end = 700;
+
+  static final _gradients = [
+    (AppColors.red[_start]!, AppColors.red[_end]!),
+    (AppColors.orange[_start]!, AppColors.orange[_end]!),
+    (AppColors.yellow[_start]!, AppColors.yellow[_end]!),
+    (AppColors.green[_start]!, AppColors.green[_end]!),
+    (AppColors.cyan[_start]!, AppColors.cyan[_end]!),
+    (AppColors.blue[_start]!, AppColors.blue[_end]!),
+    (AppColors.purple[_start]!, AppColors.purple[_end]!),
+    (AppColors.magenta[_start]!, AppColors.magenta[_end]!),
+  ];
+
+  static int _gradientIndexForUuid(UuidValue? uuid) {
+    if (uuid == null) {
+      return 0;
+    }
+    // Cheap uniformity inspired by Java's String.hashCode()
+    var hash = 0;
+    for (final codeUnit in uuid.uuid.codeUnits) {
+      hash = ((hash << 5) + hash) + codeUnit;
+      hash &= 0xFFFFFFFF;
+    }
+    return hash % _gradients.length;
   }
-  return hash % _gradientColors.length;
 }
