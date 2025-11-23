@@ -9,6 +9,7 @@ import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
+import 'package:air/widgets/app_bar_back_button.dart';
 import 'package:air/widgets/avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -173,89 +174,49 @@ class _ChatHeader extends StatelessWidget {
       ),
     );
 
-    return Container(
-      padding: EdgeInsets.only(
-        top: context.responsiveScreenType == ResponsiveScreenType.mobile
+    return SafeArea(
+      child: AppBar(
+        automaticallyImplyLeading: false,
+        backgroundColor: CustomColorScheme.of(context).backgroundBase.primary,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        elevation: 0,
+        toolbarHeight:
+            context.responsiveScreenType == ResponsiveScreenType.desktop
             ? kToolbarHeight
-            : Spacings.xxs,
-        bottom: Spacings.xxs,
-        left: Spacings.xs,
-        right: Spacings.xs,
-      ),
-      child: SizedBox(
-        height: Spacings.xl,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            context.responsiveScreenType == ResponsiveScreenType.mobile
-                ? const _BackButton()
-                : const SizedBox.shrink(),
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return Center(
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () {
-                          context.read<NavigationCubit>().openChatDetails();
-                        },
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: constraints.maxWidth,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            spacing: Spacings.xs,
-                            children: [
-                              GroupAvatar(chatId: chatId, size: Spacings.l),
-                              Flexible(
-                                child: Text(
-                                  title ?? "",
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextTheme.of(context).labelMedium!
-                                      .copyWith(
-                                        color: CustomColorScheme.of(
-                                          context,
-                                        ).text.tertiary,
-                                      ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+            : null,
+        leading: context.responsiveScreenType == ResponsiveScreenType.mobile
+            ? const AppBarBackButton()
+            : const SizedBox.shrink(),
+        centerTitle: true,
+        title: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              context.read<NavigationCubit>().openChatDetails();
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: Spacings.xs,
+              children: [
+                GroupAvatar(chatId: chatId, size: Spacings.l),
+                Flexible(
+                  child: Text(
+                    title ?? "",
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextTheme.of(context).labelMedium!.copyWith(
+                      color: CustomColorScheme.of(context).text.tertiary,
                     ),
-                  );
-                },
-              ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
-    );
-  }
-}
-
-class _BackButton extends StatelessWidget {
-  const _BackButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.arrow_back, size: 26),
-      padding: const EdgeInsets.symmetric(horizontal: Spacings.xs),
-      color: CustomColorScheme.of(context).text.primary,
-      hoverColor: Colors.transparent,
-      splashColor: Colors.transparent,
-      highlightColor: Colors.transparent,
-      onPressed: () {
-        context.read<NavigationCubit>().closeChat();
-      },
     );
   }
 }
