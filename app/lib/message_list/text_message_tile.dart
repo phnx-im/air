@@ -550,62 +550,51 @@ class _Sender extends StatelessWidget {
     final profile = context.select(
       (UsersCubit cubit) => cubit.state.profile(userId: sender),
     );
-    void openMemberDetails() {
-      unawaited(context.read<NavigationCubit>().openMemberDetails(sender));
-    }
 
     return Padding(
       padding: const EdgeInsets.only(top: Spacings.xs, bottom: Spacings.xxs),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          UserAvatar(
-            userId: sender,
-            size: Spacings.m,
-            onPressed: openMemberDetails,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            unawaited(
+              context.read<NavigationCubit>().openMemberDetails(sender),
+            );
+          },
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              UserAvatar(userId: sender, size: Spacings.m),
+              const SizedBox(width: Spacings.xs),
+              _DisplayName(
+                displayName: profile.displayName,
+                isSender: isSender,
+              ),
+            ],
           ),
-          const SizedBox(width: Spacings.xs),
-          _DisplayName(
-            displayName: profile.displayName,
-            isSender: isSender,
-            onTap: openMemberDetails,
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
 class _DisplayName extends StatelessWidget {
-  const _DisplayName({
-    required this.displayName,
-    required this.isSender,
-    this.onTap,
-  });
+  const _DisplayName({required this.displayName, required this.isSender});
 
   final String displayName;
   final bool isSender;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final text = isSender ? "You" : displayName;
-    return MouseRegion(
-      cursor: onTap != null
-          ? SystemMouseCursors.click
-          : SystemMouseCursors.basic,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: SelectionContainer.disabled(
-          child: Text(
-            text,
-            style: TextTheme.of(context).labelSmall!.copyWith(
-              color: CustomColorScheme.of(context).text.tertiary,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
+    return SelectionContainer.disabled(
+      child: Text(
+        text,
+        style: TextTheme.of(context).labelSmall!.copyWith(
+          color: CustomColorScheme.of(context).text.tertiary,
         ),
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }

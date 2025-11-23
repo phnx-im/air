@@ -109,7 +109,7 @@ class _Avatar extends StatelessWidget {
       child: MouseRegion(
         cursor: onPressed != null
             ? SystemMouseCursors.click
-            : SystemMouseCursors.basic,
+            : MouseCursor.defer,
         child: SizedBox(
           width: size,
           height: size,

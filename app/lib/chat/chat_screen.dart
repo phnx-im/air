@@ -12,7 +12,6 @@ import 'package:air/user/user.dart';
 import 'package:air/widgets/avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:iconoir_flutter/regular/more_horiz.dart';
 
 import 'chat_details_cubit.dart';
 import 'delete_contact_button.dart';
@@ -195,36 +194,39 @@ class _ChatHeader extends StatelessWidget {
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  return GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      context.read<NavigationCubit>().openChatDetails();
-                    },
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: constraints.maxWidth,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          spacing: Spacings.xs,
-                          children: [
-                            GroupAvatar(chatId: chatId, size: Spacings.l),
-                            Flexible(
-                              child: Text(
-                                title ?? "",
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextTheme.of(context).labelMedium!
-                                    .copyWith(
-                                      color: CustomColorScheme.of(
-                                        context,
-                                      ).text.tertiary,
-                                    ),
+                  return Center(
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          context.read<NavigationCubit>().openChatDetails();
+                        },
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: constraints.maxWidth,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            spacing: Spacings.xs,
+                            children: [
+                              GroupAvatar(chatId: chatId, size: Spacings.l),
+                              Flexible(
+                                child: Text(
+                                  title ?? "",
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextTheme.of(context).labelMedium!
+                                      .copyWith(
+                                        color: CustomColorScheme.of(
+                                          context,
+                                        ).text.tertiary,
+                                      ),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -232,32 +234,9 @@ class _ChatHeader extends StatelessWidget {
                 },
               ),
             ),
-            title != null ? const _DetailsButton() : const SizedBox.shrink(),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _DetailsButton extends StatelessWidget {
-  const _DetailsButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      icon: MoreHoriz(
-        width: 32,
-        color: CustomColorScheme.of(context).text.primary,
-      ),
-      color: CustomColorScheme.of(context).text.primary,
-      padding: const EdgeInsets.symmetric(horizontal: Spacings.xs),
-      hoverColor: Colors.transparent,
-      splashColor: Colors.transparent,
-      highlightColor: Colors.transparent,
-      onPressed: () {
-        context.read<NavigationCubit>().openChatDetails();
-      },
     );
   }
 }
