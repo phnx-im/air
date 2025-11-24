@@ -44,6 +44,7 @@ ThemeData themeData(Brightness brightness) {
       backgroundColor: colorScheme.backgroundBase.primary,
       elevation: 0,
       iconTheme: IconThemeData(color: colorScheme.text.primary),
+      centerTitle: true,
       toolbarHeight: isPointer() ? 100 : null,
       titleTextStyle: (mergedAppBarTitleStyle ?? const TextStyle()).copyWith(
         color: colorScheme.text.primary,
@@ -86,7 +87,7 @@ ThemeData themeData(Brightness brightness) {
     inputDecorationTheme: InputDecorationTheme(
       border: InputBorder.none,
       hintStyle: TextStyle(
-        color: colorScheme.text.secondary,
+        color: colorScheme.text.quaternary,
         fontSize: LabelFontSize.small1.size,
       ),
       focusedBorder: _textInputBorder,
