@@ -14,7 +14,7 @@ use aircommon::{
 };
 use airprotos::auth_service::v1::{HandleQueueMessage, handle_queue_message};
 use anyhow::{Context, Result, bail, ensure};
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use mimi_room_policy::RoleIndex;
 use openmls::prelude::MlsMessageOut;
 use sqlx::SqliteConnection;
@@ -146,15 +146,15 @@ impl CoreUser {
         let mut notifier = self.store_notifier();
 
         // Create system messages for receipt and acceptance
+        let now = Utc::now();
+        let a_moment_later = now + Duration::milliseconds(1);
         let system_message =
             SystemMessage::ReceivedConnectionRequest(contact.user_id.clone(), Some(handle.clone()));
-        let received_message =
-            TimestampedMessage::system_message(system_message, Utc::now().into());
-
+        let received_message = TimestampedMessage::system_message(system_message, now.into());
         let system_message =
             SystemMessage::AcceptedConnectionRequest(contact.user_id.clone(), Some(handle));
         let accepted_message =
-            TimestampedMessage::system_message(system_message, Utc::now().into());
+            TimestampedMessage::system_message(system_message, a_moment_later.into());
         let chat_messages = vec![received_message, accepted_message];
         // Store group, chat, contact and system message
         connection
