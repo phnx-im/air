@@ -568,32 +568,38 @@ abstract class AppLocalizations {
   /// **'{new_name}'**
   String systemMessage_userChangedTitle_suffix(Object new_name);
 
-  /// No description provided for @systemMessage_acceptedDirectConnectionRequest.
+  /// No description provided for @systemMessage_acceptedConnectionRequest.
   ///
   /// In en, this message translates to:
-  /// **'You accepted a connection request from {user}'**
-  String systemMessage_acceptedDirectConnectionRequest(Object user);
+  /// **'You accepted the request'**
+  String get systemMessage_acceptedConnectionRequest;
 
-  /// No description provided for @systemMessage_acceptedHandleConnectionRequest.
-  ///
-  /// In en, this message translates to:
-  /// **'You accepted a connection request from {user} through your handle {handle}'**
-  String systemMessage_acceptedHandleConnectionRequest(
-    Object handle,
-    Object user,
-  );
-
-  /// No description provided for @systemMessage_ReceivedConnectionConfirmation.
+  /// No description provided for @systemMessage_receivedConnectionConfirmation.
   ///
   /// In en, this message translates to:
   /// **'User {userid} has accepted your request'**
-  String systemMessage_ReceivedConnectionConfirmation(Object userid);
+  String systemMessage_receivedConnectionConfirmation(Object userid);
 
   /// No description provided for @systemMessage_newHandleConnectionChat.
   ///
   /// In en, this message translates to:
   /// **'You requested a connection with {handle}'**
   String systemMessage_newHandleConnectionChat(Object handle);
+
+  /// No description provided for @systemMessage_receivedHandleConnectionRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'You received a connection request from {user} through your handle {handle}'**
+  String systemMessage_receivedHandleConnectionRequest(
+    Object handle,
+    Object user,
+  );
+
+  /// No description provided for @systemMessage_receivedDirectConnectionRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'You received a connection request from {user}'**
+  String systemMessage_receivedDirectConnectionRequest(Object user);
 
   /// No description provided for @systemMessage_userChangedPicture_prefix.
   ///

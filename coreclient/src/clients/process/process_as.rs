@@ -145,22 +145,23 @@ impl CoreUser {
 
         let mut notifier = self.store_notifier();
 
+        // Create system messages for receipt and acceptance
+        let system_message =
+            SystemMessage::ReceivedConnectionRequest(contact.user_id.clone(), Some(handle.clone()));
+        let received_message =
+            TimestampedMessage::system_message(system_message, Utc::now().into());
+
         let system_message =
             SystemMessage::AcceptedConnectionRequest(contact.user_id.clone(), Some(handle));
-        let timestamped_message =
+        let accepted_message =
             TimestampedMessage::system_message(system_message, Utc::now().into());
+        let chat_messages = vec![received_message, accepted_message];
         // Store group, chat, contact and system message
         connection
             .with_transaction(async |txn| {
                 self.store_group_chat_contact(txn, &mut notifier, &group, &mut chat, contact)
                     .await?;
-                Self::store_new_messages(
-                    &mut *txn,
-                    &mut notifier,
-                    chat.id(),
-                    vec![timestamped_message],
-                )
-                .await
+                Self::store_new_messages(&mut *txn, &mut notifier, chat.id(), chat_messages).await
             })
             .await?;
 

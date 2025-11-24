@@ -294,26 +294,30 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String systemMessage_acceptedDirectConnectionRequest(Object user) {
-    return 'You accepted a connection request from $user';
-  }
+  String get systemMessage_acceptedConnectionRequest =>
+      'You accepted the request';
 
   @override
-  String systemMessage_acceptedHandleConnectionRequest(
-    Object handle,
-    Object user,
-  ) {
-    return 'You accepted a connection request from $user through your handle $handle';
-  }
-
-  @override
-  String systemMessage_ReceivedConnectionConfirmation(Object userid) {
+  String systemMessage_receivedConnectionConfirmation(Object userid) {
     return 'User $userid has accepted your request';
   }
 
   @override
   String systemMessage_newHandleConnectionChat(Object handle) {
     return 'You requested a connection with $handle';
+  }
+
+  @override
+  String systemMessage_receivedHandleConnectionRequest(
+    Object handle,
+    Object user,
+  ) {
+    return 'You received a connection request from $user through your handle $handle';
+  }
+
+  @override
+  String systemMessage_receivedDirectConnectionRequest(Object user) {
+    return 'You received a connection request from $user';
   }
 
   @override

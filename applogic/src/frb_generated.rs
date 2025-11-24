@@ -8987,15 +8987,11 @@ impl SseDecode for crate::api::types::UiSystemMessage {
                 let mut var_field0 = <crate::api::types::UiUserId>::sse_decode(deserializer);
                 let mut var_field1 =
                     <Option<crate::api::types::UiUserHandle>>::sse_decode(deserializer);
-                return crate::api::types::UiSystemMessage::NewConfirmedConnectionChat(
+                return crate::api::types::UiSystemMessage::ReceivedConnectionRequest(
                     var_field0, var_field1,
                 );
             }
             5 => {
-                let mut var_field0 = <crate::api::types::UiUserHandle>::sse_decode(deserializer);
-                return crate::api::types::UiSystemMessage::NewHandleConnectionChat(var_field0);
-            }
-            6 => {
                 let mut var_field0 = <crate::api::types::UiUserId>::sse_decode(deserializer);
                 let mut var_field1 =
                     <Option<crate::api::types::UiUserHandle>>::sse_decode(deserializer);
@@ -9003,13 +8999,17 @@ impl SseDecode for crate::api::types::UiSystemMessage {
                     var_field0, var_field1,
                 );
             }
-            7 => {
+            6 => {
                 let mut var_field0 = <crate::api::types::UiUserId>::sse_decode(deserializer);
                 let mut var_field1 =
                     <Option<crate::api::types::UiUserHandle>>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::ReceivedConnectionConfirmation(
                     var_field0, var_field1,
                 );
+            }
+            7 => {
+                let mut var_field0 = <crate::api::types::UiUserHandle>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::NewHandleConnectionChat(var_field0);
             }
             _ => {
                 unimplemented!("");
@@ -10766,27 +10766,27 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
             crate::api::types::UiSystemMessage::ChangePicture(field0) => {
                 [3.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::UiSystemMessage::NewConfirmedConnectionChat(field0, field1) => [
+            crate::api::types::UiSystemMessage::ReceivedConnectionRequest(field0, field1) => [
                 4.into_dart(),
                 field0.into_into_dart().into_dart(),
                 field1.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::api::types::UiSystemMessage::NewHandleConnectionChat(field0) => {
-                [5.into_dart(), field0.into_into_dart().into_dart()].into_dart()
-            }
             crate::api::types::UiSystemMessage::AcceptedConnectionRequest(field0, field1) => [
-                6.into_dart(),
+                5.into_dart(),
                 field0.into_into_dart().into_dart(),
                 field1.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::api::types::UiSystemMessage::ReceivedConnectionConfirmation(field0, field1) => [
-                7.into_dart(),
+                6.into_dart(),
                 field0.into_into_dart().into_dart(),
                 field1.into_into_dart().into_dart(),
             ]
             .into_dart(),
+            crate::api::types::UiSystemMessage::NewHandleConnectionChat(field0) => {
+                [7.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
             _ => {
                 unimplemented!("");
             }
@@ -12498,24 +12498,24 @@ impl SseEncode for crate::api::types::UiSystemMessage {
                 <i32>::sse_encode(3, serializer);
                 <crate::api::types::UiUserId>::sse_encode(field0, serializer);
             }
-            crate::api::types::UiSystemMessage::NewConfirmedConnectionChat(field0, field1) => {
+            crate::api::types::UiSystemMessage::ReceivedConnectionRequest(field0, field1) => {
                 <i32>::sse_encode(4, serializer);
                 <crate::api::types::UiUserId>::sse_encode(field0, serializer);
                 <Option<crate::api::types::UiUserHandle>>::sse_encode(field1, serializer);
             }
-            crate::api::types::UiSystemMessage::NewHandleConnectionChat(field0) => {
-                <i32>::sse_encode(5, serializer);
-                <crate::api::types::UiUserHandle>::sse_encode(field0, serializer);
-            }
             crate::api::types::UiSystemMessage::AcceptedConnectionRequest(field0, field1) => {
-                <i32>::sse_encode(6, serializer);
+                <i32>::sse_encode(5, serializer);
                 <crate::api::types::UiUserId>::sse_encode(field0, serializer);
                 <Option<crate::api::types::UiUserHandle>>::sse_encode(field1, serializer);
             }
             crate::api::types::UiSystemMessage::ReceivedConnectionConfirmation(field0, field1) => {
-                <i32>::sse_encode(7, serializer);
+                <i32>::sse_encode(6, serializer);
                 <crate::api::types::UiUserId>::sse_encode(field0, serializer);
                 <Option<crate::api::types::UiUserHandle>>::sse_encode(field1, serializer);
+            }
+            crate::api::types::UiSystemMessage::NewHandleConnectionChat(field0) => {
+                <i32>::sse_encode(7, serializer);
+                <crate::api::types::UiUserHandle>::sse_encode(field0, serializer);
             }
             _ => {
                 unimplemented!("");

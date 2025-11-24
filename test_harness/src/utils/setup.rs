@@ -404,8 +404,23 @@ impl TestBackend {
                 assert_eq!(before.id(), after.id());
             });
         let user2_chat_id = chat.id();
-        let chat_message = user2.messages(chat.id(), 1).await.unwrap().pop().unwrap();
-        let Message::Event(EventMessage::System(system_message)) = chat_message.message() else {
+        // User 2 should see two system messages
+        let mut chat_messages = user2.messages(chat.id(), 2).await.unwrap();
+        let received_request_message = chat_messages.pop().unwrap();
+        let accepted_request_message = chat_messages.pop().unwrap();
+        let Message::Event(EventMessage::System(system_message)) =
+            received_request_message.message()
+        else {
+            panic!("Last message should be an event message of type system");
+        };
+        assert!(matches!(
+            system_message,
+            SystemMessage::ReceivedConnectionRequest(user, Some(handle))
+            if user == user1_id && handle == user2_handle
+        ));
+        let Message::Event(EventMessage::System(system_message)) =
+            accepted_request_message.message()
+        else {
             panic!("Last message should be an event message of type system");
         };
         assert!(matches!(
@@ -1610,6 +1625,16 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                         if let Some(user_handle) = user_handle {
                             let user_handle_str = user_handle.plaintext();
                             Some(format!("{base_str} to handle {user_handle_str}"))
+                        } else {
+                            Some(base_str)
+                        }
+                    }
+                    SystemMessage::ReceivedConnectionRequest(user_id, user_handle) => {
+                        let base_str =
+                            format!("You received a connection request from user {user_id:?}");
+                        if let Some(user_handle) = user_handle {
+                            let user_handle_str = user_handle.plaintext();
+                            Some(format!("{base_str} through handle {user_handle_str}"))
                         } else {
                             Some(base_str)
                         }

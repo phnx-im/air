@@ -174,56 +174,20 @@ class SystemMessageContent extends StatelessWidget {
           ),
         );
       }(),
-      UiSystemMessage_NewConfirmedConnectionChat(
-        :final field0,
-        :final field1,
-      ) =>
-        () {
-          final userName = context.select(
-            (UsersCubit c) => c.state.profile(userId: field0).displayName,
-          );
-          final String text;
-          if (field1 case final handle?) {
-            text = loc.systemMessage_acceptedHandleConnectionRequest(
-              handle.plaintext,
-              userName,
-            );
-          } else {
-            text = loc.systemMessage_acceptedDirectConnectionRequest(userName);
-          }
-          return RichText(
-            text: TextSpan(
-              style: textStyle,
-              children: [TextSpan(text: text, style: textStyle)],
-            ),
-          );
-        }(),
-      UiSystemMessage_AcceptedConnectionRequest(:final field0, :final field1) =>
-        () {
-          final userName = context.select(
-            (UsersCubit c) => c.state.profile(userId: field0).displayName,
-          );
-          final String text;
-          if (field1 case final handle?) {
-            text = loc.systemMessage_acceptedHandleConnectionRequest(
-              handle.plaintext,
-              userName,
-            );
-          } else {
-            text = loc.systemMessage_acceptedDirectConnectionRequest(userName);
-          }
-          return RichText(
-            text: TextSpan(
-              style: textStyle,
-              children: [TextSpan(text: text, style: textStyle)],
-            ),
-          );
-        }(),
+      UiSystemMessage_AcceptedConnectionRequest() => () {
+        final text = loc.systemMessage_acceptedConnectionRequest;
+        return RichText(
+          text: TextSpan(
+            style: textStyle,
+            children: [TextSpan(text: text, style: textStyle)],
+          ),
+        );
+      }(),
       UiSystemMessage_ReceivedConnectionConfirmation(:final field0) => () {
         final userName = context.select(
           (UsersCubit c) => c.state.profile(userId: field0).displayName,
         );
-        final String text = loc.systemMessage_ReceivedConnectionConfirmation(
+        final String text = loc.systemMessage_receivedConnectionConfirmation(
           userName,
         );
         return RichText(
@@ -233,6 +197,27 @@ class SystemMessageContent extends StatelessWidget {
           ),
         );
       }(),
+      UiSystemMessage_ReceivedConnectionRequest(:final field0, :final field1) =>
+        () {
+          final userName = context.select(
+            (UsersCubit c) => c.state.profile(userId: field0).displayName,
+          );
+          final String text;
+          if (field1 case final handle?) {
+            text = loc.systemMessage_receivedHandleConnectionRequest(
+              userName,
+              handle.plaintext,
+            );
+          } else {
+            text = loc.systemMessage_receivedDirectConnectionRequest(userName);
+          }
+          return RichText(
+            text: TextSpan(
+              style: textStyle,
+              children: [TextSpan(text: text, style: textStyle)],
+            ),
+          );
+        }(),
     };
 
     return Center(

@@ -460,6 +460,9 @@ pub enum SystemMessage {
         new_title: String,
     },
     ChangePicture(UserId),
+    /// We received a connection request from another user. The optional UserHandle is
+    /// the handle through which the connection was made, if any.
+    ReceivedConnectionRequest(UserId, Option<UserHandle>),
     /// We accepted a connection request from another user. The optional UserHandle is
     /// the handle through which the connection was made, if any.
     AcceptedConnectionRequest(UserId, Option<UserHandle>),
@@ -505,6 +508,16 @@ impl SystemMessage {
             | SystemMessage::AcceptedConnectionRequest(user_id, user_handle) => {
                 let user_display_name = store.user_profile(user_id).await.display_name;
                 let base_str = format!("You connected with {user_display_name}");
+                if let Some(handle) = user_handle {
+                    let handle_str = handle.plaintext();
+                    format!("{base_str} through handle {handle_str}")
+                } else {
+                    base_str
+                }
+            }
+            SystemMessage::ReceivedConnectionRequest(user_id, user_handle) => {
+                let user_display_name = store.user_profile(user_id).await.display_name;
+                let base_str = format!("{user_display_name} requested to connect with you");
                 if let Some(handle) = user_handle {
                     let handle_str = handle.plaintext();
                     format!("{base_str} through handle {handle_str}")

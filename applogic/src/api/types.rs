@@ -342,10 +342,10 @@ pub enum UiSystemMessage {
     Remove(UiUserId, UiUserId),
     ChangeTitle(UiUserId, String, String),
     ChangePicture(UiUserId),
-    NewConfirmedConnectionChat(UiUserId, Option<UiUserHandle>),
-    NewHandleConnectionChat(UiUserHandle),
+    ReceivedConnectionRequest(UiUserId, Option<UiUserHandle>),
     AcceptedConnectionRequest(UiUserId, Option<UiUserHandle>),
     ReceivedConnectionConfirmation(UiUserId, Option<UiUserHandle>),
+    NewHandleConnectionChat(UiUserHandle),
 }
 
 impl From<SystemMessage> for UiSystemMessage {
@@ -374,6 +374,12 @@ impl From<SystemMessage> for UiSystemMessage {
             }
             SystemMessage::ReceivedConnectionConfirmation(user_id, user_handle) => {
                 UiSystemMessage::ReceivedConnectionConfirmation(
+                    user_id.into(),
+                    user_handle.map(Into::into),
+                )
+            }
+            SystemMessage::ReceivedConnectionRequest(user_id, user_handle) => {
+                UiSystemMessage::ReceivedConnectionRequest(
                     user_id.into(),
                     user_handle.map(Into::into),
                 )
