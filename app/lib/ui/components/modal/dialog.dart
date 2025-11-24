@@ -52,21 +52,19 @@ class AirDialogProgressTextButton extends HookWidget {
     return TextButton(
       onPressed: () => inProgress.value ? null : onPressed(inProgress),
       style: style,
-      child:
-          !inProgress.value
-              ? child
-              : SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor:
-                      progressColor != null
-                          ? AlwaysStoppedAnimation<Color>(progressColor!)
-                          : null,
-                  backgroundColor: Colors.transparent,
-                ),
+      child: !inProgress.value
+          ? child
+          : SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: progressColor != null
+                    ? AlwaysStoppedAnimation<Color>(progressColor!)
+                    : null,
+                backgroundColor: Colors.transparent,
               ),
+            ),
     );
   }
 }
