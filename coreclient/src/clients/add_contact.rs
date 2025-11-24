@@ -17,6 +17,7 @@ use aircommon::{
         connection_package::ConnectionPackage,
     },
 };
+use anyhow::bail;
 use openmls::group::GroupId;
 use sqlx::SqliteTransaction;
 use tracing::info;
@@ -27,7 +28,7 @@ use crate::{
     contacts::HandleContact,
     groups::{Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider},
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
-    store::StoreNotifier,
+    store::{Store, StoreNotifier},
     utils::connection_ext::StoreExt,
 };
 
@@ -40,6 +41,16 @@ impl CoreUser {
         handle: UserHandle,
     ) -> anyhow::Result<Option<ChatId>> {
         let client = self.api_client()?;
+
+        // Phase 0: Perform sanity checks
+        // Check if a connection request is already pending
+        if HandleContact::load(self.pool(), &handle).await?.is_some() {
+            bail!("Connection request for this handle is already pending");
+        }
+        // Check if the target handle is one of our own handles
+        if self.user_handles().await?.contains(&handle) {
+            bail!("Cannot create connection to own handle");
+        }
 
         // Phase 1: Fetch a connection package from the AS
         let (connection_package, connection_offer_responder) =
