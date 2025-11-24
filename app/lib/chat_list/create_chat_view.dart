@@ -79,12 +79,8 @@ class CreateChatView extends HookWidget {
                       ),
                     ],
                     onChanged: (text) => customValidationError.value = null,
-                    validator:
-                        (input) => _validator(
-                          isInputValid,
-                          customValidationError,
-                          input,
-                        ),
+                    validator: (input) =>
+                        _validator(isInputValid, customValidationError, input),
                     onFieldSubmitted: (text) {
                       // keep focus on the input field
                       focusNode.requestFocus();
@@ -111,16 +107,15 @@ class CreateChatView extends HookWidget {
           child: const Text('Cancel'),
         ),
         TextButton(
-          onPressed:
-              isInputValid.value
-                  ? () => _onAction(
-                    context,
-                    formKey,
-                    isInputValid,
-                    customValidationError,
-                    controller.text,
-                  )
-                  : null,
+          onPressed: isInputValid.value
+              ? () => _onAction(
+                  context,
+                  formKey,
+                  isInputValid,
+                  customValidationError,
+                  controller.text,
+                )
+              : null,
           child: Text(action),
         ),
       ],

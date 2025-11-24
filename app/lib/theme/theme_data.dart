@@ -44,6 +44,7 @@ ThemeData themeData(Brightness brightness) {
       backgroundColor: colorScheme.backgroundBase.primary,
       elevation: 0,
       iconTheme: IconThemeData(color: colorScheme.text.primary),
+      centerTitle: true,
       toolbarHeight: isPointer() ? 100 : null,
       titleTextStyle: (mergedAppBarTitleStyle ?? const TextStyle()).copyWith(
         color: colorScheme.text.primary,
@@ -100,10 +101,9 @@ ThemeData themeData(Brightness brightness) {
       thumbColor: WidgetStateProperty.all(colorScheme.text.secondary),
       trackOutlineColor: WidgetStateProperty.all(colorScheme.separator.primary),
       trackColor: WidgetStateProperty.resolveWith(
-        (states) =>
-            states.contains(WidgetState.selected)
-                ? colorScheme.backgroundElevated.quaternary
-                : Colors.transparent,
+        (states) => states.contains(WidgetState.selected)
+            ? colorScheme.backgroundElevated.quaternary
+            : Colors.transparent,
       ),
     ),
   );

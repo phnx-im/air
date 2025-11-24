@@ -59,8 +59,9 @@ class ContactUsScreen extends StatelessWidget {
           child: Align(
             alignment: Alignment.topCenter,
             child: Container(
-              constraints:
-                  isPointer() ? const BoxConstraints(maxWidth: 800) : null,
+              constraints: isPointer()
+                  ? const BoxConstraints(maxWidth: 800)
+                  : null,
               child: Theme(
                 data: theme.copyWith(
                   inputDecorationTheme: theme.inputDecorationTheme.copyWith(
@@ -129,15 +130,12 @@ class _EmailForm extends HookWidget {
               decoration: InputDecoration(
                 labelText: loc.contactUsScreen_subject,
               ),
-              items:
-                  subjects
-                      .map(
-                        (subject) => DropdownMenuItem(
-                          value: subject,
-                          child: Text(subject),
-                        ),
-                      )
-                      .toList(),
+              items: subjects
+                  .map(
+                    (subject) =>
+                        DropdownMenuItem(value: subject, child: Text(subject)),
+                  )
+                  .toList(),
               onChanged: (value) => selectedSubject.value = value,
               validator: (value) => _validateSubject(value, loc),
             ),
@@ -190,10 +188,10 @@ class _EmailForm extends HookWidget {
 
   String? _validateBody(String? value, AppLocalizations loc) =>
       value == null || value.isEmpty
-          ? loc.contactUsScreen_body_empty
-          : value.length < 11
-          ? loc.contactUsScreen_body_tooShort
-          : null;
+      ? loc.contactUsScreen_body_empty
+      : value.length < 11
+      ? loc.contactUsScreen_body_tooShort
+      : null;
 
   void _launchEmail(BuildContext context, String? subject, String body) async {
     final Uri emailUri = Uri.parse(

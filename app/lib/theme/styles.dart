@@ -47,7 +47,7 @@ class CustomTextButtonStyle extends ButtonStyle {
          splashFactory: NoSplash.splashFactory,
          padding: WidgetStateProperty.all(const EdgeInsets.all(20)),
          textStyle: WidgetStateProperty.all<TextStyle>(
-           baselineTextTheme.labelLarge!.merge(customTextScheme.labelLarge!),
+           baselineTextTheme.labelMedium!.merge(customTextScheme.labelMedium!),
          ),
        );
 }

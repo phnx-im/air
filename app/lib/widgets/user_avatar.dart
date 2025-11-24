@@ -27,18 +27,18 @@ class UserAvatar extends StatelessWidget {
     return GestureDetector(
       onTap: onPressed,
       child: MouseRegion(
-        cursor:
-            onPressed != null
-                ? SystemMouseCursors.click
-                : SystemMouseCursors.basic,
+        cursor: onPressed != null
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.basic,
         child: SizedBox(
           width: size,
           height: size,
           child: CircleAvatar(
             radius: size / 2,
             backgroundColor: CustomColorScheme.of(context).text.quaternary,
-            foregroundImage:
-                image != null ? CachedMemoryImage.fromImageData(image!) : null,
+            foregroundImage: image != null
+                ? CachedMemoryImage.fromImageData(image!)
+                : null,
             child: Text(
               displayName.characters.firstOrNull?.toUpperCase() ?? "",
               style: TextStyle(

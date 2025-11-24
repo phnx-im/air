@@ -9,7 +9,6 @@ import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/desktop/width_constraints.dart';
-import 'package:air/ui/theme/font.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
@@ -46,15 +45,15 @@ class SignUpScreen extends HookWidget {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         toolbarHeight: isPointer() ? 100 : null,
-        backgroundColor: backgroundColor,
+        backgroundColor: Colors.transparent,
       ),
       backgroundColor: backgroundColor,
-      body: SafeArea(
-        minimum: EdgeInsets.only(
-          bottom: isKeyboardShown ? Spacings.s : Spacings.l + Spacings.xxs,
-        ),
-        child: Container(
-          color: colors.backgroundBase.secondary,
+      body: Container(
+        color: backgroundColor,
+        child: SafeArea(
+          minimum: EdgeInsets.only(
+            bottom: isKeyboardShown ? Spacings.s : Spacings.l + Spacings.xxs,
+          ),
           child: ConstrainedWidth(
             child: Column(
               children: [
@@ -67,7 +66,6 @@ class SignUpScreen extends HookWidget {
                         padding: const EdgeInsets.only(
                           left: Spacings.s,
                           right: Spacings.s,
-                          bottom: Spacings.xl,
                         ),
                         child: ConstrainedBox(
                           constraints: BoxConstraints(
@@ -128,8 +126,9 @@ class _Form extends HookWidget {
 
     return Form(
       key: formKey,
-      autovalidateMode:
-          showErrors ? AutovalidateMode.always : AutovalidateMode.disabled,
+      autovalidateMode: showErrors
+          ? AutovalidateMode.always
+          : AutovalidateMode.disabled,
       child: Center(
         child: Column(
           children: [
@@ -158,9 +157,11 @@ class _Form extends HookWidget {
             ),
 
             if (serverFieldVisible.value) ...[
-              const SizedBox(height: Spacings.m),
-
-              Text(loc.signUpScreen_serverLabel),
+              Text(
+                loc.signUpScreen_serverLabel,
+                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.left,
+              ),
               const SizedBox(height: Spacings.s),
 
               ConstrainedBox(
@@ -195,10 +196,8 @@ class _UserAvatarPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (displayName, avatar) = context.select(
-      (RegistrationCubit cubit) => (
-        cubit.state.displayName,
-        cubit.state.avatar,
-      ),
+      (RegistrationCubit cubit) =>
+          (cubit.state.displayName, cubit.state.avatar),
     );
 
     final colors = CustomColorScheme.of(context);
@@ -256,11 +255,14 @@ class _DisplayNameTextField extends HookWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: Spacings.xxs,
       children: [
-        Text(
-          loc.signUpScreen_displayNameInputName,
-          style: TextStyle(
-            fontSize: LabelFontSize.small2.size,
-            color: colors.text.quaternary,
+        Padding(
+          padding: const EdgeInsets.only(left: Spacings.xxs),
+          child: Text(
+            loc.signUpScreen_displayNameInputName,
+            style: TextStyle(
+              fontSize: LabelFontSize.small2.size,
+              color: colors.text.quaternary,
+            ),
           ),
         ),
         TextFormField(
@@ -277,16 +279,10 @@ class _DisplayNameTextField extends HookWidget {
             focusNode.requestFocus();
             onFieldSubmitted();
           },
-          validator:
-              (value) =>
-                  context
-                          .read<RegistrationCubit>()
-                          .state
-                          .displayName
-                          .trim()
-                          .isEmpty
-                      ? loc.signUpScreen_error_emptyDisplayName
-                      : null,
+          validator: (value) =>
+              context.read<RegistrationCubit>().state.displayName.trim().isEmpty
+              ? loc.signUpScreen_error_emptyDisplayName
+              : null,
         ),
       ],
     );
@@ -302,10 +298,15 @@ class _ServerTextField extends HookWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
+    final colors = CustomColorScheme.of(context);
+
     final focusNode = useFocusNode();
 
     return TextFormField(
-      decoration: InputDecoration(hintText: loc.signUpScreen_serverHint),
+      decoration: InputDecoration(
+        hintText: loc.signUpScreen_serverHint,
+        fillColor: colors.backgroundBase.tertiary,
+      ),
       initialValue: context.read<RegistrationCubit>().state.domain,
       focusNode: focusNode,
       onChanged: (String value) {
@@ -315,11 +316,10 @@ class _ServerTextField extends HookWidget {
         focusNode.requestFocus();
         onFieldSubmitted();
       },
-      validator:
-          (value) =>
-              context.read<RegistrationCubit>().state.isDomainValid
-                  ? null
-                  : loc.signUpScreen_error_invalidDomain,
+      validator: (value) =>
+          context.read<RegistrationCubit>().state.isDomainValid
+          ? null
+          : loc.signUpScreen_error_invalidDomain,
     );
   }
 }
@@ -338,25 +338,22 @@ class _SignUpButton extends StatelessWidget {
       (RegistrationCubit cubit) => cubit.state.isSigningUp,
     );
     return OutlinedButton(
-      style: OutlinedButton.styleFrom(
-        textStyle: customTextScheme.labelMedium,
-        backgroundColor: colors.accent.primary,
-        foregroundColor: colors.function.toggleWhite,
+      style: OutlinedButtonTheme.of(context).style!.copyWith(
+        backgroundColor: WidgetStateProperty.all(colors.accent.primary),
+        foregroundColor: WidgetStateProperty.all(colors.function.toggleWhite),
       ),
-      onPressed:
-          isSigningUp
-              ? null
-              : () {
-                showErrors.value = true;
-                if (!formKey.currentState!.validate()) {
-                  return;
-                }
-                _submit(context, formKey);
-              },
-      child:
-          isSigningUp
-              ? CircularProgressIndicator(color: colors.function.toggleWhite)
-              : Text(loc.signUpScreen_actionButton),
+      onPressed: isSigningUp
+          ? null
+          : () {
+              showErrors.value = true;
+              if (!formKey.currentState!.validate()) {
+                return;
+              }
+              _submit(context, formKey);
+            },
+      child: isSigningUp
+          ? CircularProgressIndicator(color: colors.function.toggleWhite)
+          : Text(loc.signUpScreen_actionButton),
     );
   }
 }

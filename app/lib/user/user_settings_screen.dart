@@ -67,8 +67,9 @@ class UserSettingsScreen extends StatelessWidget {
             child: Align(
               alignment: Alignment.topCenter,
               child: Container(
-                constraints:
-                    isPointer() ? const BoxConstraints(maxWidth: 800) : null,
+                constraints: isPointer()
+                    ? const BoxConstraints(maxWidth: 800)
+                    : null,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -171,15 +172,13 @@ class _DisplayName extends StatelessWidget {
         const SizedBox(height: Spacings.xs),
 
         _FieldContainer(
-          onTap:
-              () => {
-                showDialog(
-                  context: context,
-                  builder:
-                      (context) =>
-                          _ChangeDisplayNameDialog(displayName: displayName),
-                ),
-              },
+          onTap: () => {
+            showDialog(
+              context: context,
+              builder: (context) =>
+                  _ChangeDisplayNameDialog(displayName: displayName),
+            ),
+          },
           child: Row(children: [Text(displayName)]),
         ),
 
@@ -226,9 +225,8 @@ class _UsernamesSection extends StatelessWidget {
                     onTap: () {
                       showDialog(
                         context: context,
-                        builder:
-                            (context) =>
-                                _RemoveUsernameDialog(username: handle),
+                        builder: (context) =>
+                            _RemoveUsernameDialog(username: handle),
                       );
                     },
                     child: iconoir.Trash(
@@ -246,11 +244,10 @@ class _UsernamesSection extends StatelessWidget {
         if (userHandles.isEmpty || userHandles.length < 5) ...[
           const SizedBox(height: Spacings.xs),
           _FieldContainer(
-            onTap:
-                () => showDialog(
-                  context: context,
-                  builder: (context) => const _AddUsernameDialog(),
-                ),
+            onTap: () => showDialog(
+              context: context,
+              builder: (context) => const _AddUsernameDialog(),
+            ),
             child: Row(
               children: [
                 Text(
@@ -796,14 +793,13 @@ class _AddUsernameDialog extends HookWidget {
                   const SizedBox(width: Spacings.xs),
                   Expanded(
                     child: AirDialogProgressTextButton(
-                      onPressed:
-                          (isSubmitting) => _submit(
-                            context,
-                            formKey,
-                            controller,
-                            userHandleExists,
-                            isSubmitting,
-                          ),
+                      onPressed: (isSubmitting) => _submit(
+                        context,
+                        formKey,
+                        controller,
+                        userHandleExists,
+                        isSubmitting,
+                      ),
                       style: airDialogButtonStyle.copyWith(
                         backgroundColor: WidgetStatePropertyAll(
                           colors.accent.primary,
@@ -1032,8 +1028,8 @@ class _DeleteAccountDialog extends HookWidget {
               filled: true,
               fillColor: colors.backgroundBase.secondary,
             ),
-            onChanged:
-                (value) => isConfirmed.value = value == _confirmationText,
+            onChanged: (value) =>
+                isConfirmed.value = value == _confirmationText,
           ),
 
           const SizedBox(height: Spacings.xs),
@@ -1065,8 +1061,8 @@ class _DeleteAccountDialog extends HookWidget {
 
               Expanded(
                 child: AirDialogProgressTextButton(
-                  onPressed:
-                      (inProgress) => _deleteAccount(context, inProgress),
+                  onPressed: (inProgress) =>
+                      _deleteAccount(context, inProgress),
                   style: airDialogButtonStyle.copyWith(
                     backgroundColor: WidgetStatePropertyAll(
                       colors.function.danger,

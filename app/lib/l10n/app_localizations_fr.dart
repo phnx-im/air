@@ -101,6 +101,10 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
+  String get inactiveChatFooter_message =>
+      'Vous n\'êtes plus membre de ce chat.';
+
+  @override
   String get chatScreen_emptyChat =>
       'Sélectionnez un chat pour commencer à envoyer des messages';
 
@@ -209,6 +213,13 @@ class AppLocalizationsFr extends AppLocalizations {
   String get usernameOnboarding_skip => 'Ignorer';
 
   @override
+  String get usernameOnboarding_userameInputName =>
+      'Nom d\'utilisateur (facultatif)';
+
+  @override
+  String get usernameOnboarding_userameInputHint => 'Ajoutez un nom...';
+
+  @override
   String get signUpScreen_actionButton => 'S\'inscrire';
 
   @override
@@ -278,22 +289,61 @@ class AppLocalizationsFr extends AppLocalizations {
   String get editDisplayNameScreen_save => 'Enregistrer';
 
   @override
-  String get systemMessage_userAddedUser_prefix => '';
+  String systemMessage_userAddedUser_prefix(Object user1) {
+    return '$user1';
+  }
 
   @override
   String get systemMessage_userAddedUser_infix => ' a ajouté ';
 
   @override
-  String get systemMessage_userAddedUser_suffix => '';
+  String systemMessage_userAddedUser_suffix(Object user2) {
+    return '$user2';
+  }
 
   @override
-  String get systemMessage_userRemovedUser_prefix => '';
+  String systemMessage_userRemovedUser_prefix(Object user1) {
+    return '$user1';
+  }
 
   @override
   String get systemMessage_userRemovedUser_infix => ' a retiré ';
 
   @override
-  String get systemMessage_userRemovedUser_suffix => '';
+  String systemMessage_userRemovedUser_suffix(Object user2) {
+    return '$user2';
+  }
+
+  @override
+  String systemMessage_userChangedTitle_prefix(Object user) {
+    return '$user';
+  }
+
+  @override
+  String get systemMessage_userChangedTitle_infix_1 =>
+      ' changed the group name from ';
+
+  @override
+  String systemMessage_userChangedTitle_infix_2(Object old_name) {
+    return '$old_name';
+  }
+
+  @override
+  String get systemMessage_userChangedTitle_infix_3 => ' to ';
+
+  @override
+  String systemMessage_userChangedTitle_suffix(Object new_name) {
+    return '$new_name';
+  }
+
+  @override
+  String systemMessage_userChangedPicture_prefix(Object user) {
+    return '$user';
+  }
+
+  @override
+  String get systemMessage_userChangedPicture_infix =>
+      ' changed the group picture';
 
   @override
   String get timestamp_now => 'Maintenant';
@@ -372,15 +422,18 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String attachmentSize(double size, Object byteUnit) {
-    final intl.NumberFormat sizeNumberFormat = intl
-        .NumberFormat.decimalPatternDigits(
-      locale: localeName,
-      decimalDigits: 2,
-    );
+    final intl.NumberFormat sizeNumberFormat =
+        intl.NumberFormat.decimalPatternDigits(
+          locale: localeName,
+          decimalDigits: 2,
+        );
     final String sizeString = sizeNumberFormat.format(size);
 
     return '$sizeString $byteUnit';
   }
+
+  @override
+  String get attachment_tryAgain => 'Try again';
 
   @override
   String get textMessage_edited => 'modifié';

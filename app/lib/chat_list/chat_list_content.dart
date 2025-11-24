@@ -27,6 +27,7 @@ typedef ChatDetailsCubitCreate =
       required UserSettingsCubit userSettingsCubit,
       required ChatId chatId,
       required ChatsRepository chatsRepository,
+      required AttachmentsRepository attachmentsRepository,
       bool withMembers,
     });
 
@@ -57,14 +58,14 @@ class ChatListContent extends StatelessWidget {
       itemBuilder: (BuildContext context, int index) {
         return BlocProvider(
           key: ValueKey(chatIds[index]),
-          create:
-              (context) => createChatDetailsCubit(
-                userCubit: context.read<UserCubit>(),
-                userSettingsCubit: context.read<UserSettingsCubit>(),
-                chatId: chatIds[index],
-                chatsRepository: context.read<ChatsRepository>(),
-                withMembers: false,
-              ),
+          create: (context) => createChatDetailsCubit(
+            userCubit: context.read<UserCubit>(),
+            userSettingsCubit: context.read<UserSettingsCubit>(),
+            chatId: chatIds[index],
+            chatsRepository: context.read<ChatsRepository>(),
+            attachmentsRepository: context.read<AttachmentsRepository>(),
+            withMembers: false,
+          ),
           lazy: false,
           child: _ListTile(chatId: chatIds[index]),
         );
@@ -119,10 +120,9 @@ class _ListTile extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(Spacings.s),
-          color:
-              isSelected
-                  ? CustomColorScheme.of(context).backgroundBase.quaternary
-                  : null,
+          color: isSelected
+              ? CustomColorScheme.of(context).backgroundBase.quaternary
+              : null,
         ),
         child: Builder(
           builder: (context) {
@@ -258,10 +258,9 @@ class _UnreadBadge extends StatelessWidget {
       (NavigationCubit cubit) => cubit.state.chatId,
     );
 
-    final backgroundColor =
-        currentChatId == chatId
-            ? CustomColorScheme.of(context).backgroundBase.primary
-            : CustomColorScheme.of(context).backgroundBase.quaternary;
+    final backgroundColor = currentChatId == chatId
+        ? CustomColorScheme.of(context).backgroundBase.primary
+        : CustomColorScheme.of(context).backgroundBase.quaternary;
 
     final badgeText = count <= 100 ? "$count" : "100+";
     const double badgeSize = 26;
@@ -325,41 +324,38 @@ class _LastMessage extends StatelessWidget {
 
     final showDraft = !isCurrentChat && draftMessage?.isNotEmpty == true;
 
-    final prefixStyle =
-        showDraft
-            ? draftStyle
-            : readStyle.copyWith(
-              color: CustomColorScheme.of(context).text.tertiary,
-            );
+    final prefixStyle = showDraft
+        ? draftStyle
+        : readStyle.copyWith(
+            color: CustomColorScheme.of(context).text.tertiary,
+          );
 
     final suffixStyle = chat.unreadMessages > 0 ? unreadStyle : readStyle;
 
     final loc = AppLocalizations.of(context);
 
-    final prefix =
-        showDraft
-            ? "${loc.chatList_draft}: "
-            : switch (lastMessage?.message) {
-              UiMessage_Content(field0: final content)
-                  when content.sender == ownClientId =>
-                "${loc.chatList_you}: ",
-              _ => null,
-            };
+    final prefix = showDraft
+        ? "${loc.chatList_draft}: "
+        : switch (lastMessage?.message) {
+            UiMessage_Content(field0: final content)
+                when content.sender == ownClientId =>
+              "${loc.chatList_you}: ",
+            _ => null,
+          };
 
-    final suffix =
-        showDraft
-            ? draftMessage
-            : switch (lastMessage?.message) {
-              UiMessage_Content(field0: final content) =>
-                content.content.plainBody?.isNotEmpty == true
-                    ? content.content.plainBody
-                    : content.content.attachments.isNotEmpty
-                    ? content.content.attachments.first.imageMetadata != null
+    final suffix = showDraft
+        ? draftMessage
+        : switch (lastMessage?.message) {
+            UiMessage_Content(field0: final content) =>
+              content.content.plainBody?.isNotEmpty == true
+                  ? content.content.plainBody
+                  : content.content.attachments.isNotEmpty
+                  ? content.content.attachments.first.imageMetadata != null
                         ? loc.chatList_imageEmoji
                         : loc.chatList_fileEmoji
-                    : '',
-              _ => null,
-            };
+                  : '',
+            _ => null,
+          };
 
     return Text.rich(
       maxLines: 1,

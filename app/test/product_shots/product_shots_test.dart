@@ -88,55 +88,60 @@ void main() {
       ).thenReturn(ChatListState(chatIds: chatIds));
     });
 
-    Widget buildSubject(ProductShotPlatform platform) =>
-        RepositoryProvider<ChatsRepository>.value(
-          value: MockChatsRepository(),
-          child: MultiBlocProvider(
-            providers: [
-              BlocProvider<NavigationCubit>.value(value: navigationCubit),
-              BlocProvider<UserCubit>.value(value: userCubit),
-              BlocProvider<UsersCubit>.value(value: usersCubit),
-              BlocProvider<ChatListCubit>.value(value: chatListCubit),
-              BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-            ],
-            child: Builder(
-              builder: (context) {
-                final shotSize = _productShotSizeFor(platform);
-                final shot = ProductShot(
-                  size: shotSize,
-                  backgroundColor: backgroundColor,
-                  titleColor: titleColor,
-                  subtitleColor: subtitleColor,
-                  title: title,
-                  subtitle: subtitle,
-                  device: ProductShotDevices.forPlatform(platform),
-                  child: ChatListView(
-                    scaffold: true,
-                    createChatDetailsCubit: createMockChatDetailsCubitFactory(
-                      chats,
-                    ),
-                  ),
-                );
+    Widget buildSubject(
+      ProductShotPlatform platform,
+    ) => MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider<ChatsRepository>.value(value: MockChatsRepository()),
+        RepositoryProvider<AttachmentsRepository>.value(
+          value: MockAttachmentsRepository(),
+        ),
+      ],
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<NavigationCubit>.value(value: navigationCubit),
+          BlocProvider<UserCubit>.value(value: userCubit),
+          BlocProvider<UsersCubit>.value(value: usersCubit),
+          BlocProvider<ChatListCubit>.value(value: chatListCubit),
+          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+        ],
+        child: Builder(
+          builder: (context) {
+            final shotSize = _productShotSizeFor(platform);
+            final shot = ProductShot(
+              size: shotSize,
+              backgroundColor: backgroundColor,
+              titleColor: titleColor,
+              subtitleColor: subtitleColor,
+              title: title,
+              subtitle: subtitle,
+              device: ProductShotDevices.forPlatform(platform),
+              child: ChatListView(
+                scaffold: true,
+                createChatDetailsCubit: createMockChatDetailsCubitFactory(
+                  chats,
+                ),
+              ),
+            );
 
-                return MaterialApp(
-                  debugShowCheckedModeBanner: false,
-                  theme: lightTheme,
-                  themeMode: ThemeMode.light,
-                  localizationsDelegates:
-                      AppLocalizations.localizationsDelegates,
-                  home: Material(
-                    child: MediaQuery(
-                      data: MediaQuery.of(
-                        context,
-                      ).copyWith(platformBrightness: Brightness.light),
-                      child: shot,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        );
+            return MaterialApp(
+              debugShowCheckedModeBanner: false,
+              theme: lightTheme,
+              themeMode: ThemeMode.light,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              home: Material(
+                child: MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(platformBrightness: Brightness.light),
+                  child: shot,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
 
     testProductShot(
       "Chat List (iOS)",
@@ -231,6 +236,11 @@ void main() {
           chunkEventCallback: any(named: "chunkEventCallback"),
         ),
       ).thenAnswer((_) => Future.value(jupiterAttachmentImage.data));
+      when(
+        () => attachmentsRepository.statusStream(
+          attachmentId: any(named: "attachmentId"),
+        ),
+      ).thenAnswer((_) => Stream.value(const UiAttachmentStatus.completed()));
     });
 
     Widget buildSubject(ProductShotPlatform platform) =>

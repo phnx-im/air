@@ -3,10 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/chat/widgets/member_list_item.dart';
-import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:provider/provider.dart';
-
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
@@ -16,7 +12,10 @@ import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/dialog.dart';
 import 'package:air/widgets/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
+import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 
 import 'chat_details_cubit.dart';
 
@@ -101,10 +100,12 @@ class GroupDetails extends StatelessWidget {
                   Expanded(
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
-                        backgroundColor:
-                            CustomColorScheme.of(context).function.danger,
-                        foregroundColor:
-                            CustomColorScheme.of(context).function.white,
+                        backgroundColor: CustomColorScheme.of(
+                          context,
+                        ).function.danger,
+                        foregroundColor: CustomColorScheme.of(
+                          context,
+                        ).function.white,
                       ),
                       onPressed: () => _delete(context, chat),
                       child: Text(
@@ -211,10 +212,9 @@ class _PeoplePreview extends StatelessWidget {
             for (var i = 0; i < previewIds.length; i++) ...[
               _PeoplePreviewEntry(
                 memberId: previewIds[i],
-                position:
-                    i == 0
-                        ? _PeopleEntryPosition.first
-                        : _PeopleEntryPosition.middle,
+                position: i == 0
+                    ? _PeopleEntryPosition.first
+                    : _PeopleEntryPosition.middle,
               ),
               if (i < previewIds.length)
                 Divider(
@@ -225,10 +225,9 @@ class _PeoplePreview extends StatelessWidget {
             ],
             _SeeAllRow(
               onPressed: onOpenPressed,
-              position:
-                  previewIds.isEmpty
-                      ? _PeopleEntryPosition.single
-                      : _PeopleEntryPosition.last,
+              position: previewIds.isEmpty
+                  ? _PeopleEntryPosition.single
+                  : _PeopleEntryPosition.last,
             ),
           ],
         ),
@@ -273,7 +272,14 @@ class _PeoplePreviewEntry extends StatelessWidget {
         borderRadius: borderRadius,
       ),
       padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
-      child: MemberListItem(profile: profile, displayNameOverride: displayName),
+      child: MemberListItem(
+        profile: profile,
+        displayNameOverride: displayName,
+        enabled: !isSelf,
+        onTap: isSelf
+            ? null
+            : () => context.read<NavigationCubit>().openMemberDetails(memberId),
+      ),
     );
   }
 }

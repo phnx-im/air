@@ -14,6 +14,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/timestamp.dart';
 import 'package:air/message_list/mobile_message_actions.dart';
+import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/context_menu/context_menu.dart';
@@ -162,8 +163,9 @@ class _MessageView extends HookWidget {
           children: [
             const SizedBox(height: 2),
             Row(
-              mainAxisAlignment:
-                  isSender ? MainAxisAlignment.end : MainAxisAlignment.start,
+              mainAxisAlignment: isSender
+                  ? MainAxisAlignment.end
+                  : MainAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 const SizedBox(width: Spacings.s),
@@ -208,16 +210,15 @@ class _MessageView extends HookWidget {
         ),
     ];
 
-    final menuItems =
-        actions
-            .map(
-              (action) => ContextMenuItem(
-                label: action.label,
-                leading: action.leading,
-                onPressed: action.onSelected,
-              ),
-            )
-            .toList();
+    final menuItems = actions
+        .map(
+          (action) => ContextMenuItem(
+            label: action.label,
+            leading: action.leading,
+            onPressed: action.onSelected,
+          ),
+        )
+        .toList();
 
     Widget buildMessageShell({
       required VoidCallback? onLongPress,
@@ -240,8 +241,9 @@ class _MessageView extends HookWidget {
           bottom: flightPosition.isLast ? 5 : 0,
         ),
         child: Column(
-          crossAxisAlignment:
-              isSender ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment: isSender
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             MouseRegion(
@@ -271,16 +273,15 @@ class _MessageView extends HookWidget {
       return LayoutBuilder(
         builder: (context, constraints) {
           final hasFiniteWidth = constraints.maxWidth.isFinite;
-          final double maxWidth =
-              hasFiniteWidth
-                  ? constraints.maxWidth * _bubbleMaxWidthFactor
-                  : double.infinity;
-          final alignment =
-              isSender ? Alignment.centerRight : Alignment.centerLeft;
-          final boxConstraints =
-              hasFiniteWidth
-                  ? BoxConstraints(maxWidth: maxWidth)
-                  : const BoxConstraints();
+          final double maxWidth = hasFiniteWidth
+              ? constraints.maxWidth * _bubbleMaxWidthFactor
+              : double.infinity;
+          final alignment = isSender
+              ? Alignment.centerRight
+              : Alignment.centerLeft;
+          final boxConstraints = hasFiniteWidth
+              ? BoxConstraints(maxWidth: maxWidth)
+              : const BoxConstraints();
           return Align(
             alignment: alignment,
             child: ConstrainedBox(constraints: boxConstraints, child: child),
@@ -292,36 +293,35 @@ class _MessageView extends HookWidget {
     if (isMobilePlatform) {
       return wrapWithBubbleWidth(
         buildMessageShell(
-          onLongPress:
-              actions.isEmpty
-                  ? null
-                  : () {
-                    final bubbleContext = bubbleKey.currentContext;
-                    if (bubbleContext == null) return;
-                    final renderObject = bubbleContext.findRenderObject();
-                    if (renderObject is! RenderBox || !renderObject.hasSize) {
-                      return;
-                    }
-                    final origin = renderObject.localToGlobal(Offset.zero);
-                    final anchorRect = origin & renderObject.size;
-                    final overlayBubble = buildMessageBubble(
-                      enableSelection: false,
-                    );
-                    ContextMenu.closeActiveMenu();
-                    isDetached.value = true;
-                    final future = showMobileMessageActions(
-                      context: context,
-                      anchorRect: anchorRect,
-                      actions: actions,
-                      messageContent: overlayBubble,
-                      alignEnd: isSender,
-                    );
-                    unawaited(
-                      future.whenComplete(() {
-                        isDetached.value = false;
-                      }),
-                    );
-                  },
+          onLongPress: actions.isEmpty
+              ? null
+              : () {
+                  final bubbleContext = bubbleKey.currentContext;
+                  if (bubbleContext == null) return;
+                  final renderObject = bubbleContext.findRenderObject();
+                  if (renderObject is! RenderBox || !renderObject.hasSize) {
+                    return;
+                  }
+                  final origin = renderObject.localToGlobal(Offset.zero);
+                  final anchorRect = origin & renderObject.size;
+                  final overlayBubble = buildMessageBubble(
+                    enableSelection: false,
+                  );
+                  ContextMenu.closeActiveMenu();
+                  isDetached.value = true;
+                  final future = showMobileMessageActions(
+                    context: context,
+                    anchorRect: anchorRect,
+                    actions: actions,
+                    messageContent: overlayBubble,
+                    alignEnd: isSender,
+                  );
+                  unawaited(
+                    future.whenComplete(() {
+                      isDetached.value = false;
+                    }),
+                  );
+                },
           onSecondaryTapDown: null,
           enableSelection: false,
           messageKey: messageContainerKey,
@@ -333,8 +333,9 @@ class _MessageView extends HookWidget {
 
     return wrapWithBubbleWidth(
       ContextMenu(
-        direction:
-            isSender ? ContextMenuDirection.left : ContextMenuDirection.right,
+        direction: isSender
+            ? ContextMenuDirection.left
+            : ContextMenuDirection.right,
         width: 200,
         offset: const Offset(Spacings.xxs, 0),
         controller: contextMenuController,
@@ -342,17 +343,16 @@ class _MessageView extends HookWidget {
         cursorPosition: cursorPositionNotifier,
         child: buildMessageShell(
           onLongPress: null,
-          onSecondaryTapDown:
-              actions.isEmpty
-                  ? null
-                  : (details) {
-                    if (contextMenuController.isShowing) {
-                      contextMenuController.hide();
-                    }
-                    ContextMenu.closeActiveMenu();
-                    cursorPositionNotifier.value = details.globalPosition;
-                    contextMenuController.show();
-                  },
+          onSecondaryTapDown: actions.isEmpty
+              ? null
+              : (details) {
+                  if (contextMenuController.isShowing) {
+                    contextMenuController.hide();
+                  }
+                  ContextMenu.closeActiveMenu();
+                  cursorPositionNotifier.value = details.globalPosition;
+                  contextMenuController.show();
+                },
           enableSelection: isDesktopPlatform,
           messageKey: messageContainerKey,
           detached: false,
@@ -470,14 +470,13 @@ class _MessageContent extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: selectableBlocks,
         );
-        final Widget selectableChild =
-            enableSelection
-                ? SelectableRegion(
-                  selectionControls: emptyTextSelectionControls,
-                  contextMenuBuilder: (context, _) => const SizedBox.shrink(),
-                  child: textColumn,
-                )
-                : SelectionContainer.disabled(child: textColumn);
+        final Widget selectableChild = enableSelection
+            ? SelectableRegion(
+                selectionControls: emptyTextSelectionControls,
+                contextMenuBuilder: (context, _) => const SizedBox.shrink(),
+                child: textColumn,
+              )
+            : SelectionContainer.disabled(child: textColumn);
         columnChildren.add(selectableChild);
       }
     }
@@ -485,17 +484,15 @@ class _MessageContent extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 1.5),
       child: Container(
-        alignment:
-            isSender
-                ? AlignmentDirectional.topEnd
-                : AlignmentDirectional.topStart,
+        alignment: isSender
+            ? AlignmentDirectional.topEnd
+            : AlignmentDirectional.topStart,
         child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: _messageBorderRadius(isSender, flightPosition),
-            color:
-                isSender
-                    ? CustomColorScheme.of(context).message.selfBackground
-                    : CustomColorScheme.of(context).message.otherBackground,
+            color: isSender
+                ? CustomColorScheme.of(context).message.selfBackground
+                : CustomColorScheme.of(context).message.otherBackground,
           ),
           child: DefaultTextStyle.merge(
             child: Stack(
@@ -519,18 +516,16 @@ class _MessageContent extends StatelessWidget {
                         child: SelectionContainer.disabled(
                           child: Text(
                             loc.textMessage_edited,
-                            style: Theme.of(
-                              context,
-                            ).textTheme.bodySmall!.copyWith(
-                              color:
-                                  isSender
+                            style: Theme.of(context).textTheme.bodySmall!
+                                .copyWith(
+                                  color: isSender
                                       ? CustomColorScheme.of(
-                                        context,
-                                      ).message.selfEditedLabel
+                                          context,
+                                        ).message.selfEditedLabel
                                       : CustomColorScheme.of(
-                                        context,
-                                      ).message.otherEditedLabel,
-                            ),
+                                          context,
+                                        ).message.otherEditedLabel,
+                                ),
                           ),
                         ),
                       ),
@@ -556,6 +551,9 @@ class _Sender extends StatelessWidget {
     final profile = context.select(
       (UsersCubit cubit) => cubit.state.profile(userId: sender),
     );
+    void openMemberDetails() {
+      unawaited(context.read<NavigationCubit>().openMemberDetails(sender));
+    }
 
     return Padding(
       padding: const EdgeInsets.only(top: Spacings.xs, bottom: Spacings.xxs),
@@ -566,9 +564,14 @@ class _Sender extends StatelessWidget {
             displayName: profile.displayName,
             image: profile.profilePicture,
             size: Spacings.m,
+            onPressed: openMemberDetails,
           ),
           const SizedBox(width: Spacings.xs),
-          _DisplayName(displayName: profile.displayName, isSender: isSender),
+          _DisplayName(
+            displayName: profile.displayName,
+            isSender: isSender,
+            onTap: openMemberDetails,
+          ),
         ],
       ),
     );
@@ -576,26 +579,40 @@ class _Sender extends StatelessWidget {
 }
 
 class _DisplayName extends StatelessWidget {
-  const _DisplayName({required this.displayName, required this.isSender});
+  const _DisplayName({
+    required this.displayName,
+    required this.isSender,
+    this.onTap,
+  });
 
   final String displayName;
   final bool isSender;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final text = isSender ? "You" : displayName;
     final textUpper = text.toUpperCase();
-    return SelectionContainer.disabled(
-      child: Text(
-        textUpper,
-        style: TextStyle(
-          color: CustomColorScheme.of(context).text.tertiary,
-          fontSize: LabelFontSize.small2.size,
-          fontWeight: FontWeight.w100,
-          fontFamily: getSystemMonospaceFontFamily(),
-          letterSpacing: 1,
+    return MouseRegion(
+      cursor: onTap != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.basic,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SelectionContainer.disabled(
+          child: Text(
+            textUpper,
+            style: TextStyle(
+              color: CustomColorScheme.of(context).text.tertiary,
+              fontSize: LabelFontSize.small2.size,
+              fontWeight: FontWeight.w100,
+              fontFamily: getSystemMonospaceFontFamily(),
+              letterSpacing: 1,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
-        overflow: TextOverflow.ellipsis,
       ),
     );
   }
@@ -622,10 +639,9 @@ class _FileAttachmentContent extends StatelessWidget {
         children: [
           Attachment(
             width: 32,
-            color:
-                isSender
-                    ? CustomColorScheme.of(context).message.selfText
-                    : CustomColorScheme.of(context).message.otherText,
+            color: isSender
+                ? CustomColorScheme.of(context).message.selfText
+                : CustomColorScheme.of(context).message.otherText,
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -634,20 +650,18 @@ class _FileAttachmentContent extends StatelessWidget {
                 attachment.filename,
                 style: TextStyle(
                   fontSize: BodyFontSize.base.size,
-                  color:
-                      isSender
-                          ? CustomColorScheme.of(context).message.selfText
-                          : CustomColorScheme.of(context).message.otherText,
+                  color: isSender
+                      ? CustomColorScheme.of(context).message.selfText
+                      : CustomColorScheme.of(context).message.otherText,
                 ),
               ),
               Text(
                 loc.bytesToHumanReadable(attachment.size),
                 style: TextStyle(
                   fontSize: BodyFontSize.small2.size,
-                  color:
-                      isSender
-                          ? CustomColorScheme.of(context).message.selfText
-                          : CustomColorScheme.of(context).message.otherText,
+                  color: isSender
+                      ? CustomColorScheme.of(context).message.selfText
+                      : CustomColorScheme.of(context).message.otherText,
                 ),
               ),
             ],
@@ -681,12 +695,11 @@ class _ImageAttachmentContent extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder:
-                (context) => ImageViewer(
-                  attachment: attachment,
-                  imageMetadata: imageMetadata,
-                  isSender: isSender,
-                ),
+            builder: (context) => ImageViewer(
+              attachment: attachment,
+              imageMetadata: imageMetadata,
+              isSender: isSender,
+            ),
           ),
         );
       },
@@ -701,7 +714,6 @@ class _ImageAttachmentContent extends StatelessWidget {
           child: AttachmentImage(
             attachment: attachment,
             imageMetadata: imageMetadata,
-            isSender: isSender,
             fit: BoxFit.cover,
           ),
         ),
@@ -722,9 +734,11 @@ BorderRadius _messageBorderRadius(
   return BorderRadius.only(
     topLeft: r(isSender || flightPosition.isFirst),
     topRight: r(!isSender || flightPosition.isFirst),
-    bottomLeft:
-        !stackedOnTop ? r(isSender || flightPosition.isLast) : Radius.zero,
-    bottomRight:
-        !stackedOnTop ? r(!isSender || flightPosition.isLast) : Radius.zero,
+    bottomLeft: !stackedOnTop
+        ? r(isSender || flightPosition.isLast)
+        : Radius.zero,
+    bottomRight: !stackedOnTop
+        ? r(!isSender || flightPosition.isLast)
+        : Radius.zero,
   );
 }

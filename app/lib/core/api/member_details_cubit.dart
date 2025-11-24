@@ -48,7 +48,6 @@ sealed class MemberDetailsState with _$MemberDetailsState {
   const MemberDetailsState._();
   const factory MemberDetailsState({UiRoomState? roomState}) =
       _MemberDetailsState;
-  static Future<MemberDetailsState> default_() =>
-      RustLib.instance.api
-          .crateApiMemberDetailsCubitMemberDetailsStateDefault();
+  static Future<MemberDetailsState> default_() => RustLib.instance.api
+      .crateApiMemberDetailsCubitMemberDetailsStateDefault();
 }

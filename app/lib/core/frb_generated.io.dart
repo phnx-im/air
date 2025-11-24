@@ -42,72 +42,75 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   });
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_AttachmentsRepositoryPtr =>
-      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepositoryPtr;
+  get rust_arc_decrement_strong_count_AttachmentsRepositoryPtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepositoryPtr;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ChatDetailsCubitBasePtr =>
-      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBasePtr;
+  get rust_arc_decrement_strong_count_ChatDetailsCubitBasePtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBasePtr;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ChatListCubitBasePtr =>
-      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBasePtr;
+  get rust_arc_decrement_strong_count_ChatListCubitBasePtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBasePtr;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ChatsRepositoryPtr =>
-      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepositoryPtr;
+  get rust_arc_decrement_strong_count_ChatsRepositoryPtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepositoryPtr;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_DartNotificationServicePtr =>
-      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationServicePtr;
-
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_LogWriterPtr =>
-      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriterPtr;
+  get rust_arc_decrement_strong_count_DartNotificationServicePtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationServicePtr;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_MemberDetailsCubitBasePtr =>
-      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBasePtr;
+  get rust_arc_decrement_strong_count_LogWriterPtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriterPtr;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_MessageCubitBasePtr =>
-      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBasePtr;
+  get rust_arc_decrement_strong_count_MemberDetailsCubitBasePtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBasePtr;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_MessageListCubitBasePtr =>
-      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBasePtr;
+  get rust_arc_decrement_strong_count_MessageCubitBasePtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBasePtr;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_MessageListStatePtr =>
-      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListStatePtr;
+  get rust_arc_decrement_strong_count_MessageListCubitBasePtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBasePtr;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_NavigationCubitBasePtr =>
-      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBasePtr;
+  get rust_arc_decrement_strong_count_MessageListStatePtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListStatePtr;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_UiRoomStatePtr =>
-      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomStatePtr;
-
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_UiUserPtr =>
-      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUserPtr;
-
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_UserPtr =>
-      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserPtr;
+  get rust_arc_decrement_strong_count_NavigationCubitBasePtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBasePtr;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_UserCubitBasePtr =>
-      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBasePtr;
+  get rust_arc_decrement_strong_count_UiRoomStatePtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomStatePtr;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_UserSettingsCubitBasePtr =>
-      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBasePtr;
+  get rust_arc_decrement_strong_count_UiUserPtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUserPtr;
+
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_UserPtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserPtr;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_UsersCubitBasePtr =>
-      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBasePtr;
+  get rust_arc_decrement_strong_count_UserCubitBasePtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBasePtr;
 
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_UsersStatePtr =>
-      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersStatePtr;
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_UserSettingsCubitBasePtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBasePtr;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_UsersCubitBasePtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBasePtr;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_UsersStatePtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersStatePtr;
 
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw);
@@ -573,6 +576,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<UiAttachmentStatus>
+  dco_decode_StreamSink_ui_attachment_status_Sse(dynamic raw);
+
+  @protected
   RustStreamSink<UserSettings> dco_decode_StreamSink_user_settings_Sse(
     dynamic raw,
   );
@@ -888,6 +895,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiAttachment dco_decode_ui_attachment(dynamic raw);
+
+  @protected
+  UiAttachmentStatus dco_decode_ui_attachment_status(dynamic raw);
 
   @protected
   UiChatAttributes dco_decode_ui_chat_attributes(dynamic raw);
@@ -1402,6 +1412,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<UiAttachmentStatus>
+  sse_decode_StreamSink_ui_attachment_status_Sse(SseDeserializer deserializer);
+
+  @protected
   RustStreamSink<UserSettings> sse_decode_StreamSink_user_settings_Sse(
     SseDeserializer deserializer,
   );
@@ -1801,6 +1815,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiAttachment sse_decode_ui_attachment(SseDeserializer deserializer);
+
+  @protected
+  UiAttachmentStatus sse_decode_ui_attachment_status(
+    SseDeserializer deserializer,
+  );
 
   @protected
   UiChatAttributes sse_decode_ui_chat_attributes(SseDeserializer deserializer);
@@ -2418,6 +2437,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_ui_attachment_status_Sse(
+    RustStreamSink<UiAttachmentStatus> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_StreamSink_user_settings_Sse(
     RustStreamSink<UserSettings> self,
     SseSerializer serializer,
@@ -2915,6 +2940,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_ui_attachment(UiAttachment self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ui_attachment_status(
+    UiAttachmentStatus self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_ui_chat_attributes(

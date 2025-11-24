@@ -35,11 +35,10 @@ class AttachmentImageProvider extends ImageProvider<UiAttachment> {
       chunkEvents: chunkEvents.stream,
       scale: 1.0,
       debugLabel: "AttachmentImageProvider(${attachment.attachmentId})",
-      informationCollector:
-          () => <DiagnosticsNode>[
-            DiagnosticsProperty<ImageProvider>('Image provider', this),
-            DiagnosticsProperty<UiAttachment>('Image key', key),
-          ],
+      informationCollector: () => <DiagnosticsNode>[
+        DiagnosticsProperty<ImageProvider>('Image provider', this),
+        DiagnosticsProperty<UiAttachment>('Image key', key),
+      ],
     );
   }
 

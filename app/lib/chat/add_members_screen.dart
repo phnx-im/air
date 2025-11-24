@@ -26,10 +26,9 @@ class AddMembersScreen extends StatelessWidget {
         final userCubit = context.read<UserCubit>();
         final navigationCubit = context.read<NavigationCubit>();
         final chatId = navigationCubit.state.chatId;
-        final contactsFuture =
-            chatId != null
-                ? userCubit.addableContacts(chatId)
-                : Future.value(<UiContact>[]);
+        final contactsFuture = chatId != null
+            ? userCubit.addableContacts(chatId)
+            : Future.value(<UiContact>[]);
 
         return AddMembersCubit()..loadContacts(contactsFuture);
       },
@@ -58,10 +57,8 @@ class _AddMembersScreenViewState extends State<AddMembersScreenView> {
   @override
   Widget build(BuildContext context) {
     final (contacts, selectedContacts) = context.select(
-      (AddMembersCubit cubit) => (
-        cubit.state.contacts,
-        cubit.state.selectedContacts,
-      ),
+      (AddMembersCubit cubit) =>
+          (cubit.state.contacts, cubit.state.selectedContacts),
     );
     final loc = AppLocalizations.of(context);
 
@@ -73,10 +70,9 @@ class _AddMembersScreenViewState extends State<AddMembersScreenView> {
         title: Text(loc.addMembersScreen_addMembers),
         actions: [
           AppBarButton(
-            onPressed:
-                selectedContacts.isNotEmpty
-                    ? () => _addSelectedContacts(context, selectedContacts)
-                    : null,
+            onPressed: selectedContacts.isNotEmpty
+                ? () => _addSelectedContacts(context, selectedContacts)
+                : null,
 
             child: Text(loc.addMembersScreen_done),
           ),
@@ -86,8 +82,9 @@ class _AddMembersScreenViewState extends State<AddMembersScreenView> {
         child: Align(
           alignment: Alignment.topCenter,
           child: Container(
-            constraints:
-                isPointer() ? const BoxConstraints(maxWidth: 800) : null,
+            constraints: isPointer()
+                ? const BoxConstraints(maxWidth: 800)
+                : null,
             child: Column(
               children: [
                 MemberSearchField(
@@ -100,10 +97,8 @@ class _AddMembersScreenViewState extends State<AddMembersScreenView> {
                     contacts: contacts,
                     selectedContacts: selectedContacts,
                     query: _query,
-                    onToggle:
-                        (contact) => context
-                            .read<AddMembersCubit>()
-                            .toggleContact(contact),
+                    onToggle: (contact) =>
+                        context.read<AddMembersCubit>().toggleContact(contact),
                   ),
                 ),
               ],

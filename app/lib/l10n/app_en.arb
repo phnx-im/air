@@ -34,6 +34,7 @@
   "chatDetailsScreen_unknownChat": "Unknown chat",
 
   "blockedChatFooter_message": "You won’t receive messages from {displayName} unless you unblock them.",
+  "inactiveChatFooter_message": "You're no longer a member of this chat.",
 
   "chatScreen_emptyChat": "Select a chat to start messaging",
 
@@ -76,6 +77,8 @@
   "usernameOnboarding_syntax": "Use letters, numbers, or dashes. Minimum 5 characters.",
   "usernameOnboarding_addButton": "Add",
   "usernameOnboarding_skip": "Skip",
+  "usernameOnboarding_userameInputName": "Username (optional)",
+  "usernameOnboarding_userameInputHint": "Add a username...",
   "signUpScreen_actionButton": "Create",
   "signUpScreen_displayNameInputName": "Display name (required)",
   "signUpScreen_displayNameInputHint": "Add a name...",
@@ -99,13 +102,22 @@
   "editDisplayNameScreen_cancel": "Cancel",
   "editDisplayNameScreen_save": "Save",
 
-  "systemMessage_userAddedUser_prefix": "",
+  "systemMessage_userAddedUser_prefix": "{user1}",
   "systemMessage_userAddedUser_infix": " added ",
-  "systemMessage_userAddedUser_suffix": "",
+  "systemMessage_userAddedUser_suffix": "{user2}",
 
-  "systemMessage_userRemovedUser_prefix": "",
+  "systemMessage_userRemovedUser_prefix": "{user1}",
   "systemMessage_userRemovedUser_infix": " removed ",
-  "systemMessage_userRemovedUser_suffix": "",
+  "systemMessage_userRemovedUser_suffix": "{user2}",
+
+  "systemMessage_userChangedTitle_prefix": "{user}",
+  "systemMessage_userChangedTitle_infix_1": " changed the group name from ",
+  "systemMessage_userChangedTitle_infix_2": "{old_name}",
+  "systemMessage_userChangedTitle_infix_3": " to ",
+  "systemMessage_userChangedTitle_suffix": "{new_name}",
+
+  "systemMessage_userChangedPicture_prefix": "{user}",
+  "systemMessage_userChangedPicture_infix": " changed the group picture",
 
   "timestamp_now": "Now",
   "timestamp_yesterday": "Yesterday",
@@ -146,6 +158,8 @@
       }
     }
   },
+
+  "attachment_tryAgain": "Try again",
 
   "textMessage_edited": "edited",
   "textMessage_hiddenPlaceholder": "Blocked user, tap to reveal message",

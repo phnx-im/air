@@ -40,13 +40,12 @@ class CreateGroupScreen extends StatelessWidget {
       flow = _CreateGroupFlow(chatListCubit: existingChatListCubit);
     } else {
       flow = BlocProvider(
-        create:
-            (context) => ChatListCubit(userCubit: context.read<UserCubit>()),
+        create: (context) =>
+            ChatListCubit(userCubit: context.read<UserCubit>()),
         child: Builder(
-          builder:
-              (innerContext) => _CreateGroupFlow(
-                chatListCubit: innerContext.read<ChatListCubit>(),
-              ),
+          builder: (innerContext) => _CreateGroupFlow(
+            chatListCubit: innerContext.read<ChatListCubit>(),
+          ),
         ),
       );
     }
@@ -121,10 +120,8 @@ class _MemberSelectionStepState extends State<_MemberSelectionStep> {
   @override
   Widget build(BuildContext context) {
     final (contacts, selectedContacts) = context.select(
-      (AddMembersCubit cubit) => (
-        cubit.state.contacts,
-        cubit.state.selectedContacts,
-      ),
+      (AddMembersCubit cubit) =>
+          (cubit.state.contacts, cubit.state.selectedContacts),
     );
     final loc = AppLocalizations.of(context);
 
@@ -156,8 +153,9 @@ class _MemberSelectionStepState extends State<_MemberSelectionStep> {
         child: Align(
           alignment: Alignment.topCenter,
           child: Container(
-            constraints:
-                isPointer() ? const BoxConstraints(maxWidth: 800) : null,
+            constraints: isPointer()
+                ? const BoxConstraints(maxWidth: 800)
+                : null,
             child: Column(
               children: [
                 MemberSearchField(
@@ -170,10 +168,8 @@ class _MemberSelectionStepState extends State<_MemberSelectionStep> {
                     contacts: contacts,
                     selectedContacts: selectedContacts,
                     query: _query,
-                    onToggle:
-                        (contact) => context
-                            .read<AddMembersCubit>()
-                            .toggleContact(contact),
+                    onToggle: (contact) =>
+                        context.read<AddMembersCubit>().toggleContact(contact),
                   ),
                 ),
               ],
@@ -256,23 +252,21 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
           title: loc.groupCreationDetails_title,
           leading: _CircularBackButton(onPressed: _handleBack),
           trailing: AppBarButton(
-            onPressed:
-                (_isGroupNameValid && !_isCreating)
-                    ? () => _createGroup(context)
-                    : null,
-            child:
-                _isCreating
-                    ? SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          colors.text.primary,
-                        ),
+            onPressed: (_isGroupNameValid && !_isCreating)
+                ? () => _createGroup(context)
+                : null,
+            child: _isCreating
+                ? SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        colors.text.primary,
                       ),
-                    )
-                    : Text(loc.groupCreationDetails_create),
+                    ),
+                  )
+                : Text(loc.groupCreationDetails_create),
           ),
         ),
       ),
@@ -288,8 +282,9 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
             child: Align(
               alignment: Alignment.topCenter,
               child: Container(
-                constraints:
-                    isPointer() ? const BoxConstraints(maxWidth: 800) : null,
+                constraints: isPointer()
+                    ? const BoxConstraints(maxWidth: 800)
+                    : null,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -310,17 +305,14 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
                         style: Theme.of(context).textTheme.displayLarge
                             ?.copyWith(fontWeight: FontWeight.bold),
                         decoration: InputDecoration(
-                          hintText:
-                              _nameFocusNode.hasFocus
-                                  ? loc
-                                      .groupCreationDetails_groupNameHintFocused
-                                  : loc.groupCreationDetails_groupNameHint,
-                          hintStyle: Theme.of(
-                            context,
-                          ).textTheme.displayLarge?.copyWith(
-                            color: colors.text.quaternary,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          hintText: _nameFocusNode.hasFocus
+                              ? loc.groupCreationDetails_groupNameHintFocused
+                              : loc.groupCreationDetails_groupNameHint,
+                          hintStyle: Theme.of(context).textTheme.displayLarge
+                              ?.copyWith(
+                                color: colors.text.quaternary,
+                                fontWeight: FontWeight.bold,
+                              ),
                           border: InputBorder.none,
                           fillColor: Colors.transparent,
                           contentPadding: EdgeInsets.zero,
@@ -348,11 +340,9 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyMedium,
                         decoration: InputDecoration(
-                          hintText:
-                              _isDescriptionFocused
-                                  ? loc
-                                      .groupCreationDetails_descriptionHintFocused
-                                  : loc.groupCreationDetails_descriptionHint,
+                          hintText: _isDescriptionFocused
+                              ? loc.groupCreationDetails_descriptionHintFocused
+                              : loc.groupCreationDetails_descriptionHint,
                           hintStyle: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(color: colors.text.tertiary),
                           border: InputBorder.none,
@@ -367,20 +357,17 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
                         alignment: WrapAlignment.start,
                         spacing: Spacings.s,
                         runSpacing: Spacings.s,
-                        children:
-                            selectedIds.map((userId) {
-                              final profile = usersState.profile(
-                                userId: userId,
-                              );
-                              final contact = contactsById[userId];
-                              if (contact == null) {
-                                return const SizedBox.shrink();
-                              }
-                              return _SelectedParticipant(
-                                profile: profile,
-                                onRemove: () => _removeContact(contact),
-                              );
-                            }).toList(),
+                        children: selectedIds.map((userId) {
+                          final profile = usersState.profile(userId: userId);
+                          final contact = contactsById[userId];
+                          if (contact == null) {
+                            return const SizedBox.shrink();
+                          }
+                          return _SelectedParticipant(
+                            profile: profile,
+                            onRemove: () => _removeContact(contact),
+                          );
+                        }).toList(),
                       )
                     else
                       Center(
@@ -469,26 +456,21 @@ class _GroupPicturePicker extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: colors.backgroundBase.quaternary,
-          image:
-              picture != null
-                  ? DecorationImage(
-                    image: MemoryImage(picture!),
-                    fit: BoxFit.cover,
-                  )
-                  : null,
+          image: picture != null
+              ? DecorationImage(image: MemoryImage(picture!), fit: BoxFit.cover)
+              : null,
         ),
-        child:
-            picture == null
-                ? Center(
-                  child: IconTheme(
-                    data: const IconThemeData(),
-                    child: iconoir.MediaImagePlus(
-                      width: 24,
-                      color: colors.text.primary,
-                    ),
+        child: picture == null
+            ? Center(
+                child: IconTheme(
+                  data: const IconThemeData(),
+                  child: iconoir.MediaImagePlus(
+                    width: 24,
+                    color: colors.text.primary,
                   ),
-                )
-                : null,
+                ),
+              )
+            : null,
       ),
     );
   }

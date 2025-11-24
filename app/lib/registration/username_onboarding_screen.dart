@@ -9,7 +9,6 @@ import 'package:air/registration/registration.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/desktop/width_constraints.dart';
-import 'package:air/ui/theme/font.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/user_handle_input_formatter.dart';
@@ -43,7 +42,9 @@ class UsernameOnboardingScreen extends HookWidget {
       if (!formKey.currentState!.validate()) {
         return;
       }
-      final normalized = UserHandleInputFormatter.normalize(controller.text);
+      final normalized = UserHandleInputFormatter.normalize(
+        controller.text.trim(),
+      );
       final handle = UiUserHandle(plaintext: normalized);
       final userCubit = context.read<UserCubit>();
       final navigationCubit = context.read<NavigationCubit>();
@@ -78,6 +79,7 @@ class UsernameOnboardingScreen extends HookWidget {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: backgroundColor,
+        actionsPadding: const EdgeInsets.symmetric(horizontal: Spacings.s),
         actions: [
           TextButton(
             onPressed: isSubmitting.value ? null : skip,
@@ -116,13 +118,11 @@ class UsernameOnboardingScreen extends HookWidget {
                                 focusNode: focusNode,
                                 handleExists: handleExists,
                                 formKey: formKey,
-                                onSubmitted: submit,
-                                validator:
-                                    (value) => _validateHandle(
-                                      loc,
-                                      handleExists.value,
-                                      value,
-                                    ),
+                                validator: (value) => _validateHandle(
+                                  loc,
+                                  handleExists.value,
+                                  value,
+                                ),
                               ),
                             ],
                           ),
@@ -175,25 +175,23 @@ class _AddButton extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: Spacings.m),
       width: isSmallScreen(context) ? double.infinity : null,
       child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          textStyle: customTextScheme.labelMedium,
-          backgroundColor: colors.accent.primary,
-          foregroundColor: colors.function.toggleWhite,
+        style: OutlinedButtonTheme.of(context).style!.copyWith(
+          backgroundColor: WidgetStateProperty.all(colors.accent.primary),
+          foregroundColor: WidgetStateProperty.all(colors.function.toggleWhite),
         ),
         onPressed: isSubmitting ? null : onPressed,
-        child:
-            isSubmitting
-                ? SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      colors.text.primary,
-                    ),
+        child: isSubmitting
+            ? SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    colors.text.primary,
                   ),
-                )
-                : Text(loc.usernameOnboarding_addButton),
+                ),
+              )
+            : Text(loc.usernameOnboarding_addButton),
       ),
     );
   }
@@ -205,7 +203,6 @@ class _UsernameTextField extends StatelessWidget {
     required this.focusNode,
     required this.handleExists,
     required this.formKey,
-    required this.onSubmitted,
     required this.validator,
   });
 
@@ -213,7 +210,6 @@ class _UsernameTextField extends StatelessWidget {
   final FocusNode focusNode;
   final ValueNotifier<bool> handleExists;
   final GlobalKey<FormState> formKey;
-  final VoidCallback onSubmitted;
   final FormFieldValidator<String>? validator;
 
   @override
@@ -224,11 +220,14 @@ class _UsernameTextField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: Spacings.xxs,
       children: [
-        Text(
-          loc.signUpScreen_displayNameInputName,
-          style: TextStyle(
-            fontSize: LabelFontSize.small2.size,
-            color: colors.text.quaternary,
+        Padding(
+          padding: const EdgeInsets.only(left: Spacings.xxs),
+          child: Text(
+            loc.usernameOnboarding_userameInputName,
+            style: TextStyle(
+              fontSize: LabelFontSize.small2.size,
+              color: colors.text.quaternary,
+            ),
           ),
         ),
         TextFormField(
@@ -237,7 +236,7 @@ class _UsernameTextField extends StatelessWidget {
           focusNode: focusNode,
           textInputAction: TextInputAction.done,
           decoration: InputDecoration(
-            hintText: loc.userHandleScreen_inputHint,
+            hintText: loc.usernameOnboarding_userameInputHint,
             fillColor: colors.backgroundBase.tertiary,
           ),
           // Temporary strict enforcement until legacy underscores are fully removed.
@@ -248,7 +247,6 @@ class _UsernameTextField extends StatelessWidget {
               formKey.currentState?.validate();
             }
           },
-          onFieldSubmitted: (_) => onSubmitted(),
           validator: validator,
         ),
         Text(
