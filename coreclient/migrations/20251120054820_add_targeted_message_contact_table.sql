@@ -11,6 +11,6 @@ CREATE TABLE targeted_message_contact (
     chat_id BLOB NOT NULL UNIQUE,
     friendship_package_ear_key BLOB NOT NULL,
     created_at TEXT NOT NULL,
-    PRIMARY KEY (user_id, user_domain),
+    PRIMARY KEY (user_uuid, user_domain),
     FOREIGN KEY (chat_id) REFERENCES chat (chat_id) ON DELETE CASCADE
 );
