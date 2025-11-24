@@ -199,9 +199,7 @@ class SystemMessageContent extends StatelessWidget {
         final userName = context.select(
           (UsersCubit c) => c.state.profile(userId: field0).displayName,
         );
-        final String text = loc.systemMessage_receivedConnectionConfirmation(
-          userName,
-        );
+        final text = loc.systemMessage_receivedConnectionConfirmation(userName);
         return RichText(
           text: TextSpan(
             style: textStyle,
@@ -217,8 +215,7 @@ class SystemMessageContent extends StatelessWidget {
           final userName = context.select(
             (UsersCubit c) => c.state.profile(userId: field0).displayName,
           );
-          final String text;
-          text = loc.systemMessage_receivedHandleConnectionRequest(
+          final text = loc.systemMessage_receivedHandleConnectionRequest(
             userName,
             field1.plaintext,
           );
@@ -237,8 +234,7 @@ class SystemMessageContent extends StatelessWidget {
           final userName = context.select(
             (UsersCubit c) => c.state.profile(userId: field0).displayName,
           );
-          final String text;
-          text = loc.systemMessage_receivedDirectConnectionRequest(
+          final text = loc.systemMessage_receivedDirectConnectionRequest(
             userName,
             field1,
           );
@@ -249,6 +245,18 @@ class SystemMessageContent extends StatelessWidget {
             ),
           );
         }(),
+      UiSystemMessage_NewDirectConnectionChat(:final field0) => () {
+        final userName = context.select(
+          (UsersCubit c) => c.state.profile(userId: field0).displayName,
+        );
+        final text = loc.systemMessage_newDirectConnectionChat(userName);
+        return RichText(
+          text: TextSpan(
+            style: textStyle,
+            children: [TextSpan(text: text, style: textStyle)],
+          ),
+        );
+      }(),
     };
 
     return Center(

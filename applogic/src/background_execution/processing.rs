@@ -107,7 +107,7 @@ pub(crate) fn init_tokio(path: String) -> NotificationBatch {
         })
         .and_then(|runtime| {
             panic::catch_unwind(AssertUnwindSafe(|| {
-                runtime.block_on(async { retrieve_messages(path).await })
+                runtime.block_on(async { Box::pin(retrieve_messages(path)).await })
             }))
             .map_err(|payload| {
                 if let Some(s) = payload.downcast_ref::<&str>() {
@@ -150,7 +150,7 @@ pub(crate) async fn retrieve_messages(path: String) -> NotificationBatch {
     // capture store notification in below store calls
     let pending_store_notifications = user.user.subscribe_iter();
 
-    let notifications = match user.fetch_and_process_all_messages_in_background().await {
+    let notifications = match Box::pin(user.fetch_and_process_all_messages_in_background()).await {
         Ok(processed_messages) => {
             info!("All messages fetched and processed");
             processed_messages.notifications_content

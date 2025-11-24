@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    crypto::ear::keys::WelcomeAttributionInfoEarKey,
+    crypto::ear::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
     identifiers::{Fqdn, UserHandle, UserId},
     messages::FriendshipToken,
 };
@@ -12,7 +12,12 @@ use sqlx::{SqliteExecutor, SqliteTransaction, query, query_as};
 use tokio_stream::StreamExt;
 use uuid::Uuid;
 
-use crate::{ChatId, Contact, clients::connection_offer::FriendshipPackage, store::StoreNotifier};
+use crate::{
+    ChatId, Contact,
+    clients::connection_offer::FriendshipPackage,
+    contacts::{ContactType, PartialContact, TargetedMessageContact},
+    store::StoreNotifier,
+};
 
 use super::HandleContact;
 
@@ -202,6 +207,171 @@ impl HandleContact {
         contact.upsert(txn.as_mut(), notifier).await?;
 
         Ok(contact)
+    }
+}
+
+struct Record {
+    user_id: Uuid,
+    user_domain: Fqdn,
+    chat_id: ChatId,
+    friendship_package_ear_key: FriendshipPackageEarKey,
+}
+
+impl From<Record> for TargetedMessageContact {
+    fn from(
+        Record {
+            user_id,
+            user_domain,
+            chat_id,
+            friendship_package_ear_key,
+        }: Record,
+    ) -> Self {
+        Self {
+            user_id: UserId::new(user_id, user_domain),
+            chat_id,
+            friendship_package_ear_key,
+        }
+    }
+}
+
+impl TargetedMessageContact {
+    pub(crate) async fn upsert(
+        &self,
+        executor: impl SqliteExecutor<'_>,
+        notifier: &mut StoreNotifier,
+    ) -> sqlx::Result<()> {
+        let created_at = Utc::now();
+        let uuid = self.user_id.uuid();
+        let domain = self.user_id.domain();
+        query!(
+            "INSERT OR REPLACE INTO targeted_message_contact (
+                user_uuid,
+                user_domain,
+                chat_id,
+                friendship_package_ear_key,
+                created_at
+            ) VALUES (?, ?,?, ?, ?)",
+            uuid,
+            domain,
+            self.chat_id,
+            self.friendship_package_ear_key,
+            created_at,
+        )
+        .execute(executor)
+        .await?;
+        notifier.update(self.chat_id);
+        Ok(())
+    }
+
+    pub(crate) async fn load(
+        executor: impl SqliteExecutor<'_>,
+        user_id: &UserId,
+    ) -> sqlx::Result<Option<Self>> {
+        let uuid = user_id.uuid();
+        let domain = user_id.domain();
+        query_as!(
+            Record,
+            r#"SELECT
+                user_uuid AS "user_id: _",
+                user_domain AS "user_domain: _",
+                chat_id AS "chat_id: _",
+                friendship_package_ear_key AS "friendship_package_ear_key: _"
+            FROM targeted_message_contact
+            WHERE user_uuid = ? AND user_domain = ?"#,
+            uuid,
+            domain,
+        )
+        .fetch_optional(executor)
+        .await
+        .map(|res| res.map(From::from))
+    }
+
+    pub(crate) async fn load_all(executor: impl SqliteExecutor<'_>) -> sqlx::Result<Vec<Self>> {
+        query_as!(
+            Record,
+            r#"SELECT
+                user_uuid AS "user_id: _",
+                user_domain AS "user_domain: _",
+                chat_id AS "chat_id: _",
+                friendship_package_ear_key AS "friendship_package_ear_key: _"
+            FROM targeted_message_contact"#,
+        )
+        .fetch_all(executor)
+        .await
+        .map(|records| records.into_iter().map(From::from).collect())
+    }
+
+    async fn delete(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+        let uuid = self.user_id.uuid();
+        let domain = self.user_id.domain();
+        query!(
+            "DELETE FROM targeted_message_contact WHERE user_uuid = ? AND user_domain = ?",
+            uuid,
+            domain
+        )
+        .execute(executor)
+        .await?;
+        Ok(())
+    }
+
+    /// Creates and persists a [`Contact`] from this [`HandleContact`] and the additional data
+    pub(crate) async fn mark_as_complete(
+        self,
+        txn: &mut SqliteTransaction<'_>,
+        notifier: &mut StoreNotifier,
+        friendship_package: FriendshipPackage,
+    ) -> anyhow::Result<Contact> {
+        self.delete(txn.as_mut()).await?;
+
+        let contact = Contact {
+            user_id: self.user_id,
+            chat_id: self.chat_id,
+            wai_ear_key: friendship_package.wai_ear_key,
+            friendship_token: friendship_package.friendship_token,
+        };
+
+        contact.upsert(txn.as_mut(), notifier).await?;
+
+        Ok(contact)
+    }
+}
+
+impl PartialContact {
+    pub(crate) async fn load(
+        executor: impl SqliteExecutor<'_>,
+        contact_type: &ContactType,
+    ) -> sqlx::Result<Option<Self>> {
+        match contact_type {
+            ContactType::Handle(handle) => Ok(HandleContact::load(executor, &handle)
+                .await?
+                .map(PartialContact::Handle)),
+            ContactType::TargetedMessage(user_id) => {
+                Ok(TargetedMessageContact::load(executor, &user_id)
+                    .await?
+                    .map(PartialContact::TargetedMessage))
+            }
+        }
+    }
+
+    pub(crate) async fn mark_as_complete(
+        self,
+        txn: &mut SqliteTransaction<'_>,
+        notifier: &mut StoreNotifier,
+        user_id: UserId,
+        friendship_package: FriendshipPackage,
+    ) -> anyhow::Result<Contact> {
+        match self {
+            PartialContact::Handle(handle_contact) => {
+                handle_contact
+                    .mark_as_complete(txn, notifier, user_id, friendship_package)
+                    .await
+            }
+            PartialContact::TargetedMessage(targeted_message_contact) => {
+                targeted_message_contact
+                    .mark_as_complete(txn, notifier, friendship_package)
+                    .await
+            }
+        }
     }
 }
 

@@ -9017,6 +9017,10 @@ impl SseDecode for crate::api::types::UiSystemMessage {
                 let mut var_field0 = <crate::api::types::UiUserHandle>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::NewHandleConnectionChat(var_field0);
             }
+            9 => {
+                let mut var_field0 = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::NewDirectConnectionChat(var_field0);
+            }
             _ => {
                 unimplemented!("");
             }
@@ -10803,6 +10807,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
             crate::api::types::UiSystemMessage::NewHandleConnectionChat(field0) => {
                 [8.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
+            crate::api::types::UiSystemMessage::NewDirectConnectionChat(field0) => {
+                [9.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
             _ => {
                 unimplemented!("");
             }
@@ -12537,6 +12544,10 @@ impl SseEncode for crate::api::types::UiSystemMessage {
             crate::api::types::UiSystemMessage::NewHandleConnectionChat(field0) => {
                 <i32>::sse_encode(8, serializer);
                 <crate::api::types::UiUserHandle>::sse_encode(field0, serializer);
+            }
+            crate::api::types::UiSystemMessage::NewDirectConnectionChat(field0) => {
+                <i32>::sse_encode(9, serializer);
+                <crate::api::types::UiUserId>::sse_encode(field0, serializer);
             }
             _ => {
                 unimplemented!("");

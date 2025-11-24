@@ -7974,6 +7974,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiSystemMessage_NewHandleConnectionChat(
           dco_decode_box_autoadd_ui_user_handle(raw[1]),
         );
+      case 9:
+        return UiSystemMessage_NewDirectConnectionChat(
+          dco_decode_box_autoadd_ui_user_id(raw[1]),
+        );
       default:
         throw Exception("unreachable");
     }
@@ -10354,6 +10358,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 8:
         var var_field0 = sse_decode_box_autoadd_ui_user_handle(deserializer);
         return UiSystemMessage_NewHandleConnectionChat(var_field0);
+      case 9:
+        var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
+        return UiSystemMessage_NewDirectConnectionChat(var_field0);
       default:
         throw UnimplementedError('');
     }
@@ -12895,6 +12902,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case UiSystemMessage_NewHandleConnectionChat(field0: final field0):
         sse_encode_i_32(8, serializer);
         sse_encode_box_autoadd_ui_user_handle(field0, serializer);
+      case UiSystemMessage_NewDirectConnectionChat(field0: final field0):
+        sse_encode_i_32(9, serializer);
+        sse_encode_box_autoadd_ui_user_id(field0, serializer);
     }
   }
 

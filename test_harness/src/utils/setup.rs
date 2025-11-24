@@ -1641,7 +1641,10 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                         )
                         .into()
                     },
-                }
+                    SystemMessage::NewDirectConnectionChat(user_id) => {
+                        format!("You requested a connection with {user_id:?}").into()
+                    },
+                                    }
             } else {
                 None
             }

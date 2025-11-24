@@ -2003,6 +2003,72 @@ $UiUserHandleCopyWith<$Res> get field0 {
 }
 
 /// @nodoc
+
+
+class UiSystemMessage_NewDirectConnectionChat extends UiSystemMessage {
+  const UiSystemMessage_NewDirectConnectionChat(this.field0): super._();
+  
+
+@override final  UiUserId field0;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiSystemMessage_NewDirectConnectionChatCopyWith<UiSystemMessage_NewDirectConnectionChat> get copyWith => _$UiSystemMessage_NewDirectConnectionChatCopyWithImpl<UiSystemMessage_NewDirectConnectionChat>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_NewDirectConnectionChat&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'UiSystemMessage.newDirectConnectionChat(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiSystemMessage_NewDirectConnectionChatCopyWith<$Res> implements $UiSystemMessageCopyWith<$Res> {
+  factory $UiSystemMessage_NewDirectConnectionChatCopyWith(UiSystemMessage_NewDirectConnectionChat value, $Res Function(UiSystemMessage_NewDirectConnectionChat) _then) = _$UiSystemMessage_NewDirectConnectionChatCopyWithImpl;
+@useResult
+$Res call({
+ UiUserId field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiSystemMessage_NewDirectConnectionChatCopyWithImpl<$Res>
+    implements $UiSystemMessage_NewDirectConnectionChatCopyWith<$Res> {
+  _$UiSystemMessage_NewDirectConnectionChatCopyWithImpl(this._self, this._then);
+
+  final UiSystemMessage_NewDirectConnectionChat _self;
+  final $Res Function(UiSystemMessage_NewDirectConnectionChat) _then;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(UiSystemMessage_NewDirectConnectionChat(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as UiUserId,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$UiUserHandle {
 
  String get plaintext;

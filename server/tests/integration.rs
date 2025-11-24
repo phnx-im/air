@@ -22,7 +22,7 @@ use aircommon::{
 };
 use aircoreclient::{
     Asset, AttachmentProgressEvent, BlockedContactError, ChatId, ChatMessage, DisplayName,
-    UserProfile,
+    EventMessage, Message, SystemMessage, UserProfile,
     clients::{
         CoreUser,
         process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
@@ -1784,6 +1784,136 @@ async fn update_group_data() {
             .clone();
         assert_eq!(actual_title, title);
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Connect users via targeted message", skip_all)]
+async fn connect_users_via_targeted_message() {
+    let mut setup = TestBackend::single().await;
+    setup.add_user(&ALICE).await;
+    setup.add_user(&BOB).await;
+    setup.add_user(&CHARLIE).await;
+
+    // Alice is connected to Bob and Charlie, but Bob and Charlie are not connected.
+    setup.connect_users(&ALICE, &BOB).await;
+    setup.connect_users(&ALICE, &CHARLIE).await;
+
+    // Alice creates a group and invites Bob and Charlie
+    let group_chat_id = setup.create_group(&ALICE).await;
+    setup
+        .invite_to_group(group_chat_id, &ALICE, vec![&BOB, &CHARLIE])
+        .await;
+
+    // Bob now connects to Charlie via a targeted message sent through the
+    // shared group.
+    let bob = setup.get_user(&BOB);
+    let bob_user = &bob.user;
+    let bob_chat_id = bob_user
+        .add_contact_from_group(group_chat_id, CHARLIE.clone())
+        .await
+        .unwrap();
+
+    // Bob should have the right system message in the chat
+    let chat_message = bob_user
+        .messages(bob_chat_id, 1)
+        .await
+        .unwrap()
+        .pop()
+        .unwrap();
+    let Message::Event(EventMessage::System(SystemMessage::NewDirectConnectionChat(user_id))) =
+        chat_message.message()
+    else {
+        panic!("Expected NewDirectConnectionChat system message");
+    };
+    assert!(
+        *user_id == *CHARLIE,
+        "System message should indicate connection to Charlie"
+    );
+
+    // Charlie picks up his messages
+    let charlie = setup.get_user_mut(&CHARLIE);
+    let charlie_user = &mut charlie.user;
+    let qs_messages = charlie_user.qs_fetch_messages().await.unwrap();
+    let mut result = charlie_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Charlie should process Bob's targeted message without errors"
+    );
+
+    // Due to auto-accept, Charlie should have two messages in the new chat.
+    let charlie_chat_id = result.new_connections.pop().unwrap();
+    let charlie_chat_title = charlie_user
+        .chat(&charlie_chat_id)
+        .await
+        .unwrap()
+        .attributes
+        .title
+        .clone();
+    let messages = charlie_user.messages(charlie_chat_id, 2).await.unwrap();
+    let Message::Event(EventMessage::System(SystemMessage::ReceivedDirectConnectionRequest(
+        user_id,
+        chat_title,
+    ))) = messages[0].message()
+    else {
+        panic!("Expected NewDirectConnectionChat system message");
+    };
+    assert!(
+        *user_id == *BOB,
+        "System message should indicate connection from Bob"
+    );
+    assert!(
+        *chat_title == charlie_chat_title,
+        "System message should have the correct chat title"
+    );
+    let Message::Event(EventMessage::System(SystemMessage::AcceptedConnectionRequest(
+        user_id,
+        None,
+    ))) = messages[1].message()
+    else {
+        panic!("Expected AcceptedConnectionRequest system message");
+    };
+    assert!(
+        *user_id == *BOB,
+        "System message should indicate acceptance of connection from Bob"
+    );
+
+    // Now Bob picks up his messages
+    let bob = setup.get_user_mut(&BOB);
+    let bob_user = &mut bob.user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Bob should process Charlie's response without errors"
+    );
+
+    // Bob should have a system message indicating that Charlie accepted the connection
+    let messages = bob_user.messages(bob_chat_id, 1).await.unwrap();
+    let Message::Event(EventMessage::System(SystemMessage::ReceivedConnectionConfirmation(
+        user_id,
+        None,
+    ))) = messages[0].message()
+    else {
+        panic!("Expected ReceivedConnectionConfirmation system message");
+    };
+    assert!(
+        *user_id == *CHARLIE,
+        "System message should indicate acceptance of connection from Charlie"
+    );
+
+    // Bob and Charlie should now be connected
+    let bob_contact = bob_user.contact(&CHARLIE).await;
+    assert!(
+        bob_contact.is_some(),
+        "Bob should have Charlie as a contact"
+    );
+    let charlie = setup.get_user_mut(&CHARLIE);
+    let charlie_user = &charlie.user;
+    let charlie_contact = charlie_user.contact(&BOB).await;
+    assert!(
+        charlie_contact.is_some(),
+        "Charlie should have Bob as a contact"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

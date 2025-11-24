@@ -385,6 +385,8 @@ sealed class UiSystemMessage with _$UiSystemMessage {
   ]) = UiSystemMessage_ReceivedConnectionConfirmation;
   const factory UiSystemMessage.newHandleConnectionChat(UiUserHandle field0) =
       UiSystemMessage_NewHandleConnectionChat;
+  const factory UiSystemMessage.newDirectConnectionChat(UiUserId field0) =
+      UiSystemMessage_NewDirectConnectionChat;
 }
 
 @freezed

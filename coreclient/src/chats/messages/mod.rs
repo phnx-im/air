@@ -286,7 +286,7 @@ impl Message {
                     }
                 };
                 let repr = match chat_type {
-                    ChatType::Group => {
+                    ChatType::TargetedMessageConnection(_) | ChatType::Group => {
                         let display_name = store
                             .user_profile(&content_message.sender)
                             .await
@@ -472,6 +472,8 @@ pub enum SystemMessage {
     ReceivedConnectionConfirmation(UserId, Option<UserHandle>),
     /// We requested a connection with another user through a user handle.
     NewHandleConnectionChat(UserHandle),
+    /// We requested a connection with another user through a group.
+    NewDirectConnectionChat(UserId),
 }
 
 impl SystemMessage {
@@ -528,6 +530,10 @@ impl SystemMessage {
                 format!(
                     "{display_name} sent you a contact request through the group chat {chat_name}."
                 )
+            }
+            SystemMessage::NewDirectConnectionChat(user_id) => {
+                let display_name = store.user_profile(user_id).await.display_name;
+                format!("You requested a connection with {display_name}")
             }
         }
     }

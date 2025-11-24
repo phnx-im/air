@@ -182,6 +182,8 @@ impl UiChatType {
                 Self::Connection(profile)
             }
             ChatType::Group => Self::Group,
+            // TODO: UI implementation for targeted message connections
+            ChatType::TargetedMessageConnection(_) => unreachable!(),
         }
     }
 }
@@ -347,6 +349,7 @@ pub enum UiSystemMessage {
     AcceptedConnectionRequest(UiUserId, Option<UiUserHandle>),
     ReceivedConnectionConfirmation(UiUserId, Option<UiUserHandle>),
     NewHandleConnectionChat(UiUserHandle),
+    NewDirectConnectionChat(UiUserId),
 }
 
 impl From<SystemMessage> for UiSystemMessage {
@@ -384,6 +387,9 @@ impl From<SystemMessage> for UiSystemMessage {
             }
             SystemMessage::ReceivedDirectConnectionRequest(user_id, chat_name) => {
                 UiSystemMessage::ReceivedDirectConnectionRequest(user_id.into(), chat_name)
+            }
+            SystemMessage::NewDirectConnectionChat(user_id) => {
+                UiSystemMessage::NewDirectConnectionChat(user_id.into())
             }
         }
     }
