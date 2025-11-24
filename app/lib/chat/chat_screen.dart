@@ -45,7 +45,6 @@ class ChatScreen extends StatelessWidget {
             chatId: chatId,
             chatsRepository: context.read<ChatsRepository>(),
             attachmentsRepository: context.read<AttachmentsRepository>(),
-            withMembers: false,
           ),
         ),
         BlocProvider(
@@ -89,19 +88,61 @@ class ChatScreenView extends StatelessWidget {
     final chatId = context.select(
       (NavigationCubit cubit) => cubit.state.chatId,
     );
+    final ownUserId = context.select((UserCubit cubit) => cubit.state.userId);
     if (chatId == null) {
       return const _EmptyChatPane();
     }
 
-    final (blockedUserId, blockedUserDisplayName) = context.select((
-      ChatDetailsCubit cubit,
-    ) {
+    final (
+      :status,
+      :blockedUserId,
+      :blockedUserDisplayName,
+      :members,
+      :isGroupChat,
+    ) = context.select((ChatDetailsCubit cubit) {
       final chat = cubit.state.chat;
-      return switch (chat?.status) {
-        UiChatStatus_Blocked() => (chat?.userId, chat?.displayName),
-        _ => (null, null),
-      };
+      final status = chat?.status;
+      return (
+        status: status,
+        blockedUserId: switch (status) {
+          UiChatStatus_Blocked() => chat?.userId,
+          _ => null,
+        },
+        blockedUserDisplayName: switch (status) {
+          UiChatStatus_Blocked() => chat?.displayName,
+          _ => null,
+        },
+        members: cubit.state.members,
+        isGroupChat: switch (chat?.chatType) {
+          UiChatType_Group() => true,
+          _ => false,
+        },
+      );
     });
+
+    final bool isCurrentUserMember =
+        members.isEmpty || members.contains(ownUserId);
+
+    final bool showInactiveFooter =
+        switch (status) {
+          UiChatStatus_Inactive() => true,
+          _ => false,
+        } ||
+        (isGroupChat && !isCurrentUserMember);
+
+    final bool showBlockedFooter =
+        blockedUserId != null && blockedUserDisplayName != null;
+
+    Widget footer = const MessageComposer();
+    if (showInactiveFooter) {
+      footer = const _InactiveChatFooter();
+    } else if (showBlockedFooter) {
+      footer = _BlockedChatFooter(
+        chatId: chatId,
+        userId: blockedUserId,
+        displayName: blockedUserDisplayName,
+      );
+    }
 
     return Scaffold(
       body: Container(
@@ -114,13 +155,7 @@ class ChatScreenView extends StatelessWidget {
             Expanded(
               child: MessageListView(createMessageCubit: createMessageCubit),
             ),
-            blockedUserId == null || blockedUserDisplayName == null
-                ? const MessageComposer()
-                : _BlockedChatFooter(
-                    chatId: chatId,
-                    userId: blockedUserId,
-                    displayName: blockedUserDisplayName,
-                  ),
+            footer,
           ],
         ),
       ),
@@ -299,6 +334,26 @@ class _BlockedChatFooter extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _InactiveChatFooter extends StatelessWidget {
+  const _InactiveChatFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(Spacings.s),
+      child: Text(
+        loc.inactiveChatFooter_message,
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: CustomColorScheme.of(context).text.tertiary,
+        ),
       ),
     );
   }

@@ -14,6 +14,7 @@ class CustomColorScheme {
   final FillColors fill;
   final FunctionColors function;
   final MessageColors message;
+  final AccentColors accent;
 
   CustomColorScheme({
     required this.backgroundBase,
@@ -23,6 +24,7 @@ class CustomColorScheme {
     required this.fill,
     required this.function,
     required this.message,
+    required this.accent,
   });
 
   static CustomColorScheme of(BuildContext context) {
@@ -64,7 +66,7 @@ final CustomColorScheme lightCustomColorScheme = CustomColorScheme(
     white: AppColors.neutral[0]!,
     black: AppColors.neutral[1000]!,
     toggleWhite: AppColors.neutral[0]!,
-    toggleBlack: AppColors.neutral[100]!,
+    toggleBlack: AppColors.neutral[1000]!,
     success: AppColors.green[400]!,
     warning: AppColors.yellow[400]!,
     danger: AppColors.red[400]!,
@@ -92,6 +94,12 @@ final CustomColorScheme lightCustomColorScheme = CustomColorScheme(
     otherCheckboxCheck: AppColors.neutral[1000]!,
     selfEditedLabel: AppColors.neutral[400]!,
     otherEditedLabel: AppColors.neutral[600]!,
+  ),
+  accent: AccentColors(
+    primary: AppColors.neutral[1000]!,
+    secondary: AppColors.neutral[700]!,
+    tertiary: AppColors.neutral[400]!,
+    quaternary: AppColors.neutral[100]!,
   ),
 );
 
@@ -126,8 +134,8 @@ final CustomColorScheme darkCustomColorScheme = CustomColorScheme(
   function: FunctionColors(
     white: AppColors.neutral[0]!,
     black: AppColors.neutral[1000]!,
-    toggleWhite: AppColors.neutral[0]!,
-    toggleBlack: AppColors.neutral[1000]!,
+    toggleWhite: AppColors.neutral[1000]!,
+    toggleBlack: AppColors.neutral[0]!,
     success: AppColors.green[500]!,
     warning: AppColors.yellow[500]!,
     danger: AppColors.red[500]!,
@@ -155,6 +163,12 @@ final CustomColorScheme darkCustomColorScheme = CustomColorScheme(
     otherCheckboxCheck: AppColors.neutral[0]!,
     selfEditedLabel: AppColors.neutral[600]!,
     otherEditedLabel: AppColors.neutral[400]!,
+  ),
+  accent: AccentColors(
+    primary: AppColors.neutral[0]!,
+    secondary: AppColors.neutral[300]!,
+    tertiary: AppColors.neutral[600]!,
+    quaternary: AppColors.neutral[900]!,
   ),
 );
 

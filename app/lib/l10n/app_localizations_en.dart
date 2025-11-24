@@ -79,6 +79,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get inactiveChatFooter_message =>
+      'You\'re no longer a member of this chat.';
+
+  @override
   String get chatScreen_emptyChat => 'Select a chat to start messaging';
 
   @override
@@ -166,10 +170,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get signUpScreen_subheader =>
-      'Your profile is visible to people you connect with and members of groups you’re in.';
-
-  @override
-  String get usernameOnboarding_title => 'Welcome to Air';
+      'Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.';
 
   @override
   String get usernameOnboarding_header => 'Add a username';
@@ -189,10 +190,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get usernameOnboarding_skip => 'Skip';
 
   @override
-  String get signUpScreen_actionButton => 'Sign up';
+  String get usernameOnboarding_userameInputName => 'Username (optional)';
 
   @override
-  String get signUpScreen_displayNameHint => 'Display name (required)';
+  String get usernameOnboarding_userameInputHint => 'Add a username...';
+
+  @override
+  String get signUpScreen_actionButton => 'Create';
+
+  @override
+  String get signUpScreen_displayNameInputName => 'Display name (required)';
+
+  @override
+  String get signUpScreen_displayNameInputHint => 'Add a name...';
 
   @override
   String get signUpScreen_serverLabel =>
