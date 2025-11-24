@@ -460,11 +460,12 @@ pub enum SystemMessage {
         new_title: String,
     },
     ChangePicture(UserId),
-    /// We received a connection request from another user. The optional UserHandle is
-    /// the handle through which the connection was made, if any.
-    ReceivedConnectionRequest(UserId, Option<UserHandle>),
-    /// We accepted a connection request from another user. The optional UserHandle is
-    /// the handle through which the connection was made, if any.
+    /// We received a connection request from another user. The String is the
+    /// name of the chat through which the request was made.
+    ReceivedDirectConnectionRequest(UserId, String),
+    ReceivedHandleConnectionRequest(UserId, UserHandle),
+    /// We accepted a connection request from another user. The UserHandle is
+    /// the handle through which the connection was made.
     AcceptedConnectionRequest(UserId, Option<UserHandle>),
     /// We received a confirmation for a connection request we sent to another user. The optional
     /// UserHandle is the handle through which the connection was made, if any.
@@ -515,15 +516,18 @@ impl SystemMessage {
                     base_str
                 }
             }
-            SystemMessage::ReceivedConnectionRequest(user_id, user_handle) => {
-                let user_display_name = store.user_profile(user_id).await.display_name;
-                let base_str = format!("{user_display_name} requested to connect with you");
-                if let Some(handle) = user_handle {
-                    let handle_str = handle.plaintext();
-                    format!("{base_str} through handle {handle_str}")
-                } else {
-                    base_str
-                }
+            SystemMessage::ReceivedHandleConnectionRequest(user_id, user_handle) => {
+                let display_name = store.user_profile(user_id).await.display_name;
+                let username = user_handle.plaintext();
+                format!(
+                    "{display_name} sent you a contact request through your username {username}."
+                )
+            }
+            SystemMessage::ReceivedDirectConnectionRequest(user_id, chat_name) => {
+                let display_name = store.user_profile(user_id).await.display_name;
+                format!(
+                    "{display_name} sent you a contact request through the group chat {chat_name}."
+                )
             }
         }
     }

@@ -425,7 +425,7 @@ impl TestBackend {
         };
         assert!(matches!(
             system_message,
-            SystemMessage::ReceivedConnectionRequest(user, Some(handle))
+            SystemMessage::ReceivedHandleConnectionRequest(user, handle)
             if user == user1_id && handle == user2_handle
         ));
 
@@ -1629,16 +1629,18 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                             Some(base_str)
                         }
                     }
-                    SystemMessage::ReceivedConnectionRequest(user_id, user_handle) => {
-                        let base_str =
-                            format!("You received a connection request from user {user_id:?}");
-                        if let Some(user_handle) = user_handle {
-                            let user_handle_str = user_handle.plaintext();
-                            Some(format!("{base_str} through handle {user_handle_str}"))
-                        } else {
-                            Some(base_str)
-                        }
+                    SystemMessage::ReceivedHandleConnectionRequest(user_id, user_handle) => {
+                        let user_handle_str = user_handle.plaintext();
+                        Some(format!(
+                            "User {user_id:?} requested a connection to your handle {user_handle_str}"
+                        ))
                     }
+                    SystemMessage::ReceivedDirectConnectionRequest(user_id, chat_name) => {
+                        format!(
+                            "User {user_id:?} requested a direct connection to your contact through the chat {chat_name}"
+                        )
+                        .into()
+                    },
                 }
             } else {
                 None

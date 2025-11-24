@@ -586,38 +586,56 @@ abstract class AppLocalizations {
   /// **'{new_name}'**
   String systemMessage_userChangedTitle_suffix(Object new_name);
 
-  /// No description provided for @systemMessage_acceptedConnectionRequest.
+  /// No description provided for @systemMessage_acceptedHandleConnectionRequest.
   ///
   /// In en, this message translates to:
-  /// **'You accepted the request'**
-  String get systemMessage_acceptedConnectionRequest;
+  /// **'You accepted {displayName}\'s contact request made through your username {username}.'**
+  String systemMessage_acceptedHandleConnectionRequest(
+    Object displayName,
+    Object username,
+  );
+
+  /// No description provided for @systemMessage_acceptedDirectConnectionRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'You accepted {displayName}\'s contact request made through a mutual group chat.'**
+  String systemMessage_acceptedDirectConnectionRequest(Object displayName);
 
   /// No description provided for @systemMessage_receivedConnectionConfirmation.
   ///
   /// In en, this message translates to:
-  /// **'User {userid} has accepted your request'**
-  String systemMessage_receivedConnectionConfirmation(Object userid);
+  /// **'{displayName} accepted your contact request.'**
+  String systemMessage_receivedConnectionConfirmation(Object displayName);
 
   /// No description provided for @systemMessage_newHandleConnectionChat.
   ///
   /// In en, this message translates to:
-  /// **'You requested a connection with {handle}'**
-  String systemMessage_newHandleConnectionChat(Object handle);
+  /// **'You sent a contact request to username {username}. They might not be immediately notified about your request.'**
+  String systemMessage_newHandleConnectionChat(Object username);
+
+  /// No description provided for @systemMessage_newDirectConnectionChat.
+  ///
+  /// In en, this message translates to:
+  /// **'You sent a contact request to {displayName}. They might not be immediately notified about your request.'**
+  String systemMessage_newDirectConnectionChat(Object displayName);
 
   /// No description provided for @systemMessage_receivedHandleConnectionRequest.
   ///
   /// In en, this message translates to:
-  /// **'You received a connection request from {user} through your handle {handle}'**
+  /// **'{displayName} sent you a contact request through your username {username}.'**
   String systemMessage_receivedHandleConnectionRequest(
-    Object handle,
-    Object user,
+    Object displayName,
+    Object username,
   );
 
   /// No description provided for @systemMessage_receivedDirectConnectionRequest.
   ///
   /// In en, this message translates to:
-  /// **'You received a connection request from {user}'**
-  String systemMessage_receivedDirectConnectionRequest(Object user);
+  /// **'{displayName} sent you a contact request through the group chat {groupName}.'**
+  String systemMessage_receivedDirectConnectionRequest(
+    Object displayName,
+    Object groupName,
+  );
 
   /// No description provided for @systemMessage_userChangedPicture_prefix.
   ///

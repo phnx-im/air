@@ -149,7 +149,7 @@ impl CoreUser {
         let now = Utc::now();
         let a_moment_later = now + Duration::milliseconds(1);
         let system_message =
-            SystemMessage::ReceivedConnectionRequest(contact.user_id.clone(), Some(handle.clone()));
+            SystemMessage::ReceivedHandleConnectionRequest(contact.user_id.clone(), handle.clone());
         let received_message = TimestampedMessage::system_message(system_message, now.into());
         let system_message =
             SystemMessage::AcceptedConnectionRequest(contact.user_id.clone(), Some(handle));

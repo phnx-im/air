@@ -342,7 +342,8 @@ pub enum UiSystemMessage {
     Remove(UiUserId, UiUserId),
     ChangeTitle(UiUserId, String, String),
     ChangePicture(UiUserId),
-    ReceivedConnectionRequest(UiUserId, Option<UiUserHandle>),
+    ReceivedHandleConnectionRequest(UiUserId, UiUserHandle),
+    ReceivedDirectConnectionRequest(UiUserId, String),
     AcceptedConnectionRequest(UiUserId, Option<UiUserHandle>),
     ReceivedConnectionConfirmation(UiUserId, Option<UiUserHandle>),
     NewHandleConnectionChat(UiUserHandle),
@@ -378,11 +379,11 @@ impl From<SystemMessage> for UiSystemMessage {
                     user_handle.map(Into::into),
                 )
             }
-            SystemMessage::ReceivedConnectionRequest(user_id, user_handle) => {
-                UiSystemMessage::ReceivedConnectionRequest(
-                    user_id.into(),
-                    user_handle.map(Into::into),
-                )
+            SystemMessage::ReceivedHandleConnectionRequest(user_id, user_handle) => {
+                UiSystemMessage::ReceivedHandleConnectionRequest(user_id.into(), user_handle.into())
+            }
+            SystemMessage::ReceivedDirectConnectionRequest(user_id, chat_name) => {
+                UiSystemMessage::ReceivedDirectConnectionRequest(user_id.into(), chat_name)
             }
         }
     }

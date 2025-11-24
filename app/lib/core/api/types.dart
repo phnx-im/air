@@ -367,10 +367,14 @@ sealed class UiSystemMessage with _$UiSystemMessage {
   ) = UiSystemMessage_ChangeTitle;
   const factory UiSystemMessage.changePicture(UiUserId field0) =
       UiSystemMessage_ChangePicture;
-  const factory UiSystemMessage.receivedConnectionRequest(
-    UiUserId field0, [
-    UiUserHandle? field1,
-  ]) = UiSystemMessage_ReceivedConnectionRequest;
+  const factory UiSystemMessage.receivedHandleConnectionRequest(
+    UiUserId field0,
+    UiUserHandle field1,
+  ) = UiSystemMessage_ReceivedHandleConnectionRequest;
+  const factory UiSystemMessage.receivedDirectConnectionRequest(
+    UiUserId field0,
+    String field1,
+  ) = UiSystemMessage_ReceivedDirectConnectionRequest;
   const factory UiSystemMessage.acceptedConnectionRequest(
     UiUserId field0, [
     UiUserHandle? field1,

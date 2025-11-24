@@ -94,6 +94,15 @@
   "systemMessage_userRemovedUser_infix": " a retiré ",
   "systemMessage_userRemovedUser_suffix": "{user2}",
 
+  "systemMessage_acceptedHandleConnectionRequest": "Vous avez accepté la demande de contact de {displayName}, envoyée via votre nom d’utilisateur {username}.",
+  "systemMessage_acceptedDirectConnectionRequest": "Vous avez accepté la demande de contact de {displayName}, envoyée via un salon de discussion commun.",
+  "systemMessage_receivedConnectionConfirmation": "{displayName} a accepté votre demande de contact.",
+  "systemMessage_newHandleConnectionChat": "Vous avez envoyé une demande de contact au nom d’utilisateur {username}. Il se peut qu’ils ne soient pas immédiatement notifiés de votre demande.",
+  "systemMessage_newDirectConnectionChat": "Vous avez envoyé une demande de contact à {displayName}. Il se peut qu’ils ne soient pas immédiatement notifiés de votre demande.",
+  "systemMessage_receivedHandleConnectionRequest": "{displayName} vous a envoyé une demande de contact via votre nom d’utilisateur {username}.",
+  "systemMessage_receivedDirectConnectionRequest": "{displayName} vous a envoyé une demande de contact via le salon de discussion {groupName}.",
+
+
   "timestamp_now": "Maintenant",
   "timestamp_yesterday": "Hier",
 

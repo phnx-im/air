@@ -7951,21 +7951,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           dco_decode_box_autoadd_ui_user_id(raw[1]),
         );
       case 4:
-        return UiSystemMessage_ReceivedConnectionRequest(
+        return UiSystemMessage_ReceivedHandleConnectionRequest(
           dco_decode_box_autoadd_ui_user_id(raw[1]),
-          dco_decode_opt_box_autoadd_ui_user_handle(raw[2]),
+          dco_decode_box_autoadd_ui_user_handle(raw[2]),
         );
       case 5:
+        return UiSystemMessage_ReceivedDirectConnectionRequest(
+          dco_decode_box_autoadd_ui_user_id(raw[1]),
+          dco_decode_String(raw[2]),
+        );
+      case 6:
         return UiSystemMessage_AcceptedConnectionRequest(
           dco_decode_box_autoadd_ui_user_id(raw[1]),
           dco_decode_opt_box_autoadd_ui_user_handle(raw[2]),
         );
-      case 6:
+      case 7:
         return UiSystemMessage_ReceivedConnectionConfirmation(
           dco_decode_box_autoadd_ui_user_id(raw[1]),
           dco_decode_opt_box_autoadd_ui_user_handle(raw[2]),
         );
-      case 7:
+      case 8:
         return UiSystemMessage_NewHandleConnectionChat(
           dco_decode_box_autoadd_ui_user_handle(raw[1]),
         );
@@ -10316,19 +10321,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiSystemMessage_ChangePicture(var_field0);
       case 4:
         var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
-        var var_field1 = sse_decode_opt_box_autoadd_ui_user_handle(
-          deserializer,
-        );
-        return UiSystemMessage_ReceivedConnectionRequest(
+        var var_field1 = sse_decode_box_autoadd_ui_user_handle(deserializer);
+        return UiSystemMessage_ReceivedHandleConnectionRequest(
           var_field0,
           var_field1,
         );
       case 5:
         var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
-        var var_field1 = sse_decode_opt_box_autoadd_ui_user_handle(
-          deserializer,
-        );
-        return UiSystemMessage_AcceptedConnectionRequest(
+        var var_field1 = sse_decode_String(deserializer);
+        return UiSystemMessage_ReceivedDirectConnectionRequest(
           var_field0,
           var_field1,
         );
@@ -10337,11 +10338,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_field1 = sse_decode_opt_box_autoadd_ui_user_handle(
           deserializer,
         );
-        return UiSystemMessage_ReceivedConnectionConfirmation(
+        return UiSystemMessage_AcceptedConnectionRequest(
           var_field0,
           var_field1,
         );
       case 7:
+        var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
+        var var_field1 = sse_decode_opt_box_autoadd_ui_user_handle(
+          deserializer,
+        );
+        return UiSystemMessage_ReceivedConnectionConfirmation(
+          var_field0,
+          var_field1,
+        );
+      case 8:
         var var_field0 = sse_decode_box_autoadd_ui_user_handle(deserializer);
         return UiSystemMessage_NewHandleConnectionChat(var_field0);
       default:
@@ -12854,29 +12864,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case UiSystemMessage_ChangePicture(field0: final field0):
         sse_encode_i_32(3, serializer);
         sse_encode_box_autoadd_ui_user_id(field0, serializer);
-      case UiSystemMessage_ReceivedConnectionRequest(
+      case UiSystemMessage_ReceivedHandleConnectionRequest(
         field0: final field0,
         field1: final field1,
       ):
         sse_encode_i_32(4, serializer);
         sse_encode_box_autoadd_ui_user_id(field0, serializer);
-        sse_encode_opt_box_autoadd_ui_user_handle(field1, serializer);
-      case UiSystemMessage_AcceptedConnectionRequest(
+        sse_encode_box_autoadd_ui_user_handle(field1, serializer);
+      case UiSystemMessage_ReceivedDirectConnectionRequest(
         field0: final field0,
         field1: final field1,
       ):
         sse_encode_i_32(5, serializer);
         sse_encode_box_autoadd_ui_user_id(field0, serializer);
-        sse_encode_opt_box_autoadd_ui_user_handle(field1, serializer);
-      case UiSystemMessage_ReceivedConnectionConfirmation(
+        sse_encode_String(field1, serializer);
+      case UiSystemMessage_AcceptedConnectionRequest(
         field0: final field0,
         field1: final field1,
       ):
         sse_encode_i_32(6, serializer);
         sse_encode_box_autoadd_ui_user_id(field0, serializer);
         sse_encode_opt_box_autoadd_ui_user_handle(field1, serializer);
-      case UiSystemMessage_NewHandleConnectionChat(field0: final field0):
+      case UiSystemMessage_ReceivedConnectionConfirmation(
+        field0: final field0,
+        field1: final field1,
+      ):
         sse_encode_i_32(7, serializer);
+        sse_encode_box_autoadd_ui_user_id(field0, serializer);
+        sse_encode_opt_box_autoadd_ui_user_handle(field1, serializer);
+      case UiSystemMessage_NewHandleConnectionChat(field0: final field0):
+        sse_encode_i_32(8, serializer);
         sse_encode_box_autoadd_ui_user_handle(field0, serializer);
     }
   }

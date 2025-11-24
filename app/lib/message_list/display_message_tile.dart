@@ -174,15 +174,27 @@ class SystemMessageContent extends StatelessWidget {
           ),
         );
       }(),
-      UiSystemMessage_AcceptedConnectionRequest() => () {
-        final text = loc.systemMessage_acceptedConnectionRequest;
-        return RichText(
-          text: TextSpan(
-            style: textStyle,
-            children: [TextSpan(text: text, style: textStyle)],
-          ),
-        );
-      }(),
+      UiSystemMessage_AcceptedConnectionRequest(:final field0, :final field1) =>
+        () {
+          final userName = context.select(
+            (UsersCubit c) => c.state.profile(userId: field0).displayName,
+          );
+          final String text;
+          if (field1 case final handle?) {
+            text = loc.systemMessage_acceptedHandleConnectionRequest(
+              userName,
+              handle.plaintext,
+            );
+          } else {
+            text = loc.systemMessage_acceptedDirectConnectionRequest(userName);
+          }
+          return RichText(
+            text: TextSpan(
+              style: textStyle,
+              children: [TextSpan(text: text, style: textStyle)],
+            ),
+          );
+        }(),
       UiSystemMessage_ReceivedConnectionConfirmation(:final field0) => () {
         final userName = context.select(
           (UsersCubit c) => c.state.profile(userId: field0).displayName,
@@ -197,20 +209,39 @@ class SystemMessageContent extends StatelessWidget {
           ),
         );
       }(),
-      UiSystemMessage_ReceivedConnectionRequest(:final field0, :final field1) =>
+      UiSystemMessage_ReceivedHandleConnectionRequest(
+        :final field0,
+        :final field1,
+      ) =>
         () {
           final userName = context.select(
             (UsersCubit c) => c.state.profile(userId: field0).displayName,
           );
           final String text;
-          if (field1 case final handle?) {
-            text = loc.systemMessage_receivedHandleConnectionRequest(
-              userName,
-              handle.plaintext,
-            );
-          } else {
-            text = loc.systemMessage_receivedDirectConnectionRequest(userName);
-          }
+          text = loc.systemMessage_receivedHandleConnectionRequest(
+            userName,
+            field1.plaintext,
+          );
+          return RichText(
+            text: TextSpan(
+              style: textStyle,
+              children: [TextSpan(text: text, style: textStyle)],
+            ),
+          );
+        }(),
+      UiSystemMessage_ReceivedDirectConnectionRequest(
+        :final field0,
+        :final field1,
+      ) =>
+        () {
+          final userName = context.select(
+            (UsersCubit c) => c.state.profile(userId: field0).displayName,
+          );
+          final String text;
+          text = loc.systemMessage_receivedDirectConnectionRequest(
+            userName,
+            field1,
+          );
           return RichText(
             text: TextSpan(
               style: textStyle,

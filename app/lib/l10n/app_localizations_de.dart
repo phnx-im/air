@@ -304,30 +304,47 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get systemMessage_acceptedConnectionRequest =>
-      'You accepted the request';
-
-  @override
-  String systemMessage_receivedConnectionConfirmation(Object userid) {
-    return 'User $userid has accepted your request';
+  String systemMessage_acceptedHandleConnectionRequest(
+    Object displayName,
+    Object username,
+  ) {
+    return 'You accepted $displayName\'s contact request made through your username $username.';
   }
 
   @override
-  String systemMessage_newHandleConnectionChat(Object handle) {
-    return 'You requested a connection with $handle';
+  String systemMessage_acceptedDirectConnectionRequest(Object displayName) {
+    return 'You accepted $displayName\'s contact request made through a mutual group chat.';
+  }
+
+  @override
+  String systemMessage_receivedConnectionConfirmation(Object displayName) {
+    return '$displayName accepted your contact request.';
+  }
+
+  @override
+  String systemMessage_newHandleConnectionChat(Object username) {
+    return 'You sent a contact request to username $username. They might not be immediately notified about your request.';
+  }
+
+  @override
+  String systemMessage_newDirectConnectionChat(Object displayName) {
+    return 'You sent a contact request to $displayName. They might not be immediately notified about your request.';
   }
 
   @override
   String systemMessage_receivedHandleConnectionRequest(
-    Object handle,
-    Object user,
+    Object displayName,
+    Object username,
   ) {
-    return 'You received a connection request from $user through your handle $handle';
+    return '$displayName sent you a contact request through your username $username.';
   }
 
   @override
-  String systemMessage_receivedDirectConnectionRequest(Object user) {
-    return 'You received a connection request from $user';
+  String systemMessage_receivedDirectConnectionRequest(
+    Object displayName,
+    Object groupName,
+  ) {
+    return '$displayName sent you a contact request through the group chat $groupName.';
   }
 
   @override
