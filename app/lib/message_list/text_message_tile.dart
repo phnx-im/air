@@ -402,10 +402,6 @@ class _MessageContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final bool isDeleted = content.replaces != null && content.content == null;
-    final bool hasImageAttachment = content.attachments.any(
-      (attachment) => attachment.imageMetadata != null,
-    );
-
     final List<Widget> columnChildren = [];
 
     if (isHidden) {
@@ -493,9 +489,7 @@ class _MessageContent extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: _messageBorderRadius(isSender, flightPosition),
-            color: hasImageAttachment
-                ? Colors.transparent
-                : isSender
+            color: isSender
                 ? CustomColorScheme.of(context).message.selfBackground
                 : CustomColorScheme.of(context).message.otherBackground,
           ),
