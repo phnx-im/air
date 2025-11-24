@@ -13,6 +13,11 @@ pub(crate) struct UserHandleRecord {
 }
 
 impl UserHandleRecord {
+    pub(crate) async fn check_exists(pool: &PgPool, hash: &UserHandleHash) -> sqlx::Result<bool> {
+        Self::load_expiration_data(pool, hash)
+            .await
+            .map(|opt| opt.is_some())
+    }
     /// Upserts a user handle record in the database.
     ///
     /// Upsert is only done when the record is expired.
