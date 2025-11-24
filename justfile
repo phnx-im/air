@@ -2,9 +2,12 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+set windows-shell := ["C:\\Program Files\\Git\\bin\\sh.exe","-c"]
+
 export RUST_LOG := "info"
 export RUST_BACKTRACE := "1"
 export RUSTFLAGS := "-D warnings"
+
 
 _default:
     just --list
@@ -22,7 +25,10 @@ reset-dev:
     just _check-status "cargo fmt -- --check"
     just _check-status "cargo deny check"
     just _check-unstaged-changes "git diff"
+
+    # It's fine if this fails on CI, but this is useful for devs
     just _check-unstaged-changes "just regenerate-sqlx || echo 'Database not configured?'"
+
     echo "{{BOLD}}check-rust done{{NORMAL}}"
 
 # Run fast and simple Flutter lints.
