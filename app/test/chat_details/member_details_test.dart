@@ -20,9 +20,9 @@ void main() {
 
     setUp(() {
       usersCubit = MockUsersCubit();
-      when(() => usersCubit.state).thenReturn(
-        MockUsersState(profiles: userProfiles),
-      );
+      when(
+        () => usersCubit.state,
+      ).thenReturn(MockUsersState(profiles: userProfiles));
     });
 
     Widget buildSubject() => MaterialApp(
@@ -30,9 +30,7 @@ void main() {
       theme: lightTheme,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       home: MultiBlocProvider(
-        providers: [
-          BlocProvider<UsersCubit>.value(value: usersCubit),
-        ],
+        providers: [BlocProvider<UsersCubit>.value(value: usersCubit)],
         child: Scaffold(
           body: MemberDetailsView(
             chatId: chats[0].id,

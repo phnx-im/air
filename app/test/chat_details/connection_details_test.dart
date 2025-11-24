@@ -30,9 +30,9 @@ void main() {
       when(() => chatDetailsCubit.state).thenReturn(
         ChatDetailsState(chat: chat, members: [userProfiles[1].userId]),
       );
-      when(() => usersCubit.state).thenReturn(
-        MockUsersState(profiles: userProfiles),
-      );
+      when(
+        () => usersCubit.state,
+      ).thenReturn(MockUsersState(profiles: userProfiles));
     });
 
     Widget buildSubject() => MultiBlocProvider(
