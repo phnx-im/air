@@ -29,7 +29,6 @@ import 'package:air/widgets/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
-import 'package:path_provider/path_provider.dart';
 
 import 'image_viewer.dart';
 import 'message_renderer.dart';
@@ -207,7 +206,7 @@ class _MessageView extends HookWidget {
             context.read<ChatDetailsCubit>().editMessage(messageId: messageId);
           },
         ),
-      if (isSender && attachments.isNotEmpty)
+      if (attachments.isNotEmpty && !Platform.isIOS)
         MessageAction(
           label: loc.messageContextMenu_save,
           leading: iconoir.Download(width: 24, color: colors.text.primary),
@@ -379,8 +378,7 @@ class _MessageView extends HookWidget {
           : await getDownloadsDirectoryAndroid();
       saveDir = "$baseDir/$appDirName";
     } else if (Platform.isIOS) {
-      final dir = await getApplicationDocumentsDirectory();
-      saveDir = dir.path;
+      throw UnsupportedError("iOS does not support storing files");
     } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       final dir = await getDirectoryPath();
       if (dir == null) return;
