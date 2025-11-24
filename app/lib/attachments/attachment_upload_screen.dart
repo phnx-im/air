@@ -12,10 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
-import 'package:logging/logging.dart';
 import 'package:photo_view/photo_view.dart';
-
-final _log = Logger("AttachmentUploadScreen");
 
 class AttachmentUploadScreen extends HookWidget {
   const AttachmentUploadScreen({
