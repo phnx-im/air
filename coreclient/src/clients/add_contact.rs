@@ -20,7 +20,6 @@ use aircommon::{
     },
 };
 use anyhow::{Context, bail};
-use anyhow::bail;
 use openmls::group::GroupId;
 use sqlx::SqliteTransaction;
 use tracing::info;
