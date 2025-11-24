@@ -123,6 +123,17 @@ impl ChatMessage {
         }
     }
 
+    pub fn new_system_message(chat_id: ChatId, system_message: SystemMessage) -> Self {
+        let timestamped_message =
+            TimestampedMessage::system_message(system_message, TimeStamp::now());
+        Self {
+            chat_id,
+            message_id: MessageId::random(),
+            timestamped_message,
+            status: MessageStatus::Read,
+        }
+    }
+
     pub fn new_for_test(
         chat_id: ChatId,
         message_id: MessageId,
@@ -449,6 +460,14 @@ pub enum SystemMessage {
         new_title: String,
     },
     ChangePicture(UserId),
+    /// We accepted a connection request from another user. The optional UserHandle is
+    /// the handle through which the connection was made, if any.
+    AcceptedConnectionRequest(UserId, Option<UserHandle>),
+    /// We received a confirmation for a connection request we sent to another user. The optional
+    /// UserHandle is the handle through which the connection was made, if any.
+    ReceivedConnectionConfirmation(UserId, Option<UserHandle>),
+    /// We requested a connection with another user through a user handle.
+    NewHandleConnectionChat(UserHandle),
 }
 
 impl SystemMessage {
@@ -477,6 +496,21 @@ impl SystemMessage {
             SystemMessage::ChangePicture(user_id) => {
                 let user_display_name = store.user_profile(user_id).await.display_name;
                 format!("{user_display_name} changed the group picture")
+            }
+            SystemMessage::NewHandleConnectionChat(user_handle) => {
+                let handle_str = user_handle.plaintext();
+                format!("You requested a connection with {handle_str}")
+            }
+            SystemMessage::ReceivedConnectionConfirmation(user_id, user_handle)
+            | SystemMessage::AcceptedConnectionRequest(user_id, user_handle) => {
+                let user_display_name = store.user_profile(user_id).await.display_name;
+                let base_str = format!("You connected with {user_display_name}");
+                if let Some(handle) = user_handle {
+                    let handle_str = handle.plaintext();
+                    format!("{base_str} through handle {handle_str}")
+                } else {
+                    base_str
+                }
             }
         }
     }

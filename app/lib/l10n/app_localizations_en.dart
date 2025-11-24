@@ -292,6 +292,29 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String systemMessage_acceptedDirectConnectionRequest(Object user) {
+    return 'You accepted a connection request from $user';
+  }
+
+  @override
+  String systemMessage_acceptedHandleConnectionRequest(
+    Object handle,
+    Object user,
+  ) {
+    return 'You accepted a connection request from $user through your handle $handle';
+  }
+
+  @override
+  String systemMessage_ReceivedConnectionConfirmation(Object userid) {
+    return 'User $userid has accepted your request';
+  }
+
+  @override
+  String systemMessage_newHandleConnectionChat(Object handle) {
+    return 'You requested a connection with $handle';
+  }
+
+  @override
   String systemMessage_userChangedPicture_prefix(Object user) {
     return '$user';
   }

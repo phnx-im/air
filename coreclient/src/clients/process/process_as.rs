@@ -14,6 +14,7 @@ use aircommon::{
 };
 use airprotos::auth_service::v1::{HandleQueueMessage, handle_queue_message};
 use anyhow::{Context, Result, bail, ensure};
+use chrono::Utc;
 use mimi_room_policy::RoleIndex;
 use openmls::prelude::MlsMessageOut;
 use sqlx::SqliteConnection;
@@ -22,6 +23,8 @@ use tls_codec::DeserializeBytes;
 use tracing::error;
 
 use crate::{
+    SystemMessage,
+    chats::messages::TimestampedMessage,
     clients::{
         block_contact::{BlockedContact, BlockedContactError},
         connection_offer::{ConnectionOfferIn, payload::ConnectionOfferPayload},
@@ -142,11 +145,22 @@ impl CoreUser {
 
         let mut notifier = self.store_notifier();
 
-        // Store group, chat & contact
+        let system_message =
+            SystemMessage::AcceptedConnectionRequest(contact.user_id.clone(), Some(handle));
+        let timestamped_message =
+            TimestampedMessage::system_message(system_message, Utc::now().into());
+        // Store group, chat, contact and system message
         connection
             .with_transaction(async |txn| {
                 self.store_group_chat_contact(txn, &mut notifier, &group, &mut chat, contact)
-                    .await
+                    .await?;
+                Self::store_new_messages(
+                    &mut *txn,
+                    &mut notifier,
+                    chat.id(),
+                    vec![timestamped_message],
+                )
+                .await
             })
             .await?;
 
@@ -172,7 +186,7 @@ impl CoreUser {
 
         notifier.notify();
 
-        // Return the chat ID
+        // Return the chat ID and contact user ID
         Ok(chat.id())
     }
 

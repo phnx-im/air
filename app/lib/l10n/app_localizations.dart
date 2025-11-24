@@ -568,6 +568,33 @@ abstract class AppLocalizations {
   /// **'{new_name}'**
   String systemMessage_userChangedTitle_suffix(Object new_name);
 
+  /// No description provided for @systemMessage_acceptedDirectConnectionRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'You accepted a connection request from {user}'**
+  String systemMessage_acceptedDirectConnectionRequest(Object user);
+
+  /// No description provided for @systemMessage_acceptedHandleConnectionRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'You accepted a connection request from {user} through your handle {handle}'**
+  String systemMessage_acceptedHandleConnectionRequest(
+    Object handle,
+    Object user,
+  );
+
+  /// No description provided for @systemMessage_ReceivedConnectionConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'User {userid} has accepted your request'**
+  String systemMessage_ReceivedConnectionConfirmation(Object userid);
+
+  /// No description provided for @systemMessage_newHandleConnectionChat.
+  ///
+  /// In en, this message translates to:
+  /// **'You requested a connection with {handle}'**
+  String systemMessage_newHandleConnectionChat(Object handle);
+
   /// No description provided for @systemMessage_userChangedPicture_prefix.
   ///
   /// In en, this message translates to:

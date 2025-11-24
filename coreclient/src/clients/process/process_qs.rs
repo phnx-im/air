@@ -534,26 +534,25 @@ impl CoreUser {
         // StagedCommitMessage Phase 1: Confirm the chat if unconfirmed
         let mut notifier = self.store_notifier();
 
-        let chat_changed = match &chat.chat_type() {
+        let (chat_changed, mut group_messages) = match &chat.chat_type() {
             ChatType::HandleConnection(handle) => {
                 let handle = handle.clone();
-                self.handle_unconfirmed_chat(
-                    txn,
-                    &mut notifier,
-                    aad,
-                    sender,
-                    sender_client_credential,
-                    &mut chat,
-                    &handle,
-                    group,
-                )
-                .await?;
-                true
+                let message = self
+                    .handle_unconfirmed_chat(
+                        txn,
+                        &mut notifier,
+                        aad,
+                        sender,
+                        sender_client_credential,
+                        &mut chat,
+                        &handle,
+                        group,
+                    )
+                    .await?;
+                (true, vec![message])
             }
-            _ => false,
+            _ => (false, vec![]),
         };
-
-        let mut group_messages = Vec::new();
 
         // StagedCommitMessage Phase 2: Merge the staged commit into the group.
 
@@ -599,7 +598,7 @@ impl CoreUser {
         chat: &mut Chat,
         handle: &UserHandle,
         group: &mut Group,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<TimestampedMessage, anyhow::Error> {
         // Check if it was an external commit
         ensure!(
             matches!(sender, Sender::NewMemberCommit),
@@ -655,7 +654,11 @@ impl CoreUser {
         chat.confirm(txn.as_mut(), notifier, contact.user_id)
             .await?;
 
-        Ok(())
+        let system_message =
+            SystemMessage::ReceivedConnectionConfirmation(user_id.clone(), Some(handle.clone()));
+        let message = TimestampedMessage::system_message(system_message, TimeStamp::now());
+
+        Ok(message)
     }
 
     async fn handle_user_profile_key_update(

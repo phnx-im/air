@@ -99,6 +99,11 @@
   "systemMessage_userChangedTitle_infix_3": " to ",
   "systemMessage_userChangedTitle_suffix": "{new_name}",
 
+  "systemMessage_acceptedDirectConnectionRequest": "You accepted a connection request from {user}",
+  "systemMessage_acceptedHandleConnectionRequest": "You accepted a connection request from {user} through your handle {handle}",
+  "systemMessage_ReceivedConnectionConfirmation": "User {userid} has accepted your request",
+  "systemMessage_newHandleConnectionChat": "You requested a connection with {handle}",
+
   "systemMessage_userChangedPicture_prefix": "{user}",
   "systemMessage_userChangedPicture_infix": " changed the group picture",
 

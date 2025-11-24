@@ -872,6 +872,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiImageMetadata? dco_decode_opt_box_autoadd_ui_image_metadata(dynamic raw);
 
   @protected
+  UiUserHandle? dco_decode_opt_box_autoadd_ui_user_handle(dynamic raw);
+
+  @protected
   UiUserId? dco_decode_opt_box_autoadd_ui_user_id(dynamic raw);
 
   @protected
@@ -1795,6 +1798,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiImageMetadata? sse_decode_opt_box_autoadd_ui_image_metadata(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiUserHandle? sse_decode_opt_box_autoadd_ui_user_handle(
     SseDeserializer deserializer,
   );
 
@@ -2924,6 +2932,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_ui_image_metadata(
     UiImageMetadata? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_ui_user_handle(
+    UiUserHandle? self,
     SseSerializer serializer,
   );
 

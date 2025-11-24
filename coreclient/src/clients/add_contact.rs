@@ -22,7 +22,7 @@ use sqlx::SqliteTransaction;
 use tracing::info;
 
 use crate::{
-    Chat, ChatAttributes, ChatId,
+    Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage,
     clients::connection_offer::FriendshipPackage,
     contacts::HandleContact,
     groups::{Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider},
@@ -140,6 +140,11 @@ impl VerifiedConnectionPackagesWithGroupId {
         // Create the connection chat
         let chat = Chat::new_handle_chat(group_id.clone(), attributes, handle.clone());
         chat.store(txn.as_mut(), notifier).await?;
+
+        // Create the initial system message for the chat
+        let system_message = SystemMessage::NewHandleConnectionChat(handle);
+        let chat_message = ChatMessage::new_system_message(chat.id(), system_message);
+        chat_message.store(txn.as_mut(), notifier).await?;
 
         Ok(LocalGroup {
             group,

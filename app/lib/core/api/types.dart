@@ -3,15 +3,16 @@
 
 // ignore_for_file: unreachable_switch_default, prefer_const_constructors
 import 'package:convert/convert.dart';
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
+import 'package:uuid/uuid.dart';
 
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
 import 'markdown.dart';
 import 'message_content.dart';
-import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
-import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
-import 'package:uuid/uuid.dart';
+
 part 'types.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `calculate`, `connection_user_id`, `flight_break_condition`, `from_asset`, `from_bytes`, `from_profile`, `from_user_id`, `load_from_chat_type`, `timestamp`
@@ -367,6 +368,20 @@ sealed class UiSystemMessage with _$UiSystemMessage {
   ) = UiSystemMessage_ChangeTitle;
   const factory UiSystemMessage.changePicture(UiUserId field0) =
       UiSystemMessage_ChangePicture;
+  const factory UiSystemMessage.newConfirmedConnectionChat(
+    UiUserId field0, [
+    UiUserHandle? field1,
+  ]) = UiSystemMessage_NewConfirmedConnectionChat;
+  const factory UiSystemMessage.newHandleConnectionChat(UiUserHandle field0) =
+      UiSystemMessage_NewHandleConnectionChat;
+  const factory UiSystemMessage.acceptedConnectionRequest(
+    UiUserId field0, [
+    UiUserHandle? field1,
+  ]) = UiSystemMessage_AcceptedConnectionRequest;
+  const factory UiSystemMessage.receivedConnectionConfirmation(
+    UiUserId field0, [
+    UiUserHandle? field1,
+  ]) = UiSystemMessage_ReceivedConnectionConfirmation;
 }
 
 @freezed
