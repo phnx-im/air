@@ -58,6 +58,9 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Install iOS platform runtime
+        run: sudo xcodebuild -downloadPlatform iOS
+
       - name: Build and upload to TestFlight
         env:
           APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}

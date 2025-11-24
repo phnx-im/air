@@ -64,6 +64,9 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Install iOS platform runtime
+        run: sudo xcodebuild -downloadPlatform iOS
+
       - name: Detect if PR is from a fork
         id: detect_fork
         shell: bash
