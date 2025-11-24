@@ -14,8 +14,8 @@ import 'package:uuid/uuid.dart';
 import 'types.dart';
 part 'navigation_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `home`, `intro`, `subscribe`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`
+// These functions are ignored because they are not marked as `pub`: `close`, `home`, `intro`, `is_open`, `subscribe`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NavigationCubitBase>>
 abstract class NavigationCubitBase implements RustOpaqueInterface {
@@ -74,8 +74,7 @@ enum DeveloperSettingsScreenType { root, changeUser, logs }
 sealed class HomeNavigationState with _$HomeNavigationState {
   const HomeNavigationState._();
   const factory HomeNavigationState({
-    @Default(false) bool chatOpen,
-    ChatId? chatId,
+    @Default(NavigationChat.none()) NavigationChat currentChat,
     DeveloperSettingsScreenType? developerSettingsScreen,
     UiUserId? memberDetails,
     UserSettingsScreenType? userSettingsScreen,
@@ -98,6 +97,26 @@ sealed class IntroScreenType with _$IntroScreenType {
   const factory IntroScreenType.developerSettings(
     DeveloperSettingsScreenType field0,
   ) = IntroScreenType_DeveloperSettings;
+}
+
+@freezed
+sealed class NavigationChat with _$NavigationChat {
+  const NavigationChat._();
+
+  /// There is not chat currently open
+  const factory NavigationChat.none() = NavigationChat_None;
+
+  /// A chat is currently open
+  const factory NavigationChat.open(ChatId field0) = NavigationChat_Open;
+
+  /// A chat that transitioned from open to closed.
+  ///
+  /// This state allows to navigate away from a chat but keep views rendering the same chat
+  /// during the transition.
+  const factory NavigationChat.closed(ChatId field0) = NavigationChat_Closed;
+
+  static Future<NavigationChat> default_() =>
+      RustLib.instance.api.crateApiNavigationCubitNavigationChatDefault();
 }
 
 @freezed

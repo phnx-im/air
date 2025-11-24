@@ -51,7 +51,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -191081065;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1697567099;
 
 // Section: executor
 
@@ -6740,6 +6740,40 @@ fn wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
         },
     )
 }
+fn wire__crate__api__navigation_cubit__navigation_chat_default_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "navigation_chat_default",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok(
+                        crate::api::navigation_cubit::NavigationChat::default(),
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__logging__read_app_logs_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -7829,8 +7863,8 @@ impl SseDecode for f64 {
 impl SseDecode for crate::api::navigation_cubit::HomeNavigationState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_chatOpen = <bool>::sse_decode(deserializer);
-        let mut var_chatId = <Option<crate::api::types::ChatId>>::sse_decode(deserializer);
+        let mut var_currentChat =
+            <crate::api::navigation_cubit::NavigationChat>::sse_decode(deserializer);
         let mut var_developerSettingsScreen = <Option<
             crate::api::navigation_cubit::DeveloperSettingsScreenType,
         >>::sse_decode(deserializer);
@@ -7843,8 +7877,7 @@ impl SseDecode for crate::api::navigation_cubit::HomeNavigationState {
         let mut var_groupMembersOpen = <bool>::sse_decode(deserializer);
         let mut var_createGroupOpen = <bool>::sse_decode(deserializer);
         return crate::api::navigation_cubit::HomeNavigationState {
-            chat_open: var_chatOpen,
-            chat_id: var_chatId,
+            current_chat: var_currentChat,
             developer_settings_screen: var_developerSettingsScreen,
             member_details: var_memberDetails,
             user_settings_screen: var_userSettingsScreen,
@@ -8256,6 +8289,29 @@ impl SseDecode for crate::api::message_cubit::MessageState {
         return crate::api::message_cubit::MessageState {
             message: var_message,
         };
+    }
+}
+
+impl SseDecode for crate::api::navigation_cubit::NavigationChat {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                return crate::api::navigation_cubit::NavigationChat::None;
+            }
+            1 => {
+                let mut var_field0 = <crate::api::types::ChatId>::sse_decode(deserializer);
+                return crate::api::navigation_cubit::NavigationChat::Open(var_field0);
+            }
+            2 => {
+                let mut var_field0 = <crate::api::types::ChatId>::sse_decode(deserializer);
+                return crate::api::navigation_cubit::NavigationChat::Closed(var_field0);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 
@@ -9154,9 +9210,10 @@ fn pde_ffi_dispatcher_primary_impl(
 129 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
 130 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
 131 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
-133 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
-134 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
-135 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
+133 => wire__crate__api__navigation_cubit__navigation_chat_default_impl(port, ptr, rust_vec_len, data_len),
+134 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
+135 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
+136 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
                         _ => unreachable!(),
                     }
 }
@@ -9355,12 +9412,12 @@ fn pde_ffi_dispatcher_sync_impl(
             rust_vec_len,
             data_len,
         ),
-        136 => wire__crate__api__types__ui_user_handle_validation_error_impl(
+        137 => wire__crate__api__types__ui_user_handle_validation_error_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        137 => wire__crate__api__username_suggestions__username_from_display_impl(
+        138 => wire__crate__api__username_suggestions__username_from_display_impl(
             ptr,
             rust_vec_len,
             data_len,
@@ -9842,8 +9899,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::navigation_cubit::DeveloperSe
 impl flutter_rust_bridge::IntoDart for crate::api::navigation_cubit::HomeNavigationState {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
-            self.chat_open.into_into_dart().into_dart(),
-            self.chat_id.into_into_dart().into_dart(),
+            self.current_chat.into_into_dart().into_dart(),
             self.developer_settings_screen.into_into_dart().into_dart(),
             self.member_details.into_into_dart().into_dart(),
             self.user_settings_screen.into_into_dart().into_dart(),
@@ -10095,6 +10151,34 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::message_cubit::MessageState>
     for crate::api::message_cubit::MessageState
 {
     fn into_into_dart(self) -> crate::api::message_cubit::MessageState {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::navigation_cubit::NavigationChat {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            crate::api::navigation_cubit::NavigationChat::None => [0.into_dart()].into_dart(),
+            crate::api::navigation_cubit::NavigationChat::Open(field0) => {
+                [1.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::navigation_cubit::NavigationChat::Closed(field0) => {
+                [2.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::navigation_cubit::NavigationChat
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::navigation_cubit::NavigationChat>
+    for crate::api::navigation_cubit::NavigationChat
+{
+    fn into_into_dart(self) -> crate::api::navigation_cubit::NavigationChat {
         self
     }
 }
@@ -11507,8 +11591,7 @@ impl SseEncode for f64 {
 impl SseEncode for crate::api::navigation_cubit::HomeNavigationState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <bool>::sse_encode(self.chat_open, serializer);
-        <Option<crate::api::types::ChatId>>::sse_encode(self.chat_id, serializer);
+        <crate::api::navigation_cubit::NavigationChat>::sse_encode(self.current_chat, serializer);
         <Option<crate::api::navigation_cubit::DeveloperSettingsScreenType>>::sse_encode(
             self.developer_settings_screen,
             serializer,
@@ -11842,6 +11925,28 @@ impl SseEncode for crate::api::message_cubit::MessageState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <crate::api::types::UiChatMessage>::sse_encode(self.message, serializer);
+    }
+}
+
+impl SseEncode for crate::api::navigation_cubit::NavigationChat {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::api::navigation_cubit::NavigationChat::None => {
+                <i32>::sse_encode(0, serializer);
+            }
+            crate::api::navigation_cubit::NavigationChat::Open(field0) => {
+                <i32>::sse_encode(1, serializer);
+                <crate::api::types::ChatId>::sse_encode(field0, serializer);
+            }
+            crate::api::navigation_cubit::NavigationChat::Closed(field0) => {
+                <i32>::sse_encode(2, serializer);
+                <crate::api::types::ChatId>::sse_encode(field0, serializer);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 

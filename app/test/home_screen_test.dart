@@ -180,7 +180,7 @@ void main() {
 
       when(() => navigationCubit.state).thenReturn(
         NavigationState.home(
-          home: HomeNavigationState(chatOpen: true, chatId: chats[2].id),
+          home: HomeNavigationState(currentChat: .open(chats[2].id)),
         ),
       );
       when(
@@ -215,7 +215,7 @@ void main() {
 
       when(() => navigationCubit.state).thenReturn(
         NavigationState.home(
-          home: HomeNavigationState(chatOpen: true, chatId: chats[4].id),
+          home: HomeNavigationState(currentChat: .open(chats[4].id)),
         ),
       );
       when(

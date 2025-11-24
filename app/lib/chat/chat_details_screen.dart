@@ -52,21 +52,15 @@ class ChatDetailsScreenView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final chatExists = context.select(
-      (NavigationCubit cubit) => switch (cubit.state) {
-        NavigationState_Intro() => false,
-        NavigationState_Home(:final home) => home.chatId != null,
-      },
+      (NavigationCubit cubit) => cubit.state.chatId != null,
     );
     if (!chatExists) {
       return const SizedBox.shrink();
     }
 
-    final chatType = context.select(
-      (ChatDetailsCubit cubit) => cubit.state.chat?.chatType,
-    );
-
-    final chatTitle = context.select(
-      (ChatDetailsCubit cubit) => cubit.state.chat?.title ?? '',
+    final (chatType, chatTitle) = context.select(
+      (ChatDetailsCubit cubit) =>
+          (cubit.state.chat?.chatType, cubit.state.chat?.title ?? ''),
     );
 
     final loc = AppLocalizations.of(context);

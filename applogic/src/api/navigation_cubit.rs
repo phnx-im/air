@@ -51,15 +51,8 @@ pub enum IntroScreenType {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[frb(dart_metadata = ("freezed"))]
 pub struct HomeNavigationState {
-    /// Indicates whether a chat is open independently of the state of the chat id.
-    ///
-    /// When this flag is true and a chat id is set, the chat is open. When it is
-    /// false, no chat is open, even if the chat id is set.
-    ///
-    /// Allows to close a chat without setting the chat id to `None`.
-    #[frb(default = false)]
-    pub chat_open: bool,
-    pub chat_id: Option<ChatId>,
+    #[frb(default = "const NavigationChat.none()")]
+    pub current_chat: NavigationChat,
     pub developer_settings_screen: Option<DeveloperSettingsScreenType>,
     /// User name of the member that details are currently open
     pub member_details: Option<UiUserId>,
@@ -90,6 +83,39 @@ pub enum UserSettingsScreenType {
     AddUserHandle,
     Help,
     DeleteAccount,
+}
+
+/// A chat that is currently shown in the navigation
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[frb(dart_metadata = ("freezed"))]
+pub enum NavigationChat {
+    /// There is not chat currently open
+    #[default]
+    None,
+    /// A chat is currently open
+    Open(ChatId),
+    /// A chat that transitioned from open to closed.
+    ///
+    /// This state allows to navigate away from a chat but keep views rendering the same chat
+    /// during the transition.
+    Closed(ChatId),
+}
+
+impl NavigationChat {
+    pub(crate) fn is_open(&self) -> bool {
+        matches!(self, Self::Open(_))
+    }
+
+    fn close(&mut self) -> bool {
+        match self {
+            Self::None => false,
+            Self::Open(chat_id) => {
+                *self = Self::Closed(*chat_id);
+                true
+            }
+            Self::Closed(_) => false,
+        }
+    }
 }
 
 impl NavigationState {
@@ -172,17 +198,21 @@ impl NavigationCubitBase {
         self.core.state_tx().send_if_modified(|state| match state {
             NavigationState::Intro { .. } => {
                 *state = HomeNavigationState {
-                    chat_open: true,
-                    chat_id: Some(chat_id),
+                    current_chat: NavigationChat::Open(chat_id),
                     ..Default::default()
                 }
                 .into();
                 true
             }
             NavigationState::Home { home } => {
-                let was_open = mem::replace(&mut home.chat_open, true);
-                let different_id = home.chat_id.replace(chat_id) != Some(chat_id);
-                !was_open || different_id
+                if let NavigationChat::Open(current_chat_id) = home.current_chat
+                    && current_chat_id == chat_id
+                {
+                    false
+                } else {
+                    home.current_chat = NavigationChat::Open(chat_id);
+                    true
+                }
             }
         });
 
@@ -201,28 +231,12 @@ impl NavigationCubitBase {
         self.core.state_tx().send_if_modified(|state| match state {
             NavigationState::Intro { .. } => false,
             NavigationState::Home { home } => {
-                let mut changed = false;
-                if mem::replace(&mut home.chat_open, false) {
-                    changed = true;
-                }
-                if mem::replace(&mut home.chat_details_open, false) {
-                    changed = true;
-                }
-                if mem::replace(&mut home.add_members_open, false) {
-                    changed = true;
-                }
-                if mem::replace(&mut home.group_members_open, false) {
-                    changed = true;
-                }
-                if mem::replace(&mut home.create_group_open, false) {
-                    changed = true;
-                }
-                if home.member_details.take().is_some() {
-                    changed = true;
-                }
-                if home.chat_id.take().is_some() {
-                    changed = true;
-                }
+                let mut changed = home.current_chat.close();
+                changed |= mem::replace(&mut home.chat_details_open, false);
+                changed |= mem::replace(&mut home.add_members_open, false);
+                changed |= mem::replace(&mut home.group_members_open, false);
+                changed |= mem::replace(&mut home.create_group_open, false);
+                changed |= home.member_details.take().is_some();
                 changed
             }
         });
@@ -385,24 +399,27 @@ impl NavigationCubitBase {
                 home.create_group_open = false;
                 true
             }
-            NavigationState::Home { home } if home.chat_id.is_some() && home.add_members_open => {
+            NavigationState::Home { home }
+                if home.current_chat.is_open() && home.add_members_open =>
+            {
                 home.add_members_open = false;
                 true
             }
-            NavigationState::Home { home } if home.chat_id.is_some() && home.group_members_open => {
+            NavigationState::Home { home }
+                if home.current_chat.is_open() && home.group_members_open =>
+            {
                 home.group_members_open = false;
                 true
             }
-            NavigationState::Home { home } if home.chat_id.is_some() && home.chat_details_open => {
+            NavigationState::Home { home }
+                if home.current_chat.is_open() && home.chat_details_open =>
+            {
                 home.chat_details_open = false;
                 home.group_members_open = false;
                 home.add_members_open = false;
                 true
             }
-            NavigationState::Home { home } if home.chat_id.is_some() && home.chat_open => {
-                home.chat_open = false;
-                true
-            }
+            NavigationState::Home { home } => home.current_chat.close(),
             NavigationState::Home { .. } => false,
         })
     }

@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$HomeNavigationState {
 
- bool get chatOpen; ChatId? get chatId; DeveloperSettingsScreenType? get developerSettingsScreen; UiUserId? get memberDetails; UserSettingsScreenType? get userSettingsScreen; bool get chatDetailsOpen; bool get addMembersOpen; bool get groupMembersOpen; bool get createGroupOpen;
+ NavigationChat get currentChat; DeveloperSettingsScreenType? get developerSettingsScreen; UiUserId? get memberDetails; UserSettingsScreenType? get userSettingsScreen; bool get chatDetailsOpen; bool get addMembersOpen; bool get groupMembersOpen; bool get createGroupOpen;
 /// Create a copy of HomeNavigationState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $HomeNavigationStateCopyWith<HomeNavigationState> get copyWith => _$HomeNavigati
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is HomeNavigationState&&(identical(other.chatOpen, chatOpen) || other.chatOpen == chatOpen)&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.developerSettingsScreen, developerSettingsScreen) || other.developerSettingsScreen == developerSettingsScreen)&&(identical(other.memberDetails, memberDetails) || other.memberDetails == memberDetails)&&(identical(other.userSettingsScreen, userSettingsScreen) || other.userSettingsScreen == userSettingsScreen)&&(identical(other.chatDetailsOpen, chatDetailsOpen) || other.chatDetailsOpen == chatDetailsOpen)&&(identical(other.addMembersOpen, addMembersOpen) || other.addMembersOpen == addMembersOpen)&&(identical(other.groupMembersOpen, groupMembersOpen) || other.groupMembersOpen == groupMembersOpen)&&(identical(other.createGroupOpen, createGroupOpen) || other.createGroupOpen == createGroupOpen));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is HomeNavigationState&&(identical(other.currentChat, currentChat) || other.currentChat == currentChat)&&(identical(other.developerSettingsScreen, developerSettingsScreen) || other.developerSettingsScreen == developerSettingsScreen)&&(identical(other.memberDetails, memberDetails) || other.memberDetails == memberDetails)&&(identical(other.userSettingsScreen, userSettingsScreen) || other.userSettingsScreen == userSettingsScreen)&&(identical(other.chatDetailsOpen, chatDetailsOpen) || other.chatDetailsOpen == chatDetailsOpen)&&(identical(other.addMembersOpen, addMembersOpen) || other.addMembersOpen == addMembersOpen)&&(identical(other.groupMembersOpen, groupMembersOpen) || other.groupMembersOpen == groupMembersOpen)&&(identical(other.createGroupOpen, createGroupOpen) || other.createGroupOpen == createGroupOpen));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,chatOpen,chatId,developerSettingsScreen,memberDetails,userSettingsScreen,chatDetailsOpen,addMembersOpen,groupMembersOpen,createGroupOpen);
+int get hashCode => Object.hash(runtimeType,currentChat,developerSettingsScreen,memberDetails,userSettingsScreen,chatDetailsOpen,addMembersOpen,groupMembersOpen,createGroupOpen);
 
 @override
 String toString() {
-  return 'HomeNavigationState(chatOpen: $chatOpen, chatId: $chatId, developerSettingsScreen: $developerSettingsScreen, memberDetails: $memberDetails, userSettingsScreen: $userSettingsScreen, chatDetailsOpen: $chatDetailsOpen, addMembersOpen: $addMembersOpen, groupMembersOpen: $groupMembersOpen, createGroupOpen: $createGroupOpen)';
+  return 'HomeNavigationState(currentChat: $currentChat, developerSettingsScreen: $developerSettingsScreen, memberDetails: $memberDetails, userSettingsScreen: $userSettingsScreen, chatDetailsOpen: $chatDetailsOpen, addMembersOpen: $addMembersOpen, groupMembersOpen: $groupMembersOpen, createGroupOpen: $createGroupOpen)';
 }
 
 
@@ -45,11 +45,11 @@ abstract mixin class $HomeNavigationStateCopyWith<$Res>  {
   factory $HomeNavigationStateCopyWith(HomeNavigationState value, $Res Function(HomeNavigationState) _then) = _$HomeNavigationStateCopyWithImpl;
 @useResult
 $Res call({
- bool chatOpen, ChatId? chatId, DeveloperSettingsScreenType? developerSettingsScreen, UiUserId? memberDetails, UserSettingsScreenType? userSettingsScreen, bool chatDetailsOpen, bool addMembersOpen, bool groupMembersOpen, bool createGroupOpen
+ NavigationChat currentChat, DeveloperSettingsScreenType? developerSettingsScreen, UiUserId? memberDetails, UserSettingsScreenType? userSettingsScreen, bool chatDetailsOpen, bool addMembersOpen, bool groupMembersOpen, bool createGroupOpen
 });
 
 
-
+$NavigationChatCopyWith<$Res> get currentChat;
 
 }
 /// @nodoc
@@ -62,11 +62,10 @@ class _$HomeNavigationStateCopyWithImpl<$Res>
 
 /// Create a copy of HomeNavigationState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? chatOpen = null,Object? chatId = freezed,Object? developerSettingsScreen = freezed,Object? memberDetails = freezed,Object? userSettingsScreen = freezed,Object? chatDetailsOpen = null,Object? addMembersOpen = null,Object? groupMembersOpen = null,Object? createGroupOpen = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? currentChat = null,Object? developerSettingsScreen = freezed,Object? memberDetails = freezed,Object? userSettingsScreen = freezed,Object? chatDetailsOpen = null,Object? addMembersOpen = null,Object? groupMembersOpen = null,Object? createGroupOpen = null,}) {
   return _then(_self.copyWith(
-chatOpen: null == chatOpen ? _self.chatOpen : chatOpen // ignore: cast_nullable_to_non_nullable
-as bool,chatId: freezed == chatId ? _self.chatId : chatId // ignore: cast_nullable_to_non_nullable
-as ChatId?,developerSettingsScreen: freezed == developerSettingsScreen ? _self.developerSettingsScreen : developerSettingsScreen // ignore: cast_nullable_to_non_nullable
+currentChat: null == currentChat ? _self.currentChat : currentChat // ignore: cast_nullable_to_non_nullable
+as NavigationChat,developerSettingsScreen: freezed == developerSettingsScreen ? _self.developerSettingsScreen : developerSettingsScreen // ignore: cast_nullable_to_non_nullable
 as DeveloperSettingsScreenType?,memberDetails: freezed == memberDetails ? _self.memberDetails : memberDetails // ignore: cast_nullable_to_non_nullable
 as UiUserId?,userSettingsScreen: freezed == userSettingsScreen ? _self.userSettingsScreen : userSettingsScreen // ignore: cast_nullable_to_non_nullable
 as UserSettingsScreenType?,chatDetailsOpen: null == chatDetailsOpen ? _self.chatDetailsOpen : chatDetailsOpen // ignore: cast_nullable_to_non_nullable
@@ -76,7 +75,16 @@ as bool,createGroupOpen: null == createGroupOpen ? _self.createGroupOpen : creat
 as bool,
   ));
 }
-
+/// Create a copy of HomeNavigationState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$NavigationChatCopyWith<$Res> get currentChat {
+  
+  return $NavigationChatCopyWith<$Res>(_self.currentChat, (value) {
+    return _then(_self.copyWith(currentChat: value));
+  });
+}
 }
 
 
@@ -85,11 +93,10 @@ as bool,
 
 
 class _HomeNavigationState extends HomeNavigationState {
-  const _HomeNavigationState({this.chatOpen = false, this.chatId, this.developerSettingsScreen, this.memberDetails, this.userSettingsScreen, this.chatDetailsOpen = false, this.addMembersOpen = false, this.groupMembersOpen = false, this.createGroupOpen = false}): super._();
+  const _HomeNavigationState({this.currentChat = const NavigationChat.none(), this.developerSettingsScreen, this.memberDetails, this.userSettingsScreen, this.chatDetailsOpen = false, this.addMembersOpen = false, this.groupMembersOpen = false, this.createGroupOpen = false}): super._();
   
 
-@override@JsonKey() final  bool chatOpen;
-@override final  ChatId? chatId;
+@override@JsonKey() final  NavigationChat currentChat;
 @override final  DeveloperSettingsScreenType? developerSettingsScreen;
 @override final  UiUserId? memberDetails;
 @override final  UserSettingsScreenType? userSettingsScreen;
@@ -108,16 +115,16 @@ _$HomeNavigationStateCopyWith<_HomeNavigationState> get copyWith => __$HomeNavig
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _HomeNavigationState&&(identical(other.chatOpen, chatOpen) || other.chatOpen == chatOpen)&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.developerSettingsScreen, developerSettingsScreen) || other.developerSettingsScreen == developerSettingsScreen)&&(identical(other.memberDetails, memberDetails) || other.memberDetails == memberDetails)&&(identical(other.userSettingsScreen, userSettingsScreen) || other.userSettingsScreen == userSettingsScreen)&&(identical(other.chatDetailsOpen, chatDetailsOpen) || other.chatDetailsOpen == chatDetailsOpen)&&(identical(other.addMembersOpen, addMembersOpen) || other.addMembersOpen == addMembersOpen)&&(identical(other.groupMembersOpen, groupMembersOpen) || other.groupMembersOpen == groupMembersOpen)&&(identical(other.createGroupOpen, createGroupOpen) || other.createGroupOpen == createGroupOpen));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _HomeNavigationState&&(identical(other.currentChat, currentChat) || other.currentChat == currentChat)&&(identical(other.developerSettingsScreen, developerSettingsScreen) || other.developerSettingsScreen == developerSettingsScreen)&&(identical(other.memberDetails, memberDetails) || other.memberDetails == memberDetails)&&(identical(other.userSettingsScreen, userSettingsScreen) || other.userSettingsScreen == userSettingsScreen)&&(identical(other.chatDetailsOpen, chatDetailsOpen) || other.chatDetailsOpen == chatDetailsOpen)&&(identical(other.addMembersOpen, addMembersOpen) || other.addMembersOpen == addMembersOpen)&&(identical(other.groupMembersOpen, groupMembersOpen) || other.groupMembersOpen == groupMembersOpen)&&(identical(other.createGroupOpen, createGroupOpen) || other.createGroupOpen == createGroupOpen));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,chatOpen,chatId,developerSettingsScreen,memberDetails,userSettingsScreen,chatDetailsOpen,addMembersOpen,groupMembersOpen,createGroupOpen);
+int get hashCode => Object.hash(runtimeType,currentChat,developerSettingsScreen,memberDetails,userSettingsScreen,chatDetailsOpen,addMembersOpen,groupMembersOpen,createGroupOpen);
 
 @override
 String toString() {
-  return 'HomeNavigationState(chatOpen: $chatOpen, chatId: $chatId, developerSettingsScreen: $developerSettingsScreen, memberDetails: $memberDetails, userSettingsScreen: $userSettingsScreen, chatDetailsOpen: $chatDetailsOpen, addMembersOpen: $addMembersOpen, groupMembersOpen: $groupMembersOpen, createGroupOpen: $createGroupOpen)';
+  return 'HomeNavigationState(currentChat: $currentChat, developerSettingsScreen: $developerSettingsScreen, memberDetails: $memberDetails, userSettingsScreen: $userSettingsScreen, chatDetailsOpen: $chatDetailsOpen, addMembersOpen: $addMembersOpen, groupMembersOpen: $groupMembersOpen, createGroupOpen: $createGroupOpen)';
 }
 
 
@@ -128,11 +135,11 @@ abstract mixin class _$HomeNavigationStateCopyWith<$Res> implements $HomeNavigat
   factory _$HomeNavigationStateCopyWith(_HomeNavigationState value, $Res Function(_HomeNavigationState) _then) = __$HomeNavigationStateCopyWithImpl;
 @override @useResult
 $Res call({
- bool chatOpen, ChatId? chatId, DeveloperSettingsScreenType? developerSettingsScreen, UiUserId? memberDetails, UserSettingsScreenType? userSettingsScreen, bool chatDetailsOpen, bool addMembersOpen, bool groupMembersOpen, bool createGroupOpen
+ NavigationChat currentChat, DeveloperSettingsScreenType? developerSettingsScreen, UiUserId? memberDetails, UserSettingsScreenType? userSettingsScreen, bool chatDetailsOpen, bool addMembersOpen, bool groupMembersOpen, bool createGroupOpen
 });
 
 
-
+@override $NavigationChatCopyWith<$Res> get currentChat;
 
 }
 /// @nodoc
@@ -145,11 +152,10 @@ class __$HomeNavigationStateCopyWithImpl<$Res>
 
 /// Create a copy of HomeNavigationState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? chatOpen = null,Object? chatId = freezed,Object? developerSettingsScreen = freezed,Object? memberDetails = freezed,Object? userSettingsScreen = freezed,Object? chatDetailsOpen = null,Object? addMembersOpen = null,Object? groupMembersOpen = null,Object? createGroupOpen = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? currentChat = null,Object? developerSettingsScreen = freezed,Object? memberDetails = freezed,Object? userSettingsScreen = freezed,Object? chatDetailsOpen = null,Object? addMembersOpen = null,Object? groupMembersOpen = null,Object? createGroupOpen = null,}) {
   return _then(_HomeNavigationState(
-chatOpen: null == chatOpen ? _self.chatOpen : chatOpen // ignore: cast_nullable_to_non_nullable
-as bool,chatId: freezed == chatId ? _self.chatId : chatId // ignore: cast_nullable_to_non_nullable
-as ChatId?,developerSettingsScreen: freezed == developerSettingsScreen ? _self.developerSettingsScreen : developerSettingsScreen // ignore: cast_nullable_to_non_nullable
+currentChat: null == currentChat ? _self.currentChat : currentChat // ignore: cast_nullable_to_non_nullable
+as NavigationChat,developerSettingsScreen: freezed == developerSettingsScreen ? _self.developerSettingsScreen : developerSettingsScreen // ignore: cast_nullable_to_non_nullable
 as DeveloperSettingsScreenType?,memberDetails: freezed == memberDetails ? _self.memberDetails : memberDetails // ignore: cast_nullable_to_non_nullable
 as UiUserId?,userSettingsScreen: freezed == userSettingsScreen ? _self.userSettingsScreen : userSettingsScreen // ignore: cast_nullable_to_non_nullable
 as UserSettingsScreenType?,chatDetailsOpen: null == chatDetailsOpen ? _self.chatDetailsOpen : chatDetailsOpen // ignore: cast_nullable_to_non_nullable
@@ -160,7 +166,16 @@ as bool,
   ));
 }
 
-
+/// Create a copy of HomeNavigationState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$NavigationChatCopyWith<$Res> get currentChat {
+  
+  return $NavigationChatCopyWith<$Res>(_self.currentChat, (value) {
+    return _then(_self.copyWith(currentChat: value));
+  });
+}
 }
 
 /// @nodoc
@@ -318,6 +333,201 @@ class _$IntroScreenType_DeveloperSettingsCopyWithImpl<$Res>
   return _then(IntroScreenType_DeveloperSettings(
 null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
 as DeveloperSettingsScreenType,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$NavigationChat {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is NavigationChat);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'NavigationChat()';
+}
+
+
+}
+
+/// @nodoc
+class $NavigationChatCopyWith<$Res>  {
+$NavigationChatCopyWith(NavigationChat _, $Res Function(NavigationChat) __);
+}
+
+
+
+/// @nodoc
+
+
+class NavigationChat_None extends NavigationChat {
+  const NavigationChat_None(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is NavigationChat_None);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'NavigationChat.none()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class NavigationChat_Open extends NavigationChat {
+  const NavigationChat_Open(this.field0): super._();
+  
+
+ final  ChatId field0;
+
+/// Create a copy of NavigationChat
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$NavigationChat_OpenCopyWith<NavigationChat_Open> get copyWith => _$NavigationChat_OpenCopyWithImpl<NavigationChat_Open>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is NavigationChat_Open&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'NavigationChat.open(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $NavigationChat_OpenCopyWith<$Res> implements $NavigationChatCopyWith<$Res> {
+  factory $NavigationChat_OpenCopyWith(NavigationChat_Open value, $Res Function(NavigationChat_Open) _then) = _$NavigationChat_OpenCopyWithImpl;
+@useResult
+$Res call({
+ ChatId field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$NavigationChat_OpenCopyWithImpl<$Res>
+    implements $NavigationChat_OpenCopyWith<$Res> {
+  _$NavigationChat_OpenCopyWithImpl(this._self, this._then);
+
+  final NavigationChat_Open _self;
+  final $Res Function(NavigationChat_Open) _then;
+
+/// Create a copy of NavigationChat
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(NavigationChat_Open(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ChatId,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class NavigationChat_Closed extends NavigationChat {
+  const NavigationChat_Closed(this.field0): super._();
+  
+
+ final  ChatId field0;
+
+/// Create a copy of NavigationChat
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$NavigationChat_ClosedCopyWith<NavigationChat_Closed> get copyWith => _$NavigationChat_ClosedCopyWithImpl<NavigationChat_Closed>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is NavigationChat_Closed&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'NavigationChat.closed(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $NavigationChat_ClosedCopyWith<$Res> implements $NavigationChatCopyWith<$Res> {
+  factory $NavigationChat_ClosedCopyWith(NavigationChat_Closed value, $Res Function(NavigationChat_Closed) _then) = _$NavigationChat_ClosedCopyWithImpl;
+@useResult
+$Res call({
+ ChatId field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$NavigationChat_ClosedCopyWithImpl<$Res>
+    implements $NavigationChat_ClosedCopyWith<$Res> {
+  _$NavigationChat_ClosedCopyWithImpl(this._self, this._then);
+
+  final NavigationChat_Closed _self;
+  final $Res Function(NavigationChat_Closed) _then;
+
+/// Create a copy of NavigationChat
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(NavigationChat_Closed(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ChatId,
   ));
 }
 

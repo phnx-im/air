@@ -805,6 +805,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MessageState dco_decode_message_state(dynamic raw);
 
   @protected
+  NavigationChat dco_decode_navigation_chat(dynamic raw);
+
+  @protected
   NavigationState dco_decode_navigation_state(dynamic raw);
 
   @protected
@@ -1710,6 +1713,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageState sse_decode_message_state(SseDeserializer deserializer);
+
+  @protected
+  NavigationChat sse_decode_navigation_chat(SseDeserializer deserializer);
 
   @protected
   NavigationState sse_decode_navigation_state(SseDeserializer deserializer);
@@ -2815,6 +2821,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_message_state(MessageState self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_navigation_chat(
+    NavigationChat self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_navigation_state(

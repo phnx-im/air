@@ -48,11 +48,11 @@ class MemberDetailsScreenView extends StatelessWidget {
       (NavigationCubit cubit) => switch (cubit.state) {
         NavigationState_Home(
           home: HomeNavigationState(
-            chatId: final chatId,
+            :final currentChat,
             memberDetails: final memberId,
           ),
         ) =>
-          (chatId, memberId),
+          (currentChat.chatId, memberId),
         _ => (null, null),
       },
     );

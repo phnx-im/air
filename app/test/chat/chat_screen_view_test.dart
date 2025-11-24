@@ -113,7 +113,9 @@ void main() {
 
     testWidgets('renders correctly', (tester) async {
       when(() => navigationCubit.state).thenReturn(
-        NavigationState.home(home: HomeNavigationState(chatId: chat.id)),
+        NavigationState.home(
+          home: HomeNavigationState(currentChat: .open(chat.id)),
+        ),
       );
       when(
         () => messageListCubit.state,
@@ -131,7 +133,9 @@ void main() {
 
     testWidgets('renders correctly (dark mode)', (tester) async {
       when(() => navigationCubit.state).thenReturn(
-        NavigationState.home(home: HomeNavigationState(chatId: chat.id)),
+        NavigationState.home(
+          home: HomeNavigationState(currentChat: .open(chat.id)),
+        ),
       );
       when(
         () => messageListCubit.state,
