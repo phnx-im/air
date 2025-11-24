@@ -117,7 +117,7 @@ impl CoreUser {
         match qs_queue_message.payload {
             ExtractedQsQueueMessagePayload::WelcomeBundle(welcome_bundle) => {
                 // Box large future
-                Box::pin(self.handle_welcome_bundle(welcome_bundle)).await
+                Box::pin(self.handle_welcome_bundle(welcome_bundle, ds_timestamp)).await
             }
             ExtractedQsQueueMessagePayload::MlsMessage(mls_message) => {
                 self.handle_mls_message(*mls_message, ds_timestamp).await
@@ -134,6 +134,7 @@ impl CoreUser {
     async fn handle_welcome_bundle(
         &self,
         welcome_bundle: WelcomeBundle,
+        ds_timestamp: TimeStamp,
     ) -> Result<ProcessQsMessageResult> {
         // WelcomeBundle Phase 1: Join the group. This might involve
         // loading AS credentials or fetching them from the AS.
@@ -190,6 +191,7 @@ impl CoreUser {
                 // Add system message who added us to the group.
                 let system_message = ChatMessage::new_system_message(
                     chat.id(),
+                    ds_timestamp,
                     SystemMessage::Add(sender_user_id, self.user_id().clone()),
                 );
                 system_message.store(txn.as_mut(), notifier).await?;

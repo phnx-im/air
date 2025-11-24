@@ -159,11 +159,15 @@ impl ChatMessage {
         }
     }
 
-    pub(crate) fn new_system_message(chat_id: ChatId, system_message: SystemMessage) -> Self {
+    pub(crate) fn new_system_message(
+        chat_id: ChatId,
+        ds_timestamp: TimeStamp,
+        system_message: SystemMessage,
+    ) -> Self {
         Self::new(
             chat_id,
             MessageId::random(),
-            TimestampedMessage::system_message(system_message, TimeStamp::now()),
+            TimestampedMessage::system_message(system_message, ds_timestamp),
         )
     }
 

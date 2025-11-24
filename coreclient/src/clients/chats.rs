@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::UserId;
+use aircommon::{identifiers::UserId, time::TimeStamp};
 use anyhow::{Context, Result, anyhow, bail};
 use create_chat_flow::IntitialChatData;
 use delete_chat_flow::DeleteChatData;
@@ -52,9 +52,11 @@ impl CoreUser {
             )
             .await?;
 
+        // FIXME: Use the DS timestamp here <https://github.com/phnx-im/air/issues/853>
         self.with_transaction_and_notifier(async |txn, notifier| {
             ChatMessage::new_system_message(
                 chat_id,
+                TimeStamp::now(),
                 SystemMessage::CreateGroup(self.user_id().clone()),
             )
             .store(txn.as_mut(), notifier)
