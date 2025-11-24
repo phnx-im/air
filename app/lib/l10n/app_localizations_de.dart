@@ -308,27 +308,27 @@ class AppLocalizationsDe extends AppLocalizations {
     Object displayName,
     Object username,
   ) {
-    return 'You accepted $displayName\'s contact request made through your username $username.';
+    return 'Du hast die Kontaktanfrage von $displayName akzeptiert, die über deinen Benutzernamen $username gestellt wurde.';
   }
 
   @override
   String systemMessage_acceptedDirectConnectionRequest(Object displayName) {
-    return 'You accepted $displayName\'s contact request made through a mutual group chat.';
+    return 'Du hast die Kontaktanfrage von $displayName akzeptiert, die über einen gemeinsamen Gruppenchat gestellt wurde.';
   }
 
   @override
   String systemMessage_receivedConnectionConfirmation(Object displayName) {
-    return '$displayName accepted your contact request.';
+    return '$displayName hat deine Kontaktanfrage akzeptiert.';
   }
 
   @override
   String systemMessage_newHandleConnectionChat(Object username) {
-    return 'You sent a contact request to username $username. They might not be immediately notified about your request.';
+    return 'Du hast eine Kontaktanfrage an den Benutzernamen $username gesendet. Die Person wird vielleicht nicht sofort über deine Anfrage benachrichtigt.';
   }
 
   @override
   String systemMessage_newDirectConnectionChat(Object displayName) {
-    return 'You sent a contact request to $displayName. They might not be immediately notified about your request.';
+    return 'Du hast eine Kontaktanfrage an $displayName gesendet. Die Person wird vielleicht nicht sofort über deine Anfrage benachrichtigt.';
   }
 
   @override
@@ -336,7 +336,7 @@ class AppLocalizationsDe extends AppLocalizations {
     Object displayName,
     Object username,
   ) {
-    return '$displayName sent you a contact request through your username $username.';
+    return '$displayName hat dir eine Kontaktanfrage über deinen Benutzernamen $username gesendet.';
   }
 
   @override
@@ -344,7 +344,7 @@ class AppLocalizationsDe extends AppLocalizations {
     Object displayName,
     Object groupName,
   ) {
-    return '$displayName sent you a contact request through the group chat $groupName.';
+    return '$displayName hat dir eine Kontaktanfrage über den Gruppenchat $groupName gesendet.';
   }
 
   @override

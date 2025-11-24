@@ -84,7 +84,7 @@ impl ConnectionInfoSource {
                     .await?;
                 let sender_user_id = cep_payload.sender_client_credential.identity().clone();
                 let handle_connection_info = HandleConnectionInfo {
-                    connection_offer_hash: connection_offer_hash.clone(),
+                    connection_offer_hash: connection_offer_hash,
                     connection_package_hash: hash.clone(),
                     handle: user_handle,
                 };
