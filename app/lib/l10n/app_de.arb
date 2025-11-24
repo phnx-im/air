@@ -97,8 +97,8 @@
   "systemMessage_acceptedHandleConnectionRequest": "Du hast die Kontaktanfrage von {displayName} akzeptiert, die über deinen Benutzernamen {username} gestellt wurde.",
   "systemMessage_acceptedDirectConnectionRequest": "Du hast die Kontaktanfrage von {displayName} akzeptiert, die über einen gemeinsamen Gruppenchat gestellt wurde.",
   "systemMessage_receivedConnectionConfirmation": "{displayName} hat deine Kontaktanfrage akzeptiert.",
-  "systemMessage_newHandleConnectionChat": "Du hast eine Kontaktanfrage an den Benutzernamen {username} gesendet. Eine Benachrichtigung erfolgt möglicherweise nicht sofort.",
-  "systemMessage_newDirectConnectionChat": "Du hast eine Kontaktanfrage an {displayName} gesendet. Möglicherweise werden sie nicht sofort über deine Anfrage benachrichtigt.",
+  "systemMessage_newHandleConnectionChat": "Du hast eine Kontaktanfrage an den Benutzernamen {username} gesendet. Die Person wird vielleicht nicht sofort über deine Anfrage benachrichtigt.",
+  "systemMessage_newDirectConnectionChat": "Du hast eine Kontaktanfrage an {displayName} gesendet. Die Person wird vielleicht nicht sofort über deine Anfrage benachrichtigt.",
   "systemMessage_receivedHandleConnectionRequest": "{displayName} hat dir eine Kontaktanfrage über deinen Benutzernamen {username} gesendet.",
   "systemMessage_receivedDirectConnectionRequest": "{displayName} hat dir eine Kontaktanfrage über den Gruppenchat {groupName} gesendet.",
 
