@@ -4,9 +4,6 @@
 
 import 'dart:io';
 
-import 'package:air/main.dart';
-import 'package:air/ui/colors/palette.dart';
-import 'package:air/ui/components/modal/dialog.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,14 +16,15 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/debouncer.dart';
 import 'package:air/widgets/widgets.dart';
-import 'package:logging/logging.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 
+import 'add_username_dialog.dart';
+import 'change_display_name_dialog.dart';
 import 'contact_us_screen.dart';
-
-final _log = Logger("UserSettingsScreen");
+import 'delete_account_dialog.dart';
+import 'remove_username_dialog.dart';
 
 class UserSettingsScreen extends StatelessWidget {
   const UserSettingsScreen({super.key});
@@ -167,7 +165,7 @@ class _DisplayName extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _FieldLabel(loc.userSettingsScreen_displayNameLabel),
+        FieldLabel(loc.userSettingsScreen_displayNameLabel),
 
         const SizedBox(height: Spacings.xs),
 
@@ -176,7 +174,7 @@ class _DisplayName extends StatelessWidget {
             showDialog(
               context: context,
               builder: (context) =>
-                  _ChangeDisplayNameDialog(displayName: displayName),
+                  ChangeDisplayNameDialog(displayName: displayName),
             ),
           },
           child: Row(children: [Text(displayName)]),
@@ -184,7 +182,7 @@ class _DisplayName extends StatelessWidget {
 
         const SizedBox(height: Spacings.xs),
 
-        _FieldLabel(loc.userSettingsScreen_profileDescription),
+        FieldLabel(loc.userSettingsScreen_profileDescription),
       ],
     );
   }
@@ -226,7 +224,7 @@ class _UsernamesSection extends StatelessWidget {
                       showDialog(
                         context: context,
                         builder: (context) =>
-                            _RemoveUsernameDialog(username: handle),
+                            RemoveUsernameDialog(username: handle),
                       );
                     },
                     child: iconoir.Trash(
@@ -246,7 +244,7 @@ class _UsernamesSection extends StatelessWidget {
           _FieldContainer(
             onTap: () => showDialog(
               context: context,
-              builder: (context) => const _AddUsernameDialog(),
+              builder: (context) => const AddUsernameDialog(),
             ),
             child: Row(
               children: [
@@ -259,7 +257,7 @@ class _UsernamesSection extends StatelessWidget {
           ),
 
           const SizedBox(height: Spacings.xs),
-          _FieldLabel(loc.userSettingsScreen_userNamesDescription),
+          FieldLabel(loc.userSettingsScreen_userNamesDescription),
         ],
       ],
     );
@@ -291,7 +289,7 @@ class _CommonSettings extends HookWidget {
 
         const SizedBox(height: Spacings.xs),
 
-        _FieldLabel(loc.userSettingsScreen_readReceiptsDescription),
+        FieldLabel(loc.userSettingsScreen_readReceiptsDescription),
       ],
     );
   }
@@ -322,7 +320,7 @@ class _MobileSettings extends HookWidget {
 
         const SizedBox(height: Spacings.xs),
 
-        _FieldLabel(loc.userSettingsScreen_sendWithEnterDescription),
+        FieldLabel(loc.userSettingsScreen_sendWithEnterDescription),
       ],
     );
   }
@@ -473,7 +471,7 @@ class _AccountSection extends StatelessWidget {
           onTap: () {
             showDialog(
               context: context,
-              builder: (context) => const _DeleteAccountDialog(),
+              builder: (context) => const DeleteAccountDialog(),
             );
           },
           child: Row(
@@ -493,8 +491,8 @@ class _AccountSection extends StatelessWidget {
   }
 }
 
-class _FieldLabel extends StatelessWidget {
-  const _FieldLabel(this.text);
+class FieldLabel extends StatelessWidget {
+  const FieldLabel(this.text, {super.key});
 
   final String text;
 
@@ -605,501 +603,6 @@ class _FieldContainer extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _RemoveUsernameDialog extends StatelessWidget {
-  const _RemoveUsernameDialog({required this.username});
-
-  final UiUserHandle username;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
-    final loc = AppLocalizations.of(context);
-
-    return AirDialog(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Text(
-              loc.removeUsernameDialog_title,
-              style: TextStyle(
-                fontSize: HeaderFontSize.h4.size,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: Spacings.xxs),
-
-          Text(
-            loc.removeUsernameDialog_content,
-            style: TextStyle(
-              color: colors.text.secondary,
-              fontSize: BodyFontSize.base.size,
-            ),
-          ),
-
-          const SizedBox(height: Spacings.m),
-
-          Row(
-            children: [
-              Expanded(
-                child: TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(false);
-                  },
-                  style: airDialogButtonStyle.copyWith(
-                    backgroundColor: WidgetStatePropertyAll(
-                      colors.accent.quaternary,
-                    ),
-                  ),
-                  child: Text(
-                    loc.removeUsernameDialog_cancel,
-                    style: TextStyle(fontSize: LabelFontSize.base.size),
-                  ),
-                ),
-              ),
-
-              const SizedBox(width: Spacings.xs),
-
-              Expanded(
-                child: TextButton(
-                  onPressed: () {
-                    context.read<UserCubit>().removeUserHandle(username);
-                    Navigator.of(context).pop(true);
-                  },
-                  style: airDialogButtonStyle.copyWith(
-                    backgroundColor: WidgetStatePropertyAll(
-                      colors.function.danger,
-                    ),
-                    foregroundColor: WidgetStatePropertyAll(
-                      colors.function.white,
-                    ),
-                  ),
-                  child: Text(loc.removeUsernameDialog_remove),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AddUsernameDialog extends HookWidget {
-  const _AddUsernameDialog();
-
-  @override
-  Widget build(BuildContext context) {
-    final formKey = useMemoized(() => GlobalKey<FormState>());
-
-    final userHandleExists = useState(false);
-    final isSubmitting = useState(false);
-
-    final controller = useTextEditingController();
-    final focusNode = useFocusNode();
-
-    final colors = CustomColorScheme.of(context);
-    final loc = AppLocalizations.of(context);
-
-    return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(Spacings.m),
-      ),
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 340),
-        padding: const EdgeInsets.only(
-          left: Spacings.s,
-          right: Spacings.s,
-          top: Spacings.m,
-          bottom: Spacings.s,
-        ),
-        child: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Text(
-                  loc.userHandleScreen_title,
-                  style: TextStyle(
-                    fontSize: HeaderFontSize.h4.size,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(height: Spacings.m),
-
-              TextFormField(
-                autocorrect: false,
-                autofocus: true,
-                controller: controller,
-                focusNode: focusNode,
-                inputFormatters: const [UserHandleInputFormatter()],
-                validator: (value) => _validate(loc, userHandleExists, value),
-                onChanged: (_) {
-                  if (userHandleExists.value) {
-                    userHandleExists.value = false;
-                    formKey.currentState!.validate();
-                  }
-                },
-                decoration: airInputDecoration.copyWith(
-                  hintText: loc.userHandleScreen_inputHint,
-                  filled: true,
-                  fillColor: colors.backgroundBase.secondary,
-                ),
-                onFieldSubmitted: (_) {
-                  focusNode.requestFocus();
-                  _submit(
-                    context,
-                    formKey,
-                    controller,
-                    userHandleExists,
-                    isSubmitting,
-                  );
-                },
-              ),
-
-              const SizedBox(height: Spacings.xs),
-
-              _FieldLabel(loc.userHandleScreen_description),
-
-              const SizedBox(height: Spacings.m),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pop(false);
-                      },
-                      style: airDialogButtonStyle.copyWith(
-                        backgroundColor: WidgetStatePropertyAll(
-                          colors.accent.quaternary,
-                        ),
-                      ),
-                      child: Text(
-                        loc.userHandleScreen_cancel,
-                        style: TextStyle(fontSize: LabelFontSize.base.size),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: Spacings.xs),
-                  Expanded(
-                    child: AirDialogProgressTextButton(
-                      onPressed: (isSubmitting) => _submit(
-                        context,
-                        formKey,
-                        controller,
-                        userHandleExists,
-                        isSubmitting,
-                      ),
-                      style: airDialogButtonStyle.copyWith(
-                        backgroundColor: WidgetStatePropertyAll(
-                          colors.accent.primary,
-                        ),
-                        foregroundColor: WidgetStatePropertyAll(
-                          colors.function.toggleWhite,
-                        ),
-                      ),
-                      progressColor: colors.function.toggleWhite,
-                      child: Text(loc.userHandleScreen_confirm),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _submit(
-    BuildContext context,
-    GlobalKey<FormState> formKey,
-    TextEditingController controller,
-    ValueNotifier<bool> alreadyExists,
-    ValueNotifier<bool> isSubmitting,
-  ) async {
-    if (!formKey.currentState!.validate()) {
-      return;
-    }
-    final normalized = UserHandleInputFormatter.normalize(controller.text);
-    final handle = UiUserHandle(plaintext: normalized);
-    final userCubit = context.read<UserCubit>();
-
-    // Clear already exists if any
-    if (alreadyExists.value) {
-      alreadyExists.value = false;
-      formKey.currentState!.validate();
-    }
-
-    isSubmitting.value = true;
-    if (!await userCubit.addUserHandle(handle)) {
-      alreadyExists.value = true;
-      isSubmitting.value = false;
-      formKey.currentState!.validate();
-      return;
-    }
-    if (!context.mounted) return;
-    Navigator.of(context).pop();
-  }
-
-  String? _validate(
-    AppLocalizations loc,
-    ValueNotifier<bool> userHandleExists,
-    String? value,
-  ) {
-    if (userHandleExists.value) {
-      return loc.userHandleScreen_error_alreadyExists;
-    }
-    if (value == null || value.trim().isEmpty) {
-      return loc.userHandleScreen_error_emptyHandle;
-    }
-    final safeValue = value;
-    final normalized = UserHandleInputFormatter.normalize(safeValue);
-    if (normalized.isEmpty) {
-      return loc.userHandleScreen_error_emptyHandle;
-    }
-    final handle = UiUserHandle(plaintext: normalized);
-    return handle.validationError();
-  }
-}
-
-class _ChangeDisplayNameDialog extends HookWidget {
-  const _ChangeDisplayNameDialog({required this.displayName});
-
-  final String displayName;
-
-  @override
-  Widget build(BuildContext context) {
-    final controller = useTextEditingController();
-    useEffect(() {
-      controller.text = displayName;
-      return null;
-    }, [displayName]);
-
-    final focusNode = useFocusNode();
-
-    final colors = CustomColorScheme.of(context);
-    final loc = AppLocalizations.of(context);
-
-    return AirDialog(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Text(
-              loc.editDisplayNameScreen_title,
-              style: TextStyle(
-                fontSize: HeaderFontSize.h4.size,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(height: Spacings.m),
-
-          TextFormField(
-            autocorrect: false,
-            autofocus: true,
-            controller: controller,
-            focusNode: focusNode,
-            decoration: airInputDecoration.copyWith(
-              filled: true,
-              fillColor: colors.backgroundBase.secondary,
-            ),
-            onFieldSubmitted: (_) {
-              focusNode.requestFocus();
-              _submit(context, controller.text);
-            },
-          ),
-
-          const SizedBox(height: Spacings.xs),
-
-          _FieldLabel(loc.editDisplayNameScreen_description),
-
-          const SizedBox(height: Spacings.m),
-
-          Row(
-            children: [
-              Expanded(
-                child: TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(false);
-                  },
-                  style: airDialogButtonStyle.copyWith(
-                    backgroundColor: WidgetStatePropertyAll(
-                      colors.accent.quaternary,
-                    ),
-                  ),
-                  child: Text(
-                    loc.editDisplayNameScreen_cancel,
-                    style: TextStyle(fontSize: LabelFontSize.base.size),
-                  ),
-                ),
-              ),
-              const SizedBox(width: Spacings.xs),
-              Expanded(
-                child: TextButton(
-                  onPressed: () => _submit(context, controller.text),
-                  style: airDialogButtonStyle.copyWith(
-                    backgroundColor: WidgetStatePropertyAll(
-                      colors.accent.primary,
-                    ),
-                    foregroundColor: WidgetStatePropertyAll(
-                      colors.function.toggleWhite,
-                    ),
-                  ),
-                  child: Text(loc.editDisplayNameScreen_save),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _submit(BuildContext context, String text) async {
-    final userCubit = context.read<UserCubit>();
-    userCubit.setProfile(displayName: text.trim());
-    Navigator.of(context).pop();
-  }
-}
-
-const _confirmationText = 'delete';
-
-class _DeleteAccountDialog extends HookWidget {
-  const _DeleteAccountDialog();
-
-  @override
-  Widget build(BuildContext context) {
-    final isConfirmed = useState(false);
-
-    final controller = useTextEditingController();
-
-    final colors = CustomColorScheme.of(context);
-    final loc = AppLocalizations.of(context);
-
-    return AirDialog(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Text(
-              loc.deleteAccountScreen_title,
-              style: TextStyle(
-                fontSize: HeaderFontSize.h4.size,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(height: Spacings.m),
-
-          Center(
-            child: iconoir.WarningCircle(
-              width: 40,
-              height: 40,
-              color: colors.function.danger,
-            ),
-          ),
-
-          const SizedBox(height: Spacings.s),
-
-          _FieldLabel(loc.deleteAccountScreen_explanatoryText),
-
-          const SizedBox(height: Spacings.xs),
-
-          TextFormField(
-            autocorrect: false,
-            autofocus: true,
-            controller: controller,
-            decoration: airInputDecoration.copyWith(
-              hintText: loc.deleteAccountScreen_confirmationInputHint,
-              filled: true,
-              fillColor: colors.backgroundBase.secondary,
-            ),
-            onChanged: (value) =>
-                isConfirmed.value = value == _confirmationText,
-          ),
-
-          const SizedBox(height: Spacings.xs),
-
-          _FieldLabel(loc.deleteAccountScreen_confirmationInputLabel),
-
-          const SizedBox(height: Spacings.m),
-
-          Row(
-            children: [
-              Expanded(
-                child: TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(false);
-                  },
-                  style: airDialogButtonStyle.copyWith(
-                    backgroundColor: WidgetStatePropertyAll(
-                      colors.accent.quaternary,
-                    ),
-                  ),
-                  child: Text(
-                    loc.editDisplayNameScreen_cancel,
-                    style: TextStyle(fontSize: LabelFontSize.base.size),
-                  ),
-                ),
-              ),
-
-              const SizedBox(width: Spacings.xs),
-
-              Expanded(
-                child: AirDialogProgressTextButton(
-                  onPressed: (inProgress) =>
-                      _deleteAccount(context, inProgress),
-                  style: airDialogButtonStyle.copyWith(
-                    backgroundColor: WidgetStatePropertyAll(
-                      colors.function.danger,
-                    ),
-                    foregroundColor: WidgetStatePropertyAll(
-                      AppColors.neutral[200],
-                    ),
-                  ),
-                  child: Text(loc.deleteAccountScreen_confirmButtonText),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _deleteAccount(
-    BuildContext context,
-    ValueNotifier<bool> isDeleting,
-  ) async {
-    isDeleting.value = true;
-    final userCubit = context.read<UserCubit>();
-    final coreClient = context.read<CoreClient>();
-    try {
-      await userCubit.deleteAccount();
-      coreClient.logout();
-    } catch (e) {
-      _log.severe("Failed to delete account: $e");
-      if (context.mounted) {
-        final loc = AppLocalizations.of(context);
-        showErrorBanner(context, loc.deleteAccountScreen_deleteAccountError);
-      }
-    } finally {
-      isDeleting.value = false;
-    }
   }
 }
 
