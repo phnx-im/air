@@ -56,10 +56,7 @@ impl BackgroundStreamContext<QueueEvent> for QueueContext {
     }
 
     async fn handle_event(&mut self, event: QueueEvent) -> bool {
-        let result = self
-            .handler
-            .process_event(event, &mut self.cubit_context)
-            .await;
+        let result = Box::pin(self.handler.process_event(event, &mut self.cubit_context)).await;
         // Stop stream if partially processed
         // => There is a hole in the sequence of the messages, therefore we cannot continue
         // processing them.

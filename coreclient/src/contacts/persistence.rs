@@ -342,11 +342,11 @@ impl PartialContact {
         contact_type: &ContactType,
     ) -> sqlx::Result<Option<Self>> {
         match contact_type {
-            ContactType::Handle(handle) => Ok(HandleContact::load(executor, &handle)
+            ContactType::Handle(handle) => Ok(HandleContact::load(executor, handle)
                 .await?
                 .map(PartialContact::Handle)),
             ContactType::TargetedMessage(user_id) => {
-                Ok(TargetedMessageContact::load(executor, &user_id)
+                Ok(TargetedMessageContact::load(executor, user_id)
                     .await?
                     .map(PartialContact::TargetedMessage))
             }
