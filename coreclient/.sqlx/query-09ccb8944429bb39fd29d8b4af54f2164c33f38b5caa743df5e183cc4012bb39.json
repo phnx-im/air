@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM targeted_message_contact WHERE user_uuid = ? AND user_domain = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "09ccb8944429bb39fd29d8b4af54f2164c33f38b5caa743df5e183cc4012bb39"
+}
