@@ -280,7 +280,7 @@ impl CoreUser {
 
         notifier.notify();
 
-        // Return the chat ID and contact user ID
+        // Return the chat ID
         Ok(chat.id())
     }
 
