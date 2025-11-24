@@ -145,20 +145,22 @@ class ChatScreenView extends StatelessWidget {
     }
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          color: CustomColorScheme.of(context).backgroundBase.primary,
+      body: SafeArea(
+        child: Container(
+          decoration: BoxDecoration(
+            color: CustomColorScheme.of(context).backgroundBase.primary,
+          ),
+          child: Column(
+            children: [
+              const _ChatHeader(),
+              Expanded(
+                child: MessageListView(createMessageCubit: createMessageCubit),
+              ),
+              footer,
+            ],
+          ),
         ),
-        child: Column(
-          children: [
-            const _ChatHeader(),
-            Expanded(
-              child: MessageListView(createMessageCubit: createMessageCubit),
-            ),
-            footer,
-          ],
-        ),
-      ),
+      )
     );
   }
 }
@@ -174,10 +176,8 @@ class _ChatHeader extends StatelessWidget {
     );
 
     return Container(
-      padding: EdgeInsets.only(
-        top: context.responsiveScreenType == ResponsiveScreenType.mobile
-            ? kToolbarHeight
-            : Spacings.xxs,
+      padding: const EdgeInsets.only(
+        top: Spacings.xxs,
         bottom: Spacings.xxs,
         left: Spacings.xs,
         right: Spacings.xs,
