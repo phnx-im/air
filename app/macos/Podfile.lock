@@ -40,13 +40,13 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/url_launcher_macos/macos
 
 SPEC CHECKSUMS:
-  airapplogic: 05eeef9c81bfbcb9ee695ce8041b1d3c34e6310a
-  file_selector_macos: 9e9e068e90ebee155097d00e89ae91edb2374db7
+  airapplogic: 771c36a647af7daa7625dac9637abf1853c5b549
+  file_selector_macos: cc3858c981fe6889f364731200d6232dac1d812d
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
-  package_info_plus: f0052d280d17aa382b932f399edf32507174e870
-  path_provider_foundation: bb55f6dbba17d0dccd6737fe6f7f34fbd0376880
-  share_plus: 510bf0af1a42cd602274b4629920c9649c52f4cc
-  url_launcher_macos: f87a979182d112f911de6820aefddaf56ee9fbfd
+  package_info_plus: 12f1c5c2cfe8727ca46cbd0b26677728972d9a5b
+  path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
+  share_plus: 1fa619de8392a4398bfaf176d441853922614e89
+  url_launcher_macos: c82c93949963e55b228a30115bd219499a6fe404
 
 PODFILE CHECKSUM: 9ebaf0ce3d369aaa26a9ea0e159195ed94724cf3
 
