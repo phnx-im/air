@@ -22,18 +22,13 @@ class UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    UiUserProfile? profile;
-    try {
-      profile = context.select(
-        (UsersCubit cubit) => cubit.state.profile(userId: userId),
-      );
-    } on ProviderNotFoundException {
-      profile = null;
-    }
+    final profile = context.select(
+      (UsersCubit cubit) => cubit.state.profile(userId: userId),
+    );
 
-    final displayName = profile?.displayName ?? "";
-    final image = profile?.profilePicture;
-    final gradientKey = userId?.uuid ?? profile?.userId.uuid;
+    final displayName = profile.displayName;
+    final image = profile.profilePicture;
+    final gradientKey = userId?.uuid ?? profile.userId.uuid;
 
     return _Avatar(
       displayName: displayName,
@@ -69,7 +64,7 @@ class GroupAvatar extends StatelessWidget {
 
     final displayName = chat?.title ?? chat?.displayName ?? "";
     final image = chat?.picture;
-    final gradientKey = chatId?.uuid ?? chat?.id.uuid;
+    final gradientKey = chat?.userId?.uuid ?? chat?.id.uuid;
 
     return _Avatar(
       displayName: displayName,

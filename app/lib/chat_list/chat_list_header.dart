@@ -15,7 +15,6 @@ import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/context_menu/context_menu.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
-import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:provider/provider.dart';
 
@@ -41,25 +40,11 @@ class ChatListHeader extends StatelessWidget {
   }
 }
 
-class _Avatar extends StatefulWidget {
+class _Avatar extends StatelessWidget {
   const _Avatar();
 
   @override
-  State<_Avatar> createState() => _AvatarState();
-}
-
-class _AvatarState extends State<_Avatar> {
-  final contextMenuController = OverlayPortalController();
-
-  @override
   Widget build(BuildContext context) {
-    late final UiUserProfile profile;
-    try {
-      profile = context.select((UsersCubit cubit) => cubit.state.profile());
-    } on ProviderNotFoundException {
-      return const SizedBox.shrink();
-    }
-
     return Padding(
       padding: const EdgeInsets.only(left: Spacings.sm),
       child: Row(
@@ -73,7 +58,7 @@ class _AvatarState extends State<_Avatar> {
             onLongPress: () {
               context.read<NavigationCubit>().openDeveloperSettings();
             },
-            child: UserAvatar(userId: profile.userId, size: Spacings.l),
+            child: const UserAvatar(size: Spacings.l),
           ),
         ],
       ),

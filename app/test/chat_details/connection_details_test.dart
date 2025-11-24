@@ -11,6 +11,7 @@ import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
+import 'package:air/user/user.dart';
 
 import '../chat_list/chat_list_content_test.dart';
 import '../mocks.dart';
@@ -20,18 +21,24 @@ final chat = chats[0];
 void main() {
   group('ConnectionDetailsTest', () {
     late MockChatDetailsCubit chatDetailsCubit;
+    late MockUsersCubit usersCubit;
 
     setUp(() async {
       chatDetailsCubit = MockChatDetailsCubit();
+      usersCubit = MockUsersCubit();
 
       when(() => chatDetailsCubit.state).thenReturn(
         ChatDetailsState(chat: chat, members: [userProfiles[1].userId]),
+      );
+      when(() => usersCubit.state).thenReturn(
+        MockUsersState(profiles: userProfiles),
       );
     });
 
     Widget buildSubject() => MultiBlocProvider(
       providers: [
         BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
+        BlocProvider<UsersCubit>.value(value: usersCubit),
       ],
       child: Builder(
         builder: (context) {

@@ -23,12 +23,6 @@ class UserSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    UiUserProfile profile;
-    try {
-      profile = context.select((UsersCubit cubit) => cubit.state.profile());
-    } on ProviderNotFoundException {
-      return const SizedBox.shrink();
-    }
     final loc = AppLocalizations.of(context);
 
     final isMobilePlatform = Platform.isAndroid || Platform.isIOS;
@@ -51,11 +45,7 @@ class UserSettingsScreen extends StatelessWidget {
             child: SingleChildScrollView(
               child: Column(
                 children: [
-                  UserAvatar(
-                    userId: profile.userId,
-                    size: 100,
-                    onPressed: () => _pickAvatar(context),
-                  ),
+                  UserAvatar(size: 100, onPressed: () => _pickAvatar(context)),
                   const SizedBox(height: Spacings.xs),
 
                   const _UserProfileData(),

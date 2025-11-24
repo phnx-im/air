@@ -333,7 +333,6 @@ class _LastMessage extends StatelessWidget {
         ? draftStyle
         : readStyle.copyWith(
             color: CustomColorScheme.of(context).text.tertiary,
-            fontSize: LabelFontSize.small1.size,
           );
 
     final suffixStyle = chat.unreadMessages > 0 ? unreadStyle : readStyle;
