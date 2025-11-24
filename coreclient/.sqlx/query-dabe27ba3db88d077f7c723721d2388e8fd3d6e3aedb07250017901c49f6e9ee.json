@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                user_id AS \"user_id: _\",\n                user_domain AS \"user_domain: _\",\n                chat_id AS \"chat_id: _\",\n                friendship_package_ear_key AS \"friendship_package_ear_key: _\"\n            FROM targeted_message_contact",
+  "query": "SELECT\n                user_uuid AS \"user_id: _\",\n                user_domain AS \"user_domain: _\",\n                chat_id AS \"chat_id: _\",\n                friendship_package_ear_key AS \"friendship_package_ear_key: _\"\n            FROM targeted_message_contact\n            WHERE user_uuid = ? AND user_domain = ?",
   "describe": {
     "columns": [
       {
@@ -25,7 +25,7 @@
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 2
     },
     "nullable": [
       false,
@@ -34,5 +34,5 @@
       false
     ]
   },
-  "hash": "ba3c3b3c2ab207fff812573476d36eff5fdfd6b769b0373ad3ecfe419c3321f2"
+  "hash": "dabe27ba3db88d077f7c723721d2388e8fd3d6e3aedb07250017901c49f6e9ee"
 }

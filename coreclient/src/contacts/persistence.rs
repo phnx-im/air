@@ -245,7 +245,7 @@ impl TargetedMessageContact {
         let domain = self.user_id.domain();
         query!(
             "INSERT OR REPLACE INTO targeted_message_contact (
-                user_id,
+                user_uuid,
                 user_domain,
                 chat_id,
                 friendship_package_ear_key,
@@ -272,12 +272,12 @@ impl TargetedMessageContact {
         query_as!(
             Record,
             r#"SELECT
-                user_id AS "user_id: _",
+                user_uuid AS "user_id: _",
                 user_domain AS "user_domain: _",
                 chat_id AS "chat_id: _",
                 friendship_package_ear_key AS "friendship_package_ear_key: _"
             FROM targeted_message_contact
-            WHERE user_id = ? AND user_domain = ?"#,
+            WHERE user_uuid = ? AND user_domain = ?"#,
             uuid,
             domain,
         )
@@ -290,7 +290,7 @@ impl TargetedMessageContact {
         query_as!(
             Record,
             r#"SELECT
-                user_id AS "user_id: _",
+                user_uuid AS "user_id: _",
                 user_domain AS "user_domain: _",
                 chat_id AS "chat_id: _",
                 friendship_package_ear_key AS "friendship_package_ear_key: _"
@@ -305,7 +305,7 @@ impl TargetedMessageContact {
         let uuid = self.user_id.uuid();
         let domain = self.user_id.domain();
         query!(
-            "DELETE FROM targeted_message_contact WHERE user_id = ? AND user_domain = ?",
+            "DELETE FROM targeted_message_contact WHERE user_uuid = ? AND user_domain = ?",
             uuid,
             domain
         )

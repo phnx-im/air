@@ -272,7 +272,14 @@ class _PeoplePreviewEntry extends StatelessWidget {
         borderRadius: borderRadius,
       ),
       padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
-      child: MemberListItem(profile: profile, displayNameOverride: displayName),
+      child: MemberListItem(
+        profile: profile,
+        displayNameOverride: displayName,
+        enabled: !isSelf,
+        onTap: isSelf
+            ? null
+            : () => context.read<NavigationCubit>().openMemberDetails(memberId),
+      ),
     );
   }
 }

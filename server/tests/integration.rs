@@ -1894,3 +1894,31 @@ async fn sanity_checks_for_targeted_message_connections() {
         "Bob should not be able to add Charlie again as a contact from the group"
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Handle sanity checks test", skip_all)]
+async fn handle_sanity_checks() {
+    let mut setup = TestBackend::single().await;
+    setup.add_user(&ALICE).await;
+    setup.add_user(&BOB).await;
+
+    let bob = setup.get_user_mut(&BOB);
+    let handle_record = bob.add_user_handle().await.unwrap();
+    let bob_handle = handle_record.handle.clone();
+
+    let alice = setup.get_user_mut(&ALICE);
+    let handle_record = alice.add_user_handle().await.unwrap();
+    let alice_handle = handle_record.handle.clone();
+    let alice_user = &alice.user;
+    let res = alice_user.add_contact(alice_handle.clone()).await;
+    assert!(
+        res.is_err(),
+        "Should not be able to add own handle as contact"
+    );
+
+    // Try to add Bob twice
+    let res = alice_user.add_contact(bob_handle.clone()).await;
+    assert!(res.is_ok(), "Should be able to add Bob as contact");
+    let res = alice_user.add_contact(bob_handle.clone()).await;
+    assert!(res.is_err(), "Should not be able to add Bob twice");
+}

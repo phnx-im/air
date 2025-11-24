@@ -23,6 +23,7 @@
   "chatDetailsScreen_unknownChat": "Unknown chat",
 
   "blockedChatFooter_message": "You won’t receive messages from {displayName} unless you unblock them.",
+  "inactiveChatFooter_message": "You're no longer a member of this chat.",
 
   "chatScreen_emptyChat": "Select a chat to start messaging",
 
@@ -59,15 +60,17 @@
   },
 
   "signUpScreen_header": "Create your profile",
-  "signUpScreen_subheader": "Your profile is visible to people you connect with and members of groups you’re in.",
-  "usernameOnboarding_title": "Welcome to Air",
+  "signUpScreen_subheader": "Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.",
   "usernameOnboarding_header": "Add a username",
   "usernameOnboarding_body": "Usernames are how people connect on Air. They aren't visible to others once you're connected.\n\nAdd, change, or delete usernames at any time in your profile.",
   "usernameOnboarding_syntax": "Use letters, numbers, or dashes. Minimum 5 characters.",
   "usernameOnboarding_addButton": "Add",
   "usernameOnboarding_skip": "Skip",
-  "signUpScreen_actionButton": "Sign up",
-  "signUpScreen_displayNameHint": "Display name (required)",
+  "usernameOnboarding_userameInputName": "Username (optional)",
+  "usernameOnboarding_userameInputHint": "Add a username...",
+  "signUpScreen_actionButton": "Create",
+  "signUpScreen_displayNameInputName": "Display name (required)",
+  "signUpScreen_displayNameInputHint": "Add a name...",
   "signUpScreen_serverLabel": "Choose a server where you want to create your account.",
   "signUpScreen_serverHint": "DOMAIN NAME",
   "signUpScreen_error_invalidDomain": "Domain is invalid",
