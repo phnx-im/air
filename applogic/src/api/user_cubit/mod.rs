@@ -9,6 +9,7 @@ use std::sync::Arc;
 use aircommon::identifiers::{UserHandle, UserId};
 use aircoreclient::Asset;
 use aircoreclient::{ChatId, clients::CoreUser, store::Store};
+use anyhow::ensure;
 use flutter_rust_bridge::frb;
 use qs::QueueContext;
 use tokio::sync::watch;
@@ -33,6 +34,8 @@ use super::{
 
 mod qs;
 mod user_handle;
+
+const DELETE_ACCOUNT_CONFIRMATION_TEXT: &str = "delete";
 
 /// State of the [`UserCubit`] which is the logged in user
 ///
@@ -353,7 +356,15 @@ impl UserCubitBase {
         self.context.core_user.unblock_contact(user_id.into()).await
     }
 
-    pub async fn delete_account(&self, db_path: &str) -> anyhow::Result<()> {
+    pub async fn delete_account(
+        &self,
+        db_path: &str,
+        confirmation_text: &str,
+    ) -> anyhow::Result<()> {
+        ensure!(
+            confirmation_text == DELETE_ACCOUNT_CONFIRMATION_TEXT,
+            "unexpected confirmation text"
+        );
         self.context.core_user.delete_account(Some(db_path)).await
     }
 }
@@ -450,14 +461,14 @@ impl CubitContext {
                     HomeNavigationState {
                         current_chat,
                         developer_settings_screen,
-                        user_settings_screen,
+                        user_profile_open,
                         ..
                     },
             } => {
                 if !IS_DESKTOP
                     && !current_chat.is_open()
                     && developer_settings_screen.is_none()
-                    && user_settings_screen.is_none()
+                    && !user_profile_open
                 {
                     NotificationContext::ChatList
                 } else {

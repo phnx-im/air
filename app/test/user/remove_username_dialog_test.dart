@@ -2,32 +2,34 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/core/api/types.dart';
+import 'package:air/user/remove_username_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
-import 'package:air/user/user.dart';
 
 void main() {
-  group('DeleteAccountScreenTest', () {
+  group('RemoveUsernameDialogTest', () {
     Widget buildSubject() => Builder(
       builder: (context) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: themeData(MediaQuery.platformBrightnessOf(context)),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: const DeleteAccountScreen(),
+          home: const RemoveUsernameDialog(
+            username: UiUserHandle(plaintext: "ellie"),
+          ),
         );
       },
     );
 
     testWidgets('renders correctly', (tester) async {
       await tester.pumpWidget(buildSubject());
-      await tester.enterText(find.byType(TextField), 'delete');
-      await tester.pumpAndSettle();
+
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/delete_account_screen.png'),
+        matchesGoldenFile('goldens/remove_username_dialog.png'),
       );
     });
   });

@@ -196,55 +196,11 @@ extension on HomeNavigationState {
           key: ValueKey("create-group-screen"),
           child: CreateGroupScreen(),
         ),
-      ...switch (userSettingsScreen) {
-        null => [],
-        UserSettingsScreenType.root => [
-          const MaterialPage(
-            key: ValueKey("user-settings-screen-root"),
-            child: UserSettingsScreen(),
-          ),
-        ],
-        UserSettingsScreenType.editDisplayName => [
-          const MaterialPage(
-            key: ValueKey("user-settings-screen-root"),
-            child: UserSettingsScreen(),
-          ),
-          const MaterialPage(
-            key: ValueKey("user-settings-screen-edit-display-name"),
-            child: EditDisplayNameScreen(),
-          ),
-        ],
-        UserSettingsScreenType.addUserHandle => [
-          const MaterialPage(
-            key: ValueKey("user-settings-screen-root"),
-            child: UserSettingsScreen(),
-          ),
-          const MaterialPage(
-            key: ValueKey("user-settings-screen-add-user-handle"),
-            child: AddUserHandleScreen(),
-          ),
-        ],
-        UserSettingsScreenType.help => [
-          const MaterialPage(
-            key: ValueKey("user-settings-screen-root"),
-            child: UserSettingsScreen(),
-          ),
-          const MaterialPage(
-            key: ValueKey("user-settings-screen-help"),
-            child: HelpScreen(),
-          ),
-        ],
-        UserSettingsScreenType.deleteAccount => [
-          const MaterialPage(
-            key: ValueKey("user-settings-screen-root"),
-            child: UserSettingsScreen(),
-          ),
-          const MaterialPage(
-            key: ValueKey("user-settings-screen-delete-account"),
-            child: DeleteAccountScreen(),
-          ),
-        ],
-      },
+      if (userProfileOpen)
+        const MaterialPage(
+          key: ValueKey("user-profile-screen"),
+          child: UserSettingsScreen(),
+        ),
       if (openChatId != null && screenType == ResponsiveScreenType.mobile)
         const MaterialPage(key: ValueKey("chat-screen"), child: ChatScreen()),
       if (openChatId != null && chatDetailsOpen)

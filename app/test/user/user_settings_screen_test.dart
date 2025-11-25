@@ -14,6 +14,8 @@ import 'package:air/user/user.dart';
 import '../helpers.dart';
 import '../mocks.dart';
 
+const physicalSize = Size(1080, 3300);
+
 void main() {
   group('UserSettingsScreenTest', () {
     late MockUserCubit userCubit;
@@ -52,6 +54,11 @@ void main() {
     );
 
     testWidgets('renders correctly (no handles)', (tester) async {
+      tester.view.physicalSize = physicalSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
       when(
         () => userCubit.state,
       ).thenReturn(MockUiUser(id: 1, userHandles: []));
@@ -65,6 +72,11 @@ void main() {
     });
 
     testWidgets('renders correctly (some handles)', (tester) async {
+      tester.view.physicalSize = physicalSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
       when(() => userCubit.state).thenReturn(
         MockUiUser(
           id: 1,
@@ -84,6 +96,11 @@ void main() {
     });
 
     testWidgets('renders correctly (all handles)', (tester) async {
+      tester.view.physicalSize = physicalSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
       when(() => userCubit.state).thenReturn(
         MockUiUser(
           id: 1,

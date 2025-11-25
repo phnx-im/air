@@ -15,7 +15,7 @@ import 'types.dart';
 part 'navigation_cubit.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `close`, `home`, `intro`, `is_open`, `subscribe`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NavigationCubitBase>>
 abstract class NavigationCubitBase implements RustOpaqueInterface {
@@ -53,7 +53,7 @@ abstract class NavigationCubitBase implements RustOpaqueInterface {
 
   Future<void> openMemberDetails({required UiUserId member});
 
-  Future<void> openUserSettings({required UserSettingsScreenType screen});
+  Future<void> openUserProfile();
 
   bool pop();
 
@@ -77,7 +77,7 @@ sealed class HomeNavigationState with _$HomeNavigationState {
     @Default(NavigationChat.none()) NavigationChat currentChat,
     DeveloperSettingsScreenType? developerSettingsScreen,
     UiUserId? memberDetails,
-    UserSettingsScreenType? userSettingsScreen,
+    @Default(false) bool userProfileOpen,
     @Default(false) bool chatDetailsOpen,
     @Default(false) bool addMembersOpen,
     @Default(false) bool groupMembersOpen,
@@ -132,12 +132,4 @@ sealed class NavigationState with _$NavigationState {
   const factory NavigationState.home({
     @Default(HomeNavigationState()) HomeNavigationState home,
   }) = NavigationState_Home;
-}
-
-enum UserSettingsScreenType {
-  root,
-  editDisplayName,
-  addUserHandle,
-  help,
-  deleteAccount,
 }
