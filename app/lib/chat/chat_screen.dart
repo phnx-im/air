@@ -160,7 +160,7 @@ class ChatScreenView extends StatelessWidget {
             ],
           ),
         ),
-      )
+      ),
     );
   }
 }
@@ -176,8 +176,10 @@ class _ChatHeader extends StatelessWidget {
     );
 
     return Container(
-      padding: const EdgeInsets.only(
-        top: Spacings.xxs,
+      padding: EdgeInsets.only(
+        top: context.responsiveScreenType == ResponsiveScreenType.mobile
+            ? 0
+            : Spacings.xxs,
         bottom: Spacings.xxs,
         left: Spacings.xs,
         right: Spacings.xs,
