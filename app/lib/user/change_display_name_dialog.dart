@@ -51,7 +51,7 @@ class ChangeDisplayNameDialog extends HookWidget {
             autofocus: true,
             controller: controller,
             focusNode: focusNode,
-            decoration: airInputDecoration.copyWith(
+            decoration: appDialogInputDecoration.copyWith(
               filled: true,
               fillColor: colors.backgroundBase.secondary,
             ),
@@ -63,33 +63,41 @@ class ChangeDisplayNameDialog extends HookWidget {
 
           const SizedBox(height: Spacings.xs),
 
-          FieldLabel(loc.editDisplayNameScreen_description),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
+            child: Text(
+              loc.editDisplayNameScreen_description,
+              style: TextStyle(
+                color: colors.text.tertiary,
+                fontSize: BodyFontSize.small2.size,
+              ),
+            ),
+          ),
 
           const SizedBox(height: Spacings.m),
 
           Row(
             children: [
               Expanded(
-                child: TextButton(
+                child: OutlinedButton(
                   onPressed: () {
                     Navigator.of(context).pop(false);
                   },
-                  style: airDialogButtonStyle.copyWith(
+                  style: ButtonStyle(
                     backgroundColor: WidgetStatePropertyAll(
                       colors.accent.quaternary,
                     ),
                   ),
-                  child: Text(
-                    loc.editDisplayNameScreen_cancel,
-                    style: TextStyle(fontSize: LabelFontSize.base.size),
-                  ),
+                  child: Text(loc.editDisplayNameScreen_cancel),
                 ),
               ),
+
               const SizedBox(width: Spacings.xs),
+
               Expanded(
-                child: TextButton(
+                child: OutlinedButton(
                   onPressed: () => _submit(context, controller.text),
-                  style: airDialogButtonStyle.copyWith(
+                  style: ButtonStyle(
                     backgroundColor: WidgetStatePropertyAll(
                       colors.accent.primary,
                     ),

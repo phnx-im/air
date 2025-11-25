@@ -53,31 +53,23 @@ class RemoveUsernameDialog extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: TextButton(
+                child: OutlinedButton(
                   onPressed: () {
                     Navigator.of(context).pop(false);
                   },
-                  style: airDialogButtonStyle.copyWith(
-                    backgroundColor: WidgetStatePropertyAll(
-                      colors.accent.quaternary,
-                    ),
-                  ),
-                  child: Text(
-                    loc.removeUsernameDialog_cancel,
-                    style: TextStyle(fontSize: LabelFontSize.base.size),
-                  ),
+                  child: Text(loc.removeUsernameDialog_cancel),
                 ),
               ),
 
               const SizedBox(width: Spacings.xs),
 
               Expanded(
-                child: TextButton(
+                child: OutlinedButton(
                   onPressed: () {
                     context.read<UserCubit>().removeUserHandle(username);
                     Navigator.of(context).pop(true);
                   },
-                  style: airDialogButtonStyle.copyWith(
+                  style: ButtonStyle(
                     backgroundColor: WidgetStatePropertyAll(
                       colors.function.danger,
                     ),

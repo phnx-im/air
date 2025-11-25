@@ -31,32 +31,36 @@ class AppDialog extends StatelessWidget {
   }
 }
 
-class AirDialogProgressTextButton extends HookWidget {
-  const AirDialogProgressTextButton({
+class AppDialogProgressButton extends HookWidget {
+  const AppDialogProgressButton({
     super.key,
-    required this.onPressed,
+    this.onPressed,
     this.style,
     this.progressColor,
+    this.inProgress,
     required this.child,
   });
 
-  final Function(ValueNotifier<bool> inProgress) onPressed;
+  final Function(ValueNotifier<bool> inProgress)? onPressed;
   final ButtonStyle? style;
   final Color? progressColor;
   final Widget child;
+  final bool? inProgress;
 
   @override
   Widget build(BuildContext context) {
-    final inProgress = useState(false);
+    final inProgress = useState(this.inProgress ?? false);
 
-    return TextButton(
-      onPressed: () => inProgress.value ? null : onPressed(inProgress),
+    return OutlinedButton(
+      onPressed: onPressed != null
+          ? () => inProgress.value ? null : onPressed?.call(inProgress)
+          : null,
       style: style,
       child: !inProgress.value
           ? child
           : SizedBox(
-              width: 20,
-              height: 20,
+              width: 16,
+              height: 16,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
                 valueColor: progressColor != null
@@ -69,12 +73,18 @@ class AirDialogProgressTextButton extends HookWidget {
   }
 }
 
-const airDialogButtonStyle = ButtonStyle(
-  visualDensity: VisualDensity.compact,
-  padding: WidgetStatePropertyAll(EdgeInsets.all(Spacings.sm)),
-  shape: WidgetStatePropertyAll(
-    RoundedRectangleBorder(
-      borderRadius: BorderRadius.all(Radius.circular(Spacings.xs)),
-    ),
+const appDialogInputDecoration = InputDecoration(
+  contentPadding: EdgeInsets.symmetric(
+    horizontal: Spacings.xxs,
+    vertical: Spacings.xxs,
   ),
+  isDense: true,
+  border: _outlineInputBorder,
+  enabledBorder: _outlineInputBorder,
+  focusedBorder: _outlineInputBorder,
+);
+
+const _outlineInputBorder = OutlineInputBorder(
+  borderRadius: BorderRadius.all(Radius.circular(Spacings.s)),
+  borderSide: BorderSide(width: 0, style: BorderStyle.none),
 );

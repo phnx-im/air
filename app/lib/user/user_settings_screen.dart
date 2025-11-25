@@ -55,6 +55,7 @@ class UserSettingsScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         toolbarHeight: isPointer() ? 100 : null,
         centerTitle: true,
+        scrolledUnderElevation: 0,
       ),
       backgroundColor: colors.backgroundBase.secondary,
       body: SafeArea(
@@ -605,19 +606,3 @@ class _FieldContainer extends StatelessWidget {
     );
   }
 }
-
-const airInputDecoration = InputDecoration(
-  contentPadding: EdgeInsets.symmetric(
-    horizontal: Spacings.xxs,
-    vertical: Spacings.xxs,
-  ),
-  isDense: true,
-  border: _outlineInputBorder,
-  enabledBorder: _outlineInputBorder,
-  focusedBorder: _outlineInputBorder,
-);
-
-const _outlineInputBorder = OutlineInputBorder(
-  borderRadius: BorderRadius.all(Radius.circular(Spacings.s)),
-  borderSide: BorderSide(width: 0, style: BorderStyle.none),
-);

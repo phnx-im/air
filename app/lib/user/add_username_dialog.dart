@@ -17,7 +17,9 @@ import 'user_cubit.dart';
 import 'user_settings_screen.dart';
 
 class AddUsernameDialog extends HookWidget {
-  const AddUsernameDialog({super.key});
+  const AddUsernameDialog({super.key, this.inProgress});
+
+  final bool? inProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -74,7 +76,7 @@ class AddUsernameDialog extends HookWidget {
                     formKey.currentState!.validate();
                   }
                 },
-                decoration: airInputDecoration.copyWith(
+                decoration: appDialogInputDecoration.copyWith(
                   hintText: loc.userHandleScreen_inputHint,
                   filled: true,
                   fillColor: colors.backgroundBase.secondary,
@@ -93,31 +95,32 @@ class AddUsernameDialog extends HookWidget {
 
               const SizedBox(height: Spacings.xs),
 
-              FieldLabel(loc.userHandleScreen_description),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
+                child: Text(
+                  loc.userHandleScreen_description,
+                  style: TextStyle(
+                    color: colors.text.tertiary,
+                    fontSize: BodyFontSize.small2.size,
+                  ),
+                ),
+              ),
 
               const SizedBox(height: Spacings.m),
 
               Row(
                 children: [
                   Expanded(
-                    child: TextButton(
+                    child: OutlinedButton(
                       onPressed: () {
                         Navigator.of(context).pop(false);
                       },
-                      style: airDialogButtonStyle.copyWith(
-                        backgroundColor: WidgetStatePropertyAll(
-                          colors.accent.quaternary,
-                        ),
-                      ),
-                      child: Text(
-                        loc.userHandleScreen_cancel,
-                        style: TextStyle(fontSize: LabelFontSize.base.size),
-                      ),
+                      child: Text(loc.userHandleScreen_cancel),
                     ),
                   ),
                   const SizedBox(width: Spacings.xs),
                   Expanded(
-                    child: AirDialogProgressTextButton(
+                    child: AppDialogProgressButton(
                       onPressed: (isSubmitting) => _submit(
                         context,
                         formKey,
@@ -125,7 +128,7 @@ class AddUsernameDialog extends HookWidget {
                         userHandleExists,
                         isSubmitting,
                       ),
-                      style: airDialogButtonStyle.copyWith(
+                      style: ButtonStyle(
                         backgroundColor: WidgetStatePropertyAll(
                           colors.accent.primary,
                         ),
@@ -134,6 +137,7 @@ class AddUsernameDialog extends HookWidget {
                         ),
                       ),
                       progressColor: colors.function.toggleWhite,
+                      inProgress: inProgress,
                       child: Text(loc.userHandleScreen_confirm),
                     ),
                   ),

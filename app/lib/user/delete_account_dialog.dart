@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/main.dart';
-import 'package:air/ui/colors/palette.dart';
 import 'package:air/ui/components/modal/app_dialog.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:flutter/material.dart';
@@ -22,13 +21,17 @@ const _confirmationText = 'delete';
 final _log = Logger("DeleteAccountDialog");
 
 class DeleteAccountDialog extends HookWidget {
-  const DeleteAccountDialog({super.key});
+  const DeleteAccountDialog({super.key, this.isConfirmed = false});
+
+  final bool isConfirmed;
 
   @override
   Widget build(BuildContext context) {
-    final isConfirmed = useState(false);
+    final isConfirmed = useState(this.isConfirmed);
 
-    final controller = useTextEditingController();
+    final controller = useTextEditingController(
+      text: (this.isConfirmed) ? _confirmationText : "",
+    );
 
     final colors = CustomColorScheme.of(context);
     final loc = AppLocalizations.of(context);
@@ -57,9 +60,15 @@ class DeleteAccountDialog extends HookWidget {
             ),
           ),
 
-          const SizedBox(height: Spacings.s),
+          const SizedBox(height: Spacings.m),
 
-          FieldLabel(loc.deleteAccountScreen_explanatoryText),
+          Text(
+            loc.deleteAccountScreen_explanatoryText,
+            style: TextStyle(
+              color: colors.text.secondary,
+              fontSize: BodyFontSize.base.size,
+            ),
+          ),
 
           const SizedBox(height: Spacings.xs),
 
@@ -67,7 +76,7 @@ class DeleteAccountDialog extends HookWidget {
             autocorrect: false,
             autofocus: true,
             controller: controller,
-            decoration: airInputDecoration.copyWith(
+            decoration: appDialogInputDecoration.copyWith(
               hintText: loc.deleteAccountScreen_confirmationInputHint,
               filled: true,
               fillColor: colors.backgroundBase.secondary,
@@ -78,41 +87,50 @@ class DeleteAccountDialog extends HookWidget {
 
           const SizedBox(height: Spacings.xs),
 
-          FieldLabel(loc.deleteAccountScreen_confirmationInputLabel),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
+            child: Text(
+              loc.deleteAccountScreen_confirmationInputLabel,
+              style: TextStyle(
+                color: colors.text.tertiary,
+                fontSize: BodyFontSize.small2.size,
+              ),
+            ),
+          ),
 
           const SizedBox(height: Spacings.m),
 
           Row(
             children: [
               Expanded(
-                child: TextButton(
+                child: OutlinedButton(
                   onPressed: () {
                     Navigator.of(context).pop(false);
                   },
-                  style: airDialogButtonStyle.copyWith(
+                  style: ButtonStyle(
                     backgroundColor: WidgetStatePropertyAll(
                       colors.accent.quaternary,
                     ),
                   ),
-                  child: Text(
-                    loc.editDisplayNameScreen_cancel,
-                    style: TextStyle(fontSize: LabelFontSize.base.size),
-                  ),
+                  child: Text(loc.editDisplayNameScreen_cancel),
                 ),
               ),
 
               const SizedBox(width: Spacings.xs),
 
               Expanded(
-                child: AirDialogProgressTextButton(
-                  onPressed: (inProgress) =>
-                      _deleteAccount(context, inProgress),
-                  style: airDialogButtonStyle.copyWith(
+                child: AppDialogProgressButton(
+                  onPressed: isConfirmed.value
+                      ? (inProgress) => _deleteAccount(context, inProgress)
+                      : null,
+                  style: ButtonStyle(
                     backgroundColor: WidgetStatePropertyAll(
                       colors.function.danger,
                     ),
-                    foregroundColor: WidgetStatePropertyAll(
-                      AppColors.neutral[200],
+                    foregroundColor: WidgetStateProperty.resolveWith(
+                      (states) => states.contains(WidgetState.disabled)
+                          ? colors.function.white.withValues(alpha: 0.7)
+                          : colors.function.white,
                     ),
                   ),
                   child: Text(loc.deleteAccountScreen_confirmButtonText),

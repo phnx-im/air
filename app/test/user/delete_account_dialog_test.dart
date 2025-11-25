@@ -10,13 +10,13 @@ import 'package:air/theme/theme.dart';
 
 void main() {
   group('DeleteAccountDialogTest', () {
-    Widget buildSubject() => Builder(
+    Widget buildSubject({bool isConfirmed = false}) => Builder(
       builder: (context) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: themeData(MediaQuery.platformBrightnessOf(context)),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: const DeleteAccountDialog(),
+          home: DeleteAccountDialog(isConfirmed: isConfirmed),
         );
       },
     );
@@ -27,6 +27,15 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/delete_account_dialog.png'),
+      );
+    });
+
+    testWidgets('renders correctly (confirmed)', (tester) async {
+      await tester.pumpWidget(buildSubject(isConfirmed: true));
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/delete_account_dialog_confirmed.png'),
       );
     });
   });
