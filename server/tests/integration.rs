@@ -1848,6 +1848,54 @@ async fn connect_users_via_targeted_message() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Sanity checks for targeted message connections", skip_all)]
+async fn sanity_checks_for_targeted_message_connections() {
+    let mut setup = TestBackend::single().await;
+    setup.add_user(&ALICE).await;
+    setup.add_user(&BOB).await;
+    setup.add_user(&CHARLIE).await;
+
+    // Alice is connected to Bob and Charlie, but Bob and Charlie are not connected.
+    setup.connect_users(&ALICE, &BOB).await;
+    setup.connect_users(&ALICE, &CHARLIE).await;
+
+    // Alice creates a group and invites Bob and Charlie
+    let group_chat_id = setup.create_group(&ALICE).await;
+    setup
+        .invite_to_group(group_chat_id, &ALICE, vec![&BOB, &CHARLIE])
+        .await;
+
+    // Alice shouldn't be able to add Bob as a contact from the group, since they are already connected.
+    let alice = setup.get_user(&ALICE);
+    let alice_user = &alice.user;
+    let res = alice_user
+        .add_contact_from_group(group_chat_id, BOB.clone())
+        .await;
+    assert!(
+        res.is_err(),
+        "Alice should not be able to add Bob as a contact from the group since they are already connected"
+    );
+
+    // Bob now connects to Charlie via a targeted message sent through the
+    // shared group.
+    let bob = setup.get_user(&BOB);
+    let bob_user = &bob.user;
+    bob_user
+        .add_contact_from_group(group_chat_id, CHARLIE.clone())
+        .await
+        .unwrap();
+
+    // Bob shouldn't be able to add Charlie again.
+    let res = bob_user
+        .add_contact_from_group(group_chat_id, CHARLIE.clone())
+        .await;
+    assert!(
+        res.is_err(),
+        "Bob should not be able to add Charlie again as a contact from the group"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Handle sanity checks test", skip_all)]
 async fn handle_sanity_checks() {
     let mut setup = TestBackend::single().await;
