@@ -14,7 +14,6 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
 
 import 'user_cubit.dart';
-import 'user_settings_screen.dart';
 
 class AddUsernameDialog extends HookWidget {
   const AddUsernameDialog({super.key, this.inProgress});
@@ -34,117 +33,105 @@ class AddUsernameDialog extends HookWidget {
     final colors = CustomColorScheme.of(context);
     final loc = AppLocalizations.of(context);
 
-    return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(Spacings.m),
-      ),
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 340),
-        padding: const EdgeInsets.only(
-          left: Spacings.s,
-          right: Spacings.s,
-          top: Spacings.m,
-          bottom: Spacings.s,
-        ),
-        child: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Text(
-                  loc.userHandleScreen_title,
-                  style: TextStyle(
-                    fontSize: HeaderFontSize.h4.size,
-                    fontWeight: FontWeight.bold,
+    return AppDialog(
+      child: Form(
+        key: formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Text(
+                loc.userHandleScreen_title,
+                style: TextStyle(
+                  fontSize: HeaderFontSize.h4.size,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(height: Spacings.m),
+
+            TextFormField(
+              autocorrect: false,
+              autofocus: true,
+              controller: controller,
+              focusNode: focusNode,
+              inputFormatters: const [UserHandleInputFormatter()],
+              validator: (value) => _validate(loc, userHandleExists, value),
+              onChanged: (_) {
+                if (userHandleExists.value) {
+                  userHandleExists.value = false;
+                  formKey.currentState!.validate();
+                }
+              },
+              decoration: appDialogInputDecoration.copyWith(
+                hintText: loc.userHandleScreen_inputHint,
+                filled: true,
+                fillColor: colors.backgroundBase.secondary,
+              ),
+              onFieldSubmitted: (_) {
+                focusNode.requestFocus();
+                _submit(
+                  context,
+                  formKey,
+                  controller,
+                  userHandleExists,
+                  isSubmitting,
+                );
+              },
+            ),
+
+            const SizedBox(height: Spacings.xs),
+
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
+              child: Text(
+                loc.userHandleScreen_description,
+                style: TextStyle(
+                  color: colors.text.tertiary,
+                  fontSize: BodyFontSize.small2.size,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: Spacings.m),
+
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(false);
+                    },
+                    child: Text(loc.userHandleScreen_cancel),
                   ),
                 ),
-              ),
-              const SizedBox(height: Spacings.m),
-
-              TextFormField(
-                autocorrect: false,
-                autofocus: true,
-                controller: controller,
-                focusNode: focusNode,
-                inputFormatters: const [UserHandleInputFormatter()],
-                validator: (value) => _validate(loc, userHandleExists, value),
-                onChanged: (_) {
-                  if (userHandleExists.value) {
-                    userHandleExists.value = false;
-                    formKey.currentState!.validate();
-                  }
-                },
-                decoration: appDialogInputDecoration.copyWith(
-                  hintText: loc.userHandleScreen_inputHint,
-                  filled: true,
-                  fillColor: colors.backgroundBase.secondary,
-                ),
-                onFieldSubmitted: (_) {
-                  focusNode.requestFocus();
-                  _submit(
-                    context,
-                    formKey,
-                    controller,
-                    userHandleExists,
-                    isSubmitting,
-                  );
-                },
-              ),
-
-              const SizedBox(height: Spacings.xs),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
-                child: Text(
-                  loc.userHandleScreen_description,
-                  style: TextStyle(
-                    color: colors.text.tertiary,
-                    fontSize: BodyFontSize.small2.size,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: Spacings.m),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        Navigator.of(context).pop(false);
-                      },
-                      child: Text(loc.userHandleScreen_cancel),
+                const SizedBox(width: Spacings.xs),
+                Expanded(
+                  child: AppDialogProgressButton(
+                    onPressed: (isSubmitting) => _submit(
+                      context,
+                      formKey,
+                      controller,
+                      userHandleExists,
+                      isSubmitting,
                     ),
-                  ),
-                  const SizedBox(width: Spacings.xs),
-                  Expanded(
-                    child: AppDialogProgressButton(
-                      onPressed: (isSubmitting) => _submit(
-                        context,
-                        formKey,
-                        controller,
-                        userHandleExists,
-                        isSubmitting,
+                    style: ButtonStyle(
+                      backgroundColor: WidgetStatePropertyAll(
+                        colors.accent.primary,
                       ),
-                      style: ButtonStyle(
-                        backgroundColor: WidgetStatePropertyAll(
-                          colors.accent.primary,
-                        ),
-                        foregroundColor: WidgetStatePropertyAll(
-                          colors.function.toggleWhite,
-                        ),
+                      foregroundColor: WidgetStatePropertyAll(
+                        colors.function.toggleWhite,
                       ),
-                      progressColor: colors.function.toggleWhite,
-                      inProgress: inProgress,
-                      child: Text(loc.userHandleScreen_confirm),
                     ),
+                    progressColor: colors.function.toggleWhite,
+                    inProgress: inProgress,
+                    child: Text(loc.userHandleScreen_confirm),
                   ),
-                ],
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

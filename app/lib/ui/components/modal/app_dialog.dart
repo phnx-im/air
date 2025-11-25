@@ -59,8 +59,8 @@ class AppDialogProgressButton extends HookWidget {
       child: !inProgress.value
           ? child
           : SizedBox(
-              width: 16,
-              height: 16,
+              width: 15,
+              height: 15,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
                 valueColor: progressColor != null
