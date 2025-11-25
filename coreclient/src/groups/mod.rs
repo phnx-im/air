@@ -249,7 +249,7 @@ impl Group {
     /// with the same ID, checks if that group is inactive and if so deletes the
     /// old group before it stores the new one.
     ///
-    /// Returns the group name.
+    /// Returns the group name, sender user id and the list of profile keys of the members.
     pub(super) async fn join_group(
         welcome_bundle: WelcomeBundle,
         // This is our own key that the sender uses to encrypt to us. We should
@@ -258,7 +258,7 @@ impl Group {
         txn: &mut SqliteTransaction<'_>,
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
-    ) -> Result<(Self, Vec<ProfileInfo>)> {
+    ) -> Result<(Self, UserId, Vec<ProfileInfo>)> {
         let serialized_welcome = welcome_bundle.welcome.tls_serialize_detached()?;
 
         let mls_group_config = default_mls_group_join_config();
@@ -334,7 +334,7 @@ impl Group {
             room_state,
         } = welcome_info;
 
-        let (mls_group, joiner_info, welcome_attribution_info) = {
+        let (mls_group, joiner_info, welcome_attribution_info, sender_user_id) = {
             // Phase 5: Finish processing the welcome message
             let provider = AirOpenMlsProvider::new(txn.as_mut());
             let staged_welcome =
@@ -364,7 +364,12 @@ impl Group {
             let welcome_attribution_info: WelcomeAttributionInfoPayload =
                 verifiable_attribution_info.verify(sender_client_credential.verifying_key())?;
 
-            (mls_group, joiner_info, welcome_attribution_info)
+            (
+                mls_group,
+                joiner_info,
+                welcome_attribution_info,
+                sender_user_id,
+            )
         };
 
         let client_information = member_information(mls_group.members())?;
@@ -424,7 +429,7 @@ impl Group {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok((group, member_profile_info))
+        Ok((group, sender_user_id, member_profile_info))
     }
 
     /// Join a group using an external commit.

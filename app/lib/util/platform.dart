@@ -79,6 +79,38 @@ Future<String> getDatabaseDirectoryMobile() async {
   return '';
 }
 
+Future<String> getDownloadsDirectoryAndroid() async {
+  if (!Platform.isAndroid) {
+    throw PlatformException(code: 'unsupported_platform');
+  }
+  try {
+    return await platform.invokeMethod('getDownloadsDirectory');
+  } on PlatformException catch (e, stacktrace) {
+    _log.severe(
+      "Failed to get downloads directory: '${e.message}'",
+      e,
+      stacktrace,
+    );
+    throw PlatformException(code: 'failed_to_get_downloads_directory');
+  }
+}
+
+Future<String> getPicturesDirectoryAndroid() async {
+  if (!Platform.isAndroid) {
+    throw PlatformException(code: 'unsupported_platform');
+  }
+  try {
+    return await platform.invokeMethod('getPicturesDirectory');
+  } on PlatformException catch (e, stacktrace) {
+    _log.severe(
+      "Failed to get downloads directory: '${e.message}'",
+      e,
+      stacktrace,
+    );
+    throw PlatformException(code: 'failed_to_get_pictures_directory');
+  }
+}
+
 /// Returns the directory returned by `getApplicationDocumentsDirectory` on all platforms, except for
 /// iOS. On iOS, the directory returned is the `Caches` directory in a shared container of the
 /// application group. The container is shared between the application and background extension.

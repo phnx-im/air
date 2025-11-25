@@ -22,11 +22,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get userSettingsScreen_profileDescription =>
-      'Your Display Name and Profile Picture are visible to your Air Contacts and members of groups you\'re in.';
+      'Your display name and profile picture are visible to your Air contacts and members of groups you’re in.';
 
   @override
   String get userSettingsScreen_userNamesDescription =>
-      'Share Usernames with anyone you want to connect with. Usernames aren\'t visible to other users, even your Air Contacts. You can have up to 5 Usernames.';
+      'Share usernames with anyone you want to connect with. Usernames aren’t visible to others, even your Air contacts. You can have up to 5 usernames.';
 
   @override
   String get userSettingsScreen_interfaceScale => 'Interface scale';
@@ -41,27 +41,49 @@ class AppLocalizationsEn extends AppLocalizations {
   String get userSettingsScreen_sendWithEnter => 'Send with Enter';
 
   @override
+  String get userSettingsScreen_sendWithEnterDescription =>
+      'If disabled, pressing the Enter key won’t send a message.';
+
+  @override
   String get userSettingsScreen_readReceipts => 'Read Receipts';
 
   @override
   String get userSettingsScreen_readReceiptsDescription =>
-      'If disabled, others won\'t be able to see when you\'ve read their messages and you won\'t be able to see when they\'ve read yours.';
+      'If disabled, others won’t be able to see when you’ve read their messages and you won’t be able to see when they’ve read yours.';
 
   @override
-  String get removeUsernameDialog_title => 'Remove Username';
+  String get userSettingsScreen_displayNameLabel => 'Display name';
+
+  @override
+  String get userSettingsScreen_usernamesSection => 'Usernames';
+
+  @override
+  String get userSettingsScreen_settingsSection => 'Settings';
+
+  @override
+  String get userSettingsScreen_helpSection => 'Help';
+
+  @override
+  String get userSettingsScreen_accountSection => 'Account';
+
+  @override
+  String get userSettingsScreen_userHandlePlaceholder => 'Username';
+
+  @override
+  String get settingsScreen_copiedToClipboard => 'Copied to clipboard';
+
+  @override
+  String get removeUsernameDialog_title => 'Remove username?';
 
   @override
   String get removeUsernameDialog_content =>
-      'People won\'t be able to send you a Contact Request using this Username, and it may be claimed by someone else.';
+      'People won’t be able to send you a contact request using this username, and it may be taken by someone else.';
 
   @override
   String get removeUsernameDialog_cancel => 'Cancel';
 
   @override
   String get removeUsernameDialog_remove => 'Remove';
-
-  @override
-  String get userSettingsScreen_userHandlePlaceholder => 'Username';
 
   @override
   String get addMembersScreen_addMembers => 'Add members';
@@ -177,7 +199,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get usernameOnboarding_body =>
-      'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.';
+      'Usernames are use letterhow people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.';
 
   @override
   String get usernameOnboarding_syntax =>
@@ -224,10 +246,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get userHandleScreen_title => 'Username';
+  String get userHandleScreen_title => 'Add username';
 
   @override
-  String get userHandleScreen_inputHint => 'Username';
+  String get userHandleScreen_inputHint => 'Type a username...';
 
   @override
   String get userHandleScreen_error_emptyHandle => 'Username cannot be empty';
@@ -238,17 +260,26 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get userHandleScreen_description =>
-      'Choose a username that others can use to connect with you.\n\nUse letters, numbers, or dashes. Minimum 5 characters.';
+      'Choose a username that others can use to connect with you. Use letters, numbers, or dashes. Minimum 5 characters.';
+
+  @override
+  String get userHandleScreen_cancel => 'Cancel';
+
+  @override
+  String get userHandleScreen_confirm => 'Add';
 
   @override
   String get userHandleScreen_save => 'Save';
 
   @override
-  String get editDisplayNameScreen_title => 'Display Name';
+  String get editDisplayNameScreen_title => 'Change display name';
 
   @override
   String get editDisplayNameScreen_description =>
-      'Choose a name that others will see when you communicate with them.';
+      'Choose a name that others will see.';
+
+  @override
+  String get editDisplayNameScreen_cancel => 'Cancel';
 
   @override
   String get editDisplayNameScreen_save => 'Save';
@@ -309,6 +340,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get systemMessage_userChangedPicture_infix =>
       ' changed the group picture';
+
+  @override
+  String systemMessage_userCreatedGroup_prefix(Object user) {
+    return '$user';
+  }
+
+  @override
+  String get systemMessage_userCreatedGroup_suffix => ' created the group';
 
   @override
   String get timestamp_now => 'Now';
@@ -423,6 +462,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get messageContextMenu_edit => 'Edit';
+
+  @override
+  String get messageContextMenu_save => 'Save';
+
+  @override
+  String get messageContextMenu_saveError => 'Failed to save attachment';
+
+  @override
+  String get messageContextMenu_saveConfirmation => 'Attachment saved';
 
   @override
   String get reportSpamButton_text => 'Report spam';
@@ -626,10 +674,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deleteAccountScreen_confirmationInputLabel =>
-      'Type \'delete\' to confirm';
+      'Type \'delete\' to confirm.';
 
   @override
-  String get deleteAccountScreen_confirmButtonText => 'Delete Air Account';
+  String get deleteAccountScreen_confirmButtonText => 'Delete';
 
   @override
   String get deleteAccountScreen_cancelButtonText => 'Cancel';
