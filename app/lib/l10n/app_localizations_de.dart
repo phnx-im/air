@@ -470,6 +470,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get messageContextMenu_save => 'Speichern';
 
   @override
+  String get messageContextMenu_share => 'Share';
+
+  @override
   String get messageContextMenu_saveError =>
       'Anhang konnte nicht gespeichert werden';
 

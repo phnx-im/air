@@ -5,19 +5,14 @@
 import 'dart:async' show unawaited;
 import 'dart:io';
 
-import 'package:air/core/api/markdown.dart';
-import 'package:air/main.dart';
-import 'package:air/util/platform.dart';
-import 'package:file_selector/file_selector.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/attachments/attachments.dart';
 import 'package:air/chat/chat_details.dart';
+import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/message_list/timestamp.dart';
+import 'package:air/main.dart';
 import 'package:air/message_list/mobile_message_actions.dart';
+import 'package:air/message_list/timestamp.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
@@ -25,10 +20,16 @@ import 'package:air/ui/components/context_menu/context_menu.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/platform.dart';
 import 'package:air/widgets/widgets.dart';
+import 'package:file_selector/file_selector.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'image_viewer.dart';
 import 'message_renderer.dart';
@@ -212,6 +213,12 @@ class _MessageView extends HookWidget {
           leading: iconoir.Download(width: 24, color: colors.text.primary),
           onSelected: () => _handleFileSave(context, attachments.first),
         ),
+      if (attachments.isNotEmpty && Platform.isIOS)
+        MessageAction(
+          label: loc.messageContextMenu_share,
+          leading: iconoir.ShareIos(width: 24, color: colors.text.primary),
+          onSelected: () => _handleFileShare(context, attachments),
+        ),
     ];
 
     final menuItems = actions
@@ -367,8 +374,7 @@ class _MessageView extends HookWidget {
   }
 
   void _handleFileSave(BuildContext context, UiAttachment attachment) async {
-    final fileName = attachment.filename;
-
+    String fileName = attachment.filename;
     String saveDir;
 
     if (Platform.isAndroid) {
@@ -380,8 +386,10 @@ class _MessageView extends HookWidget {
     } else if (Platform.isIOS) {
       throw UnsupportedError("iOS does not support storing files");
     } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      final dir = await getDirectoryPath();
-      if (dir == null) return;
+      final location = await getSaveLocation(suggestedName: fileName);
+      if (location == null) return;
+      String dir = p.dirname(location.path);
+      fileName = p.basename(location.path);
       saveDir = dir;
     } else {
       throw UnsupportedError("Unsupported platform");
@@ -397,7 +405,7 @@ class _MessageView extends HookWidget {
         attachmentId: attachment.attachmentId,
       );
     } catch (e, stackTrace) {
-      _log.severe("Failed to save attachment: {e}", e, stackTrace);
+      _log.severe("Failed to save attachment: $e", e, stackTrace);
       if (context.mounted) {
         final loc = AppLocalizations.of(context);
         showErrorBanner(context, loc.messageContextMenu_saveError);
@@ -405,11 +413,16 @@ class _MessageView extends HookWidget {
       return;
     }
 
-    if (!context.mounted) return;
-    final loc = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(loc.messageContextMenu_saveConfirmation)),
-    );
+    // TODO: Snackbar overlaps with the composer, so we need a better solution
+    if (context.mounted) {
+      final loc = AppLocalizations.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 1),
+          content: Text(loc.messageContextMenu_saveConfirmation),
+        ),
+      );
+    }
   }
 }
 

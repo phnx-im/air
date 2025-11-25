@@ -472,6 +472,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get messageContextMenu_save => 'Save';
 
   @override
+  String get messageContextMenu_share => 'Share';
+
+  @override
   String get messageContextMenu_saveError => 'Failed to save attachment';
 
   @override

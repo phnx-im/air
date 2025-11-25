@@ -173,6 +173,7 @@
   "messageContextMenu_copy": "Copy",
   "messageContextMenu_edit": "Edit",
   "messageContextMenu_save": "Save",
+  "messageContextMenu_share": "Share",
 
   "messageContextMenu_saveError": "Failed to save attachment",
   "messageContextMenu_saveConfirmation": "Attachment saved",
