@@ -118,11 +118,7 @@ class _ClientRecordsList extends StatelessWidget {
             ).textTheme.bodySmall?.copyWith(color: textColor),
             leading: Transform.translate(
               offset: const Offset(0, Spacings.xxs),
-              child: UserAvatar(
-                displayName: record.userProfile.displayName,
-                image: record.userProfile.profilePicture,
-                size: Spacings.xl,
-              ),
+              child: UserAvatar(userId: record.userId, size: Spacings.xl),
             ),
             title: Text(record.userProfile.displayName + currentUserSuffix),
             subtitle: Text(

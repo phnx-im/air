@@ -32,7 +32,7 @@ Widget buildBlockElement(
               ? CustomColorScheme.of(context).message.selfText
               : CustomColorScheme.of(context).message.otherText,
           fontSize: BodyFontSize.base.size,
-          height: 1.4,
+          height: 1.3,
         ),
       ),
       softWrap: true,

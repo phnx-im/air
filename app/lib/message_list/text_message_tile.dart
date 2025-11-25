@@ -24,7 +24,6 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/context_menu/context_menu.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/ui/typography/font_size.dart';
-import 'package:air/ui/typography/monospace.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -601,68 +600,51 @@ class _Sender extends StatelessWidget {
     final profile = context.select(
       (UsersCubit cubit) => cubit.state.profile(userId: sender),
     );
-    void openMemberDetails() {
-      unawaited(context.read<NavigationCubit>().openMemberDetails(sender));
-    }
 
     return Padding(
       padding: const EdgeInsets.only(top: Spacings.xs, bottom: Spacings.xxs),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          UserAvatar(
-            displayName: profile.displayName,
-            image: profile.profilePicture,
-            size: Spacings.m,
-            onPressed: openMemberDetails,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            unawaited(
+              context.read<NavigationCubit>().openMemberDetails(sender),
+            );
+          },
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              UserAvatar(userId: sender, size: Spacings.m),
+              const SizedBox(width: Spacings.xs),
+              _DisplayName(
+                displayName: profile.displayName,
+                isSender: isSender,
+              ),
+            ],
           ),
-          const SizedBox(width: Spacings.xs),
-          _DisplayName(
-            displayName: profile.displayName,
-            isSender: isSender,
-            onTap: openMemberDetails,
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
 class _DisplayName extends StatelessWidget {
-  const _DisplayName({
-    required this.displayName,
-    required this.isSender,
-    this.onTap,
-  });
+  const _DisplayName({required this.displayName, required this.isSender});
 
   final String displayName;
   final bool isSender;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final text = isSender ? "You" : displayName;
-    final textUpper = text.toUpperCase();
-    return MouseRegion(
-      cursor: onTap != null
-          ? SystemMouseCursors.click
-          : SystemMouseCursors.basic,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: SelectionContainer.disabled(
-          child: Text(
-            textUpper,
-            style: TextStyle(
-              color: CustomColorScheme.of(context).text.tertiary,
-              fontSize: LabelFontSize.small2.size,
-              fontWeight: FontWeight.w100,
-              fontFamily: getSystemMonospaceFontFamily(),
-              letterSpacing: 1,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
+    return SelectionContainer.disabled(
+      child: Text(
+        text,
+        style: TextTheme.of(context).labelSmall!.copyWith(
+          color: CustomColorScheme.of(context).text.tertiary,
         ),
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
