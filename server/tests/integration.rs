@@ -1785,3 +1785,92 @@ async fn update_group_data() {
         assert_eq!(actual_title, title);
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Connect users via targeted message", skip_all)]
+async fn connect_users_via_targeted_message() {
+    let mut setup = TestBackend::single().await;
+    setup.add_user(&ALICE).await;
+    setup.add_user(&BOB).await;
+    setup.add_user(&CHARLIE).await;
+
+    // Alice is connected to Bob and Charlie, but Bob and Charlie are not connected.
+    setup.connect_users(&ALICE, &BOB).await;
+    setup.connect_users(&ALICE, &CHARLIE).await;
+
+    // Alice creates a group and invites Bob and Charlie
+    let group_chat_id = setup.create_group(&ALICE).await;
+    setup
+        .invite_to_group(group_chat_id, &ALICE, vec![&BOB, &CHARLIE])
+        .await;
+
+    // Bob now connects to Charlie via a targeted message sent through the
+    // shared group.
+    let bob = setup.get_user(&BOB);
+    let bob_user = &bob.user;
+    bob_user
+        .add_contact_from_group(group_chat_id, CHARLIE.clone())
+        .await
+        .unwrap();
+
+    // Charlie picks up his messages
+    let charlie = setup.get_user_mut(&CHARLIE);
+    let charlie_user = &mut charlie.user;
+    let qs_messages = charlie_user.qs_fetch_messages().await.unwrap();
+    let result = charlie_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Charlie should process Bob's targeted message without errors"
+    );
+    // Now Bob picks up his messages
+    let bob = setup.get_user_mut(&BOB);
+    let bob_user = &mut bob.user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Bob should process Charlie's response without errors"
+    );
+
+    // Bob and Charlie should now be connected
+    let bob_contact = bob_user.contact(&CHARLIE).await;
+    assert!(
+        bob_contact.is_some(),
+        "Bob should have Charlie as a contact"
+    );
+    let charlie = setup.get_user_mut(&CHARLIE);
+    let charlie_user = &charlie.user;
+    let charlie_contact = charlie_user.contact(&BOB).await;
+    assert!(
+        charlie_contact.is_some(),
+        "Charlie should have Bob as a contact"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Handle sanity checks test", skip_all)]
+async fn handle_sanity_checks() {
+    let mut setup = TestBackend::single().await;
+    setup.add_user(&ALICE).await;
+    setup.add_user(&BOB).await;
+
+    let bob = setup.get_user_mut(&BOB);
+    let handle_record = bob.add_user_handle().await.unwrap();
+    let bob_handle = handle_record.handle.clone();
+
+    let alice = setup.get_user_mut(&ALICE);
+    let handle_record = alice.add_user_handle().await.unwrap();
+    let alice_handle = handle_record.handle.clone();
+    let alice_user = &alice.user;
+    let res = alice_user.add_contact(alice_handle.clone()).await;
+    assert!(
+        res.is_err(),
+        "Should not be able to add own handle as contact"
+    );
+
+    // Try to add Bob twice
+    let res = alice_user.add_contact(bob_handle.clone()).await;
+    assert!(res.is_ok(), "Should be able to add Bob as contact");
+    let res = alice_user.add_contact(bob_handle.clone()).await;
+    assert!(res.is_err(), "Should not be able to add Bob twice");
+}
