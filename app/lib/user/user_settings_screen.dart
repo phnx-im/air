@@ -117,20 +117,8 @@ class _UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    UiUserProfile profile;
-    try {
-      profile = context.select((UsersCubit cubit) => cubit.state.profile());
-    } on ProviderNotFoundException {
-      return const SizedBox.shrink();
-    }
-
     return Center(
-      child: UserAvatar(
-        displayName: profile.displayName,
-        size: 96,
-        image: profile.profilePicture,
-        onPressed: () => _pickAvatar(context),
-      ),
+      child: UserAvatar(size: 96, onPressed: () => _pickAvatar(context)),
     );
   }
 

@@ -2,12 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/core/api/types.dart';
 import 'package:flutter/material.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
 import 'package:air/chat_list/chat_list_cubit.dart';
 import 'package:air/chat_list/create_chat_view.dart';
-import 'package:air/core/api/types.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/main.dart';
 import 'package:air/navigation/navigation.dart';
@@ -15,7 +15,6 @@ import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/context_menu/context_menu.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
-import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:provider/provider.dart';
 
@@ -41,25 +40,11 @@ class ChatListHeader extends StatelessWidget {
   }
 }
 
-class _Avatar extends StatefulWidget {
+class _Avatar extends StatelessWidget {
   const _Avatar();
 
   @override
-  State<_Avatar> createState() => _AvatarState();
-}
-
-class _AvatarState extends State<_Avatar> {
-  final contextMenuController = OverlayPortalController();
-
-  @override
   Widget build(BuildContext context) {
-    late final UiUserProfile profile;
-    try {
-      profile = context.select((UsersCubit cubit) => cubit.state.profile());
-    } on ProviderNotFoundException {
-      return const SizedBox.shrink();
-    }
-
     return Padding(
       padding: const EdgeInsets.only(left: Spacings.sm),
       child: Row(
@@ -73,11 +58,7 @@ class _AvatarState extends State<_Avatar> {
             onLongPress: () {
               context.read<NavigationCubit>().openDeveloperSettings();
             },
-            child: UserAvatar(
-              displayName: profile.displayName,
-              image: profile.profilePicture,
-              size: Spacings.l,
-            ),
+            child: const UserAvatar(size: Spacings.l),
           ),
         ],
       ),

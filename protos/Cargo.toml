@@ -4,7 +4,7 @@
 
 [package]
 name = "airprotos"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 publish = false
 description = "Protobuf and gRPC definitions of the APIs"

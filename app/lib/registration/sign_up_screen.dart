@@ -11,6 +11,7 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/desktop/width_constraints.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/widgets/widgets.dart';
+import 'package:air/util/cached_memory_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
@@ -195,9 +196,8 @@ class _UserAvatarPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (displayName, avatar) = context.select(
-      (RegistrationCubit cubit) =>
-          (cubit.state.displayName, cubit.state.avatar),
+    final avatar = context.select(
+      (RegistrationCubit cubit) => cubit.state.avatar,
     );
 
     final colors = CustomColorScheme.of(context);
@@ -210,7 +210,14 @@ class _UserAvatarPicker extends StatelessWidget {
         alignment: Alignment.center,
         children: [
           if (!showPlaceholderIcon)
-            UserAvatar(displayName: displayName, image: avatar, size: size),
+            ClipOval(
+              child: Image(
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                image: CachedMemoryImage.fromImageData(avatar),
+              ),
+            ),
           // Circle overlay with icon
           if (showPlaceholderIcon)
             Container(
