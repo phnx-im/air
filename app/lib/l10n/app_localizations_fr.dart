@@ -438,6 +438,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get messageContextMenu_edit => 'Modifier';
 
   @override
+  String get messageContextMenu_save => 'Save';
+
+  @override
+  String get messageContextMenu_saveError => 'Failed to save attachment';
+
+  @override
+  String get messageContextMenu_saveConfirmation => 'Attachment saved';
+
+  @override
   String get reportSpamButton_text => 'Signaler comme spam';
 
   @override
