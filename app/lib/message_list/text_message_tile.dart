@@ -29,6 +29,7 @@ import 'package:air/widgets/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'image_viewer.dart';
 import 'message_renderer.dart';
@@ -211,6 +212,12 @@ class _MessageView extends HookWidget {
           label: loc.messageContextMenu_save,
           leading: iconoir.Download(width: 24, color: colors.text.primary),
           onSelected: () => _handleFileSave(context, attachments.first),
+        ),
+      if (attachments.isNotEmpty && Platform.isIOS)
+        MessageAction(
+          label: loc.messageContextMenu_save,
+          leading: iconoir.Download(width: 24, color: colors.text.primary),
+          onSelected: () => _handleFileShare(context, attachments),
         ),
     ];
 
@@ -410,6 +417,29 @@ class _MessageView extends HookWidget {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(loc.messageContextMenu_saveConfirmation)),
     );
+  }
+
+  void _handleFileShare(
+    BuildContext context,
+    List<UiAttachment> attachments,
+  ) async {
+    final attachmentsRepository = context.read<AttachmentsRepository>();
+
+    final futures = attachments.map((attachment) async {
+      final data = await attachmentsRepository.loadAttachment(
+        attachmentId: attachment.attachmentId,
+      );
+      if (data == null) return null;
+      return XFile.fromData(data);
+    });
+
+    final files = (await Future.wait(futures)).whereType<XFile>().toList();
+
+    final params = ShareParams(
+      files: files,
+      fileNameOverrides: attachments.map((e) => e.filename).toList(),
+    );
+    SharePlus.instance.share(params);
   }
 }
 

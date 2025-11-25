@@ -862,6 +862,12 @@ abstract class AppLocalizations {
   /// **'Save'**
   String get messageContextMenu_save;
 
+  /// No description provided for @messageContextMenu_share.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get messageContextMenu_share;
+
   /// No description provided for @messageContextMenu_saveError.
   ///
   /// In en, this message translates to:
