@@ -182,6 +182,8 @@ impl UiChatType {
                 Self::Connection(profile)
             }
             ChatType::Group => Self::Group,
+            // TODO: UI implementation for targeted message connections
+            ChatType::TargetedMessageConnection(_) => unreachable!(),
         }
     }
 }

@@ -220,6 +220,12 @@ abstract class AppLocalizations {
   /// **'You won’t receive messages from {displayName} unless you unblock them.'**
   String blockedChatFooter_message(Object displayName);
 
+  /// No description provided for @inactiveChatFooter_message.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re no longer a member of this chat.'**
+  String get inactiveChatFooter_message;
+
   /// No description provided for @chatScreen_emptyChat.
   ///
   /// In en, this message translates to:
@@ -367,14 +373,8 @@ abstract class AppLocalizations {
   /// No description provided for @signUpScreen_subheader.
   ///
   /// In en, this message translates to:
-  /// **'Your profile is visible to people you connect with and members of groups you’re in.'**
+  /// **'Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.'**
   String get signUpScreen_subheader;
-
-  /// No description provided for @usernameOnboarding_title.
-  ///
-  /// In en, this message translates to:
-  /// **'Welcome to Air'**
-  String get usernameOnboarding_title;
 
   /// No description provided for @usernameOnboarding_header.
   ///
@@ -406,17 +406,35 @@ abstract class AppLocalizations {
   /// **'Skip'**
   String get usernameOnboarding_skip;
 
+  /// No description provided for @usernameOnboarding_userameInputName.
+  ///
+  /// In en, this message translates to:
+  /// **'Username (optional)'**
+  String get usernameOnboarding_userameInputName;
+
+  /// No description provided for @usernameOnboarding_userameInputHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a username...'**
+  String get usernameOnboarding_userameInputHint;
+
   /// No description provided for @signUpScreen_actionButton.
   ///
   /// In en, this message translates to:
-  /// **'Sign up'**
+  /// **'Create'**
   String get signUpScreen_actionButton;
 
-  /// No description provided for @signUpScreen_displayNameHint.
+  /// No description provided for @signUpScreen_displayNameInputName.
   ///
   /// In en, this message translates to:
   /// **'Display name (required)'**
-  String get signUpScreen_displayNameHint;
+  String get signUpScreen_displayNameInputName;
+
+  /// No description provided for @signUpScreen_displayNameInputHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a name...'**
+  String get signUpScreen_displayNameInputHint;
 
   /// No description provided for @signUpScreen_serverLabel.
   ///
@@ -729,6 +747,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Try again'**
   String get attachment_tryAgain;
+
+  /// No description provided for @attachment_gallery.
+  ///
+  /// In en, this message translates to:
+  /// **'Gallery'**
+  String get attachment_gallery;
+
+  /// No description provided for @attachment_camera.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera'**
+  String get attachment_camera;
+
+  /// No description provided for @attachment_file.
+  ///
+  /// In en, this message translates to:
+  /// **'File'**
+  String get attachment_file;
 
   /// No description provided for @textMessage_edited.
   ///

@@ -37,8 +37,8 @@ use aircommon::{
         },
         client_ds_out::{
             AddUsersInfoOut, CreateGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
-            GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageParamsOut, UpdateParamsOut,
-            WelcomeInfoIn,
+            GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageParamsOut,
+            TargetedMessageParamsOut, TargetedMessageType, UpdateParamsOut, WelcomeInfoIn,
         },
         welcome_attribution_info::{
             WelcomeAttributionInfo, WelcomeAttributionInfoPayload, WelcomeAttributionInfoTbs,
@@ -69,6 +69,7 @@ use crate::{
     clients::{
         api_clients::ApiClients,
         block_contact::{BlockedContact, BlockedContactError},
+        targeted_message::TargetedMessageContent,
     },
     contacts::ContactAddInfos,
     key_stores::as_credentials::AsCredentials,
@@ -916,6 +917,45 @@ impl Group {
         };
 
         Ok(send_message_params)
+    }
+
+    /// Send an application message to the group.
+    pub(super) fn create_targeted_application_message(
+        &mut self,
+        provider: &impl OpenMlsProvider,
+        signer: &ClientSigningKey,
+        recipient: UserId,
+        content: TargetedMessageContent,
+    ) -> Result<TargetedMessageParamsOut, GroupOperationError> {
+        let content_bytes = content.tls_serialize_detached()?;
+        let mls_message = self
+            .mls_group
+            .create_message(provider, signer, &content_bytes)?;
+
+        let message = AssistedMessageOut::new(mls_message, None);
+
+        let recipient_index = self
+            .mls_group()
+            .members()
+            .find_map(|m| {
+                let client_credential = VerifiableClientCredential::try_from(m.credential).ok()?;
+                if client_credential.user_id() == &recipient {
+                    Some(m.index)
+                } else {
+                    None
+                }
+            })
+            .ok_or(TargetedMessageError::RecipientNotInGroup)?;
+
+        let params = TargetedMessageParamsOut {
+            sender: self.mls_group.own_leaf_index(),
+            message_type: TargetedMessageType::ApplicationMessage {
+                message,
+                recipient: recipient_index,
+            },
+        };
+
+        Ok(params)
     }
 
     /// Get a reference to the group's group id.

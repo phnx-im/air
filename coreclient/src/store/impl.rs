@@ -21,7 +21,7 @@ use crate::{
         attachment::{AttachmentRecord, progress::AttachmentProgress},
         user_settings::UserSettingRecord,
     },
-    contacts::HandleContact,
+    contacts::{HandleContact, TargetedMessageContact},
     store::UserSetting,
     user_handles::UserHandleRecord,
     user_profiles::UserProfile,
@@ -159,6 +159,15 @@ impl Store for CoreUser {
         self.add_contact_via_handle(handle).await
     }
 
+    async fn add_contact_from_group(
+        &self,
+        chat_id: ChatId,
+        user_id: UserId,
+    ) -> StoreResult<ChatId> {
+        self.add_contact_via_targeted_message(chat_id, user_id)
+            .await
+    }
+
     async fn block_contact(&self, user_id: UserId) -> StoreResult<()> {
         self.block_contact(user_id).await
     }
@@ -177,6 +186,10 @@ impl Store for CoreUser {
 
     async fn handle_contacts(&self) -> StoreResult<Vec<HandleContact>> {
         Ok(self.handle_contacts().await?)
+    }
+
+    async fn targeted_message_contacts(&self) -> StoreResult<Vec<TargetedMessageContact>> {
+        Ok(self.targeted_message_contacts().await?)
     }
 
     async fn user_profile(&self, user_id: &UserId) -> UserProfile {

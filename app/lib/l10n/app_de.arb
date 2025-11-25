@@ -22,6 +22,7 @@
 
   "chatDetailsScreen_unknownChat": "Unbekannter Chat",
   "blockedChatFooter_message": "Du erhältst keine Nachrichten von {displayName}, solange du {displayName} nicht entsperrst.",
+  "inactiveChatFooter_message": "Du bist kein Mitglied dieses Chats mehr.",
 
   "chatScreen_emptyChat": "Wähle einen Chat aus, um mit dem Nachrichten schreiben zu beginnen",
 
@@ -57,15 +58,17 @@
   },
 
   "signUpScreen_header": "Erstelle dein Profil",
-  "signUpScreen_subheader": "Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen.",
-  "usernameOnboarding_title": "Willkommen bei Air",
+  "signUpScreen_subheader": "Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen. Air benötigt einen Anzeigenamen, ein Bild ist optional.",
   "usernameOnboarding_header": "Füge einen Benutzernamen hinzu",
   "usernameOnboarding_body": "Über Benutzernamen kann man sich in Air mit anderen verbinden. Sie sind für andere nicht mehr sichtbar, sobald man verbunden ist.\n\nDu kannst Benutzernamen jederzeit in deinem Profil hinzufügen, ändern oder löschen.",
   "usernameOnboarding_syntax": "Verwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.",
   "usernameOnboarding_addButton": "Hinzufügen",
   "usernameOnboarding_skip": "Überspringen",
+  "usernameOnboarding_usernameNameInputName": "Nutzername (optional)",
+  "usernameOnboarding_userameInputHint": "Nutzername hinzufügen...",
   "signUpScreen_actionButton": "Registrieren",
-  "signUpScreen_displayNameHint": "Benutzername (erforderlich)",
+  "signUpScreen_displayNameInputName": "Anzeigename (erforderlich)",
+  "signUpScreen_displayNameInputHint": "Name hinzufügen...",
   "signUpScreen_serverLabel": "Wähle den Server aus, auf dem du dein Konto erstellen möchtest.",
   "signUpScreen_serverHint": "DOMAIN-NAME",
   "signUpScreen_error_invalidDomain": "Domain ist ungültig",
@@ -132,6 +135,9 @@
   },
 
   "attachment_tryAgain": "Erneut versuchen",
+  "attachment_gallery": "Galerie",
+  "attachment_camera": "Kamera",
+  "attachment_file": "Datei",
 
   "textMessage_edited": "bearbeitet",
   "textMessage_hiddenPlaceholder": "Blockierter Benutzer, tippe, um die Nachricht anzuzeigen",

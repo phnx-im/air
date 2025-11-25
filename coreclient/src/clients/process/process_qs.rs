@@ -6,12 +6,12 @@ use aircommon::{
     codec::PersistenceCodec,
     credentials::ClientCredential,
     crypto::{ear::EarDecryptable, indexed_aead::keys::UserProfileKey},
-    identifiers::{MimiId, QualifiedGroupId, UserHandle, UserId},
+    identifiers::{MimiId, QualifiedGroupId, UserId},
     messages::{
         QueueMessage,
         client_ds::{
             AadMessage, AadPayload, ExtractedQsQueueMessage, ExtractedQsQueueMessagePayload,
-            UserProfileKeyUpdateParams, WelcomeBundle,
+            QsQueueTargetedMessage, UserProfileKeyUpdateParams, WelcomeBundle,
         },
     },
     time::TimeStamp,
@@ -36,13 +36,15 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     ChatMessage, ChatStatus, ContentMessage, Message, SystemMessage,
-    chats::{ChatType, StatusRecord, messages::edit::MessageEdit},
+    chats::{StatusRecord, messages::edit::MessageEdit},
     clients::{
         QsListenResponder,
         block_contact::{BlockedContact, BlockedContactError},
+        process::process_as::ConnectionInfoSource,
+        targeted_message::TargetedMessageContent,
         update_key::update_chat_attributes,
     },
-    contacts::HandleContact,
+    contacts::{ContactType, PartialContact},
     groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
@@ -59,6 +61,7 @@ pub enum ProcessQsMessageResult {
     NewChat(ChatId, Vec<ChatMessage>),
     ChatChanged(ChatId, Vec<ChatMessage>),
     Messages(Vec<ChatMessage>),
+    NewConnection(ChatId),
 }
 
 #[derive(Debug, Default)]
@@ -68,6 +71,7 @@ pub struct ProcessedQsMessages {
     pub new_messages: Vec<ChatMessage>,
     pub errors: Vec<anyhow::Error>,
     pub processed: usize,
+    pub new_connections: Vec<ChatId>,
 }
 
 impl ProcessedQsMessages {
@@ -127,6 +131,13 @@ impl CoreUser {
             ) => {
                 self.handle_user_profile_key_update(user_profile_key_update_params)
                     .await
+            }
+            ExtractedQsQueueMessagePayload::TargetedMessage(
+                QsQueueTargetedMessage::ApplicationMessage(mls_message_bytes),
+            ) => {
+                let mls_message = MlsMessageIn::tls_deserialize_exact_bytes(&mls_message_bytes)
+                    .context("Failed to deserialize targeted MLS message")?;
+                self.handle_targeted_application_message(mls_message).await
             }
         }
     }
@@ -228,6 +239,93 @@ impl CoreUser {
 
         let messages = vec![system_message];
         Ok(ProcessQsMessageResult::NewChat(chat_id, messages))
+    }
+
+    async fn handle_targeted_application_message(
+        &self,
+        mls_message: MlsMessageIn,
+    ) -> Result<ProcessQsMessageResult> {
+        let MlsMessageBodyIn::PrivateMessage(app_msg) = mls_message.extract() else {
+            bail!("Unexpected message type")
+        };
+        let protocol_message = ProtocolMessage::from(app_msg);
+
+        // MLSMessage Phase 1: Load the chat and the group.
+        let group_id = protocol_message.group_id().clone();
+
+        enum TransactionResult {
+            Ok(ConnectionInfoSource),
+            NeedsResync(Resync),
+        }
+
+        let transaction_result = self
+            .with_transaction(async |txn| {
+                let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
+                    .await?
+                    .ok_or_else(|| anyhow!("No chat found for group ID {:?}", group_id))?;
+                let mut group = Group::load_clean(txn, &group_id)
+                    .await?
+                    .ok_or_else(|| anyhow!("No group found for group ID {:?}", group_id))?;
+
+                // MLSMessage Phase 2: Process the message
+                let Some(ProcessMessageResult {
+                    processed_message,
+                    sender_client_credential,
+                    ..
+                }) = group
+                    .process_message(txn, &self.inner.api_clients, protocol_message)
+                    .await?
+                else {
+                    let resync = Resync {
+                        chat_id: chat.id(),
+                        group_id: group.group_id().clone(),
+                        group_state_ear_key: group.group_state_ear_key().clone(),
+                        identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
+                        original_leaf_index: group.own_index(),
+                    };
+                    return Ok(TransactionResult::NeedsResync(resync));
+                };
+
+                let ProcessedMessageContent::ApplicationMessage(application_message) =
+                    processed_message.into_content()
+                else {
+                    bail!("Only application messages are expected in targeted messages");
+                };
+
+                let TargetedMessageContent::ConnectionRequest(connection_info) =
+                    TargetedMessageContent::tls_deserialize_exact_bytes(
+                        &application_message.into_bytes(),
+                    )?;
+
+                // Auto-accept the connection request
+                // TODO: This should be entered into the DB instead.
+                let connection_info_source = ConnectionInfoSource::TargetedMessage {
+                    connection_info,
+                    sender_user_id: sender_client_credential.identity().clone().clone(),
+                };
+
+                // MLSMessage Phase 3: Store the updated group.
+                group.store_update(txn.as_mut()).await?;
+
+                Ok(TransactionResult::Ok(connection_info_source))
+            })
+            .await?;
+
+        let connection_info_source = match transaction_result {
+            TransactionResult::Ok(connection_info_source) => connection_info_source,
+            TransactionResult::NeedsResync(_resync) => {
+                // TODO: Once we have a UX for resyncs, we should schedule one
+                // here and re-enable the resync test in integration.rs
+                return Ok(ProcessQsMessageResult::None);
+            }
+        };
+
+        // MlsMessage Phase 4: Process the connection offer
+        let connection_chat_id = self
+            .process_connection_offer(connection_info_source)
+            .await?;
+
+        Ok(ProcessQsMessageResult::NewConnection(connection_chat_id))
     }
 
     async fn handle_mls_message(
@@ -550,23 +648,20 @@ impl CoreUser {
         // StagedCommitMessage Phase 1: Confirm the chat if unconfirmed
         let mut notifier = self.store_notifier();
 
-        let chat_changed = match &chat.chat_type() {
-            ChatType::HandleConnection(handle) => {
-                let handle = handle.clone();
-                self.handle_unconfirmed_chat(
-                    txn,
-                    &mut notifier,
-                    aad,
-                    sender,
-                    sender_client_credential,
-                    &mut chat,
-                    &handle,
-                    group,
-                )
-                .await?;
-                true
-            }
-            _ => false,
+        let chat_changed = if chat.is_unconfirmed() {
+            self.handle_unconfirmed_chat(
+                txn,
+                &mut notifier,
+                aad,
+                sender,
+                sender_client_credential,
+                &mut chat,
+                group,
+            )
+            .await?;
+            true
+        } else {
+            false
         };
 
         let mut group_messages = Vec::new();
@@ -613,21 +708,32 @@ impl CoreUser {
         sender: &Sender,
         sender_client_credential: &ClientCredential,
         chat: &mut Chat,
-        handle: &UserHandle,
         group: &mut Group,
     ) -> Result<(), anyhow::Error> {
+        let Some(contact) = chat.chat_type().unconfirmed_contact() else {
+            bail!("Chat is not unconfirmed");
+        };
+
         // Check if it was an external commit
         ensure!(
             matches!(sender, Sender::NewMemberCommit),
             "Incoming commit to ConnectionGroup was not an external commit"
         );
-        let user_id = sender_client_credential.identity();
+
+        let sender_user_id = sender_client_credential.identity();
+
+        if let ContactType::TargetedMessage(chat_user_id) = &contact {
+            ensure!(
+                sender_user_id == chat_user_id,
+                "Sender identity does not match targeted message user ID"
+            );
+        }
 
         // UnconfirmedConnection Phase 1: Load up the partial contact and decrypt the
         // friendship package
-        let contact = HandleContact::load(txn.as_mut(), handle)
+        let contact = PartialContact::load(txn.as_mut(), contact)
             .await?
-            .with_context(|| format!("No contact found with handle: {}", handle.plaintext()))?;
+            .context("No contact found: {contact:?}")?;
 
         // This is a bit annoying, since we already
         // de-serialized this in the group processing
@@ -642,13 +748,13 @@ impl CoreUser {
         };
 
         let friendship_package = FriendshipPackage::decrypt(
-            &contact.friendship_package_ear_key,
+            contact.friendship_package_ear_key(),
             &encrypted_friendship_package,
         )?;
 
         let user_profile_key = UserProfileKey::from_base_secret(
             friendship_package.user_profile_base_secret.clone(),
-            user_id,
+            sender_user_id,
         )?;
 
         // UnconfirmedConnection Phase 2: Fetch the user profile.
@@ -661,12 +767,12 @@ impl CoreUser {
 
         // Now we can turn the partial contact into a full one.
         let contact = contact
-            .mark_as_complete(txn, notifier, user_id.clone(), friendship_package)
+            .mark_as_complete(txn, notifier, sender_user_id.clone(), friendship_package)
             .await?;
 
         // Room state update: Pretend that we just invited that user
         // We do that now, because we didn't know that user id when we created the room.
-        group.room_state_change_role(self.user_id(), user_id, RoleIndex::Regular)?;
+        group.room_state_change_role(self.user_id(), sender_user_id, RoleIndex::Regular)?;
 
         chat.confirm(txn.as_mut(), notifier, contact.user_id)
             .await?;
@@ -781,6 +887,9 @@ impl CoreUser {
                     result.new_chats.push(chat_id);
                 }
                 ProcessQsMessageResult::None => {}
+                ProcessQsMessageResult::NewConnection(chat_id) => {
+                    result.new_connections.push(chat_id)
+                }
             }
         }
 

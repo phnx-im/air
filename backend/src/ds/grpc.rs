@@ -21,7 +21,10 @@ use aircommon::{
 };
 use airprotos::{
     convert::{RefInto, TryFromRef as _, TryRefInto},
-    delivery_service::v1::{self, delivery_service_server::DeliveryService, *},
+    delivery_service::v1::{
+        self, delivery_service_server::DeliveryService,
+        targeted_message_payload::TargetedMessageType, *,
+    },
     validation::{InvalidTlsExt, MissingFieldExt},
 };
 use chrono::TimeDelta;
@@ -793,6 +796,16 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .await
             .map_err(to_status)?;
 
+        // verify signature
+        let verifying_key: LeafVerifyingKeyRef = group_state
+            .group()
+            .leaf(sender_index)
+            .ok_or_else(|| Status::invalid_argument("unknown sender"))?
+            .signature_key()
+            .into();
+        let payload: SendMessagePayload =
+            request.verify(verifying_key).map_err(InvalidSignature)?;
+
         let destination_clients = group_state.other_destination_clients(sender_index);
 
         // Messages from legacy clients won't have this field set. Default to false.
@@ -1049,6 +1062,72 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
         Ok(self.ds.get_attachment_url(attachment_id).await?)
     }
+
+    async fn targeted_message(
+        &self,
+        request: Request<TargetedMessageRequest>,
+    ) -> Result<Response<TargetedMessageResponse>, Status> {
+        let request = request.into_inner();
+
+        request
+            .signature
+            .as_ref()
+            .ok_or_missing_field("signature")?;
+
+        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        let sender_index: LeafNodeIndex = payload.sender.ok_or_missing_field("sender")?.into();
+
+        let ear_key = request.ear_key()?;
+        let message = request.message()?;
+        let TargetedMessageType::ApplicationMessage(req) = payload
+            .targeted_message_type
+            .as_ref()
+            .ok_or_missing_field("message type")?;
+        let recipient_index = req.recipient.ok_or_missing_field("recipient")?.into();
+        let qgid = message.validated_qgid(self.ds.own_domain())?;
+
+        // No transaction needed as we do not update the group state and
+        // application messages are out-of-order tolerant.
+        let (_, group_state) = self
+            .load_group_state_immutable(&qgid, &ear_key)
+            .await
+            .map_err(to_status)?;
+
+        // verify signature
+        let verifying_key: LeafVerifyingKeyRef = group_state
+            .group()
+            .leaf(sender_index)
+            .ok_or_else(|| Status::invalid_argument("unknown sender"))?
+            .signature_key()
+            .into();
+        let _: TargetedMessagePayload = request.verify(verifying_key).map_err(InvalidSignature)?;
+
+        let destination_client = group_state
+            .qs_client_ref_by_index(recipient_index)
+            .ok_or_else(|| Status::invalid_argument("unknown recipient"))?;
+
+        // Messages from legacy clients won't have this field set. Default to false.
+        let suppress_notifications = false;
+
+        let fan_out_message = DsFanOutMessage {
+            payload: QsQueueMessagePayload::targeted_message(message.into_serialized_mls_message())
+                .map_err(|_| Status::internal("couldn't serialize targeted message"))?
+                .into(),
+            client_reference: destination_client,
+            suppress_notifications: suppress_notifications.into(),
+        };
+
+        let timestamp = fan_out_message.payload.timestamp();
+
+        self.qs_connector
+            .dispatch(fan_out_message)
+            .await
+            .map_err(DistributeMessageError::Connector)?;
+
+        Ok(Response::new(TargetedMessageResponse {
+            fanout_timestamp: Some(timestamp.into()),
+        }))
+    }
 }
 
 #[derive(Debug, Error)]
@@ -1201,6 +1280,12 @@ impl WithGroupStateEarKey for GroupOperationRequest {
     }
 }
 
+impl WithGroupStateEarKey for TargetedMessageRequest {
+    fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey> {
+        self.payload.as_ref()?.group_state_ear_key.as_ref()
+    }
+}
+
 impl WithGroupStateEarKey for SelfRemoveRequest {
     fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey> {
         self.payload.as_ref()?.group_state_ear_key.as_ref()
@@ -1257,6 +1342,19 @@ impl WithMessage for GroupOperationRequest {
         let commit = payload.commit.as_ref().ok_or_missing_field("commit")?;
         let commit = commit.try_ref_into().invalid_tls("commit")?;
         Ok(commit)
+    }
+}
+
+impl WithMessage for TargetedMessageRequest {
+    fn message(&self) -> Result<AssistedMessageIn, Status> {
+        let payload = self.payload.as_ref().ok_or_missing_field("payload")?;
+        let TargetedMessageType::ApplicationMessage(req) = payload
+            .targeted_message_type
+            .as_ref()
+            .ok_or_missing_field("message_type")?;
+        let message = req.message.as_ref().ok_or_missing_field("request")?;
+        let message = message.try_ref_into().invalid_tls("message")?;
+        Ok(message)
     }
 }
 

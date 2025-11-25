@@ -13,8 +13,8 @@ use aircommon::{
         client_ds::UserProfileKeyUpdateParams,
         client_ds_out::{
             CreateGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
-            GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageParamsOut, UpdateParamsOut,
-            WelcomeInfoIn,
+            GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageParamsOut,
+            TargetedMessageParamsOut, UpdateParamsOut, WelcomeInfoIn,
         },
     },
     time::TimeStamp,
@@ -174,6 +174,18 @@ impl ApiClient {
     ) -> Result<TimeStamp, DsRequestError> {
         self.ds_grpc_client
             .send_message(params, signing_key, group_state_ear_key)
+            .await
+    }
+
+    /// Send a message to the recipient within the given group.
+    pub async fn ds_targeted_message(
+        &self,
+        params: TargetedMessageParamsOut,
+        signing_key: &ClientSigningKey,
+        group_state_ear_key: &GroupStateEarKey,
+    ) -> Result<TimeStamp, DsRequestError> {
+        self.ds_grpc_client
+            .targeted_message(params, signing_key, group_state_ear_key)
             .await
     }
 

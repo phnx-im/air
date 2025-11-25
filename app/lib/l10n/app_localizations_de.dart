@@ -79,6 +79,10 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get inactiveChatFooter_message =>
+      'Du bist kein Mitglied dieses Chats mehr.';
+
+  @override
   String get chatScreen_emptyChat =>
       'Wähle einen Chat aus, um mit dem Nachrichten schreiben zu beginnen';
 
@@ -167,10 +171,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get signUpScreen_subheader =>
-      'Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen.';
-
-  @override
-  String get usernameOnboarding_title => 'Willkommen bei Air';
+      'Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen. Air benötigt einen Anzeigenamen, ein Bild ist optional.';
 
   @override
   String get usernameOnboarding_header => 'Füge einen Benutzernamen hinzu';
@@ -190,10 +191,19 @@ class AppLocalizationsDe extends AppLocalizations {
   String get usernameOnboarding_skip => 'Überspringen';
 
   @override
+  String get usernameOnboarding_userameInputName => 'Username (optional)';
+
+  @override
+  String get usernameOnboarding_userameInputHint => 'Nutzername hinzufügen...';
+
+  @override
   String get signUpScreen_actionButton => 'Registrieren';
 
   @override
-  String get signUpScreen_displayNameHint => 'Benutzername (erforderlich)';
+  String get signUpScreen_displayNameInputName => 'Anzeigename (erforderlich)';
+
+  @override
+  String get signUpScreen_displayNameInputHint => 'Name hinzufügen...';
 
   @override
   String get signUpScreen_serverLabel =>
@@ -399,6 +409,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get attachment_tryAgain => 'Erneut versuchen';
+
+  @override
+  String get attachment_gallery => 'Galerie';
+
+  @override
+  String get attachment_camera => 'Kamera';
+
+  @override
+  String get attachment_file => 'Datei';
 
   @override
   String get textMessage_edited => 'bearbeitet';
