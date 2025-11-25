@@ -5,19 +5,14 @@
 import 'dart:async' show unawaited;
 import 'dart:io';
 
-import 'package:air/core/api/markdown.dart';
-import 'package:air/main.dart';
-import 'package:air/util/platform.dart';
-import 'package:file_selector/file_selector.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/attachments/attachments.dart';
 import 'package:air/chat/chat_details.dart';
+import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/message_list/timestamp.dart';
+import 'package:air/main.dart';
 import 'package:air/message_list/mobile_message_actions.dart';
+import 'package:air/message_list/timestamp.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
@@ -25,7 +20,12 @@ import 'package:air/ui/components/context_menu/context_menu.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/platform.dart';
 import 'package:air/widgets/widgets.dart';
+import 'package:file_selector/file_selector.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
@@ -216,8 +216,13 @@ class _MessageView extends HookWidget {
         ),
       if (attachments.isNotEmpty && Platform.isIOS)
         MessageAction(
+<<<<<<< HEAD
           label: loc.messageContextMenu_save,
           leading: iconoir.Download(width: 24, color: colors.text.primary),
+=======
+          label: loc.messageContextMenu_share,
+          leading: iconoir.ShareIos(width: 24, color: colors.text.primary),
+>>>>>>> c26e62f2217906b0af3664538dcf39a1ba9bf9a7
           onSelected: () => _handleFileShare(context, attachments),
         ),
     ];
