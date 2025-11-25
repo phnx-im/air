@@ -6,7 +6,8 @@ use prost::Message;
 
 use crate::delivery_service::v1::{
     AssistedMessage, GetAttachmentUrlPayload, GetAttachmentUrlRequest, GroupStateEarKey,
-    LeafNodeIndex, ProvisionAttachmentPayload, ProvisionAttachmentRequest,
+    LeafNodeIndex, ProvisionAttachmentPayload, ProvisionAttachmentRequest, TargetedMessagePayload,
+    TargetedMessageRequest,
 };
 
 use super::v1::{
@@ -299,6 +300,58 @@ impl Verifiable for GroupOperationRequest {
 
     fn label(&self) -> &str {
         GROUP_OPERATION_PAYLOAD_LABEL
+    }
+}
+
+const TARGETED_MESSAGE_PAYLOAD_LABEL: &str = "TargetedMessagePayload";
+
+impl SignedStruct<TargetedMessagePayload, ClientKeyType> for TargetedMessageRequest {
+    fn from_payload(payload: TargetedMessagePayload, signature: ClientSignature) -> Self {
+        Self {
+            payload: Some(payload),
+            signature: Some(signature.into()),
+        }
+    }
+}
+
+impl Signable for TargetedMessagePayload {
+    type SignedOutput = TargetedMessageRequest;
+
+    fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
+        Ok(self.encode_to_vec())
+    }
+
+    fn label(&self) -> &str {
+        TARGETED_MESSAGE_PAYLOAD_LABEL
+    }
+}
+
+impl VerifiedStruct<TargetedMessageRequest> for TargetedMessagePayload {
+    type SealingType = private_mod::Seal;
+
+    fn from_verifiable(verifiable: TargetedMessageRequest, _seal: Self::SealingType) -> Self {
+        verifiable.payload.unwrap()
+    }
+}
+
+impl Verifiable for TargetedMessageRequest {
+    fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
+        Ok(self
+            .payload
+            .as_ref()
+            .ok_or(MissingPayloadError)?
+            .encode_to_vec())
+    }
+
+    fn signature(&self) -> impl AsRef<[u8]> {
+        self.signature
+            .as_ref()
+            .map(|s| s.value.as_slice())
+            .unwrap_or_default()
+    }
+
+    fn label(&self) -> &str {
+        TARGETED_MESSAGE_PAYLOAD_LABEL
     }
 }
 

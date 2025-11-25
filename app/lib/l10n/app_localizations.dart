@@ -796,6 +796,24 @@ abstract class AppLocalizations {
   /// **'Try again'**
   String get attachment_tryAgain;
 
+  /// No description provided for @attachment_gallery.
+  ///
+  /// In en, this message translates to:
+  /// **'Gallery'**
+  String get attachment_gallery;
+
+  /// No description provided for @attachment_camera.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera'**
+  String get attachment_camera;
+
+  /// No description provided for @attachment_file.
+  ///
+  /// In en, this message translates to:
+  /// **'File'**
+  String get attachment_file;
+
   /// No description provided for @textMessage_edited.
   ///
   /// In en, this message translates to:

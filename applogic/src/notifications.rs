@@ -18,7 +18,8 @@ impl User {
         for message in messages {
             if let Some(chat) = self.user.chat(&message.chat_id()).await {
                 let title = match chat.chat_type() {
-                    ChatType::Connection(user_id) => self
+                    ChatType::TargetedMessageConnection(user_id)
+                    | ChatType::Connection(user_id) => self
                         .user
                         .user_profile(user_id)
                         .await

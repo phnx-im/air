@@ -25,7 +25,6 @@ import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
-import 'package:iconoir_flutter/regular/attachment.dart';
 
 import 'image_viewer.dart';
 import 'message_renderer.dart';
@@ -402,7 +401,6 @@ class _MessageContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final bool isDeleted = content.replaces != null && content.content == null;
-
     final List<Widget> columnChildren = [];
 
     if (isHidden) {
@@ -629,44 +627,13 @@ class _FileAttachmentContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-
     return Padding(
       padding: _messagePadding,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: Spacings.s,
-        children: [
-          Attachment(
-            width: 32,
-            color: isSender
-                ? CustomColorScheme.of(context).message.selfText
-                : CustomColorScheme.of(context).message.otherText,
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                attachment.filename,
-                style: TextStyle(
-                  fontSize: BodyFontSize.base.size,
-                  color: isSender
-                      ? CustomColorScheme.of(context).message.selfText
-                      : CustomColorScheme.of(context).message.otherText,
-                ),
-              ),
-              Text(
-                loc.bytesToHumanReadable(attachment.size),
-                style: TextStyle(
-                  fontSize: BodyFontSize.small2.size,
-                  color: isSender
-                      ? CustomColorScheme.of(context).message.selfText
-                      : CustomColorScheme.of(context).message.otherText,
-                ),
-              ),
-            ],
-          ),
-        ],
+      child: AttachmentFile(
+        attachment: attachment,
+        color: isSender
+            ? CustomColorScheme.of(context).message.selfText
+            : CustomColorScheme.of(context).message.otherText,
       ),
     );
   }
@@ -692,29 +659,25 @@ class _ImageAttachmentContent extends StatelessWidget {
     return GestureDetector(
       onTap: () {
         FocusScope.of(context).unfocus();
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ImageViewer(
+        HapticFeedback.mediumImpact();
+        Navigator.of(context).push(imageViewerRoute(attachment: attachment));
+      },
+      child: Hero(
+        tag: imageViewerHeroTag(attachment),
+        transitionOnUserGestures: true,
+        child: ClipRRect(
+          borderRadius: _messageBorderRadius(
+            isSender,
+            flightPosition,
+            stackedOnTop: hasMessage,
+          ),
+          child: Container(
+            constraints: const BoxConstraints(maxHeight: 300),
+            child: AttachmentImage(
               attachment: attachment,
               imageMetadata: imageMetadata,
-              isSender: isSender,
+              fit: BoxFit.cover,
             ),
-          ),
-        );
-      },
-      child: ClipRRect(
-        borderRadius: _messageBorderRadius(
-          isSender,
-          flightPosition,
-          stackedOnTop: hasMessage,
-        ),
-        child: Container(
-          constraints: const BoxConstraints(maxHeight: 300),
-          child: AttachmentImage(
-            attachment: attachment,
-            imageMetadata: imageMetadata,
-            fit: BoxFit.cover,
           ),
         ),
       ),
