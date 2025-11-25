@@ -301,8 +301,8 @@ abstract class AppLocalizations {
   /// No description provided for @blockContactButton_text.
   ///
   /// In en, this message translates to:
-  /// **'Block'**
-  String get blockContactButton_text;
+  /// **'Block {displayName}'**
+  String blockContactButton_text(Object displayName);
 
   /// No description provided for @blockContactDialog_title.
   ///
@@ -331,8 +331,8 @@ abstract class AppLocalizations {
   /// No description provided for @unblockContactButton_text.
   ///
   /// In en, this message translates to:
-  /// **'Unblock'**
-  String get unblockContactButton_text;
+  /// **'Unblock {displayName}'**
+  String unblockContactButton_text(Object displayName);
 
   /// No description provided for @unblockContactDialog_title.
   ///
@@ -361,8 +361,8 @@ abstract class AppLocalizations {
   /// No description provided for @deleteContactButton_text.
   ///
   /// In en, this message translates to:
-  /// **'Delete Air Contact'**
-  String get deleteContactButton_text;
+  /// **'Delete {displayName}'**
+  String deleteContactButton_text(Object displayName);
 
   /// No description provided for @deleteContactDialog_title.
   ///
@@ -387,6 +387,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete'**
   String get deleteContactDialog_delete;
+
+  /// No description provided for @addAirContactDialog_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Air contact'**
+  String get addAirContactDialog_title;
+
+  /// No description provided for @addAirContactDialog_content.
+  ///
+  /// In en, this message translates to:
+  /// **'{displayName} from the group chat \"{groupTitle}\" isn\'t an Air contact. To chat with them, send a contact request.'**
+  String addAirContactDialog_content(Object displayName, Object groupTitle);
+
+  /// No description provided for @addAirContactDialog_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get addAirContactDialog_cancel;
+
+  /// No description provided for @addAirContactDialog_confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get addAirContactDialog_confirm;
 
   /// No description provided for @introScreen_signUp.
   ///

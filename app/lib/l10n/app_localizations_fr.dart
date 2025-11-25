@@ -123,7 +123,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get removeUserButton_text => 'Retirer l\'utilisateur';
 
   @override
-  String get blockContactButton_text => 'Bloquer';
+  String blockContactButton_text(Object displayName) {
+    return 'Bloquer $displayName';
+  }
 
   @override
   String blockContactDialog_title(Object displayName) {
@@ -142,7 +144,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get blockContactDialog_block => 'Bloquer';
 
   @override
-  String get unblockContactButton_text => 'Débloquer';
+  String unblockContactButton_text(Object displayName) {
+    return 'Débloquer $displayName';
+  }
 
   @override
   String unblockContactDialog_title(Object displayName) {
@@ -161,7 +165,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get unblockContactDialog_unblock => 'Débloquer';
 
   @override
-  String get deleteContactButton_text => 'Supprimer le contact Air';
+  String deleteContactButton_text(Object displayName) {
+    return 'Supprimer $displayName';
+  }
 
   @override
   String get deleteContactDialog_title => 'Supprimer le contact Air';
@@ -176,6 +182,20 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get deleteContactDialog_delete => 'Supprimer';
+
+  @override
+  String get addAirContactDialog_title => 'Add Air contact';
+
+  @override
+  String addAirContactDialog_content(Object displayName, Object groupTitle) {
+    return '$displayName from the group chat \"$groupTitle\" isn\'t an Air contact. To chat with them, send a contact request.';
+  }
+
+  @override
+  String get addAirContactDialog_cancel => 'Cancel';
+
+  @override
+  String get addAirContactDialog_confirm => 'Send';
 
   @override
   String get introScreen_signUp => 'S\'inscrire';

@@ -5,7 +5,9 @@
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/main.dart';
+import 'package:air/theme/theme.dart' show ResponsiveScreen;
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
@@ -22,11 +24,21 @@ class ReportSpamButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
+    final isDesktop = ResponsiveScreen.isDesktop(context);
+
     return OutlinedButton(
       onPressed: () => _onPressed(context),
+      style: ButtonStyle(
+        minimumSize: WidgetStatePropertyAll(
+          Size(isDesktop ? 320 : double.infinity, 0),
+        ),
+      ),
       child: Text(
         loc.reportSpamButton_text,
-        style: TextStyle(color: CustomColorScheme.of(context).function.danger),
+        style: TextStyle(
+          fontSize: LabelFontSize.base.size,
+          color: CustomColorScheme.of(context).text.primary,
+        ),
       ),
     );
   }

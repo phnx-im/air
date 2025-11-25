@@ -92,4 +92,6 @@ class UserCubit implements StateStreamableSource<UiUser> {
         dbPath: await dbPath(),
         confirmationText: confirmationText,
       );
+
+  Future<UiContact?> contact({required UiUserId userId}) => Future.value(null);
 }

@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/chat/contact_details.dart';
+import 'package:air/ui/components/app_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:air/core/core.dart';
 import 'package:air/navigation/navigation.dart';
@@ -10,6 +12,7 @@ import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'chat_details_cubit.dart';
 import 'member_details_cubit.dart';
 import 'report_spam_button.dart';
 import 'widgets/remove_member_button.dart';
@@ -19,22 +22,56 @@ class MemberDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final chatId = context.select(
-      (NavigationCubit cubit) => cubit.state.chatId,
+    final (chatId, memberId) = context.select(
+      (NavigationCubit cubit) => switch (cubit.state) {
+        NavigationState_Home(
+          home: HomeNavigationState(
+            chatId: final chatId,
+            memberDetails: final memberId,
+          ),
+        ) =>
+          (chatId, memberId),
+        _ => (null, null),
+      },
     );
-
-    if (chatId == null) {
+    if (chatId == null || memberId == null) {
       return const SizedBox.shrink();
     }
 
-    return BlocProvider(
-      create: (context) {
-        return MemberDetailsCubit(
-          userCubit: context.read<UserCubit>(),
-          chatId: chatId,
-        );
-      },
-      child: const MemberDetailsScreenView(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (context) => ChatDetailsCubit(
+            userCubit: context.read<UserCubit>(),
+            userSettingsCubit: context.read<UserSettingsCubit>(),
+            chatsRepository: context.read<ChatsRepository>(),
+            attachmentsRepository: context.read<AttachmentsRepository>(),
+            chatId: chatId,
+          ),
+        ),
+        BlocProvider(
+          create: (context) => MemberDetailsCubit(
+            userCubit: context.read<UserCubit>(),
+            chatId: chatId,
+          ),
+        ),
+      ],
+      child: Builder(
+        builder: (context) {
+          final profile = context.select(
+            (UsersCubit cubit) => cubit.state.profile(userId: memberId),
+          );
+
+          final groupTitle = context.select(
+            (ChatDetailsCubit cubit) => cubit.state.chat?.title,
+          );
+
+          return AppScaffold(
+            title: profile.displayName,
+            child: ContactDetailsView(profile: profile, groupTitle: groupTitle),
+          );
+        },
+      ),
     );
   }
 }

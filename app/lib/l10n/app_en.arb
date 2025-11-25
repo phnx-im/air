@@ -43,23 +43,28 @@
   "removeUserDialog_removeUser": "Remove user",
   "removeUserButton_text": "Remove",
 
-  "blockContactButton_text": "Block",
+  "blockContactButton_text": "Block {displayName}",
   "blockContactDialog_title": "Block {displayName}?",
   "blockContactDialog_content": "You won’t receive messages from {displayName} and they won’t be able to view any updates to your profile. They won’t be able to see that you blocked them. You can unblock them anytime.",
   "blockContactDialog_cancel": "Cancel",
   "blockContactDialog_block": "Block",
 
-  "unblockContactButton_text": "Unblock",
+  "unblockContactButton_text": "Unblock {displayName}",
   "unblockContactDialog_title": "Unblock {displayName}?",
   "unblockContactDialog_content": "You’ll be able to send and receive messages from {displayName} and they’ll be able to view your current profile.",
   "unblockContactDialog_cancel": "Cancel",
   "unblockContactDialog_unblock": "Unblock",
 
-  "deleteContactButton_text": "Delete Air Contact",
+  "deleteContactButton_text": "Delete {displayName}",
   "deleteContactDialog_title": "Delete Air Contact",
   "deleteContactDialog_content": "Are you sure you want to delete your Air Contact {displayName}? If you do, the chat and its message history will be deleted.",
   "deleteContactDialog_cancel": "Cancel",
   "deleteContactDialog_delete": "Delete",
+
+  "addAirContactDialog_title": "Add Air contact",
+  "addAirContactDialog_content": "{displayName} from the group chat \"{groupTitle}\" isn't an Air contact. To chat with them, send a contact request.",
+  "addAirContactDialog_cancel": "Cancel",
+  "addAirContactDialog_confirm": "Send",
 
   "introScreen_signUp": "Start",
   "introScreen_termsLinkText": "Terms of Use",
