@@ -186,13 +186,13 @@ impl Store for CoreUser {
 
     async fn contact(&self, user_id: &UserId) -> StoreResult<Option<ContactType>> {
         if let Some(contact) = self.try_contact(user_id).await? {
-            return Ok(Some(ContactType::Full(contact)));
+            Ok(Some(ContactType::Full(contact)))
         } else if let Some(targeted_message_contact) =
             self.try_targeted_message_contact(user_id).await?
         {
-            return Ok(Some(ContactType::Partial(PartialContact::TargetedMessage(
+            Ok(Some(ContactType::Partial(PartialContact::TargetedMessage(
                 targeted_message_contact,
-            ))));
+            ))))
         } else {
             Ok(None)
         }
