@@ -8,9 +8,16 @@ import 'package:flutter/material.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 
 class AppBarXButton extends StatelessWidget {
-  const AppBarXButton({super.key, this.onPressed});
+  const AppBarXButton({
+    super.key,
+    this.onPressed,
+    this.backgroundColor,
+    this.foregroundColor,
+  });
 
   final VoidCallback? onPressed;
+  final Color? backgroundColor;
+  final Color? foregroundColor;
 
   @override
   Widget build(BuildContext context) {
@@ -26,13 +33,16 @@ class AppBarXButton extends StatelessWidget {
           overlayColor: WidgetStateProperty.all(Colors.transparent),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: colors.backgroundBase.secondary,
+              color: backgroundColor ?? colors.backgroundBase.secondary,
               shape: BoxShape.circle,
             ),
             child: SizedBox.square(
               dimension: 24,
               child: Center(
-                child: iconoir.Xmark(width: 16, color: colors.text.primary),
+                child: iconoir.Xmark(
+                  width: 16,
+                  color: foregroundColor ?? colors.text.primary,
+                ),
               ),
             ),
           ),
