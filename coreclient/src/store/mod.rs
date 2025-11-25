@@ -12,7 +12,7 @@ use mimi_room_policy::VerifiedRoomState;
 use tokio_stream::Stream;
 use uuid::Uuid;
 
-use crate::contacts::TargetedMessageContact;
+use crate::contacts::{ContactType, TargetedMessageContact};
 use crate::{
     AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact, MessageDraft,
     MessageId, clients::attachment::progress::AttachmentProgress, contacts::HandleContact,
@@ -181,7 +181,7 @@ pub trait Store {
 
     async fn contacts(&self) -> StoreResult<Vec<Contact>>;
 
-    async fn contact(&self, user_id: &UserId) -> StoreResult<Option<Contact>>;
+    async fn contact(&self, user_id: &UserId) -> StoreResult<Option<ContactType>>;
 
     async fn handle_contacts(&self) -> StoreResult<Vec<HandleContact>>;
 
