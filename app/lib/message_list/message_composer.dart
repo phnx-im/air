@@ -4,6 +4,8 @@
 
 import 'dart:async';
 
+import 'package:air/attachments/attachments.dart';
+import 'package:air/main.dart';
 import 'package:air/message_list/emoji_repository.dart';
 import 'package:air/message_list/emoji_autocomplete.dart';
 import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
@@ -22,13 +24,11 @@ import 'package:logging/logging.dart';
 import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
-import 'package:air/main.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:provider/provider.dart';
 
-import '../attachments/attachment_category_picker.dart';
 import 'message_renderer.dart';
 
 final _log = Logger("MessageComposer");
@@ -228,7 +228,7 @@ class _MessageComposerState extends State<MessageComposer>
                 hoverColor: const Color(0x00FFFFFF),
                 onPressed: () {
                   if (_inputIsEmpty) {
-                    _uploadAttachment(context);
+                    _uploadAttachment(context, chatTitle: chatTitle);
                   } else {
                     _submitMessage(context.read());
                   }
@@ -301,7 +301,10 @@ class _MessageComposerState extends State<MessageComposer>
     return true;
   }
 
-  void _uploadAttachment(BuildContext context) async {
+  void _uploadAttachment(
+    BuildContext context, {
+    required String chatTitle,
+  }) async {
     AttachmentCategory? selectedCategory;
     await showBottomSheetModal(
       context: context,
@@ -329,15 +332,26 @@ class _MessageComposerState extends State<MessageComposer>
     }
 
     final cubit = context.read<ChatDetailsCubit>();
-    try {
-      await cubit.uploadAttachment(file.path);
-    } catch (e) {
-      _log.severe("Failed to upload attachment: $e");
-      if (context.mounted) {
-        final loc = AppLocalizations.of(context);
-        showErrorBanner(context, loc.composer_error_attachment);
-      }
-    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => AttachmentUploadView(
+          title: chatTitle,
+          file: file,
+          onUpload: () async {
+            try {
+              await cubit.uploadAttachment(file.path);
+            } catch (e) {
+              _log.severe("Failed to upload attachment: $e");
+              if (context.mounted) {
+                final loc = AppLocalizations.of(context);
+                showErrorBanner(context, loc.composer_error_attachment);
+              }
+            }
+          },
+        ),
+      ),
+    );
   }
 
   void _onTextChanged() {

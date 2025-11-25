@@ -61,6 +61,10 @@ pub trait Store {
 
     // user handles
 
+    /// Check whether a user handle exists on the AS. Relatively expensive
+    /// operation, as it requires computation of a handle hash.
+    async fn check_handle_exists(&self, user_handle: &UserHandle) -> StoreResult<bool>;
+
     async fn user_handles(&self) -> StoreResult<Vec<UserHandle>>;
 
     async fn user_handle_records(&self) -> StoreResult<Vec<UserHandleRecord>>;

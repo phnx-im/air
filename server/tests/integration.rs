@@ -1922,3 +1922,29 @@ async fn handle_sanity_checks() {
     let res = alice_user.add_contact(bob_handle.clone()).await;
     assert!(res.is_err(), "Should not be able to add Bob twice");
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Check handle exists", skip_all)]
+async fn check_handle_exists() {
+    let mut setup = TestBackend::single().await;
+    setup.add_user(&ALICE).await;
+    let alice = setup.get_user_mut(&ALICE);
+    let alice_user = &alice.user;
+
+    let alice_handle = UserHandle::new("alice".to_string()).unwrap();
+
+    let handle_exists = alice_user.check_handle_exists(&alice_handle).await.unwrap();
+    assert!(!handle_exists, "Alice's handle should not exist yet");
+
+    alice_user
+        .add_user_handle(alice_handle.clone())
+        .await
+        .unwrap();
+
+    let exists = alice_user.check_handle_exists(&alice_handle).await.unwrap();
+    assert!(exists, "Alice's handle should exist");
+
+    alice_user.remove_user_handle(&alice_handle).await.unwrap();
+    let exists = alice_user.check_handle_exists(&alice_handle).await.unwrap();
+    assert!(!exists, "Alice's handle should not exist after removal");
+}

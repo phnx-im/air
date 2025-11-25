@@ -343,6 +343,18 @@ impl auth_service_server::AuthService for GrpcAs {
         Ok(Response::new(ReportSpamResponse {}))
     }
 
+    async fn check_handle_exists(
+        &self,
+        request: Request<CheckHandleExistsRequest>,
+    ) -> Result<Response<CheckHandleExistsResponse>, Status> {
+        let request = request.into_inner();
+        let hash = request.hash.ok_or_missing_field("hash")?.try_into()?;
+
+        let exists = self.inner.as_check_handle_exists(&hash).await?;
+
+        Ok(Response::new(CheckHandleExistsResponse { exists }))
+    }
+
     async fn create_handle(
         &self,
         request: Request<CreateHandleRequest>,

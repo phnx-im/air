@@ -73,6 +73,12 @@ impl Store for CoreUser {
         Ok(())
     }
 
+    async fn check_handle_exists(&self, user_handle: &UserHandle) -> StoreResult<bool> {
+        let hash = user_handle.calculate_hash()?;
+        let handle_exists = self.api_client()?.as_check_handle_exists(hash).await?;
+        Ok(handle_exists)
+    }
+
     async fn user_handles(&self) -> StoreResult<Vec<UserHandle>> {
         Ok(UserHandleRecord::load_all_handles(self.pool()).await?)
     }
