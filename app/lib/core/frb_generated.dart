@@ -87,7 +87,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 497955533;
+  int get rustContentHash => -1255629122;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -398,9 +398,8 @@ abstract class RustLibApi extends BaseApi {
     required UiUserId member,
   });
 
-  Future<void> crateApiNavigationCubitNavigationCubitBaseOpenUserSettings({
+  Future<void> crateApiNavigationCubitNavigationCubitBaseOpenUserProfile({
     required NavigationCubitBase that,
-    required UserSettingsScreenType screen,
   });
 
   bool crateApiNavigationCubitNavigationCubitBasePop({
@@ -456,6 +455,7 @@ abstract class RustLibApi extends BaseApi {
   Future<void> crateApiUserCubitUserCubitBaseDeleteAccount({
     required UserCubitBase that,
     required String dbPath,
+    required String confirmationText,
   });
 
   Future<void> crateApiUserCubitUserCubitBaseDeleteChat({
@@ -3297,9 +3297,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiNavigationCubitNavigationCubitBaseOpenUserSettings({
+  Future<void> crateApiNavigationCubitNavigationCubitBaseOpenUserProfile({
     required NavigationCubitBase that,
-    required UserSettingsScreenType screen,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -3309,7 +3308,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          sse_encode_user_settings_screen_type(screen, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -3322,18 +3320,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: null,
         ),
         constMeta:
-            kCrateApiNavigationCubitNavigationCubitBaseOpenUserSettingsConstMeta,
-        argValues: [that, screen],
+            kCrateApiNavigationCubitNavigationCubitBaseOpenUserProfileConstMeta,
+        argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
   TaskConstMeta
-  get kCrateApiNavigationCubitNavigationCubitBaseOpenUserSettingsConstMeta =>
+  get kCrateApiNavigationCubitNavigationCubitBaseOpenUserProfileConstMeta =>
       const TaskConstMeta(
-        debugName: "NavigationCubitBase_open_user_settings",
-        argNames: ["that", "screen"],
+        debugName: "NavigationCubitBase_open_user_profile",
+        argNames: ["that"],
       );
 
   @override
@@ -3754,6 +3752,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<void> crateApiUserCubitUserCubitBaseDeleteAccount({
     required UserCubitBase that,
     required String dbPath,
+    required String confirmationText,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -3764,6 +3763,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             serializer,
           );
           sse_encode_String(dbPath, serializer);
+          sse_encode_String(confirmationText, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -3776,7 +3776,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiUserCubitUserCubitBaseDeleteAccountConstMeta,
-        argValues: [that, dbPath],
+        argValues: [that, dbPath, confirmationText],
         apiImpl: this,
       ),
     );
@@ -3785,7 +3785,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiUserCubitUserCubitBaseDeleteAccountConstMeta =>
       const TaskConstMeta(
         debugName: "UserCubitBase_delete_account",
-        argNames: ["that", "dbPath"],
+        argNames: ["that", "dbPath", "confirmationText"],
       );
 
   @override
@@ -7124,14 +7124,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UserSettingsScreenType dco_decode_box_autoadd_user_settings_screen_type(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_user_settings_screen_type(raw);
-  }
-
-  @protected
   UiContentMessage dco_decode_box_ui_content_message(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_ui_content_message(raw);
@@ -7193,9 +7185,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       developerSettingsScreen:
           dco_decode_opt_box_autoadd_developer_settings_screen_type(arr[2]),
       memberDetails: dco_decode_opt_box_autoadd_ui_user_id(arr[3]),
-      userSettingsScreen: dco_decode_opt_box_autoadd_user_settings_screen_type(
-        arr[4],
-      ),
+      userProfileOpen: dco_decode_bool(arr[4]),
       chatDetailsOpen: dco_decode_bool(arr[5]),
       addMembersOpen: dco_decode_bool(arr[6]),
       groupMembersOpen: dco_decode_bool(arr[7]),
@@ -7644,16 +7634,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UserSettingsScreenType? dco_decode_opt_box_autoadd_user_settings_screen_type(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw == null
-        ? null
-        : dco_decode_box_autoadd_user_settings_screen_type(raw);
-  }
-
-  @protected
   Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_list_prim_u_8_strict(raw);
@@ -8058,12 +8038,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       sendOnEnter: dco_decode_bool(arr[2]),
       readReceipts: dco_decode_bool(arr[3]),
     );
-  }
-
-  @protected
-  UserSettingsScreenType dco_decode_user_settings_screen_type(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return UserSettingsScreenType.values[raw as int];
   }
 
   @protected
@@ -9234,14 +9208,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UserSettingsScreenType sse_decode_box_autoadd_user_settings_screen_type(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_user_settings_screen_type(deserializer));
-  }
-
-  @protected
   UiContentMessage sse_decode_box_ui_content_message(
     SseDeserializer deserializer,
   ) {
@@ -9296,8 +9262,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_developerSettingsScreen =
         sse_decode_opt_box_autoadd_developer_settings_screen_type(deserializer);
     var var_memberDetails = sse_decode_opt_box_autoadd_ui_user_id(deserializer);
-    var var_userSettingsScreen =
-        sse_decode_opt_box_autoadd_user_settings_screen_type(deserializer);
+    var var_userProfileOpen = sse_decode_bool(deserializer);
     var var_chatDetailsOpen = sse_decode_bool(deserializer);
     var var_addMembersOpen = sse_decode_bool(deserializer);
     var var_groupMembersOpen = sse_decode_bool(deserializer);
@@ -9307,7 +9272,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       chatId: var_chatId,
       developerSettingsScreen: var_developerSettingsScreen,
       memberDetails: var_memberDetails,
-      userSettingsScreen: var_userSettingsScreen,
+      userProfileOpen: var_userProfileOpen,
       chatDetailsOpen: var_chatDetailsOpen,
       addMembersOpen: var_addMembersOpen,
       groupMembersOpen: var_groupMembersOpen,
@@ -9947,19 +9912,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UserSettingsScreenType? sse_decode_opt_box_autoadd_user_settings_screen_type(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_user_settings_screen_type(deserializer));
-    } else {
-      return null;
-    }
-  }
-
-  @protected
   Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -10389,15 +10341,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       sendOnEnter: var_sendOnEnter,
       readReceipts: var_readReceipts,
     );
-  }
-
-  @protected
-  UserSettingsScreenType sse_decode_user_settings_screen_type(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var inner = sse_decode_i_32(deserializer);
-    return UserSettingsScreenType.values[inner];
   }
 
   @protected
@@ -11819,15 +11762,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_box_autoadd_user_settings_screen_type(
-    UserSettingsScreenType self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_user_settings_screen_type(self, serializer);
-  }
-
-  @protected
   void sse_encode_box_ui_content_message(
     UiContentMessage self,
     SseSerializer serializer,
@@ -11889,10 +11823,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       serializer,
     );
     sse_encode_opt_box_autoadd_ui_user_id(self.memberDetails, serializer);
-    sse_encode_opt_box_autoadd_user_settings_screen_type(
-      self.userSettingsScreen,
-      serializer,
-    );
+    sse_encode_bool(self.userProfileOpen, serializer);
     sse_encode_bool(self.chatDetailsOpen, serializer);
     sse_encode_bool(self.addMembersOpen, serializer);
     sse_encode_bool(self.groupMembersOpen, serializer);
@@ -12491,19 +12422,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_opt_box_autoadd_user_settings_screen_type(
-    UserSettingsScreenType? self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    sse_encode_bool(self != null, serializer);
-    if (self != null) {
-      sse_encode_box_autoadd_user_settings_screen_type(self, serializer);
-    }
-  }
-
-  @protected
   void sse_encode_opt_list_prim_u_8_strict(
     Uint8List? self,
     SseSerializer serializer,
@@ -12875,15 +12793,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_f_64(self.sidebarWidth, serializer);
     sse_encode_bool(self.sendOnEnter, serializer);
     sse_encode_bool(self.readReceipts, serializer);
-  }
-
-  @protected
-  void sse_encode_user_settings_screen_type(
-    UserSettingsScreenType self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.index, serializer);
   }
 
   @protected
@@ -13463,12 +13372,8 @@ class NavigationCubitBaseImpl extends RustOpaque
         member: member,
       );
 
-  Future<void> openUserSettings({required UserSettingsScreenType screen}) =>
-      RustLib.instance.api
-          .crateApiNavigationCubitNavigationCubitBaseOpenUserSettings(
-            that: this,
-            screen: screen,
-          );
+  Future<void> openUserProfile() => RustLib.instance.api
+      .crateApiNavigationCubitNavigationCubitBaseOpenUserProfile(that: this);
 
   bool pop() => RustLib.instance.api
       .crateApiNavigationCubitNavigationCubitBasePop(that: this);
@@ -13576,8 +13481,14 @@ class UserCubitBaseImpl extends RustOpaque implements UserCubitBase {
   Future<List<UiContact>> get contacts =>
       RustLib.instance.api.crateApiUserCubitUserCubitBaseContacts(that: this);
 
-  Future<void> deleteAccount({required String dbPath}) => RustLib.instance.api
-      .crateApiUserCubitUserCubitBaseDeleteAccount(that: this, dbPath: dbPath);
+  Future<void> deleteAccount({
+    required String dbPath,
+    required String confirmationText,
+  }) => RustLib.instance.api.crateApiUserCubitUserCubitBaseDeleteAccount(
+    that: this,
+    dbPath: dbPath,
+    confirmationText: confirmationText,
+  );
 
   Future<void> deleteChat(ChatId chatId) => RustLib.instance.api
       .crateApiUserCubitUserCubitBaseDeleteChat(that: this, chatId: chatId);
