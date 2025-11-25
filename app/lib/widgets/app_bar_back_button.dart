@@ -21,7 +21,7 @@ class AppBarBackButton extends StatelessWidget {
         this.backgroundColor ?? colors.backgroundBase.secondary;
 
     return Padding(
-      padding: const EdgeInsets.only(left: Spacings.m),
+      padding: const EdgeInsets.only(left: Spacings.s),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
