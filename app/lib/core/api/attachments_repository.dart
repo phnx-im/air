@@ -38,6 +38,7 @@ abstract class AttachmentsRepository implements RustOpaqueInterface {
     required String destinationDir,
     required String filename,
     required AttachmentId attachmentId,
+    required bool overwrite,
   });
 
   Stream<UiAttachmentStatus> statusStream({required AttachmentId attachmentId});
