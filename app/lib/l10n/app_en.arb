@@ -1,15 +1,15 @@
 {
   "appTitle": "Air",
 
-  "userSettingsScreen_title": "User Settings",
+  "userSettingsScreen_title": "Profile and Settings",
   "userSettingsScreen_profileDescription": "Your display name and profile picture are visible to your Air contacts and members of groups you’re in.",
   "userSettingsScreen_userNamesDescription": "Share usernames with anyone you want to connect with. Usernames aren’t visible to others, even your Air contacts. You can have up to 5 usernames.",
   "userSettingsScreen_interfaceScale": "Interface scale",
   "userSettingsScreen_help": "Help",
-  "userSettingsScreen_deleteAccount": "Delete Air Account",
+  "userSettingsScreen_deleteAccount": "Delete Air account",
   "userSettingsScreen_sendWithEnter": "Send with Enter",
   "userSettingsScreen_sendWithEnterDescription": "If disabled, pressing the Enter key won’t send a message.",
-  "userSettingsScreen_readReceipts": "Read Receipts",
+  "userSettingsScreen_readReceipts": "Read receipts",
   "userSettingsScreen_readReceiptsDescription": "If disabled, others won’t be able to see when you’ve read their messages and you won’t be able to see when they’ve read yours.",
 
   "userSettingsScreen_displayNameLabel": "Display name",
@@ -55,9 +55,9 @@
   "unblockContactDialog_cancel": "Cancel",
   "unblockContactDialog_unblock": "Unblock",
 
-  "deleteContactButton_text": "Delete Air Contact",
-  "deleteContactDialog_title": "Delete Air Contact",
-  "deleteContactDialog_content": "Are you sure you want to delete your Air Contact {displayName}? If you do, the chat and its message history will be deleted.",
+  "deleteContactButton_text": "Delete Air contact",
+  "deleteContactDialog_title": "Delete Air contact",
+  "deleteContactDialog_content": "Are you sure you want to delete your Air contact {displayName}? If you do, the chat and its message history will be deleted.",
   "deleteContactDialog_cancel": "Cancel",
   "deleteContactDialog_delete": "Delete",
 
@@ -73,7 +73,7 @@
   "signUpScreen_header": "Create your profile",
   "signUpScreen_subheader": "Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.",
   "usernameOnboarding_header": "Add a username",
-  "usernameOnboarding_body": "Usernames are use letterhow people connect on Air. They aren't visible to others once you're connected.\n\nAdd, change, or delete usernames at any time in your profile.",
+  "usernameOnboarding_body": "Usernames are how people connect on Air. They aren't visible to others once you're connected.\n\nAdd, change, or delete usernames at any time in your profile.",
   "usernameOnboarding_syntax": "Use letters, numbers, or dashes. Minimum 5 characters.",
   "usernameOnboarding_addButton": "Add",
   "usernameOnboarding_skip": "Skip",
@@ -85,7 +85,7 @@
   "signUpScreen_serverLabel": "Choose a server where you want to create your account.",
   "signUpScreen_serverHint": "DOMAIN NAME",
   "signUpScreen_error_invalidDomain": "Domain is invalid",
-  "signUpScreen_error_emptyDisplayName": "Add a Display Name of at least one character",
+  "signUpScreen_error_emptyDisplayName": "Add a display name of at least one character",
   "signUpScreen_error_register": "Error when registering user: {error}",
 
   "userHandleScreen_title": "Add username",
@@ -125,9 +125,9 @@
   "timestamp_now": "Now",
   "timestamp_yesterday": "Yesterday",
 
-  "chatList_newContact": "New Air Contact",
-  "chatList_newGroup": "New Group Chat",
-  "chatList_emptyMessage": "Add your first Air Contact to get started",
+  "chatList_newContact": "New Air contact",
+  "chatList_newGroup": "New group chat",
+  "chatList_emptyMessage": "Add your first Air contact to get started",
 
   "chatList_draft": "Draft",
   "chatList_you": "You",
@@ -135,14 +135,14 @@
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blocked",
 
-  "newChatDialog_error": "Failed to create new Group Chat with name {chatName}",
+  "newChatDialog_error": "Failed to create new group chat with name {chatName}",
 
-  "newConnectionDialog_newConnectionTitle": "New Air Contact",
-  "newConnectionDialog_newConnectionDescription": "Type the Username of the person you want to connect to",
+  "newConnectionDialog_newConnectionTitle": "New Air contact",
+  "newConnectionDialog_newConnectionDescription": "Type the username of the person you want to connect to",
   "newConnectionDialog_usernamePlaceholder": "Username",
   "newConnectionDialog_actionButton": "Connect",
-  "newConnectionDialog_error": "Failed to send {username} a Contact Request. Try again.",
-  "newConnectionDialog_error_emptyHandle": "Type the Username",
+  "newConnectionDialog_error": "Failed to send {username} a contact request. Try again.",
+  "newConnectionDialog_error_emptyHandle": "Type the username",
   "newConnectionDialog_error_handleNotFound": "Username {username} doesn't exist",
 
   "composer_inputHint": "Message {chatTitle}",
@@ -226,7 +226,7 @@
   "groupCreationDetails_title": "Group details",
   "groupCreationDetails_groupNameHint": "Group name (required)",
   "groupCreationDetails_groupNameHintFocused": "Group name",
-  "groupCreationDetails_groupNameHelper": "At least one character, please",
+  "groupCreationDetails_groupNameHelper": "Use at least one character",
   "groupCreationDetails_descriptionHint": "Group description (optional)",
   "groupCreationDetails_descriptionHintFocused": "Group description",
   "groupCreationDetails_create": "Create",
@@ -234,13 +234,13 @@
 
   "addMembersScreen_addMembers": "Add members",
   "addMembersScreen_done": "Done",
-  "leaveChatDialog_title": "Leave Group",
+  "leaveChatDialog_title": "Leave group",
   "leaveChatDialog_content": "Are you sure you want to leave {chatName}?",
   "leaveChatDialog_cancel": "Cancel",
   "leaveChatDialog_leave": "Leave",
 
-  "deleteChatDialog_title": "Delete Chat?",
-  "deleteChatDialog_content": "This Chat will be deleted. There is no way to undo this.",
+  "deleteChatDialog_title": "Delete chat?",
+  "deleteChatDialog_content": "This chat will be deleted. There is no way to undo this.",
   "deleteChatDialog_delete": "Delete",
 
   "byteUnit_B": "B",
@@ -253,8 +253,8 @@
   "byteUnit_ZB": "ZB",
   "byteUnit_YB": "YB",
 
-  "deleteAccountScreen_title": "Delete My Account",
-  "deleteAccountScreen_explanatoryText": "This will delete your Air Account and reset the application. You will not be able to recover your account.",
+  "deleteAccountScreen_title": "Delete my account",
+  "deleteAccountScreen_explanatoryText": "This will delete your Air account and reset the application. You will not be able to recover your account.",
   "deleteAccountScreen_confirmationInputHint": "Confirmation",
   "deleteAccountScreen_confirmationInputLabel": "Type 'delete' to confirm.",
   "deleteAccountScreen_confirmButtonText": "Delete",
