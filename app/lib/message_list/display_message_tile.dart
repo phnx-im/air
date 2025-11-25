@@ -34,9 +34,9 @@ class _DisplayMessageTileState extends State<DisplayMessageTile> {
           Container(
             child: switch (widget.eventMessage) {
               UiEventMessage_System(field0: final message) =>
-                SystemMessageContent(message: message),
+                _SystemMessageContent(message: message),
               UiEventMessage_Error(field0: final message) =>
-                ErrorMessageContent(message: message),
+                _ErrorMessageContent(message: message),
             },
           ),
           Timestamp(widget.timestamp),
@@ -46,8 +46,8 @@ class _DisplayMessageTileState extends State<DisplayMessageTile> {
   }
 }
 
-class SystemMessageContent extends StatelessWidget {
-  const SystemMessageContent({super.key, required this.message});
+class _SystemMessageContent extends StatelessWidget {
+  const _SystemMessageContent({required this.message});
 
   final UiSystemMessage message;
 
@@ -63,60 +63,95 @@ class SystemMessageContent extends StatelessWidget {
     final profileNameStyle = textStyle.copyWith(fontWeight: FontWeight.bold);
 
     final messageText = switch (message) {
-      UiSystemMessage_Add(:final field0, :final field1) => () {
-        final user1Name = context.select(
-          (UsersCubit c) => c.state.profile(userId: field0).displayName,
-        );
-        final user2Name = context.select(
-          (UsersCubit c) => c.state.profile(userId: field1).displayName,
-        );
-        return RichText(
-          text: TextSpan(
-            style: textStyle,
-            children: [
-              TextSpan(
-                text: loc.systemMessage_userAddedUser_prefix(user1Name),
-                style: profileNameStyle,
+      UiSystemMessage_Add(field0: final userId, field1: final contactId) =>
+        Builder(
+          builder: (context) {
+            final (user1Name, user2Name) = context.select(
+              (UsersCubit c) => (
+                c.state.profile(userId: userId).displayName,
+                c.state.profile(userId: contactId).displayName,
               ),
-              TextSpan(text: loc.systemMessage_userAddedUser_infix),
-              TextSpan(
-                text: loc.systemMessage_userAddedUser_suffix(user2Name),
-                style: profileNameStyle,
+            );
+            return RichText(
+              text: TextSpan(
+                style: textStyle,
+                children: [
+                  TextSpan(
+                    text: loc.systemMessage_userAddedUser_prefix(user1Name),
+                    style: profileNameStyle,
+                  ),
+                  TextSpan(text: loc.systemMessage_userAddedUser_infix),
+                  TextSpan(
+                    text: loc.systemMessage_userAddedUser_suffix(user2Name),
+                    style: profileNameStyle,
+                  ),
+                ],
               ),
-            ],
-          ),
-        );
-      }(),
-      UiSystemMessage_Remove(:final field0, :final field1) => () {
-        final user1Name = context.select(
-          (UsersCubit c) => c.state.profile(userId: field0).displayName,
-        );
-        final user2Name = context.select(
-          (UsersCubit c) => c.state.profile(userId: field1).displayName,
-        );
-        return RichText(
-          text: TextSpan(
-            style: textStyle,
-            children: [
-              TextSpan(
-                text: loc.systemMessage_userRemovedUser_prefix(user1Name),
-                style: profileNameStyle,
+            );
+          },
+        ),
+      UiSystemMessage_Remove(field0: final userId, field1: final contactId) =>
+        Builder(
+          builder: (context) {
+            final (user1Name, user2Name) = context.select(
+              (UsersCubit c) => (
+                c.state.profile(userId: userId).displayName,
+                c.state.profile(userId: contactId).displayName,
               ),
-              TextSpan(text: loc.systemMessage_userRemovedUser_infix),
-              TextSpan(
-                text: loc.systemMessage_userRemovedUser_suffix(user2Name),
-                style: profileNameStyle,
+            );
+            return RichText(
+              text: TextSpan(
+                style: textStyle,
+                children: [
+                  TextSpan(
+                    text: loc.systemMessage_userRemovedUser_prefix(user1Name),
+                    style: profileNameStyle,
+                  ),
+                  TextSpan(text: loc.systemMessage_userRemovedUser_infix),
+                  TextSpan(
+                    text: loc.systemMessage_userRemovedUser_suffix(user2Name),
+                    style: profileNameStyle,
+                  ),
+                ],
               ),
-            ],
-          ),
-        );
-      }(),
+            );
+          },
+        ),
       UiSystemMessage_ChangeTitle(
-        :final field0,
-        :final field1,
-        :final field2,
+        field0: final userId,
+        field1: final oldTitle,
+        field2: final newTitle,
       ) =>
-        () {
+        Builder(
+          builder: (context) {
+            final userName = context.select(
+              (UsersCubit c) => c.state.profile(userId: userId).displayName,
+            );
+            return RichText(
+              text: TextSpan(
+                style: textStyle,
+                children: [
+                  TextSpan(
+                    text: loc.systemMessage_userChangedTitle_prefix(userName),
+                    style: profileNameStyle,
+                  ),
+                  TextSpan(text: loc.systemMessage_userChangedTitle_infix_1),
+                  TextSpan(
+                    text: loc.systemMessage_userChangedTitle_infix_2(oldTitle),
+                    style: profileNameStyle,
+                  ),
+                  TextSpan(text: loc.systemMessage_userChangedTitle_infix_3),
+                  TextSpan(
+                    text: loc.systemMessage_userChangedTitle_suffix(newTitle),
+                    style: profileNameStyle,
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      UiSystemMessage_ChangePicture(:final field0) => Builder(
+        builder: (context) {
           final userName = context.select(
             (UsersCubit c) => c.state.profile(userId: field0).displayName,
           );
@@ -125,40 +160,34 @@ class SystemMessageContent extends StatelessWidget {
               style: textStyle,
               children: [
                 TextSpan(
-                  text: loc.systemMessage_userChangedTitle_prefix(userName),
+                  text: loc.systemMessage_userChangedPicture_prefix(userName),
                   style: profileNameStyle,
                 ),
-                TextSpan(text: loc.systemMessage_userChangedTitle_infix_1),
-                TextSpan(
-                  text: loc.systemMessage_userChangedTitle_infix_2(field1),
-                  style: profileNameStyle,
-                ),
-                TextSpan(text: loc.systemMessage_userChangedTitle_infix_3),
-                TextSpan(
-                  text: loc.systemMessage_userChangedTitle_suffix(field2),
-                  style: profileNameStyle,
-                ),
+                TextSpan(text: loc.systemMessage_userChangedPicture_infix),
               ],
             ),
           );
-        }(),
-      UiSystemMessage_ChangePicture(:final field0) => () {
-        final userName = context.select(
-          (UsersCubit c) => c.state.profile(userId: field0).displayName,
-        );
-        return RichText(
-          text: TextSpan(
-            style: textStyle,
-            children: [
-              TextSpan(
-                text: loc.systemMessage_userChangedPicture_prefix(userName),
-                style: profileNameStyle,
-              ),
-              TextSpan(text: loc.systemMessage_userChangedPicture_infix),
-            ],
-          ),
-        );
-      }(),
+        },
+      ),
+      UiSystemMessage_CreateGroup(field0: final creatorId) => Builder(
+        builder: (context) {
+          final userName = context.select(
+            (UsersCubit c) => c.state.profile(userId: creatorId).displayName,
+          );
+          return RichText(
+            text: TextSpan(
+              style: textStyle,
+              children: [
+                TextSpan(
+                  text: loc.systemMessage_userCreatedGroup_prefix(userName),
+                  style: profileNameStyle,
+                ),
+                TextSpan(text: loc.systemMessage_userCreatedGroup_suffix),
+              ],
+            ),
+          );
+        },
+      ),
     };
 
     return Center(
@@ -180,8 +209,8 @@ class SystemMessageContent extends StatelessWidget {
   }
 }
 
-class ErrorMessageContent extends StatelessWidget {
-  const ErrorMessageContent({super.key, required this.message});
+class _ErrorMessageContent extends StatelessWidget {
+  const _ErrorMessageContent({required this.message});
 
   final UiErrorMessage message;
 
