@@ -37,15 +37,11 @@ class ChatListView extends StatelessWidget {
   final bool scaffold;
   final ChatDetailsCubitCreate createChatDetailsCubit;
 
-  double _topPadding() {
-    return isPointer() ? Spacings.l : kToolbarHeight;
-  }
-
   @override
   Widget build(BuildContext context) {
     final widget = Container(
       color: CustomColorScheme.of(context).backgroundBase.primary,
-      padding: EdgeInsets.only(top: _topPadding()),
+      padding: EdgeInsets.only(top: isPointer() ? Spacings.l : kToolbarHeight),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

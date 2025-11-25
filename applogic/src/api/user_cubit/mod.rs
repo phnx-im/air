@@ -17,7 +17,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 use user_handle::{HandleBackgroundTasks, HandleContext};
 
-use crate::api::types::UiContact;
+use crate::api::{navigation_cubit::NavigationChat, types::UiContact};
 use crate::{
     StreamSink,
     api::navigation_cubit::HomeNavigationState,
@@ -452,20 +452,24 @@ impl CubitContext {
             NavigationState::Home {
                 home:
                     HomeNavigationState {
-                        chat_id: Some(chat_id),
+                        current_chat: NavigationChat::Open(chat_id),
                         ..
                     },
             } => NotificationContext::Chat(*chat_id),
             NavigationState::Home {
                 home:
                     HomeNavigationState {
-                        chat_id: None,
+                        current_chat,
                         developer_settings_screen,
                         user_profile_open,
                         ..
                     },
             } => {
-                if !IS_DESKTOP && developer_settings_screen.is_none() && !user_profile_open {
+                if !IS_DESKTOP
+                    && !current_chat.is_open()
+                    && developer_settings_screen.is_none()
+                    && !user_profile_open
+                {
                     NotificationContext::ChatList
                 } else {
                     NotificationContext::Other

@@ -180,7 +180,7 @@ extension on IntroScreenType {
 
 /// Convert [HomeNavigation] state into a list of pages.
 extension on HomeNavigationState {
-  ChatId? get openChatId => chatOpen ? chatId : null;
+  ChatId? get openChatId => currentChat.openChatId;
 
   List<MaterialPage> pages(ResponsiveScreenType screenType) {
     const homeScreenPage = NoAnimationPage(
@@ -188,6 +188,7 @@ extension on HomeNavigationState {
       canPop: false,
       child: HomeScreen(),
     );
+
     return [
       homeScreenPage,
       if (createGroupOpen)

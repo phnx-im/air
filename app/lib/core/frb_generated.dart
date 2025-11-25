@@ -87,7 +87,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1255629122;
+  int get rustContentHash => 1085878268;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -673,6 +673,8 @@ abstract class RustLibApi extends BaseApi {
   MessageContent crateApiMarkdownMessageContentParseMarkdownRaw({
     required List<int> string,
   });
+
+  Future<NavigationChat> crateApiNavigationCubitNavigationChatDefault();
 
   Future<String> crateApiLoggingReadAppLogs();
 
@@ -5713,7 +5715,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<String> crateApiLoggingReadAppLogs() {
+  Future<NavigationChat> crateApiNavigationCubitNavigationChatDefault() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -5722,6 +5724,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             generalizedFrbRustBinding,
             serializer,
             funcId: 134,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_navigation_chat,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNavigationCubitNavigationChatDefaultConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNavigationCubitNavigationChatDefaultConstMeta =>
+      const TaskConstMeta(debugName: "navigation_chat_default", argNames: []);
+
+  @override
+  Future<String> crateApiLoggingReadAppLogs() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 135,
             port: port_,
           );
         },
@@ -5749,7 +5778,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 135,
+            funcId: 136,
             port: port_,
           );
         },
@@ -5780,7 +5809,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 136,
+            funcId: 137,
             port: port_,
           );
         },
@@ -5810,7 +5839,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 137,
+            funcId: 138,
           )!;
         },
         codec: SseCodec(
@@ -5842,7 +5871,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 138,
+            funcId: 139,
           )!;
         },
         codec: SseCodec(
@@ -7177,19 +7206,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   HomeNavigationState dco_decode_home_navigation_state(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 9)
-      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
     return HomeNavigationState(
-      chatOpen: dco_decode_bool(arr[0]),
-      chatId: dco_decode_opt_box_autoadd_chat_id(arr[1]),
+      currentChat: dco_decode_navigation_chat(arr[0]),
       developerSettingsScreen:
-          dco_decode_opt_box_autoadd_developer_settings_screen_type(arr[2]),
-      memberDetails: dco_decode_opt_box_autoadd_ui_user_id(arr[3]),
-      userProfileOpen: dco_decode_bool(arr[4]),
-      chatDetailsOpen: dco_decode_bool(arr[5]),
-      addMembersOpen: dco_decode_bool(arr[6]),
-      groupMembersOpen: dco_decode_bool(arr[7]),
-      createGroupOpen: dco_decode_bool(arr[8]),
+          dco_decode_opt_box_autoadd_developer_settings_screen_type(arr[1]),
+      memberDetails: dco_decode_opt_box_autoadd_ui_user_id(arr[2]),
+      userProfileOpen: dco_decode_bool(arr[3]),
+      chatDetailsOpen: dco_decode_bool(arr[4]),
+      addMembersOpen: dco_decode_bool(arr[5]),
+      groupMembersOpen: dco_decode_bool(arr[6]),
+      createGroupOpen: dco_decode_bool(arr[7]),
     );
   }
 
@@ -7458,6 +7486,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (arr.length != 1)
       throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
     return MessageState(message: dco_decode_ui_chat_message(arr[0]));
+  }
+
+  @protected
+  NavigationChat dco_decode_navigation_chat(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return NavigationChat_None();
+      case 1:
+        return NavigationChat_Open(dco_decode_box_autoadd_chat_id(raw[1]));
+      case 2:
+        return NavigationChat_Closed(dco_decode_box_autoadd_chat_id(raw[1]));
+      default:
+        throw Exception("unreachable");
+    }
   }
 
   @protected
@@ -9257,8 +9300,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_chatOpen = sse_decode_bool(deserializer);
-    var var_chatId = sse_decode_opt_box_autoadd_chat_id(deserializer);
+    var var_currentChat = sse_decode_navigation_chat(deserializer);
     var var_developerSettingsScreen =
         sse_decode_opt_box_autoadd_developer_settings_screen_type(deserializer);
     var var_memberDetails = sse_decode_opt_box_autoadd_ui_user_id(deserializer);
@@ -9268,8 +9310,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_groupMembersOpen = sse_decode_bool(deserializer);
     var var_createGroupOpen = sse_decode_bool(deserializer);
     return HomeNavigationState(
-      chatOpen: var_chatOpen,
-      chatId: var_chatId,
+      currentChat: var_currentChat,
       developerSettingsScreen: var_developerSettingsScreen,
       memberDetails: var_memberDetails,
       userProfileOpen: var_userProfileOpen,
@@ -9636,6 +9677,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_message = sse_decode_ui_chat_message(deserializer);
     return MessageState(message: var_message);
+  }
+
+  @protected
+  NavigationChat sse_decode_navigation_chat(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        return NavigationChat_None();
+      case 1:
+        var var_field0 = sse_decode_box_autoadd_chat_id(deserializer);
+        return NavigationChat_Open(var_field0);
+      case 2:
+        var var_field0 = sse_decode_box_autoadd_chat_id(deserializer);
+        return NavigationChat_Closed(var_field0);
+      default:
+        throw UnimplementedError('');
+    }
   }
 
   @protected
@@ -11816,8 +11876,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_bool(self.chatOpen, serializer);
-    sse_encode_opt_box_autoadd_chat_id(self.chatId, serializer);
+    sse_encode_navigation_chat(self.currentChat, serializer);
     sse_encode_opt_box_autoadd_developer_settings_screen_type(
       self.developerSettingsScreen,
       serializer,
@@ -12152,6 +12211,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_message_state(MessageState self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_ui_chat_message(self.message, serializer);
+  }
+
+  @protected
+  void sse_encode_navigation_chat(
+    NavigationChat self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case NavigationChat_None():
+        sse_encode_i_32(0, serializer);
+      case NavigationChat_Open(field0: final field0):
+        sse_encode_i_32(1, serializer);
+        sse_encode_box_autoadd_chat_id(field0, serializer);
+      case NavigationChat_Closed(field0: final field0):
+        sse_encode_i_32(2, serializer);
+        sse_encode_box_autoadd_chat_id(field0, serializer);
+    }
   }
 
   @protected

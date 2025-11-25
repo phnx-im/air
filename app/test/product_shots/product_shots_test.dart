@@ -205,7 +205,9 @@ void main() {
       final chat = chats[0];
 
       when(() => navigationCubit.state).thenReturn(
-        NavigationState.home(home: HomeNavigationState(chatId: chat.id)),
+        NavigationState.home(
+          home: HomeNavigationState(currentChat: .open(chat.id)),
+        ),
       );
       when(() => userCubit.state).thenReturn(MockUiUser(id: ownIdx));
       when(
@@ -357,7 +359,9 @@ void main() {
       final chat = chats[4];
 
       when(() => navigationCubit.state).thenReturn(
-        NavigationState.home(home: HomeNavigationState(chatId: chat.id)),
+        NavigationState.home(
+          home: HomeNavigationState(currentChat: .open(chat.id)),
+        ),
       );
       when(() => userCubit.state).thenReturn(MockUiUser(id: ownIdx));
       when(

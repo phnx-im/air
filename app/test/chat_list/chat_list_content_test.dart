@@ -280,7 +280,7 @@ void main() {
     testWidgets('renders correctly', (tester) async {
       when(() => navigationCubit.state).thenReturn(
         NavigationState.home(
-          home: HomeNavigationState(chatOpen: true, chatId: chats[1].id),
+          home: HomeNavigationState(currentChat: .open(chats[1].id)),
         ),
       );
 
