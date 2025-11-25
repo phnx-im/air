@@ -216,13 +216,8 @@ class _MessageView extends HookWidget {
         ),
       if (attachments.isNotEmpty && Platform.isIOS)
         MessageAction(
-<<<<<<< HEAD
-          label: loc.messageContextMenu_save,
-          leading: iconoir.Download(width: 24, color: colors.text.primary),
-=======
           label: loc.messageContextMenu_share,
           leading: iconoir.ShareIos(width: 24, color: colors.text.primary),
->>>>>>> c26e62f2217906b0af3664538dcf39a1ba9bf9a7
           onSelected: () => _handleFileShare(context, attachments),
         ),
     ];
