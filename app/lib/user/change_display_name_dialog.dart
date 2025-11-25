@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ui/components/modal/dialog.dart';
+import 'package:air/ui/components/modal/app_dialog.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -30,7 +30,7 @@ class ChangeDisplayNameDialog extends HookWidget {
     final colors = CustomColorScheme.of(context);
     final loc = AppLocalizations.of(context);
 
-    return AirDialog(
+    return AppDialog(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,

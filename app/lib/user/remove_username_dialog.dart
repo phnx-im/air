@@ -6,7 +6,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/components/modal/dialog.dart';
+import 'package:air/ui/components/modal/app_dialog.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -23,7 +23,7 @@ class RemoveUsernameDialog extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
     final loc = AppLocalizations.of(context);
 
-    return AirDialog(
+    return AppDialog(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -6,7 +6,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/components/modal/dialog.dart';
+import 'package:air/ui/components/modal/app_dialog.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
