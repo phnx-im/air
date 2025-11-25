@@ -29,7 +29,6 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:provider/provider.dart';
 
-import '../attachments/attachment_category_picker.dart';
 import 'message_renderer.dart';
 
 final _log = Logger("MessageComposer");
@@ -229,7 +228,7 @@ class _MessageComposerState extends State<MessageComposer>
                 hoverColor: const Color(0x00FFFFFF),
                 onPressed: () {
                   if (_inputIsEmpty) {
-                    _uploadAttachment(context);
+                    _uploadAttachment(context, chatTitle: chatTitle);
                   } else {
                     _submitMessage(context.read());
                   }
@@ -302,7 +301,10 @@ class _MessageComposerState extends State<MessageComposer>
     return true;
   }
 
-  void _uploadAttachment(BuildContext context) async {
+  void _uploadAttachment(
+    BuildContext context, {
+    required String chatTitle,
+  }) async {
     AttachmentCategory? selectedCategory;
     await showBottomSheetModal(
       context: context,
@@ -334,6 +336,7 @@ class _MessageComposerState extends State<MessageComposer>
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => AttachmentUploadScreen(
+          title: chatTitle,
           file: file,
           onUpload: () async {
             try {

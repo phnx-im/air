@@ -49,7 +49,7 @@ class ImageViewer extends HookWidget {
     final initialScale = useRef<double?>(null);
     final pendingTapTimer = useRef<Timer?>(null);
 
-    final colors = CustomColorScheme.of(context);
+    final colors = darkCustomColorScheme;
 
     useEffect(
       () => () {
@@ -129,7 +129,7 @@ class ImageViewer extends HookWidget {
     }
 
     return Scaffold(
-      backgroundColor: colors.backgroundBase.primary,
+      backgroundColor: colors.function.black,
       body: Focus(
         autofocus: true,
         onKeyEvent: (node, event) {
@@ -310,7 +310,10 @@ class _ViewerOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = CustomColorScheme.of(context);
+    final foregroundColor = darkCustomColorScheme.text.primary;
+    final backgroundColor = darkCustomColorScheme.backgroundElevated.primary
+        .withValues(alpha: 0.7);
+
     return Positioned(
       top: 0,
       left: 0,
@@ -321,19 +324,20 @@ class _ViewerOverlay extends StatelessWidget {
           duration: const Duration(milliseconds: 250),
           opacity: isVisible ? fadeOpacity : 0,
           child: Container(
-            color: colorScheme.backgroundElevated.primary.withValues(
-              alpha: 0.7,
-            ),
+            color: backgroundColor,
             child: AppBar(
               automaticallyImplyLeading: false,
               actions: [
                 AppBarXButton(
                   onPressed: () => Navigator.of(context).maybePop(),
+                  foregroundColor: foregroundColor,
+                  backgroundColor:
+                      darkCustomColorScheme.backgroundBase.secondary,
                 ),
               ],
               backgroundColor: Colors.transparent,
               elevation: 0,
-              title: Text(title),
+              title: Text(title, style: TextStyle(color: foregroundColor)),
               centerTitle: true,
             ),
           ),
