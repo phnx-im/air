@@ -409,11 +409,16 @@ class _MessageView extends HookWidget {
       return;
     }
 
-    if (!context.mounted) return;
-    final loc = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(loc.messageContextMenu_saveConfirmation)),
-    );
+    // TODO: Snackbar overlaps with the composer, so we need a better solution
+    if (context.mounted) {
+      final loc = AppLocalizations.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 1),
+          content: Text(loc.messageContextMenu_saveConfirmation),
+        ),
+      );
+    }
   }
 }
 
