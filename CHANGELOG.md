@@ -24,14 +24,10 @@
 - *(app)* Composer no longer shown in inactive chats (#842)
 - *(app)* Newly created chats appear on top of the chat list (#845)
 
-### 💼 Other
-
-- Replace dart tools by rust tools (#830)
-
 ### ⚙️ Miscellaneous Tasks
 
-- V0.4.0 (#828)
-- Upgrade flutter to 3.38.1 and dart to 3.10.0 (#832)
+- *(build)* Replace dart tools by rust tools (#830)
+- *(app)* Upgrade flutter to 3.38.1 and dart to 3.10.0 (#832)
 - *(coreclient)* Add sanity checks when adding contact by handle (#847)
 - *(coreclient)* Add sanity checks when adding contact from group (#848)
 
