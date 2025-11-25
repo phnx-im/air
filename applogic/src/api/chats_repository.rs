@@ -73,16 +73,18 @@ impl ChatsRepository {
     }
 
     async fn load_on_startup_task(store: CoreUser, chats: ChatsLruCache) {
-        let Ok(mut loaded_chats) = store.chats().await.inspect_err(|error| {
+        let Ok(chat_ids) = store.ordered_chat_ids().await.inspect_err(|error| {
             error!(%error, "Failed to load chats");
         }) else {
             return;
         };
-        let len = loaded_chats.len().min(CHAT_REPOSITORY_CACHE_SIZE.get());
+        let len = chat_ids.len().min(CHAT_REPOSITORY_CACHE_SIZE.get());
         debug!(%len, "load_on_startup_task");
-        for chat in loaded_chats.drain(..len) {
-            let chat_details = load_chat_details(&store, chat).await;
-            chats.lock().put(chat_details.id, chat_details);
+        for chat_id in &chat_ids[..len] {
+            if let Some(chat) = store.chat(chat_id).await {
+                let chat_details = load_chat_details(&store, chat).await;
+                chats.lock().put(chat_details.id, chat_details);
+            }
         }
     }
 }
