@@ -27,6 +27,14 @@ mod persistence;
 mod queue;
 
 impl AuthService {
+    pub(crate) async fn as_check_handle_exists(
+        &self,
+        hash: &UserHandleHash,
+    ) -> Result<bool, CheckHandleExistsError> {
+        let exists = UserHandleRecord::check_exists(&self.db_pool, hash).await?;
+        Ok(exists)
+    }
+
     pub(crate) async fn as_create_handle(
         &self,
         verifying_key: HandleVerifyingKey,
@@ -77,6 +85,24 @@ impl AuthService {
             UpdateExpirationDataResult::Updated => Ok(()),
             UpdateExpirationDataResult::Deleted => Err(RefreshHandleError::HandleAlreadyExpired),
             UpdateExpirationDataResult::NotFound => Err(RefreshHandleError::HandleNotFound),
+        }
+    }
+}
+
+#[derive(Debug, Error, Display)]
+pub(crate) enum CheckHandleExistsError {
+    /// Storage provider error
+    StorageError(#[from] sqlx::Error),
+}
+
+impl From<CheckHandleExistsError> for Status {
+    fn from(error: CheckHandleExistsError) -> Self {
+        let msg = error.to_string();
+        match error {
+            CheckHandleExistsError::StorageError(error) => {
+                error!(%error, "Error checking user handle existence");
+                Status::internal(msg)
+            }
         }
     }
 }
