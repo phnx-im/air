@@ -115,7 +115,7 @@ abstract class AppLocalizations {
   /// No description provided for @userSettingsScreen_title.
   ///
   /// In en, this message translates to:
-  /// **'User Settings'**
+  /// **'Profile and Settings'**
   String get userSettingsScreen_title;
 
   /// No description provided for @userSettingsScreen_profileDescription.
@@ -145,7 +145,7 @@ abstract class AppLocalizations {
   /// No description provided for @userSettingsScreen_deleteAccount.
   ///
   /// In en, this message translates to:
-  /// **'Delete Air Account'**
+  /// **'Delete Air account'**
   String get userSettingsScreen_deleteAccount;
 
   /// No description provided for @userSettingsScreen_sendWithEnter.
@@ -163,7 +163,7 @@ abstract class AppLocalizations {
   /// No description provided for @userSettingsScreen_readReceipts.
   ///
   /// In en, this message translates to:
-  /// **'Read Receipts'**
+  /// **'Read receipts'**
   String get userSettingsScreen_readReceipts;
 
   /// No description provided for @userSettingsScreen_readReceiptsDescription.
@@ -361,19 +361,19 @@ abstract class AppLocalizations {
   /// No description provided for @deleteContactButton_text.
   ///
   /// In en, this message translates to:
-  /// **'Delete Air Contact'**
+  /// **'Delete Air contact'**
   String get deleteContactButton_text;
 
   /// No description provided for @deleteContactDialog_title.
   ///
   /// In en, this message translates to:
-  /// **'Delete Air Contact'**
+  /// **'Delete Air contact'**
   String get deleteContactDialog_title;
 
   /// No description provided for @deleteContactDialog_content.
   ///
   /// In en, this message translates to:
-  /// **'Are you sure you want to delete your Air Contact {displayName}? If you do, the chat and its message history will be deleted.'**
+  /// **'Are you sure you want to delete your Air contact {displayName}? If you do, the chat and its message history will be deleted.'**
   String deleteContactDialog_content(Object displayName);
 
   /// No description provided for @deleteContactDialog_cancel.
@@ -427,7 +427,7 @@ abstract class AppLocalizations {
   /// No description provided for @usernameOnboarding_body.
   ///
   /// In en, this message translates to:
-  /// **'Usernames are use letterhow people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.'**
+  /// **'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.'**
   String get usernameOnboarding_body;
 
   /// No description provided for @usernameOnboarding_syntax.
@@ -499,7 +499,7 @@ abstract class AppLocalizations {
   /// No description provided for @signUpScreen_error_emptyDisplayName.
   ///
   /// In en, this message translates to:
-  /// **'Add a Display Name of at least one character'**
+  /// **'Add a display name of at least one character'**
   String get signUpScreen_error_emptyDisplayName;
 
   /// No description provided for @signUpScreen_error_register.
@@ -685,19 +685,19 @@ abstract class AppLocalizations {
   /// No description provided for @chatList_newContact.
   ///
   /// In en, this message translates to:
-  /// **'New Air Contact'**
+  /// **'New Air contact'**
   String get chatList_newContact;
 
   /// No description provided for @chatList_newGroup.
   ///
   /// In en, this message translates to:
-  /// **'New Group Chat'**
+  /// **'New group chat'**
   String get chatList_newGroup;
 
   /// No description provided for @chatList_emptyMessage.
   ///
   /// In en, this message translates to:
-  /// **'Add your first Air Contact to get started'**
+  /// **'Add your first Air contact to get started'**
   String get chatList_emptyMessage;
 
   /// No description provided for @chatList_draft.
@@ -733,19 +733,19 @@ abstract class AppLocalizations {
   /// No description provided for @newChatDialog_error.
   ///
   /// In en, this message translates to:
-  /// **'Failed to create new Group Chat with name {chatName}'**
+  /// **'Failed to create new group chat with name {chatName}'**
   String newChatDialog_error(Object chatName);
 
   /// No description provided for @newConnectionDialog_newConnectionTitle.
   ///
   /// In en, this message translates to:
-  /// **'New Air Contact'**
+  /// **'New Air contact'**
   String get newConnectionDialog_newConnectionTitle;
 
   /// No description provided for @newConnectionDialog_newConnectionDescription.
   ///
   /// In en, this message translates to:
-  /// **'Type the Username of the person you want to connect to'**
+  /// **'Type the username of the person you want to connect to'**
   String get newConnectionDialog_newConnectionDescription;
 
   /// No description provided for @newConnectionDialog_usernamePlaceholder.
@@ -763,13 +763,13 @@ abstract class AppLocalizations {
   /// No description provided for @newConnectionDialog_error.
   ///
   /// In en, this message translates to:
-  /// **'Failed to send {username} a Contact Request. Try again.'**
+  /// **'Failed to send {username} a contact request. Try again.'**
   String newConnectionDialog_error(Object username);
 
   /// No description provided for @newConnectionDialog_error_emptyHandle.
   ///
   /// In en, this message translates to:
-  /// **'Type the Username'**
+  /// **'Type the username'**
   String get newConnectionDialog_error_emptyHandle;
 
   /// No description provided for @newConnectionDialog_error_handleNotFound.
@@ -1093,7 +1093,7 @@ abstract class AppLocalizations {
   /// No description provided for @groupCreationDetails_groupNameHelper.
   ///
   /// In en, this message translates to:
-  /// **'At least one character, please'**
+  /// **'Use at least one character'**
   String get groupCreationDetails_groupNameHelper;
 
   /// No description provided for @groupCreationDetails_descriptionHint.
@@ -1129,7 +1129,7 @@ abstract class AppLocalizations {
   /// No description provided for @leaveChatDialog_title.
   ///
   /// In en, this message translates to:
-  /// **'Leave Group'**
+  /// **'Leave group'**
   String get leaveChatDialog_title;
 
   /// No description provided for @leaveChatDialog_content.
@@ -1153,13 +1153,13 @@ abstract class AppLocalizations {
   /// No description provided for @deleteChatDialog_title.
   ///
   /// In en, this message translates to:
-  /// **'Delete Chat?'**
+  /// **'Delete chat?'**
   String get deleteChatDialog_title;
 
   /// No description provided for @deleteChatDialog_content.
   ///
   /// In en, this message translates to:
-  /// **'This Chat will be deleted. There is no way to undo this.'**
+  /// **'This chat will be deleted. There is no way to undo this.'**
   String get deleteChatDialog_content;
 
   /// No description provided for @deleteChatDialog_delete.
@@ -1225,13 +1225,13 @@ abstract class AppLocalizations {
   /// No description provided for @deleteAccountScreen_title.
   ///
   /// In en, this message translates to:
-  /// **'Delete My Account'**
+  /// **'Delete my account'**
   String get deleteAccountScreen_title;
 
   /// No description provided for @deleteAccountScreen_explanatoryText.
   ///
   /// In en, this message translates to:
-  /// **'This will delete your Air Account and reset the application. You will not be able to recover your account.'**
+  /// **'This will delete your Air account and reset the application. You will not be able to recover your account.'**
   String get deleteAccountScreen_explanatoryText;
 
   /// No description provided for @deleteAccountScreen_confirmationInputHint.
