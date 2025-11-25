@@ -15,7 +15,6 @@ import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
-import 'package:air/ui/typography/monospace.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 
@@ -138,11 +137,7 @@ class _ListTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               spacing: Spacings.s,
               children: [
-                UserAvatar(
-                  size: 50,
-                  image: chat.picture,
-                  displayName: chat.title,
-                ),
+                GroupAvatar(chatId: chat.id, size: 50),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -299,6 +294,16 @@ class _LastMessage extends StatelessWidget {
 
     final lastMessage = chat.lastMessage;
     final draftMessage = chat.draft?.message.trim();
+    final lastSender = switch (lastMessage?.message) {
+      UiMessage_Content(field0: final content) => content.sender,
+      _ => null,
+    };
+    final senderDisplayName = lastSender == null
+        ? null
+        : context.select(
+            (UsersCubit cubit) => cubit.state.displayName(userId: lastSender),
+          );
+    final isGroupChat = chat.chatType is UiChatType_Group;
 
     final isHidden = lastMessage?.status == UiMessageStatus.hidden;
     if (isHidden) {
@@ -336,10 +341,10 @@ class _LastMessage extends StatelessWidget {
 
     final prefix = showDraft
         ? "${loc.chatList_draft}: "
-        : switch (lastMessage?.message) {
-            UiMessage_Content(field0: final content)
-                when content.sender == ownClientId =>
-              "${loc.chatList_you}: ",
+        : switch (lastSender) {
+            final sender when sender == ownClientId => "${loc.chatList_you}: ",
+            final sender when sender != null && isGroupChat =>
+              senderDisplayName != null ? "$senderDisplayName: " : null,
             _ => null,
           };
 
@@ -442,13 +447,10 @@ class _ChatTitle extends StatelessWidget {
       baseline: Spacings.s,
       baselineType: TextBaseline.alphabetic,
       child: Text(
-        title.toUpperCase(),
+        title,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(
+        style: TextTheme.of(context).labelSmall!.copyWith(
           color: CustomColorScheme.of(context).text.tertiary,
-          fontFamily: getSystemMonospaceFontFamily(),
-          fontSize: LabelFontSize.small2.size,
-          letterSpacing: 1,
         ),
       ),
     );

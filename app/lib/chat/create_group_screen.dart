@@ -15,7 +15,7 @@ import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
-import 'package:air/widgets/user_avatar.dart';
+import 'package:air/widgets/avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
@@ -550,11 +550,7 @@ class _SelectedParticipant extends StatelessWidget {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              UserAvatar(
-                displayName: profile.displayName,
-                image: profile.profilePicture,
-                size: 48,
-              ),
+              UserAvatar(userId: profile.userId, size: 48),
               Positioned(
                 top: -2,
                 right: -2,
