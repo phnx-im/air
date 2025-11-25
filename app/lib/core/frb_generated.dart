@@ -120,6 +120,7 @@ abstract class RustLibApi extends BaseApi {
     required String destinationDir,
     required String filename,
     required AttachmentId attachmentId,
+    required bool overwrite,
   });
 
   Stream<UiAttachmentStatus>
@@ -977,6 +978,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String destinationDir,
     required String filename,
     required AttachmentId attachmentId,
+    required bool overwrite,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -989,6 +991,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(destinationDir, serializer);
           sse_encode_String(filename, serializer);
           sse_encode_box_autoadd_attachment_id(attachmentId, serializer);
+          sse_encode_bool(overwrite, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -1002,7 +1005,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kCrateApiAttachmentsRepositoryAttachmentsRepositorySaveAttachmentConstMeta,
-        argValues: [that, destinationDir, filename, attachmentId],
+        argValues: [that, destinationDir, filename, attachmentId, overwrite],
         apiImpl: this,
       ),
     );
@@ -1012,7 +1015,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiAttachmentsRepositoryAttachmentsRepositorySaveAttachmentConstMeta =>
       const TaskConstMeta(
         debugName: "AttachmentsRepository_save_attachment",
-        argNames: ["that", "destinationDir", "filename", "attachmentId"],
+        argNames: [
+          "that",
+          "destinationDir",
+          "filename",
+          "attachmentId",
+          "overwrite",
+        ],
       );
 
   @override
@@ -12852,12 +12861,14 @@ class AttachmentsRepositoryImpl extends RustOpaque
     required String destinationDir,
     required String filename,
     required AttachmentId attachmentId,
+    required bool overwrite,
   }) => RustLib.instance.api
       .crateApiAttachmentsRepositoryAttachmentsRepositorySaveAttachment(
         that: this,
         destinationDir: destinationDir,
         filename: filename,
         attachmentId: attachmentId,
+        overwrite: overwrite,
       );
 
   Stream<UiAttachmentStatus> statusStream({
