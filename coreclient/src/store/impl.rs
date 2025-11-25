@@ -107,10 +107,6 @@ impl Store for CoreUser {
         self.set_chat_title(chat_id, title).await
     }
 
-    async fn chats(&self) -> StoreResult<Vec<Chat>> {
-        Ok(self.chats().await?)
-    }
-
     async fn ordered_chat_ids(&self) -> StoreResult<Vec<ChatId>> {
         Ok(Chat::load_ordered_ids(self.pool()).await?)
     }

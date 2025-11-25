@@ -3,8 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async' show unawaited;
+import 'dart:io';
 
 import 'package:air/core/api/markdown.dart';
+import 'package:air/main.dart';
+import 'package:air/util/platform.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -25,9 +29,12 @@ import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
+import 'package:logging/logging.dart';
 
 import 'image_viewer.dart';
 import 'message_renderer.dart';
+
+final _log = Logger('MessageTile');
 
 const double _bubbleMaxWidthFactor = 5 / 6;
 const double largeCornerRadius = Spacings.sm;
@@ -180,32 +187,31 @@ class _MessageView extends HookWidget {
     }
 
     final attachments = contentMessage.content.attachments;
-    final hasImageAttachment = attachments.any(
-      (attachment) => attachment.imageMetadata != null,
-    );
+
+    final colors = CustomColorScheme.of(context);
 
     final actions = <MessageAction>[
       if (plainBody != null && plainBody.isNotEmpty)
         MessageAction(
           label: loc.messageContextMenu_copy,
-          leading: iconoir.Copy(
-            width: 24,
-            color: CustomColorScheme.of(context).text.primary,
-          ),
+          leading: iconoir.Copy(width: 24, color: colors.text.primary),
           onSelected: () {
             Clipboard.setData(ClipboardData(text: plainBody));
           },
         ),
-      if (isSender && !hasImageAttachment)
+      if (isSender && attachments.isEmpty)
         MessageAction(
           label: loc.messageContextMenu_edit,
-          leading: iconoir.EditPencil(
-            width: 24,
-            color: CustomColorScheme.of(context).text.primary,
-          ),
+          leading: iconoir.EditPencil(width: 24, color: colors.text.primary),
           onSelected: () {
             context.read<ChatDetailsCubit>().editMessage(messageId: messageId);
           },
+        ),
+      if (attachments.isNotEmpty && !Platform.isIOS)
+        MessageAction(
+          label: loc.messageContextMenu_save,
+          leading: iconoir.Download(width: 24, color: colors.text.primary),
+          onSelected: () => _handleFileSave(context, attachments.first),
         ),
     ];
 
@@ -358,6 +364,52 @@ class _MessageView extends HookWidget {
           bubbleRenderKey: bubbleKey,
         ),
       ),
+    );
+  }
+
+  void _handleFileSave(BuildContext context, UiAttachment attachment) async {
+    final fileName = attachment.filename;
+
+    String saveDir;
+
+    if (Platform.isAndroid) {
+      const appDirName = 'Air';
+      final baseDir = attachment.isImage
+          ? await getPicturesDirectoryAndroid()
+          : await getDownloadsDirectoryAndroid();
+      saveDir = "$baseDir/$appDirName";
+    } else if (Platform.isIOS) {
+      throw UnsupportedError("iOS does not support storing files");
+    } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      final dir = await getDirectoryPath();
+      if (dir == null) return;
+      saveDir = dir;
+    } else {
+      throw UnsupportedError("Unsupported platform");
+    }
+
+    if (!context.mounted) return;
+
+    final attachmentsRepository = context.read<AttachmentsRepository>();
+    try {
+      await attachmentsRepository.saveAttachment(
+        destinationDir: saveDir,
+        filename: fileName,
+        attachmentId: attachment.attachmentId,
+      );
+    } catch (e, stackTrace) {
+      _log.severe("Failed to save attachment: {e}", e, stackTrace);
+      if (context.mounted) {
+        final loc = AppLocalizations.of(context);
+        showErrorBanner(context, loc.messageContextMenu_saveError);
+      }
+      return;
+    }
+
+    if (!context.mounted) return;
+    final loc = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(loc.messageContextMenu_saveConfirmation)),
     );
   }
 }

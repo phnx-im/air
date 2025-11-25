@@ -86,8 +86,6 @@ pub trait Store {
 
     async fn set_chat_title(&self, chat_id: ChatId, title: String) -> StoreResult<()>;
 
-    async fn chats(&self) -> StoreResult<Vec<Chat>>;
-
     /// Returns the list of all chat ids in the order they should be displayed:
     ///
     /// 1. First return all chats having a draft ordered by the timestamp of the draft, descending.

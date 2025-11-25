@@ -313,6 +313,14 @@ class AppLocalizationsDe extends AppLocalizations {
       ' changed the group picture';
 
   @override
+  String systemMessage_userCreatedGroup_prefix(Object user) {
+    return '$user';
+  }
+
+  @override
+  String get systemMessage_userCreatedGroup_suffix => ' created the group';
+
+  @override
   String get timestamp_now => 'Jetzt';
 
   @override
@@ -426,6 +434,16 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get messageContextMenu_edit => 'Bearbeiten';
+
+  @override
+  String get messageContextMenu_save => 'Speichern';
+
+  @override
+  String get messageContextMenu_saveError =>
+      'Anhang konnte nicht gespeichert werden';
+
+  @override
+  String get messageContextMenu_saveConfirmation => 'Anhang gespeichert';
 
   @override
   String get reportSpamButton_text => 'Spam melden';

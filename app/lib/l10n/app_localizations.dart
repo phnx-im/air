@@ -598,6 +598,18 @@ abstract class AppLocalizations {
   /// **' changed the group picture'**
   String get systemMessage_userChangedPicture_infix;
 
+  /// No description provided for @systemMessage_userCreatedGroup_prefix.
+  ///
+  /// In en, this message translates to:
+  /// **'{user}'**
+  String systemMessage_userCreatedGroup_prefix(Object user);
+
+  /// No description provided for @systemMessage_userCreatedGroup_suffix.
+  ///
+  /// In en, this message translates to:
+  /// **' created the group'**
+  String get systemMessage_userCreatedGroup_suffix;
+
   /// No description provided for @timestamp_now.
   ///
   /// In en, this message translates to:
@@ -783,6 +795,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Edit'**
   String get messageContextMenu_edit;
+
+  /// No description provided for @messageContextMenu_save.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get messageContextMenu_save;
+
+  /// No description provided for @messageContextMenu_saveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to save attachment'**
+  String get messageContextMenu_saveError;
+
+  /// No description provided for @messageContextMenu_saveConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachment saved'**
+  String get messageContextMenu_saveConfirmation;
 
   /// No description provided for @reportSpamButton_text.
   ///

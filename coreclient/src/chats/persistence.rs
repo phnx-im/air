@@ -29,6 +29,7 @@ struct SqlChat {
     chat_picture: Option<Vec<u8>>,
     group_id: GroupIdWrapper,
     last_read: DateTime<Utc>,
+    last_message_at: Option<DateTime<Utc>>,
     connection_user_uuid: Option<Uuid>,
     connection_user_domain: Option<Fqdn>,
     connection_user_handle: Option<UserHandle>,
@@ -45,6 +46,7 @@ impl SqlChat {
             chat_picture,
             group_id: GroupIdWrapper(group_id),
             last_read,
+            last_message_at,
             connection_user_uuid,
             connection_user_domain,
             connection_user_handle,
@@ -83,6 +85,7 @@ impl SqlChat {
             id: chat_id,
             group_id,
             last_read,
+            last_message_at,
             status,
             chat_type,
             attributes: ChatAttributes {
@@ -221,6 +224,11 @@ impl Chat {
                 chat_picture,
                 group_id AS "group_id: _",
                 last_read AS "last_read: _",
+                (SELECT timestamp FROM message
+                    WHERE chat_id = chat.chat_id
+                    ORDER BY timestamp DESC
+                    LIMIT 1
+                ) AS "last_message_at: _",
                 connection_user_uuid AS "connection_user_uuid: _",
                 connection_user_domain AS "connection_user_domain: _",
                 connection_user_handle AS "connection_user_handle: _",
@@ -228,8 +236,7 @@ impl Chat {
                 is_active,
                 blocked_contact.user_uuid IS NOT NULL AS "is_blocked!: _"
             FROM chat
-                LEFT JOIN blocked_contact
-                ON blocked_contact.user_uuid = chat.connection_user_uuid
+            LEFT JOIN blocked_contact ON blocked_contact.user_uuid = chat.connection_user_uuid
                 AND blocked_contact.user_domain = chat.connection_user_domain
             WHERE chat_id = ?"#,
             chat_id
@@ -286,6 +293,11 @@ impl Chat {
                 chat_picture,
                 group_id AS "group_id: _",
                 last_read AS "last_read: _",
+                (SELECT timestamp FROM message
+                    WHERE chat_id = chat.chat_id
+                    ORDER BY timestamp DESC
+                    LIMIT 1
+                ) AS "last_message_at: _",
                 connection_user_uuid AS "connection_user_uuid: _",
                 connection_user_domain AS "connection_user_domain: _",
                 connection_user_handle AS "connection_user_handle: _",
@@ -307,45 +319,6 @@ impl Chat {
         let members = chat.load_past_members(&mut transaction).await?;
         transaction.commit().await?;
         Ok(chat.convert(members))
-    }
-
-    pub(crate) async fn load_all(connection: &mut SqliteConnection) -> sqlx::Result<Vec<Chat>> {
-        let mut transaction = connection.begin().await?;
-        let mut chats = query_as!(
-            SqlChat,
-            r#"SELECT
-                chat_id AS "chat_id: _",
-                chat_title,
-                chat_picture,
-                group_id AS "group_id: _",
-                last_read AS "last_read: _",
-                connection_user_uuid AS "connection_user_uuid: _",
-                connection_user_domain AS "connection_user_domain: _",
-                connection_user_handle AS "connection_user_handle: _",
-                is_confirmed_connection,
-                is_active,
-                blocked_contact.user_uuid IS NOT NULL AS "is_blocked!: _"
-            FROM chat
-                LEFT JOIN blocked_contact
-                ON blocked_contact.user_uuid = chat.connection_user_uuid
-                AND blocked_contact.user_domain = chat.connection_user_domain
-            "#,
-        )
-        .fetch(&mut *transaction)
-        .filter_map(|res| res.map(|chat| chat.convert(Vec::new())).transpose())
-        .collect::<sqlx::Result<Vec<Chat>>>()
-        .await?;
-        for chat in &mut chats {
-            let id = chat.id();
-            if let ChatStatus::Inactive(inactive) = chat.status_mut() {
-                let members = Chat::load_past_members(&mut *transaction, id).await?;
-                inactive
-                    .past_members_mut()
-                    .extend(members.into_iter().map(From::from));
-            }
-        }
-        transaction.commit().await?;
-        Ok(chats)
     }
 
     pub(super) async fn update_picture(
@@ -778,6 +751,8 @@ impl Chat {
 
 #[cfg(test)]
 pub mod tests {
+    use std::mem;
+
     use chrono::{Days, Duration};
     use sqlx::{Sqlite, pool::PoolConnection};
     use uuid::Uuid;
@@ -796,6 +771,7 @@ pub mod tests {
             id,
             group_id: GroupId::from_slice(&[0; 32]),
             last_read: Utc::now(),
+            last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::Group,
             attributes: ChatAttributes {
@@ -837,13 +813,23 @@ pub mod tests {
     async fn store_load_all(mut connection: PoolConnection<Sqlite>) -> anyhow::Result<()> {
         let mut store_notifier = StoreNotifier::noop();
 
-        let chat_a = test_chat();
+        let mut chat_a = test_chat();
         chat_a.store(&mut connection, &mut store_notifier).await?;
 
-        let chat_b = test_chat();
+        let mut chat_b = test_chat();
         chat_b.store(&mut connection, &mut store_notifier).await?;
 
-        let loaded = Chat::load_all(&mut connection).await?;
+        let chat_ids = Chat::load_ordered_ids(connection.as_mut()).await?;
+        let mut loaded = Vec::with_capacity(chat_ids.len());
+        for chat_id in chat_ids {
+            loaded.push(Chat::load(&mut connection, &chat_id).await?.unwrap());
+        }
+
+        // Both chats don't have a message, so the order is by chat_id as tie breaker.
+        if chat_a.id() > chat_b.id() {
+            mem::swap(&mut chat_a, &mut chat_b);
+        }
+
         assert_eq!(loaded, [chat_a, chat_b]);
 
         Ok(())
