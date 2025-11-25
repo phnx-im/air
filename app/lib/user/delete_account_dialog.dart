@@ -121,7 +121,8 @@ class DeleteAccountDialog extends HookWidget {
               Expanded(
                 child: AppDialogProgressButton(
                   onPressed: isConfirmed.value
-                      ? (inProgress) => _deleteAccount(context, inProgress)
+                      ? (inProgress) =>
+                            _deleteAccount(context, inProgress, controller.text)
                       : null,
                   style: ButtonStyle(
                     backgroundColor: WidgetStatePropertyAll(
@@ -146,12 +147,13 @@ class DeleteAccountDialog extends HookWidget {
   Future<void> _deleteAccount(
     BuildContext context,
     ValueNotifier<bool> isDeleting,
+    String confirmationText,
   ) async {
     isDeleting.value = true;
     final userCubit = context.read<UserCubit>();
     final coreClient = context.read<CoreClient>();
     try {
-      await userCubit.deleteAccount();
+      await userCubit.deleteAccount(confirmationText: confirmationText);
       coreClient.logout();
     } catch (e) {
       _log.severe("Failed to delete account: $e");

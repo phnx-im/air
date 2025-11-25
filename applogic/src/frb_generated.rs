@@ -4202,6 +4202,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_delete_account_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>,
             >>::sse_decode(&mut deserializer);
             let api_db_path = <String>::sse_decode(&mut deserializer);
+            let api_confirmation_text = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -4226,6 +4227,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_delete_account_impl(
                         let output_ok = crate::api::user_cubit::UserCubitBase::delete_account(
                             &*api_that_guard,
                             &api_db_path,
+                            &api_confirmation_text,
                         )
                         .await?;
                         Ok(output_ok)
