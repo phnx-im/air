@@ -105,6 +105,9 @@
   "systemMessage_userChangedPicture_prefix": "{user}",
   "systemMessage_userChangedPicture_infix": " changed the group picture",
 
+  "systemMessage_userCreatedGroup_prefix": "{user}",
+  "systemMessage_userCreatedGroup_suffix": " created the group",
+
   "timestamp_now": "Now",
   "timestamp_yesterday": "Yesterday",
 
@@ -146,12 +149,19 @@
   },
 
   "attachment_tryAgain": "Try again",
+  "attachment_gallery": "Gallery",
+  "attachment_camera": "Camera",
+  "attachment_file": "File",
 
   "textMessage_edited": "edited",
   "textMessage_hiddenPlaceholder": "Blocked user, tap to reveal message",
   "textMessage_deleted": "Deleted message",
   "messageContextMenu_copy": "Copy",
   "messageContextMenu_edit": "Edit",
+  "messageContextMenu_save": "Save",
+
+  "messageContextMenu_saveError": "Failed to save attachment",
+  "messageContextMenu_saveConfirmation": "Attachment saved",
 
   "reportSpamButton_text": "Report spam",
   "reportSpamDialog_title": "Report spam?",

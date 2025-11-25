@@ -19,8 +19,7 @@ use aircommon::{
         connection_package::ConnectionPackage,
     },
 };
-use anyhow::Context;
-use anyhow::bail;
+use anyhow::{Context, bail};
 use openmls::group::GroupId;
 use sqlx::SqliteTransaction;
 use tracing::info;
@@ -128,6 +127,20 @@ impl CoreUser {
         user_id: UserId,
     ) -> anyhow::Result<ChatId> {
         let client = self.api_client()?;
+
+        // Phase 0: Sanity checks
+        // Check whether we already have this user as a contact
+        if self.contact(&user_id).await.is_some() {
+            bail!("User is already a contact");
+        }
+
+        // Check whether we already have a pending connection request to this user
+        if TargetedMessageContact::load(self.pool(), &user_id)
+            .await?
+            .is_some()
+        {
+            bail!("Connection request is already pending");
+        }
 
         // Phase 1: Prepare the connection locally
         let group_id = client.ds_request_group_id().await?;

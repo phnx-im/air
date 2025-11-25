@@ -315,6 +315,14 @@ class AppLocalizationsFr extends AppLocalizations {
       ' changed the group picture';
 
   @override
+  String systemMessage_userCreatedGroup_prefix(Object user) {
+    return '$user';
+  }
+
+  @override
+  String get systemMessage_userCreatedGroup_suffix => ' created the group';
+
+  @override
   String get timestamp_now => 'Maintenant';
 
   @override
@@ -405,6 +413,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get attachment_tryAgain => 'Try again';
 
   @override
+  String get attachment_gallery => 'Gallery';
+
+  @override
+  String get attachment_camera => 'Camera';
+
+  @override
+  String get attachment_file => 'File';
+
+  @override
   String get textMessage_edited => 'modifié';
 
   @override
@@ -419,6 +436,15 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get messageContextMenu_edit => 'Modifier';
+
+  @override
+  String get messageContextMenu_save => 'Save';
+
+  @override
+  String get messageContextMenu_saveError => 'Failed to save attachment';
+
+  @override
+  String get messageContextMenu_saveConfirmation => 'Attachment saved';
 
   @override
   String get reportSpamButton_text => 'Signaler comme spam';

@@ -159,6 +159,18 @@ impl ChatMessage {
         }
     }
 
+    pub(crate) fn new_system_message(
+        chat_id: ChatId,
+        ds_timestamp: TimeStamp,
+        system_message: SystemMessage,
+    ) -> Self {
+        Self::new(
+            chat_id,
+            MessageId::random(),
+            TimestampedMessage::system_message(system_message, ds_timestamp),
+        )
+    }
+
     /// Mark the message as sent and update the timestamp.
     pub(crate) async fn mark_as_sent(
         &mut self,
@@ -449,6 +461,7 @@ pub enum SystemMessage {
         new_title: String,
     },
     ChangePicture(UserId),
+    CreateGroup(UserId),
 }
 
 impl SystemMessage {
@@ -477,6 +490,10 @@ impl SystemMessage {
             SystemMessage::ChangePicture(user_id) => {
                 let user_display_name = store.user_profile(user_id).await.display_name;
                 format!("{user_display_name} changed the group picture")
+            }
+            SystemMessage::CreateGroup(user_id) => {
+                let user_display_name = store.user_profile(user_id).await.display_name;
+                format!("{user_display_name} created the group")
             }
         }
     }

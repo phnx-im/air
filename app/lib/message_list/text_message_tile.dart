@@ -3,8 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async' show unawaited;
+import 'dart:io';
 
 import 'package:air/core/api/markdown.dart';
+import 'package:air/main.dart';
+import 'package:air/util/platform.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -25,10 +29,12 @@ import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
-import 'package:iconoir_flutter/regular/attachment.dart';
+import 'package:logging/logging.dart';
 
 import 'image_viewer.dart';
 import 'message_renderer.dart';
+
+final _log = Logger('MessageTile');
 
 const double _bubbleMaxWidthFactor = 5 / 6;
 const double largeCornerRadius = Spacings.sm;
@@ -181,32 +187,31 @@ class _MessageView extends HookWidget {
     }
 
     final attachments = contentMessage.content.attachments;
-    final hasImageAttachment = attachments.any(
-      (attachment) => attachment.imageMetadata != null,
-    );
+
+    final colors = CustomColorScheme.of(context);
 
     final actions = <MessageAction>[
       if (plainBody != null && plainBody.isNotEmpty)
         MessageAction(
           label: loc.messageContextMenu_copy,
-          leading: iconoir.Copy(
-            width: 24,
-            color: CustomColorScheme.of(context).text.primary,
-          ),
+          leading: iconoir.Copy(width: 24, color: colors.text.primary),
           onSelected: () {
             Clipboard.setData(ClipboardData(text: plainBody));
           },
         ),
-      if (isSender && !hasImageAttachment)
+      if (isSender && attachments.isEmpty)
         MessageAction(
           label: loc.messageContextMenu_edit,
-          leading: iconoir.EditPencil(
-            width: 24,
-            color: CustomColorScheme.of(context).text.primary,
-          ),
+          leading: iconoir.EditPencil(width: 24, color: colors.text.primary),
           onSelected: () {
             context.read<ChatDetailsCubit>().editMessage(messageId: messageId);
           },
+        ),
+      if (attachments.isNotEmpty && !Platform.isIOS)
+        MessageAction(
+          label: loc.messageContextMenu_save,
+          leading: iconoir.Download(width: 24, color: colors.text.primary),
+          onSelected: () => _handleFileSave(context, attachments.first),
         ),
     ];
 
@@ -361,6 +366,52 @@ class _MessageView extends HookWidget {
       ),
     );
   }
+
+  void _handleFileSave(BuildContext context, UiAttachment attachment) async {
+    final fileName = attachment.filename;
+
+    String saveDir;
+
+    if (Platform.isAndroid) {
+      const appDirName = 'Air';
+      final baseDir = attachment.isImage
+          ? await getPicturesDirectoryAndroid()
+          : await getDownloadsDirectoryAndroid();
+      saveDir = "$baseDir/$appDirName";
+    } else if (Platform.isIOS) {
+      throw UnsupportedError("iOS does not support storing files");
+    } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      final dir = await getDirectoryPath();
+      if (dir == null) return;
+      saveDir = dir;
+    } else {
+      throw UnsupportedError("Unsupported platform");
+    }
+
+    if (!context.mounted) return;
+
+    final attachmentsRepository = context.read<AttachmentsRepository>();
+    try {
+      await attachmentsRepository.saveAttachment(
+        destinationDir: saveDir,
+        filename: fileName,
+        attachmentId: attachment.attachmentId,
+      );
+    } catch (e, stackTrace) {
+      _log.severe("Failed to save attachment: {e}", e, stackTrace);
+      if (context.mounted) {
+        final loc = AppLocalizations.of(context);
+        showErrorBanner(context, loc.messageContextMenu_saveError);
+      }
+      return;
+    }
+
+    if (!context.mounted) return;
+    final loc = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(loc.messageContextMenu_saveConfirmation)),
+    );
+  }
 }
 
 class _MessageStatus extends StatelessWidget {
@@ -402,7 +453,6 @@ class _MessageContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final bool isDeleted = content.replaces != null && content.content == null;
-
     final List<Widget> columnChildren = [];
 
     if (isHidden) {
@@ -629,44 +679,13 @@ class _FileAttachmentContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-
     return Padding(
       padding: _messagePadding,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: Spacings.s,
-        children: [
-          Attachment(
-            width: 32,
-            color: isSender
-                ? CustomColorScheme.of(context).message.selfText
-                : CustomColorScheme.of(context).message.otherText,
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                attachment.filename,
-                style: TextStyle(
-                  fontSize: BodyFontSize.base.size,
-                  color: isSender
-                      ? CustomColorScheme.of(context).message.selfText
-                      : CustomColorScheme.of(context).message.otherText,
-                ),
-              ),
-              Text(
-                loc.bytesToHumanReadable(attachment.size),
-                style: TextStyle(
-                  fontSize: BodyFontSize.small2.size,
-                  color: isSender
-                      ? CustomColorScheme.of(context).message.selfText
-                      : CustomColorScheme.of(context).message.otherText,
-                ),
-              ),
-            ],
-          ),
-        ],
+      child: AttachmentFile(
+        attachment: attachment,
+        color: isSender
+            ? CustomColorScheme.of(context).message.selfText
+            : CustomColorScheme.of(context).message.otherText,
       ),
     );
   }
@@ -692,29 +711,25 @@ class _ImageAttachmentContent extends StatelessWidget {
     return GestureDetector(
       onTap: () {
         FocusScope.of(context).unfocus();
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ImageViewer(
+        HapticFeedback.mediumImpact();
+        Navigator.of(context).push(imageViewerRoute(attachment: attachment));
+      },
+      child: Hero(
+        tag: imageViewerHeroTag(attachment),
+        transitionOnUserGestures: true,
+        child: ClipRRect(
+          borderRadius: _messageBorderRadius(
+            isSender,
+            flightPosition,
+            stackedOnTop: hasMessage,
+          ),
+          child: Container(
+            constraints: const BoxConstraints(maxHeight: 300),
+            child: AttachmentImage(
               attachment: attachment,
               imageMetadata: imageMetadata,
-              isSender: isSender,
+              fit: BoxFit.cover,
             ),
-          ),
-        );
-      },
-      child: ClipRRect(
-        borderRadius: _messageBorderRadius(
-          isSender,
-          flightPosition,
-          stackedOnTop: hasMessage,
-        ),
-        child: Container(
-          constraints: const BoxConstraints(maxHeight: 300),
-          child: AttachmentImage(
-            attachment: attachment,
-            imageMetadata: imageMetadata,
-            fit: BoxFit.cover,
           ),
         ),
       ),
