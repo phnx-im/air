@@ -68,7 +68,7 @@ class _AvatarState extends State<_Avatar> {
         children: [
           GestureDetector(
             onTap: () {
-              context.read<NavigationCubit>().openUserSettings();
+              context.read<NavigationCubit>().openUserProfile();
             },
             onLongPress: () {
               context.read<NavigationCubit>().openDeveloperSettings();

@@ -121,13 +121,13 @@ abstract class AppLocalizations {
   /// No description provided for @userSettingsScreen_profileDescription.
   ///
   /// In en, this message translates to:
-  /// **'Your Display Name and Profile Picture are visible to your Air Contacts and members of groups you\'re in.'**
+  /// **'Your display name and profile picture are visible to your Air contacts and members of groups you’re in.'**
   String get userSettingsScreen_profileDescription;
 
   /// No description provided for @userSettingsScreen_userNamesDescription.
   ///
   /// In en, this message translates to:
-  /// **'Share Usernames with anyone you want to connect with. Usernames aren\'t visible to other users, even your Air Contacts. You can have up to 5 Usernames.'**
+  /// **'Share usernames with anyone you want to connect with. Usernames aren’t visible to others, even your Air contacts. You can have up to 5 usernames.'**
   String get userSettingsScreen_userNamesDescription;
 
   /// No description provided for @userSettingsScreen_interfaceScale.
@@ -154,6 +154,12 @@ abstract class AppLocalizations {
   /// **'Send with Enter'**
   String get userSettingsScreen_sendWithEnter;
 
+  /// No description provided for @userSettingsScreen_sendWithEnterDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'If disabled, pressing the Enter key won’t send a message.'**
+  String get userSettingsScreen_sendWithEnterDescription;
+
   /// No description provided for @userSettingsScreen_readReceipts.
   ///
   /// In en, this message translates to:
@@ -163,19 +169,61 @@ abstract class AppLocalizations {
   /// No description provided for @userSettingsScreen_readReceiptsDescription.
   ///
   /// In en, this message translates to:
-  /// **'If disabled, others won\'t be able to see when you\'ve read their messages and you won\'t be able to see when they\'ve read yours.'**
+  /// **'If disabled, others won’t be able to see when you’ve read their messages and you won’t be able to see when they’ve read yours.'**
   String get userSettingsScreen_readReceiptsDescription;
+
+  /// No description provided for @userSettingsScreen_displayNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Display name'**
+  String get userSettingsScreen_displayNameLabel;
+
+  /// No description provided for @userSettingsScreen_usernamesSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Usernames'**
+  String get userSettingsScreen_usernamesSection;
+
+  /// No description provided for @userSettingsScreen_settingsSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get userSettingsScreen_settingsSection;
+
+  /// No description provided for @userSettingsScreen_helpSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Help'**
+  String get userSettingsScreen_helpSection;
+
+  /// No description provided for @userSettingsScreen_accountSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get userSettingsScreen_accountSection;
+
+  /// No description provided for @userSettingsScreen_userHandlePlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Username'**
+  String get userSettingsScreen_userHandlePlaceholder;
+
+  /// No description provided for @settingsScreen_copiedToClipboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard'**
+  String get settingsScreen_copiedToClipboard;
 
   /// No description provided for @removeUsernameDialog_title.
   ///
   /// In en, this message translates to:
-  /// **'Remove Username'**
+  /// **'Remove username?'**
   String get removeUsernameDialog_title;
 
   /// No description provided for @removeUsernameDialog_content.
   ///
   /// In en, this message translates to:
-  /// **'People won\'t be able to send you a Contact Request using this Username, and it may be claimed by someone else.'**
+  /// **'People won’t be able to send you a contact request using this username, and it may be taken by someone else.'**
   String get removeUsernameDialog_content;
 
   /// No description provided for @removeUsernameDialog_cancel.
@@ -189,12 +237,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Remove'**
   String get removeUsernameDialog_remove;
-
-  /// No description provided for @userSettingsScreen_userHandlePlaceholder.
-  ///
-  /// In en, this message translates to:
-  /// **'Username'**
-  String get userSettingsScreen_userHandlePlaceholder;
 
   /// No description provided for @addMembersScreen_addMembers.
   ///
@@ -385,7 +427,7 @@ abstract class AppLocalizations {
   /// No description provided for @usernameOnboarding_body.
   ///
   /// In en, this message translates to:
-  /// **'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.'**
+  /// **'Usernames are use letterhow people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.'**
   String get usernameOnboarding_body;
 
   /// No description provided for @usernameOnboarding_syntax.
@@ -469,13 +511,13 @@ abstract class AppLocalizations {
   /// No description provided for @userHandleScreen_title.
   ///
   /// In en, this message translates to:
-  /// **'Username'**
+  /// **'Add username'**
   String get userHandleScreen_title;
 
   /// No description provided for @userHandleScreen_inputHint.
   ///
   /// In en, this message translates to:
-  /// **'Username'**
+  /// **'Type a username...'**
   String get userHandleScreen_inputHint;
 
   /// No description provided for @userHandleScreen_error_emptyHandle.
@@ -493,8 +535,20 @@ abstract class AppLocalizations {
   /// No description provided for @userHandleScreen_description.
   ///
   /// In en, this message translates to:
-  /// **'Choose a username that others can use to connect with you.\n\nUse letters, numbers, or dashes. Minimum 5 characters.'**
+  /// **'Choose a username that others can use to connect with you. Use letters, numbers, or dashes. Minimum 5 characters.'**
   String get userHandleScreen_description;
+
+  /// No description provided for @userHandleScreen_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get userHandleScreen_cancel;
+
+  /// No description provided for @userHandleScreen_confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get userHandleScreen_confirm;
 
   /// No description provided for @userHandleScreen_save.
   ///
@@ -505,14 +559,20 @@ abstract class AppLocalizations {
   /// No description provided for @editDisplayNameScreen_title.
   ///
   /// In en, this message translates to:
-  /// **'Display Name'**
+  /// **'Change display name'**
   String get editDisplayNameScreen_title;
 
   /// No description provided for @editDisplayNameScreen_description.
   ///
   /// In en, this message translates to:
-  /// **'Choose a name that others will see when you communicate with them.'**
+  /// **'Choose a name that others will see.'**
   String get editDisplayNameScreen_description;
+
+  /// No description provided for @editDisplayNameScreen_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get editDisplayNameScreen_cancel;
 
   /// No description provided for @editDisplayNameScreen_save.
   ///
@@ -1183,13 +1243,13 @@ abstract class AppLocalizations {
   /// No description provided for @deleteAccountScreen_confirmationInputLabel.
   ///
   /// In en, this message translates to:
-  /// **'Type \'delete\' to confirm'**
+  /// **'Type \'delete\' to confirm.'**
   String get deleteAccountScreen_confirmationInputLabel;
 
   /// No description provided for @deleteAccountScreen_confirmButtonText.
   ///
   /// In en, this message translates to:
-  /// **'Delete Air Account'**
+  /// **'Delete'**
   String get deleteAccountScreen_confirmButtonText;
 
   /// No description provided for @deleteAccountScreen_cancelButtonText.

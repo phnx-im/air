@@ -51,7 +51,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 497955533;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1255629122;
 
 // Section: executor
 
@@ -3493,7 +3493,7 @@ fn wire__crate__api__navigation_cubit__NavigationCubitBase_open_member_details_i
         },
     )
 }
-fn wire__crate__api__navigation_cubit__NavigationCubitBase_open_user_settings_impl(
+fn wire__crate__api__navigation_cubit__NavigationCubitBase_open_user_profile_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3501,7 +3501,7 @@ fn wire__crate__api__navigation_cubit__NavigationCubitBase_open_user_settings_im
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "NavigationCubitBase_open_user_settings",
+            debug_name: "NavigationCubitBase_open_user_profile",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -3518,9 +3518,6 @@ fn wire__crate__api__navigation_cubit__NavigationCubitBase_open_user_settings_im
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NavigationCubitBase>,
             >>::sse_decode(&mut deserializer);
-            let api_screen = <crate::api::navigation_cubit::UserSettingsScreenType>::sse_decode(
-                &mut deserializer,
-            );
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
@@ -3539,9 +3536,8 @@ fn wire__crate__api__navigation_cubit__NavigationCubitBase_open_user_settings_im
                     }
                     let api_that_guard = api_that_guard.unwrap();
                     let output_ok = Result::<_, ()>::Ok({
-                        crate::api::navigation_cubit::NavigationCubitBase::open_user_settings(
+                        crate::api::navigation_cubit::NavigationCubitBase::open_user_profile(
                             &*api_that_guard,
-                            api_screen,
                         );
                     })?;
                     Ok(output_ok)
@@ -4233,6 +4229,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_delete_account_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>,
             >>::sse_decode(&mut deserializer);
             let api_db_path = <String>::sse_decode(&mut deserializer);
+            let api_confirmation_text = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -4257,6 +4254,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_delete_account_impl(
                         let output_ok = crate::api::user_cubit::UserCubitBase::delete_account(
                             &*api_that_guard,
                             &api_db_path,
+                            &api_confirmation_text,
                         )
                         .await?;
                         Ok(output_ok)
@@ -7862,9 +7860,7 @@ impl SseDecode for crate::api::navigation_cubit::HomeNavigationState {
             crate::api::navigation_cubit::DeveloperSettingsScreenType,
         >>::sse_decode(deserializer);
         let mut var_memberDetails = <Option<crate::api::types::UiUserId>>::sse_decode(deserializer);
-        let mut var_userSettingsScreen = <Option<
-            crate::api::navigation_cubit::UserSettingsScreenType,
-        >>::sse_decode(deserializer);
+        let mut var_userProfileOpen = <bool>::sse_decode(deserializer);
         let mut var_chatDetailsOpen = <bool>::sse_decode(deserializer);
         let mut var_addMembersOpen = <bool>::sse_decode(deserializer);
         let mut var_groupMembersOpen = <bool>::sse_decode(deserializer);
@@ -7874,7 +7870,7 @@ impl SseDecode for crate::api::navigation_cubit::HomeNavigationState {
             chat_id: var_chatId,
             developer_settings_screen: var_developerSettingsScreen,
             member_details: var_memberDetails,
-            user_settings_screen: var_userSettingsScreen,
+            user_profile_open: var_userProfileOpen,
             chat_details_open: var_chatDetailsOpen,
             add_members_open: var_addMembersOpen,
             group_members_open: var_groupMembersOpen,
@@ -8543,19 +8539,6 @@ impl SseDecode for Option<crate::api::types::UiUserId> {
     }
 }
 
-impl SseDecode for Option<crate::api::navigation_cubit::UserSettingsScreenType> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        if (<bool>::sse_decode(deserializer)) {
-            return Some(
-                <crate::api::navigation_cubit::UserSettingsScreenType>::sse_decode(deserializer),
-            );
-        } else {
-            return None;
-        }
-    }
-}
-
 impl SseDecode for Option<Vec<u8>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -9068,21 +9051,6 @@ impl SseDecode for crate::api::user_settings_cubit::UserSettings {
     }
 }
 
-impl SseDecode for crate::api::navigation_cubit::UserSettingsScreenType {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <i32>::sse_decode(deserializer);
-        return match inner {
-            0 => crate::api::navigation_cubit::UserSettingsScreenType::Root,
-            1 => crate::api::navigation_cubit::UserSettingsScreenType::EditDisplayName,
-            2 => crate::api::navigation_cubit::UserSettingsScreenType::AddUserHandle,
-            3 => crate::api::navigation_cubit::UserSettingsScreenType::Help,
-            4 => crate::api::navigation_cubit::UserSettingsScreenType::DeleteAccount,
-            _ => unreachable!("Invalid variant for UserSettingsScreenType: {}", inner),
-        };
-    }
-}
-
 impl SseDecode for usize {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -9139,7 +9107,7 @@ fn pde_ffi_dispatcher_primary_impl(
 63 => wire__crate__api__navigation_cubit__NavigationCubitBase_open_into_impl(port, ptr, rust_vec_len, data_len),
 64 => wire__crate__api__navigation_cubit__NavigationCubitBase_open_intro_screen_impl(port, ptr, rust_vec_len, data_len),
 65 => wire__crate__api__navigation_cubit__NavigationCubitBase_open_member_details_impl(port, ptr, rust_vec_len, data_len),
-66 => wire__crate__api__navigation_cubit__NavigationCubitBase_open_user_settings_impl(port, ptr, rust_vec_len, data_len),
+66 => wire__crate__api__navigation_cubit__NavigationCubitBase_open_user_profile_impl(port, ptr, rust_vec_len, data_len),
 69 => wire__crate__api__navigation_cubit__NavigationCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
 73 => wire__crate__api__user_cubit__UserCubitBase_add_user_handle_impl(port, ptr, rust_vec_len, data_len),
 74 => wire__crate__api__user_cubit__UserCubitBase_add_user_to_chat_impl(port, ptr, rust_vec_len, data_len),
@@ -9878,7 +9846,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::navigation_cubit::HomeNavigat
             self.chat_id.into_into_dart().into_dart(),
             self.developer_settings_screen.into_into_dart().into_dart(),
             self.member_details.into_into_dart().into_dart(),
-            self.user_settings_screen.into_into_dart().into_dart(),
+            self.user_profile_open.into_into_dart().into_dart(),
             self.chat_details_open.into_into_dart().into_dart(),
             self.add_members_open.into_into_dart().into_dart(),
             self.group_members_open.into_into_dart().into_dart(),
@@ -10859,30 +10827,6 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::user_settings_cubit::UserSett
         self
     }
 }
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::navigation_cubit::UserSettingsScreenType {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        match self {
-            Self::Root => 0.into_dart(),
-            Self::EditDisplayName => 1.into_dart(),
-            Self::AddUserHandle => 2.into_dart(),
-            Self::Help => 3.into_dart(),
-            Self::DeleteAccount => 4.into_dart(),
-            _ => unreachable!(),
-        }
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::navigation_cubit::UserSettingsScreenType
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<crate::api::navigation_cubit::UserSettingsScreenType>
-    for crate::api::navigation_cubit::UserSettingsScreenType
-{
-    fn into_into_dart(self) -> crate::api::navigation_cubit::UserSettingsScreenType {
-        self
-    }
-}
 
 impl SseEncode for flutter_rust_bridge::for_generated::anyhow::Error {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -11549,10 +11493,7 @@ impl SseEncode for crate::api::navigation_cubit::HomeNavigationState {
             serializer,
         );
         <Option<crate::api::types::UiUserId>>::sse_encode(self.member_details, serializer);
-        <Option<crate::api::navigation_cubit::UserSettingsScreenType>>::sse_encode(
-            self.user_settings_screen,
-            serializer,
-        );
+        <bool>::sse_encode(self.user_profile_open, serializer);
         <bool>::sse_encode(self.chat_details_open, serializer);
         <bool>::sse_encode(self.add_members_open, serializer);
         <bool>::sse_encode(self.group_members_open, serializer);
@@ -12098,16 +12039,6 @@ impl SseEncode for Option<crate::api::types::UiUserId> {
     }
 }
 
-impl SseEncode for Option<crate::api::navigation_cubit::UserSettingsScreenType> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <bool>::sse_encode(self.is_some(), serializer);
-        if let Some(value) = self {
-            <crate::api::navigation_cubit::UserSettingsScreenType>::sse_encode(value, serializer);
-        }
-    }
-}
-
 impl SseEncode for Option<Vec<u8>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -12510,25 +12441,6 @@ impl SseEncode for crate::api::user_settings_cubit::UserSettings {
         <f64>::sse_encode(self.sidebar_width, serializer);
         <bool>::sse_encode(self.send_on_enter, serializer);
         <bool>::sse_encode(self.read_receipts, serializer);
-    }
-}
-
-impl SseEncode for crate::api::navigation_cubit::UserSettingsScreenType {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(
-            match self {
-                crate::api::navigation_cubit::UserSettingsScreenType::Root => 0,
-                crate::api::navigation_cubit::UserSettingsScreenType::EditDisplayName => 1,
-                crate::api::navigation_cubit::UserSettingsScreenType::AddUserHandle => 2,
-                crate::api::navigation_cubit::UserSettingsScreenType::Help => 3,
-                crate::api::navigation_cubit::UserSettingsScreenType::DeleteAccount => 4,
-                _ => {
-                    unimplemented!("");
-                }
-            },
-            serializer,
-        );
     }
 }
 
