@@ -13,6 +13,7 @@
 - *(app)* Support uploading files and images from camera (#843)
 - *(app)* Save attachment context menu (#844)
 - *(app)* Adjust design of user profile screen (#849)
+- *(app)* Design consistency (#850)
 - *(app)* Add upload confirmation screen (#855)
 - *(backend)* Add CheckHandleExists endpoint (#857)
 - *(app)* Update text in various places (#859)
