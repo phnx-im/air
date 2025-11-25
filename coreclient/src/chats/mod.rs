@@ -133,6 +133,7 @@ impl Chat {
             id,
             group_id,
             last_read: Utc::now(),
+            last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::TargetedMessageConnection(user_id),
             attributes,
