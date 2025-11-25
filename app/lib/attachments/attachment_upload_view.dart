@@ -14,8 +14,8 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:photo_view/photo_view.dart';
 
-class AttachmentUploadScreen extends HookWidget {
-  const AttachmentUploadScreen({
+class AttachmentUploadView extends HookWidget {
+  const AttachmentUploadView({
     super.key,
     required this.title,
     required this.file,

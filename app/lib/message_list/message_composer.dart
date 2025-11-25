@@ -335,7 +335,7 @@ class _MessageComposerState extends State<MessageComposer>
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => AttachmentUploadScreen(
+        builder: (context) => AttachmentUploadView(
           title: chatTitle,
           file: file,
           onUpload: () async {
