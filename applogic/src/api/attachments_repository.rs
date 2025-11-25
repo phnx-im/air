@@ -172,6 +172,7 @@ impl AttachmentsRepository {
         destination_dir: String,
         filename: String,
         attachment_id: AttachmentId,
+        overwrite: bool,
     ) -> anyhow::Result<()> {
         let (AttachmentContent::Ready(data) | AttachmentContent::Uploading(data)) =
             self.store.load_attachment(attachment_id).await?
@@ -187,7 +188,11 @@ impl AttachmentsRepository {
         }
 
         let filename = PathBuf::from(filename);
-        let path = unique_path(dir, &filename);
+        let path = if overwrite {
+            dir.join(filename)
+        } else {
+            unique_path(dir, &filename)
+        };
 
         let mut file = fs::File::create(&path)
             .with_context(|| format!("Failed to create file at path: {}", path.display()))?;

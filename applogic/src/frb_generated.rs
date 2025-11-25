@@ -230,7 +230,8 @@ fn wire__crate__api__attachments_repository__AttachmentsRepository_save_attachme
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentsRepository>>>::sse_decode(&mut deserializer);
 let api_destination_dir = <String>::sse_decode(&mut deserializer);
 let api_filename = <String>::sse_decode(&mut deserializer);
-let api_attachment_id = <crate::api::message_content::AttachmentId>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
+let api_attachment_id = <crate::api::message_content::AttachmentId>::sse_decode(&mut deserializer);
+let api_overwrite = <bool>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
                     transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
                         let mut api_that_guard = None;
 let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
@@ -241,7 +242,7 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = crate::api::attachments_repository::AttachmentsRepository::save_attachment(&*api_that_guard, api_destination_dir, api_filename, api_attachment_id).await?;   Ok(output_ok)
+ let output_ok = crate::api::attachments_repository::AttachmentsRepository::save_attachment(&*api_that_guard, api_destination_dir, api_filename, api_attachment_id, api_overwrite).await?;   Ok(output_ok)
                     })().await)
                 } })
 }

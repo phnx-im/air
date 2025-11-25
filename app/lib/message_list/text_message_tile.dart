@@ -30,6 +30,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:path/path.dart' as p;
 
 import 'image_viewer.dart';
 import 'message_renderer.dart';
@@ -374,8 +375,7 @@ class _MessageView extends HookWidget {
   }
 
   void _handleFileSave(BuildContext context, UiAttachment attachment) async {
-    final fileName = attachment.filename;
-
+    String fileName = attachment.filename;
     String saveDir;
 
     if (Platform.isAndroid) {
@@ -387,8 +387,10 @@ class _MessageView extends HookWidget {
     } else if (Platform.isIOS) {
       throw UnsupportedError("iOS does not support storing files");
     } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      final dir = await getDirectoryPath();
-      if (dir == null) return;
+      final location = await getSaveLocation(suggestedName: fileName);
+      if (location == null) return;
+      String dir = p.dirname(location.path);
+      fileName = p.basename(location.path);
       saveDir = dir;
     } else {
       throw UnsupportedError("Unsupported platform");
@@ -402,9 +404,10 @@ class _MessageView extends HookWidget {
         destinationDir: saveDir,
         filename: fileName,
         attachmentId: attachment.attachmentId,
+        overwrite: Platform.isWindows || Platform.isLinux || Platform.isMacOS,
       );
     } catch (e, stackTrace) {
-      _log.severe("Failed to save attachment: {e}", e, stackTrace);
+      _log.severe("Failed to save attachment: $e", e, stackTrace);
       if (context.mounted) {
         final loc = AppLocalizations.of(context);
         showErrorBanner(context, loc.messageContextMenu_saveError);
@@ -412,11 +415,16 @@ class _MessageView extends HookWidget {
       return;
     }
 
-    if (!context.mounted) return;
-    final loc = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(loc.messageContextMenu_saveConfirmation)),
-    );
+    // TODO: Snackbar overlaps with the composer, so we need a better solution
+    if (context.mounted) {
+      final loc = AppLocalizations.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 1),
+          content: Text(loc.messageContextMenu_saveConfirmation),
+        ),
+      );
+    }
   }
 
   void _handleFileShare(

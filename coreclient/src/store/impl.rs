@@ -21,7 +21,7 @@ use crate::{
         attachment::{AttachmentRecord, progress::AttachmentProgress},
         user_settings::UserSettingRecord,
     },
-    contacts::{HandleContact, TargetedMessageContact},
+    contacts::{ContactType, HandleContact, PartialContact, TargetedMessageContact},
     store::UserSetting,
     user_handles::UserHandleRecord,
     user_profiles::UserProfile,
@@ -186,8 +186,18 @@ impl Store for CoreUser {
         Ok(self.contacts().await?)
     }
 
-    async fn contact(&self, user_id: &UserId) -> StoreResult<Option<Contact>> {
-        Ok(self.try_contact(user_id).await?)
+    async fn contact(&self, user_id: &UserId) -> StoreResult<Option<ContactType>> {
+        if let Some(contact) = self.try_contact(user_id).await? {
+            Ok(Some(ContactType::Full(contact)))
+        } else if let Some(targeted_message_contact) =
+            self.try_targeted_message_contact(user_id).await?
+        {
+            Ok(Some(ContactType::Partial(PartialContact::TargetedMessage(
+                targeted_message_contact,
+            ))))
+        } else {
+            Ok(None)
+        }
     }
 
     async fn handle_contacts(&self) -> StoreResult<Vec<HandleContact>> {

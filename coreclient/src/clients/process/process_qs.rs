@@ -44,7 +44,7 @@ use crate::{
         targeted_message::TargetedMessageContent,
         update_key::update_chat_attributes,
     },
-    contacts::{ContactType, PartialContact},
+    contacts::{PartialContact, PartialContactType},
     groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
@@ -722,7 +722,7 @@ impl CoreUser {
 
         let sender_user_id = sender_client_credential.identity();
 
-        if let ContactType::TargetedMessage(chat_user_id) = &contact {
+        if let PartialContactType::TargetedMessage(chat_user_id) = &contact {
             ensure!(
                 sender_user_id == chat_user_id,
                 "Sender identity does not match targeted message user ID"

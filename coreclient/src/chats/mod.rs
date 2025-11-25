@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{SqliteConnection, SqliteExecutor};
 use uuid::Uuid;
 
-use crate::{contacts::ContactType, store::StoreNotifier};
+use crate::{contacts::PartialContactType, store::StoreNotifier};
 
 pub use draft::MessageDraft;
 pub(crate) use status::StatusRecord;
@@ -288,11 +288,11 @@ pub enum ChatType {
 }
 
 impl ChatType {
-    pub fn unconfirmed_contact(&self) -> Option<ContactType> {
+    pub fn unconfirmed_contact(&self) -> Option<PartialContactType> {
         match self {
-            ChatType::HandleConnection(handle) => Some(ContactType::Handle(handle.clone())),
+            ChatType::HandleConnection(handle) => Some(PartialContactType::Handle(handle.clone())),
             ChatType::TargetedMessageConnection(user_id) => {
-                Some(ContactType::TargetedMessage(user_id.clone()))
+                Some(PartialContactType::TargetedMessage(user_id.clone()))
             }
             _ => None,
         }

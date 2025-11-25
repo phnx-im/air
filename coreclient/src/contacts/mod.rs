@@ -172,17 +172,22 @@ impl TargetedMessageContact {
 }
 
 pub enum ContactType {
+    Full(Contact),
+    Partial(PartialContact),
+}
+
+pub enum PartialContactType {
     Handle(UserHandle),
     TargetedMessage(UserId),
 }
 
-impl std::fmt::Debug for ContactType {
+impl std::fmt::Debug for PartialContactType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ContactType::Handle(handle) => {
+            PartialContactType::Handle(handle) => {
                 f.debug_tuple("Handle").field(&handle.plaintext()).finish()
             }
-            ContactType::TargetedMessage(user_id) => {
+            PartialContactType::TargetedMessage(user_id) => {
                 f.debug_tuple("TargetedMessage").field(user_id).finish()
             }
         }
