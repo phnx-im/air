@@ -415,8 +415,8 @@ impl TestBackend {
         };
         assert!(matches!(
             system_message,
-            SystemMessage::AcceptedConnectionRequest(user, Some(handle))
-            if user == user1_id && handle == user2_handle
+            SystemMessage::AcceptedConnectionRequest { contact, user_handle: Some(handle) }
+            if contact == user1_id && handle == user2_handle
         ));
         let Message::Event(EventMessage::System(system_message)) =
             received_request_message.message()
@@ -425,8 +425,8 @@ impl TestBackend {
         };
         assert!(matches!(
             system_message,
-            SystemMessage::ReceivedHandleConnectionRequest(user, handle)
-            if user == user1_id && handle == user2_handle
+            SystemMessage::ReceivedHandleConnectionRequest { sender, user_handle }
+            if sender == user1_id && user_handle == user2_handle
         ));
 
         let user2_id = user2.user_id().clone();
@@ -477,8 +477,8 @@ impl TestBackend {
         };
         assert!(matches!(
             system_message,
-            SystemMessage::ReceivedConnectionConfirmation(user, Some(handle))
-            if user == &user2_id && handle == user2_handle
+            SystemMessage::ReceivedConnectionConfirmation { sender, user_handle: Some(user_handle) }
+            if sender == &user2_id && user_handle == user2_handle
         ));
 
         let user1_unread_messages = self
@@ -1609,9 +1609,9 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                         let user_handle_str = user_handle.plaintext();
                         Some(format!("You requested a connection with {user_handle_str}"))
                     }
-                    SystemMessage::AcceptedConnectionRequest(user_id, user_handle) => {
+                    SystemMessage::AcceptedConnectionRequest { contact, user_handle } => {
                         let base_str =
-                            format!("You accepted a connection request from {user_id:?}");
+                            format!("You accepted a connection request from {contact:?}");
                         if let Some(user_handle) = user_handle {
                             let user_handle_str = user_handle.plaintext();
                             Some(format!("{base_str} through the handle {user_handle_str}"))
@@ -1619,9 +1619,9 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                             Some(base_str)
                         }
                     }
-                    SystemMessage::ReceivedConnectionConfirmation(user_id, user_handle) => {
+                    SystemMessage::ReceivedConnectionConfirmation { sender, user_handle } => {
                         let base_str =
-                            format!("User {user_id:?} confirmed your connection request");
+                            format!("User {sender:?} confirmed your connection request");
                         if let Some(user_handle) = user_handle {
                             let user_handle_str = user_handle.plaintext();
                             Some(format!("{base_str} to handle {user_handle_str}"))
@@ -1629,15 +1629,15 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                             Some(base_str)
                         }
                     }
-                    SystemMessage::ReceivedHandleConnectionRequest(user_id, user_handle) => {
+                    SystemMessage::ReceivedHandleConnectionRequest { sender, user_handle } => {
                         let user_handle_str = user_handle.plaintext();
                         Some(format!(
-                            "User {user_id:?} requested a connection to your handle {user_handle_str}"
+                            "User {sender:?} requested a connection to your handle {user_handle_str}"
                         ))
                     }
-                    SystemMessage::ReceivedDirectConnectionRequest(user_id, chat_name) => {
+                    SystemMessage::ReceivedDirectConnectionRequest { sender, chat_name } => {
                         format!(
-                            "User {user_id:?} requested a direct connection to your contact through the chat {chat_name}"
+                            "User {sender:?} requested a direct connection to your contact through the chat {chat_name}"
                         )
                         .into()
                     },

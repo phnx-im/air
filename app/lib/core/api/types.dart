@@ -16,7 +16,7 @@ part 'types.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `calculate`, `connection_user_id`, `flight_break_condition`, `from_asset`, `from_bytes`, `from_profile`, `from_user_id`, `load_from_chat_type`, `timestamp`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `UiChat`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `from`
 
 /// Mirror of the [`ChatId`] type
@@ -367,22 +367,22 @@ sealed class UiSystemMessage with _$UiSystemMessage {
   ) = UiSystemMessage_ChangeTitle;
   const factory UiSystemMessage.changePicture(UiUserId field0) =
       UiSystemMessage_ChangePicture;
-  const factory UiSystemMessage.receivedHandleConnectionRequest(
-    UiUserId field0,
-    UiUserHandle field1,
-  ) = UiSystemMessage_ReceivedHandleConnectionRequest;
-  const factory UiSystemMessage.receivedDirectConnectionRequest(
-    UiUserId field0,
-    String field1,
-  ) = UiSystemMessage_ReceivedDirectConnectionRequest;
-  const factory UiSystemMessage.acceptedConnectionRequest(
-    UiUserId field0, [
-    UiUserHandle? field1,
-  ]) = UiSystemMessage_AcceptedConnectionRequest;
-  const factory UiSystemMessage.receivedConnectionConfirmation(
-    UiUserId field0, [
-    UiUserHandle? field1,
-  ]) = UiSystemMessage_ReceivedConnectionConfirmation;
+  const factory UiSystemMessage.receivedHandleConnectionRequest({
+    required UiUserId sender,
+    required UiUserHandle userHandle,
+  }) = UiSystemMessage_ReceivedHandleConnectionRequest;
+  const factory UiSystemMessage.receivedDirectConnectionRequest({
+    required UiUserId sender,
+    required String chatName,
+  }) = UiSystemMessage_ReceivedDirectConnectionRequest;
+  const factory UiSystemMessage.acceptedConnectionRequest({
+    required UiUserId sender,
+    UiUserHandle? userHandle,
+  }) = UiSystemMessage_AcceptedConnectionRequest;
+  const factory UiSystemMessage.receivedConnectionConfirmation({
+    required UiUserId sender,
+    UiUserHandle? userHandle,
+  }) = UiSystemMessage_ReceivedConnectionConfirmation;
   const factory UiSystemMessage.newHandleConnectionChat(UiUserHandle field0) =
       UiSystemMessage_NewHandleConnectionChat;
   const factory UiSystemMessage.newDirectConnectionChat(UiUserId field0) =

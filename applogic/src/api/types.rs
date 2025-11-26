@@ -344,10 +344,22 @@ pub enum UiSystemMessage {
     Remove(UiUserId, UiUserId),
     ChangeTitle(UiUserId, String, String),
     ChangePicture(UiUserId),
-    ReceivedHandleConnectionRequest(UiUserId, UiUserHandle),
-    ReceivedDirectConnectionRequest(UiUserId, String),
-    AcceptedConnectionRequest(UiUserId, Option<UiUserHandle>),
-    ReceivedConnectionConfirmation(UiUserId, Option<UiUserHandle>),
+    ReceivedHandleConnectionRequest {
+        sender: UiUserId,
+        user_handle: UiUserHandle,
+    },
+    ReceivedDirectConnectionRequest {
+        sender: UiUserId,
+        chat_name: String,
+    },
+    AcceptedConnectionRequest {
+        sender: UiUserId,
+        user_handle: Option<UiUserHandle>,
+    },
+    ReceivedConnectionConfirmation {
+        sender: UiUserId,
+        user_handle: Option<UiUserHandle>,
+    },
     NewHandleConnectionChat(UiUserHandle),
     NewDirectConnectionChat(UiUserId),
 }
@@ -370,23 +382,32 @@ impl From<SystemMessage> for UiSystemMessage {
             SystemMessage::NewHandleConnectionChat(user_handle) => {
                 UiSystemMessage::NewHandleConnectionChat(user_handle.into())
             }
-            SystemMessage::AcceptedConnectionRequest(user_id, user_handle) => {
-                UiSystemMessage::AcceptedConnectionRequest(
-                    user_id.into(),
-                    user_handle.map(Into::into),
-                )
-            }
-            SystemMessage::ReceivedConnectionConfirmation(user_id, user_handle) => {
-                UiSystemMessage::ReceivedConnectionConfirmation(
-                    user_id.into(),
-                    user_handle.map(Into::into),
-                )
-            }
-            SystemMessage::ReceivedHandleConnectionRequest(user_id, user_handle) => {
-                UiSystemMessage::ReceivedHandleConnectionRequest(user_id.into(), user_handle.into())
-            }
-            SystemMessage::ReceivedDirectConnectionRequest(user_id, chat_name) => {
-                UiSystemMessage::ReceivedDirectConnectionRequest(user_id.into(), chat_name)
+            SystemMessage::AcceptedConnectionRequest {
+                contact,
+                user_handle,
+            } => UiSystemMessage::AcceptedConnectionRequest {
+                sender: contact.into(),
+                user_handle: user_handle.map(Into::into),
+            },
+            SystemMessage::ReceivedConnectionConfirmation {
+                sender,
+                user_handle,
+            } => UiSystemMessage::ReceivedConnectionConfirmation {
+                sender: sender.into(),
+                user_handle: user_handle.map(Into::into),
+            },
+            SystemMessage::ReceivedHandleConnectionRequest {
+                sender,
+                user_handle,
+            } => UiSystemMessage::ReceivedHandleConnectionRequest {
+                sender: sender.into(),
+                user_handle: user_handle.into(),
+            },
+            SystemMessage::ReceivedDirectConnectionRequest { sender, chat_name } => {
+                UiSystemMessage::ReceivedDirectConnectionRequest {
+                    sender: sender.into(),
+                    chat_name,
+                }
             }
             SystemMessage::NewDirectConnectionChat(user_id) => {
                 UiSystemMessage::NewDirectConnectionChat(user_id.into())
@@ -621,5 +642,11 @@ impl From<UserHandle> for UiUserHandle {
         Self {
             plaintext: user_handle.into_plaintext(),
         }
+    }
+}
+
+impl From<String> for UiUserHandle {
+    fn from(plaintext: String) -> Self {
+        Self { plaintext }
     }
 }

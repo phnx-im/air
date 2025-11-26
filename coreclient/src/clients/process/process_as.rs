@@ -220,17 +220,22 @@ impl CoreUser {
         let mut notifier = self.store_notifier();
 
         // Create system messages for receipt and acceptance
-        let accepted_system_message =
-            SystemMessage::AcceptedConnectionRequest(contact.user_id.clone(), handle.clone());
+        let accepted_system_message = SystemMessage::AcceptedConnectionRequest {
+            contact: contact.user_id.clone(),
+            user_handle: handle.clone(),
+        };
         let received_system_message = if let Some(handle) = handle {
             // Connection via handle
-            SystemMessage::ReceivedHandleConnectionRequest(contact.user_id.clone(), handle.clone())
+            SystemMessage::ReceivedHandleConnectionRequest {
+                sender: contact.user_id.clone(),
+                user_handle: handle.clone(),
+            }
         } else {
             // Connection via targeted message
-            SystemMessage::ReceivedDirectConnectionRequest(
-                contact.user_id.clone(),
-                chat.attributes.title.clone(),
-            )
+            SystemMessage::ReceivedDirectConnectionRequest {
+                sender: contact.user_id.clone(),
+                chat_name: chat.attributes.title.clone(),
+            }
         };
 
         let now = Utc::now();

@@ -1850,30 +1850,30 @@ async fn connect_users_via_targeted_message() {
         .title
         .clone();
     let messages = charlie_user.messages(charlie_chat_id, 2).await.unwrap();
-    let Message::Event(EventMessage::System(SystemMessage::ReceivedDirectConnectionRequest(
-        user_id,
-        chat_title,
-    ))) = messages[0].message()
+    let Message::Event(EventMessage::System(SystemMessage::ReceivedDirectConnectionRequest {
+        sender,
+        chat_name,
+    })) = messages[0].message()
     else {
         panic!("Expected NewDirectConnectionChat system message");
     };
     assert!(
-        *user_id == *BOB,
+        *sender == *BOB,
         "System message should indicate connection from Bob"
     );
     assert!(
-        *chat_title == charlie_chat_title,
+        *chat_name == charlie_chat_title,
         "System message should have the correct chat title"
     );
-    let Message::Event(EventMessage::System(SystemMessage::AcceptedConnectionRequest(
-        user_id,
-        None,
-    ))) = messages[1].message()
+    let Message::Event(EventMessage::System(SystemMessage::AcceptedConnectionRequest {
+        contact,
+        user_handle: None,
+    })) = messages[1].message()
     else {
         panic!("Expected AcceptedConnectionRequest system message");
     };
     assert!(
-        *user_id == *BOB,
+        *contact == *BOB,
         "System message should indicate acceptance of connection from Bob"
     );
 
@@ -1889,15 +1889,15 @@ async fn connect_users_via_targeted_message() {
 
     // Bob should have a system message indicating that Charlie accepted the connection
     let messages = bob_user.messages(bob_chat_id, 1).await.unwrap();
-    let Message::Event(EventMessage::System(SystemMessage::ReceivedConnectionConfirmation(
-        user_id,
-        None,
-    ))) = messages[0].message()
+    let Message::Event(EventMessage::System(SystemMessage::ReceivedConnectionConfirmation {
+        sender,
+        user_handle: None,
+    })) = messages[0].message()
     else {
         panic!("Expected ReceivedConnectionConfirmation system message");
     };
     assert!(
-        *user_id == *CHARLIE,
+        *sender == *CHARLIE,
         "System message should indicate acceptance of connection from Charlie"
     );
 

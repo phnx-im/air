@@ -760,13 +760,15 @@ impl CoreUser {
         chat.confirm(txn.as_mut(), notifier, contact.user_id)
             .await?;
 
-        let handle = if let ContactType::Handle(handle) = contact_type {
+        let user_handle = if let ContactType::Handle(handle) = contact_type {
             Some(handle.clone())
         } else {
             None
         };
-        let system_message =
-            SystemMessage::ReceivedConnectionConfirmation(sender_user_id.clone(), handle);
+        let system_message = SystemMessage::ReceivedConnectionConfirmation {
+            sender: sender_user_id.clone(),
+            user_handle,
+        };
 
         let message = TimestampedMessage::system_message(system_message, TimeStamp::now());
 

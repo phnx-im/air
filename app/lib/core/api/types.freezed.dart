@@ -1322,22 +1322,22 @@ $UiEventMessageCopyWith<$Res> get field0 {
 /// @nodoc
 mixin _$UiSystemMessage {
 
- Object get field0;
+
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage&&const DeepCollectionEquality().equals(other.field0, field0));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage);
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(field0));
+int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiSystemMessage(field0: $field0)';
+  return 'UiSystemMessage()';
 }
 
 
@@ -1357,7 +1357,7 @@ class UiSystemMessage_Add extends UiSystemMessage {
   const UiSystemMessage_Add(this.field0, this.field1): super._();
   
 
-@override final  UiUserId field0;
+ final  UiUserId field0;
  final  UiUserId field1;
 
 /// Create a copy of UiSystemMessage
@@ -1425,7 +1425,7 @@ class UiSystemMessage_Remove extends UiSystemMessage {
   const UiSystemMessage_Remove(this.field0, this.field1): super._();
   
 
-@override final  UiUserId field0;
+ final  UiUserId field0;
  final  UiUserId field1;
 
 /// Create a copy of UiSystemMessage
@@ -1493,7 +1493,7 @@ class UiSystemMessage_ChangeTitle extends UiSystemMessage {
   const UiSystemMessage_ChangeTitle(this.field0, this.field1, this.field2): super._();
   
 
-@override final  UiUserId field0;
+ final  UiUserId field0;
  final  String field1;
  final  String field2;
 
@@ -1563,7 +1563,7 @@ class UiSystemMessage_ChangePicture extends UiSystemMessage {
   const UiSystemMessage_ChangePicture(this.field0): super._();
   
 
-@override final  UiUserId field0;
+ final  UiUserId field0;
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
@@ -1626,11 +1626,11 @@ as UiUserId,
 
 
 class UiSystemMessage_ReceivedHandleConnectionRequest extends UiSystemMessage {
-  const UiSystemMessage_ReceivedHandleConnectionRequest(this.field0, this.field1): super._();
+  const UiSystemMessage_ReceivedHandleConnectionRequest({required this.sender, required this.userHandle}): super._();
   
 
-@override final  UiUserId field0;
- final  UiUserHandle field1;
+ final  UiUserId sender;
+ final  UiUserHandle userHandle;
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
@@ -1642,16 +1642,16 @@ $UiSystemMessage_ReceivedHandleConnectionRequestCopyWith<UiSystemMessage_Receive
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedHandleConnectionRequest&&(identical(other.field0, field0) || other.field0 == field0)&&(identical(other.field1, field1) || other.field1 == field1));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedHandleConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.userHandle, userHandle) || other.userHandle == userHandle));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0,field1);
+int get hashCode => Object.hash(runtimeType,sender,userHandle);
 
 @override
 String toString() {
-  return 'UiSystemMessage.receivedHandleConnectionRequest(field0: $field0, field1: $field1)';
+  return 'UiSystemMessage.receivedHandleConnectionRequest(sender: $sender, userHandle: $userHandle)';
 }
 
 
@@ -1662,11 +1662,11 @@ abstract mixin class $UiSystemMessage_ReceivedHandleConnectionRequestCopyWith<$R
   factory $UiSystemMessage_ReceivedHandleConnectionRequestCopyWith(UiSystemMessage_ReceivedHandleConnectionRequest value, $Res Function(UiSystemMessage_ReceivedHandleConnectionRequest) _then) = _$UiSystemMessage_ReceivedHandleConnectionRequestCopyWithImpl;
 @useResult
 $Res call({
- UiUserId field0, UiUserHandle field1
+ UiUserId sender, UiUserHandle userHandle
 });
 
 
-$UiUserHandleCopyWith<$Res> get field1;
+$UiUserHandleCopyWith<$Res> get userHandle;
 
 }
 /// @nodoc
@@ -1679,10 +1679,10 @@ class _$UiSystemMessage_ReceivedHandleConnectionRequestCopyWithImpl<$Res>
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? field0 = null,Object? field1 = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? sender = null,Object? userHandle = null,}) {
   return _then(UiSystemMessage_ReceivedHandleConnectionRequest(
-null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
-as UiUserId,null == field1 ? _self.field1 : field1 // ignore: cast_nullable_to_non_nullable
+sender: null == sender ? _self.sender : sender // ignore: cast_nullable_to_non_nullable
+as UiUserId,userHandle: null == userHandle ? _self.userHandle : userHandle // ignore: cast_nullable_to_non_nullable
 as UiUserHandle,
   ));
 }
@@ -1691,10 +1691,10 @@ as UiUserHandle,
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')
-$UiUserHandleCopyWith<$Res> get field1 {
+$UiUserHandleCopyWith<$Res> get userHandle {
   
-  return $UiUserHandleCopyWith<$Res>(_self.field1, (value) {
-    return _then(_self.copyWith(field1: value));
+  return $UiUserHandleCopyWith<$Res>(_self.userHandle, (value) {
+    return _then(_self.copyWith(userHandle: value));
   });
 }
 }
@@ -1703,11 +1703,11 @@ $UiUserHandleCopyWith<$Res> get field1 {
 
 
 class UiSystemMessage_ReceivedDirectConnectionRequest extends UiSystemMessage {
-  const UiSystemMessage_ReceivedDirectConnectionRequest(this.field0, this.field1): super._();
+  const UiSystemMessage_ReceivedDirectConnectionRequest({required this.sender, required this.chatName}): super._();
   
 
-@override final  UiUserId field0;
- final  String field1;
+ final  UiUserId sender;
+ final  String chatName;
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
@@ -1719,16 +1719,16 @@ $UiSystemMessage_ReceivedDirectConnectionRequestCopyWith<UiSystemMessage_Receive
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedDirectConnectionRequest&&(identical(other.field0, field0) || other.field0 == field0)&&(identical(other.field1, field1) || other.field1 == field1));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedDirectConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.chatName, chatName) || other.chatName == chatName));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0,field1);
+int get hashCode => Object.hash(runtimeType,sender,chatName);
 
 @override
 String toString() {
-  return 'UiSystemMessage.receivedDirectConnectionRequest(field0: $field0, field1: $field1)';
+  return 'UiSystemMessage.receivedDirectConnectionRequest(sender: $sender, chatName: $chatName)';
 }
 
 
@@ -1739,7 +1739,7 @@ abstract mixin class $UiSystemMessage_ReceivedDirectConnectionRequestCopyWith<$R
   factory $UiSystemMessage_ReceivedDirectConnectionRequestCopyWith(UiSystemMessage_ReceivedDirectConnectionRequest value, $Res Function(UiSystemMessage_ReceivedDirectConnectionRequest) _then) = _$UiSystemMessage_ReceivedDirectConnectionRequestCopyWithImpl;
 @useResult
 $Res call({
- UiUserId field0, String field1
+ UiUserId sender, String chatName
 });
 
 
@@ -1756,10 +1756,10 @@ class _$UiSystemMessage_ReceivedDirectConnectionRequestCopyWithImpl<$Res>
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? field0 = null,Object? field1 = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? sender = null,Object? chatName = null,}) {
   return _then(UiSystemMessage_ReceivedDirectConnectionRequest(
-null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
-as UiUserId,null == field1 ? _self.field1 : field1 // ignore: cast_nullable_to_non_nullable
+sender: null == sender ? _self.sender : sender // ignore: cast_nullable_to_non_nullable
+as UiUserId,chatName: null == chatName ? _self.chatName : chatName // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }
@@ -1771,11 +1771,11 @@ as String,
 
 
 class UiSystemMessage_AcceptedConnectionRequest extends UiSystemMessage {
-  const UiSystemMessage_AcceptedConnectionRequest(this.field0, [this.field1]): super._();
+  const UiSystemMessage_AcceptedConnectionRequest({required this.sender, this.userHandle}): super._();
   
 
-@override final  UiUserId field0;
- final  UiUserHandle? field1;
+ final  UiUserId sender;
+ final  UiUserHandle? userHandle;
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
@@ -1787,16 +1787,16 @@ $UiSystemMessage_AcceptedConnectionRequestCopyWith<UiSystemMessage_AcceptedConne
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_AcceptedConnectionRequest&&(identical(other.field0, field0) || other.field0 == field0)&&(identical(other.field1, field1) || other.field1 == field1));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_AcceptedConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.userHandle, userHandle) || other.userHandle == userHandle));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0,field1);
+int get hashCode => Object.hash(runtimeType,sender,userHandle);
 
 @override
 String toString() {
-  return 'UiSystemMessage.acceptedConnectionRequest(field0: $field0, field1: $field1)';
+  return 'UiSystemMessage.acceptedConnectionRequest(sender: $sender, userHandle: $userHandle)';
 }
 
 
@@ -1807,11 +1807,11 @@ abstract mixin class $UiSystemMessage_AcceptedConnectionRequestCopyWith<$Res> im
   factory $UiSystemMessage_AcceptedConnectionRequestCopyWith(UiSystemMessage_AcceptedConnectionRequest value, $Res Function(UiSystemMessage_AcceptedConnectionRequest) _then) = _$UiSystemMessage_AcceptedConnectionRequestCopyWithImpl;
 @useResult
 $Res call({
- UiUserId field0, UiUserHandle? field1
+ UiUserId sender, UiUserHandle? userHandle
 });
 
 
-$UiUserHandleCopyWith<$Res>? get field1;
+$UiUserHandleCopyWith<$Res>? get userHandle;
 
 }
 /// @nodoc
@@ -1824,10 +1824,10 @@ class _$UiSystemMessage_AcceptedConnectionRequestCopyWithImpl<$Res>
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? field0 = null,Object? field1 = freezed,}) {
+@pragma('vm:prefer-inline') $Res call({Object? sender = null,Object? userHandle = freezed,}) {
   return _then(UiSystemMessage_AcceptedConnectionRequest(
-null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
-as UiUserId,freezed == field1 ? _self.field1 : field1 // ignore: cast_nullable_to_non_nullable
+sender: null == sender ? _self.sender : sender // ignore: cast_nullable_to_non_nullable
+as UiUserId,userHandle: freezed == userHandle ? _self.userHandle : userHandle // ignore: cast_nullable_to_non_nullable
 as UiUserHandle?,
   ));
 }
@@ -1836,13 +1836,13 @@ as UiUserHandle?,
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')
-$UiUserHandleCopyWith<$Res>? get field1 {
-    if (_self.field1 == null) {
+$UiUserHandleCopyWith<$Res>? get userHandle {
+    if (_self.userHandle == null) {
     return null;
   }
 
-  return $UiUserHandleCopyWith<$Res>(_self.field1!, (value) {
-    return _then(_self.copyWith(field1: value));
+  return $UiUserHandleCopyWith<$Res>(_self.userHandle!, (value) {
+    return _then(_self.copyWith(userHandle: value));
   });
 }
 }
@@ -1851,11 +1851,11 @@ $UiUserHandleCopyWith<$Res>? get field1 {
 
 
 class UiSystemMessage_ReceivedConnectionConfirmation extends UiSystemMessage {
-  const UiSystemMessage_ReceivedConnectionConfirmation(this.field0, [this.field1]): super._();
+  const UiSystemMessage_ReceivedConnectionConfirmation({required this.sender, this.userHandle}): super._();
   
 
-@override final  UiUserId field0;
- final  UiUserHandle? field1;
+ final  UiUserId sender;
+ final  UiUserHandle? userHandle;
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
@@ -1867,16 +1867,16 @@ $UiSystemMessage_ReceivedConnectionConfirmationCopyWith<UiSystemMessage_Received
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedConnectionConfirmation&&(identical(other.field0, field0) || other.field0 == field0)&&(identical(other.field1, field1) || other.field1 == field1));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedConnectionConfirmation&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.userHandle, userHandle) || other.userHandle == userHandle));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0,field1);
+int get hashCode => Object.hash(runtimeType,sender,userHandle);
 
 @override
 String toString() {
-  return 'UiSystemMessage.receivedConnectionConfirmation(field0: $field0, field1: $field1)';
+  return 'UiSystemMessage.receivedConnectionConfirmation(sender: $sender, userHandle: $userHandle)';
 }
 
 
@@ -1887,11 +1887,11 @@ abstract mixin class $UiSystemMessage_ReceivedConnectionConfirmationCopyWith<$Re
   factory $UiSystemMessage_ReceivedConnectionConfirmationCopyWith(UiSystemMessage_ReceivedConnectionConfirmation value, $Res Function(UiSystemMessage_ReceivedConnectionConfirmation) _then) = _$UiSystemMessage_ReceivedConnectionConfirmationCopyWithImpl;
 @useResult
 $Res call({
- UiUserId field0, UiUserHandle? field1
+ UiUserId sender, UiUserHandle? userHandle
 });
 
 
-$UiUserHandleCopyWith<$Res>? get field1;
+$UiUserHandleCopyWith<$Res>? get userHandle;
 
 }
 /// @nodoc
@@ -1904,10 +1904,10 @@ class _$UiSystemMessage_ReceivedConnectionConfirmationCopyWithImpl<$Res>
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? field0 = null,Object? field1 = freezed,}) {
+@pragma('vm:prefer-inline') $Res call({Object? sender = null,Object? userHandle = freezed,}) {
   return _then(UiSystemMessage_ReceivedConnectionConfirmation(
-null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
-as UiUserId,freezed == field1 ? _self.field1 : field1 // ignore: cast_nullable_to_non_nullable
+sender: null == sender ? _self.sender : sender // ignore: cast_nullable_to_non_nullable
+as UiUserId,userHandle: freezed == userHandle ? _self.userHandle : userHandle // ignore: cast_nullable_to_non_nullable
 as UiUserHandle?,
   ));
 }
@@ -1916,13 +1916,13 @@ as UiUserHandle?,
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')
-$UiUserHandleCopyWith<$Res>? get field1 {
-    if (_self.field1 == null) {
+$UiUserHandleCopyWith<$Res>? get userHandle {
+    if (_self.userHandle == null) {
     return null;
   }
 
-  return $UiUserHandleCopyWith<$Res>(_self.field1!, (value) {
-    return _then(_self.copyWith(field1: value));
+  return $UiUserHandleCopyWith<$Res>(_self.userHandle!, (value) {
+    return _then(_self.copyWith(userHandle: value));
   });
 }
 }
@@ -1934,7 +1934,7 @@ class UiSystemMessage_NewHandleConnectionChat extends UiSystemMessage {
   const UiSystemMessage_NewHandleConnectionChat(this.field0): super._();
   
 
-@override final  UiUserHandle field0;
+ final  UiUserHandle field0;
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
@@ -2009,7 +2009,7 @@ class UiSystemMessage_NewDirectConnectionChat extends UiSystemMessage {
   const UiSystemMessage_NewDirectConnectionChat(this.field0): super._();
   
 
-@override final  UiUserId field0;
+ final  UiUserId field0;
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.

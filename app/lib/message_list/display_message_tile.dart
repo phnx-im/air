@@ -174,13 +174,16 @@ class SystemMessageContent extends StatelessWidget {
           ),
         );
       }(),
-      UiSystemMessage_AcceptedConnectionRequest(:final field0, :final field1) =>
+      UiSystemMessage_AcceptedConnectionRequest(
+        :final sender,
+        :final userHandle,
+      ) =>
         () {
           final userName = context.select(
-            (UsersCubit c) => c.state.profile(userId: field0).displayName,
+            (UsersCubit c) => c.state.profile(userId: sender).displayName,
           );
           final String text;
-          if (field1 case final handle?) {
+          if (userHandle case final handle?) {
             text = loc.systemMessage_acceptedHandleConnectionRequest(
               userName,
               handle.plaintext,
@@ -195,9 +198,9 @@ class SystemMessageContent extends StatelessWidget {
             ),
           );
         }(),
-      UiSystemMessage_ReceivedConnectionConfirmation(:final field0) => () {
+      UiSystemMessage_ReceivedConnectionConfirmation(:final sender) => () {
         final userName = context.select(
-          (UsersCubit c) => c.state.profile(userId: field0).displayName,
+          (UsersCubit c) => c.state.profile(userId: sender).displayName,
         );
         final text = loc.systemMessage_receivedConnectionConfirmation(userName);
         return RichText(
@@ -208,16 +211,16 @@ class SystemMessageContent extends StatelessWidget {
         );
       }(),
       UiSystemMessage_ReceivedHandleConnectionRequest(
-        :final field0,
-        :final field1,
+        :final sender,
+        :final userHandle,
       ) =>
         () {
           final userName = context.select(
-            (UsersCubit c) => c.state.profile(userId: field0).displayName,
+            (UsersCubit c) => c.state.profile(userId: sender).displayName,
           );
           final text = loc.systemMessage_receivedHandleConnectionRequest(
             userName,
-            field1.plaintext,
+            userHandle.plaintext,
           );
           return RichText(
             text: TextSpan(
@@ -227,16 +230,16 @@ class SystemMessageContent extends StatelessWidget {
           );
         }(),
       UiSystemMessage_ReceivedDirectConnectionRequest(
-        :final field0,
-        :final field1,
+        :final sender,
+        :final chatName,
       ) =>
         () {
           final userName = context.select(
-            (UsersCubit c) => c.state.profile(userId: field0).displayName,
+            (UsersCubit c) => c.state.profile(userId: sender).displayName,
           );
           final text = loc.systemMessage_receivedDirectConnectionRequest(
             userName,
-            field1,
+            chatName,
           );
           return RichText(
             text: TextSpan(
