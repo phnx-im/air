@@ -160,24 +160,26 @@ impl NavigationCubitBase {
     }
 
     pub async fn open_chat(&self, chat_id: ChatId) {
-        self.core.state_tx().send_if_modified(|state| match state {
+        self.core.state_tx().send_modify(|state| match state {
             NavigationState::Intro { .. } => {
-                *state = HomeNavigationState {
+                *state = NavigationState::Home {
+                    home: HomeNavigationState {
+                        chat_open: true,
+                        chat_id: Some(chat_id),
+                        ..Default::default()
+                    },
+                };
+            }
+            NavigationState::Home { home } => {
+                *home = HomeNavigationState {
                     chat_open: true,
                     chat_id: Some(chat_id),
                     ..Default::default()
-                }
-                .into();
-                true
-            }
-            NavigationState::Home { home } => {
-                let was_open = mem::replace(&mut home.chat_open, true);
-                let different_id = home.chat_id.replace(chat_id) != Some(chat_id);
-                !was_open || different_id
+                };
             }
         });
 
-        // Cancel the active notifications for the current chat
+        // Cancel the active OS notifications for the current chat
         let handles = self.notification_service.get_active_notifications().await;
         let identifiers = handles
             .into_iter()
