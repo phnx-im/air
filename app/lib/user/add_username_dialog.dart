@@ -120,6 +120,9 @@ class AddUsernameDialog extends HookWidget {
                       backgroundColor: WidgetStatePropertyAll(
                         colors.accent.primary,
                       ),
+                      overlayColor: WidgetStatePropertyAll(
+                        colors.accent.primary,
+                      ),
                       foregroundColor: WidgetStatePropertyAll(
                         colors.function.toggleWhite,
                       ),
