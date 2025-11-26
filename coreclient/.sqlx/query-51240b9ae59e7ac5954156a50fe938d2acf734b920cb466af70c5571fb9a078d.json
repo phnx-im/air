@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE message\n                SET status = ?1\n                WHERE message_id IN (\n                    SELECT message_id FROM chat_message_queue\n                );\n                DELETE FROM pending_attachment\n                WHERE attachment_id IN (\n                    SELECT attachment_id FROM chat_message_queue\n                );\n\n                DELETE FROM chat_message_queue\n                RETURNING message_id as \"message_id: _\"\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "message_id: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "51240b9ae59e7ac5954156a50fe938d2acf734b920cb466af70c5571fb9a078d"
+}

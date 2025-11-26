@@ -72,6 +72,13 @@ impl OutboundServiceContext {
 
             if let Err(e) = self.send_chat_message(message_id).await {
                 warn!(%e, ?message_id, "Failed to send chat message");
+                // If the message fails, we mark it and all other queued
+                // messages as "failed" and delete them from the queue.
+                self.with_transaction_and_notifier(async |txn, notifier| {
+                    ChatMessageQueue::remove_all_and_and_mark_as_failed(txn, notifier).await?;
+                    Ok(())
+                })
+                .await?;
             };
 
             // Always delete the message from the queue. We don't want to automatically
