@@ -2,12 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{
-    fs,
-    io::Write,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{fs, io::Write, sync::Arc};
 
 use aircommon::identifiers::AttachmentId;
 use aircoreclient::{
@@ -105,6 +100,19 @@ impl AttachmentsRepository {
         }
     }
 
+    pub async fn load_attachment(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> anyhow::Result<Option<Vec<u8>>> {
+        if let AttachmentContent::Ready(data) | AttachmentContent::Uploading(data) =
+            self.store.load_attachment(attachment_id).await?
+        {
+            Ok(Some(data))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub async fn load_image_attachment(
         &self,
         attachment_id: AttachmentId,
@@ -154,35 +162,16 @@ impl AttachmentsRepository {
 
     pub async fn save_attachment(
         &self,
-        destination_dir: String,
-        filename: String,
         attachment_id: AttachmentId,
-        overwrite: bool,
+        path: String,
     ) -> anyhow::Result<()> {
-        let (AttachmentContent::Ready(data) | AttachmentContent::Uploading(data)) =
-            self.store.load_attachment(attachment_id).await?
-        else {
-            bail!("Attachment is not present on the device")
-        };
-
-        let dir = Path::new(&destination_dir);
-        if !dir.exists() {
-            fs::create_dir_all(dir)?;
-        } else if !dir.is_dir() {
-            bail!("Destination is not a directory");
-        }
-
-        let filename = PathBuf::from(filename);
-        let path = if overwrite {
-            dir.join(filename)
-        } else {
-            unique_path(dir, &filename)
-        };
-
+        let data = self
+            .load_attachment(attachment_id)
+            .await?
+            .context("Attachment is not present on the device")?;
         let mut file = fs::File::create(&path)
-            .with_context(|| format!("Failed to create file at path: {}", path.display()))?;
+            .with_context(|| format!("Failed to create file at path: {path}"))?;
         file.write_all(&data)?;
-
         Ok(())
     }
 
@@ -361,32 +350,4 @@ pub enum UiAttachmentStatus {
     Completed,
     /// Failed to upload or download
     Failed,
-}
-
-fn unique_path(base_path: &Path, filename: &Path) -> PathBuf {
-    let mut path = base_path.join(filename);
-
-    if !path.exists() {
-        return path;
-    }
-
-    let stem = filename.file_stem().unwrap_or_default();
-    let ext = filename.extension();
-
-    for counter in 1.. {
-        let mut filename = stem.to_os_string();
-        filename.push("-");
-        filename.push(counter.to_string());
-        if let Some(ext) = ext {
-            filename.push(".");
-            filename.push(ext);
-        }
-
-        path = base_path.join(filename);
-        if !path.exists() {
-            break;
-        }
-    }
-
-    path
 }

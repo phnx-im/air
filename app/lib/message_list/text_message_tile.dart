@@ -29,7 +29,6 @@ import 'package:air/widgets/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
-import 'package:path/path.dart' as p;
 
 import 'image_viewer.dart';
 import 'message_renderer.dart';
@@ -368,44 +367,48 @@ class _MessageView extends HookWidget {
   }
 
   void _handleFileSave(BuildContext context, UiAttachment attachment) async {
-    String fileName = attachment.filename;
-    String saveDir;
-
     if (Platform.isAndroid) {
-      const appDirName = 'Air';
-      final baseDir = attachment.isImage
-          ? await getPicturesDirectoryAndroid()
-          : await getDownloadsDirectoryAndroid();
-      saveDir = "$baseDir/$appDirName";
+      // Android uses platform-specific code to write data directly into a provided URI
+      final attachmentsRepository = context.read<AttachmentsRepository>();
+      final data = await attachmentsRepository.loadAttachment(
+        attachmentId: attachment.attachmentId,
+      );
+      if (data == null) {
+        _log.severe("Missing attachment data");
+        return;
+      }
+      await saveFileAndroid(
+        fileName: attachment.filename,
+        mimeType: attachment.contentType,
+        data: data,
+      );
+    } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      // On Desktop, we save the attachment in Rust after getting a path from the platform-specific
+      // dialog
+      final attachmentsRepository = context.read<AttachmentsRepository>();
+      final location = await getSaveLocation(
+        suggestedName: attachment.filename,
+      );
+      if (location == null) return;
+      final path = location.path;
+
+      try {
+        await attachmentsRepository.saveAttachment(
+          attachmentId: attachment.attachmentId,
+          path: path,
+        );
+      } catch (e, stackTrace) {
+        _log.severe("Failed to save attachment: $e", e, stackTrace);
+        if (context.mounted) {
+          final loc = AppLocalizations.of(context);
+          showErrorBanner(context, loc.messageContextMenu_saveError);
+        }
+        return;
+      }
     } else if (Platform.isIOS) {
       throw UnsupportedError("iOS does not support storing files");
-    } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      final location = await getSaveLocation(suggestedName: fileName);
-      if (location == null) return;
-      String dir = p.dirname(location.path);
-      fileName = p.basename(location.path);
-      saveDir = dir;
     } else {
       throw UnsupportedError("Unsupported platform");
-    }
-
-    if (!context.mounted) return;
-
-    final attachmentsRepository = context.read<AttachmentsRepository>();
-    try {
-      await attachmentsRepository.saveAttachment(
-        destinationDir: saveDir,
-        filename: fileName,
-        attachmentId: attachment.attachmentId,
-        overwrite: Platform.isWindows || Platform.isLinux || Platform.isMacOS,
-      );
-    } catch (e, stackTrace) {
-      _log.severe("Failed to save attachment: $e", e, stackTrace);
-      if (context.mounted) {
-        final loc = AppLocalizations.of(context);
-        showErrorBanner(context, loc.messageContextMenu_saveError);
-      }
-      return;
     }
 
     // TODO: Snackbar overlaps with the composer, so we need a better solution

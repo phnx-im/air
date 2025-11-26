@@ -14,13 +14,15 @@ import 'package:uuid/uuid.dart';
 import 'user_cubit.dart';
 part 'attachments_repository.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `attachment_downloads_loop`, `cancellation_token`, `in_progress`, `is_cancelled`, `new`, `spawn_attachment_downloads`, `spawn_download_task`, `track_attachment_download`, `unique_path`, `with_cancellation`
+// These functions are ignored because they are not marked as `pub`: `attachment_downloads_loop`, `cancellation_token`, `in_progress`, `is_cancelled`, `new`, `spawn_attachment_downloads`, `spawn_download_task`, `track_attachment_download`, `with_cancellation`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AttachmentTaskHandle`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentsRepository>>
 abstract class AttachmentsRepository implements RustOpaqueInterface {
   Future<void> cancel({required AttachmentId attachmentId});
+
+  Future<Uint8List?> loadAttachment({required AttachmentId attachmentId});
 
   Future<Uint8List> loadImageAttachment({
     required AttachmentId attachmentId,
@@ -35,10 +37,8 @@ abstract class AttachmentsRepository implements RustOpaqueInterface {
       );
 
   Future<void> saveAttachment({
-    required String destinationDir,
-    required String filename,
     required AttachmentId attachmentId,
-    required bool overwrite,
+    required String path,
   });
 
   Stream<UiAttachmentStatus> statusStream({required AttachmentId attachmentId});
