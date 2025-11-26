@@ -7,7 +7,7 @@ library;
 
 export 'app_bar_back_button.dart';
 export 'app_bar_plus_button.dart';
-export 'user_avatar.dart';
+export 'avatar.dart';
 export 'overlapping_checks_icon.dart';
 export 'progress_button.dart';
 export 'user_handle_input_formatter.dart';

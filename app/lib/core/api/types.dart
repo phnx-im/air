@@ -387,6 +387,8 @@ sealed class UiSystemMessage with _$UiSystemMessage {
       UiSystemMessage_NewHandleConnectionChat;
   const factory UiSystemMessage.newDirectConnectionChat(UiUserId field0) =
       UiSystemMessage_NewDirectConnectionChat;
+  const factory UiSystemMessage.createGroup(UiUserId field0) =
+      UiSystemMessage_CreateGroup;
 }
 
 @freezed

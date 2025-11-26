@@ -18,9 +18,9 @@ use aircommon::{
         client_ds_out::{CreateGroupParamsOut, TargetedMessageParamsOut},
         connection_package::ConnectionPackage,
     },
+    time::TimeStamp,
 };
-use anyhow::Context;
-use anyhow::bail;
+use anyhow::{Context, bail};
 use openmls::group::GroupId;
 use sqlx::SqliteTransaction;
 use tracing::info;
@@ -129,6 +129,20 @@ impl CoreUser {
     ) -> anyhow::Result<ChatId> {
         let client = self.api_client()?;
 
+        // Phase 0: Sanity checks
+        // Check whether we already have this user as a contact
+        if self.contact(&user_id).await.is_some() {
+            bail!("User is already a contact");
+        }
+
+        // Check whether we already have a pending connection request to this user
+        if TargetedMessageContact::load(self.pool(), &user_id)
+            .await?
+            .is_some()
+        {
+            bail!("Connection request is already pending");
+        }
+
         // Phase 1: Prepare the connection locally
         let group_id = client.ds_request_group_id().await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
@@ -218,7 +232,8 @@ impl VerifiedConnectionPackagesWithGroupId<ConnectionPackage> {
 
         // Create the initial system message for the chat
         let system_message = SystemMessage::NewHandleConnectionChat(handle);
-        let chat_message = ChatMessage::new_system_message(chat.id(), system_message);
+        let chat_message =
+            ChatMessage::new_system_message(chat.id(), TimeStamp::now(), system_message);
         chat_message.store(txn.as_mut(), notifier).await?;
 
         Ok(LocalGroup {
@@ -259,7 +274,8 @@ impl VerifiedConnectionPackagesWithGroupId<UserId> {
 
         // Create the initial system message for the chat
         let system_message = SystemMessage::NewDirectConnectionChat(user_id.clone());
-        let chat_message = ChatMessage::new_system_message(chat.id(), system_message);
+        let chat_message =
+            ChatMessage::new_system_message(chat.id(), TimeStamp::now(), system_message);
         chat_message.store(txn.as_mut(), notifier).await?;
 
         Ok(LocalGroup {

@@ -15,7 +15,7 @@ use uuid::Uuid;
 use crate::{
     ChatId, Contact,
     clients::connection_offer::FriendshipPackage,
-    contacts::{ContactType, PartialContact, TargetedMessageContact},
+    contacts::{PartialContact, PartialContactType, TargetedMessageContact},
     store::StoreNotifier,
 };
 
@@ -339,13 +339,13 @@ impl TargetedMessageContact {
 impl PartialContact {
     pub(crate) async fn load(
         executor: impl SqliteExecutor<'_>,
-        contact_type: &ContactType,
+        contact_type: &PartialContactType,
     ) -> sqlx::Result<Option<Self>> {
         match contact_type {
-            ContactType::Handle(handle) => Ok(HandleContact::load(executor, handle)
+            PartialContactType::Handle(handle) => Ok(HandleContact::load(executor, handle)
                 .await?
                 .map(PartialContact::Handle)),
-            ContactType::TargetedMessage(user_id) => {
+            PartialContactType::TargetedMessage(user_id) => {
                 Ok(TargetedMessageContact::load(executor, user_id)
                     .await?
                     .map(PartialContact::TargetedMessage))

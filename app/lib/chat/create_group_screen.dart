@@ -15,7 +15,7 @@ import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
-import 'package:air/widgets/user_avatar.dart';
+import 'package:air/widgets/avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
@@ -252,8 +252,8 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
           title: loc.groupCreationDetails_title,
           leading: _CircularBackButton(onPressed: _handleBack),
           trailing: AppBarButton(
-            onPressed: (_isGroupNameValid && !_isCreating)
-                ? () => _createGroup(context)
+            onPressed: _isGroupNameValid && !_isCreating
+                ? _createGroupChat
                 : null,
             child: _isCreating
                 ? SizedBox(
@@ -409,7 +409,7 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
     context.read<AddMembersCubit>().toggleContact(contact);
   }
 
-  Future<void> _createGroup(BuildContext context) async {
+  Future<void> _createGroupChat() async {
     final groupName = _nameController.text.trim();
     if (groupName.isEmpty) return;
     final navigationCubit = context.read<NavigationCubit>();
@@ -417,7 +417,6 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
     final userCubit = context.read<UserCubit>();
     final addMembersCubit = context.read<AddMembersCubit>();
     final selectedContacts = addMembersCubit.state.selectedContacts;
-    final loc = AppLocalizations.of(context);
 
     setState(() => _isCreating = true);
 
@@ -427,12 +426,12 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
         await userCubit.addUserToChat(chatId, userId);
       }
       if (!mounted) return;
-      await navigationCubit.openChat(chatId);
       navigationCubit.pop();
+      await navigationCubit.openChat(chatId);
     } catch (error) {
       if (!mounted) return;
       setState(() => _isCreating = false);
-      // ignore: use_build_context_synchronously
+      final loc = AppLocalizations.of(context);
       showErrorBanner(context, loc.newChatDialog_error(groupName));
     }
   }
@@ -551,11 +550,7 @@ class _SelectedParticipant extends StatelessWidget {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              UserAvatar(
-                displayName: profile.displayName,
-                image: profile.profilePicture,
-                size: 48,
-              ),
+              UserAvatar(userId: profile.userId, size: 48),
               Positioned(
                 top: -2,
                 right: -2,

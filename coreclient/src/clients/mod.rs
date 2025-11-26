@@ -436,6 +436,13 @@ impl CoreUser {
         Contact::load(self.pool(), user_id).await
     }
 
+    pub async fn try_targeted_message_contact(
+        &self,
+        user_id: &UserId,
+    ) -> sqlx::Result<Option<TargetedMessageContact>> {
+        TargetedMessageContact::load(self.pool(), user_id).await
+    }
+
     pub async fn handle_contacts(&self) -> sqlx::Result<Vec<HandleContact>> {
         HandleContact::load_all(self.pool()).await
     }

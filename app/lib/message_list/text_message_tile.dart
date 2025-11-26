@@ -3,8 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async' show unawaited;
+import 'dart:io';
 
 import 'package:air/core/api/markdown.dart';
+import 'package:air/main.dart';
+import 'package:air/util/platform.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -20,15 +24,17 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/context_menu/context_menu.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/ui/typography/font_size.dart';
-import 'package:air/ui/typography/monospace.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
-import 'package:iconoir_flutter/regular/attachment.dart';
+import 'package:logging/logging.dart';
+import 'package:path/path.dart' as p;
 
 import 'image_viewer.dart';
 import 'message_renderer.dart';
+
+final _log = Logger('MessageTile');
 
 const double _bubbleMaxWidthFactor = 5 / 6;
 const double largeCornerRadius = Spacings.sm;
@@ -181,32 +187,31 @@ class _MessageView extends HookWidget {
     }
 
     final attachments = contentMessage.content.attachments;
-    final hasImageAttachment = attachments.any(
-      (attachment) => attachment.imageMetadata != null,
-    );
+
+    final colors = CustomColorScheme.of(context);
 
     final actions = <MessageAction>[
       if (plainBody != null && plainBody.isNotEmpty)
         MessageAction(
           label: loc.messageContextMenu_copy,
-          leading: iconoir.Copy(
-            width: 24,
-            color: CustomColorScheme.of(context).text.primary,
-          ),
+          leading: iconoir.Copy(width: 24, color: colors.text.primary),
           onSelected: () {
             Clipboard.setData(ClipboardData(text: plainBody));
           },
         ),
-      if (isSender && !hasImageAttachment)
+      if (isSender && attachments.isEmpty)
         MessageAction(
           label: loc.messageContextMenu_edit,
-          leading: iconoir.EditPencil(
-            width: 24,
-            color: CustomColorScheme.of(context).text.primary,
-          ),
+          leading: iconoir.EditPencil(width: 24, color: colors.text.primary),
           onSelected: () {
             context.read<ChatDetailsCubit>().editMessage(messageId: messageId);
           },
+        ),
+      if (attachments.isNotEmpty && !Platform.isIOS)
+        MessageAction(
+          label: loc.messageContextMenu_save,
+          leading: iconoir.Download(width: 24, color: colors.text.primary),
+          onSelected: () => _handleFileSave(context, attachments.first),
         ),
     ];
 
@@ -361,6 +366,59 @@ class _MessageView extends HookWidget {
       ),
     );
   }
+
+  void _handleFileSave(BuildContext context, UiAttachment attachment) async {
+    String fileName = attachment.filename;
+    String saveDir;
+
+    if (Platform.isAndroid) {
+      const appDirName = 'Air';
+      final baseDir = attachment.isImage
+          ? await getPicturesDirectoryAndroid()
+          : await getDownloadsDirectoryAndroid();
+      saveDir = "$baseDir/$appDirName";
+    } else if (Platform.isIOS) {
+      throw UnsupportedError("iOS does not support storing files");
+    } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      final location = await getSaveLocation(suggestedName: fileName);
+      if (location == null) return;
+      String dir = p.dirname(location.path);
+      fileName = p.basename(location.path);
+      saveDir = dir;
+    } else {
+      throw UnsupportedError("Unsupported platform");
+    }
+
+    if (!context.mounted) return;
+
+    final attachmentsRepository = context.read<AttachmentsRepository>();
+    try {
+      await attachmentsRepository.saveAttachment(
+        destinationDir: saveDir,
+        filename: fileName,
+        attachmentId: attachment.attachmentId,
+        overwrite: Platform.isWindows || Platform.isLinux || Platform.isMacOS,
+      );
+    } catch (e, stackTrace) {
+      _log.severe("Failed to save attachment: $e", e, stackTrace);
+      if (context.mounted) {
+        final loc = AppLocalizations.of(context);
+        showErrorBanner(context, loc.messageContextMenu_saveError);
+      }
+      return;
+    }
+
+    // TODO: Snackbar overlaps with the composer, so we need a better solution
+    if (context.mounted) {
+      final loc = AppLocalizations.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 1),
+          content: Text(loc.messageContextMenu_saveConfirmation),
+        ),
+      );
+    }
+  }
 }
 
 class _MessageStatus extends StatelessWidget {
@@ -402,7 +460,6 @@ class _MessageContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final bool isDeleted = content.replaces != null && content.content == null;
-
     final List<Widget> columnChildren = [];
 
     if (isHidden) {
@@ -551,68 +608,51 @@ class _Sender extends StatelessWidget {
     final profile = context.select(
       (UsersCubit cubit) => cubit.state.profile(userId: sender),
     );
-    void openMemberDetails() {
-      unawaited(context.read<NavigationCubit>().openMemberDetails(sender));
-    }
 
     return Padding(
       padding: const EdgeInsets.only(top: Spacings.xs, bottom: Spacings.xxs),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          UserAvatar(
-            displayName: profile.displayName,
-            image: profile.profilePicture,
-            size: Spacings.m,
-            onPressed: openMemberDetails,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            unawaited(
+              context.read<NavigationCubit>().openMemberDetails(sender),
+            );
+          },
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              UserAvatar(userId: sender, size: Spacings.m),
+              const SizedBox(width: Spacings.xs),
+              _DisplayName(
+                displayName: profile.displayName,
+                isSender: isSender,
+              ),
+            ],
           ),
-          const SizedBox(width: Spacings.xs),
-          _DisplayName(
-            displayName: profile.displayName,
-            isSender: isSender,
-            onTap: openMemberDetails,
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
 class _DisplayName extends StatelessWidget {
-  const _DisplayName({
-    required this.displayName,
-    required this.isSender,
-    this.onTap,
-  });
+  const _DisplayName({required this.displayName, required this.isSender});
 
   final String displayName;
   final bool isSender;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final text = isSender ? "You" : displayName;
-    final textUpper = text.toUpperCase();
-    return MouseRegion(
-      cursor: onTap != null
-          ? SystemMouseCursors.click
-          : SystemMouseCursors.basic,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: SelectionContainer.disabled(
-          child: Text(
-            textUpper,
-            style: TextStyle(
-              color: CustomColorScheme.of(context).text.tertiary,
-              fontSize: LabelFontSize.small2.size,
-              fontWeight: FontWeight.w100,
-              fontFamily: getSystemMonospaceFontFamily(),
-              letterSpacing: 1,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
+    return SelectionContainer.disabled(
+      child: Text(
+        text,
+        style: TextTheme.of(context).labelSmall!.copyWith(
+          color: CustomColorScheme.of(context).text.tertiary,
         ),
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
@@ -629,44 +669,13 @@ class _FileAttachmentContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-
     return Padding(
       padding: _messagePadding,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: Spacings.s,
-        children: [
-          Attachment(
-            width: 32,
-            color: isSender
-                ? CustomColorScheme.of(context).message.selfText
-                : CustomColorScheme.of(context).message.otherText,
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                attachment.filename,
-                style: TextStyle(
-                  fontSize: BodyFontSize.base.size,
-                  color: isSender
-                      ? CustomColorScheme.of(context).message.selfText
-                      : CustomColorScheme.of(context).message.otherText,
-                ),
-              ),
-              Text(
-                loc.bytesToHumanReadable(attachment.size),
-                style: TextStyle(
-                  fontSize: BodyFontSize.small2.size,
-                  color: isSender
-                      ? CustomColorScheme.of(context).message.selfText
-                      : CustomColorScheme.of(context).message.otherText,
-                ),
-              ),
-            ],
-          ),
-        ],
+      child: AttachmentFile(
+        attachment: attachment,
+        color: isSender
+            ? CustomColorScheme.of(context).message.selfText
+            : CustomColorScheme.of(context).message.otherText,
       ),
     );
   }
@@ -692,29 +701,25 @@ class _ImageAttachmentContent extends StatelessWidget {
     return GestureDetector(
       onTap: () {
         FocusScope.of(context).unfocus();
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ImageViewer(
+        HapticFeedback.mediumImpact();
+        Navigator.of(context).push(imageViewerRoute(attachment: attachment));
+      },
+      child: Hero(
+        tag: imageViewerHeroTag(attachment),
+        transitionOnUserGestures: true,
+        child: ClipRRect(
+          borderRadius: _messageBorderRadius(
+            isSender,
+            flightPosition,
+            stackedOnTop: hasMessage,
+          ),
+          child: Container(
+            constraints: const BoxConstraints(maxHeight: 300),
+            child: AttachmentImage(
               attachment: attachment,
               imageMetadata: imageMetadata,
-              isSender: isSender,
+              fit: BoxFit.cover,
             ),
-          ),
-        );
-      },
-      child: ClipRRect(
-        borderRadius: _messageBorderRadius(
-          isSender,
-          flightPosition,
-          stackedOnTop: hasMessage,
-        ),
-        child: Container(
-          constraints: const BoxConstraints(maxHeight: 300),
-          child: AttachmentImage(
-            attachment: attachment,
-            imageMetadata: imageMetadata,
-            fit: BoxFit.cover,
           ),
         ),
       ),

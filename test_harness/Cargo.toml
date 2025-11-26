@@ -4,7 +4,7 @@
 
 [package]
 name = "airserver_test_harness"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 publish = false
 license = "AGPL-3.0-or-later"

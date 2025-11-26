@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{SqliteConnection, SqliteExecutor};
 use uuid::Uuid;
 
-use crate::{contacts::ContactType, store::StoreNotifier};
+use crate::{contacts::PartialContactType, store::StoreNotifier};
 
 pub use draft::MessageDraft;
 pub(crate) use status::StatusRecord;
@@ -78,6 +78,10 @@ pub struct Chat {
     pub group_id: GroupId,
     // The timestamp of the last message that was (marked as) read by the user.
     pub last_read: DateTime<Utc>,
+    // The timestamp of the last message (content or system)
+    //
+    // `None` if the chat does not have any messages.
+    pub last_message_at: Option<DateTime<Utc>>,
     pub status: ChatStatus,
     pub chat_type: ChatType,
     pub attributes: ChatAttributes,
@@ -95,6 +99,7 @@ impl Chat {
             id: ChatId::try_from(&group_id)?,
             group_id,
             last_read: Utc::now(),
+            last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::Connection(user_id),
             attributes,
@@ -111,6 +116,7 @@ impl Chat {
             id,
             group_id,
             last_read: Utc::now(),
+            last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::HandleConnection(handle),
             attributes,
@@ -127,6 +133,7 @@ impl Chat {
             id,
             group_id,
             last_read: Utc::now(),
+            last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::TargetedMessageConnection(user_id),
             attributes,
@@ -139,6 +146,7 @@ impl Chat {
             id,
             group_id,
             last_read: Utc::now(),
+            last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::Group,
             attributes,
@@ -178,6 +186,10 @@ impl Chat {
 
     pub fn last_read(&self) -> DateTime<Utc> {
         self.last_read
+    }
+
+    pub fn last_message_at(&self) -> Option<DateTime<Utc>> {
+        self.last_message_at
     }
 
     pub(crate) fn owner_domain(&self) -> Fqdn {
@@ -276,11 +288,11 @@ pub enum ChatType {
 }
 
 impl ChatType {
-    pub fn unconfirmed_contact(&self) -> Option<ContactType> {
+    pub fn unconfirmed_contact(&self) -> Option<PartialContactType> {
         match self {
-            ChatType::HandleConnection(handle) => Some(ContactType::Handle(handle.clone())),
+            ChatType::HandleConnection(handle) => Some(PartialContactType::Handle(handle.clone())),
             ChatType::TargetedMessageConnection(user_id) => {
-                Some(ContactType::TargetedMessage(user_id.clone()))
+                Some(PartialContactType::TargetedMessage(user_id.clone()))
             }
             _ => None,
         }

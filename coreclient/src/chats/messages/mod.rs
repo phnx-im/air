@@ -123,15 +123,16 @@ impl ChatMessage {
         }
     }
 
-    pub fn new_system_message(chat_id: ChatId, system_message: SystemMessage) -> Self {
-        let timestamped_message =
-            TimestampedMessage::system_message(system_message, TimeStamp::now());
-        Self {
+    pub(crate) fn new_system_message(
+        chat_id: ChatId,
+        ds_timestamp: TimeStamp,
+        system_message: SystemMessage,
+    ) -> Self {
+        Self::new(
             chat_id,
-            message_id: MessageId::random(),
-            timestamped_message,
-            status: MessageStatus::Read,
-        }
+            MessageId::random(),
+            TimestampedMessage::system_message(system_message, ds_timestamp),
+        )
     }
 
     pub fn new_for_test(
@@ -486,6 +487,7 @@ pub enum SystemMessage {
     NewHandleConnectionChat(UserHandle),
     /// We requested a connection with another user through a group.
     NewDirectConnectionChat(UserId),
+    CreateGroup(UserId),
 }
 
 impl SystemMessage {
@@ -558,6 +560,10 @@ impl SystemMessage {
             SystemMessage::NewDirectConnectionChat(user_id) => {
                 let display_name = store.user_profile(user_id).await.display_name;
                 format!("You requested a connection with {display_name}")
+            }
+            SystemMessage::CreateGroup(user_id) => {
+                let user_display_name = store.user_profile(user_id).await.display_name;
+                format!("{user_display_name} created the group")
             }
         }
     }

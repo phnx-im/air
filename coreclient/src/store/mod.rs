@@ -12,7 +12,7 @@ use mimi_room_policy::VerifiedRoomState;
 use tokio_stream::Stream;
 use uuid::Uuid;
 
-use crate::contacts::TargetedMessageContact;
+use crate::contacts::{ContactType, TargetedMessageContact};
 use crate::{
     AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact, MessageDraft,
     MessageId, clients::attachment::progress::AttachmentProgress, contacts::HandleContact,
@@ -61,6 +61,10 @@ pub trait Store {
 
     // user handles
 
+    /// Check whether a user handle exists on the AS. Relatively expensive
+    /// operation, as it requires computation of a handle hash.
+    async fn check_handle_exists(&self, user_handle: &UserHandle) -> StoreResult<bool>;
+
     async fn user_handles(&self) -> StoreResult<Vec<UserHandle>>;
 
     async fn user_handle_records(&self) -> StoreResult<Vec<UserHandleRecord>>;
@@ -85,8 +89,6 @@ pub trait Store {
     async fn set_chat_picture(&self, chat_id: ChatId, picture: Option<Vec<u8>>) -> StoreResult<()>;
 
     async fn set_chat_title(&self, chat_id: ChatId, title: String) -> StoreResult<()>;
-
-    async fn chats(&self) -> StoreResult<Vec<Chat>>;
 
     /// Returns the list of all chat ids in the order they should be displayed:
     ///
@@ -181,7 +183,7 @@ pub trait Store {
 
     async fn contacts(&self) -> StoreResult<Vec<Contact>>;
 
-    async fn contact(&self, user_id: &UserId) -> StoreResult<Option<Contact>>;
+    async fn contact(&self, user_id: &UserId) -> StoreResult<Option<ContactType>>;
 
     async fn handle_contacts(&self) -> StoreResult<Vec<HandleContact>>;
 

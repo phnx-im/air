@@ -215,11 +215,13 @@ void main() {
     late MockNavigationCubit navigationCubit;
     late MockChatListCubit chatListCubit;
     late MockUserCubit userCubit;
+    late MockUsersCubit usersCubit;
     late MockUserSettingsCubit userSettingsCubit;
 
     setUp(() async {
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
+      usersCubit = MockUsersCubit();
       chatListCubit = MockChatListCubit();
       userSettingsCubit = MockUserSettingsCubit();
 
@@ -227,6 +229,9 @@ void main() {
         () => navigationCubit.state,
       ).thenReturn(const NavigationState.home());
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
+      when(
+        () => usersCubit.state,
+      ).thenReturn(MockUsersState(profiles: userProfiles));
     });
 
     Widget buildSubject({
@@ -242,6 +247,7 @@ void main() {
         providers: [
           BlocProvider<NavigationCubit>.value(value: navigationCubit),
           BlocProvider<UserCubit>.value(value: userCubit),
+          BlocProvider<UsersCubit>.value(value: usersCubit),
           BlocProvider<ChatListCubit>.value(value: chatListCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
         ],

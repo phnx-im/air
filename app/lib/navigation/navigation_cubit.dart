@@ -61,9 +61,7 @@ class NavigationCubit implements StateStreamableSource<NavigationState> {
   Future<void> openIntroScreen(IntroScreenType screen) =>
       _impl.openIntroScreen(screen: screen);
 
-  Future<void> openUserSettings({
-    UserSettingsScreenType screen = UserSettingsScreenType.root,
-  }) => _impl.openUserSettings(screen: screen);
+  Future<void> openUserProfile() => _impl.openUserProfile();
 
   bool pop() => _impl.pop();
 

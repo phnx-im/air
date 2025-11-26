@@ -44,7 +44,7 @@ use crate::{
         targeted_message::TargetedMessageContent,
         update_key::update_chat_attributes,
     },
-    contacts::{ContactType, PartialContact},
+    contacts::{PartialContact, PartialContactType},
     groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
@@ -58,7 +58,7 @@ use super::{
 
 pub enum ProcessQsMessageResult {
     None,
-    NewChat(ChatId),
+    NewChat(ChatId, Vec<ChatMessage>),
     ChatChanged(ChatId, Vec<ChatMessage>),
     Messages(Vec<ChatMessage>),
     NewConnection(ChatId),
@@ -121,7 +121,7 @@ impl CoreUser {
         match qs_queue_message.payload {
             ExtractedQsQueueMessagePayload::WelcomeBundle(welcome_bundle) => {
                 // Box large future
-                Box::pin(self.handle_welcome_bundle(welcome_bundle)).await
+                Box::pin(self.handle_welcome_bundle(welcome_bundle, ds_timestamp)).await
             }
             ExtractedQsQueueMessagePayload::MlsMessage(mls_message) => {
                 self.handle_mls_message(*mls_message, ds_timestamp).await
@@ -145,12 +145,13 @@ impl CoreUser {
     async fn handle_welcome_bundle(
         &self,
         welcome_bundle: WelcomeBundle,
+        ds_timestamp: TimeStamp,
     ) -> Result<ProcessQsMessageResult> {
         // WelcomeBundle Phase 1: Join the group. This might involve
         // loading AS credentials or fetching them from the AS.
-        let (own_profile_key, own_profile_key_in_group, group, chat_id) =
+        let (own_profile_key, own_profile_key_in_group, group, chat_id, system_message) =
             Box::pin(self.with_transaction_and_notifier(async |txn, notifier| {
-                let (group, member_profile_info) = Group::join_group(
+                let (group, sender_user_id, member_profile_info) = Group::join_group(
                     welcome_bundle,
                     &self.inner.key_store.wai_ear_key,
                     txn,
@@ -198,7 +199,21 @@ impl CoreUser {
                 Chat::delete(txn.as_mut(), notifier, chat.id()).await?;
                 chat.store(txn.as_mut(), notifier).await?;
 
-                Ok((own_profile_key, own_profile_key_in_group, group, chat.id()))
+                // Add system message who added us to the group.
+                let system_message = ChatMessage::new_system_message(
+                    chat.id(),
+                    ds_timestamp,
+                    SystemMessage::Add(sender_user_id, self.user_id().clone()),
+                );
+                system_message.store(txn.as_mut(), notifier).await?;
+
+                Ok((
+                    own_profile_key,
+                    own_profile_key_in_group,
+                    group,
+                    chat.id(),
+                    system_message,
+                ))
             }))
             .await?;
 
@@ -222,7 +237,8 @@ impl CoreUser {
                 .await?;
         }
 
-        Ok(ProcessQsMessageResult::NewChat(chat_id))
+        let messages = vec![system_message];
+        Ok(ProcessQsMessageResult::NewChat(chat_id, messages))
     }
 
     async fn handle_targeted_application_message(
@@ -705,7 +721,7 @@ impl CoreUser {
 
         let sender_user_id = sender_client_credential.identity();
 
-        if let ContactType::TargetedMessage(chat_user_id) = &contact_type {
+        if let PartialContactType::TargetedMessage(chat_user_id) = &contact_type {
             ensure!(
                 sender_user_id == chat_user_id,
                 "Sender identity does not match targeted message user ID"
@@ -760,7 +776,7 @@ impl CoreUser {
         chat.confirm(txn.as_mut(), notifier, contact.user_id)
             .await?;
 
-        let user_handle = if let ContactType::Handle(handle) = contact_type {
+        let user_handle = if let PartialContactType::Handle(handle) = contact_type {
             Some(handle.clone())
         } else {
             None
@@ -875,9 +891,12 @@ impl CoreUser {
                 }
                 ProcessQsMessageResult::ChatChanged(chat_id, messages) => {
                     result.new_messages.extend(messages);
-                    result.changed_chats.push(chat_id)
+                    result.changed_chats.push(chat_id);
                 }
-                ProcessQsMessageResult::NewChat(chat_id) => result.new_chats.push(chat_id),
+                ProcessQsMessageResult::NewChat(chat_id, messages) => {
+                    result.new_messages.extend(messages);
+                    result.new_chats.push(chat_id);
+                }
                 ProcessQsMessageResult::None => {}
                 ProcessQsMessageResult::NewConnection(chat_id) => {
                     result.new_connections.push(chat_id)

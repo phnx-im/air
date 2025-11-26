@@ -362,6 +362,7 @@ pub enum UiSystemMessage {
     },
     NewHandleConnectionChat(UiUserHandle),
     NewDirectConnectionChat(UiUserId),
+    CreateGroup(UiUserId),
 }
 
 impl From<SystemMessage> for UiSystemMessage {
@@ -412,6 +413,7 @@ impl From<SystemMessage> for UiSystemMessage {
             SystemMessage::NewDirectConnectionChat(user_id) => {
                 UiSystemMessage::NewDirectConnectionChat(user_id.into())
             }
+            SystemMessage::CreateGroup(user_id) => UiSystemMessage::CreateGroup(user_id.into()),
         }
     }
 }

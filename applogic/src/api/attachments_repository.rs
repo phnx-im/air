@@ -2,7 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::sync::Arc;
+use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use aircommon::identifiers::AttachmentId;
 use aircoreclient::{
@@ -145,6 +150,40 @@ impl AttachmentsRepository {
         if let Some((_, handle)) = self.in_progress.remove(&attachment_id) {
             handle.cancel.cancel();
         }
+    }
+
+    pub async fn save_attachment(
+        &self,
+        destination_dir: String,
+        filename: String,
+        attachment_id: AttachmentId,
+        overwrite: bool,
+    ) -> anyhow::Result<()> {
+        let (AttachmentContent::Ready(data) | AttachmentContent::Uploading(data)) =
+            self.store.load_attachment(attachment_id).await?
+        else {
+            bail!("Attachment is not present on the device")
+        };
+
+        let dir = Path::new(&destination_dir);
+        if !dir.exists() {
+            fs::create_dir_all(dir)?;
+        } else if !dir.is_dir() {
+            bail!("Destination is not a directory");
+        }
+
+        let filename = PathBuf::from(filename);
+        let path = if overwrite {
+            dir.join(filename)
+        } else {
+            unique_path(dir, &filename)
+        };
+
+        let mut file = fs::File::create(&path)
+            .with_context(|| format!("Failed to create file at path: {}", path.display()))?;
+        file.write_all(&data)?;
+
+        Ok(())
     }
 
     async fn track_attachment_download(
@@ -322,4 +361,32 @@ pub enum UiAttachmentStatus {
     Completed,
     /// Failed to upload or download
     Failed,
+}
+
+fn unique_path(base_path: &Path, filename: &Path) -> PathBuf {
+    let mut path = base_path.join(filename);
+
+    if !path.exists() {
+        return path;
+    }
+
+    let stem = filename.file_stem().unwrap_or_default();
+    let ext = filename.extension();
+
+    for counter in 1.. {
+        let mut filename = stem.to_os_string();
+        filename.push("-");
+        filename.push(counter.to_string());
+        if let Some(ext) = ext {
+            filename.push(".");
+            filename.push(ext);
+        }
+
+        path = base_path.join(filename);
+        if !path.exists() {
+            break;
+        }
+    }
+
+    path
 }

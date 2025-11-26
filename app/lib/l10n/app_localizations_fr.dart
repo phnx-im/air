@@ -41,11 +41,36 @@ class AppLocalizationsFr extends AppLocalizations {
   String get userSettingsScreen_sendWithEnter => 'Envoyer avec Entrée';
 
   @override
+  String get userSettingsScreen_sendWithEnterDescription =>
+      'If disabled, pressing the Enter key won’t send a message.';
+
+  @override
   String get userSettingsScreen_readReceipts => 'Accusés de lecture';
 
   @override
   String get userSettingsScreen_readReceiptsDescription =>
       'Si vous les désactivez, les autres ne verront pas quand vous aurez lu leurs messages et vous ne verrez pas quand ils auront lu les vôtres.';
+
+  @override
+  String get userSettingsScreen_displayNameLabel => 'Display name';
+
+  @override
+  String get userSettingsScreen_usernamesSection => 'Usernames';
+
+  @override
+  String get userSettingsScreen_settingsSection => 'Settings';
+
+  @override
+  String get userSettingsScreen_helpSection => 'Help';
+
+  @override
+  String get userSettingsScreen_accountSection => 'Account';
+
+  @override
+  String get userSettingsScreen_userHandlePlaceholder => 'Nom d\'utilisateur';
+
+  @override
+  String get settingsScreen_copiedToClipboard => 'Copied to clipboard';
 
   @override
   String get removeUsernameDialog_title => 'Supprimer le nom d\'utilisateur';
@@ -59,9 +84,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get removeUsernameDialog_remove => 'Supprimer';
-
-  @override
-  String get userSettingsScreen_userHandlePlaceholder => 'Nom d\'utilisateur';
 
   @override
   String get addMembersScreen_addMembers => 'Ajouter des membres';
@@ -245,6 +267,12 @@ class AppLocalizationsFr extends AppLocalizations {
       'Choisissez un nom d\'utilisateur que d\'autres peuvent utiliser pour se connecter avec vous.\n\nUtilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.';
 
   @override
+  String get userHandleScreen_cancel => 'Cancel';
+
+  @override
+  String get userHandleScreen_confirm => 'Add';
+
+  @override
   String get userHandleScreen_save => 'Enregistrer';
 
   @override
@@ -253,6 +281,9 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get editDisplayNameScreen_description =>
       'Choisissez un nom que les autres verront lorsque vous communiquez avec eux.';
+
+  @override
+  String get editDisplayNameScreen_cancel => 'Cancel';
 
   @override
   String get editDisplayNameScreen_save => 'Enregistrer';
@@ -359,6 +390,14 @@ class AppLocalizationsFr extends AppLocalizations {
       ' changed the group picture';
 
   @override
+  String systemMessage_userCreatedGroup_prefix(Object user) {
+    return '$user';
+  }
+
+  @override
+  String get systemMessage_userCreatedGroup_suffix => ' created the group';
+
+  @override
   String get timestamp_now => 'Maintenant';
 
   @override
@@ -449,6 +488,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get attachment_tryAgain => 'Try again';
 
   @override
+  String get attachment_gallery => 'Gallery';
+
+  @override
+  String get attachment_camera => 'Camera';
+
+  @override
+  String get attachment_file => 'File';
+
+  @override
   String get textMessage_edited => 'modifié';
 
   @override
@@ -463,6 +511,15 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get messageContextMenu_edit => 'Modifier';
+
+  @override
+  String get messageContextMenu_save => 'Save';
+
+  @override
+  String get messageContextMenu_saveError => 'Failed to save attachment';
+
+  @override
+  String get messageContextMenu_saveConfirmation => 'Attachment saved';
 
   @override
   String get reportSpamButton_text => 'Signaler comme spam';
