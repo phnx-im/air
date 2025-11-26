@@ -646,9 +646,3 @@ impl From<UserHandle> for UiUserHandle {
         }
     }
 }
-
-impl From<String> for UiUserHandle {
-    fn from(plaintext: String) -> Self {
-        Self { plaintext }
-    }
-}
