@@ -8,18 +8,14 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/components/modal/app_dialog.dart';
 import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
-import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/dialog.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:image_picker/image_picker.dart';
-import 'package:provider/provider.dart';
 
 import 'change_group_title_dialog.dart';
 import 'chat_details_cubit.dart';
