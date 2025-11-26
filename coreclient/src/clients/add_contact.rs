@@ -18,6 +18,7 @@ use aircommon::{
         client_ds_out::{CreateGroupParamsOut, TargetedMessageParamsOut},
         connection_package::ConnectionPackage,
     },
+    time::TimeStamp,
 };
 use anyhow::{Context, bail};
 use openmls::group::GroupId;
@@ -25,7 +26,7 @@ use sqlx::SqliteTransaction;
 use tracing::info;
 
 use crate::{
-    Chat, ChatAttributes, ChatId, UserProfile,
+    Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage, UserProfile,
     clients::{
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
         targeted_message::TargetedMessageContent,
@@ -229,6 +230,12 @@ impl VerifiedConnectionPackagesWithGroupId<ConnectionPackage> {
         let chat = Chat::new_handle_chat(group_id.clone(), attributes, handle.clone());
         chat.store(txn.as_mut(), notifier).await?;
 
+        // Create the initial system message for the chat
+        let system_message = SystemMessage::NewHandleConnectionChat(handle);
+        let chat_message =
+            ChatMessage::new_system_message(chat.id(), TimeStamp::now(), system_message);
+        chat_message.store(txn.as_mut(), notifier).await?;
+
         Ok(LocalGroup {
             group,
             partial_params,
@@ -264,6 +271,12 @@ impl VerifiedConnectionPackagesWithGroupId<UserId> {
         // Create the connection chat
         let chat = Chat::new_targeted_message_chat(group_id.clone(), attributes, user_id.clone());
         chat.store(txn.as_mut(), notifier).await?;
+
+        // Create the initial system message for the chat
+        let system_message = SystemMessage::NewDirectConnectionChat(user_id.clone());
+        let chat_message =
+            ChatMessage::new_system_message(chat.id(), TimeStamp::now(), system_message);
+        chat_message.store(txn.as_mut(), notifier).await?;
 
         Ok(LocalGroup {
             group,

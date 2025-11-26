@@ -339,14 +339,14 @@ impl TargetedMessageContact {
 impl PartialContact {
     pub(crate) async fn load(
         executor: impl SqliteExecutor<'_>,
-        contact_type: PartialContactType,
+        contact_type: &PartialContactType,
     ) -> sqlx::Result<Option<Self>> {
         match contact_type {
-            PartialContactType::Handle(handle) => Ok(HandleContact::load(executor, &handle)
+            PartialContactType::Handle(handle) => Ok(HandleContact::load(executor, handle)
                 .await?
                 .map(PartialContact::Handle)),
             PartialContactType::TargetedMessage(user_id) => {
-                Ok(TargetedMessageContact::load(executor, &user_id)
+                Ok(TargetedMessageContact::load(executor, user_id)
                     .await?
                     .map(PartialContact::TargetedMessage))
             }

@@ -367,6 +367,26 @@ sealed class UiSystemMessage with _$UiSystemMessage {
   ) = UiSystemMessage_ChangeTitle;
   const factory UiSystemMessage.changePicture(UiUserId field0) =
       UiSystemMessage_ChangePicture;
+  const factory UiSystemMessage.receivedHandleConnectionRequest({
+    required UiUserId sender,
+    required UiUserHandle userHandle,
+  }) = UiSystemMessage_ReceivedHandleConnectionRequest;
+  const factory UiSystemMessage.receivedDirectConnectionRequest({
+    required UiUserId sender,
+    required String chatName,
+  }) = UiSystemMessage_ReceivedDirectConnectionRequest;
+  const factory UiSystemMessage.acceptedConnectionRequest({
+    required UiUserId sender,
+    UiUserHandle? userHandle,
+  }) = UiSystemMessage_AcceptedConnectionRequest;
+  const factory UiSystemMessage.receivedConnectionConfirmation({
+    required UiUserId sender,
+    UiUserHandle? userHandle,
+  }) = UiSystemMessage_ReceivedConnectionConfirmation;
+  const factory UiSystemMessage.newHandleConnectionChat(UiUserHandle field0) =
+      UiSystemMessage_NewHandleConnectionChat;
+  const factory UiSystemMessage.newDirectConnectionChat(UiUserId field0) =
+      UiSystemMessage_NewDirectConnectionChat;
   const factory UiSystemMessage.createGroup(UiUserId field0) =
       UiSystemMessage_CreateGroup;
 }

@@ -335,6 +335,50 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String systemMessage_acceptedHandleConnectionRequest(
+    Object displayName,
+    Object username,
+  ) {
+    return 'Du hast die Kontaktanfrage von $displayName akzeptiert, die über deinen Benutzernamen $username gestellt wurde.';
+  }
+
+  @override
+  String systemMessage_acceptedDirectConnectionRequest(Object displayName) {
+    return 'Du hast die Kontaktanfrage von $displayName akzeptiert, die über einen gemeinsamen Gruppenchat gestellt wurde.';
+  }
+
+  @override
+  String systemMessage_receivedConnectionConfirmation(Object displayName) {
+    return '$displayName hat deine Kontaktanfrage akzeptiert.';
+  }
+
+  @override
+  String systemMessage_newHandleConnectionChat(Object username) {
+    return 'Du hast eine Kontaktanfrage an den Benutzernamen $username gesendet. Die Person wird vielleicht nicht sofort über deine Anfrage benachrichtigt.';
+  }
+
+  @override
+  String systemMessage_newDirectConnectionChat(Object displayName) {
+    return 'Du hast eine Kontaktanfrage an $displayName gesendet. Die Person wird vielleicht nicht sofort über deine Anfrage benachrichtigt.';
+  }
+
+  @override
+  String systemMessage_receivedHandleConnectionRequest(
+    Object displayName,
+    Object username,
+  ) {
+    return '$displayName hat dir eine Kontaktanfrage über deinen Benutzernamen $username gesendet.';
+  }
+
+  @override
+  String systemMessage_receivedDirectConnectionRequest(
+    Object displayName,
+    Object groupName,
+  ) {
+    return '$displayName hat dir eine Kontaktanfrage über den Gruppenchat $groupName gesendet.';
+  }
+
+  @override
   String systemMessage_userChangedPicture_prefix(Object user) {
     return '$user';
   }
