@@ -228,7 +228,6 @@ class MainActivity : FlutterActivity() {
                 Log.d(TAG, "Successfully saved file to content:// URI: $uri")
                 result.success(null)
             } else {
-                // --- LEGACY PATH for Android 9 (API 28) and older ---
                 val directoryType = when {
                     mimeType.startsWith("image/") -> Environment.DIRECTORY_PICTURES
                     mimeType.startsWith("video/") -> Environment.DIRECTORY_MOVIES
