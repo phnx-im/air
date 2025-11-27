@@ -31,9 +31,13 @@ pub type StoreResult<T> = anyhow::Result<T>;
 
 #[derive(Debug)]
 pub enum AddHandleContactResult {
-    /// The contact was added successfully
     Ok(ChatId),
-    /// The user handle does not exist
+    Err(AddHandleContactError),
+}
+
+#[derive(Debug)]
+pub enum AddHandleContactError {
+    /// The contact could not be added because the user handle does not exist
     HandleNotFound,
     /// There is already a pending contact request for this user handle
     DuplicateRequest,

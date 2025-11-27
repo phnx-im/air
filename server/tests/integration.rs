@@ -28,7 +28,7 @@ use aircoreclient::{
         process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
     },
     outbound_service::KEY_PACKAGES,
-    store::{AddHandleContactResult, Store},
+    store::{AddHandleContactError, AddHandleContactResult, Store},
 };
 use airserver::RateLimitsConfig;
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
@@ -719,7 +719,10 @@ async fn error_if_user_doesnt_exist() {
         .await
         .unwrap();
 
-    assert!(matches!(res, AddHandleContactResult::HandleNotFound));
+    assert!(matches!(
+        res,
+        AddHandleContactResult::Err(AddHandleContactError::HandleNotFound)
+    ));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -1982,7 +1985,10 @@ async fn handle_sanity_checks() {
     let alice_user = &alice.user;
     let res = alice_user.add_contact(alice_handle.clone()).await.unwrap();
     assert!(
-        matches!(res, AddHandleContactResult::OwnHandle),
+        matches!(
+            res,
+            AddHandleContactResult::Err(AddHandleContactError::OwnHandle)
+        ),
         "Should not be able to add own handle as contact"
     );
 
@@ -1994,7 +2000,10 @@ async fn handle_sanity_checks() {
     );
     let res = alice_user.add_contact(bob_handle.clone()).await.unwrap();
     assert!(
-        matches!(res, AddHandleContactResult::DuplicateRequest),
+        matches!(
+            res,
+            AddHandleContactResult::Err(AddHandleContactError::DuplicateRequest)
+        ),
         "Should not be able to add Bob twice"
     );
 }

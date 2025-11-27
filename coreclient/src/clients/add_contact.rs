@@ -34,7 +34,7 @@ use crate::{
     contacts::{HandleContact, TargetedMessageContact},
     groups::{Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider},
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
-    store::{AddHandleContactResult, Store, StoreNotifier},
+    store::{AddHandleContactError, AddHandleContactResult, Store, StoreNotifier},
     utils::connection_ext::StoreExt,
 };
 
@@ -51,11 +51,15 @@ impl CoreUser {
         // Phase 0: Perform sanity checks
         // Check if a connection request is already pending
         if HandleContact::load(self.pool(), &handle).await?.is_some() {
-            return Ok(AddHandleContactResult::DuplicateRequest);
+            return Ok(AddHandleContactResult::Err(
+                AddHandleContactError::DuplicateRequest,
+            ));
         }
         // Check if the target handle is one of our own handles
         if self.user_handles().await?.contains(&handle) {
-            return Ok(AddHandleContactResult::OwnHandle);
+            return Ok(AddHandleContactResult::Err(
+                AddHandleContactError::OwnHandle,
+            ));
         }
 
         // Phase 1: Fetch a connection package from the AS
@@ -63,7 +67,9 @@ impl CoreUser {
             match client.as_connect_handle(handle.clone()).await {
                 Ok(res) => res,
                 Err(error) if error.is_not_found() => {
-                    return Ok(AddHandleContactResult::HandleNotFound);
+                    return Ok(AddHandleContactResult::Err(
+                        AddHandleContactError::HandleNotFound,
+                    ));
                 }
                 Err(error) => return Err(error.into()),
             };

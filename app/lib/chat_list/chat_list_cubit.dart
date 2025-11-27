@@ -4,9 +4,9 @@
 
 import 'dart:async';
 
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/core/core.dart';
 import 'package:air/user/user.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 class ChatListCubit implements StateStreamableSource<ChatListState> {
   ChatListCubit({required UserCubit userCubit})
@@ -29,7 +29,21 @@ class ChatListCubit implements StateStreamableSource<ChatListState> {
   Stream<ChatListState> get stream => _impl.stream();
 
   Future<ChatId?> createContactChat({required UiUserHandle handle}) =>
-      _impl.createContactChat(handle: handle);
+      () async {
+        final res = await _impl.createContactChat(handle: handle);
+        switch (res) {
+          case UiAddHandleContactResult_Ok(final chatId):
+            return chatId;
+          case UiAddHandleContactResult_Err(final error):
+            switch (error) {
+              case UiAddHandleContactError.handleNotFound:
+                return null;
+              case UiAddHandleContactError.duplicateRequest:
+              case UiAddHandleContactError.ownHandle:
+                throw Exception('Failed to create contact chat: $error');
+            }
+        }
+      }();
 
   Future<ChatId> createGroupChat({required String groupName}) =>
       _impl.createGroupChat(groupName: groupName);

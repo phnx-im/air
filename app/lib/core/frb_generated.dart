@@ -7727,6 +7727,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiAddHandleContactError dco_decode_ui_add_handle_contact_error(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return UiAddHandleContactError.values[raw as int];
+  }
+
+  @protected
   UiAddHandleContactResult dco_decode_ui_add_handle_contact_result(
     dynamic raw,
   ) {
@@ -7737,11 +7743,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           dco_decode_box_autoadd_chat_id(raw[1]),
         );
       case 1:
-        return UiAddHandleContactResult_HandleNotFound();
-      case 2:
-        return UiAddHandleContactResult_DuplicateRequest();
-      case 3:
-        return UiAddHandleContactResult_OwnHandle();
+        return UiAddHandleContactResult_Err(
+          dco_decode_ui_add_handle_contact_error(raw[1]),
+        );
       default:
         throw Exception("unreachable");
     }
@@ -10078,6 +10082,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiAddHandleContactError sse_decode_ui_add_handle_contact_error(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return UiAddHandleContactError.values[inner];
+  }
+
+  @protected
   UiAddHandleContactResult sse_decode_ui_add_handle_contact_result(
     SseDeserializer deserializer,
   ) {
@@ -10089,11 +10102,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_field0 = sse_decode_box_autoadd_chat_id(deserializer);
         return UiAddHandleContactResult_Ok(var_field0);
       case 1:
-        return UiAddHandleContactResult_HandleNotFound();
-      case 2:
-        return UiAddHandleContactResult_DuplicateRequest();
-      case 3:
-        return UiAddHandleContactResult_OwnHandle();
+        var var_field0 = sse_decode_ui_add_handle_contact_error(deserializer);
+        return UiAddHandleContactResult_Err(var_field0);
       default:
         throw UnimplementedError('');
     }
@@ -12656,6 +12666,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_ui_add_handle_contact_error(
+    UiAddHandleContactError self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
   void sse_encode_ui_add_handle_contact_result(
     UiAddHandleContactResult self,
     SseSerializer serializer,
@@ -12665,12 +12684,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case UiAddHandleContactResult_Ok(field0: final field0):
         sse_encode_i_32(0, serializer);
         sse_encode_box_autoadd_chat_id(field0, serializer);
-      case UiAddHandleContactResult_HandleNotFound():
+      case UiAddHandleContactResult_Err(field0: final field0):
         sse_encode_i_32(1, serializer);
-      case UiAddHandleContactResult_DuplicateRequest():
-        sse_encode_i_32(2, serializer);
-      case UiAddHandleContactResult_OwnHandle():
-        sse_encode_i_32(3, serializer);
+        sse_encode_ui_add_handle_contact_error(field0, serializer);
     }
   }
 

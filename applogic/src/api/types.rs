@@ -14,7 +14,7 @@ use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact, ContentMessage, DisplayName,
     ErrorMessage, EventMessage, InactiveChat, Message, SystemMessage, UserProfile,
-    store::{AddHandleContactResult, Store},
+    store::{AddHandleContactError, AddHandleContactResult, Store},
 };
 pub use aircoreclient::{ChatId, MessageDraft, MessageId};
 use chrono::{DateTime, Duration, Local, Utc};
@@ -521,18 +521,30 @@ impl From<Contact> for UiContact {
 
 pub enum UiAddHandleContactResult {
     Ok(ChatId),
-    HandleNotFound,
-    DuplicateRequest,
-    OwnHandle,
+    Err(UiAddHandleContactError),
 }
 
 impl From<AddHandleContactResult> for UiAddHandleContactResult {
     fn from(result: AddHandleContactResult) -> Self {
         match result {
             AddHandleContactResult::Ok(chat_id) => UiAddHandleContactResult::Ok(chat_id),
-            AddHandleContactResult::HandleNotFound => UiAddHandleContactResult::HandleNotFound,
-            AddHandleContactResult::DuplicateRequest => UiAddHandleContactResult::DuplicateRequest,
-            AddHandleContactResult::OwnHandle => UiAddHandleContactResult::OwnHandle,
+            AddHandleContactResult::Err(err) => UiAddHandleContactResult::Err(err.into()),
+        }
+    }
+}
+
+pub enum UiAddHandleContactError {
+    HandleNotFound,
+    DuplicateRequest,
+    OwnHandle,
+}
+
+impl From<AddHandleContactError> for UiAddHandleContactError {
+    fn from(error: AddHandleContactError) -> Self {
+        match error {
+            AddHandleContactError::HandleNotFound => UiAddHandleContactError::HandleNotFound,
+            AddHandleContactError::DuplicateRequest => UiAddHandleContactError::DuplicateRequest,
+            AddHandleContactError::OwnHandle => UiAddHandleContactError::OwnHandle,
         }
     }
 }

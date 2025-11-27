@@ -8645,6 +8645,19 @@ impl SseDecode for u8 {
     }
 }
 
+impl SseDecode for crate::api::types::UiAddHandleContactError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::UiAddHandleContactError::HandleNotFound,
+            1 => crate::api::types::UiAddHandleContactError::DuplicateRequest,
+            2 => crate::api::types::UiAddHandleContactError::OwnHandle,
+            _ => unreachable!("Invalid variant for UiAddHandleContactError: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for crate::api::types::UiAddHandleContactResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -8655,13 +8668,9 @@ impl SseDecode for crate::api::types::UiAddHandleContactResult {
                 return crate::api::types::UiAddHandleContactResult::Ok(var_field0);
             }
             1 => {
-                return crate::api::types::UiAddHandleContactResult::HandleNotFound;
-            }
-            2 => {
-                return crate::api::types::UiAddHandleContactResult::DuplicateRequest;
-            }
-            3 => {
-                return crate::api::types::UiAddHandleContactResult::OwnHandle;
+                let mut var_field0 =
+                    <crate::api::types::UiAddHandleContactError>::sse_decode(deserializer);
+                return crate::api::types::UiAddHandleContactResult::Err(var_field0);
             }
             _ => {
                 unimplemented!("");
@@ -10360,19 +10369,37 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::markdown::RangedInlineElement
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::UiAddHandleContactError {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::HandleNotFound => 0.into_dart(),
+            Self::DuplicateRequest => 1.into_dart(),
+            Self::OwnHandle => 2.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::UiAddHandleContactError
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiAddHandleContactError>
+    for crate::api::types::UiAddHandleContactError
+{
+    fn into_into_dart(self) -> crate::api::types::UiAddHandleContactError {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::types::UiAddHandleContactResult {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
             crate::api::types::UiAddHandleContactResult::Ok(field0) => {
                 [0.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::UiAddHandleContactResult::HandleNotFound => {
-                [1.into_dart()].into_dart()
+            crate::api::types::UiAddHandleContactResult::Err(field0) => {
+                [1.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::UiAddHandleContactResult::DuplicateRequest => {
-                [2.into_dart()].into_dart()
-            }
-            crate::api::types::UiAddHandleContactResult::OwnHandle => [3.into_dart()].into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -12279,6 +12306,23 @@ impl SseEncode for u8 {
     }
 }
 
+impl SseEncode for crate::api::types::UiAddHandleContactError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::UiAddHandleContactError::HandleNotFound => 0,
+                crate::api::types::UiAddHandleContactError::DuplicateRequest => 1,
+                crate::api::types::UiAddHandleContactError::OwnHandle => 2,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for crate::api::types::UiAddHandleContactResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -12287,14 +12331,9 @@ impl SseEncode for crate::api::types::UiAddHandleContactResult {
                 <i32>::sse_encode(0, serializer);
                 <crate::api::types::ChatId>::sse_encode(field0, serializer);
             }
-            crate::api::types::UiAddHandleContactResult::HandleNotFound => {
+            crate::api::types::UiAddHandleContactResult::Err(field0) => {
                 <i32>::sse_encode(1, serializer);
-            }
-            crate::api::types::UiAddHandleContactResult::DuplicateRequest => {
-                <i32>::sse_encode(2, serializer);
-            }
-            crate::api::types::UiAddHandleContactResult::OwnHandle => {
-                <i32>::sse_encode(3, serializer);
+                <crate::api::types::UiAddHandleContactError>::sse_encode(field0, serializer);
             }
             _ => {
                 unimplemented!("");

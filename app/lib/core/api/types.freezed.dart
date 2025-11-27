@@ -151,22 +151,22 @@ as bool,
 /// @nodoc
 mixin _$UiAddHandleContactResult {
 
-
+ Object get field0;
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAddHandleContactResult);
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAddHandleContactResult&&const DeepCollectionEquality().equals(other.field0, field0));
 }
 
 
 @override
-int get hashCode => runtimeType.hashCode;
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(field0));
 
 @override
 String toString() {
-  return 'UiAddHandleContactResult()';
+  return 'UiAddHandleContactResult(field0: $field0)';
 }
 
 
@@ -186,7 +186,7 @@ class UiAddHandleContactResult_Ok extends UiAddHandleContactResult {
   const UiAddHandleContactResult_Ok(this.field0): super._();
   
 
- final  ChatId field0;
+@override final  ChatId field0;
 
 /// Create a copy of UiAddHandleContactResult
 /// with the given fields replaced by the non-null parameter values.
@@ -248,98 +248,68 @@ as ChatId,
 /// @nodoc
 
 
-class UiAddHandleContactResult_HandleNotFound extends UiAddHandleContactResult {
-  const UiAddHandleContactResult_HandleNotFound(): super._();
+class UiAddHandleContactResult_Err extends UiAddHandleContactResult {
+  const UiAddHandleContactResult_Err(this.field0): super._();
   
 
+@override final  UiAddHandleContactError field0;
 
-
+/// Create a copy of UiAddHandleContactResult
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiAddHandleContactResult_ErrCopyWith<UiAddHandleContactResult_Err> get copyWith => _$UiAddHandleContactResult_ErrCopyWithImpl<UiAddHandleContactResult_Err>(this, _$identity);
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAddHandleContactResult_HandleNotFound);
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAddHandleContactResult_Err&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => runtimeType.hashCode;
+int get hashCode => Object.hash(runtimeType,field0);
 
 @override
 String toString() {
-  return 'UiAddHandleContactResult.handleNotFound()';
+  return 'UiAddHandleContactResult.err(field0: $field0)';
 }
 
 
 }
-
-
-
 
 /// @nodoc
+abstract mixin class $UiAddHandleContactResult_ErrCopyWith<$Res> implements $UiAddHandleContactResultCopyWith<$Res> {
+  factory $UiAddHandleContactResult_ErrCopyWith(UiAddHandleContactResult_Err value, $Res Function(UiAddHandleContactResult_Err) _then) = _$UiAddHandleContactResult_ErrCopyWithImpl;
+@useResult
+$Res call({
+ UiAddHandleContactError field0
+});
 
 
-class UiAddHandleContactResult_DuplicateRequest extends UiAddHandleContactResult {
-  const UiAddHandleContactResult_DuplicateRequest(): super._();
-  
-
-
-
-
-
-
-@override
-bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAddHandleContactResult_DuplicateRequest);
-}
-
-
-@override
-int get hashCode => runtimeType.hashCode;
-
-@override
-String toString() {
-  return 'UiAddHandleContactResult.duplicateRequest()';
-}
 
 
 }
-
-
-
-
 /// @nodoc
+class _$UiAddHandleContactResult_ErrCopyWithImpl<$Res>
+    implements $UiAddHandleContactResult_ErrCopyWith<$Res> {
+  _$UiAddHandleContactResult_ErrCopyWithImpl(this._self, this._then);
 
+  final UiAddHandleContactResult_Err _self;
+  final $Res Function(UiAddHandleContactResult_Err) _then;
 
-class UiAddHandleContactResult_OwnHandle extends UiAddHandleContactResult {
-  const UiAddHandleContactResult_OwnHandle(): super._();
-  
-
-
-
-
-
-
-@override
-bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAddHandleContactResult_OwnHandle);
-}
-
-
-@override
-int get hashCode => runtimeType.hashCode;
-
-@override
-String toString() {
-  return 'UiAddHandleContactResult.ownHandle()';
+/// Create a copy of UiAddHandleContactResult
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(UiAddHandleContactResult_Err(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as UiAddHandleContactError,
+  ));
 }
 
 
 }
-
-
-
 
 /// @nodoc
 mixin _$UiChatMessage {
