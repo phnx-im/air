@@ -117,7 +117,7 @@ class NotificationService: UNNotificationServiceExtension {
             jsonString.withCString { cString in
                 guard let responsePointer = process_new_messages(cString) else {
                     log.error("process_new_messages returned nil")
-                    self.deliverStandardLocalNotification(contentHandler)
+                    self.suppressNotifications()
                     return
                 }
                 
@@ -131,7 +131,7 @@ class NotificationService: UNNotificationServiceExtension {
                 else {
                     log.error(
                         "Could not decode response from Rust: \(responseString, privacy: .public)")
-                    self.deliverStandardLocalNotification(contentHandler)
+                    self.suppressNotifications()
                     return
                 }
                 
