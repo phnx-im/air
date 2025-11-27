@@ -209,7 +209,8 @@ abstract class RustLibApi extends BaseApi {
     required ChatListCubitBase that,
   });
 
-  Future<ChatId?> crateApiChatListCubitChatListCubitBaseCreateContactChat({
+  Future<UiAddHandleContactResult>
+  crateApiChatListCubitChatListCubitBaseCreateContactChat({
     required ChatListCubitBase that,
     required UiUserHandle handle,
   });
@@ -1718,7 +1719,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<ChatId?> crateApiChatListCubitChatListCubitBaseCreateContactChat({
+  Future<UiAddHandleContactResult>
+  crateApiChatListCubitChatListCubitBaseCreateContactChat({
     required ChatListCubitBase that,
     required UiUserHandle handle,
   }) {
@@ -1739,7 +1741,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_box_autoadd_chat_id,
+          decodeSuccessData: sse_decode_ui_add_handle_contact_result,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta:
@@ -7725,6 +7727,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiAddHandleContactResult dco_decode_ui_add_handle_contact_result(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return UiAddHandleContactResult_Ok(
+          dco_decode_box_autoadd_chat_id(raw[1]),
+        );
+      case 1:
+        return UiAddHandleContactResult_HandleNotFound();
+      case 2:
+        return UiAddHandleContactResult_DuplicateRequest();
+      case 3:
+        return UiAddHandleContactResult_OwnHandle();
+      default:
+        throw Exception("unreachable");
+    }
+  }
+
+  @protected
   UiAttachment dco_decode_ui_attachment(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -10052,6 +10075,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   int sse_decode_u_8(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint8();
+  }
+
+  @protected
+  UiAddHandleContactResult sse_decode_ui_add_handle_contact_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        var var_field0 = sse_decode_box_autoadd_chat_id(deserializer);
+        return UiAddHandleContactResult_Ok(var_field0);
+      case 1:
+        return UiAddHandleContactResult_HandleNotFound();
+      case 2:
+        return UiAddHandleContactResult_DuplicateRequest();
+      case 3:
+        return UiAddHandleContactResult_OwnHandle();
+      default:
+        throw UnimplementedError('');
+    }
   }
 
   @protected
@@ -12611,6 +12656,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_ui_add_handle_contact_result(
+    UiAddHandleContactResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case UiAddHandleContactResult_Ok(field0: final field0):
+        sse_encode_i_32(0, serializer);
+        sse_encode_box_autoadd_chat_id(field0, serializer);
+      case UiAddHandleContactResult_HandleNotFound():
+        sse_encode_i_32(1, serializer);
+      case UiAddHandleContactResult_DuplicateRequest():
+        sse_encode_i_32(2, serializer);
+      case UiAddHandleContactResult_OwnHandle():
+        sse_encode_i_32(3, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_ui_attachment(UiAttachment self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_attachment_id(self.attachmentId, serializer);
@@ -13159,9 +13223,9 @@ class ChatListCubitBaseImpl extends RustOpaque implements ChatListCubitBase {
   /// Creates a new 1:1 connection with the given user via a user handle.
   ///
   /// Returns `None` if the provided handle does not exist.
-  Future<ChatId?> createContactChat({required UiUserHandle handle}) => RustLib
-      .instance
-      .api
+  Future<UiAddHandleContactResult> createContactChat({
+    required UiUserHandle handle,
+  }) => RustLib.instance.api
       .crateApiChatListCubitChatListCubitBaseCreateContactChat(
         that: this,
         handle: handle,

@@ -149,6 +149,199 @@ as bool,
 }
 
 /// @nodoc
+mixin _$UiAddHandleContactResult {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAddHandleContactResult);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UiAddHandleContactResult()';
+}
+
+
+}
+
+/// @nodoc
+class $UiAddHandleContactResultCopyWith<$Res>  {
+$UiAddHandleContactResultCopyWith(UiAddHandleContactResult _, $Res Function(UiAddHandleContactResult) __);
+}
+
+
+
+/// @nodoc
+
+
+class UiAddHandleContactResult_Ok extends UiAddHandleContactResult {
+  const UiAddHandleContactResult_Ok(this.field0): super._();
+  
+
+ final  ChatId field0;
+
+/// Create a copy of UiAddHandleContactResult
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiAddHandleContactResult_OkCopyWith<UiAddHandleContactResult_Ok> get copyWith => _$UiAddHandleContactResult_OkCopyWithImpl<UiAddHandleContactResult_Ok>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAddHandleContactResult_Ok&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'UiAddHandleContactResult.ok(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiAddHandleContactResult_OkCopyWith<$Res> implements $UiAddHandleContactResultCopyWith<$Res> {
+  factory $UiAddHandleContactResult_OkCopyWith(UiAddHandleContactResult_Ok value, $Res Function(UiAddHandleContactResult_Ok) _then) = _$UiAddHandleContactResult_OkCopyWithImpl;
+@useResult
+$Res call({
+ ChatId field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiAddHandleContactResult_OkCopyWithImpl<$Res>
+    implements $UiAddHandleContactResult_OkCopyWith<$Res> {
+  _$UiAddHandleContactResult_OkCopyWithImpl(this._self, this._then);
+
+  final UiAddHandleContactResult_Ok _self;
+  final $Res Function(UiAddHandleContactResult_Ok) _then;
+
+/// Create a copy of UiAddHandleContactResult
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(UiAddHandleContactResult_Ok(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ChatId,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class UiAddHandleContactResult_HandleNotFound extends UiAddHandleContactResult {
+  const UiAddHandleContactResult_HandleNotFound(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAddHandleContactResult_HandleNotFound);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UiAddHandleContactResult.handleNotFound()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class UiAddHandleContactResult_DuplicateRequest extends UiAddHandleContactResult {
+  const UiAddHandleContactResult_DuplicateRequest(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAddHandleContactResult_DuplicateRequest);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UiAddHandleContactResult.duplicateRequest()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class UiAddHandleContactResult_OwnHandle extends UiAddHandleContactResult {
+  const UiAddHandleContactResult_OwnHandle(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAddHandleContactResult_OwnHandle);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UiAddHandleContactResult.ownHandle()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
 mixin _$UiChatMessage {
 
  ChatId get chatId; MessageId get id; DateTime get timestamp; UiMessage get message; UiFlightPosition get position; UiMessageStatus get status;

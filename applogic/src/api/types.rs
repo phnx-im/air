@@ -13,7 +13,8 @@ pub use aircommon::identifiers::UserHandle;
 use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact, ContentMessage, DisplayName,
-    ErrorMessage, EventMessage, InactiveChat, Message, SystemMessage, UserProfile, store::Store,
+    ErrorMessage, EventMessage, InactiveChat, Message, SystemMessage, UserProfile,
+    store::{AddHandleContactResult, Store},
 };
 pub use aircoreclient::{ChatId, MessageDraft, MessageId};
 use chrono::{DateTime, Duration, Local, Utc};
@@ -514,6 +515,24 @@ impl From<Contact> for UiContact {
     fn from(contact: Contact) -> Self {
         Self {
             user_id: contact.user_id.into(),
+        }
+    }
+}
+
+pub enum UiAddHandleContactResult {
+    Ok(ChatId),
+    HandleNotFound,
+    DuplicateRequest,
+    OwnHandle,
+}
+
+impl From<AddHandleContactResult> for UiAddHandleContactResult {
+    fn from(result: AddHandleContactResult) -> Self {
+        match result {
+            AddHandleContactResult::Ok(chat_id) => UiAddHandleContactResult::Ok(chat_id),
+            AddHandleContactResult::HandleNotFound => UiAddHandleContactResult::HandleNotFound,
+            AddHandleContactResult::DuplicateRequest => UiAddHandleContactResult::DuplicateRequest,
+            AddHandleContactResult::OwnHandle => UiAddHandleContactResult::OwnHandle,
         }
     }
 }

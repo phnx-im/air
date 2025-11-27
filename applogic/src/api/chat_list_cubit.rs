@@ -18,6 +18,7 @@ use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
 use tracing::error;
 
+use crate::api::types::UiAddHandleContactResult;
 use crate::{
     StreamSink,
     util::{Cubit, CubitCore, spawn_from_sync},
@@ -87,9 +88,9 @@ impl ChatListCubitBase {
     pub async fn create_contact_chat(
         &self,
         handle: UiUserHandle,
-    ) -> anyhow::Result<Option<ChatId>> {
+    ) -> anyhow::Result<UiAddHandleContactResult> {
         let handle = UserHandle::new(handle.plaintext)?;
-        self.context.store.add_contact(handle).await
+        self.context.store.add_contact(handle).await.map(Into::into)
     }
 
     /// Creates a new group chat with the given name.

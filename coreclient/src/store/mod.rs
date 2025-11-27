@@ -29,6 +29,18 @@ mod persistence;
 /// The result type of a failable [`Store`] method
 pub type StoreResult<T> = anyhow::Result<T>;
 
+#[derive(Debug)]
+pub enum AddHandleContactResult {
+    /// The contact was added successfully
+    Ok(ChatId),
+    /// The user handle does not exist
+    HandleNotFound,
+    /// There is already a pending contact request for this user handle
+    DuplicateRequest,
+    /// The given handle is our own
+    OwnHandle,
+}
+
 /// Unified access to the client data
 ///
 /// This trait is used to access the client data, e.g. the user profile, the chats or the messages.
@@ -167,7 +179,7 @@ pub trait Store {
     ///
     /// Returns the [`ChatId`] of the newly created connection
     /// chat, or `None` if the user handle does not exist.
-    async fn add_contact(&self, handle: UserHandle) -> StoreResult<Option<ChatId>>;
+    async fn add_contact(&self, handle: UserHandle) -> StoreResult<AddHandleContactResult>;
 
     /// Create a connection with a new user via an existing group chat.
     ///

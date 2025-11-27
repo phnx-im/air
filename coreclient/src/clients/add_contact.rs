@@ -34,7 +34,7 @@ use crate::{
     contacts::{HandleContact, TargetedMessageContact},
     groups::{Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider},
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
-    store::{Store, StoreNotifier},
+    store::{AddHandleContactResult, Store, StoreNotifier},
     utils::connection_ext::StoreExt,
 };
 
@@ -45,17 +45,17 @@ impl CoreUser {
     pub(crate) async fn add_contact_via_handle(
         &self,
         handle: UserHandle,
-    ) -> anyhow::Result<Option<ChatId>> {
+    ) -> anyhow::Result<AddHandleContactResult> {
         let client = self.api_client()?;
 
         // Phase 0: Perform sanity checks
         // Check if a connection request is already pending
         if HandleContact::load(self.pool(), &handle).await?.is_some() {
-            bail!("Connection request for this handle is already pending");
+            return Ok(AddHandleContactResult::DuplicateRequest);
         }
         // Check if the target handle is one of our own handles
         if self.user_handles().await?.contains(&handle) {
-            bail!("Cannot create connection to own handle");
+            return Ok(AddHandleContactResult::OwnHandle);
         }
 
         // Phase 1: Fetch a connection package from the AS
@@ -63,7 +63,7 @@ impl CoreUser {
             match client.as_connect_handle(handle.clone()).await {
                 Ok(res) => res,
                 Err(error) if error.is_not_found() => {
-                    return Ok(None);
+                    return Ok(AddHandleContactResult::HandleNotFound);
                 }
                 Err(error) => return Err(error.into()),
             };
@@ -84,40 +84,42 @@ impl CoreUser {
 
         let client_reference = self.create_own_client_reference();
 
-        self.with_transaction_and_notifier(async |txn, notifier| {
-            // Phase 4: Create a connection group
-            let local_group = connection_package
-                .create_local_connection_group(
-                    txn,
-                    notifier,
-                    &self.inner.key_store.signing_key,
-                    handle.clone(),
-                )
-                .await?;
+        let chat_id = self
+            .with_transaction_and_notifier(async |txn, notifier| {
+                // Phase 4: Create a connection group
+                let local_group = connection_package
+                    .create_local_connection_group(
+                        txn,
+                        notifier,
+                        &self.inner.key_store.signing_key,
+                        handle.clone(),
+                    )
+                    .await?;
 
-            let local_partial_contact = local_group
-                .create_handle_contact(
-                    txn,
-                    notifier,
-                    &self.inner.key_store,
-                    client_reference,
-                    self.user_id(),
-                    handle,
-                )
-                .await?;
+                let local_partial_contact = local_group
+                    .create_handle_contact(
+                        txn,
+                        notifier,
+                        &self.inner.key_store,
+                        client_reference,
+                        self.user_id(),
+                        handle,
+                    )
+                    .await?;
 
-            // Phase 5: Create the connection group on the DS and send off the connection offer
-            let chat_id = local_partial_contact
-                .create_connection_group_via_handle(
-                    &client,
-                    self.signing_key(),
-                    connection_offer_responder,
-                )
-                .await?;
+                // Phase 5: Create the connection group on the DS and send off the connection offer
+                let chat_id = local_partial_contact
+                    .create_connection_group_via_handle(
+                        &client,
+                        self.signing_key(),
+                        connection_offer_responder,
+                    )
+                    .await?;
 
-            Ok(Some(chat_id))
-        })
-        .await
+                Ok(chat_id)
+            })
+            .await?;
+        Ok(AddHandleContactResult::Ok(chat_id))
     }
 
     /// Create a connection with a user through a targeted message in a shared

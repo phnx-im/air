@@ -22,7 +22,7 @@ use crate::{
         user_settings::UserSettingRecord,
     },
     contacts::{ContactType, HandleContact, PartialContact, TargetedMessageContact},
-    store::UserSetting,
+    store::{AddHandleContactResult, UserSetting},
     user_handles::UserHandleRecord,
     user_profiles::UserProfile,
     utils::connection_ext::StoreExt,
@@ -161,7 +161,7 @@ impl Store for CoreUser {
         self.load_room_state(&chat_id).await
     }
 
-    async fn add_contact(&self, handle: UserHandle) -> StoreResult<Option<ChatId>> {
+    async fn add_contact(&self, handle: UserHandle) -> StoreResult<AddHandleContactResult> {
         self.add_contact_via_handle(handle).await
     }
 
