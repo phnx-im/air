@@ -408,8 +408,8 @@ impl ChatMessage {
         Ok(())
     }
 
-    /// Get the last content message in the chat.
-    pub(crate) async fn last_content_message(
+    /// Get the last message in the chat.
+    pub(crate) async fn last_message(
         executor: impl SqliteExecutor<'_>,
         chat_id: ChatId,
     ) -> sqlx::Result<Option<Self>> {
@@ -431,8 +431,6 @@ impl ChatMessage {
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
             WHERE chat_id = ?
-                AND sender_user_uuid IS NOT NULL
-                AND sender_user_domain IS NOT NULL
             ORDER BY timestamp DESC LIMIT 1"#,
             chat_id,
         )
