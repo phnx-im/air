@@ -90,42 +90,40 @@ impl CoreUser {
 
         let client_reference = self.create_own_client_reference();
 
-        let chat_id = self
-            .with_transaction_and_notifier(async |txn, notifier| {
-                // Phase 4: Create a connection group
-                let local_group = connection_package
-                    .create_local_connection_group(
-                        txn,
-                        notifier,
-                        &self.inner.key_store.signing_key,
-                        handle.clone(),
-                    )
-                    .await?;
+        self.with_transaction_and_notifier(async |txn, notifier| {
+            // Phase 4: Create a connection group
+            let local_group = connection_package
+                .create_local_connection_group(
+                    txn,
+                    notifier,
+                    &self.inner.key_store.signing_key,
+                    handle.clone(),
+                )
+                .await?;
 
-                let local_partial_contact = local_group
-                    .create_handle_contact(
-                        txn,
-                        notifier,
-                        &self.inner.key_store,
-                        client_reference,
-                        self.user_id(),
-                        handle,
-                    )
-                    .await?;
+            let local_partial_contact = local_group
+                .create_handle_contact(
+                    txn,
+                    notifier,
+                    &self.inner.key_store,
+                    client_reference,
+                    self.user_id(),
+                    handle,
+                )
+                .await?;
 
-                // Phase 5: Create the connection group on the DS and send off the connection offer
-                let chat_id = local_partial_contact
-                    .create_connection_group_via_handle(
-                        &client,
-                        self.signing_key(),
-                        connection_offer_responder,
-                    )
-                    .await?;
+            // Phase 5: Create the connection group on the DS and send off the connection offer
+            let chat_id = local_partial_contact
+                .create_connection_group_via_handle(
+                    &client,
+                    self.signing_key(),
+                    connection_offer_responder,
+                )
+                .await?;
 
-                Ok(chat_id)
-            })
-            .await?;
-        Ok(AddHandleContactResult::Ok(chat_id))
+            Ok(AddHandleContactResult::Ok(chat_id))
+        })
+        .await
     }
 
     /// Create a connection with a user through a targeted message in a shared
