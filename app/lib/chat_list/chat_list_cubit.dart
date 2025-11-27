@@ -28,22 +28,22 @@ class ChatListCubit implements StateStreamableSource<ChatListState> {
   @override
   Stream<ChatListState> get stream => _impl.stream();
 
-  Future<ChatId?> createContactChat({required UiUserHandle handle}) =>
-      () async {
-        final res = await _impl.createContactChat(handle: handle);
-        switch (res) {
-          case UiAddHandleContactResult_Ok(final chatId):
-            return chatId;
-          case UiAddHandleContactResult_Err(final error):
-            switch (error) {
-              case UiAddHandleContactError.handleNotFound:
-                return null;
-              case UiAddHandleContactError.duplicateRequest:
-              case UiAddHandleContactError.ownHandle:
-                throw Exception('Failed to create contact chat: $error');
-            }
+  Future<ChatId?> createContactChat({required UiUserHandle handle}) async {
+    final res = await _impl.createContactChat(handle: handle);
+
+    switch (res) {
+      case UiAddHandleContactResult_Ok(:final field0):
+        return field0;
+      case UiAddHandleContactResult_Err(:final field0):
+        switch (field0) {
+          case UiAddHandleContactError.handleNotFound:
+            return null;
+          case UiAddHandleContactError.duplicateRequest:
+          case UiAddHandleContactError.ownHandle:
+            throw Exception('Failed to create contact chat: $field0');
         }
-      }();
+    }
+  }
 
   Future<ChatId> createGroupChat({required String groupName}) =>
       _impl.createGroupChat(groupName: groupName);
