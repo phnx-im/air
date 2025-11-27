@@ -242,12 +242,15 @@ pub enum UiMessageStatus {
     Read,
     /// The message was hidden because it is from a blocked contact.
     Hidden,
+    /// Sending the message failed.
+    Error,
 }
 
 impl From<ChatMessage> for UiChatMessage {
     #[frb(ignore)]
     fn from(message: ChatMessage) -> Self {
         let status = match message.status() {
+            MessageStatus::Error => UiMessageStatus::Error,
             _ if !message.is_sent() => UiMessageStatus::Sending,
             MessageStatus::Read => UiMessageStatus::Read,
             MessageStatus::Delivered => UiMessageStatus::Delivered,

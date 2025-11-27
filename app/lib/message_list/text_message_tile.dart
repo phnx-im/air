@@ -424,6 +424,9 @@ class _MessageStatus extends StatelessWidget {
     final readReceiptsEnabled = context.select(
       (UserSettingsCubit cubit) => cubit.state.readReceipts,
     );
+    if (status == UiMessageStatus.error) {
+      return ErrorStatusIcon(size: LabelFontSize.small2.size);
+    }
     return DoubleCheckIcon(
       size: LabelFontSize.small2.size,
       singleCheckIcon: status == UiMessageStatus.sent,

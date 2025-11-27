@@ -88,3 +88,39 @@ class DoubleCheckIcon extends StatelessWidget {
     );
   }
 }
+
+class ErrorStatusIcon extends StatelessWidget {
+  const ErrorStatusIcon({
+    super.key,
+    this.size = 16,
+    this.borderWidth = 1,
+  });
+
+  final double size;
+  final double borderWidth;
+  final double iconSizeRatio = 0.8;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = CustomColorScheme.of(context);
+    final color = colors.function.danger;
+    final backgroundColor = colors.backgroundBase.primary;
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: color, width: borderWidth),
+        color: backgroundColor,
+      ),
+      child: Center(
+        child: Icon(
+          Icons.close,
+          color: color,
+          size: size * iconSizeRatio,
+        ),
+      ),
+    );
+  }
+}

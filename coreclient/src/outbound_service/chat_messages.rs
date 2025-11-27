@@ -79,6 +79,7 @@ impl OutboundServiceContext {
                     Ok(())
                 })
                 .await?;
+                return Ok(());
             };
 
             // Always delete the message from the queue. We don't want to automatically
