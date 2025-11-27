@@ -14,6 +14,7 @@ use airbackend::{
     qs::{
         Qs, QsConnector, errors::QsEnqueueError, grpc::GrpcQs, network_provider::NetworkProvider,
     },
+    settings::RateLimitsSettings,
 };
 use airprotos::{
     auth_service::v1::auth_service_server::AuthServiceServer,
@@ -31,7 +32,7 @@ use tower_governor::{
     GovernorLayer, governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor,
 };
 use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer};
-use tracing::{Level, enabled, info};
+use tracing::{Level, enabled, error, info};
 
 use crate::grpc_metrics::GrpcMetricsLayer;
 
@@ -50,14 +51,7 @@ pub struct ServerRunParams<Qc> {
     pub auth_service: AuthService,
     pub qs: Qs,
     pub qs_connector: Qc,
-    pub rate_limits: RateLimitsConfig,
-}
-
-/// Every `period`, allow bursts of up to `burst_size`-many requests, and replenish one element
-/// after the `period`.
-pub struct RateLimitsConfig {
-    pub period: Duration,
-    pub burst_size: u32,
+    pub rate_limits: RateLimitsSettings,
 }
 
 /// Configure and run the server application.
@@ -86,10 +80,12 @@ pub async fn run<
     let grpc_ds = GrpcDs::new(ds, qs_connector);
     let grpc_qs = GrpcQs::new(qs);
 
-    let RateLimitsConfig { period, burst_size } = rate_limits;
+    info!(?rate_limits, "Applying rate limits");
+    let RateLimitsSettings { period, burst } = rate_limits;
+
     let governor_config = GovernorConfigBuilder::default()
         .period(period)
-        .burst_size(burst_size)
+        .burst_size(burst)
         .key_extractor(SmartIpKeyExtractor)
         .finish()
         .expect("invalid governor config");
@@ -152,6 +148,7 @@ fn serve_metrics(metrics_listener: Option<TcpListener>) {
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(UPKEEP_TIMEOUT).await;
+                info!("running upkeep");
                 handle.run_upkeep();
             }
         });
@@ -159,7 +156,7 @@ fn serve_metrics(metrics_listener: Option<TcpListener>) {
         tokio::spawn(async move {
             info!(%addr, "Serving metrics");
             if let Err(error) = axum::serve(listener, router.into_make_service()).await {
-                tracing::error!(%error, "Metrics server stopped");
+                error!(%error, "Metrics server stopped");
             }
         });
     }

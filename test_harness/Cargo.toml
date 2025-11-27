@@ -23,4 +23,5 @@ tokio = { workspace = true, features = ["process"] }
 tokio-stream.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+url.workspace = true
 uuid = { workspace = true, features = ["v4"] }
