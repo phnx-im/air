@@ -73,6 +73,9 @@ class RemoveUsernameDialog extends StatelessWidget {
                     backgroundColor: WidgetStatePropertyAll(
                       colors.function.danger,
                     ),
+                    overlayColor: WidgetStatePropertyAll(
+                      colors.function.danger,
+                    ),
                     foregroundColor: WidgetStatePropertyAll(
                       colors.function.white,
                     ),

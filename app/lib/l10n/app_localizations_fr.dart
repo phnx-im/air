@@ -178,6 +178,18 @@ class AppLocalizationsFr extends AppLocalizations {
   String get deleteContactDialog_delete => 'Supprimer';
 
   @override
+  String get changeGroupTitleDialog_title => 'Change group title';
+
+  @override
+  String get changeGroupTitleDialog_content => 'Choose a title for the group.';
+
+  @override
+  String get changeGroupTitleDialog_cancel => 'Cancel';
+
+  @override
+  String get changeGroupTitleDialog_confirm => 'Save';
+
+  @override
   String get introScreen_signUp => 'S\'inscrire';
 
   @override

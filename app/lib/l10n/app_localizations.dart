@@ -388,6 +388,30 @@ abstract class AppLocalizations {
   /// **'Delete'**
   String get deleteContactDialog_delete;
 
+  /// No description provided for @changeGroupTitleDialog_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Change group title'**
+  String get changeGroupTitleDialog_title;
+
+  /// No description provided for @changeGroupTitleDialog_content.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a title for the group.'**
+  String get changeGroupTitleDialog_content;
+
+  /// No description provided for @changeGroupTitleDialog_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get changeGroupTitleDialog_cancel;
+
+  /// No description provided for @changeGroupTitleDialog_confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get changeGroupTitleDialog_confirm;
+
   /// No description provided for @introScreen_signUp.
   ///
   /// In en, this message translates to:
