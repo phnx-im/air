@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: CI
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  SQLX_OFFLINE: true
+
+jobs:
+  frb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      ## CHECK FRB
+      - uses: dtolnay/rust-toolchain@1.90.0
+      - run: curl -fsSL https://fvm.app/install.sh | bash
+      - run: (cd app && fvm install)
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/flutter_rust_bridge_codegen
+          key: cargo-install-${{ runner.os }}-frb-2.11.1
+      - run: if ! command -v flutter_rust_bridge_codegen; then cargo install flutter_rust_bridge_codegen@2.11.1; fi
+      - uses: extractions/setup-just@v2
+      - run: just check-frb
+
+  flutter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          lfs: true
+
+      # CHECK FLUTTER
+      - run: curl -fsSL https://fvm.app/install.sh | bash
+      - run: (cd app && fvm install)
+      - uses: extractions/setup-just@v2
+      - run: just check-flutter
+
+      # TEST FLUTTER
+      - run: just test-flutter
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: golden-failures
+          path: app/test/**/failures/*
+
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # CHECK RUST
+      - uses: taiki-e/install-action@cargo-machete
+      - uses: dtolnay/rust-toolchain@1.90.0
+      - uses: cargo-bins/cargo-binstall@main
+      - run: cargo binstall cargo-deny@0.18.5 --no-confirm
+      - uses: Swatinem/rust-cache@v2
+      - run: pip3 install --user reuse
+      - run: pip3 install --user podman-compose
+      - uses: extractions/setup-just@v2
+      - run: just check-rust
+
+      # TEST RUST
+      - run: just start-docker-compose
+      - run: just test-rust

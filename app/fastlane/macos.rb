@@ -105,10 +105,10 @@ platform :mac do
     setup_ci()
 
     # Install flutter dependencies
-    sh "flutter pub get"
+    sh "fvm flutter pub get"
 
     # Build the app with flutter first to create the necessary ephemeral files
-    sh "flutter build macos --config-only #{skip_signing ? '--debug' : '--release'}"
+    sh "fvm flutter build macos --config-only #{skip_signing ? '--debug' : '--release'}"
 
     # Install CocoaPods dependencies
     cocoapods(

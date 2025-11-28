@@ -13,17 +13,18 @@ on:
     branches:
       - main
     paths:
-      - 'coreclient/**'
-      - 'apiclient/**'
-      - 'applogic/**'
-      - 'common/**'
-      - 'app/**'
-      - 'Cargo.toml'
+      - "coreclient/**"
+      - "apiclient/**"
+      - "applogic/**"
+      - "common/**"
+      - "app/**"
+      - "Cargo.toml"
   workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
+  SQLX_OFFLINE: true
 
 jobs:
   android-publish:
@@ -35,33 +36,27 @@ jobs:
         with:
           lfs: true
 
-      - name: Set up Just
-        uses: extractions/setup-just@v2
-
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.3'
+          ruby-version: "3.3"
 
-      - name: Set up Flutter FVM
-        uses: kuhnroyal/flutter-fvm-config-action/setup@v3
-        with:
-          path: 'app/.fvmrc'
-          cache: false
+      - run: curl -fsSL https://fvm.app/install.sh | bash
 
       - name: Install required Java version
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: "temurin"
+          java-version: "17"
 
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@1.90.0
 
+      - run: cargo binstall cargo-ndk --no-confirm
       - name: Set up Android CI
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: just setup-android-ci
+        run: cd app/fastlane && bundle install
 
       - name: Build and upload to Play Store
         env:
