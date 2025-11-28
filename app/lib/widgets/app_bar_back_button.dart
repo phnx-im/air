@@ -10,18 +10,24 @@ import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:provider/provider.dart';
 
 class AppBarBackButton extends StatelessWidget {
-  const AppBarBackButton({super.key, this.backgroundColor});
+  const AppBarBackButton({
+    super.key,
+    this.foregroundColor,
+    this.backgroundColor,
+  });
 
+  final Color? foregroundColor;
   final Color? backgroundColor;
 
   @override
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
+    final foregroundColor = this.foregroundColor ?? colors.text.primary;
     final backgroundColor =
         this.backgroundColor ?? colors.backgroundBase.secondary;
 
     return Padding(
-      padding: const EdgeInsets.only(left: Spacings.m),
+      padding: const EdgeInsets.only(left: Spacings.s),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -42,7 +48,7 @@ class AppBarBackButton extends StatelessWidget {
             child: SizedBox.square(
               dimension: 24,
               child: Center(
-                child: iconoir.ArrowLeft(width: 16, color: colors.text.primary),
+                child: iconoir.ArrowLeft(width: 16, color: foregroundColor),
               ),
             ),
           ),

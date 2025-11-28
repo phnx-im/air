@@ -87,6 +87,9 @@ class UserCubit implements StateStreamableSource<UiUser> {
   Future<void> reportSpam(UiUserId spammerId) =>
       _impl.reportSpam(spammerId: spammerId);
 
-  Future<void> deleteAccount() async =>
-      _impl.deleteAccount(dbPath: await dbPath());
+  Future<void> deleteAccount({required String confirmationText}) async =>
+      _impl.deleteAccount(
+        dbPath: await dbPath(),
+        confirmationText: confirmationText,
+      );
 }

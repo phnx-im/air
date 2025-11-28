@@ -94,6 +94,15 @@
   "systemMessage_userRemovedUser_infix": " hat ",
   "systemMessage_userRemovedUser_suffix": "{user2} entfernt",
 
+  "systemMessage_acceptedHandleConnectionRequest": "Du hast die Kontaktanfrage von {displayName} akzeptiert, die über deinen Benutzernamen {username} gestellt wurde.",
+  "systemMessage_acceptedDirectConnectionRequest": "Du hast die Kontaktanfrage von {displayName} akzeptiert, die über einen gemeinsamen Gruppenchat gestellt wurde.",
+  "systemMessage_receivedConnectionConfirmation": "{displayName} hat deine Kontaktanfrage akzeptiert.",
+  "systemMessage_newHandleConnectionChat": "Du hast eine Kontaktanfrage an den Benutzernamen {username} gesendet. Die Person wird vielleicht nicht sofort über deine Anfrage benachrichtigt.",
+  "systemMessage_newDirectConnectionChat": "Du hast eine Kontaktanfrage an {displayName} gesendet. Die Person wird vielleicht nicht sofort über deine Anfrage benachrichtigt.",
+  "systemMessage_receivedHandleConnectionRequest": "{displayName} hat dir eine Kontaktanfrage über deinen Benutzernamen {username} gesendet.",
+  "systemMessage_receivedDirectConnectionRequest": "{displayName} hat dir eine Kontaktanfrage über den Gruppenchat {groupName} gesendet.",
+
+
   "timestamp_now": "Jetzt",
   "timestamp_yesterday": "Gestern",
 
@@ -135,12 +144,19 @@
   },
 
   "attachment_tryAgain": "Erneut versuchen",
+  "attachment_gallery": "Galerie",
+  "attachment_camera": "Kamera",
+  "attachment_file": "Datei",
 
   "textMessage_edited": "bearbeitet",
   "textMessage_hiddenPlaceholder": "Blockierter Benutzer, tippe, um die Nachricht anzuzeigen",
   "textMessage_deleted": "Nachricht gelöscht",
   "messageContextMenu_copy": "Kopieren",
   "messageContextMenu_edit": "Bearbeiten",
+  "messageContextMenu_save": "Speichern",
+
+  "messageContextMenu_saveError": "Anhang konnte nicht gespeichert werden",
+  "messageContextMenu_saveConfirmation": "Anhang gespeichert",
 
   "reportSpamButton_text": "Spam melden",
   "reportSpamDialog_title": "Spam melden?",

@@ -39,18 +39,27 @@ void main() {
   group('DeveloperSettingsScreen', () {
     late MockUser user;
     late MockLoadableUserCubit loadableUserCubit;
+    late MockUsersCubit usersCubit;
 
     setUp(() async {
       user = MockUser();
+      usersCubit = MockUsersCubit();
       loadableUserCubit = MockLoadableUserCubit();
 
       when(() => user.userId).thenReturn(1.userId());
       when(() => loadableUserCubit.state).thenReturn(LoadableUser.loaded(user));
+      when(() => usersCubit.state).thenReturn(
+        MockUsersState(
+          defaultUserId: 1.userId(),
+          profiles: clientRecords.map((record) => record.userProfile).toList(),
+        ),
+      );
     });
 
     Widget buildSubject() => MultiBlocProvider(
       providers: [
         BlocProvider<LoadableUserCubit>.value(value: loadableUserCubit),
+        BlocProvider<UsersCubit>.value(value: usersCubit),
       ],
       child: Builder(
         builder: (context) {

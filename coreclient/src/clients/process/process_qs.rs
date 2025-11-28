@@ -44,7 +44,7 @@ use crate::{
         targeted_message::TargetedMessageContent,
         update_key::update_chat_attributes,
     },
-    contacts::{ContactType, PartialContact},
+    contacts::{PartialContact, PartialContactType},
     groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
@@ -58,7 +58,7 @@ use super::{
 
 pub enum ProcessQsMessageResult {
     None,
-    NewChat(ChatId),
+    NewChat(ChatId, Vec<ChatMessage>),
     ChatChanged(ChatId, Vec<ChatMessage>),
     Messages(Vec<ChatMessage>),
     NewConnection(ChatId),
@@ -121,7 +121,7 @@ impl CoreUser {
         match qs_queue_message.payload {
             ExtractedQsQueueMessagePayload::WelcomeBundle(welcome_bundle) => {
                 // Box large future
-                Box::pin(self.handle_welcome_bundle(welcome_bundle)).await
+                Box::pin(self.handle_welcome_bundle(welcome_bundle, ds_timestamp)).await
             }
             ExtractedQsQueueMessagePayload::MlsMessage(mls_message) => {
                 self.handle_mls_message(*mls_message, ds_timestamp).await
@@ -145,12 +145,13 @@ impl CoreUser {
     async fn handle_welcome_bundle(
         &self,
         welcome_bundle: WelcomeBundle,
+        ds_timestamp: TimeStamp,
     ) -> Result<ProcessQsMessageResult> {
         // WelcomeBundle Phase 1: Join the group. This might involve
         // loading AS credentials or fetching them from the AS.
-        let (own_profile_key, own_profile_key_in_group, group, chat_id) =
+        let (own_profile_key, own_profile_key_in_group, group, chat_id, system_message) =
             Box::pin(self.with_transaction_and_notifier(async |txn, notifier| {
-                let (group, member_profile_info) = Group::join_group(
+                let (group, sender_user_id, member_profile_info) = Group::join_group(
                     welcome_bundle,
                     &self.inner.key_store.wai_ear_key,
                     txn,
@@ -198,7 +199,21 @@ impl CoreUser {
                 Chat::delete(txn.as_mut(), notifier, chat.id()).await?;
                 chat.store(txn.as_mut(), notifier).await?;
 
-                Ok((own_profile_key, own_profile_key_in_group, group, chat.id()))
+                // Add system message who added us to the group.
+                let system_message = ChatMessage::new_system_message(
+                    chat.id(),
+                    ds_timestamp,
+                    SystemMessage::Add(sender_user_id, self.user_id().clone()),
+                );
+                system_message.store(txn.as_mut(), notifier).await?;
+
+                Ok((
+                    own_profile_key,
+                    own_profile_key_in_group,
+                    group,
+                    chat.id(),
+                    system_message,
+                ))
             }))
             .await?;
 
@@ -222,7 +237,8 @@ impl CoreUser {
                 .await?;
         }
 
-        Ok(ProcessQsMessageResult::NewChat(chat_id))
+        let messages = vec![system_message];
+        Ok(ProcessQsMessageResult::NewChat(chat_id, messages))
     }
 
     async fn handle_targeted_application_message(
@@ -632,23 +648,22 @@ impl CoreUser {
         // StagedCommitMessage Phase 1: Confirm the chat if unconfirmed
         let mut notifier = self.store_notifier();
 
-        let chat_changed = if chat.is_unconfirmed() {
-            self.handle_unconfirmed_chat(
-                txn,
-                &mut notifier,
-                aad,
-                sender,
-                sender_client_credential,
-                &mut chat,
-                group,
-            )
-            .await?;
-            true
+        let (chat_changed, mut group_messages) = if chat.is_unconfirmed() {
+            let group_messages = self
+                .handle_unconfirmed_chat(
+                    txn,
+                    &mut notifier,
+                    aad,
+                    sender,
+                    sender_client_credential,
+                    &mut chat,
+                    group,
+                )
+                .await?;
+            (true, vec![group_messages])
         } else {
-            false
+            (false, vec![])
         };
-
-        let mut group_messages = Vec::new();
 
         // StagedCommitMessage Phase 2: Merge the staged commit into the group.
 
@@ -693,8 +708,8 @@ impl CoreUser {
         sender_client_credential: &ClientCredential,
         chat: &mut Chat,
         group: &mut Group,
-    ) -> Result<(), anyhow::Error> {
-        let Some(contact) = chat.chat_type().unconfirmed_contact() else {
+    ) -> Result<TimestampedMessage, anyhow::Error> {
+        let Some(contact_type) = chat.chat_type().unconfirmed_contact() else {
             bail!("Chat is not unconfirmed");
         };
 
@@ -706,7 +721,7 @@ impl CoreUser {
 
         let sender_user_id = sender_client_credential.identity();
 
-        if let ContactType::TargetedMessage(chat_user_id) = &contact {
+        if let PartialContactType::TargetedMessage(chat_user_id) = &contact_type {
             ensure!(
                 sender_user_id == chat_user_id,
                 "Sender identity does not match targeted message user ID"
@@ -715,7 +730,7 @@ impl CoreUser {
 
         // UnconfirmedConnection Phase 1: Load up the partial contact and decrypt the
         // friendship package
-        let contact = PartialContact::load(txn.as_mut(), contact)
+        let contact = PartialContact::load(txn.as_mut(), &contact_type)
             .await?
             .context("No contact found: {contact:?}")?;
 
@@ -761,7 +776,19 @@ impl CoreUser {
         chat.confirm(txn.as_mut(), notifier, contact.user_id)
             .await?;
 
-        Ok(())
+        let user_handle = if let PartialContactType::Handle(handle) = contact_type {
+            Some(handle.clone())
+        } else {
+            None
+        };
+        let system_message = SystemMessage::ReceivedConnectionConfirmation {
+            sender: sender_user_id.clone(),
+            user_handle,
+        };
+
+        let message = TimestampedMessage::system_message(system_message, TimeStamp::now());
+
+        Ok(message)
     }
 
     async fn handle_user_profile_key_update(
@@ -864,9 +891,12 @@ impl CoreUser {
                 }
                 ProcessQsMessageResult::ChatChanged(chat_id, messages) => {
                     result.new_messages.extend(messages);
-                    result.changed_chats.push(chat_id)
+                    result.changed_chats.push(chat_id);
                 }
-                ProcessQsMessageResult::NewChat(chat_id) => result.new_chats.push(chat_id),
+                ProcessQsMessageResult::NewChat(chat_id, messages) => {
+                    result.new_messages.extend(messages);
+                    result.new_chats.push(chat_id);
+                }
                 ProcessQsMessageResult::None => {}
                 ProcessQsMessageResult::NewConnection(chat_id) => {
                     result.new_connections.push(chat_id)

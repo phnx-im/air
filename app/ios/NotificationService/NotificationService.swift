@@ -39,7 +39,6 @@ struct ChatId: Codable {
 class NotificationService: UNNotificationServiceExtension {
     
     var contentHandler: ((UNNotificationContent) -> Void)?
-    var bestAttemptContent: UNMutableNotificationContent?
     
     override func didReceive(
         _ request: UNNotificationRequest,
@@ -48,10 +47,12 @@ class NotificationService: UNNotificationServiceExtension {
         
         log.info("Received notification")
         self.contentHandler = contentHandler
-        bestAttemptContent = (request.content.mutableCopy() as? UNMutableNotificationContent)
         
-        guard let bestAttemptContent = bestAttemptContent else {
-            contentHandler(request.content)
+        guard
+            let incomingNotification =
+                (request.content.mutableCopy() as? UNMutableNotificationContent)
+        else {
+            self.suppressNotifications()
             return
         }
         
@@ -59,13 +60,13 @@ class NotificationService: UNNotificationServiceExtension {
         let userInfo = request.content.userInfo
         guard let data = userInfo["data"] as? String else {
             log.info("Data field not set")
-            contentHandler(request.content)
+            self.suppressNotifications()
             return
         }
         
         guard let dbUrl = getDatabasesDirectoryPath() else {
             log.error("Could not find databases directory")
-            contentHandler(request.content)
+            self.suppressNotifications()
             return
         }
         
@@ -93,7 +94,7 @@ class NotificationService: UNNotificationServiceExtension {
                 forSecurityApplicationGroupIdentifier: "group.ms.air")
         else {
             log.error("Could not find cache directory")
-            contentHandler(request.content)
+            self.suppressNotifications()
             return
         }
         let sharedCaches = sharedContainer.appendingPathComponent("Caches")
@@ -102,8 +103,8 @@ class NotificationService: UNNotificationServiceExtension {
         
         // Create IncomingNotificationContent object
         let incomingContent = IncomingNotificationContent(
-            title: bestAttemptContent.title,
-            body: bestAttemptContent.body,
+            title: incomingNotification.title,
+            body: incomingNotification.body,
             data: data,
             path: dbUrl.path,
             logFilePath: logFilePath
@@ -116,7 +117,7 @@ class NotificationService: UNNotificationServiceExtension {
             jsonString.withCString { cString in
                 guard let responsePointer = process_new_messages(cString) else {
                     log.error("process_new_messages returned nil")
-                    self.deliverStandardLocalNotification(contentHandler)
+                    self.suppressNotifications()
                     return
                 }
                 
@@ -128,14 +129,16 @@ class NotificationService: UNNotificationServiceExtension {
                     let notificationBatch = try? JSONDecoder().decode(
                         NotificationBatch.self, from: responseData)
                 else {
-                    log.error("Could not decode response from Rust: \(responseString, privacy: .public)")
-                    self.deliverStandardLocalNotification(contentHandler)
+                    log.error(
+                        "Could not decode response from Rust: \(responseString, privacy: .public)")
+                    self.suppressNotifications()
                     return
                 }
                 
                 self.handleNotificationBatch(notificationBatch, contentHandler: contentHandler)
                 log.info(
-                    "Number of successfully processed messages: \(notificationBatch.additions.count)")
+                    "Number of successfully processed messages: \(notificationBatch.additions.count)"
+                )
             }
         } else {
             contentHandler(request.content)
@@ -144,11 +147,7 @@ class NotificationService: UNNotificationServiceExtension {
     
     override func serviceExtensionTimeWillExpire() {
         log.notice("Expiration handler invoked")
-        if let contentHandler = contentHandler, let bestAttemptContent = bestAttemptContent {
-            bestAttemptContent.title = "Timer expired"
-            bestAttemptContent.body = "Please report this issue"
-            contentHandler(bestAttemptContent)
-        }
+        self.suppressNotifications()
     }
     
     func handleNotificationBatch(
@@ -160,9 +159,9 @@ class NotificationService: UNNotificationServiceExtension {
         // Remove notifications
         center.removeDeliveredNotifications(withIdentifiers: batch.removals)
         
-        // When Rust does not return any notifications, we fall back to a generic one
+        // When Rust does not return any notifications, we don't want to show anything
         if batch.additions.isEmpty {
-            deliverStandardLocalNotification(contentHandler, badge: batch.badgeCount)
+            suppressNotifications(badge: batch.badgeCount)
             return
         }
         
@@ -187,7 +186,9 @@ class NotificationService: UNNotificationServiceExtension {
                     trigger: nil)
                 center.add(request) { error in
                     if let error = error {
-                        log.error("Error adding notification: \(error.localizedDescription, privacy: .public)")
+                        log.error(
+                            "Error adding notification: \(error.localizedDescription, privacy: .public)"
+                        )
                     }
                     dispatchGroup.leave()
                 }
@@ -207,23 +208,20 @@ class NotificationService: UNNotificationServiceExtension {
             }
             // Add the badge number
             content.badge = NSNumber(value: batch.badgeCount)
-            // Delay the callback by 1 second so that the notifications can be removed
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            // Delay the callback by 100 ms so that the notifications can be removed
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 contentHandler(content)
             }
         }
     }
     
-    private func deliverStandardLocalNotification(
-        _ contentHandler: @escaping (UNNotificationContent) -> Void, badge: UInt32? = nil
-    ) {
-        let fallbackContent = UNMutableNotificationContent()
-        fallbackContent.title = "New message"
-        fallbackContent.body = ""
+    private func suppressNotifications(badge: UInt32? = nil) {
+        guard let contentHandler = self.contentHandler else { return }
+        let content = UNMutableNotificationContent()
         if let badge = badge {
-            fallbackContent.badge = NSNumber(value: badge)
+            content.badge = NSNumber(value: badge)
         }
-        contentHandler(fallbackContent)
+        contentHandler(content)
     }
     
     // Apply file protection

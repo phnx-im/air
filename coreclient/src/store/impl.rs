@@ -18,10 +18,11 @@ use crate::{
     MessageId,
     clients::{
         CoreUser,
+        add_contact::AddHandleContactResult,
         attachment::{AttachmentRecord, progress::AttachmentProgress},
         user_settings::UserSettingRecord,
     },
-    contacts::{HandleContact, TargetedMessageContact},
+    contacts::{ContactType, HandleContact, PartialContact, TargetedMessageContact},
     store::UserSetting,
     user_handles::UserHandleRecord,
     user_profiles::UserProfile,
@@ -73,6 +74,12 @@ impl Store for CoreUser {
         Ok(())
     }
 
+    async fn check_handle_exists(&self, user_handle: &UserHandle) -> StoreResult<bool> {
+        let hash = user_handle.calculate_hash()?;
+        let handle_exists = self.api_client()?.as_check_handle_exists(hash).await?;
+        Ok(handle_exists)
+    }
+
     async fn user_handles(&self) -> StoreResult<Vec<UserHandle>> {
         Ok(UserHandleRecord::load_all_handles(self.pool()).await?)
     }
@@ -105,10 +112,6 @@ impl Store for CoreUser {
 
     async fn set_chat_title(&self, chat_id: ChatId, title: String) -> StoreResult<()> {
         self.set_chat_title(chat_id, title).await
-    }
-
-    async fn chats(&self) -> StoreResult<Vec<Chat>> {
-        Ok(self.chats().await?)
     }
 
     async fn ordered_chat_ids(&self) -> StoreResult<Vec<ChatId>> {
@@ -159,7 +162,7 @@ impl Store for CoreUser {
         self.load_room_state(&chat_id).await
     }
 
-    async fn add_contact(&self, handle: UserHandle) -> StoreResult<Option<ChatId>> {
+    async fn add_contact(&self, handle: UserHandle) -> StoreResult<AddHandleContactResult> {
         self.add_contact_via_handle(handle).await
     }
 
@@ -184,8 +187,18 @@ impl Store for CoreUser {
         Ok(self.contacts().await?)
     }
 
-    async fn contact(&self, user_id: &UserId) -> StoreResult<Option<Contact>> {
-        Ok(self.try_contact(user_id).await?)
+    async fn contact(&self, user_id: &UserId) -> StoreResult<Option<ContactType>> {
+        if let Some(contact) = self.try_contact(user_id).await? {
+            Ok(Some(ContactType::Full(contact)))
+        } else if let Some(targeted_message_contact) =
+            self.try_targeted_message_contact(user_id).await?
+        {
+            Ok(Some(ContactType::Partial(PartialContact::TargetedMessage(
+                targeted_message_contact,
+            ))))
+        } else {
+            Ok(None)
+        }
     }
 
     async fn handle_contacts(&self) -> StoreResult<Vec<HandleContact>> {

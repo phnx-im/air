@@ -9,13 +9,17 @@
 
 use std::fmt;
 
-pub use aircommon::identifiers::UserHandle;
+// Re-export for FRB-reasons
+pub(crate) use aircommon::identifiers::UserHandle;
+pub(crate) use aircoreclient::{
+    AddHandleContactError, AddHandleContactResult, ChatId, MessageDraft, MessageId,
+};
+
 use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact, ContentMessage, DisplayName,
     ErrorMessage, EventMessage, InactiveChat, Message, SystemMessage, UserProfile, store::Store,
 };
-pub use aircoreclient::{ChatId, MessageDraft, MessageId};
 use chrono::{DateTime, Duration, Local, Utc};
 use flutter_rust_bridge::frb;
 use mimi_content::MessageStatus;
@@ -344,6 +348,25 @@ pub enum UiSystemMessage {
     Remove(UiUserId, UiUserId),
     ChangeTitle(UiUserId, String, String),
     ChangePicture(UiUserId),
+    ReceivedHandleConnectionRequest {
+        sender: UiUserId,
+        user_handle: UiUserHandle,
+    },
+    ReceivedDirectConnectionRequest {
+        sender: UiUserId,
+        chat_name: String,
+    },
+    AcceptedConnectionRequest {
+        sender: UiUserId,
+        user_handle: Option<UiUserHandle>,
+    },
+    ReceivedConnectionConfirmation {
+        sender: UiUserId,
+        user_handle: Option<UiUserHandle>,
+    },
+    NewHandleConnectionChat(UiUserHandle),
+    NewDirectConnectionChat(UiUserId),
+    CreateGroup(UiUserId),
 }
 
 impl From<SystemMessage> for UiSystemMessage {
@@ -361,6 +384,40 @@ impl From<SystemMessage> for UiSystemMessage {
                 new_title,
             } => UiSystemMessage::ChangeTitle(user_id.into(), old_title, new_title),
             SystemMessage::ChangePicture(user_id) => UiSystemMessage::ChangePicture(user_id.into()),
+            SystemMessage::NewHandleConnectionChat(user_handle) => {
+                UiSystemMessage::NewHandleConnectionChat(user_handle.into())
+            }
+            SystemMessage::AcceptedConnectionRequest {
+                contact,
+                user_handle,
+            } => UiSystemMessage::AcceptedConnectionRequest {
+                sender: contact.into(),
+                user_handle: user_handle.map(Into::into),
+            },
+            SystemMessage::ReceivedConnectionConfirmation {
+                sender,
+                user_handle,
+            } => UiSystemMessage::ReceivedConnectionConfirmation {
+                sender: sender.into(),
+                user_handle: user_handle.map(Into::into),
+            },
+            SystemMessage::ReceivedHandleConnectionRequest {
+                sender,
+                user_handle,
+            } => UiSystemMessage::ReceivedHandleConnectionRequest {
+                sender: sender.into(),
+                user_handle: user_handle.into(),
+            },
+            SystemMessage::ReceivedDirectConnectionRequest { sender, chat_name } => {
+                UiSystemMessage::ReceivedDirectConnectionRequest {
+                    sender: sender.into(),
+                    chat_name,
+                }
+            }
+            SystemMessage::NewDirectConnectionChat(user_id) => {
+                UiSystemMessage::NewDirectConnectionChat(user_id.into())
+            }
+            SystemMessage::CreateGroup(user_id) => UiSystemMessage::CreateGroup(user_id.into()),
         }
     }
 }
@@ -463,6 +520,22 @@ impl From<Contact> for UiContact {
             user_id: contact.user_id.into(),
         }
     }
+}
+
+/// Mirror of the [`ChatId`] type
+#[doc(hidden)]
+#[frb(mirror(AddHandleContactResult))]
+pub enum _AddHandleContactResult {
+    Ok(ChatId),
+    Err(AddHandleContactError),
+}
+
+#[doc(hidden)]
+#[frb(mirror(AddHandleContactError))]
+pub enum _AddHandleContactError {
+    HandleNotFound,
+    DuplicateRequest,
+    OwnHandle,
 }
 
 /// Profile of a user

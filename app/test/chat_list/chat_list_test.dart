@@ -39,11 +39,9 @@ void main() {
         () => navigationCubit.state,
       ).thenReturn(const NavigationState.home());
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
-      when(() => contactsCubit.state).thenReturn(
-        MockUsersState(
-          profiles: [UiUserProfile(userId: 1.userId(), displayName: "alice")],
-        ),
-      );
+      when(
+        () => contactsCubit.state,
+      ).thenReturn(MockUsersState(profiles: userProfiles));
       when(
         () => chatDetailsCubit.state,
       ).thenReturn(ChatDetailsState(chat: chats[1], members: [1.userId()]));

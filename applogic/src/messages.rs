@@ -86,7 +86,7 @@ impl User {
             errors: _,
             processed: _,
             mut new_connections,
-        } = self.fetch_and_process_qs_messages().await?;
+        } = Box::pin(self.fetch_and_process_qs_messages()).await?;
         self.new_chat_notifications(&new_chats, &mut notifications)
             .await;
         self.new_message_notifications(&new_messages, &mut notifications)

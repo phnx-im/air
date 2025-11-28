@@ -16,6 +16,7 @@ use aircommon::{
 };
 use airprotos::auth_service::v1::{HandleQueueMessage, handle_queue_message};
 use anyhow::{Context, Result, bail, ensure};
+use chrono::{Duration, Utc};
 use mimi_room_policy::RoleIndex;
 use openmls::prelude::MlsMessageOut;
 use sqlx::SqliteConnection;
@@ -24,6 +25,8 @@ use tls_codec::DeserializeBytes;
 use tracing::error;
 
 use crate::{
+    SystemMessage,
+    chats::messages::TimestampedMessage,
     clients::{
         block_contact::{BlockedContact, BlockedContactError},
         connection_offer::{
@@ -54,16 +57,17 @@ pub(crate) enum ConnectionInfoSource {
     },
 }
 
+struct HandleConnectionInfo {
+    connection_offer_hash: ConnectionOfferHash,
+    connection_package_hash: ConnectionPackageHash,
+    handle: UserHandle,
+}
+
 impl ConnectionInfoSource {
     async fn into_parts(
         self,
         core_user: &CoreUser,
-    ) -> Result<(
-        ConnectionInfo,
-        UserId,
-        Option<ConnectionOfferHash>,
-        Option<ConnectionPackageHash>,
-    )> {
+    ) -> Result<(ConnectionInfo, UserId, Option<HandleConnectionInfo>)> {
         match self {
             ConnectionInfoSource::ConnectionOffer {
                 connection_offer,
@@ -79,17 +83,21 @@ impl ConnectionInfoSource {
                     )
                     .await?;
                 let sender_user_id = cep_payload.sender_client_credential.identity().clone();
+                let handle_connection_info = HandleConnectionInfo {
+                    connection_offer_hash,
+                    connection_package_hash: hash,
+                    handle: user_handle,
+                };
                 Ok((
                     cep_payload.connection_info,
                     sender_user_id,
-                    Some(connection_offer_hash),
-                    Some(hash),
+                    Some(handle_connection_info),
                 ))
             }
             ConnectionInfoSource::TargetedMessage {
                 connection_info,
                 sender_user_id,
-            } => Ok((connection_info, sender_user_id, None, None)),
+            } => Ok((connection_info, sender_user_id, None)),
         }
     }
 }
@@ -121,8 +129,22 @@ impl CoreUser {
         &self,
         connection_info_source: ConnectionInfoSource,
     ) -> Result<ChatId> {
-        let (connection_info, sender_user_id, connection_offer_hash, connection_package_hash) =
+        let (connection_info, sender_user_id, handle_connection_info) =
             connection_info_source.into_parts(self).await?;
+
+        let (connection_offer_hash, connection_package_hash, handle) = match handle_connection_info
+        {
+            Some(HandleConnectionInfo {
+                connection_offer_hash,
+                connection_package_hash,
+                handle,
+            }) => (
+                Some(connection_offer_hash),
+                Some(connection_package_hash),
+                Some(handle),
+            ),
+            None => (None, None, None),
+        };
 
         let mut connection = self.pool().acquire().await?;
 
@@ -197,11 +219,38 @@ impl CoreUser {
 
         let mut notifier = self.store_notifier();
 
-        // Store group, chat & contact
+        // Create system messages for receipt and acceptance
+        let accepted_system_message = SystemMessage::AcceptedConnectionRequest {
+            contact: contact.user_id.clone(),
+            user_handle: handle.clone(),
+        };
+        let received_system_message = if let Some(handle) = handle {
+            // Connection via handle
+            SystemMessage::ReceivedHandleConnectionRequest {
+                sender: contact.user_id.clone(),
+                user_handle: handle.clone(),
+            }
+        } else {
+            // Connection via targeted message
+            SystemMessage::ReceivedDirectConnectionRequest {
+                sender: contact.user_id.clone(),
+                chat_name: chat.attributes.title.clone(),
+            }
+        };
+
+        let now = Utc::now();
+        let a_moment_later = now + Duration::milliseconds(1);
+        let received_message =
+            TimestampedMessage::system_message(received_system_message, now.into());
+        let accepted_message =
+            TimestampedMessage::system_message(accepted_system_message, a_moment_later.into());
+        let chat_messages = vec![received_message, accepted_message];
+        // Store group, chat, contact and system message
         connection
             .with_transaction(async |txn| {
                 self.store_group_chat_contact(txn, &mut notifier, &group, &mut chat, contact)
-                    .await
+                    .await?;
+                Self::store_new_messages(&mut *txn, &mut notifier, chat.id(), chat_messages).await
             })
             .await?;
 

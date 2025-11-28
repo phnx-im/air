@@ -23,12 +23,12 @@ use aircommon::{
     },
 };
 use airprotos::auth_service::v1::{
-    AckListenHandleRequest, AsCredentialsRequest, ConnectRequest, ConnectResponse,
-    CreateHandlePayload, DeleteHandlePayload, DeleteUserPayload, EnqueueConnectionOfferStep,
-    FetchConnectionPackageStep, GetUserProfileRequest, HandleQueueMessage, InitListenHandlePayload,
-    ListenHandleRequest, MergeUserProfilePayload, PublishConnectionPackagesPayload,
-    RegisterUserRequest, ReportSpamPayload, StageUserProfilePayload, connect_request,
-    connect_response, listen_handle_request,
+    AckListenHandleRequest, AsCredentialsRequest, CheckHandleExistsRequest, ConnectRequest,
+    ConnectResponse, CreateHandlePayload, DeleteHandlePayload, DeleteUserPayload,
+    EnqueueConnectionOfferStep, FetchConnectionPackageStep, GetUserProfileRequest,
+    HandleQueueMessage, InitListenHandlePayload, ListenHandleRequest, MergeUserProfilePayload,
+    PublishConnectionPackagesPayload, RegisterUserRequest, ReportSpamPayload,
+    StageUserProfilePayload, connect_request, connect_response, listen_handle_request,
 };
 use futures_util::{FutureExt, future::BoxFuture};
 use thiserror::Error;
@@ -391,6 +391,22 @@ impl ApiClient {
                     AsRequestError::UnexpectedResponse
                 })?,
         })
+    }
+
+    pub async fn as_check_handle_exists(
+        &self,
+        user_handle_hash: UserHandleHash,
+    ) -> Result<bool, AsRequestError> {
+        let request = CheckHandleExistsRequest {
+            hash: Some(user_handle_hash.into()),
+        };
+        let response = self
+            .as_grpc_client
+            .client()
+            .check_handle_exists(request)
+            .await?
+            .into_inner();
+        Ok(response.exists)
     }
 
     pub async fn as_create_handle(

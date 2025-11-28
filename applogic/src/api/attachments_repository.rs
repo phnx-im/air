@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::sync::Arc;
+use std::{fs, io::Write, sync::Arc};
 
 use aircommon::identifiers::AttachmentId;
 use aircoreclient::{
@@ -100,6 +100,17 @@ impl AttachmentsRepository {
         }
     }
 
+    /// Load attachment's data from database
+    pub async fn load_attachment(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> anyhow::Result<Option<Vec<u8>>> {
+        match self.store.load_attachment(attachment_id).await? {
+            AttachmentContent::Ready(data) | AttachmentContent::Uploading(data) => Ok(Some(data)),
+            _ => Ok(None),
+        }
+    }
+
     pub async fn load_image_attachment(
         &self,
         attachment_id: AttachmentId,
@@ -145,6 +156,21 @@ impl AttachmentsRepository {
         if let Some((_, handle)) = self.in_progress.remove(&attachment_id) {
             handle.cancel.cancel();
         }
+    }
+
+    pub async fn save_attachment(
+        &self,
+        attachment_id: AttachmentId,
+        path: String,
+    ) -> anyhow::Result<()> {
+        let data = self
+            .load_attachment(attachment_id)
+            .await?
+            .context("Attachment is not present on the device")?;
+        let mut file = fs::File::create(&path)
+            .with_context(|| format!("Failed to create file at path: {path}"))?;
+        file.write_all(&data)?;
+        Ok(())
     }
 
     async fn track_attachment_download(

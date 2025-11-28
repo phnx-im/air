@@ -22,6 +22,9 @@ part 'attachments_repository.freezed.dart';
 abstract class AttachmentsRepository implements RustOpaqueInterface {
   Future<void> cancel({required AttachmentId attachmentId});
 
+  /// Load attachment's data from database
+  Future<Uint8List?> loadAttachment({required AttachmentId attachmentId});
+
   Future<Uint8List> loadImageAttachment({
     required AttachmentId attachmentId,
     required FutureOr<void> Function(BigInt) chunkEventCallback,
@@ -33,6 +36,11 @@ abstract class AttachmentsRepository implements RustOpaqueInterface {
       .crateApiAttachmentsRepositoryAttachmentsRepositoryNew(
         userCubit: userCubit,
       );
+
+  Future<void> saveAttachment({
+    required AttachmentId attachmentId,
+    required String path,
+  });
 
   Stream<UiAttachmentStatus> statusStream({required AttachmentId attachmentId});
 }

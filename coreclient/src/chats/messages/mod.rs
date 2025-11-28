@@ -123,6 +123,18 @@ impl ChatMessage {
         }
     }
 
+    pub(crate) fn new_system_message(
+        chat_id: ChatId,
+        ds_timestamp: TimeStamp,
+        system_message: SystemMessage,
+    ) -> Self {
+        Self::new(
+            chat_id,
+            MessageId::random(),
+            TimestampedMessage::system_message(system_message, ds_timestamp),
+        )
+    }
+
     pub fn new_for_test(
         chat_id: ChatId,
         message_id: MessageId,
@@ -449,6 +461,33 @@ pub enum SystemMessage {
         new_title: String,
     },
     ChangePicture(UserId),
+    /// We received a connection request from another user. The String is the
+    /// name of the chat through which the request was made.
+    ReceivedDirectConnectionRequest {
+        sender: UserId,
+        chat_name: String,
+    },
+    ReceivedHandleConnectionRequest {
+        sender: UserId,
+        user_handle: UserHandle,
+    },
+    /// We accepted a connection request from another user. The UserHandle is
+    /// the handle through which the connection was made.
+    AcceptedConnectionRequest {
+        contact: UserId,
+        user_handle: Option<UserHandle>,
+    },
+    /// We received a confirmation for a connection request we sent to another user. The optional
+    /// UserHandle is the handle through which the connection was made, if any.
+    ReceivedConnectionConfirmation {
+        sender: UserId,
+        user_handle: Option<UserHandle>,
+    },
+    /// We requested a connection with another user through a user handle.
+    NewHandleConnectionChat(UserHandle),
+    /// We requested a connection with another user through a group.
+    NewDirectConnectionChat(UserId),
+    CreateGroup(UserId),
 }
 
 impl SystemMessage {
@@ -477,6 +516,54 @@ impl SystemMessage {
             SystemMessage::ChangePicture(user_id) => {
                 let user_display_name = store.user_profile(user_id).await.display_name;
                 format!("{user_display_name} changed the group picture")
+            }
+            SystemMessage::NewHandleConnectionChat(user_handle) => {
+                let handle_str = user_handle.plaintext();
+                format!("You requested a connection with {handle_str}")
+            }
+            SystemMessage::ReceivedConnectionConfirmation {
+                sender: user_id,
+                user_handle,
+            }
+            | SystemMessage::AcceptedConnectionRequest {
+                contact: user_id,
+                user_handle,
+            } => {
+                let user_display_name = store.user_profile(user_id).await.display_name;
+                let base_str = format!("You connected with {user_display_name}");
+                if let Some(handle) = user_handle {
+                    let handle_str = handle.plaintext();
+                    format!("{base_str} through handle {handle_str}")
+                } else {
+                    base_str
+                }
+            }
+            SystemMessage::ReceivedHandleConnectionRequest {
+                sender: user_id,
+                user_handle,
+            } => {
+                let display_name = store.user_profile(user_id).await.display_name;
+                let username = user_handle.plaintext();
+                format!(
+                    "{display_name} sent you a contact request through your username {username}."
+                )
+            }
+            SystemMessage::ReceivedDirectConnectionRequest {
+                sender: user_id,
+                chat_name,
+            } => {
+                let display_name = store.user_profile(user_id).await.display_name;
+                format!(
+                    "{display_name} sent you a contact request through the group chat {chat_name}."
+                )
+            }
+            SystemMessage::NewDirectConnectionChat(user_id) => {
+                let display_name = store.user_profile(user_id).await.display_name;
+                format!("You requested a connection with {display_name}")
+            }
+            SystemMessage::CreateGroup(user_id) => {
+                let user_display_name = store.user_profile(user_id).await.display_name;
+                format!("{user_display_name} created the group")
             }
         }
     }

@@ -278,11 +278,13 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
     ) -> anyhow::Result<()> {
         for (id, op) in &notification.ops {
             if let StoreEntityId::Message(message_id) = id
-                && op.contains(StoreOperation::Add)
+                && !op.is_disjoint(StoreOperation::Add | StoreOperation::Update)
                 && let Some(message) = self.store.message(*message_id).await?
             {
                 if message.chat_id() == self.chat_id {
-                    self.notify_neghbors_of_added_message(message);
+                    if op.contains(StoreOperation::Add) {
+                        self.notify_neghbors_of_added_message(message);
+                    }
                     self.load_and_emit_state(false).await;
                 }
                 return Ok(());

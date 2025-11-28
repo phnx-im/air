@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::time::Duration;
-
 use airbackend::{
     air_service::BackendService,
     auth_service::AuthService,
@@ -12,7 +10,7 @@ use airbackend::{
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
-    RateLimitsConfig, ServerRunParams, configurations::*, enqueue_provider::SimpleEnqueueProvider,
+    ServerRunParams, configurations::*, enqueue_provider::SimpleEnqueueProvider,
     logging::init_logging, network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
 };
@@ -101,10 +99,7 @@ async fn main() -> anyhow::Result<()> {
         auth_service,
         qs,
         qs_connector,
-        rate_limits: RateLimitsConfig {
-            period: Duration::from_millis(500),
-            burst_size: 100,
-        },
+        rate_limits: configuration.ratelimits,
     })
     .await;
 

@@ -79,6 +79,26 @@ Future<String> getDatabaseDirectoryMobile() async {
   return '';
 }
 
+/// Saves file data to the appropriate public directory on Android.
+Future<void> saveFileAndroid({
+  required String fileName,
+  required String mimeType,
+  required Uint8List data,
+}) async {
+  if (!Platform.isAndroid) {
+    throw PlatformException(code: 'unsupported_platform');
+  }
+  try {
+    await platform.invokeMethod('saveFile', {
+      'fileName': fileName,
+      'mimeType': mimeType,
+      'data': data,
+    });
+  } on PlatformException catch (e) {
+    _log.severe("Failed to save file: '${e.message}'.");
+  }
+}
+
 /// Returns the directory returned by `getApplicationDocumentsDirectory` on all platforms, except for
 /// iOS. On iOS, the directory returned is the `Caches` directory in a shared container of the
 /// application group. The container is shared between the application and background extension.
