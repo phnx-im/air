@@ -123,10 +123,8 @@ abstract class RustLibApi extends BaseApi {
   Future<void>
   crateApiAttachmentsRepositoryAttachmentsRepositorySaveAttachment({
     required AttachmentsRepository that,
-    required String destinationDir,
-    required String filename,
     required AttachmentId attachmentId,
-    required bool overwrite,
+    required String path,
   });
 
   Stream<UiAttachmentStatus>
@@ -1022,10 +1020,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<void>
   crateApiAttachmentsRepositoryAttachmentsRepositorySaveAttachment({
     required AttachmentsRepository that,
-    required String destinationDir,
-    required String filename,
     required AttachmentId attachmentId,
-    required bool overwrite,
+    required String path,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -1035,10 +1031,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          sse_encode_String(destinationDir, serializer);
-          sse_encode_String(filename, serializer);
           sse_encode_box_autoadd_attachment_id(attachmentId, serializer);
-          sse_encode_bool(overwrite, serializer);
+          sse_encode_String(path, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -1052,7 +1046,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kCrateApiAttachmentsRepositoryAttachmentsRepositorySaveAttachmentConstMeta,
-        argValues: [that, destinationDir, filename, attachmentId, overwrite],
+        argValues: [that, attachmentId, path],
         apiImpl: this,
       ),
     );
@@ -1062,13 +1056,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiAttachmentsRepositoryAttachmentsRepositorySaveAttachmentConstMeta =>
       const TaskConstMeta(
         debugName: "AttachmentsRepository_save_attachment",
-        argNames: [
-          "that",
-          "destinationDir",
-          "filename",
-          "attachmentId",
-          "overwrite",
-        ],
+        argNames: ["that", "attachmentId", "path"],
       );
 
   @override
@@ -13047,17 +13035,13 @@ class AttachmentsRepositoryImpl extends RustOpaque
       );
 
   Future<void> saveAttachment({
-    required String destinationDir,
-    required String filename,
     required AttachmentId attachmentId,
-    required bool overwrite,
+    required String path,
   }) => RustLib.instance.api
       .crateApiAttachmentsRepositoryAttachmentsRepositorySaveAttachment(
         that: this,
-        destinationDir: destinationDir,
-        filename: filename,
         attachmentId: attachmentId,
-        overwrite: overwrite,
+        path: path,
       );
 
   Stream<UiAttachmentStatus> statusStream({
