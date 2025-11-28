@@ -12,10 +12,9 @@ const Color lightModeShadowColor = Color(0x16000000);
 const Color darkModeShadowColor = Color(0x80000000);
 
 List<BoxShadow> elevationBoxShadows(BuildContext context) {
-  final color =
-      Theme.of(context).brightness == Brightness.dark
-          ? darkModeShadowColor
-          : lightModeShadowColor;
+  final color = Theme.of(context).brightness == Brightness.dark
+      ? darkModeShadowColor
+      : lightModeShadowColor;
   return [
     BoxShadow(
       color: color,

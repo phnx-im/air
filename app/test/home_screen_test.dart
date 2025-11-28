@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:air/chat_details/chat_details.dart';
+import 'package:air/chat/chat_details.dart';
 import 'package:air/chat_list/chat_list.dart';
 import 'package:air/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
@@ -61,33 +61,48 @@ void main() {
       when(
         () => chatDetailsCubit.storeDraft(
           draftMessage: any(named: "draftMessage"),
+          isCommitted: any(named: "isCommitted"),
         ),
       ).thenAnswer((_) async => Future.value());
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
     });
 
-    Widget buildSubject() => MultiBlocProvider(
+    Widget buildSubject() => MultiRepositoryProvider(
       providers: [
-        BlocProvider<NavigationCubit>.value(value: navigationCubit),
-        BlocProvider<UserCubit>.value(value: userCubit),
-        BlocProvider<UsersCubit>.value(value: usersCubit),
-        BlocProvider<ChatListCubit>.value(value: chatListCubit),
-        BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
-        BlocProvider<MessageListCubit>.value(value: messageListCubit),
-        BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+        RepositoryProvider<ChatsRepository>.value(value: MockChatsRepository()),
+        RepositoryProvider<AttachmentsRepository>.value(
+          value: MockAttachmentsRepository(),
+        ),
       ],
-      child: Builder(
-        builder: (context) {
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
-            theme: themeData(MediaQuery.platformBrightnessOf(context)),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            home: const HomeScreenDesktopLayout(
-              chatList: ChatListView(),
-              chat: ChatScreenView(createMessageCubit: createMockMessageCubit),
-            ),
-          );
-        },
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<NavigationCubit>.value(value: navigationCubit),
+          BlocProvider<UserCubit>.value(value: userCubit),
+          BlocProvider<UsersCubit>.value(value: usersCubit),
+          BlocProvider<ChatListCubit>.value(value: chatListCubit),
+          BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
+          BlocProvider<MessageListCubit>.value(value: messageListCubit),
+          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+        ],
+        child: Builder(
+          builder: (context) {
+            return MaterialApp(
+              debugShowCheckedModeBanner: false,
+              theme: themeData(MediaQuery.platformBrightnessOf(context)),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              home: HomeScreenDesktopLayout(
+                chatList: ChatListView(
+                  createChatDetailsCubit: createMockChatDetailsCubitFactory(
+                    chats,
+                  ),
+                ),
+                chat: const ChatScreenView(
+                  createMessageCubit: createMockMessageCubit,
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
 
@@ -106,7 +121,7 @@ void main() {
       ).thenReturn(const NavigationState.home());
       when(
         () => chatListCubit.state,
-      ).thenReturn(const ChatListState(chats: []));
+      ).thenReturn(const ChatListState(chatIds: []));
       when(
         () => chatDetailsCubit.state,
       ).thenReturn(ChatDetailsState(chat: chats[2], members: members));
@@ -133,7 +148,9 @@ void main() {
       when(
         () => navigationCubit.state,
       ).thenReturn(const NavigationState.home());
-      when(() => chatListCubit.state).thenReturn(ChatListState(chats: chats));
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: chatIds));
       when(
         () => chatDetailsCubit.state,
       ).thenReturn(ChatDetailsState(chat: chats[2], members: members));
@@ -166,7 +183,9 @@ void main() {
           home: HomeNavigationState(chatOpen: true, chatId: chats[2].id),
         ),
       );
-      when(() => chatListCubit.state).thenReturn(ChatListState(chats: chats));
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: chatIds));
       when(
         () => chatDetailsCubit.state,
       ).thenReturn(ChatDetailsState(chat: chats[2], members: members));
@@ -199,7 +218,9 @@ void main() {
           home: HomeNavigationState(chatOpen: true, chatId: chats[4].id),
         ),
       );
-      when(() => chatListCubit.state).thenReturn(ChatListState(chats: chats));
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: chatIds));
       when(
         () => chatDetailsCubit.state,
       ).thenReturn(ChatDetailsState(chat: chats[4], members: members));

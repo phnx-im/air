@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{SqliteConnection, SqliteExecutor};
 use uuid::Uuid;
 
-use crate::store::StoreNotifier;
+use crate::{contacts::PartialContactType, store::StoreNotifier};
 
 pub use draft::MessageDraft;
 pub(crate) use status::StatusRecord;
@@ -78,6 +78,10 @@ pub struct Chat {
     pub group_id: GroupId,
     // The timestamp of the last message that was (marked as) read by the user.
     pub last_read: DateTime<Utc>,
+    // The timestamp of the last message (content or system)
+    //
+    // `None` if the chat does not have any messages.
+    pub last_message_at: Option<DateTime<Utc>>,
     pub status: ChatStatus,
     pub chat_type: ChatType,
     pub attributes: ChatAttributes,
@@ -95,6 +99,7 @@ impl Chat {
             id: ChatId::try_from(&group_id)?,
             group_id,
             last_read: Utc::now(),
+            last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::Connection(user_id),
             attributes,
@@ -111,8 +116,26 @@ impl Chat {
             id,
             group_id,
             last_read: Utc::now(),
+            last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::HandleConnection(handle),
+            attributes,
+        }
+    }
+
+    pub(crate) fn new_targeted_message_chat(
+        group_id: GroupId,
+        attributes: ChatAttributes,
+        user_id: UserId,
+    ) -> Self {
+        let id = ChatId::try_from(&group_id).unwrap();
+        Self {
+            id,
+            group_id,
+            last_read: Utc::now(),
+            last_message_at: None,
+            status: ChatStatus::Active,
+            chat_type: ChatType::TargetedMessageConnection(user_id),
             attributes,
         }
     }
@@ -123,6 +146,7 @@ impl Chat {
             id,
             group_id,
             last_read: Utc::now(),
+            last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::Group,
             attributes,
@@ -141,6 +165,13 @@ impl Chat {
         &self.chat_type
     }
 
+    pub fn is_unconfirmed(&self) -> bool {
+        matches!(
+            self.chat_type,
+            ChatType::HandleConnection(_) | ChatType::TargetedMessageConnection(_)
+        )
+    }
+
     pub fn status(&self) -> &ChatStatus {
         &self.status
     }
@@ -157,6 +188,10 @@ impl Chat {
         self.last_read
     }
 
+    pub fn last_message_at(&self) -> Option<DateTime<Utc>> {
+        self.last_message_at
+    }
+
     pub(crate) fn owner_domain(&self) -> Fqdn {
         let qgid = QualifiedGroupId::try_from(self.group_id.clone()).unwrap();
         qgid.owning_domain().clone()
@@ -170,6 +205,17 @@ impl Chat {
     ) -> sqlx::Result<()> {
         Self::update_picture(executor, notifier, self.id, picture.as_deref()).await?;
         self.attributes.set_picture(picture);
+        Ok(())
+    }
+
+    pub(crate) async fn set_title(
+        &mut self,
+        executor: impl SqliteExecutor<'_>,
+        notifier: &mut StoreNotifier,
+        title: String,
+    ) -> sqlx::Result<()> {
+        Self::update_title(executor, notifier, self.id, &title).await?;
+        self.attributes.set_title(title);
         Ok(())
     }
 
@@ -192,7 +238,7 @@ impl Chat {
         notifier: &mut StoreNotifier,
         user_id: UserId,
     ) -> sqlx::Result<()> {
-        if let ChatType::HandleConnection(_) = &self.chat_type {
+        if self.is_unconfirmed() {
             let chat_type = ChatType::Connection(user_id);
             self.set_chat_type(executor, notifier, &chat_type).await?;
             self.chat_type = chat_type;
@@ -236,12 +282,27 @@ pub enum ChatType {
     /// necessary secrets.
     Connection(UserId),
     Group,
+    /// A connection chat which was established via a targeted message and is not yet confirmed by the other
+    /// party.
+    TargetedMessageConnection(UserId),
+}
+
+impl ChatType {
+    pub fn unconfirmed_contact(&self) -> Option<PartialContactType> {
+        match self {
+            ChatType::HandleConnection(handle) => Some(PartialContactType::Handle(handle.clone())),
+            ChatType::TargetedMessageConnection(user_id) => {
+                Some(PartialContactType::TargetedMessage(user_id.clone()))
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ChatAttributes {
-    title: String,
-    picture: Option<Vec<u8>>,
+    pub title: String,
+    pub picture: Option<Vec<u8>>,
 }
 
 impl ChatAttributes {

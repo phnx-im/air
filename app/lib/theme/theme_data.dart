@@ -25,7 +25,7 @@ ThemeData themeData(Brightness brightness) {
       baselineTheme.appBarTheme.titleTextStyle ??
       baselineTheme.textTheme.titleLarge;
   final mergedAppBarTitleStyle = baseAppBarTitleStyle?.merge(
-    customTextScheme.titleLarge ?? const TextStyle(),
+    customTextScheme.labelMedium ?? const TextStyle(),
   );
 
   return ThemeData(
@@ -44,11 +44,11 @@ ThemeData themeData(Brightness brightness) {
       backgroundColor: colorScheme.backgroundBase.primary,
       elevation: 0,
       iconTheme: IconThemeData(color: colorScheme.text.primary),
+      centerTitle: true,
       toolbarHeight: isPointer() ? 100 : null,
       titleTextStyle: (mergedAppBarTitleStyle ?? const TextStyle()).copyWith(
         color: colorScheme.text.primary,
         fontSize: LabelFontSize.base.size,
-        fontWeight: FontWeight.bold,
       ),
     ),
     scaffoldBackgroundColor: colorScheme.backgroundBase.primary,
@@ -87,7 +87,7 @@ ThemeData themeData(Brightness brightness) {
     inputDecorationTheme: InputDecorationTheme(
       border: InputBorder.none,
       hintStyle: TextStyle(
-        color: colorScheme.text.secondary,
+        color: colorScheme.text.quaternary,
         fontSize: LabelFontSize.small1.size,
       ),
       focusedBorder: _textInputBorder,
@@ -101,10 +101,9 @@ ThemeData themeData(Brightness brightness) {
       thumbColor: WidgetStateProperty.all(colorScheme.text.secondary),
       trackOutlineColor: WidgetStateProperty.all(colorScheme.separator.primary),
       trackColor: WidgetStateProperty.resolveWith(
-        (states) =>
-            states.contains(WidgetState.selected)
-                ? colorScheme.backgroundBase.secondary
-                : Colors.transparent,
+        (states) => states.contains(WidgetState.selected)
+            ? colorScheme.backgroundElevated.quaternary
+            : Colors.transparent,
       ),
     ),
   );

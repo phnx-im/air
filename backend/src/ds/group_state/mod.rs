@@ -60,6 +60,7 @@ pub(crate) struct DsGroupState {
     pub(super) group: Group,
     pub(super) provider: MlsAssistRustCrypto<PersistenceCodec>,
     pub(super) member_profiles: BTreeMap<LeafNodeIndex, MemberProfile>,
+    pub(super) proposals: Vec<Vec<u8>>,
 }
 
 impl DsGroupState {
@@ -84,6 +85,7 @@ impl DsGroupState {
             group,
             room_state,
             member_profiles: client_profiles,
+            proposals: Vec::new(),
         }
     }
 
@@ -136,12 +138,14 @@ impl DsGroupState {
     pub(super) fn external_commit_info(&self) -> ExternalCommitInfo {
         let group_info = self.group().group_info().clone();
         let ratchet_tree = self.group().export_ratchet_tree();
+        let proposals = self.proposals.clone();
         let encrypted_user_profile_keys = self.encrypted_user_profile_keys();
         ExternalCommitInfo {
             group_info,
             ratchet_tree,
             room_state: self.room_state.clone(),
             encrypted_user_profile_keys,
+            proposals,
         }
     }
 
@@ -159,7 +163,7 @@ impl DsGroupState {
         ear_key: &GroupStateEarKey,
     ) -> Result<EncryptedDsGroupState, DsGroupStateEncryptionError> {
         let encrypted =
-            EncryptableDsGroupState::from(SerializableDsGroupStateV1::from_group_state(self)?)
+            EncryptableDsGroupState::from(SerializableDsGroupStateV2::from_group_state(self)?)
                 .encrypt(ear_key)?;
         Ok(encrypted)
     }
@@ -169,7 +173,7 @@ impl DsGroupState {
         ear_key: &GroupStateEarKey,
     ) -> Result<Self, DsGroupStateDecryptionError> {
         let encryptable = EncryptableDsGroupState::decrypt(ear_key, encrypted_group_state)?;
-        let group_state = SerializableDsGroupStateV1::into_group_state(encryptable.into())?;
+        let group_state = SerializableDsGroupStateV2::into_group_state(encryptable.into())?;
         Ok(group_state)
     }
 
@@ -192,6 +196,15 @@ impl DsGroupState {
                     Some(client_profile.client_queue_config.clone())
                 }
             })
+    }
+
+    pub(crate) fn qs_client_ref_by_index(
+        &self,
+        member_index: LeafNodeIndex,
+    ) -> Option<QsReference> {
+        self.member_profiles
+            .get(&member_index)
+            .map(|cp| cp.client_queue_config.clone())
     }
 }
 
@@ -231,14 +244,14 @@ pub type EncryptedDsGroupState = Ciphertext<EncryptedDsGroupStateCtype>;
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
-pub(super) struct StorableDsGroupData {
+pub(super) struct StorableDsGroupData<const LOADED_FOR_UPDATE: bool> {
     group_id: Uuid,
     pub(super) encrypted_group_state: EncryptedDsGroupState,
     last_used: TimeStamp,
     deleted_queues: Vec<SealedClientReference>,
 }
 
-impl StorableDsGroupData {
+impl StorableDsGroupData<false> {
     pub(super) async fn new_and_store<'a>(
         connection: impl PgExecutor<'a>,
         group_id: ReservedGroupId,
@@ -253,7 +266,9 @@ impl StorableDsGroupData {
         group_data.store(connection).await?;
         Ok(group_data)
     }
+}
 
+impl<const LOADED_FOR_UPDATE: bool> StorableDsGroupData<LOADED_FOR_UPDATE> {
     pub(super) fn has_expired(&self) -> bool {
         self.last_used.has_expired(GROUP_STATE_EXPIRATION)
     }
@@ -267,7 +282,29 @@ pub(crate) struct SerializableDsGroupStateV1 {
     member_profiles: Vec<(LeafNodeIndex, MemberProfile)>,
 }
 
-impl SerializableDsGroupStateV1 {
+impl From<SerializableDsGroupStateV1> for SerializableDsGroupStateV2 {
+    fn from(v1: SerializableDsGroupStateV1) -> Self {
+        Self {
+            group_id: v1.group_id,
+            serialized_provider: v1.serialized_provider,
+            room_state: v1.room_state,
+            member_profiles: v1.member_profiles,
+            proposals: vec![],
+        }
+    }
+}
+
+#[derive(TlsSize, TlsDeserializeBytes, TlsSerialize)]
+pub(crate) struct SerializableDsGroupStateV2 {
+    group_id: GroupId,
+    serialized_provider: VLBytes,
+    room_state: VLBytes,
+    member_profiles: Vec<(LeafNodeIndex, MemberProfile)>,
+    // Proposals that are valid in external commits in TLS-serialized form
+    proposals: Vec<Vec<u8>>,
+}
+
+impl SerializableDsGroupStateV2 {
     pub(super) fn from_group_state(
         group_state: DsGroupState,
     ) -> Result<Self, aircommon::codec::Error> {
@@ -285,6 +322,7 @@ impl SerializableDsGroupStateV1 {
             serialized_provider,
             member_profiles: client_profiles,
             room_state,
+            proposals: group_state.proposals,
         })
     }
 
@@ -312,6 +350,7 @@ impl SerializableDsGroupStateV1 {
             group,
             member_profiles: client_profiles,
             room_state,
+            proposals: self.proposals,
         })
     }
 }
@@ -344,19 +383,21 @@ fn fallback_room_state(
 #[repr(u8)]
 pub(super) enum EncryptableDsGroupState {
     V1(SerializableDsGroupStateV1),
+    V2(SerializableDsGroupStateV2),
 }
 
-impl From<EncryptableDsGroupState> for SerializableDsGroupStateV1 {
+impl From<EncryptableDsGroupState> for SerializableDsGroupStateV2 {
     fn from(encryptable: EncryptableDsGroupState) -> Self {
         match encryptable {
-            EncryptableDsGroupState::V1(serializable) => serializable,
+            EncryptableDsGroupState::V1(serializable) => serializable.into(),
+            EncryptableDsGroupState::V2(serializable) => serializable,
         }
     }
 }
 
-impl From<SerializableDsGroupStateV1> for EncryptableDsGroupState {
-    fn from(serializable: SerializableDsGroupStateV1) -> Self {
-        EncryptableDsGroupState::V1(serializable)
+impl From<SerializableDsGroupStateV2> for EncryptableDsGroupState {
+    fn from(serializable: SerializableDsGroupStateV2) -> Self {
+        EncryptableDsGroupState::V2(serializable)
     }
 }
 

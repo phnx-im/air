@@ -6,7 +6,7 @@
 
 use std::cmp::Reverse;
 
-use aircommon::{DEFAULT_PORT_GRPC, identifiers::UserId, messages::push_token::PushTokenOperator};
+use aircommon::{identifiers::UserId, messages::push_token::PushTokenOperator};
 use aircoreclient::{
     Asset, UserProfile,
     clients::{
@@ -20,7 +20,7 @@ use flutter_rust_bridge::frb;
 use tracing::error;
 
 pub(crate) use aircommon::messages::push_token::PushToken;
-use url::Url;
+use url::{Host, Url};
 use uuid::Uuid;
 
 use super::types::{UiClientRecord, UiUserId, UiUserProfile};
@@ -46,7 +46,7 @@ impl From<PlatformPushToken> for PushToken {
 // TODO: Most likely, it makes sense to move this to the `user_cubit` module. The loading and
 // creation can be free functions there. The other functionality can be attach to the `UserCubit`.
 //
-// See <https://github.com/phnx-im/infra/issues/297>
+// See <https://github.com/phnx-im/air/issues/297>
 pub struct User {
     pub(crate) user: CoreUser,
 }
@@ -64,22 +64,17 @@ impl User {
         display_name: String,
         profile_picture: Option<Vec<u8>>,
     ) -> Result<User> {
-        let server_url: Url = address.parse()?;
-        let domain = server_url
-            .host()
-            .context("missing host in server url")?
-            .to_owned()
-            .into();
-        let user_id = UserId::new(Uuid::new_v4(), domain);
+        let mut server_url: Url = address.parse()?;
+        let domain = server_url.host().context("missing host in server url")?;
 
-        let user = CoreUser::new(
-            user_id,
-            server_url,
-            DEFAULT_PORT_GRPC,
-            &path,
-            push_token.map(|p| p.into()),
-        )
-        .await?;
+        let user_id = UserId::new(Uuid::new_v4(), domain.to_owned().into());
+
+        if domain == Host::Domain("air.ms") {
+            // TODO: For now, we redirect to the production server manually.
+            server_url.set_host(Some("prod.air.ms"))?;
+        }
+
+        let user = CoreUser::new(user_id, server_url, &path, push_token.map(|p| p.into())).await?;
 
         let user_profile = UserProfile {
             user_id: user.user_id().clone(),

@@ -60,7 +60,7 @@ impl MessageListState {
     /// the second message, and is discarded.
     ///
     /// The state is fully replaced. Note: This behavior will change when we will introduce loading
-    /// of additional messages via batching <https://github.com/phnx-im/infra/issues/287>.
+    /// of additional messages via batching <https://github.com/phnx-im/air/issues/287>.
     fn rebuild_from_messages(
         &mut self,
         mut new_messages: Vec<ChatMessage>,
@@ -149,7 +149,7 @@ impl MessageListState {
 ///
 /// Currently, only the last 1000 messages are loaded. This is subject to change ([#287]).
 ///
-/// [#287]: https://github.com/phnx-im/infra/issues/287
+/// [#287]: https://github.com/phnx-im/air/issues/287
 #[frb(opaque)]
 pub struct MessageListCubitBase {
     core: CubitCore<MessageListState>,
@@ -278,11 +278,13 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
     ) -> anyhow::Result<()> {
         for (id, op) in &notification.ops {
             if let StoreEntityId::Message(message_id) = id
-                && op.contains(StoreOperation::Add)
+                && !op.is_disjoint(StoreOperation::Add | StoreOperation::Update)
                 && let Some(message) = self.store.message(*message_id).await?
             {
                 if message.chat_id() == self.chat_id {
-                    self.notify_neghbors_of_added_message(message);
+                    if op.contains(StoreOperation::Add) {
+                        self.notify_neghbors_of_added_message(message);
+                    }
                     self.load_and_emit_state(false).await;
                 }
                 return Ok(());
@@ -298,7 +300,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
     fn notify_neghbors_of_added_message(&self, message: ChatMessage) {
         let state = self.state_tx.borrow();
         let messages = &state.inner.messages;
-        match messages.binary_search_by_key(&Some(message.timestamp()), |m| m.timestamp()) {
+        match messages.binary_search_by_key(&message.timestamp(), UiChatMessage::timestamp) {
             Ok(_idx) => {
                 warn!("Added message is already in the list");
             }

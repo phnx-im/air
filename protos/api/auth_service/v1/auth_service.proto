@@ -26,6 +26,9 @@ service AuthService {
 
   // User Handles API
 
+  // Checks whether the handle with the given hash exists.
+  rpc CheckHandleExists(CheckHandleExistsRequest) returns (CheckHandleExistsResponse);
+
   // Creates a new handle
   //
   // A new handle will be created with the provided verifying key and hash. The
@@ -464,4 +467,12 @@ message HandleQueueMessage {
   oneof payload {
     ConnectionOfferMessage connection_offer = 3;
   }
+}
+
+message CheckHandleExistsRequest {
+  UserHandleHash hash = 1;
+}
+
+message CheckHandleExistsResponse {
+  bool exists = 1;
 }

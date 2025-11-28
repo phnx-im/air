@@ -6,10 +6,11 @@ use std::{ops::DerefMut, str::FromStr};
 
 use aircommon::{
     crypto::{
+        errors::DecryptionError,
         kdf::keys::RatchetSecret,
         ratchet::{QueueRatchet, RatchetPayload},
     },
-    messages::{EncryptedQsQueueMessageCtype, client_ds::QsQueueMessagePayload},
+    messages::{EncryptedQsQueueMessageCtype, QueueMessage, client_ds::QsQueueMessagePayload},
 };
 use sqlx::{
     Database, Decode, Encode, Sqlite, SqliteExecutor, Type, encode::IsNull, error::BoxDynError,
@@ -69,40 +70,6 @@ impl Decode<'_, Sqlite> for QueueType {
     }
 }
 
-impl QueueType {
-    pub(crate) async fn load_sequence_number(
-        &self,
-        executor: impl SqliteExecutor<'_>,
-    ) -> sqlx::Result<u64> {
-        query_scalar!(
-            r#"SELECT
-                sequence_number AS "sequence_number: _"
-            FROM queue_ratchet WHERE queue_type = ?"#,
-            self
-        )
-        .fetch_one(executor)
-        .await
-    }
-
-    pub(crate) async fn update_sequence_number(
-        &self,
-        executor: impl SqliteExecutor<'_>,
-        sequence_number: u64,
-    ) -> sqlx::Result<()> {
-        let sequence_number: i64 = sequence_number
-            .try_into()
-            .map_err(|error| sqlx::Error::Encode(Box::new(error)))?;
-        query!(
-            "UPDATE queue_ratchet SET sequence_number = ? WHERE queue_type = ?",
-            sequence_number,
-            self
-        )
-        .execute(executor)
-        .await?;
-        Ok(())
-    }
-}
-
 pub(crate) struct StorableQueueRatchet<Ciphertext, Payload: RatchetPayload<Ciphertext>> {
     queue_type: QueueType,
     queue_ratchet: QueueRatchet<Ciphertext, Payload>,
@@ -148,16 +115,76 @@ impl StorableQsQueueRatchet {
         Ok(())
     }
 
+    /// Decrypt a `QueueMessage` received from the QS queue.
+    ///
+    /// This function is thread-safe via sqlite transactions.
+    pub(crate) async fn decrypt_qs_queue_message(
+        pool: &SqlitePool,
+        qs_message_ciphertext: QueueMessage,
+    ) -> Result<QsQueueMessagePayload, DecryptQsQueueMessageError> {
+        // Makes sure reading the ratchet and updating it is atomic.
+        let mut txn = pool.begin_with("BEGIN IMMEDIATE").await?;
+
+        let mut qs_queue_ratchet = StorableQsQueueRatchet::load(txn.as_mut()).await?;
+
+        let message_seq_nr = qs_message_ciphertext.sequence_number;
+        let ratchet_seq_nr = qs_queue_ratchet.sequence_number();
+
+        // In case the message sequence number is ahead of the ratchet, we need
+        // to ratchet forward to catch up. This really shouldn't happen, so we
+        // log an error in case it does.
+        if message_seq_nr > ratchet_seq_nr {
+            error!(
+                "QS queue ratchet is behind message sequence number: \
+                    ratchet_seq_nr = {}, \
+                    message_seq_nr = {}",
+                ratchet_seq_nr, message_seq_nr
+            );
+        }
+
+        while message_seq_nr > qs_queue_ratchet.sequence_number() {
+            qs_queue_ratchet.ratchet_forward().map_err(|error| {
+                DecryptQsQueueMessageError::Decrypt {
+                    error: error.into(),
+                    ratchet_seq_nr,
+                    message_seq_nr,
+                }
+            })?;
+        }
+
+        let payload = qs_queue_ratchet
+            .decrypt(qs_message_ciphertext)
+            .map_err(|error| DecryptQsQueueMessageError::Decrypt {
+                error,
+                ratchet_seq_nr,
+                message_seq_nr,
+            })?;
+        qs_queue_ratchet.update(txn.as_mut(), QueueType::Qs).await?;
+
+        txn.commit().await?;
+        Ok(payload)
+    }
+
     pub(crate) async fn load(executor: impl SqliteExecutor<'_>) -> sqlx::Result<Self> {
         StorableQueueRatchet::load_internal(executor, QueueType::Qs).await
     }
+}
 
-    pub(crate) async fn update_ratchet(
-        &self,
-        executor: impl SqliteExecutor<'_>,
-    ) -> sqlx::Result<()> {
-        self.update_internal(executor, QueueType::Qs).await
-    }
+#[derive(Debug, thiserror::Error)]
+pub enum DecryptQsQueueMessageError {
+    #[error(transparent)]
+    Db(#[from] sqlx::Error),
+    #[error(
+        "Failed to decrypt: \
+            error = {error}, \
+            message seq nr {message_seq_nr}, \
+            ratchet seq nr {ratchet_seq_nr}"
+    )]
+    Decrypt {
+        error: DecryptionError,
+        ratchet_seq_nr: u64,
+        message_seq_nr: u64,
+    },
 }
 
 impl<Ciphertext, Payload> StorableQueueRatchet<Ciphertext, Payload>
@@ -166,10 +193,18 @@ where
     Payload: RatchetPayload<Ciphertext> + Unpin + Send,
 {
     async fn store(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+        let sequence_number: i64 = self
+            .queue_ratchet
+            .sequence_number()
+            .try_into()
+            .map_err(|error| sqlx::Error::Encode(Box::new(error)))?;
         query!(
-            "INSERT INTO queue_ratchet (queue_type, queue_ratchet) VALUES (?, ?)",
+            "INSERT INTO queue_ratchet
+                (queue_type, queue_ratchet, sequence_number)
+            VALUES (?, ?, ?)",
             self.queue_type,
             self.queue_ratchet,
+            sequence_number,
         )
         .execute(executor)
         .await?;
@@ -194,14 +229,22 @@ where
         })
     }
 
-    pub(crate) async fn update_internal(
+    async fn update(
         &self,
         executor: impl SqliteExecutor<'_>,
         queue_type: QueueType,
     ) -> sqlx::Result<()> {
+        let sequence_number: i64 = self
+            .queue_ratchet
+            .sequence_number()
+            .try_into()
+            .map_err(|error| sqlx::Error::Encode(Box::new(error)))?;
         query!(
-            "UPDATE queue_ratchet SET queue_ratchet = ? WHERE queue_type = ?",
+            "UPDATE queue_ratchet
+            SET queue_ratchet = ?, sequence_number = ?
+            WHERE queue_type = ?",
             self.queue_ratchet,
+            sequence_number,
             queue_type
         )
         .execute(executor)

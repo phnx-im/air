@@ -8,20 +8,25 @@ use aircommon::{
     identifiers::{AttachmentId, MimiId, UserHandle, UserId},
     messages::client_as_out::UserHandleDeleteResponse,
 };
-use mimi_content::MessageStatus;
 use mimi_room_policy::VerifiedRoomState;
 use tokio_stream::Stream;
 use tracing::error;
 use uuid::Uuid;
 
 use crate::{
-    AttachmentContent, Chat, ChatId, ChatMessage, Contact, DownloadProgress, MessageDraft,
+    AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact, MessageDraft,
     MessageId,
-    clients::{CoreUser, attachment::AttachmentRecord, user_settings::UserSettingRecord},
-    contacts::HandleContact,
+    clients::{
+        CoreUser,
+        add_contact::AddHandleContactResult,
+        attachment::{AttachmentRecord, progress::AttachmentProgress},
+        user_settings::UserSettingRecord,
+    },
+    contacts::{ContactType, HandleContact, PartialContact, TargetedMessageContact},
     store::UserSetting,
     user_handles::UserHandleRecord,
     user_profiles::UserProfile,
+    utils::connection_ext::StoreExt,
 };
 
 use super::{Store, StoreNotification, StoreResult};
@@ -41,6 +46,10 @@ impl Store for CoreUser {
 
     async fn report_spam(&self, spammer_id: UserId) -> anyhow::Result<()> {
         self.report_spam(spammer_id).await
+    }
+
+    async fn delete_account(&self, db_path: Option<&str>) -> anyhow::Result<()> {
+        self.delete_account(db_path).await
     }
 
     async fn user_setting<T: UserSetting>(&self) -> Option<T> {
@@ -63,6 +72,12 @@ impl Store for CoreUser {
     async fn set_user_setting<T: UserSetting>(&self, value: &T) -> StoreResult<()> {
         UserSettingRecord::store(self.pool(), T::KEY, T::encode(value)?).await?;
         Ok(())
+    }
+
+    async fn check_handle_exists(&self, user_handle: &UserHandle) -> StoreResult<bool> {
+        let hash = user_handle.calculate_hash()?;
+        let handle_exists = self.api_client()?.as_check_handle_exists(hash).await?;
+        Ok(handle_exists)
     }
 
     async fn user_handles(&self) -> StoreResult<Vec<UserHandle>> {
@@ -95,8 +110,12 @@ impl Store for CoreUser {
         self.set_chat_picture(chat_id, picture).await
     }
 
-    async fn chats(&self) -> StoreResult<Vec<Chat>> {
-        Ok(self.chats().await?)
+    async fn set_chat_title(&self, chat_id: ChatId, title: String) -> StoreResult<()> {
+        self.set_chat_title(chat_id, title).await
+    }
+
+    async fn ordered_chat_ids(&self) -> StoreResult<Vec<ChatId>> {
+        Ok(Chat::load_ordered_ids(self.pool()).await?)
     }
 
     async fn chat(&self, chat_id: ChatId) -> StoreResult<Option<Chat>> {
@@ -120,7 +139,7 @@ impl Store for CoreUser {
     }
 
     async fn update_key(&self, chat_id: ChatId) -> StoreResult<Vec<ChatMessage>> {
-        self.update_key(chat_id).await
+        self.update_key(chat_id, None).await
     }
 
     async fn remove_users(
@@ -143,8 +162,17 @@ impl Store for CoreUser {
         self.load_room_state(&chat_id).await
     }
 
-    async fn add_contact(&self, handle: UserHandle) -> StoreResult<Option<ChatId>> {
+    async fn add_contact(&self, handle: UserHandle) -> StoreResult<AddHandleContactResult> {
         self.add_contact_via_handle(handle).await
+    }
+
+    async fn add_contact_from_group(
+        &self,
+        chat_id: ChatId,
+        user_id: UserId,
+    ) -> StoreResult<ChatId> {
+        self.add_contact_via_targeted_message(chat_id, user_id)
+            .await
     }
 
     async fn block_contact(&self, user_id: UserId) -> StoreResult<()> {
@@ -159,12 +187,26 @@ impl Store for CoreUser {
         Ok(self.contacts().await?)
     }
 
-    async fn contact(&self, user_id: &UserId) -> StoreResult<Option<Contact>> {
-        Ok(self.try_contact(user_id).await?)
+    async fn contact(&self, user_id: &UserId) -> StoreResult<Option<ContactType>> {
+        if let Some(contact) = self.try_contact(user_id).await? {
+            Ok(Some(ContactType::Full(contact)))
+        } else if let Some(targeted_message_contact) =
+            self.try_targeted_message_contact(user_id).await?
+        {
+            Ok(Some(ContactType::Partial(PartialContact::TargetedMessage(
+                targeted_message_contact,
+            ))))
+        } else {
+            Ok(None)
+        }
     }
 
     async fn handle_contacts(&self) -> StoreResult<Vec<HandleContact>> {
         Ok(self.handle_contacts().await?)
+    }
+
+    async fn targeted_message_contacts(&self) -> StoreResult<Vec<TargetedMessageContact>> {
+        Ok(self.targeted_message_contacts().await?)
     }
 
     async fn user_profile(&self, user_id: &UserId) -> UserProfile {
@@ -220,6 +262,13 @@ impl Store for CoreUser {
         Ok(())
     }
 
+    async fn commit_all_message_drafts(&self) -> StoreResult<()> {
+        self.with_notifier(async |notifier| {
+            Ok(MessageDraft::commit_all(self.pool(), notifier).await?)
+        })
+        .await
+    }
+
     async fn messages_count(&self, chat_id: ChatId) -> StoreResult<usize> {
         Ok(self.try_messages_count(chat_id).await?)
     }
@@ -236,7 +285,7 @@ impl Store for CoreUser {
         &self,
         chat_id: ChatId,
         until: MessageId,
-    ) -> StoreResult<(bool, Vec<MimiId>)> {
+    ) -> StoreResult<(bool, Vec<(MessageId, MimiId)>)> {
         self.with_transaction_and_notifier(async |txn, notifier| {
             Chat::mark_as_read_until_message_id(txn, notifier, chat_id, until, self.user_id())
                 .await
@@ -254,23 +303,34 @@ impl Store for CoreUser {
         self.send_message(chat_id, content, replaces_id).await
     }
 
-    async fn send_delivery_receipts<'a>(
+    async fn upload_attachment(
         &self,
         chat_id: ChatId,
-        statuses: impl IntoIterator<Item = (&'a MimiId, MessageStatus)> + Send,
-    ) -> StoreResult<()> {
-        self.send_delivery_receipts(chat_id, statuses).await
+        path: &Path,
+    ) -> StoreResult<(
+        AttachmentId,
+        AttachmentProgress,
+        impl Future<Output = anyhow::Result<ChatMessage>> + use<>,
+    )> {
+        self.upload_attachment(chat_id, path).await
     }
 
-    async fn upload_attachment(&self, chat_id: ChatId, path: &Path) -> StoreResult<ChatMessage> {
-        self.upload_attachment(chat_id, path).await
+    async fn retry_upload_attachment(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> StoreResult<(
+        AttachmentId,
+        AttachmentProgress,
+        impl Future<Output = StoreResult<ChatMessage>> + use<>,
+    )> {
+        self.retry_upload_attachment(attachment_id).await
     }
 
     fn download_attachment(
         &self,
         attachment_id: AttachmentId,
     ) -> (
-        DownloadProgress,
+        AttachmentProgress,
         impl Future<Output = StoreResult<()>> + use<>,
     ) {
         self.download_attachment(attachment_id)
@@ -284,8 +344,18 @@ impl Store for CoreUser {
         Ok(AttachmentRecord::load_content(self.pool(), attachment_id).await?)
     }
 
+    async fn attachment_status(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> StoreResult<Option<AttachmentStatus>> {
+        Ok(AttachmentRecord::status(self.pool(), attachment_id).await?)
+    }
+
     async fn resend_message(&self, local_message_id: Uuid) -> StoreResult<()> {
-        self.re_send_message(local_message_id).await
+        self.outbound_service()
+            .enqueue_chat_message(MessageId::new(local_message_id), None)
+            .await?;
+        Ok(())
     }
 
     fn notify(&self, notification: StoreNotification) {

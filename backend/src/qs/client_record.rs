@@ -5,7 +5,7 @@
 use airprotos::{convert::RefInto, queue_service::v1::QueueEventPayload};
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use sqlx::{Connection, PgConnection, PgPool};
+use sqlx::{PgConnection, PgPool};
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 use aircommon::{
@@ -17,7 +17,7 @@ use aircommon::{
     identifiers::{QsClientId, QsUserId},
     messages::{
         QueueMessage,
-        client_ds::{DsEventMessage, QsQueueRatchet},
+        client_ds::{DsEventMessage, QsQueueMessagePayload, QsQueueRatchet},
         push_token::{EncryptedPushToken, PushToken},
     },
     time::TimeStamp,
@@ -27,10 +27,7 @@ use tracing::{error, info, trace, warn};
 use crate::{
     errors::StorageError,
     messages::intra_backend::DsFanOutPayload,
-    qs::{
-        PushNotificationError,
-        queue::{Queue, QueueNotifier},
-    },
+    qs::{PushNotificationError, queue::Queues},
 };
 
 use super::{PushNotificationProvider, errors::EnqueueError};
@@ -49,7 +46,7 @@ pub(super) enum QueueMessageType {
 /// Info attached to a queue meant as a target for messages fanned out by a DS.
 #[derive(Clone, Debug, Serialize, Deserialize, TlsSerialize, TlsDeserializeBytes, TlsSize)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
-pub(super) struct QsClientRecord {
+pub(super) struct QsClientRecord<const UPDATABLE: bool = true> {
     pub(super) user_id: QsUserId,
     pub(super) client_id: QsClientId,
     pub(super) encrypted_push_token: Option<EncryptedPushToken>,
@@ -72,9 +69,6 @@ impl QsClientRecord {
         ratchet_key: QsQueueRatchet,
     ) -> Result<Self, StorageError> {
         let client_id = QsClientId::random(rng);
-
-        let mut transaction = connection.begin().await?;
-
         let record = Self {
             user_id,
             client_id,
@@ -84,12 +78,7 @@ impl QsClientRecord {
             ratchet_key,
             activity_time: now,
         };
-        record.store(&mut *transaction).await?;
-
-        Queue::new_and_store(client_id, &mut *transaction).await?;
-
-        transaction.commit().await?;
-
+        record.store(connection).await?;
         Ok(record)
     }
 }
@@ -133,6 +122,7 @@ pub(crate) mod persistence {
             Ok(())
         }
 
+        #[cfg(test)]
         pub(in crate::qs) async fn load(
             connection: impl PgExecutor<'_>,
             client_id: &QsClientId,
@@ -165,34 +155,52 @@ pub(crate) mod persistence {
             }))
         }
 
-        pub(in crate::qs) async fn update(
-            &self,
+        /// Note: This function must lock the row exclusively with `FOR UPDATE`.
+        pub(in crate::qs) async fn load_for_update(
             connection: impl PgExecutor<'_>,
-        ) -> Result<(), StorageError> {
-            let owner_public_key = BlobEncoded(&self.queue_encryption_key);
-            let owner_signature_key = BlobEncoded(&self.auth_key);
-            let ratchet = BlobEncoded(&self.ratchet_key);
-
-            query!(
-                "UPDATE qs_client_record
-                SET
-                    encrypted_push_token = $1,
-                    owner_public_key = $2,
-                    owner_signature_key = $3,
-                    ratchet = $4,
-                    activity_time = $5
+            client_id: &QsClientId,
+        ) -> Result<Option<QsClientRecord>, StorageError> {
+            let client_id = client_id.as_uuid();
+            let record = sqlx::query!(
+                r#"SELECT
+                    user_id as "user_id: QsUserId",
+                    encrypted_push_token as "encrypted_push_token: EncryptedPushToken",
+                    owner_public_key AS "owner_public_key: BlobDecoded<RatchetEncryptionKey>",
+                    owner_signature_key AS "owner_signature_key: BlobDecoded<QsClientVerifyingKey>",
+                    ratchet AS "ratchet: BlobDecoded<QsQueueRatchet>",
+                    activity_time AS "activity_time: TimeStamp"
+                FROM
+                    qs_client_record
                 WHERE
-                    client_id = $6",
-                self.encrypted_push_token.as_ref() as Option<&EncryptedPushToken>,
-                owner_public_key as _,
-                owner_signature_key as _,
-                ratchet as _,
-                &self.activity_time as &TimeStamp,
-                &self.client_id as &QsClientId,
+                    client_id = $1
+                FOR UPDATE"#,
+                client_id,
+            )
+            .fetch_optional(connection)
+            .await?;
+            Ok(record.map(|record| QsClientRecord {
+                user_id: record.user_id,
+                client_id: (*client_id).into(),
+                encrypted_push_token: record.encrypted_push_token,
+                queue_encryption_key: record.owner_public_key.into_inner(),
+                auth_key: record.owner_signature_key.into_inner(),
+                ratchet_key: record.ratchet.into_inner(),
+                activity_time: record.activity_time,
+            }))
+        }
+
+        pub(in crate::qs) async fn update_activity_time(
+            connection: impl PgExecutor<'_>,
+            client_id: QsClientId,
+            activity_time: TimeStamp,
+        ) -> sqlx::Result<()> {
+            query!(
+                "UPDATE qs_client_record SET activity_time = $1 WHERE client_id = $2",
+                &activity_time as &TimeStamp,
+                client_id as _,
             )
             .execute(connection)
             .await?;
-
             Ok(())
         }
 
@@ -225,6 +233,56 @@ pub(crate) mod persistence {
                 .execute(executor)
                 .await?;
             }
+            Ok(())
+        }
+    }
+
+    impl QsClientRecord<true> {
+        pub(in crate::qs) async fn update(
+            &self,
+            connection: impl PgExecutor<'_>,
+        ) -> Result<(), StorageError> {
+            let owner_public_key = BlobEncoded(&self.queue_encryption_key);
+            let owner_signature_key = BlobEncoded(&self.auth_key);
+            let ratchet = BlobEncoded(&self.ratchet_key);
+
+            query!(
+                "UPDATE qs_client_record
+                SET
+                    encrypted_push_token = $1,
+                    owner_public_key = $2,
+                    owner_signature_key = $3,
+                    ratchet = $4,
+                    activity_time = $5
+                WHERE
+                    client_id = $6",
+                self.encrypted_push_token.as_ref() as Option<&EncryptedPushToken>,
+                owner_public_key as _,
+                owner_signature_key as _,
+                ratchet as _,
+                &self.activity_time as &TimeStamp,
+                &self.client_id as &QsClientId,
+            )
+            .execute(connection)
+            .await?;
+
+            Ok(())
+        }
+
+        pub(crate) async fn update_queue_ratchet(
+            &self,
+            connection: impl PgExecutor<'_>,
+        ) -> Result<(), StorageError> {
+            let ratchet = BlobEncoded(&self.ratchet_key);
+            query!(
+                "UPDATE qs_client_record
+                SET ratchet = $1
+                WHERE client_id = $2",
+                ratchet as _,
+                &self.client_id as &QsClientId,
+            )
+            .execute(connection)
+            .await?;
             Ok(())
         }
     }
@@ -279,7 +337,7 @@ pub(crate) mod persistence {
             let user_record = store_random_user_record(&pool).await?;
             let client_record = store_random_client_record(&pool, user_record.user_id).await?;
 
-            let loaded = QsClientRecord::load(&pool, &client_record.client_id)
+            let loaded = QsClientRecord::load_for_update(&pool, &client_record.client_id)
                 .await?
                 .expect("missing client record");
             assert_eq!(loaded, client_record);
@@ -328,7 +386,7 @@ pub(crate) mod persistence {
 
             // push token is deleted
             client_record.delete_push_token(&pool).await?;
-            let loaded = QsClientRecord::load(&pool, &client_record.client_id)
+            let loaded = QsClientRecord::load_for_update(&pool, &client_record.client_id)
                 .await?
                 .expect("missing client record");
             assert_eq!(loaded.encrypted_push_token, None);
@@ -365,10 +423,10 @@ pub(crate) mod persistence {
 
 impl QsClientRecord {
     /// Put a message into the queue.
-    pub(crate) async fn enqueue<Q: QueueNotifier, P: PushNotificationProvider>(
+    pub(crate) async fn enqueue<P: PushNotificationProvider>(
         pool: &PgPool,
         client_id: QsClientId,
-        queue_notifier: &Q,
+        queues: &Queues,
         push_notification_provider: &P,
         msg: DsFanOutPayload,
         push_token_key_option: Option<PushTokenEarKey>,
@@ -377,32 +435,8 @@ impl QsClientRecord {
             // Enqueue a queue message.
             // Serialize the message so that we can put it in the queue.
             DsFanOutPayload::QueueMessage(queue_message) => {
-                let mut txn = pool.begin().await?;
-
-                let mut client_record = Self::load(txn.as_mut(), &client_id)
-                    .await?
-                    .ok_or(EnqueueError::ClientNotFound)?;
-
-                // Encrypt the message under the current ratchet key.
-                let queue_message = client_record.ratchet_key.encrypt(queue_message)?;
-                let queue_message_proto: airprotos::queue_service::v1::QueueMessage =
-                    queue_message.into();
-
-                // TODO: Future work: PCS
-
-                trace!("Enqueueing message in storage provider");
-                let has_listener = queue_notifier
-                    .enqueue(txn.as_mut(), client_id, &queue_message_proto)
-                    .await?;
-
-                // We also update the client record in the storage provider, since we need to store
-                // the new ratchet key.
-                client_record.update(txn.as_mut()).await?;
-
-                // We have to commit the transaction before we can send the notification.
-                // Otherwise, the data might not be yet in the database, but because of the
-                // notification the recipient client might try to fetch it.
-                txn.commit().await?;
+                let (client_record, has_listener) =
+                    Self::do_enqueue(pool, client_id, queues, queue_message).await?;
 
                 // Try to send a notification over the websocket, otherwise use push tokens if available
                 if !has_listener {
@@ -493,11 +527,119 @@ impl QsClientRecord {
                     timestamp: Some(timestamp.into()),
                     payload,
                 };
-                queue_notifier.send_payload(client_id, payload).await?;
+                queues.send_payload(client_id, payload).await?;
             }
         }
 
         // Success!
+        Ok(())
+    }
+
+    async fn do_enqueue(
+        pool: &PgPool,
+        client_id: QsClientId,
+        queues: &Queues,
+        queue_message: QsQueueMessagePayload,
+    ) -> Result<(QsClientRecord, bool), EnqueueError> {
+        let mut txn = pool.begin().await?;
+
+        let mut client_record = Self::load_for_update(txn.as_mut(), &client_id)
+            .await?
+            .ok_or(EnqueueError::ClientNotFound)?;
+
+        let queue_message = client_record.ratchet_key.encrypt(&queue_message)?;
+        let queue_message_proto: airprotos::queue_service::v1::QueueMessage = queue_message.into();
+        trace!("Enqueueing message in storage provider");
+
+        let has_listener = queues
+            .enqueue(&mut txn, client_id, &queue_message_proto)
+            .await?;
+
+        client_record.update_queue_ratchet(txn.as_mut()).await?;
+
+        txn.commit().await?;
+
+        Ok((client_record, has_listener))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::VecDeque;
+
+    use aircommon::messages::client_ds::QsQueueMessageType;
+    use anyhow::Context;
+    use tokio::task::JoinSet;
+
+    use crate::qs::{
+        client_record::persistence::tests::store_random_client_record,
+        queue::{Queue, Queues},
+        user_record::persistence::tests::store_random_user_record,
+    };
+
+    use super::*;
+
+    #[sqlx::test]
+    async fn no_race_in_enqueue(pool: PgPool) -> anyhow::Result<()> {
+        let user_record = store_random_user_record(&pool).await?;
+        let client_record = store_random_client_record(&pool, user_record.user_id).await?;
+
+        let queue_notifier = Queues::new(pool.clone()).await?;
+
+        let mut join_set = JoinSet::new();
+
+        const N: u64 = 42;
+
+        for _ in 0..N {
+            let queue_message_payload = QsQueueMessagePayload {
+                timestamp: TimeStamp::now(),
+                message_type: QsQueueMessageType::WelcomeBundle,
+                payload: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            };
+            let pool = pool.clone();
+            let queue_notifier = queue_notifier.clone();
+            join_set.spawn(async move {
+                QsClientRecord::do_enqueue(
+                    &pool,
+                    client_record.client_id,
+                    &queue_notifier,
+                    queue_message_payload,
+                )
+                .await
+            });
+        }
+
+        let mut has_error = false;
+        while let Some(result) = join_set.join_next().await {
+            if let Err(error) = result? {
+                error!(%error, "Error enqueuing message");
+                has_error = true;
+            }
+        }
+
+        let mut queue_messages = VecDeque::new();
+        Queue::fetch_into(
+            &pool,
+            &client_record.client_id,
+            0,
+            N as usize,
+            &mut queue_messages,
+        )
+        .await?;
+
+        let client_record = QsClientRecord::load(&pool, &client_record.client_id)
+            .await?
+            .context("no client record")?;
+        assert_eq!(client_record.ratchet_key.sequence_number(), N);
+
+        let sequences_numbers = queue_messages
+            .into_iter()
+            .map(|m| m.sequence_number)
+            .collect::<Vec<_>>();
+        assert_eq!(sequences_numbers, (0..N).collect::<Vec<_>>());
+
+        assert!(!has_error);
+
         Ok(())
     }
 }

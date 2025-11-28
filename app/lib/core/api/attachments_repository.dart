@@ -9,15 +9,22 @@ import 'package:convert/convert.dart';
 import '../frb_generated.dart';
 import 'message_content.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
 import 'user_cubit.dart';
+part 'attachments_repository.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `attachment_downloads_loop`, `spawn_attachment_downloads`, `spawn_download_task`, `track_attachment_download`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `DownloadTaskHandle`
+// These functions are ignored because they are not marked as `pub`: `attachment_downloads_loop`, `cancellation_token`, `in_progress`, `is_cancelled`, `new`, `spawn_attachment_downloads`, `spawn_download_task`, `track_attachment_download`, `with_cancellation`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AttachmentTaskHandle`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentsRepository>>
 abstract class AttachmentsRepository implements RustOpaqueInterface {
+  Future<void> cancel({required AttachmentId attachmentId});
+
+  /// Load attachment's data from database
+  Future<Uint8List?> loadAttachment({required AttachmentId attachmentId});
+
   Future<Uint8List> loadImageAttachment({
     required AttachmentId attachmentId,
     required FutureOr<void> Function(BigInt) chunkEventCallback,
@@ -29,4 +36,29 @@ abstract class AttachmentsRepository implements RustOpaqueInterface {
       .crateApiAttachmentsRepositoryAttachmentsRepositoryNew(
         userCubit: userCubit,
       );
+
+  Future<void> saveAttachment({
+    required AttachmentId attachmentId,
+    required String path,
+  });
+
+  Stream<UiAttachmentStatus> statusStream({required AttachmentId attachmentId});
+}
+
+@freezed
+sealed class UiAttachmentStatus with _$UiAttachmentStatus {
+  const UiAttachmentStatus._();
+
+  /// Not in progress
+  const factory UiAttachmentStatus.pending() = UiAttachmentStatus_Pending;
+
+  /// Uploading or downloading
+  const factory UiAttachmentStatus.progress(BigInt field0) =
+      UiAttachmentStatus_Progress;
+
+  /// Done uploading or downloading
+  const factory UiAttachmentStatus.completed() = UiAttachmentStatus_Completed;
+
+  /// Failed to upload or download
+  const factory UiAttachmentStatus.failed() = UiAttachmentStatus_Failed;
 }

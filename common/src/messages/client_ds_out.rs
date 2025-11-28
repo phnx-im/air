@@ -27,6 +27,7 @@ pub struct ExternalCommitInfoIn {
     pub ratchet_tree_in: RatchetTreeIn,
     pub encrypted_user_profile_keys: Vec<EncryptedUserProfileKey>,
     pub room_state: VerifiedRoomState,
+    pub proposals: Vec<Vec<u8>>,
 }
 
 #[derive(Debug)]
@@ -72,6 +73,21 @@ pub struct SelfRemoveParamsOut {
 pub struct SendMessageParamsOut {
     pub message: AssistedMessageOut,
     pub sender: LeafNodeIndex,
+    pub suppress_notifications: bool,
+}
+
+#[derive(Debug)]
+pub enum TargetedMessageType {
+    ApplicationMessage {
+        message: AssistedMessageOut,
+        recipient: LeafNodeIndex,
+    },
+}
+
+#[derive(Debug)]
+pub struct TargetedMessageParamsOut {
+    pub sender: LeafNodeIndex,
+    pub message_type: TargetedMessageType,
 }
 
 #[derive(Debug)]

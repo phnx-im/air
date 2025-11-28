@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::MimiId;
-use mimi_content::{MessageStatus, MimiContent};
+use mimi_content::{
+    Disposition, MessageStatus, MimiContent, NestedPartContent, content_container::PartSemantics,
+};
 use tracing::{error, warn};
 
 use crate::{
@@ -121,6 +123,18 @@ impl ChatMessage {
         }
     }
 
+    pub(crate) fn new_system_message(
+        chat_id: ChatId,
+        ds_timestamp: TimeStamp,
+        system_message: SystemMessage,
+    ) -> Self {
+        Self::new(
+            chat_id,
+            MessageId::random(),
+            TimestampedMessage::system_message(system_message, ds_timestamp),
+        )
+    }
+
     pub fn new_for_test(
         chat_id: ChatId,
         message_id: MessageId,
@@ -179,6 +193,11 @@ impl ChatMessage {
 
     pub fn timestamp(&self) -> DateTime<Utc> {
         *self.timestamped_message.timestamp()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_timestamp(&mut self, at: TimeStamp) {
+        self.timestamped_message.timestamp = at;
     }
 
     pub fn edited_at(&self) -> Option<TimeStamp> {
@@ -243,38 +262,48 @@ impl Message {
 
     /// Returns a string representation of the message for use in UI
     /// notifications.
-    pub async fn string_representation(&self, store: &impl Store, chat_type: &ChatType) -> String {
+    pub async fn string_representation(
+        &self,
+        store: &impl Store,
+        chat_type: &ChatType,
+    ) -> Option<String> {
         match self {
-            Message::Content(content_message) => match chat_type {
-                ChatType::Group => {
-                    let display_name = store
-                        .user_profile(&content_message.sender)
-                        .await
-                        .display_name;
-                    let content = content_message
-                        .content
-                        .string_rendering() // TODO: Better error handling
-                        .unwrap_or_else(|e| format!("Error: {e}"));
-                    format!("{display_name}: {content}")
-                }
-                ChatType::HandleConnection(handle) => {
-                    let content = content_message
-                        .content
-                        .string_rendering() // TODO: Better error handling
-                        .unwrap_or_else(|e| format!("Error: {e}"));
-                    format!("{handle}: {content}", handle = handle.plaintext())
-                }
-                ChatType::Connection(_) => {
-                    let content = content_message
-                        .content
-                        .string_rendering() // TODO: Better error handling
-                        .unwrap_or_else(|e| format!("Error: {e}"));
-                    content.to_string()
-                }
-            },
+            Message::Content(content_message) => {
+                let content = match content_message.content.string_rendering() {
+                    Ok(content) => content,
+                    Err(mimi_content::Error::UnsupportedContentType) => {
+                        match self.attachment_type() {
+                            Some(AttachmentType::Image) => "🖼️".to_owned(),
+                            Some(AttachmentType::File) => "📎".to_owned(),
+                            None => {
+                                error!("Unsupported content type");
+                                return None;
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        error!(%error, "Failed to render message content");
+                        return None;
+                    }
+                };
+                let repr = match chat_type {
+                    ChatType::TargetedMessageConnection(_) | ChatType::Group => {
+                        let display_name = store
+                            .user_profile(&content_message.sender)
+                            .await
+                            .display_name;
+                        format!("{display_name}: {content}")
+                    }
+                    ChatType::HandleConnection(handle) => {
+                        format!("{handle}: {content}", handle = handle.plaintext())
+                    }
+                    ChatType::Connection(_) => content,
+                };
+                Some(repr)
+            }
             Message::Event(event_message) => match &event_message {
-                EventMessage::System(system) => system.string_representation(store).await,
-                EventMessage::Error(error) => error.message().to_string(),
+                EventMessage::System(system) => Some(system.string_representation(store).await),
+                EventMessage::Error(error) => Some(error.message().to_string()),
             },
         }
     }
@@ -306,6 +335,49 @@ impl Message {
             Message::Event(_) => None,
         }
     }
+
+    /// Returns `Some(AttachmentType)` if the message contains an attachment.
+    ///
+    /// Otherwise, returns `None`.
+    fn attachment_type(&self) -> Option<AttachmentType> {
+        let Self::Content(content_message) = self else {
+            return None;
+        };
+
+        match &content_message.content().nested_part.part {
+            // Attachment
+            NestedPartContent::MultiPart {
+                part_semantics: PartSemantics::ProcessAll,
+                parts,
+            } if parts
+                .iter()
+                .any(|part| part.disposition == Disposition::Attachment) =>
+            {
+                // Blurhash preview indicates an image
+                let is_image = parts.iter().any(|part| {
+                    part.disposition == Disposition::Preview
+                        && matches!(
+                            &part.part,
+                            NestedPartContent::SinglePart {
+                                content_type,
+                                ..
+                            } if content_type == "text/blurhash"
+                        )
+                });
+                Some(if is_image {
+                    AttachmentType::Image
+                } else {
+                    AttachmentType::File
+                })
+            }
+            _ => None,
+        }
+    }
+}
+
+enum AttachmentType {
+    Image,
+    File,
 }
 
 // WARNING: If this type is changed, a new `VersionedMessage` variant must be
@@ -383,6 +455,39 @@ pub enum SystemMessage {
     // The first UserName is the adder/remover the second is the added/removed.
     Add(UserId, UserId),
     Remove(UserId, UserId),
+    ChangeTitle {
+        user_id: UserId,
+        old_title: String,
+        new_title: String,
+    },
+    ChangePicture(UserId),
+    /// We received a connection request from another user. The String is the
+    /// name of the chat through which the request was made.
+    ReceivedDirectConnectionRequest {
+        sender: UserId,
+        chat_name: String,
+    },
+    ReceivedHandleConnectionRequest {
+        sender: UserId,
+        user_handle: UserHandle,
+    },
+    /// We accepted a connection request from another user. The UserHandle is
+    /// the handle through which the connection was made.
+    AcceptedConnectionRequest {
+        contact: UserId,
+        user_handle: Option<UserHandle>,
+    },
+    /// We received a confirmation for a connection request we sent to another user. The optional
+    /// UserHandle is the handle through which the connection was made, if any.
+    ReceivedConnectionConfirmation {
+        sender: UserId,
+        user_handle: Option<UserHandle>,
+    },
+    /// We requested a connection with another user through a user handle.
+    NewHandleConnectionChat(UserHandle),
+    /// We requested a connection with another user through a group.
+    NewDirectConnectionChat(UserId),
+    CreateGroup(UserId),
 }
 
 impl SystemMessage {
@@ -397,6 +502,68 @@ impl SystemMessage {
                 let remover_display_name = store.user_profile(remover).await.display_name;
                 let removed_display_name = store.user_profile(removed).await.display_name;
                 format!("{remover_display_name} removed {removed_display_name} from the chat")
+            }
+            SystemMessage::ChangeTitle {
+                user_id,
+                old_title,
+                new_title,
+            } => {
+                let user_display_name = store.user_profile(user_id).await.display_name;
+                format!(
+                    "{user_display_name} changed the group name from \"{old_title}\" to \"{new_title}\""
+                )
+            }
+            SystemMessage::ChangePicture(user_id) => {
+                let user_display_name = store.user_profile(user_id).await.display_name;
+                format!("{user_display_name} changed the group picture")
+            }
+            SystemMessage::NewHandleConnectionChat(user_handle) => {
+                let handle_str = user_handle.plaintext();
+                format!("You requested a connection with {handle_str}")
+            }
+            SystemMessage::ReceivedConnectionConfirmation {
+                sender: user_id,
+                user_handle,
+            }
+            | SystemMessage::AcceptedConnectionRequest {
+                contact: user_id,
+                user_handle,
+            } => {
+                let user_display_name = store.user_profile(user_id).await.display_name;
+                let base_str = format!("You connected with {user_display_name}");
+                if let Some(handle) = user_handle {
+                    let handle_str = handle.plaintext();
+                    format!("{base_str} through handle {handle_str}")
+                } else {
+                    base_str
+                }
+            }
+            SystemMessage::ReceivedHandleConnectionRequest {
+                sender: user_id,
+                user_handle,
+            } => {
+                let display_name = store.user_profile(user_id).await.display_name;
+                let username = user_handle.plaintext();
+                format!(
+                    "{display_name} sent you a contact request through your username {username}."
+                )
+            }
+            SystemMessage::ReceivedDirectConnectionRequest {
+                sender: user_id,
+                chat_name,
+            } => {
+                let display_name = store.user_profile(user_id).await.display_name;
+                format!(
+                    "{display_name} sent you a contact request through the group chat {chat_name}."
+                )
+            }
+            SystemMessage::NewDirectConnectionChat(user_id) => {
+                let display_name = store.user_profile(user_id).await.display_name;
+                format!("You requested a connection with {display_name}")
+            }
+            SystemMessage::CreateGroup(user_id) => {
+                let user_display_name = store.user_profile(user_id).await.display_name;
+                format!("{user_display_name} created the group")
             }
         }
     }

@@ -25,14 +25,13 @@ The managed Load Balancer is configured via the custom
 ### Ingress
 
 ```
-kubectl apply -f ingress-http.yaml
 kubectl apply -f ingress-grpc.yaml
 ```
 
 ### Service
 
 ```
-kubectl apply -f phnx-backend.yaml
+kubectl apply -f air-backend.yaml
 ```
 
 [ingress-nginx-values.yaml]: ./ingress-nginx-values.yaml

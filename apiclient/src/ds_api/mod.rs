@@ -13,8 +13,8 @@ use aircommon::{
         client_ds::UserProfileKeyUpdateParams,
         client_ds_out::{
             CreateGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
-            GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageParamsOut, UpdateParamsOut,
-            WelcomeInfoIn,
+            GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageParamsOut,
+            TargetedMessageParamsOut, UpdateParamsOut, WelcomeInfoIn,
         },
     },
     time::TimeStamp,
@@ -127,8 +127,7 @@ impl ApiClient {
         qs_client_reference: QsReference,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
-        // We unwrap here, because we know that the group_info is present.
-        let external_commit = AssistedMessageOut::new(commit, Some(group_info)).unwrap();
+        let external_commit = AssistedMessageOut::new(commit, Some(group_info));
         self.ds_grpc_client
             .join_connection_group(external_commit, qs_client_reference, group_state_ear_key)
             .await
@@ -137,11 +136,13 @@ impl ApiClient {
     /// Resync a client to rejoin a group.
     pub async fn ds_resync(
         &self,
-        external_commit: AssistedMessageOut,
+        commit: MlsMessageOut,
+        group_info: MlsMessageOut,
         signing_key: &ClientSigningKey,
         group_state_ear_key: &GroupStateEarKey,
         own_leaf_index: LeafNodeIndex,
     ) -> Result<TimeStamp, DsRequestError> {
+        let external_commit = AssistedMessageOut::new(commit, Some(group_info));
         self.ds_grpc_client
             .resync(
                 external_commit,
@@ -173,6 +174,18 @@ impl ApiClient {
     ) -> Result<TimeStamp, DsRequestError> {
         self.ds_grpc_client
             .send_message(params, signing_key, group_state_ear_key)
+            .await
+    }
+
+    /// Send a message to the recipient within the given group.
+    pub async fn ds_targeted_message(
+        &self,
+        params: TargetedMessageParamsOut,
+        signing_key: &ClientSigningKey,
+        group_state_ear_key: &GroupStateEarKey,
+    ) -> Result<TimeStamp, DsRequestError> {
+        self.ds_grpc_client
+            .targeted_message(params, signing_key, group_state_ear_key)
             .await
     }
 
@@ -214,9 +227,16 @@ impl ApiClient {
         group_state_ear_key: &GroupStateEarKey,
         group_id: &GroupId,
         sender_index: LeafNodeIndex,
+        content_length: i64,
     ) -> Result<ProvisionAttachmentResponse, DsRequestError> {
         self.ds_grpc_client
-            .provision_attachment(signing_key, group_state_ear_key, group_id, sender_index)
+            .provision_attachment(
+                signing_key,
+                group_state_ear_key,
+                group_id,
+                sender_index,
+                content_length,
+            )
             .await
     }
 

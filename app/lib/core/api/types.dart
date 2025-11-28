@@ -14,10 +14,22 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
 part 'types.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `calculate`, `connection_user_id`, `flight_break_condition`, `from_asset`, `from_bytes`, `from_draft`, `from_profile`, `from_user_id`, `into_draft`, `is_empty`, `load_from_chat_type`, `new`, `timestamp`
+// These functions are ignored because they are not marked as `pub`: `calculate`, `connection_user_id`, `flight_break_condition`, `from_asset`, `from_bytes`, `from_profile`, `from_user_id`, `load_from_chat_type`, `timestamp`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `UiChat`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `from`
+
+enum AddHandleContactError { handleNotFound, duplicateRequest, ownHandle }
+
+@freezed
+sealed class AddHandleContactResult with _$AddHandleContactResult {
+  const AddHandleContactResult._();
+
+  const factory AddHandleContactResult.ok(ChatId field0) =
+      AddHandleContactResult_Ok;
+  const factory AddHandleContactResult.err(AddHandleContactError field0) =
+      AddHandleContactResult_Err;
+}
 
 /// Mirror of the [`ChatId`] type
 class ChatId {
@@ -38,6 +50,8 @@ class ChatId {
 }
 
 /// Image binary data together with its hashsum
+///
+/// Two images are considered equal in Dart if they have the same hashsum.
 class ImageData {
   /// The image data
   final Uint8List data;
@@ -52,15 +66,28 @@ class ImageData {
       RustLib.instance.api.crateApiTypesImageDataComputeHash(bytes: bytes);
 
   @override
-  int get hashCode => data.hashCode ^ hash.hashCode;
+  String toString() => 'ImageData(hash: $hash, len: ${data.length})';
+
+  @override
+  int get hashCode => hash.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is ImageData &&
           runtimeType == other.runtimeType &&
-          data == other.data &&
           hash == other.hash;
+}
+
+/// UI representation of a [`MessageDraft`]
+@freezed
+sealed class MessageDraft with _$MessageDraft {
+  const factory MessageDraft({
+    required String message,
+    MessageId? editingId,
+    required DateTime updatedAt,
+    required bool isCommitted,
+  }) = _MessageDraft;
 }
 
 /// Mirror of the [`MessageId`] type
@@ -110,12 +137,12 @@ class UiChatDetails {
   final ChatId id;
   final UiChatStatus status;
   final UiChatType chatType;
-  final String lastUsed;
+  final DateTime lastUsed;
   final UiChatAttributes attributes;
   final int messagesCount;
   final int unreadMessages;
   final UiChatMessage? lastMessage;
-  final UiMessageDraft? draft;
+  final MessageDraft? draft;
 
   const UiChatDetails({
     required this.id,
@@ -163,7 +190,7 @@ sealed class UiChatMessage with _$UiChatMessage {
   const factory UiChatMessage({
     required ChatId chatId,
     required MessageId id,
-    required String timestamp,
+    required DateTime timestamp,
     required UiMessage message,
     required UiFlightPosition position,
     required UiMessageStatus status,
@@ -321,27 +348,6 @@ sealed class UiMessage with _$UiMessage {
   const factory UiMessage.display(UiEventMessage field0) = UiMessage_Display;
 }
 
-/// Draft of a message in a chat
-@freezed
-sealed class UiMessageDraft with _$UiMessageDraft {
-  const factory UiMessageDraft({
-    required String message,
-    MessageId? editingId,
-    required DateTime updatedAt,
-    required UiMessageDraftSource source,
-  }) = _UiMessageDraft;
-}
-
-/// Makes it possible to distinguish whether the draft was created in Flutter by the user or loaded
-/// from the database or reset by the handle, that is, by the system.
-enum UiMessageDraftSource {
-  /// The draft was created/changed by the user.
-  user,
-
-  /// The draft was created/changed by the system.
-  system,
-}
-
 enum UiMessageStatus {
   sending,
 
@@ -366,6 +372,35 @@ sealed class UiSystemMessage with _$UiSystemMessage {
       UiSystemMessage_Add;
   const factory UiSystemMessage.remove(UiUserId field0, UiUserId field1) =
       UiSystemMessage_Remove;
+  const factory UiSystemMessage.changeTitle(
+    UiUserId field0,
+    String field1,
+    String field2,
+  ) = UiSystemMessage_ChangeTitle;
+  const factory UiSystemMessage.changePicture(UiUserId field0) =
+      UiSystemMessage_ChangePicture;
+  const factory UiSystemMessage.receivedHandleConnectionRequest({
+    required UiUserId sender,
+    required UiUserHandle userHandle,
+  }) = UiSystemMessage_ReceivedHandleConnectionRequest;
+  const factory UiSystemMessage.receivedDirectConnectionRequest({
+    required UiUserId sender,
+    required String chatName,
+  }) = UiSystemMessage_ReceivedDirectConnectionRequest;
+  const factory UiSystemMessage.acceptedConnectionRequest({
+    required UiUserId sender,
+    UiUserHandle? userHandle,
+  }) = UiSystemMessage_AcceptedConnectionRequest;
+  const factory UiSystemMessage.receivedConnectionConfirmation({
+    required UiUserId sender,
+    UiUserHandle? userHandle,
+  }) = UiSystemMessage_ReceivedConnectionConfirmation;
+  const factory UiSystemMessage.newHandleConnectionChat(UiUserHandle field0) =
+      UiSystemMessage_NewHandleConnectionChat;
+  const factory UiSystemMessage.newDirectConnectionChat(UiUserId field0) =
+      UiSystemMessage_NewDirectConnectionChat;
+  const factory UiSystemMessage.createGroup(UiUserId field0) =
+      UiSystemMessage_CreateGroup;
 }
 
 @freezed

@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+apiVersion: v1
+kind: Service
+metadata:
+  name: air-backend
+spec:
+  ports:
+  - name: grpc
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: airserver

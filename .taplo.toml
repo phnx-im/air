@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[formatting]
+reorder_keys = false
+indent_string = "    "
+
+[[rule]]
+include = ["**/Cargo.toml"]
+keys = [
+    "dependencies",
+    "workspace.dependencies",
+    "dev-dependencies",
+    "build-dependencies",
+]
+
+[rule.formatting]
+reorder_keys = true
+array_auto_expand = false

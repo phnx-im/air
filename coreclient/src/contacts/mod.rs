@@ -129,7 +129,6 @@ pub struct HandleContact {
     pub handle: UserHandle,
     pub chat_id: ChatId,
     pub friendship_package_ear_key: FriendshipPackageEarKey,
-    // This is Optional only for backwards compatibility
     pub connection_offer_hash: ConnectionOfferHash,
 }
 
@@ -145,6 +144,66 @@ impl HandleContact {
             chat_id,
             friendship_package_ear_key,
             connection_offer_hash,
+        }
+    }
+}
+
+/// Partial contact established via a targeted message
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
+pub struct TargetedMessageContact {
+    pub user_id: UserId,
+    pub chat_id: ChatId,
+    pub friendship_package_ear_key: FriendshipPackageEarKey,
+}
+
+impl TargetedMessageContact {
+    pub(crate) fn new(
+        user_id: UserId,
+        chat_id: ChatId,
+        friendship_package_ear_key: FriendshipPackageEarKey,
+    ) -> Self {
+        Self {
+            user_id,
+            chat_id,
+            friendship_package_ear_key,
+        }
+    }
+}
+
+pub enum ContactType {
+    Full(Contact),
+    Partial(PartialContact),
+}
+
+pub enum PartialContactType {
+    Handle(UserHandle),
+    TargetedMessage(UserId),
+}
+
+impl std::fmt::Debug for PartialContactType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PartialContactType::Handle(handle) => {
+                f.debug_tuple("Handle").field(&handle.plaintext()).finish()
+            }
+            PartialContactType::TargetedMessage(user_id) => {
+                f.debug_tuple("TargetedMessage").field(user_id).finish()
+            }
+        }
+    }
+}
+
+pub enum PartialContact {
+    Handle(HandleContact),
+    TargetedMessage(TargetedMessageContact),
+}
+
+impl PartialContact {
+    pub(crate) fn friendship_package_ear_key(&self) -> &FriendshipPackageEarKey {
+        match self {
+            PartialContact::Handle(contact) => &contact.friendship_package_ear_key,
+            PartialContact::TargetedMessage(contact) => &contact.friendship_package_ear_key,
         }
     }
 }

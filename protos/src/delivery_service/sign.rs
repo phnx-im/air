@@ -5,8 +5,9 @@
 use prost::Message;
 
 use crate::delivery_service::v1::{
-    GetAttachmentUrlPayload, GetAttachmentUrlRequest, ProvisionAttachmentPayload,
-    ProvisionAttachmentRequest,
+    AssistedMessage, GetAttachmentUrlPayload, GetAttachmentUrlRequest, GroupStateEarKey,
+    LeafNodeIndex, ProvisionAttachmentPayload, ProvisionAttachmentRequest, TargetedMessagePayload,
+    TargetedMessageRequest,
 };
 
 use super::v1::{
@@ -52,13 +53,34 @@ impl VerifiedStruct<SendMessageRequest> for SendMessagePayload {
     }
 }
 
+/// For backwards compatibility, we need to be able to verify signatures over the
+/// old payload format that did not include the `suppress_notifications` field.
+#[derive(Clone, PartialEq, Eq, Hash, prost::Message)]
+pub struct SendMessagePayloadV1 {
+    #[prost(message, optional, tag = "1")]
+    pub group_state_ear_key: Option<GroupStateEarKey>,
+    #[prost(message, optional, tag = "2")]
+    pub message: Option<AssistedMessage>,
+    #[prost(message, optional, tag = "3")]
+    pub sender: Option<LeafNodeIndex>,
+}
+
 impl Verifiable for SendMessageRequest {
     fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
-        Ok(self
-            .payload
-            .as_ref()
-            .ok_or(MissingPayloadError)?
-            .encode_to_vec())
+        let payload = self.payload.as_ref().ok_or(MissingPayloadError)?;
+        let bytes = if payload.suppress_notifications.is_some() {
+            payload.encode_to_vec()
+        } else {
+            // Convert to old payload without optional field for backwards
+            // compatible signature verification.
+            SendMessagePayloadV1 {
+                group_state_ear_key: payload.group_state_ear_key.clone(),
+                message: payload.message.clone(),
+                sender: payload.sender,
+            }
+            .encode_to_vec()
+        };
+        Ok(bytes)
     }
 
     fn signature(&self) -> impl AsRef<[u8]> {
@@ -281,6 +303,58 @@ impl Verifiable for GroupOperationRequest {
     }
 }
 
+const TARGETED_MESSAGE_PAYLOAD_LABEL: &str = "TargetedMessagePayload";
+
+impl SignedStruct<TargetedMessagePayload, ClientKeyType> for TargetedMessageRequest {
+    fn from_payload(payload: TargetedMessagePayload, signature: ClientSignature) -> Self {
+        Self {
+            payload: Some(payload),
+            signature: Some(signature.into()),
+        }
+    }
+}
+
+impl Signable for TargetedMessagePayload {
+    type SignedOutput = TargetedMessageRequest;
+
+    fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
+        Ok(self.encode_to_vec())
+    }
+
+    fn label(&self) -> &str {
+        TARGETED_MESSAGE_PAYLOAD_LABEL
+    }
+}
+
+impl VerifiedStruct<TargetedMessageRequest> for TargetedMessagePayload {
+    type SealingType = private_mod::Seal;
+
+    fn from_verifiable(verifiable: TargetedMessageRequest, _seal: Self::SealingType) -> Self {
+        verifiable.payload.unwrap()
+    }
+}
+
+impl Verifiable for TargetedMessageRequest {
+    fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
+        Ok(self
+            .payload
+            .as_ref()
+            .ok_or(MissingPayloadError)?
+            .encode_to_vec())
+    }
+
+    fn signature(&self) -> impl AsRef<[u8]> {
+        self.signature
+            .as_ref()
+            .map(|s| s.value.as_slice())
+            .unwrap_or_default()
+    }
+
+    fn label(&self) -> &str {
+        TARGETED_MESSAGE_PAYLOAD_LABEL
+    }
+}
+
 const SELF_REMOVE_PAYLOAD_LABEL: &str = "SelfRemovePayload";
 
 impl SignedStruct<SelfRemovePayload, ClientKeyType> for SelfRemoveRequest {
@@ -338,6 +412,7 @@ const RESYNC_PAYLOAD_LABEL: &str = "ResyncPayload";
 impl SignedStruct<ResyncPayload, ClientKeyType> for ResyncRequest {
     fn from_payload(payload: ResyncPayload, signature: ClientSignature) -> Self {
         Self {
+            sender_index: payload.sender,
             payload: Some(payload),
             signature: Some(signature.into()),
         }

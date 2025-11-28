@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::time::Duration;
-
 use airbackend::{
     air_service::BackendService,
     auth_service::AuthService,
@@ -12,22 +10,16 @@ use airbackend::{
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
-    RateLimitsConfig, ServerRunParams,
-    configurations::*,
-    enqueue_provider::SimpleEnqueueProvider,
-    network_provider::MockNetworkProvider,
-    push_notification_provider::ProductionPushNotificationProvider,
-    run,
-    telemetry::{get_subscriber, init_subscriber},
+    ServerRunParams, configurations::*, enqueue_provider::SimpleEnqueueProvider,
+    logging::init_logging, network_provider::MockNetworkProvider,
+    push_notification_provider::ProductionPushNotificationProvider, run,
 };
+use tokio::net::TcpListener;
 use tracing::info;
 
-// TODO: start actix rt?
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Configure logging/trace subscription
-    let subscriber = get_subscriber("airserver".into(), "info".into(), std::io::stdout);
-    init_subscriber(subscriber);
+    init_logging();
 
     // Load configuration
     let mut configuration = get_configuration("server/").expect("Could not load configuration.");
@@ -37,11 +29,10 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Port binding
-    let addr = format!(
-        "{}:{}",
-        configuration.application.host, configuration.application.grpc_port
-    );
-    let listener = tokio::net::TcpListener::bind(addr)
+    let listener = TcpListener::bind(configuration.application.listen)
+        .await
+        .expect("Failed to bind");
+    let metrics_listener = TcpListener::bind(configuration.application.listen_metrics)
         .await
         .expect("Failed to bind");
 
@@ -103,14 +94,12 @@ async fn main() -> anyhow::Result<()> {
     // Start the server
     let server = run(ServerRunParams {
         listener,
+        metrics_listener: Some(metrics_listener),
         ds,
         auth_service,
         qs,
         qs_connector,
-        rate_limits: RateLimitsConfig {
-            period: Duration::from_millis(500),
-            burst_size: 20,
-        },
+        rate_limits: configuration.ratelimits,
     })
     .await;
 

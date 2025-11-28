@@ -169,7 +169,7 @@ impl ClientRecord {
         Ok(records.into_iter().map(From::from).collect())
     }
 
-    pub(super) async fn load(
+    pub(crate) async fn load(
         executor: impl SqliteExecutor<'_>,
         user_id: &UserId,
     ) -> sqlx::Result<Option<Self>> {
@@ -192,7 +192,7 @@ impl ClientRecord {
         .map(|res| res.map(From::from))
     }
 
-    pub(super) async fn store(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+    pub(crate) async fn store(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
         let record_state_str = match self.client_record_state {
             ClientRecordState::InProgress => "in_progress",
             ClientRecordState::Finished => "finished",

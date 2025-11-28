@@ -7,6 +7,8 @@ import 'package:convert/convert.dart';
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import 'attachments_repository.dart';
+import 'chats_repository.dart';
 import 'markdown.dart';
 import 'message_content.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
@@ -14,12 +16,12 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
 import 'types.dart';
 import 'user_cubit.dart';
+import 'user_settings_cubit.dart';
 part 'chat_details_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `handle_store_notification`, `load_and_emit_state`, `load_chat_details`, `members_of_chat`, `new`, `spawn`, `store_draft_from_state`, `store_notifications_loop`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChatDetailsContext`, `MarkAsReadState`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `hash`, `hash`
-// These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`
+// These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `store_draft_from_state`, `update_state_task`, `upload_attachment_impl`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChatDetailsContext`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `eq`, `fmt`, `hash`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>>
 abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
@@ -45,13 +47,23 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   /// changes in the chat and update the state accordingly.
   factory ChatDetailsCubitBase({
     required UserCubitBase userCubit,
+    required UserSettingsCubitBase userSettingsCubit,
     required ChatId chatId,
+    required ChatsRepository chatsRepository,
+    required AttachmentsRepository attachmentsRepository,
+    required bool withMembers,
   }) => RustLib.instance.api.crateApiChatDetailsCubitChatDetailsCubitBaseNew(
     userCubit: userCubit,
+    userSettingsCubit: userSettingsCubit,
     chatId: chatId,
+    chatsRepository: chatsRepository,
+    attachmentsRepository: attachmentsRepository,
+    withMembers: withMembers,
   );
 
   Future<void> resetDraft();
+
+  Future<void> retryUploadAttachment({required AttachmentId attachmentId});
 
   /// Sends a message to the chat.
   ///
@@ -64,18 +76,18 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   /// When `bytes` is `None`, the chat picture is removed.
   Future<void> setChatPicture({Uint8List? bytes});
 
+  Future<void> setChatTitle({required String title});
+
   ChatDetailsState get state;
 
-  Future<void> storeDraft({required String draftMessage});
+  Future<void> storeDraft({
+    required String draftMessage,
+    required bool isCommitted,
+  });
 
   Stream<ChatDetailsState> stream();
 
   Future<void> uploadAttachment({required String path});
-}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UiRoomState>>
-abstract class UiRoomState implements RustOpaqueInterface {
-  bool canKick({required UiUserId target});
 }
 
 /// The state of a single chat
@@ -89,7 +101,6 @@ sealed class ChatDetailsState with _$ChatDetailsState {
   const factory ChatDetailsState({
     UiChatDetails? chat,
     required List<UiUserId> members,
-    UiRoomState? roomState,
   }) = _ChatDetailsState;
   static Future<ChatDetailsState> default_() =>
       RustLib.instance.api.crateApiChatDetailsCubitChatDetailsStateDefault();

@@ -77,12 +77,3 @@ class LocalFileComparatorWithThreshold extends LocalFileComparator {
     }
   }
 }
-
-String platformGolden(String baseName) {
-  if (Platform.isMacOS) return '$baseName.macos.png';
-  if (Platform.isWindows) return '$baseName.windows.png';
-  if (Platform.isLinux) return '$baseName.linux.png';
-  if (Platform.isAndroid) return '$baseName.android.png';
-  if (Platform.isIOS) return '$baseName.ios.png';
-  return '$baseName.png';
-}

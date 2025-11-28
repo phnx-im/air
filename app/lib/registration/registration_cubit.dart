@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/core/core.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:logging/logging.dart';
-import 'package:air/core/core.dart';
 
 part 'registration_cubit.freezed.dart';
 
@@ -25,12 +25,14 @@ sealed class RegistrationState with _$RegistrationState {
 
   const factory RegistrationState({
     // Domain choice screen data
-    @Default('dev.phnx.im') String domain,
+    @Default('air.ms') String domain,
 
     // Display name/avatar screen data
     ImageData? avatar,
     @Default('') String displayName,
     @Default(false) bool isSigningUp,
+    @Default(false) bool needsUsernameOnboarding,
+    String? usernameSuggestion,
   }) = _RegistrationState;
 
   bool get isDomainValid => _domainRegex.hasMatch(domain);
@@ -56,13 +58,27 @@ class RegistrationCubit extends Cubit<RegistrationState> {
     emit(state.copyWith(displayName: value));
   }
 
+  void startUsernameOnboarding(String suggestion) {
+    emit(
+      state.copyWith(
+        needsUsernameOnboarding: true,
+        usernameSuggestion: suggestion,
+      ),
+    );
+  }
+
+  void clearUsernameOnboarding() {
+    emit(
+      state.copyWith(needsUsernameOnboarding: false, usernameSuggestion: null),
+    );
+  }
+
   Future<SignUpError?> signUp() async {
     emit(state.copyWith(isSigningUp: true));
 
-    final url =
-        state.domain == "localhost"
-            ? "http://${state.domain}"
-            : "https://${state.domain}";
+    final url = state.domain == "localhost"
+        ? "http://${state.domain}:8080"
+        : "https://${state.domain}";
 
     try {
       _log.info("Registering user...");

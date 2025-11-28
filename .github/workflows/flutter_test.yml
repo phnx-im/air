@@ -1,0 +1,60 @@
+# SPDX-FileCopyrightText: 2024 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: Flutter tests
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches: ["main"]
+  merge_group:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  flutter-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Just
+        uses: extractions/setup-just@v2
+
+      - name: Set up Flutter FVM
+        uses: kuhnroyal/flutter-fvm-config-action/setup@v3
+        with:
+          path: 'app/.fvmrc'
+          cache: false
+
+      - name: Check Flutter lockfile
+        run: just check-flutter-lockfile
+
+      # Note: for formatting to use the correct style, we need to run `flutter
+      # pub get` first. This is done in the `check-dart-format` step.
+      - name: Check dart format
+        run: just check-dart-format
+
+      - name: Check localization
+        run: just check-l10n
+
+      - name: Analyze dart code
+        run: just analyze-dart
+
+      - name: Run Flutter tests
+        run: just test-flutter
+
+      - name: Upload golden failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-failures
+          path: app/test/**/failures/*

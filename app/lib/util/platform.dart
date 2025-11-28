@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:air/core/core.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 const platform = MethodChannel('ms.air/channel');
@@ -68,7 +69,7 @@ Future<String> getDatabaseDirectoryMobile() async {
       return await platform.invokeMethod('getDatabasesDirectory');
     } on PlatformException catch (e, stacktrace) {
       _log.severe(
-        "Failed to get database directory: '${e.message}'.",
+        "Failed to get database directory: '${e.message}'",
         e,
         stacktrace,
       );
@@ -76,6 +77,51 @@ Future<String> getDatabaseDirectoryMobile() async {
     }
   }
   return '';
+}
+
+/// Saves file data to the appropriate public directory on Android.
+Future<void> saveFileAndroid({
+  required String fileName,
+  required String mimeType,
+  required Uint8List data,
+}) async {
+  if (!Platform.isAndroid) {
+    throw PlatformException(code: 'unsupported_platform');
+  }
+  try {
+    await platform.invokeMethod('saveFile', {
+      'fileName': fileName,
+      'mimeType': mimeType,
+      'data': data,
+    });
+  } on PlatformException catch (e) {
+    _log.severe("Failed to save file: '${e.message}'.");
+  }
+}
+
+/// Returns the directory returned by `getApplicationDocumentsDirectory` on all platforms, except for
+/// iOS. On iOS, the directory returned is the `Caches` directory in a shared container of the
+/// application group. The container is shared between the application and background extension.
+Future<String> getCacheDirectory() async {
+  return Platform.isIOS
+      ? (await _getSharedCacheDirectoryIOS())!
+      : (await getApplicationCacheDirectory()).path;
+}
+
+Future<String?> _getSharedCacheDirectoryIOS() async {
+  if (Platform.isIOS) {
+    try {
+      return await platform.invokeMethod('getSharedCacheDirectory');
+    } on PlatformException catch (e, stacktrace) {
+      _log.severe(
+        "Failed to get shared cache directory: '${e.message}'",
+        e,
+        stacktrace,
+      );
+      throw PlatformException(code: 'failed_to_get_shared_cache_directory');
+    }
+  }
+  return null;
 }
 
 Future<void> setBadgeCount(int count) async {

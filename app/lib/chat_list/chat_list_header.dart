@@ -2,11 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/core/api/types.dart';
 import 'package:flutter/material.dart';
+import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
 import 'package:air/chat_list/chat_list_cubit.dart';
 import 'package:air/chat_list/create_chat_view.dart';
-import 'package:air/core/api/types.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/main.dart';
 import 'package:air/navigation/navigation.dart';
@@ -14,7 +15,6 @@ import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/context_menu/context_menu.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
-import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:provider/provider.dart';
 
@@ -40,53 +40,25 @@ class ChatListHeader extends StatelessWidget {
   }
 }
 
-class _Avatar extends StatefulWidget {
+class _Avatar extends StatelessWidget {
   const _Avatar();
 
   @override
-  State<_Avatar> createState() => _AvatarState();
-}
-
-class _AvatarState extends State<_Avatar> {
-  final contextMenuController = OverlayPortalController();
-
-  @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-    final profile = context.select((UsersCubit cubit) => cubit.state.profile());
-
     return Padding(
       padding: const EdgeInsets.only(left: Spacings.sm),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          ContextMenu(
-            direction: ContextMenuDirection.right,
-            width: 280,
-            controller: contextMenuController,
-            menuItems: [
-              ContextMenuItem(
-                label: loc.settings_profile,
-                onPressed: () {
-                  context.read<NavigationCubit>().openUserSettings();
-                },
-              ),
-              ContextMenuItem(
-                label: loc.settings_developerSettings,
-                onPressed: () {
-                  context.read<NavigationCubit>().openDeveloperSettings();
-                },
-              ),
-            ],
-            child: UserAvatar(
-              displayName: profile.displayName,
-              image: profile.profilePicture,
-              size: Spacings.l,
-              onPressed: () {
-                contextMenuController.show();
-              },
-            ),
+          GestureDetector(
+            onTap: () {
+              context.read<NavigationCubit>().openUserProfile();
+            },
+            onLongPress: () {
+              context.read<NavigationCubit>().openDeveloperSettings();
+            },
+            child: const UserAvatar(size: Spacings.l),
           ),
         ],
       ),
@@ -108,40 +80,50 @@ class _PlusButtonState extends State<_PlusButton> {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    return ContextMenu(
-      direction: ContextMenuDirection.left,
-      width: 200,
-      controller: contextMenuController,
-      menuItems: [
-        ContextMenuItem(
-          label: loc.chatList_newContact,
-          onPressed: () {
-            _newContact(context);
-          },
-        ),
-        ContextMenuItem(
-          label: loc.chatList_newGroup,
-          onPressed: () {
-            _newGroup(context);
-          },
-        ),
-      ],
-      child: TextButton(
-        onPressed: () {
-          contextMenuController.show();
-        },
-        child: Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: CustomColorScheme.of(context).backgroundBase.quaternary,
-            borderRadius: BorderRadius.circular(16),
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacings.sm,
+        vertical: Spacings.sm,
+      ),
+      child: ContextMenu(
+        direction: ContextMenuDirection.left,
+        width: 200,
+        controller: contextMenuController,
+        menuItems: [
+          ContextMenuItem(
+            label: loc.chatList_newContact,
+            onPressed: () {
+              _newContact(context);
+            },
           ),
-          child: Center(
-            child: Icon(
-              Icons.add_rounded,
-              size: 22,
-              color: CustomColorScheme.of(context).text.primary,
+          ContextMenuItem(
+            label: loc.chatList_newGroup,
+            onPressed: () {
+              _newGroup(context);
+            },
+          ),
+        ],
+        child: TextButton(
+          style: TextButton.styleFrom(
+            padding: EdgeInsets.zero,
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          onPressed: () {
+            contextMenuController.show();
+          },
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: CustomColorScheme.of(context).backgroundBase.quaternary,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Center(
+              child: iconoir.Plus(
+                color: CustomColorScheme.of(context).text.primary,
+                width: 22,
+              ),
             ),
           ),
         ),
@@ -156,8 +138,11 @@ class _PlusButtonState extends State<_PlusButton> {
     String? customError;
 
     String? validator(String? value) {
-      final plaintext = value?.trim().toLowerCase();
-      if (plaintext == null || plaintext.isEmpty) {
+      final normalized = UserHandleInputFormatter.normalize(
+        value ?? '',
+        allowUnderscore: true,
+      );
+      if (normalized.isEmpty) {
         return loc.newConnectionDialog_error_emptyHandle;
       }
       if (customError != null) {
@@ -165,12 +150,19 @@ class _PlusButtonState extends State<_PlusButton> {
         customError = null;
         return error;
       }
-      UiUserHandle handle = UiUserHandle(plaintext: plaintext);
+      UiUserHandle handle = UiUserHandle(plaintext: normalized);
       return handle.validationError();
     }
 
     Future<String?> onAction(String input) async {
-      final handle = UiUserHandle(plaintext: input.trim().toLowerCase());
+      final normalized = UserHandleInputFormatter.normalize(
+        input,
+        allowUnderscore: true,
+      );
+      if (normalized.isEmpty) {
+        return loc.newConnectionDialog_error_emptyHandle;
+      }
+      final handle = UiUserHandle(plaintext: normalized);
       try {
         final chatId = await chatListCubit.createContactChat(handle: handle);
         if (context.mounted) {
@@ -199,59 +191,20 @@ class _PlusButtonState extends State<_PlusButton> {
 
     showDialog(
       context: context,
-      builder:
-          (BuildContext context) => CreateChatView(
-            context,
-            loc.newConnectionDialog_newConnectionTitle,
-            loc.newConnectionDialog_newConnectionDescription,
-            loc.newConnectionDialog_usernamePlaceholder,
-            loc.newConnectionDialog_actionButton,
-            validator: validator,
-            onAction: onAction,
-          ),
+      builder: (BuildContext context) => CreateChatView(
+        context,
+        loc.newConnectionDialog_newConnectionTitle,
+        loc.newConnectionDialog_newConnectionDescription,
+        loc.newConnectionDialog_usernamePlaceholder,
+        loc.newConnectionDialog_actionButton,
+        validator: validator,
+        onAction: onAction,
+        allowUnderscore: true,
+      ),
     );
   }
 
-  void _newGroup(BuildContext context) async {
-    final chatListCubit = context.read<ChatListCubit>();
-    final loc = AppLocalizations.of(context);
-
-    validator(String? value) {
-      final plaintext = value?.trim().toLowerCase();
-      if (plaintext == null || plaintext.isEmpty) {
-        return loc.newChatDialog_error_emptyGroupName;
-      }
-      return null;
-    }
-
-    String? input = await showDialog(
-      context: context,
-      builder:
-          (BuildContext context) => CreateChatView(
-            context,
-            loc.newChatDialog_newChatTitle,
-            loc.newChatDialog_newChatDescription,
-            loc.newChatDialog_chatNamePlaceholder,
-            loc.newChatDialog_actionButton,
-            validator: validator,
-          ),
-    );
-    String groupName = input?.trim() ?? "";
-    if (groupName.isNotEmpty) {
-      try {
-        final chatId = await chatListCubit.createGroupChat(
-          groupName: groupName,
-        );
-        _log.info(
-          "A new group '$groupName' was created: "
-          "chatId = $chatId",
-        );
-      } catch (e) {
-        if (context.mounted) {
-          _log.severe("Failed to create chat: $e");
-          showErrorBanner(context, loc.newChatDialog_error(groupName));
-        }
-      }
-    }
+  void _newGroup(BuildContext context) {
+    context.read<NavigationCubit>().openCreateGroup();
   }
 }

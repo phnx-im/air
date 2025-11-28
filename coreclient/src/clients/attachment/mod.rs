@@ -6,7 +6,6 @@ use std::{fmt, str::FromStr};
 
 use aircommon::identifiers::{AttachmentId, AttachmentIdParseError};
 pub use content::MimiContentExt;
-pub use download::{DownloadProgress, DownloadProgressEvent};
 pub(crate) use persistence::AttachmentRecord;
 pub use persistence::{AttachmentContent, AttachmentStatus};
 use thiserror::Error;
@@ -16,8 +15,9 @@ use url::Url;
 mod content;
 mod download;
 mod ear;
-mod persistence;
+pub(crate) mod persistence;
 mod process;
+pub(crate) mod progress;
 mod upload;
 
 #[derive(TlsSize, TlsSerialize, TlsDeserializeBytes)]

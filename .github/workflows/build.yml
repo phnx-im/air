@@ -1,0 +1,102 @@
+# SPDX-FileCopyrightText: 2023 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: Build and test Rust code
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches: ["main"]
+  merge_group:
+
+env:
+  SQLX_OFFLINE: true
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+  RUSTFLAGS: -D warnings
+
+jobs:
+  rust-check-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cargo-machete
+        uses: taiki-e/install-action@cargo-machete
+      - run: cargo machete
+
+  rust-check-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@1.90.0
+      - run: cargo metadata --locked
+
+  rust-check-fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@1.90.0
+        with:
+          components: rustfmt
+      - run: cargo fmt -- --check
+
+  rust-check-cargo-deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@1.90.0
+      - name: Set up Just
+        uses: extractions/setup-just@v2
+      - run: just install-cargo-binstall
+      - run: cargo binstall cargo-deny
+      - run: cargo deny check
+
+  rust-clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@1.90.0
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --locked --all-targets -- -D warnings
+
+  rust-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@1.90.0
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --verbose
+
+  rust-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Podman Compose
+        run: pip3 install --user podman-compose
+
+      - name: Set up Just
+        uses: extractions/setup-just@v2
+
+      - name: Start Compose services
+        run: just run-services
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@1.90.0
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run tests
+        run: just test-rust --verbose

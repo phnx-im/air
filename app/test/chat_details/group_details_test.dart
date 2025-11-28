@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/chat_details/chat_details.dart';
-import 'package:air/chat_details/group_details.dart';
+import 'package:air/chat/chat_details.dart';
+import 'package:air/chat/group_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
@@ -20,14 +20,19 @@ void main() {
   group('GroupDetails', () {
     late MockChatDetailsCubit chatDetailsCubit;
     late MockUsersCubit usersCubit;
+    late MockUserCubit userCubit;
 
     setUp(() async {
       chatDetailsCubit = MockChatDetailsCubit();
       usersCubit = MockUsersCubit();
+      userCubit = MockUserCubit();
 
       when(
         () => usersCubit.state,
       ).thenReturn(MockUsersState(profiles: userProfiles));
+      when(
+        () => userCubit.state,
+      ).thenReturn(MockUiUser(id: 1, userHandles: const []));
     });
 
     Widget buildSubject({List<UiUserId> members = const []}) {
@@ -39,6 +44,7 @@ void main() {
         providers: [
           BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
           BlocProvider<UsersCubit>.value(value: usersCubit),
+          BlocProvider<UserCubit>.value(value: userCubit),
         ],
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
@@ -59,10 +65,9 @@ void main() {
     });
 
     testWidgets('renders correctly with members overflowing', (tester) async {
-      final members =
-          (userProfiles + userProfiles + userProfiles)
-              .map((e) => e.userId)
-              .toList();
+      final members = (userProfiles + userProfiles + userProfiles)
+          .map((e) => e.userId)
+          .toList();
       await tester.pumpWidget(buildSubject(members: members));
 
       await expectLater(

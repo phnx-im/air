@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/widgets/user_handle_input_formatter.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 class CreateChatView extends HookWidget {
@@ -15,6 +16,7 @@ class CreateChatView extends HookWidget {
   final String action;
   final Future<String?> Function(String)? onAction;
   final FormFieldValidator<String> validator;
+  final bool allowUnderscore;
 
   @override
   const CreateChatView(
@@ -25,6 +27,7 @@ class CreateChatView extends HookWidget {
     this.action, {
     this.onAction,
     required this.validator,
+    this.allowUnderscore = false,
     super.key,
   });
 
@@ -70,13 +73,14 @@ class CreateChatView extends HookWidget {
                     controller: controller,
                     focusNode: focusNode,
                     decoration: InputDecoration(hintText: hint),
+                    inputFormatters: [
+                      UserHandleInputFormatter(
+                        allowUnderscore: allowUnderscore,
+                      ),
+                    ],
                     onChanged: (text) => customValidationError.value = null,
-                    validator:
-                        (input) => _validator(
-                          isInputValid,
-                          customValidationError,
-                          input,
-                        ),
+                    validator: (input) =>
+                        _validator(isInputValid, customValidationError, input),
                     onFieldSubmitted: (text) {
                       // keep focus on the input field
                       focusNode.requestFocus();
@@ -103,16 +107,15 @@ class CreateChatView extends HookWidget {
           child: const Text('Cancel'),
         ),
         TextButton(
-          onPressed:
-              isInputValid.value
-                  ? () => _onAction(
-                    context,
-                    formKey,
-                    isInputValid,
-                    customValidationError,
-                    controller.text,
-                  )
-                  : null,
+          onPressed: isInputValid.value
+              ? () => _onAction(
+                  context,
+                  formKey,
+                  isInputValid,
+                  customValidationError,
+                  controller.text,
+                )
+              : null,
           child: Text(action),
         ),
       ],

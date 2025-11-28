@@ -104,8 +104,7 @@ impl CoreUser {
         &self,
         handle: &UserHandle,
     ) -> StoreResult<UserHandleDeleteResponse> {
-        let mut txn = self.pool().begin().await?;
-        let record = UserHandleRecord::load(txn.as_mut(), handle)
+        let record = UserHandleRecord::load(self.pool(), handle)
             .await?
             .context("no user handle found")?;
         let api_client = self.api_client()?;

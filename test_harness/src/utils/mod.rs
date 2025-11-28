@@ -13,10 +13,11 @@ use airbackend::{
     auth_service::AuthService,
     ds::{Ds, storage::Storage},
     qs::Qs,
+    settings::RateLimitsSettings,
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
-    RateLimitsConfig, ServerRunParams, configurations::get_configuration_from_str,
+    ServerRunParams, configurations::get_configuration_from_str,
     enqueue_provider::SimpleEnqueueProvider, network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
 };
@@ -28,27 +29,24 @@ use crate::init_test_tracing;
 const BASE_CONFIG: &str = include_str!("../../../server/configuration/base.yaml");
 const LOCAL_CONFIG: &str = include_str!("../../../server/configuration/local.yaml");
 
-const TEST_RATE_LIMITS: RateLimitsConfig = RateLimitsConfig {
+const TEST_RATE_LIMITS: RateLimitsSettings = RateLimitsSettings {
     period: Duration::from_millis(1),
-    burst_size: 1000,
+    burst: 1000,
 };
 
 /// Start the server and initialize the database connection.
 ///
 /// Returns the HTTP and gRPC addresses, and a `DispatchWebsocketNotifier` to dispatch
 /// notifications.
-pub async fn spawn_app(
-    domain: impl Into<Option<Fqdn>>,
-    network_provider: MockNetworkProvider,
-) -> SocketAddr {
+pub async fn spawn_app(domain: Fqdn, network_provider: MockNetworkProvider) -> SocketAddr {
     spawn_app_with_rate_limits(domain, network_provider, TEST_RATE_LIMITS).await
 }
 
 /// Same as [`spawn_app`], but allows to configure rate limits.
 pub async fn spawn_app_with_rate_limits(
-    domain: impl Into<Option<Fqdn>>,
+    domain: Fqdn,
     network_provider: MockNetworkProvider,
-    rate_limits: RateLimitsConfig,
+    rate_limits: RateLimitsSettings,
 ) -> SocketAddr {
     init_test_tracing();
 
@@ -58,13 +56,13 @@ pub async fn spawn_app_with_rate_limits(
     configuration.database.name = Uuid::new_v4().to_string();
 
     // Port binding
-    let host = configuration.application.host;
-    let domain = domain.into().unwrap_or_else(|| host.parse().unwrap());
+    let mut listen = configuration.application.listen;
+    listen.set_port(0); // Bind to a random port
 
-    let grpc_listener = TcpListener::bind(format!("{host}:0"))
+    let listener = TcpListener::bind(listen)
         .await
         .expect("Failed to bind to random port.");
-    let grpc_address = grpc_listener.local_addr().unwrap();
+    let address = listener.local_addr().unwrap();
 
     // DS storage provider
     let mut ds = Ds::new(&configuration.database, domain.clone())
@@ -101,7 +99,8 @@ pub async fn spawn_app_with_rate_limits(
 
     // Start the server
     let server = run(ServerRunParams {
-        listener: grpc_listener,
+        listener,
+        metrics_listener: None,
         ds,
         auth_service,
         qs,
@@ -114,5 +113,5 @@ pub async fn spawn_app_with_rate_limits(
     tokio::spawn(server);
 
     // Return the address
-    grpc_address
+    address
 }

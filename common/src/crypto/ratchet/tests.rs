@@ -20,7 +20,7 @@ fn test_ratchet() {
         message_type: QsQueueMessageType::MlsMessage,
         payload: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     };
-    let encrypted_message = sender_ratchet.encrypt(message.clone()).unwrap();
+    let encrypted_message = sender_ratchet.encrypt(&message).unwrap();
     let plaintext: QsQueueMessagePayload = receiver_ratchtet.decrypt(encrypted_message).unwrap();
     assert_eq!(plaintext, message);
 }

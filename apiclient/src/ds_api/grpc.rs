@@ -10,7 +10,7 @@ use aircommon::{
         client_ds::UserProfileKeyUpdateParams,
         client_ds_out::{
             CreateGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
-            GroupOperationParamsOut, SendMessageParamsOut, WelcomeInfoIn,
+            GroupOperationParamsOut, SendMessageParamsOut, TargetedMessageParamsOut, WelcomeInfoIn,
         },
     },
     time::TimeStamp,
@@ -22,7 +22,7 @@ use airprotos::{
         ExternalCommitInfoRequest, GetAttachmentUrlPayload, GroupOperationPayload,
         JoinConnectionGroupRequest, ProvisionAttachmentPayload, ProvisionAttachmentResponse,
         RequestGroupIdRequest, ResyncPayload, SelfRemovePayload, SendMessagePayload,
-        UpdateProfileKeyPayload, WelcomeInfoPayload,
+        TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
         delivery_service_client::DeliveryServiceClient,
     },
     validation::MissingFieldExt,
@@ -82,6 +82,7 @@ impl DsGrpcClient {
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
             message: Some(params.message.try_ref_into()?),
             sender: Some(params.sender.into()),
+            suppress_notifications: Some(params.suppress_notifications),
         };
 
         let request = payload.sign(signing_key)?;
@@ -89,6 +90,32 @@ impl DsGrpcClient {
             .client
             .clone()
             .send_message(request)
+            .await?
+            .into_inner();
+
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
+    }
+
+    pub(crate) async fn targeted_message(
+        &self,
+        params: TargetedMessageParamsOut,
+        signing_key: &ClientSigningKey,
+        group_state_ear_key: &GroupStateEarKey,
+    ) -> Result<TimeStamp, DsRequestError> {
+        let payload = TargetedMessagePayload {
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            sender: Some(params.sender.into()),
+            targeted_message_type: Some(params.message_type.try_ref_into()?),
+        };
+
+        let request = payload.sign(signing_key)?;
+        let response = self
+            .client
+            .clone()
+            .targeted_message(request)
             .await?
             .into_inner();
 
@@ -217,6 +244,7 @@ impl DsGrpcClient {
                     .try_ref_into()?,
             )
             .map_err(|_| DsRequestError::UnexpectedResponse)?,
+            proposals: response.proposals.into_iter().map(|m| m.tls).collect(),
         })
     }
 
@@ -387,6 +415,7 @@ impl DsGrpcClient {
                     .try_ref_into()?,
             )
             .map_err(|_| DsRequestError::UnexpectedResponse)?,
+            proposals: response.proposals.into_iter().map(|m| m.tls).collect(),
         })
     }
 
@@ -414,12 +443,15 @@ impl DsGrpcClient {
         group_state_ear_key: &GroupStateEarKey,
         group_id: &GroupId,
         sender_index: LeafNodeIndex,
+        content_length: i64,
     ) -> Result<ProvisionAttachmentResponse, DsRequestError> {
         let qgid: QualifiedGroupId = group_id.try_into()?;
         let payload = ProvisionAttachmentPayload {
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
             group_id: Some(qgid.ref_into()),
             sender: Some(sender_index.into()),
+            use_post_policy: true,
+            content_length,
         };
         let request = payload.sign(signing_key)?;
         let response = self

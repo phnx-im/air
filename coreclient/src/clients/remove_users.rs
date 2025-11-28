@@ -5,7 +5,7 @@
 use aircommon::identifiers::UserId;
 use remove_users_flow::RemoveUsersData;
 
-use crate::{ChatId, ChatMessage};
+use crate::{ChatId, ChatMessage, utils::connection_ext::StoreExt};
 
 use super::CoreUser;
 
@@ -141,7 +141,7 @@ mod remove_users_flow {
                 ds_timestamp,
             } = self;
 
-            let group_messages = group
+            let (group_messages, _) = group
                 .merge_pending_commit(txn.as_mut(), None, ds_timestamp)
                 .await?;
             group.store_update(txn.as_mut()).await?;

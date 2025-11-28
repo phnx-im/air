@@ -4,7 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:air/chat_list/chat_list.dart';
-import 'package:air/chat_details/chat_details.dart';
+import 'package:air/chat/chat_details.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
@@ -16,16 +16,12 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mobileLayout = Scaffold(
-      backgroundColor: CustomColorScheme.of(context).backgroundBase.primary,
-      body: const ChatListContainer(),
-    );
     const desktopLayout = HomeScreenDesktopLayout(
-      chatList: ChatListContainer(),
+      chatList: ChatListContainer(isStandalone: false),
       chat: ChatScreen(),
     );
-    return ResponsiveScreen(
-      mobile: mobileLayout,
+    return const ResponsiveScreen(
+      mobile: ChatListContainer(isStandalone: true),
       tablet: desktopLayout,
       desktop: desktopLayout,
     );

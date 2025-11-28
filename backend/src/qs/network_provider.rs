@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use super::{Fqdn, qs_api::FederatedProcessingResult};
 
 pub trait NetworkProvider: Sync + Send + Debug + 'static {
-    type NetworkError: std::error::Error;
+    type NetworkError: std::error::Error + Send;
 
     fn deliver(
         &self,

@@ -4,7 +4,7 @@
 
 [package]
 name = "airapplogic"
-version = "0.1.0"
+version = "0.5.0"
 authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
 edition = "2024"
 publish = false
@@ -22,42 +22,48 @@ crate-type = ["cdylib", "staticlib", "lib"]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
 
 [dependencies]
-aircoreclient = { path = "../coreclient" }
-aircommon = { path = "../common" }
+aircommon.workspace = true
+aircoreclient.workspace = true
+anyhow.workspace = true
+blake3.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+dashmap.workspace = true
+derive_more.workspace = true
+deunicode.workspace = true
+flate2.workspace = true
+flutter_rust_bridge.workspace = true
+jni.workspace = true
+lru.workspace = true
+memmap2.workspace = true
+mimi-room-policy.workspace = true
+mimi_content.workspace = true
+parking_lot.workspace = true
+pulldown-cmark.workspace = true
+rand.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tar.workspace = true
+thiserror.workspace = true
+tls_codec.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+url.workspace = true
+uuid = { workspace = true, features = ["v4"] }
 
-mimi-room-policy = { workspace = true }
-
-tracing = "0.1"
-tracing-subscriber = { workspace = true }
-parking_lot = "0.12"
-uuid = { version = "1", features = ["v4"] }
-anyhow = { version = "1", features = ["backtrace"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tokio = { version = "1.39", features = ["rt", "macros"] }
-flutter_rust_bridge = { version = "=2.11.1", features = ["chrono", "uuid"] }
-chrono = { workspace = true }
-jni = "0.21"
-tokio-util = { workspace = true }
-tokio-stream = "0.1.17"
-blake3 = { workspace = true }
-bytes = "1.10.0"
-memmap2 = "0.9.5"
-regex = "1.11.1"
-flate2 = "1.1.0"
-tar = "0.4.44"
-pulldown-cmark = "0.13.0"
-thiserror = "2.0.11"
-mimi_content = { workspace = true }
-derive_more = { workspace = true }
-tls_codec = { workspace = true }
-url = "2.5.4"
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+libc = "0.2" # required for stack size in background execution on Android/iOS
 
 [target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
 notify-rust = "4"
 
 [dev-dependencies]
-quickcheck = "1.0.3"
-quickcheck_macros = "1.0.0"
-tempfile = "3.17.1"
-openmls = { workspace = true } # Required for GroupId
+mockall.workspace = true
+openmls.workspace = true           # Required for GroupId
+quickcheck.workspace = true
+quickcheck_macros.workspace = true
+tempfile.workspace = true

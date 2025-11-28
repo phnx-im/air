@@ -31,36 +31,46 @@ class AttachmentImageProvider extends ImageProvider<UiAttachment> {
   ) {
     final chunkEvents = StreamController<ImageChunkEvent>();
     return MultiFrameImageStreamCompleter(
-      codec: attachmentsRepository
-          .loadImageAttachment(
-            attachmentId: key.attachmentId,
-            chunkEventCallback: (cumulativeBytesLoaded) {
-              chunkEvents.add(
-                ImageChunkEvent(
-                  cumulativeBytesLoaded: cumulativeBytesLoaded.toInt(),
-                  expectedTotalBytes: key.size,
-                ),
-              );
-            },
-          )
-          .catchError((Object e, StackTrace stack) {
-            scheduleMicrotask(() {
-              PaintingBinding.instance.imageCache.evict(key);
-            });
-            return Future<Uint8List>.error(e, stack);
-          })
-          .whenComplete(chunkEvents.close)
-          .then<ui.ImmutableBuffer>(ui.ImmutableBuffer.fromUint8List)
-          .then<ui.Codec>(decode),
+      codec: _loadAsync(key, decode, chunkEvents),
       chunkEvents: chunkEvents.stream,
       scale: 1.0,
-      debugLabel: '"key"',
-      informationCollector:
-          () => <DiagnosticsNode>[
-            DiagnosticsProperty<ImageProvider>('Image provider', this),
-            DiagnosticsProperty<UiAttachment>('Image key', key),
-          ],
+      debugLabel: "AttachmentImageProvider(${attachment.attachmentId})",
+      informationCollector: () => <DiagnosticsNode>[
+        DiagnosticsProperty<ImageProvider>('Image provider', this),
+        DiagnosticsProperty<UiAttachment>('Image key', key),
+      ],
     );
+  }
+
+  Future<ui.Codec> _loadAsync(
+    final UiAttachment key,
+    final ImageDecoderCallback decode,
+    final StreamController<ImageChunkEvent> chunkEvents,
+  ) async {
+    Uint8List bytes;
+    try {
+      bytes = await attachmentsRepository.loadImageAttachment(
+        attachmentId: key.attachmentId,
+        chunkEventCallback: (cumulativeBytesLoaded) {
+          chunkEvents.add(
+            ImageChunkEvent(
+              cumulativeBytesLoaded: cumulativeBytesLoaded.toInt(),
+              expectedTotalBytes: key.size,
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      scheduleMicrotask(() {
+        PaintingBinding.instance.imageCache.evict(key);
+      });
+      rethrow;
+    } finally {
+      chunkEvents.close();
+    }
+
+    final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+    return decode(buffer);
   }
 
   @override
@@ -76,5 +86,5 @@ class AttachmentImageProvider extends ImageProvider<UiAttachment> {
 
   @override
   String toString() =>
-      '${objectRuntimeType(this, "AttachmentImageProvider")}("{$attachment.attachmentId}")';
+      '${objectRuntimeType(this, "AttachmentImageProvider")}(${attachment.attachmentId})';
 }

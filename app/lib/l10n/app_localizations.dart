@@ -115,25 +115,19 @@ abstract class AppLocalizations {
   /// No description provided for @userSettingsScreen_title.
   ///
   /// In en, this message translates to:
-  /// **'User Settings'**
+  /// **'Profile and Settings'**
   String get userSettingsScreen_title;
-
-  /// No description provided for @userSettingsScreen_idCopied.
-  ///
-  /// In en, this message translates to:
-  /// **'User ID copied to clipboard'**
-  String get userSettingsScreen_idCopied;
 
   /// No description provided for @userSettingsScreen_profileDescription.
   ///
   /// In en, this message translates to:
-  /// **'Others will see your picture and name when you communicate with them.'**
+  /// **'Your display name and profile picture are visible to your Air contacts and members of groups you’re in.'**
   String get userSettingsScreen_profileDescription;
 
   /// No description provided for @userSettingsScreen_userNamesDescription.
   ///
   /// In en, this message translates to:
-  /// **'Share usernames with others so they can connect with you. After the connection, usernames are not visible to others anymore. You can have up to 5 usernames.'**
+  /// **'Share usernames with anyone you want to connect with. Usernames aren’t visible to others, even your Air contacts. You can have up to 5 usernames.'**
   String get userSettingsScreen_userNamesDescription;
 
   /// No description provided for @userSettingsScreen_interfaceScale.
@@ -148,16 +142,88 @@ abstract class AppLocalizations {
   /// **'Help'**
   String get userSettingsScreen_help;
 
+  /// No description provided for @userSettingsScreen_deleteAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Air account'**
+  String get userSettingsScreen_deleteAccount;
+
+  /// No description provided for @userSettingsScreen_sendWithEnter.
+  ///
+  /// In en, this message translates to:
+  /// **'Send with Enter'**
+  String get userSettingsScreen_sendWithEnter;
+
+  /// No description provided for @userSettingsScreen_sendWithEnterDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'If disabled, pressing the Enter key won’t send a message.'**
+  String get userSettingsScreen_sendWithEnterDescription;
+
+  /// No description provided for @userSettingsScreen_readReceipts.
+  ///
+  /// In en, this message translates to:
+  /// **'Read receipts'**
+  String get userSettingsScreen_readReceipts;
+
+  /// No description provided for @userSettingsScreen_readReceiptsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'If disabled, others won’t be able to see when you’ve read their messages and you won’t be able to see when they’ve read yours.'**
+  String get userSettingsScreen_readReceiptsDescription;
+
+  /// No description provided for @userSettingsScreen_displayNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Display name'**
+  String get userSettingsScreen_displayNameLabel;
+
+  /// No description provided for @userSettingsScreen_usernamesSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Usernames'**
+  String get userSettingsScreen_usernamesSection;
+
+  /// No description provided for @userSettingsScreen_settingsSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get userSettingsScreen_settingsSection;
+
+  /// No description provided for @userSettingsScreen_helpSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Help'**
+  String get userSettingsScreen_helpSection;
+
+  /// No description provided for @userSettingsScreen_accountSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get userSettingsScreen_accountSection;
+
+  /// No description provided for @userSettingsScreen_userHandlePlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Username'**
+  String get userSettingsScreen_userHandlePlaceholder;
+
+  /// No description provided for @settingsScreen_copiedToClipboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard'**
+  String get settingsScreen_copiedToClipboard;
+
   /// No description provided for @removeUsernameDialog_title.
   ///
   /// In en, this message translates to:
-  /// **'Remove Username'**
+  /// **'Remove username?'**
   String get removeUsernameDialog_title;
 
   /// No description provided for @removeUsernameDialog_content.
   ///
   /// In en, this message translates to:
-  /// **'If you continue, your username will be removed and may be claimed by someone else. You’ll no longer be reachable through it.'**
+  /// **'People won’t be able to send you a contact request using this username, and it may be taken by someone else.'**
   String get removeUsernameDialog_content;
 
   /// No description provided for @removeUsernameDialog_cancel.
@@ -172,28 +238,10 @@ abstract class AppLocalizations {
   /// **'Remove'**
   String get removeUsernameDialog_remove;
 
-  /// No description provided for @userSettingsScreen_noUserHandles.
-  ///
-  /// In en, this message translates to:
-  /// **'no usernames yet'**
-  String get userSettingsScreen_noUserHandles;
-
-  /// No description provided for @userSettingsScreen_userHandlePlaceholder.
-  ///
-  /// In en, this message translates to:
-  /// **'Username'**
-  String get userSettingsScreen_userHandlePlaceholder;
-
-  /// No description provided for @addMembersScreen_title.
-  ///
-  /// In en, this message translates to:
-  /// **'Add members'**
-  String get addMembersScreen_title;
-
   /// No description provided for @addMembersScreen_addMembers.
   ///
   /// In en, this message translates to:
-  /// **'Add member(s)'**
+  /// **'Add members'**
   String get addMembersScreen_addMembers;
 
   /// No description provided for @addMembersScreen_error_noActiveChat.
@@ -201,12 +249,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'an active chat is obligatory'**
   String get addMembersScreen_error_noActiveChat;
-
-  /// No description provided for @chatDetailsScreen_title.
-  ///
-  /// In en, this message translates to:
-  /// **'Details'**
-  String get chatDetailsScreen_title;
 
   /// No description provided for @chatDetailsScreen_unknownChat.
   ///
@@ -220,17 +262,17 @@ abstract class AppLocalizations {
   /// **'You won’t receive messages from {displayName} unless you unblock them.'**
   String blockedChatFooter_message(Object displayName);
 
+  /// No description provided for @inactiveChatFooter_message.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re no longer a member of this chat.'**
+  String get inactiveChatFooter_message;
+
   /// No description provided for @chatScreen_emptyChat.
   ///
   /// In en, this message translates to:
   /// **'Select a chat to start messaging'**
   String get chatScreen_emptyChat;
-
-  /// No description provided for @memberDetailsScreen_title.
-  ///
-  /// In en, this message translates to:
-  /// **'Member details'**
-  String get memberDetailsScreen_title;
 
   /// No description provided for @removeUserDialog_title.
   ///
@@ -241,25 +283,19 @@ abstract class AppLocalizations {
   /// No description provided for @removeUserDialog_content.
   ///
   /// In en, this message translates to:
-  /// **'Are you sure you want to remove this user from the group?'**
-  String get removeUserDialog_content;
-
-  /// No description provided for @removeUserDialog_cancel.
-  ///
-  /// In en, this message translates to:
-  /// **'Cancel'**
-  String get removeUserDialog_cancel;
+  /// **'Are you sure you want to remove {displayName} from the group?'**
+  String removeUserDialog_content(Object displayName);
 
   /// No description provided for @removeUserDialog_removeUser.
   ///
   /// In en, this message translates to:
-  /// **'Remove User'**
+  /// **'Remove user'**
   String get removeUserDialog_removeUser;
 
   /// No description provided for @removeUserButton_text.
   ///
   /// In en, this message translates to:
-  /// **'Remove User'**
+  /// **'Remove'**
   String get removeUserButton_text;
 
   /// No description provided for @blockContactButton_text.
@@ -319,25 +355,25 @@ abstract class AppLocalizations {
   /// No description provided for @unblockContactDialog_unblock.
   ///
   /// In en, this message translates to:
-  /// **'Unblock User'**
+  /// **'Unblock'**
   String get unblockContactDialog_unblock;
 
   /// No description provided for @deleteContactButton_text.
   ///
   /// In en, this message translates to:
-  /// **'Delete Air Contact'**
+  /// **'Delete Air contact'**
   String get deleteContactButton_text;
 
   /// No description provided for @deleteContactDialog_title.
   ///
   /// In en, this message translates to:
-  /// **'Delete Air Contact'**
+  /// **'Delete Air contact'**
   String get deleteContactDialog_title;
 
   /// No description provided for @deleteContactDialog_content.
   ///
   /// In en, this message translates to:
-  /// **'Are you sure you want to delete your Air Contact {displayName}? If you do, the chat and its message history will be deleted.'**
+  /// **'Are you sure you want to delete your Air contact {displayName}? If you do, the chat and its message history will be deleted.'**
   String deleteContactDialog_content(Object displayName);
 
   /// No description provided for @deleteContactDialog_cancel.
@@ -355,32 +391,92 @@ abstract class AppLocalizations {
   /// No description provided for @introScreen_signUp.
   ///
   /// In en, this message translates to:
-  /// **'Sign Up'**
+  /// **'Start'**
   String get introScreen_signUp;
 
-  /// No description provided for @signUpScreen_title.
+  /// No description provided for @introScreen_termsLinkText.
   ///
   /// In en, this message translates to:
-  /// **'Sign Up'**
-  String get signUpScreen_title;
+  /// **'Terms of Use'**
+  String get introScreen_termsLinkText;
+
+  /// No description provided for @introScreen_termsText.
+  ///
+  /// In en, this message translates to:
+  /// **'By signing up, you agree to our {termsOfUseLink}.'**
+  String introScreen_termsText(Object termsOfUseLink);
+
+  /// No description provided for @signUpScreen_header.
+  ///
+  /// In en, this message translates to:
+  /// **'Create your profile'**
+  String get signUpScreen_header;
+
+  /// No description provided for @signUpScreen_subheader.
+  ///
+  /// In en, this message translates to:
+  /// **'Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.'**
+  String get signUpScreen_subheader;
+
+  /// No description provided for @usernameOnboarding_header.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a username'**
+  String get usernameOnboarding_header;
+
+  /// No description provided for @usernameOnboarding_body.
+  ///
+  /// In en, this message translates to:
+  /// **'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.'**
+  String get usernameOnboarding_body;
+
+  /// No description provided for @usernameOnboarding_syntax.
+  ///
+  /// In en, this message translates to:
+  /// **'Use letters, numbers, or dashes. Minimum 5 characters.'**
+  String get usernameOnboarding_syntax;
+
+  /// No description provided for @usernameOnboarding_addButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get usernameOnboarding_addButton;
+
+  /// No description provided for @usernameOnboarding_skip.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get usernameOnboarding_skip;
+
+  /// No description provided for @usernameOnboarding_userameInputName.
+  ///
+  /// In en, this message translates to:
+  /// **'Username (optional)'**
+  String get usernameOnboarding_userameInputName;
+
+  /// No description provided for @usernameOnboarding_userameInputHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a username...'**
+  String get usernameOnboarding_userameInputHint;
 
   /// No description provided for @signUpScreen_actionButton.
   ///
   /// In en, this message translates to:
-  /// **'Sign Up'**
+  /// **'Create'**
   String get signUpScreen_actionButton;
 
-  /// No description provided for @signUpScreen_displayNameLabel.
+  /// No description provided for @signUpScreen_displayNameInputName.
   ///
   /// In en, this message translates to:
-  /// **'Choose a picture and a display name.'**
-  String get signUpScreen_displayNameLabel;
+  /// **'Display name (required)'**
+  String get signUpScreen_displayNameInputName;
 
-  /// No description provided for @signUpScreen_displayNameHint.
+  /// No description provided for @signUpScreen_displayNameInputHint.
   ///
   /// In en, this message translates to:
-  /// **'DISPLAY NAME'**
-  String get signUpScreen_displayNameHint;
+  /// **'Add a name...'**
+  String get signUpScreen_displayNameInputHint;
 
   /// No description provided for @signUpScreen_serverLabel.
   ///
@@ -403,7 +499,7 @@ abstract class AppLocalizations {
   /// No description provided for @signUpScreen_error_emptyDisplayName.
   ///
   /// In en, this message translates to:
-  /// **'Display name cannot be empty'**
+  /// **'Add a display name of at least one character'**
   String get signUpScreen_error_emptyDisplayName;
 
   /// No description provided for @signUpScreen_error_register.
@@ -415,13 +511,13 @@ abstract class AppLocalizations {
   /// No description provided for @userHandleScreen_title.
   ///
   /// In en, this message translates to:
-  /// **'Username'**
+  /// **'Add username'**
   String get userHandleScreen_title;
 
   /// No description provided for @userHandleScreen_inputHint.
   ///
   /// In en, this message translates to:
-  /// **'Username'**
+  /// **'Type a username...'**
   String get userHandleScreen_inputHint;
 
   /// No description provided for @userHandleScreen_error_emptyHandle.
@@ -433,14 +529,26 @@ abstract class AppLocalizations {
   /// No description provided for @userHandleScreen_error_alreadyExists.
   ///
   /// In en, this message translates to:
-  /// **'Username already exists'**
+  /// **'Username is already in use'**
   String get userHandleScreen_error_alreadyExists;
 
   /// No description provided for @userHandleScreen_description.
   ///
   /// In en, this message translates to:
-  /// **'Choose a username that others can use to connect with you.\n\nUse letters, numbers, or underscores. Minimum 5 characters.'**
+  /// **'Choose a username that others can use to connect with you. Use letters, numbers, or dashes. Minimum 5 characters.'**
   String get userHandleScreen_description;
+
+  /// No description provided for @userHandleScreen_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get userHandleScreen_cancel;
+
+  /// No description provided for @userHandleScreen_confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get userHandleScreen_confirm;
 
   /// No description provided for @userHandleScreen_save.
   ///
@@ -451,20 +559,20 @@ abstract class AppLocalizations {
   /// No description provided for @editDisplayNameScreen_title.
   ///
   /// In en, this message translates to:
-  /// **'Display Name'**
+  /// **'Change display name'**
   String get editDisplayNameScreen_title;
-
-  /// No description provided for @editDisplayNameScreen_hintText.
-  ///
-  /// In en, this message translates to:
-  /// **'Display name'**
-  String get editDisplayNameScreen_hintText;
 
   /// No description provided for @editDisplayNameScreen_description.
   ///
   /// In en, this message translates to:
-  /// **'Choose a name that others will see when you communicate with them.'**
+  /// **'Choose a name that others will see.'**
   String get editDisplayNameScreen_description;
+
+  /// No description provided for @editDisplayNameScreen_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get editDisplayNameScreen_cancel;
 
   /// No description provided for @editDisplayNameScreen_save.
   ///
@@ -475,8 +583,8 @@ abstract class AppLocalizations {
   /// No description provided for @systemMessage_userAddedUser_prefix.
   ///
   /// In en, this message translates to:
-  /// **''**
-  String get systemMessage_userAddedUser_prefix;
+  /// **'{user1}'**
+  String systemMessage_userAddedUser_prefix(Object user1);
 
   /// No description provided for @systemMessage_userAddedUser_infix.
   ///
@@ -487,14 +595,14 @@ abstract class AppLocalizations {
   /// No description provided for @systemMessage_userAddedUser_suffix.
   ///
   /// In en, this message translates to:
-  /// **''**
-  String get systemMessage_userAddedUser_suffix;
+  /// **'{user2}'**
+  String systemMessage_userAddedUser_suffix(Object user2);
 
   /// No description provided for @systemMessage_userRemovedUser_prefix.
   ///
   /// In en, this message translates to:
-  /// **''**
-  String get systemMessage_userRemovedUser_prefix;
+  /// **'{user1}'**
+  String systemMessage_userRemovedUser_prefix(Object user1);
 
   /// No description provided for @systemMessage_userRemovedUser_infix.
   ///
@@ -505,8 +613,113 @@ abstract class AppLocalizations {
   /// No description provided for @systemMessage_userRemovedUser_suffix.
   ///
   /// In en, this message translates to:
-  /// **''**
-  String get systemMessage_userRemovedUser_suffix;
+  /// **'{user2}'**
+  String systemMessage_userRemovedUser_suffix(Object user2);
+
+  /// No description provided for @systemMessage_userChangedTitle_prefix.
+  ///
+  /// In en, this message translates to:
+  /// **'{user}'**
+  String systemMessage_userChangedTitle_prefix(Object user);
+
+  /// No description provided for @systemMessage_userChangedTitle_infix_1.
+  ///
+  /// In en, this message translates to:
+  /// **' changed the group name from '**
+  String get systemMessage_userChangedTitle_infix_1;
+
+  /// No description provided for @systemMessage_userChangedTitle_infix_2.
+  ///
+  /// In en, this message translates to:
+  /// **'{old_name}'**
+  String systemMessage_userChangedTitle_infix_2(Object old_name);
+
+  /// No description provided for @systemMessage_userChangedTitle_infix_3.
+  ///
+  /// In en, this message translates to:
+  /// **' to '**
+  String get systemMessage_userChangedTitle_infix_3;
+
+  /// No description provided for @systemMessage_userChangedTitle_suffix.
+  ///
+  /// In en, this message translates to:
+  /// **'{new_name}'**
+  String systemMessage_userChangedTitle_suffix(Object new_name);
+
+  /// No description provided for @systemMessage_acceptedHandleConnectionRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'You accepted {displayName}\'s contact request made through your username {username}.'**
+  String systemMessage_acceptedHandleConnectionRequest(
+    Object displayName,
+    Object username,
+  );
+
+  /// No description provided for @systemMessage_acceptedDirectConnectionRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'You accepted {displayName}\'s contact request made through a mutual group chat.'**
+  String systemMessage_acceptedDirectConnectionRequest(Object displayName);
+
+  /// No description provided for @systemMessage_receivedConnectionConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'{displayName} accepted your contact request.'**
+  String systemMessage_receivedConnectionConfirmation(Object displayName);
+
+  /// No description provided for @systemMessage_newHandleConnectionChat.
+  ///
+  /// In en, this message translates to:
+  /// **'You sent a contact request to username {username}. They might not be immediately notified about your request.'**
+  String systemMessage_newHandleConnectionChat(Object username);
+
+  /// No description provided for @systemMessage_newDirectConnectionChat.
+  ///
+  /// In en, this message translates to:
+  /// **'You sent a contact request to {displayName}. They might not be immediately notified about your request.'**
+  String systemMessage_newDirectConnectionChat(Object displayName);
+
+  /// No description provided for @systemMessage_receivedHandleConnectionRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'{displayName} sent you a contact request through your username {username}.'**
+  String systemMessage_receivedHandleConnectionRequest(
+    Object displayName,
+    Object username,
+  );
+
+  /// No description provided for @systemMessage_receivedDirectConnectionRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'{displayName} sent you a contact request through the group chat {groupName}.'**
+  String systemMessage_receivedDirectConnectionRequest(
+    Object displayName,
+    Object groupName,
+  );
+
+  /// No description provided for @systemMessage_userChangedPicture_prefix.
+  ///
+  /// In en, this message translates to:
+  /// **'{user}'**
+  String systemMessage_userChangedPicture_prefix(Object user);
+
+  /// No description provided for @systemMessage_userChangedPicture_infix.
+  ///
+  /// In en, this message translates to:
+  /// **' changed the group picture'**
+  String get systemMessage_userChangedPicture_infix;
+
+  /// No description provided for @systemMessage_userCreatedGroup_prefix.
+  ///
+  /// In en, this message translates to:
+  /// **'{user}'**
+  String systemMessage_userCreatedGroup_prefix(Object user);
+
+  /// No description provided for @systemMessage_userCreatedGroup_suffix.
+  ///
+  /// In en, this message translates to:
+  /// **' created the group'**
+  String get systemMessage_userCreatedGroup_suffix;
 
   /// No description provided for @timestamp_now.
   ///
@@ -523,19 +736,19 @@ abstract class AppLocalizations {
   /// No description provided for @chatList_newContact.
   ///
   /// In en, this message translates to:
-  /// **'New contact'**
+  /// **'New Air contact'**
   String get chatList_newContact;
 
   /// No description provided for @chatList_newGroup.
   ///
   /// In en, this message translates to:
-  /// **'New group'**
+  /// **'New group chat'**
   String get chatList_newGroup;
 
   /// No description provided for @chatList_emptyMessage.
   ///
   /// In en, this message translates to:
-  /// **'Create a new connection to get started'**
+  /// **'Add your first Air contact to get started'**
   String get chatList_emptyMessage;
 
   /// No description provided for @chatList_draft.
@@ -568,64 +781,22 @@ abstract class AppLocalizations {
   /// **'Blocked'**
   String get chatList_blocked;
 
-  /// No description provided for @settings_profile.
-  ///
-  /// In en, this message translates to:
-  /// **'Profile'**
-  String get settings_profile;
-
-  /// No description provided for @settings_developerSettings.
-  ///
-  /// In en, this message translates to:
-  /// **'Settings (developer)'**
-  String get settings_developerSettings;
-
-  /// No description provided for @newChatDialog_newChatTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'New chat'**
-  String get newChatDialog_newChatTitle;
-
-  /// No description provided for @newChatDialog_newChatDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Choose a name for the new chat'**
-  String get newChatDialog_newChatDescription;
-
-  /// No description provided for @newChatDialog_chatNamePlaceholder.
-  ///
-  /// In en, this message translates to:
-  /// **'Chat name'**
-  String get newChatDialog_chatNamePlaceholder;
-
-  /// No description provided for @newChatDialog_actionButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Create chat'**
-  String get newChatDialog_actionButton;
-
   /// No description provided for @newChatDialog_error.
   ///
   /// In en, this message translates to:
-  /// **'Failed to add chat with name {chatName}'**
+  /// **'Failed to create new group chat with name {chatName}'**
   String newChatDialog_error(Object chatName);
-
-  /// No description provided for @newChatDialog_error_emptyGroupName.
-  ///
-  /// In en, this message translates to:
-  /// **'Chat name cannot be empty'**
-  String get newChatDialog_error_emptyGroupName;
 
   /// No description provided for @newConnectionDialog_newConnectionTitle.
   ///
   /// In en, this message translates to:
-  /// **'New connection'**
+  /// **'New Air contact'**
   String get newConnectionDialog_newConnectionTitle;
 
   /// No description provided for @newConnectionDialog_newConnectionDescription.
   ///
   /// In en, this message translates to:
-  /// **'Enter the username of the user you want to connect to'**
+  /// **'Type the username of the person you want to connect to'**
   String get newConnectionDialog_newConnectionDescription;
 
   /// No description provided for @newConnectionDialog_usernamePlaceholder.
@@ -643,19 +814,19 @@ abstract class AppLocalizations {
   /// No description provided for @newConnectionDialog_error.
   ///
   /// In en, this message translates to:
-  /// **'Failed to add user with username {username}. Please try again.'**
+  /// **'Failed to send {username} a contact request. Try again.'**
   String newConnectionDialog_error(Object username);
 
   /// No description provided for @newConnectionDialog_error_emptyHandle.
   ///
   /// In en, this message translates to:
-  /// **'Username cannot be empty'**
+  /// **'Type the username'**
   String get newConnectionDialog_error_emptyHandle;
 
   /// No description provided for @newConnectionDialog_error_handleNotFound.
   ///
   /// In en, this message translates to:
-  /// **'Username {username} does not exist'**
+  /// **'Username {username} doesn\'t exist'**
   String newConnectionDialog_error_handleNotFound(Object username);
 
   /// No description provided for @composer_inputHint.
@@ -667,13 +838,13 @@ abstract class AppLocalizations {
   /// No description provided for @composer_editMessage.
   ///
   /// In en, this message translates to:
-  /// **'Edit Message'**
+  /// **'Edit message'**
   String get composer_editMessage;
 
   /// No description provided for @composer_error_attachment.
   ///
   /// In en, this message translates to:
-  /// **'Failed to upload attachment. Please try again.'**
+  /// **'Failed to upload attachment. Try again.'**
   String get composer_error_attachment;
 
   /// No description provided for @attachmentSize.
@@ -681,6 +852,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{size} {byteUnit}'**
   String attachmentSize(double size, Object byteUnit);
+
+  /// No description provided for @attachment_tryAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get attachment_tryAgain;
+
+  /// No description provided for @attachment_gallery.
+  ///
+  /// In en, this message translates to:
+  /// **'Gallery'**
+  String get attachment_gallery;
+
+  /// No description provided for @attachment_camera.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera'**
+  String get attachment_camera;
+
+  /// No description provided for @attachment_file.
+  ///
+  /// In en, this message translates to:
+  /// **'File'**
+  String get attachment_file;
 
   /// No description provided for @textMessage_edited.
   ///
@@ -691,7 +886,7 @@ abstract class AppLocalizations {
   /// No description provided for @textMessage_hiddenPlaceholder.
   ///
   /// In en, this message translates to:
-  /// **'Blocked contact, tap to reveal message'**
+  /// **'Blocked user, tap to reveal message'**
   String get textMessage_hiddenPlaceholder;
 
   /// No description provided for @textMessage_deleted.
@@ -700,16 +895,52 @@ abstract class AppLocalizations {
   /// **'Deleted message'**
   String get textMessage_deleted;
 
+  /// No description provided for @messageContextMenu_copy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get messageContextMenu_copy;
+
+  /// No description provided for @messageContextMenu_edit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get messageContextMenu_edit;
+
+  /// No description provided for @messageContextMenu_save.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get messageContextMenu_save;
+
+  /// No description provided for @messageContextMenu_share.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get messageContextMenu_share;
+
+  /// No description provided for @messageContextMenu_saveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to save attachment'**
+  String get messageContextMenu_saveError;
+
+  /// No description provided for @messageContextMenu_saveConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachment saved'**
+  String get messageContextMenu_saveConfirmation;
+
   /// No description provided for @reportSpamButton_text.
   ///
   /// In en, this message translates to:
-  /// **'Report Spam'**
+  /// **'Report spam'**
   String get reportSpamButton_text;
 
   /// No description provided for @reportSpamDialog_title.
   ///
   /// In en, this message translates to:
-  /// **'Report Spam?'**
+  /// **'Report spam?'**
   String get reportSpamDialog_title;
 
   /// No description provided for @reportSpamDialog_content.
@@ -727,7 +958,7 @@ abstract class AppLocalizations {
   /// No description provided for @reportSpamDialog_reportSpam.
   ///
   /// In en, this message translates to:
-  /// **'Report Spam'**
+  /// **'Report spam'**
   String get reportSpamDialog_reportSpam;
 
   /// No description provided for @reportSpamDialog_success.
@@ -739,7 +970,7 @@ abstract class AppLocalizations {
   /// No description provided for @reportSpamDialog_error.
   ///
   /// In en, this message translates to:
-  /// **'Failed to report spam. Please try again.'**
+  /// **'Failed to report spam. Try again.'**
   String get reportSpamDialog_error;
 
   /// No description provided for @helpScreen_title.
@@ -751,13 +982,13 @@ abstract class AppLocalizations {
   /// No description provided for @helpScreen_contactUs.
   ///
   /// In en, this message translates to:
-  /// **'Contact Us'**
+  /// **'Contact us'**
   String get helpScreen_contactUs;
 
   /// No description provided for @helpScreen_versionInfo.
   ///
   /// In en, this message translates to:
-  /// **'Version Info'**
+  /// **'Version info'**
   String get helpScreen_versionInfo;
 
   /// No description provided for @helpScreen_licenses.
@@ -844,41 +1075,125 @@ abstract class AppLocalizations {
   /// **'Couldn\'t launch email client'**
   String get contactUsScreen_errorLaunchingEmail;
 
-  /// No description provided for @groupDetails_members.
-  ///
-  /// In en, this message translates to:
-  /// **'Members'**
-  String get groupDetails_members;
-
-  /// No description provided for @groupDetails_addMembers.
-  ///
-  /// In en, this message translates to:
-  /// **'Add Members'**
-  String get groupDetails_addMembers;
-
   /// No description provided for @groupDetails_leaveChat.
   ///
   /// In en, this message translates to:
-  /// **'Leave Chat'**
+  /// **'Leave'**
   String get groupDetails_leaveChat;
 
   /// No description provided for @groupDetails_deleteChat.
   ///
   /// In en, this message translates to:
-  /// **'Delete Chat'**
+  /// **'Delete'**
   String get groupDetails_deleteChat;
+
+  /// No description provided for @groupDetails_seeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'See all'**
+  String get groupDetails_seeAll;
+
+  /// No description provided for @groupDetails_memberCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one {{count} member} other {{count} members}}'**
+  String groupDetails_memberCount(int count);
+
+  /// No description provided for @groupMembersScreen_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Group members'**
+  String get groupMembersScreen_title;
+
+  /// No description provided for @groupMembersScreen_searchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get groupMembersScreen_searchHint;
+
+  /// No description provided for @groupCreationScreen_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Add members'**
+  String get groupCreationScreen_title;
+
+  /// No description provided for @groupCreationScreen_next.
+  ///
+  /// In en, this message translates to:
+  /// **'Next'**
+  String get groupCreationScreen_next;
+
+  /// No description provided for @groupCreationScreen_skip.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get groupCreationScreen_skip;
+
+  /// No description provided for @groupCreationDetails_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Group details'**
+  String get groupCreationDetails_title;
+
+  /// No description provided for @groupCreationDetails_groupNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Group name (required)'**
+  String get groupCreationDetails_groupNameHint;
+
+  /// No description provided for @groupCreationDetails_groupNameHintFocused.
+  ///
+  /// In en, this message translates to:
+  /// **'Group name'**
+  String get groupCreationDetails_groupNameHintFocused;
+
+  /// No description provided for @groupCreationDetails_groupNameHelper.
+  ///
+  /// In en, this message translates to:
+  /// **'Use at least one character'**
+  String get groupCreationDetails_groupNameHelper;
+
+  /// No description provided for @groupCreationDetails_descriptionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Group description (optional)'**
+  String get groupCreationDetails_descriptionHint;
+
+  /// No description provided for @groupCreationDetails_descriptionHintFocused.
+  ///
+  /// In en, this message translates to:
+  /// **'Group description'**
+  String get groupCreationDetails_descriptionHintFocused;
+
+  /// No description provided for @groupCreationDetails_create.
+  ///
+  /// In en, this message translates to:
+  /// **'Create'**
+  String get groupCreationDetails_create;
+
+  /// No description provided for @groupCreationDetails_emptySelection.
+  ///
+  /// In en, this message translates to:
+  /// **'No members'**
+  String get groupCreationDetails_emptySelection;
+
+  /// No description provided for @addMembersScreen_done.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get addMembersScreen_done;
 
   /// No description provided for @leaveChatDialog_title.
   ///
   /// In en, this message translates to:
-  /// **'Leave Chat'**
+  /// **'Leave group'**
   String get leaveChatDialog_title;
 
   /// No description provided for @leaveChatDialog_content.
   ///
   /// In en, this message translates to:
-  /// **'Are you sure you want to leave this chat?'**
-  String get leaveChatDialog_content;
+  /// **'Are you sure you want to leave {chatName}?'**
+  String leaveChatDialog_content(Object chatName);
 
   /// No description provided for @leaveChatDialog_cancel.
   ///
@@ -895,7 +1210,7 @@ abstract class AppLocalizations {
   /// No description provided for @deleteChatDialog_title.
   ///
   /// In en, this message translates to:
-  /// **'Delete Chat?'**
+  /// **'Delete chat?'**
   String get deleteChatDialog_title;
 
   /// No description provided for @deleteChatDialog_content.
@@ -903,12 +1218,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This chat will be deleted. There is no way to undo this.'**
   String get deleteChatDialog_content;
-
-  /// No description provided for @deleteChatDialog_cancel.
-  ///
-  /// In en, this message translates to:
-  /// **'Cancel'**
-  String get deleteChatDialog_cancel;
 
   /// No description provided for @deleteChatDialog_delete.
   ///
@@ -969,6 +1278,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'YB'**
   String get byteUnit_YB;
+
+  /// No description provided for @deleteAccountScreen_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete my account'**
+  String get deleteAccountScreen_title;
+
+  /// No description provided for @deleteAccountScreen_explanatoryText.
+  ///
+  /// In en, this message translates to:
+  /// **'This will delete your Air account and reset the application. You will not be able to recover your account.'**
+  String get deleteAccountScreen_explanatoryText;
+
+  /// No description provided for @deleteAccountScreen_confirmationInputHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirmation'**
+  String get deleteAccountScreen_confirmationInputHint;
+
+  /// No description provided for @deleteAccountScreen_confirmationInputLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Type \'delete\' to confirm.'**
+  String get deleteAccountScreen_confirmationInputLabel;
+
+  /// No description provided for @deleteAccountScreen_confirmButtonText.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get deleteAccountScreen_confirmButtonText;
+
+  /// No description provided for @deleteAccountScreen_cancelButtonText.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get deleteAccountScreen_cancelButtonText;
+
+  /// No description provided for @deleteAccountScreen_deleteAccountError.
+  ///
+  /// In en, this message translates to:
+  /// **'Something went wrong on our end. Wait a moment, then try again.'**
+  String get deleteAccountScreen_deleteAccountError;
 }
 
 class _AppLocalizationsDelegate

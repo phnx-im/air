@@ -73,9 +73,8 @@ class _ResponsiveScreenState extends State<ResponsiveScreen> {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
-      builder:
-          (context, BoxConstraints constraints) => switch (constraints
-              .screenType) {
+      builder: (context, BoxConstraints constraints) =>
+          switch (constraints.screenType) {
             ResponsiveScreenType.mobile => widget.mobile,
             ResponsiveScreenType.tablet => widget.tablet,
             ResponsiveScreenType.desktop => widget.desktop,

@@ -5,9 +5,9 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:air/util/platform.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:air/core/core.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/widgets/widgets.dart';
@@ -42,8 +42,8 @@ class _LogsScreenState extends State<LogsScreen> {
 
   void _loadLogs() async {
     final appLogs = readAppLogs();
-    final backgroundLogs = getApplicationCacheDirectory().then(
-      (cacheDir) => readBackgroundLogs(cacheDir: cacheDir.path),
+    final backgroundLogs = getCacheDirectory().then(
+      (cacheDir) => readBackgroundLogs(cacheDir: cacheDir),
     );
 
     setState(() {
@@ -54,8 +54,8 @@ class _LogsScreenState extends State<LogsScreen> {
 
   void _clearLogs() async {
     await clearAppLogs();
-    final cacheDir = await getApplicationCacheDirectory();
-    await clearBackgroundLogs(cacheDir: cacheDir.path);
+    final cacheDir = await getCacheDirectory();
+    await clearBackgroundLogs(cacheDir: cacheDir);
     setState(() {
       _appLogs = Future.value("");
       _backgroundLogs = Future.value("");
@@ -98,26 +98,14 @@ class LogsScreenView extends StatelessWidget {
           leading: const AppBarBackButton(),
           actions: [
             PopupMenuButton(
-              itemBuilder:
-                  (context) => [
-                    if (Platform.isLinux ||
-                        Platform.isMacOS ||
-                        Platform.isWindows)
-                      PopupMenuItem(
-                        onTap: _saveLogs,
-                        child: const Text('Save'),
-                      ),
-                    if (Platform.isAndroid || Platform.isIOS)
-                      PopupMenuItem(
-                        onTap: _shareLogs,
-                        child: const Text('Share'),
-                      ),
-                    PopupMenuItem(
-                      onTap: reloadLogs,
-                      child: const Text('Reload'),
-                    ),
-                    PopupMenuItem(onTap: clearLogs, child: const Text('Clear')),
-                  ],
+              itemBuilder: (context) => [
+                if (Platform.isLinux || Platform.isMacOS || Platform.isWindows)
+                  PopupMenuItem(onTap: _saveLogs, child: const Text('Save')),
+                if (Platform.isAndroid || Platform.isIOS)
+                  PopupMenuItem(onTap: _shareLogs, child: const Text('Share')),
+                PopupMenuItem(onTap: reloadLogs, child: const Text('Reload')),
+                PopupMenuItem(onTap: clearLogs, child: const Text('Clear')),
+              ],
             ),
           ],
         ),
@@ -126,7 +114,12 @@ class LogsScreenView extends StatelessWidget {
           right: false,
           top: false,
           bottom: true,
-          child: TabBar(tabs: [Tab(text: 'App'), Tab(text: 'Background')]),
+          child: TabBar(
+            tabs: [
+              Tab(text: 'App'),
+              Tab(text: 'Background'),
+            ],
+          ),
         ),
         body: SafeArea(
           child: Padding(
@@ -144,8 +137,8 @@ class LogsScreenView extends StatelessWidget {
   }
 
   void _shareLogs() async {
-    final cacheDir = await getApplicationCacheDirectory();
-    final data = await tarLogs(cacheDir: cacheDir.path);
+    final cacheDir = await getCacheDirectory();
+    final data = await tarLogs(cacheDir: cacheDir);
     final file = XFile.fromData(data, mimeType: 'application/gzip');
     SharePlus.instance.share(
       ShareParams(files: [file], fileNameOverrides: ['logs.tar.gz']),
@@ -153,8 +146,8 @@ class LogsScreenView extends StatelessWidget {
   }
 
   void _saveLogs() async {
-    final cacheDir = await getApplicationCacheDirectory();
-    final data = await tarLogs(cacheDir: cacheDir.path);
+    final cacheDir = await getCacheDirectory();
+    final data = await tarLogs(cacheDir: cacheDir);
 
     const String fileName = 'logs.tar.gz';
     final FileSaveLocation? result = await getSaveLocation(

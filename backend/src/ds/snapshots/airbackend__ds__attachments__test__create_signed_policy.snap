@@ -1,0 +1,36 @@
+---
+source: backend/src/ds/attachments.rs
+expression: response
+---
+ProvisionAttachmentResponse {
+    attachment_id: Some(
+        Uuid {
+            lo: 12132202258379663753,
+            hi: 13425828374924906382,
+        },
+    ),
+    upload_url_expiration: Some(
+        ExpirationData {
+            not_before: Some(
+                Timestamp {
+                    seconds: 1672531200,
+                    nanos: 0,
+                },
+            ),
+            not_after: Some(
+                Timestamp {
+                    seconds: 1672531260,
+                    nanos: 0,
+                },
+            ),
+        },
+    ),
+    upload_url: "https://region.example.com/data",
+    upload_headers: [],
+    post_policy: Some(
+        SignedPostPolicy {
+            base64: "eyJleHBpcmF0aW9uIjoiMjAyMy0wMS0wMVQwMDowMTowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJkYXRhIn0seyJrZXkiOiJiYTUyMWZjNjFlYzI0ZjhlYTg1ZTNkYWNjMWU5Njk4OSJ9LFsiY29udGVudC1sZW5ndGgtcmFuZ2UiLDAsMjA5NzE1MjBdLHsieC1hbXotY3JlZGVudGlhbCI6IkVYQU1QTEVLRVkvMjAyMzAxMDEvZXhhbXBsZS1yZWdpb24vczMvYXdzNF9yZXF1ZXN0In0seyJ4LWFtei1hbGdvcml0aG0iOiJBV1M0LUhNQUMtU0hBMjU2In0seyJ4LWFtei1kYXRlIjoiMjAyMzAxMDFUMDAwMDAwWiJ9XX0=",
+            signature: "1acb569427932f07a866f5523ee85d3fd45d40c27dd0c40051ba4e1828f6cd0d",
+        },
+    ),
+}

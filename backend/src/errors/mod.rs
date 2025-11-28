@@ -58,10 +58,8 @@ pub enum DatabaseError {
 /// General error while accessing the requested queue.
 #[derive(Error, Debug, Display)]
 pub(super) enum QueueError {
-    /// Database error
+    /// Database error {0}
     Storage(#[from] StorageError),
-    /// Mismatching sequence numbers
-    SequenceNumberMismatch,
     /// Payload receiver closed
     PayloadReceiverClosed,
 }
@@ -92,7 +90,6 @@ impl From<QueueError> for Status {
                 error!(%error, "storage error");
                 Self::internal(msg)
             }
-            QueueError::SequenceNumberMismatch => Self::internal(msg),
             QueueError::PayloadReceiverClosed => Self::internal(msg),
         }
     }

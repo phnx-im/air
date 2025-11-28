@@ -80,7 +80,7 @@ impl Qs {
             error!(%error, "Error starting transaction");
             QsUpdateClientRecordError::StorageError
         })?;
-        let mut client_record = QsClientRecord::load(&mut *transaction, &sender)
+        let mut client_record = QsClientRecord::load_for_update(&mut *transaction, &sender)
             .await
             .map_err(|error| {
                 error!(%error, "Error loading client record");

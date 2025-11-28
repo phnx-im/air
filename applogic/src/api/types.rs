@@ -9,15 +9,18 @@
 
 use std::fmt;
 
-pub use aircommon::identifiers::UserHandle;
+// Re-export for FRB-reasons
+pub(crate) use aircommon::identifiers::UserHandle;
+pub(crate) use aircoreclient::{
+    AddHandleContactError, AddHandleContactResult, ChatId, MessageDraft, MessageId,
+};
+
 use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact, ContentMessage, DisplayName,
-    ErrorMessage, EventMessage, InactiveChat, Message, MessageDraft, SystemMessage, UserProfile,
-    store::Store,
+    ErrorMessage, EventMessage, InactiveChat, Message, SystemMessage, UserProfile, store::Store,
 };
-pub use aircoreclient::{ChatId, MessageId};
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, Local, Utc};
 use flutter_rust_bridge::frb;
 use mimi_content::MessageStatus;
 use uuid::Uuid;
@@ -36,7 +39,7 @@ pub struct _ChatId {
 }
 
 /// UI representation of an [`UserId`]
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[frb(dart_code = "
     @override
     String toString() => '$uuid@$domain';
@@ -81,12 +84,12 @@ pub struct UiChatDetails {
     pub id: ChatId,
     pub status: UiChatStatus,
     pub chat_type: UiChatType,
-    pub last_used: String,
+    pub last_used: DateTime<Local>,
     pub attributes: UiChatAttributes,
     pub messages_count: usize,
     pub unread_messages: usize,
     pub last_message: Option<UiChatMessage>,
-    pub draft: Option<UiMessageDraft>,
+    pub draft: Option<MessageDraft>,
 }
 
 impl UiChatDetails {
@@ -98,56 +101,16 @@ impl UiChatDetails {
     }
 }
 
-/// Draft of a message in a chat
+/// UI representation of a [`MessageDraft`]
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[doc(hidden)]
+#[frb(mirror(MessageDraft))]
 #[frb(dart_metadata = ("freezed"))]
-pub struct UiMessageDraft {
+pub struct _MessageDraft {
     pub message: String,
     pub editing_id: Option<MessageId>,
     pub updated_at: DateTime<Utc>,
-    pub source: UiMessageDraftSource,
-}
-
-/// Makes it possible to distinguish whether the draft was created in Flutter by the user or loaded
-/// from the database or reset by the handle, that is, by the system.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub enum UiMessageDraftSource {
-    /// The draft was created/changed by the user.
-    User,
-    /// The draft was created/changed by the system.
-    System,
-}
-
-impl UiMessageDraft {
-    pub(crate) fn new(message: String, source: UiMessageDraftSource) -> Self {
-        Self {
-            message,
-            editing_id: None,
-            updated_at: Utc::now(),
-            source,
-        }
-    }
-
-    pub(crate) fn from_draft(draft: MessageDraft, source: UiMessageDraftSource) -> Self {
-        Self {
-            message: draft.message,
-            editing_id: draft.editing_id,
-            updated_at: Utc::now(),
-            source,
-        }
-    }
-
-    pub(crate) fn into_draft(self) -> MessageDraft {
-        MessageDraft {
-            message: self.message,
-            editing_id: self.editing_id,
-            updated_at: self.updated_at,
-        }
-    }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.message.trim().is_empty() && self.editing_id.is_none()
-    }
+    pub is_committed: bool,
 }
 
 /// Status of a chat
@@ -223,6 +186,8 @@ impl UiChatType {
                 Self::Connection(profile)
             }
             ChatType::Group => Self::Group,
+            // TODO: UI implementation for targeted message connections
+            ChatType::TargetedMessageConnection(_) => unreachable!(),
         }
     }
 }
@@ -264,7 +229,7 @@ pub struct _MessageId {
 pub struct UiChatMessage {
     pub chat_id: ChatId,
     pub id: MessageId,
-    pub timestamp: String, // We don't convert this to a DateTime because Dart can't handle nanoseconds.
+    pub timestamp: DateTime<Local>,
     pub message: UiMessage,
     pub position: UiFlightPosition,
     pub status: UiMessageStatus,
@@ -297,7 +262,7 @@ impl From<ChatMessage> for UiChatMessage {
         Self {
             chat_id: message.chat_id(),
             id: message.id(),
-            timestamp: message.timestamp().to_rfc3339(),
+            timestamp: message.timestamp().with_timezone(&Local),
             message: UiMessage::from(message.message().clone()),
             position: UiFlightPosition::Single,
             status,
@@ -306,8 +271,8 @@ impl From<ChatMessage> for UiChatMessage {
 }
 
 impl UiChatMessage {
-    pub(crate) fn timestamp(&self) -> Option<DateTime<Utc>> {
-        self.timestamp.parse().ok()
+    pub(crate) fn timestamp(&self) -> DateTime<Utc> {
+        self.timestamp.with_timezone(&Utc)
     }
 }
 
@@ -381,6 +346,27 @@ impl From<EventMessage> for UiEventMessage {
 pub enum UiSystemMessage {
     Add(UiUserId, UiUserId),
     Remove(UiUserId, UiUserId),
+    ChangeTitle(UiUserId, String, String),
+    ChangePicture(UiUserId),
+    ReceivedHandleConnectionRequest {
+        sender: UiUserId,
+        user_handle: UiUserHandle,
+    },
+    ReceivedDirectConnectionRequest {
+        sender: UiUserId,
+        chat_name: String,
+    },
+    AcceptedConnectionRequest {
+        sender: UiUserId,
+        user_handle: Option<UiUserHandle>,
+    },
+    ReceivedConnectionConfirmation {
+        sender: UiUserId,
+        user_handle: Option<UiUserHandle>,
+    },
+    NewHandleConnectionChat(UiUserHandle),
+    NewDirectConnectionChat(UiUserId),
+    CreateGroup(UiUserId),
 }
 
 impl From<SystemMessage> for UiSystemMessage {
@@ -392,6 +378,46 @@ impl From<SystemMessage> for UiSystemMessage {
             SystemMessage::Remove(user_id, contact_id) => {
                 UiSystemMessage::Remove(user_id.into(), contact_id.into())
             }
+            SystemMessage::ChangeTitle {
+                user_id,
+                old_title,
+                new_title,
+            } => UiSystemMessage::ChangeTitle(user_id.into(), old_title, new_title),
+            SystemMessage::ChangePicture(user_id) => UiSystemMessage::ChangePicture(user_id.into()),
+            SystemMessage::NewHandleConnectionChat(user_handle) => {
+                UiSystemMessage::NewHandleConnectionChat(user_handle.into())
+            }
+            SystemMessage::AcceptedConnectionRequest {
+                contact,
+                user_handle,
+            } => UiSystemMessage::AcceptedConnectionRequest {
+                sender: contact.into(),
+                user_handle: user_handle.map(Into::into),
+            },
+            SystemMessage::ReceivedConnectionConfirmation {
+                sender,
+                user_handle,
+            } => UiSystemMessage::ReceivedConnectionConfirmation {
+                sender: sender.into(),
+                user_handle: user_handle.map(Into::into),
+            },
+            SystemMessage::ReceivedHandleConnectionRequest {
+                sender,
+                user_handle,
+            } => UiSystemMessage::ReceivedHandleConnectionRequest {
+                sender: sender.into(),
+                user_handle: user_handle.into(),
+            },
+            SystemMessage::ReceivedDirectConnectionRequest { sender, chat_name } => {
+                UiSystemMessage::ReceivedDirectConnectionRequest {
+                    sender: sender.into(),
+                    chat_name,
+                }
+            }
+            SystemMessage::NewDirectConnectionChat(user_id) => {
+                UiSystemMessage::NewDirectConnectionChat(user_id.into())
+            }
+            SystemMessage::CreateGroup(user_id) => UiSystemMessage::CreateGroup(user_id.into()),
         }
     }
 }
@@ -474,12 +500,7 @@ impl UiFlightPosition {
         match (&a.message, &b.message) {
             (UiMessage::Content(a_content), UiMessage::Content(b_content)) => {
                 a_content.sender != b_content.sender
-                    || a.timestamp()
-                        .zip(b.timestamp())
-                        .map(|(a_timestamp, b_timestamp)| {
-                            TIME_THRESHOLD <= b_timestamp.signed_duration_since(a_timestamp).abs()
-                        })
-                        .unwrap_or(true)
+                    || TIME_THRESHOLD <= b.timestamp().signed_duration_since(a.timestamp()).abs()
             }
             // all non-content messages are considered to be flight breaks
             _ => true,
@@ -499,6 +520,22 @@ impl From<Contact> for UiContact {
             user_id: contact.user_id.into(),
         }
     }
+}
+
+/// Mirror of the [`ChatId`] type
+#[doc(hidden)]
+#[frb(mirror(AddHandleContactResult))]
+pub enum _AddHandleContactResult {
+    Ok(ChatId),
+    Err(AddHandleContactError),
+}
+
+#[doc(hidden)]
+#[frb(mirror(AddHandleContactError))]
+pub enum _AddHandleContactError {
+    HandleNotFound,
+    DuplicateRequest,
+    OwnHandle,
 }
 
 /// Profile of a user
@@ -532,7 +569,27 @@ impl UiUserProfile {
 }
 
 /// Image binary data together with its hashsum
+///
+/// Two images are considered equal in Dart if they have the same hashsum.
 #[derive(Clone, PartialEq, Eq, Hash)]
+#[frb(
+    non_hash,
+    non_eq,
+    dart_code = "
+    @override
+    String toString() => 'ImageData(hash: $hash, len: ${data.length})';
+
+    @override
+    int get hashCode => hash.hashCode;
+
+    @override
+    bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ImageData &&
+          runtimeType == other.runtimeType &&
+          hash == other.hash;
+"
+)]
 pub struct ImageData {
     /// The image data
     pub(crate) data: Vec<u8>,

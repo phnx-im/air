@@ -13,7 +13,7 @@ use sqlx::{
     Connection, SqliteConnection, SqliteExecutor, SqliteTransaction, query, query_as, query_scalar,
 };
 use tokio_stream::StreamExt;
-use tracing::{info, warn};
+use tracing::info;
 use uuid::Uuid;
 
 use crate::{
@@ -29,6 +29,7 @@ struct SqlChat {
     chat_picture: Option<Vec<u8>>,
     group_id: GroupIdWrapper,
     last_read: DateTime<Utc>,
+    last_message_at: Option<DateTime<Utc>>,
     connection_user_uuid: Option<Uuid>,
     connection_user_domain: Option<Fqdn>,
     connection_user_handle: Option<UserHandle>,
@@ -45,6 +46,7 @@ impl SqlChat {
             chat_picture,
             group_id: GroupIdWrapper(group_id),
             last_read,
+            last_message_at,
             connection_user_uuid,
             connection_user_domain,
             connection_user_handle,
@@ -63,8 +65,7 @@ impl SqlChat {
                 if is_confirmed_connection {
                     ChatType::Connection(connection_user_id)
                 } else {
-                    warn!("Unconfirmed user connections are not supported anymore");
-                    return None;
+                    ChatType::TargetedMessageConnection(connection_user_id)
                 }
             }
 
@@ -84,6 +85,7 @@ impl SqlChat {
             id: chat_id,
             group_id,
             last_read,
+            last_message_at,
             status,
             chat_type,
             attributes: ChatAttributes {
@@ -153,6 +155,12 @@ impl Chat {
                 None,
             ),
             ChatType::Group => (true, None, None, None),
+            ChatType::TargetedMessageConnection(user_id) => (
+                false,
+                Some(user_id.uuid()),
+                Some(user_id.domain().clone()),
+                None,
+            ),
         };
         query!(
             "INSERT INTO chat (
@@ -216,6 +224,11 @@ impl Chat {
                 chat_picture,
                 group_id AS "group_id: _",
                 last_read AS "last_read: _",
+                (SELECT timestamp FROM message
+                    WHERE chat_id = chat.chat_id
+                    ORDER BY timestamp DESC
+                    LIMIT 1
+                ) AS "last_message_at: _",
                 connection_user_uuid AS "connection_user_uuid: _",
                 connection_user_domain AS "connection_user_domain: _",
                 connection_user_handle AS "connection_user_handle: _",
@@ -223,8 +236,7 @@ impl Chat {
                 is_active,
                 blocked_contact.user_uuid IS NOT NULL AS "is_blocked!: _"
             FROM chat
-                LEFT JOIN blocked_contact
-                ON blocked_contact.user_uuid = chat.connection_user_uuid
+            LEFT JOIN blocked_contact ON blocked_contact.user_uuid = chat.connection_user_uuid
                 AND blocked_contact.user_domain = chat.connection_user_domain
             WHERE chat_id = ?"#,
             chat_id
@@ -237,6 +249,34 @@ impl Chat {
         let members = chat.load_past_members(&mut transaction).await?;
         transaction.commit().await?;
         Ok(chat.convert(members))
+    }
+
+    pub(crate) async fn load_ordered_ids(
+        executor: impl SqliteExecutor<'_>,
+    ) -> sqlx::Result<Vec<ChatId>> {
+        // Note: Sqlite considers NULL values as the smallest value.
+        // Note: A draft is empty <=> trimmed text is empty AND editing_id is null.
+        query_scalar!(
+            r#"SELECT
+                c.chat_id AS "chat_id: _"
+            FROM chat c
+            LEFT OUTER JOIN message_draft d ON
+                d.chat_id = c.chat_id AND
+                d.is_committed = TRUE AND
+                NOT (TRIM(d.message) = '' AND d.editing_id IS NULL)
+            ORDER BY
+                d.updated_at DESC,
+                (SELECT timestamp
+                    FROM message
+                    WHERE chat_id = c.chat_id
+                    ORDER BY timestamp DESC
+                    LIMIT 1
+                ) DESC,
+                c.chat_id
+            "#,
+        )
+        .fetch_all(executor)
+        .await
     }
 
     pub(crate) async fn load_by_group_id(
@@ -253,6 +293,11 @@ impl Chat {
                 chat_picture,
                 group_id AS "group_id: _",
                 last_read AS "last_read: _",
+                (SELECT timestamp FROM message
+                    WHERE chat_id = chat.chat_id
+                    ORDER BY timestamp DESC
+                    LIMIT 1
+                ) AS "last_message_at: _",
                 connection_user_uuid AS "connection_user_uuid: _",
                 connection_user_domain AS "connection_user_domain: _",
                 connection_user_handle AS "connection_user_handle: _",
@@ -276,45 +321,6 @@ impl Chat {
         Ok(chat.convert(members))
     }
 
-    pub(crate) async fn load_all(connection: &mut SqliteConnection) -> sqlx::Result<Vec<Chat>> {
-        let mut transaction = connection.begin().await?;
-        let mut chats = query_as!(
-            SqlChat,
-            r#"SELECT
-                chat_id AS "chat_id: _",
-                chat_title,
-                chat_picture,
-                group_id AS "group_id: _",
-                last_read AS "last_read: _",
-                connection_user_uuid AS "connection_user_uuid: _",
-                connection_user_domain AS "connection_user_domain: _",
-                connection_user_handle AS "connection_user_handle: _",
-                is_confirmed_connection,
-                is_active,
-                blocked_contact.user_uuid IS NOT NULL AS "is_blocked!: _"
-            FROM chat
-                LEFT JOIN blocked_contact
-                ON blocked_contact.user_uuid = chat.connection_user_uuid
-                AND blocked_contact.user_domain = chat.connection_user_domain
-            "#,
-        )
-        .fetch(&mut *transaction)
-        .filter_map(|res| res.map(|chat| chat.convert(Vec::new())).transpose())
-        .collect::<sqlx::Result<Vec<Chat>>>()
-        .await?;
-        for chat in &mut chats {
-            let id = chat.id();
-            if let ChatStatus::Inactive(inactive) = chat.status_mut() {
-                let members = Chat::load_past_members(&mut *transaction, id).await?;
-                inactive
-                    .past_members_mut()
-                    .extend(members.into_iter().map(From::from));
-            }
-        }
-        transaction.commit().await?;
-        Ok(chats)
-    }
-
     pub(super) async fn update_picture(
         executor: impl SqliteExecutor<'_>,
         notifier: &mut StoreNotifier,
@@ -324,6 +330,23 @@ impl Chat {
         query!(
             "UPDATE chat SET chat_picture = ? WHERE chat_id = ?",
             chat_picture,
+            chat_id,
+        )
+        .execute(executor)
+        .await?;
+        notifier.update(chat_id);
+        Ok(())
+    }
+
+    pub(super) async fn update_title(
+        executor: impl SqliteExecutor<'_>,
+        notifier: &mut StoreNotifier,
+        chat_id: ChatId,
+        chat_title: &str,
+    ) -> sqlx::Result<()> {
+        query!(
+            "UPDATE chat SET chat_title = ? WHERE chat_id = ?",
+            chat_title,
             chat_id,
         )
         .execute(executor)
@@ -451,7 +474,7 @@ impl Chat {
         chat_id: ChatId,
         until_message_id: MessageId,
         own_user: &UserId,
-    ) -> sqlx::Result<(bool, Vec<MimiId>)> {
+    ) -> sqlx::Result<(bool, Vec<(MessageId, MimiId)>)> {
         let (our_user_uuid, our_user_domain) = own_user.clone().into_parts();
 
         let timestamp: Option<DateTime<Utc>> = query_scalar!(
@@ -476,10 +499,17 @@ impl Chat {
         .await?
         .last_read;
 
+        struct Record {
+            message_id: MessageId,
+            mimi_id: MimiId,
+        }
+
         let unread_status = MessageStatus::Unread.repr();
         let delivered_status = MessageStatus::Delivered.repr();
-        let new_marked_as_read: Vec<MimiId> = query_scalar!(
+        let new_marked_as_read: Vec<(MessageId, MimiId)> = query_as!(
+            Record,
             r#"SELECT
+                m.message_id AS "message_id: _",
                 m.mimi_id AS "mimi_id!: _"
             FROM message m
             LEFT JOIN message_status s
@@ -498,7 +528,9 @@ impl Chat {
             unread_status,
             delivered_status,
         )
-        .fetch_all(txn.as_mut())
+        .fetch(txn.as_mut())
+        .map(|record| record.map(|record| (record.message_id, record.mimi_id)))
+        .collect::<sqlx::Result<Vec<_>>>()
         .await?;
 
         let updated = query!(
@@ -671,6 +703,22 @@ impl Chat {
                 .execute(executor)
                 .await?;
             }
+            ChatType::TargetedMessageConnection(user_id) => {
+                let uuid = user_id.uuid();
+                let domain = user_id.domain();
+                query!(
+                    "UPDATE chat SET
+                        connection_user_uuid = ?,
+                        connection_user_domain = ?,
+                        is_confirmed_connection = false
+                    WHERE chat_id = ?",
+                    uuid,
+                    domain,
+                    self.id,
+                )
+                .execute(executor)
+                .await?;
+            }
         }
         notifier.update(self.id);
         Ok(())
@@ -703,11 +751,15 @@ impl Chat {
 
 #[cfg(test)]
 pub mod tests {
-    use chrono::Duration;
+    use std::mem;
+
+    use chrono::{Days, Duration};
     use sqlx::{Sqlite, pool::PoolConnection};
     use uuid::Uuid;
 
-    use crate::{InactiveChat, chats::messages::persistence::tests::test_chat_message};
+    use crate::{
+        InactiveChat, MessageDraft, chats::messages::persistence::tests::test_chat_message,
+    };
 
     use super::*;
 
@@ -719,6 +771,7 @@ pub mod tests {
             id,
             group_id: GroupId::from_slice(&[0; 32]),
             last_read: Utc::now(),
+            last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::Group,
             attributes: ChatAttributes {
@@ -760,14 +813,104 @@ pub mod tests {
     async fn store_load_all(mut connection: PoolConnection<Sqlite>) -> anyhow::Result<()> {
         let mut store_notifier = StoreNotifier::noop();
 
-        let chat_a = test_chat();
+        let mut chat_a = test_chat();
         chat_a.store(&mut connection, &mut store_notifier).await?;
 
-        let chat_b = test_chat();
+        let mut chat_b = test_chat();
         chat_b.store(&mut connection, &mut store_notifier).await?;
 
-        let loaded = Chat::load_all(&mut connection).await?;
+        let chat_ids = Chat::load_ordered_ids(connection.as_mut()).await?;
+        let mut loaded = Vec::with_capacity(chat_ids.len());
+        for chat_id in chat_ids {
+            loaded.push(Chat::load(&mut connection, &chat_id).await?.unwrap());
+        }
+
+        // Both chats don't have a message, so the order is by chat_id as tie breaker.
+        if chat_a.id() > chat_b.id() {
+            mem::swap(&mut chat_a, &mut chat_b);
+        }
+
         assert_eq!(loaded, [chat_a, chat_b]);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn load_ordered_ids(mut connection: PoolConnection<Sqlite>) -> anyhow::Result<()> {
+        let mut store_notifier = StoreNotifier::noop();
+
+        // Chat without a message
+        let chat_1 = test_chat();
+        chat_1.store(&mut connection, &mut store_notifier).await?;
+
+        // Chat with a message
+        let chat_2 = test_chat();
+        chat_2.store(&mut connection, &mut store_notifier).await?;
+        let message = test_chat_message(chat_2.id());
+        message.store(&mut *connection, &mut store_notifier).await?;
+
+        // Chat with another more recent message
+        let chat_3 = test_chat();
+        chat_3.store(&mut connection, &mut store_notifier).await?;
+        let mut message = test_chat_message(chat_3.id());
+        message.set_timestamp(Utc::now().checked_add_days(Days::new(1)).unwrap().into());
+        message.store(&mut *connection, &mut store_notifier).await?;
+
+        // Chat with an empty draft message
+        let chat_4 = test_chat();
+        chat_4.store(&mut connection, &mut store_notifier).await?;
+        let mut message = test_chat_message(chat_4.id());
+        message.set_timestamp(Utc::now().checked_add_days(Days::new(2)).unwrap().into());
+        message.store(&mut *connection, &mut store_notifier).await?;
+        MessageDraft {
+            message: "    ".into(), // Whitespace only
+            editing_id: None,
+            updated_at: TimeStamp::now().into(),
+            is_committed: false,
+        }
+        .store(&mut *connection, &mut store_notifier, chat_4.id())
+        .await?;
+
+        // Chat with a draft message
+        let chat_5 = test_chat();
+        chat_5.store(&mut connection, &mut store_notifier).await?;
+        let message = test_chat_message(chat_5.id());
+        message.store(&mut *connection, &mut store_notifier).await?;
+        MessageDraft {
+            message: "Hello, world!".to_string(),
+            editing_id: Some(message.id()),
+            updated_at: Utc::now(),
+            is_committed: true,
+        }
+        .store(&mut *connection, &mut store_notifier, chat_5.id())
+        .await?;
+
+        // Chat with a more recent draft message
+        let chat_6 = test_chat();
+        chat_6.store(&mut connection, &mut store_notifier).await?;
+        let message = test_chat_message(chat_6.id());
+        message.store(&mut *connection, &mut store_notifier).await?;
+        MessageDraft {
+            message: "Hello, world!".to_string(),
+            editing_id: Some(message.id()),
+            updated_at: Utc::now().checked_add_days(Days::new(1)).unwrap(),
+            is_committed: true,
+        }
+        .store(&mut *connection, &mut store_notifier, chat_6.id())
+        .await?;
+
+        let loaded = Chat::load_ordered_ids(&mut *connection).await?;
+        assert_eq!(
+            loaded,
+            [
+                chat_6.id(), // Has the most recent draft message
+                chat_5.id(), // Has a draft message
+                chat_4.id(), // Empty draft message, but most recent message
+                chat_3.id(), // Second most recent message
+                chat_2.id(), // Has a message
+                chat_1.id()  // No message
+            ]
+        );
 
         Ok(())
     }

@@ -6,7 +6,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:air/chat_details/chat_details.dart';
+import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/user/user.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -44,54 +44,51 @@ class _MessageListViewState extends State<MessageListView> {
   @override
   Widget build(BuildContext context) {
     final state = context.select((MessageListCubit cubit) => cubit.state);
-
-    return SelectionArea(
-      child: ListView.custom(
-        physics: _scrollPhysics,
-        reverse: true,
-        padding: EdgeInsets.only(
-          top: kToolbarHeight + MediaQuery.of(context).padding.top,
-        ),
-        childrenDelegate: SliverChildBuilderDelegate(
-          (context, reverseIndex) {
-            final index = state.loadedMessagesCount - reverseIndex - 1;
-            final message = state.messageAt(index);
-            if (message == null) {
-              return const SizedBox.shrink();
-            }
-            final animate =
-                !_animatedMessages.contains(message.id) &&
-                state.isNewMessage(message.id);
-            if (animate) {
-              _animatedMessages.add(message.id);
-            }
-            return BlocProvider(
-              key: ValueKey(message.id),
-              create: (context) {
-                return widget.createMessageCubit(
-                  userCubit: context.read<UserCubit>(),
-                  initialState: MessageState(message: message),
-                );
-              },
-              child: _VisibilityChatTile(
-                messageId: message.id,
-                timestamp: DateTime.parse(message.timestamp),
-                child: ChatTile(
-                  isConnectionChat: state.isConnectionChat ?? false,
-                  animated: animate,
-                ),
+    return ListView.custom(
+      physics: _scrollPhysics,
+      reverse: true,
+      padding: EdgeInsets.only(
+        top: kToolbarHeight + MediaQuery.of(context).padding.top,
+      ),
+      childrenDelegate: SliverChildBuilderDelegate(
+        (context, reverseIndex) {
+          final index = state.loadedMessagesCount - reverseIndex - 1;
+          final message = state.messageAt(index);
+          if (message == null) {
+            return const SizedBox.shrink();
+          }
+          final animate =
+              !_animatedMessages.contains(message.id) &&
+              state.isNewMessage(message.id);
+          if (animate) {
+            _animatedMessages.add(message.id);
+          }
+          return BlocProvider(
+            key: ValueKey(message.id),
+            create: (context) {
+              return widget.createMessageCubit(
+                userCubit: context.read<UserCubit>(),
+                initialState: MessageState(message: message),
+              );
+            },
+            child: _VisibilityChatTile(
+              messageId: message.id,
+              timestamp: message.timestamp,
+              child: ChatTile(
+                isConnectionChat: state.isConnectionChat ?? false,
+                animated: animate,
               ),
-            );
-          },
-          findChildIndexCallback: (key) {
-            final messageKey = key as ValueKey<MessageId>;
-            final messageId = messageKey.value;
-            final index = state.messageIdIndex(messageId);
-            // reverse index
-            return index != null ? state.loadedMessagesCount - index - 1 : null;
-          },
-          childCount: state.loadedMessagesCount,
-        ),
+            ),
+          );
+        },
+        findChildIndexCallback: (key) {
+          final messageKey = key as ValueKey<MessageId>;
+          final messageId = messageKey.value;
+          final index = state.messageIdIndex(messageId);
+          // reverse index
+          return index != null ? state.loadedMessagesCount - index - 1 : null;
+        },
+        childCount: state.loadedMessagesCount,
       ),
     );
   }
@@ -110,12 +107,15 @@ class _VisibilityChatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final userCubit = context.read<UserCubit>();
+    final chatDetailsCubit = context.read<ChatDetailsCubit>();
     return VisibilityDetector(
       key: ValueKey(VisibilityKeyValue(messageId)),
       child: child,
       onVisibilityChanged: (visibilityInfo) {
-        if (visibilityInfo.visibleFraction > 0) {
-          context.read<ChatDetailsCubit>().markAsRead(
+        if (visibilityInfo.visibleFraction > 0 &&
+            userCubit.appState == AppState.foreground) {
+          chatDetailsCubit.markAsRead(
             untilMessageId: messageId,
             untilTimestamp: timestamp,
           );
@@ -143,7 +143,7 @@ class VisibilityKeyValue {
 
 final ScrollPhysics _scrollPhysics =
     (Platform.isAndroid || Platform.isWindows || Platform.isLinux)
-        ? const ClampingScrollPhysics()
-        : const BouncingScrollPhysics().applyTo(
-          const AlwaysScrollableScrollPhysics(),
-        );
+    ? const ClampingScrollPhysics()
+    : const BouncingScrollPhysics().applyTo(
+        const AlwaysScrollableScrollPhysics(),
+      );

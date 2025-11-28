@@ -134,14 +134,28 @@ where
                 match event {
                     NextEvent::Event(Some(event)) => {
                         debug!(name = %self.name, id = %self.id, ?event, "received event");
-                        self.context.handle_event(event).await;
-                        self.backoff.reset();
-                        State::Running { stream, started_at }
+                        if self.context.handle_event(event).await {
+                            // Continue processing
+                            self.backoff.reset();
+                            State::Running { stream, started_at }
+                        } else {
+                            self.context.on_stream_end().await;
+                            State::Stopped { started_at }
+                        }
                     }
                     // stream exhausted
-                    NextEvent::Event(None) => State::Stopped { started_at },
-                    NextEvent::InBackground => State::Initial,
-                    NextEvent::Cancelled => State::Finished,
+                    NextEvent::Event(None) => {
+                        self.context.on_stream_end().await;
+                        State::Stopped { started_at }
+                    }
+                    NextEvent::InBackground => {
+                        self.context.on_stream_end().await;
+                        State::Initial
+                    }
+                    NextEvent::Cancelled => {
+                        self.context.on_stream_end().await;
+                        State::Finished
+                    }
                 }
             }
 
@@ -256,8 +270,18 @@ pub(crate) trait BackgroundStreamContext<Event>: Send {
         &mut self,
     ) -> impl Future<Output = anyhow::Result<impl Stream<Item = Event> + Send + 'static>> + Send;
 
+    /// Called when the stream ends
+    ///
+    /// Default implementation does nothing.
+    fn on_stream_end(&mut self) -> impl Future<Output = ()> + Send {
+        std::future::ready(())
+    }
+
     /// Handle a stream event
-    fn handle_event(&mut self, event: Event) -> impl Future<Output = ()> + Send;
+    ///
+    /// Returns `true` if the stream should continue to be processed, otherwise
+    /// the stream should be stopped.
+    fn handle_event(&mut self, event: Event) -> impl Future<Output = bool> + Send;
 
     /// Resolves when the app is in the foreground
     fn in_foreground(&self) -> impl Future<Output = ()> + Send;
@@ -335,8 +359,9 @@ mod test {
             }
         }
 
-        async fn handle_event(&mut self, event: TestEvent) {
+        async fn handle_event(&mut self, event: TestEvent) -> bool {
             let _ = event.ack_tx.send(event.value);
+            true
         }
 
         async fn in_foreground(&self) {

@@ -175,17 +175,16 @@ class _GridOverlayInteractiveState extends State<GridOverlayInteractive> {
             onScaleEnd: _onScaleEnd,
             child: IgnorePointer(
               ignoring: true,
-              child:
-                  _enabled
-                      ? CustomPaint(
-                        size: size,
-                        painter: _GridPainter(
-                          gridSize: widget.gridSize,
-                          lineColor: widget.lineColor,
-                          lineWidth: widget.lineWidth,
-                        ),
-                      )
-                      : const SizedBox.shrink(),
+              child: _enabled
+                  ? CustomPaint(
+                      size: size,
+                      painter: _GridPainter(
+                        gridSize: widget.gridSize,
+                        lineColor: widget.lineColor,
+                        lineWidth: widget.lineWidth,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
             ),
           ),
         );
@@ -206,10 +205,9 @@ class _GridPainter extends CustomPainter {
 
   @override
   void paint(Canvas c, Size s) {
-    final p =
-        Paint()
-          ..color = lineColor
-          ..strokeWidth = lineWidth;
+    final p = Paint()
+      ..color = lineColor
+      ..strokeWidth = lineWidth;
     for (double x = 0; x <= s.width; x += gridSize) {
       c.drawLine(Offset(x, 0), Offset(x, s.height), p);
     }

@@ -27,7 +27,7 @@ pub(crate) mod signature_key_pairs;
 pub(crate) mod storage_provider;
 
 #[derive(Debug, Serialize)]
-struct KeyRefWrapper<'a, T: Key<CURRENT_VERSION>>(pub &'a T);
+pub(crate) struct KeyRefWrapper<'a, T: Key<CURRENT_VERSION>>(pub &'a T);
 
 struct EntityWrapper<T: Entity<CURRENT_VERSION>>(pub T);
 
@@ -74,7 +74,7 @@ impl<'a> OpenMlsProvider for AirOpenMlsProvider<'a> {
 }
 
 impl OpenMlsRand for AirOpenMlsProvider<'_> {
-    type Error = PhnxRandomnessError;
+    type Error = RandomnessError;
 
     fn random_array<const N: usize>(&self) -> std::result::Result<[u8; N], Self::Error> {
         let mut rng = ChaCha20Rng::from_entropy();
@@ -94,7 +94,7 @@ impl OpenMlsRand for AirOpenMlsProvider<'_> {
 }
 
 #[derive(Debug, Error)]
-pub(crate) enum PhnxRandomnessError {
+pub(crate) enum RandomnessError {
     #[error("Unable to collect enough randomness.")]
     NotEnoughRandomness,
 }

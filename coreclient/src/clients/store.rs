@@ -106,8 +106,7 @@ impl UserCreationState {
                 Self::QsRegisteredUserState(state.register_with_qs(api_clients).await?)
             }
             UserCreationState::QsRegisteredUserState(state) => {
-                let persisted_user_state =
-                    state.upload_key_packages(client_db, api_clients).await?;
+                let persisted_user_state = state.upload_key_packages(client_db).await?;
                 Self::FinalUserState(persisted_user_state)
             }
             UserCreationState::FinalUserState(_) => self,

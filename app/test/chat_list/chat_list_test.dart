@@ -25,6 +25,7 @@ void main() {
     late MockUserCubit userCubit;
     late MockUsersCubit contactsCubit;
     late MockChatDetailsCubit chatDetailsCubit;
+    late MockUserSettingsCubit userSettingsCubit;
 
     setUp(() async {
       navigationCubit = MockNavigationCubit();
@@ -32,46 +33,62 @@ void main() {
       chatListCubit = MockChatListCubit();
       contactsCubit = MockUsersCubit();
       chatDetailsCubit = MockChatDetailsCubit();
+      userSettingsCubit = MockUserSettingsCubit();
 
       when(
         () => navigationCubit.state,
       ).thenReturn(const NavigationState.home());
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
-      when(() => contactsCubit.state).thenReturn(
-        MockUsersState(
-          profiles: [UiUserProfile(userId: 1.userId(), displayName: "alice")],
-        ),
-      );
+      when(
+        () => contactsCubit.state,
+      ).thenReturn(MockUsersState(profiles: userProfiles));
       when(
         () => chatDetailsCubit.state,
       ).thenReturn(ChatDetailsState(chat: chats[1], members: [1.userId()]));
     });
 
-    Widget buildSubject() => MultiBlocProvider(
+    Widget buildSubject({
+      required List<UiChatDetails> chats,
+    }) => MultiRepositoryProvider(
       providers: [
-        BlocProvider<NavigationCubit>.value(value: navigationCubit),
-        BlocProvider<UserCubit>.value(value: userCubit),
-        BlocProvider<UsersCubit>.value(value: contactsCubit),
-        BlocProvider<ChatListCubit>.value(value: chatListCubit),
+        RepositoryProvider<ChatsRepository>.value(value: MockChatsRepository()),
+        RepositoryProvider<AttachmentsRepository>.value(
+          value: MockAttachmentsRepository(),
+        ),
       ],
-      child: Builder(
-        builder: (context) {
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
-            theme: themeData(MediaQuery.platformBrightnessOf(context)),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            home: const Scaffold(body: ChatListView()),
-          );
-        },
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<NavigationCubit>.value(value: navigationCubit),
+          BlocProvider<UserCubit>.value(value: userCubit),
+          BlocProvider<UsersCubit>.value(value: contactsCubit),
+          BlocProvider<ChatListCubit>.value(value: chatListCubit),
+          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+        ],
+        child: Builder(
+          builder: (context) {
+            return MaterialApp(
+              debugShowCheckedModeBanner: false,
+              theme: themeData(MediaQuery.platformBrightnessOf(context)),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              home: Scaffold(
+                body: ChatListView(
+                  createChatDetailsCubit: createMockChatDetailsCubitFactory(
+                    chats,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
 
     testWidgets('renders correctly when there are no chats', (tester) async {
       when(
         () => chatListCubit.state,
-      ).thenReturn(const ChatListState(chats: []));
+      ).thenReturn(const ChatListState(chatIds: []));
 
-      await tester.pumpWidget(buildSubject());
+      await tester.pumpWidget(buildSubject(chats: []));
 
       await expectLater(
         find.byType(MaterialApp),
@@ -80,18 +97,22 @@ void main() {
     });
 
     testWidgets('renders correctly', (tester) async {
+      final testChats = List.generate(
+        20,
+        (index) => chats[index % chats.length],
+      );
+      final testChatIds = testChats.map((chat) => chat.id).toList();
+
       when(() => navigationCubit.state).thenReturn(
         NavigationState.home(
           home: HomeNavigationState(chatOpen: true, chatId: chats[1].id),
         ),
       );
-      when(() => chatListCubit.state).thenReturn(
-        ChatListState(
-          chats: List.generate(20, (index) => chats[index % chats.length]),
-        ),
-      );
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: testChatIds));
 
-      await tester.pumpWidget(buildSubject());
+      await tester.pumpWidget(buildSubject(chats: testChats));
 
       await expectLater(
         find.byType(MaterialApp),

@@ -21,6 +21,8 @@ use super::{notifications::DartNotificationService, types::UiUserId};
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::From)]
 pub enum NavigationState {
     /// Intro screen: welcome and registration screen
+    ///
+    /// The first screen is always the intro screen is not part of the list of screens.
     Intro {
         #[frb(default = "[]")]
         screens: Vec<IntroScreenType>,
@@ -31,12 +33,12 @@ pub enum NavigationState {
     },
 }
 
-/// Possible intro screens
+/// Possible intro screens *on top* of the root intro screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[frb(dart_metadata = ("freezed"))]
 pub enum IntroScreenType {
-    Intro,
     SignUp,
+    UsernameOnboarding,
     DeveloperSettings(DeveloperSettingsScreenType),
 }
 
@@ -61,11 +63,16 @@ pub struct HomeNavigationState {
     pub developer_settings_screen: Option<DeveloperSettingsScreenType>,
     /// User name of the member that details are currently open
     pub member_details: Option<UiUserId>,
-    pub user_settings_screen: Option<UserSettingsScreenType>,
+    #[frb(default = false)]
+    pub user_profile_open: bool,
     #[frb(default = false)]
     pub chat_details_open: bool,
     #[frb(default = false)]
     pub add_members_open: bool,
+    #[frb(default = false)]
+    pub group_members_open: bool,
+    #[frb(default = false)]
+    pub create_group_open: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,15 +81,6 @@ pub enum DeveloperSettingsScreenType {
     Root,
     ChangeUser,
     Logs,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[frb(dart_metadata = ("freezed"))]
-pub enum UserSettingsScreenType {
-    Root,
-    EditDisplayName,
-    AddUserHandle,
-    Help,
 }
 
 impl NavigationState {
@@ -162,24 +160,26 @@ impl NavigationCubitBase {
     }
 
     pub async fn open_chat(&self, chat_id: ChatId) {
-        self.core.state_tx().send_if_modified(|state| match state {
+        self.core.state_tx().send_modify(|state| match state {
             NavigationState::Intro { .. } => {
-                *state = HomeNavigationState {
+                *state = NavigationState::Home {
+                    home: HomeNavigationState {
+                        chat_open: true,
+                        chat_id: Some(chat_id),
+                        ..Default::default()
+                    },
+                };
+            }
+            NavigationState::Home { home } => {
+                *home = HomeNavigationState {
                     chat_open: true,
                     chat_id: Some(chat_id),
                     ..Default::default()
-                }
-                .into();
-                true
-            }
-            NavigationState::Home { home } => {
-                let was_open = mem::replace(&mut home.chat_open, true);
-                let different_id = home.chat_id.replace(chat_id) != Some(chat_id);
-                !was_open || different_id
+                };
             }
         });
 
-        // Cancel the active notifications for the current chat
+        // Cancel the active OS notifications for the current chat
         let handles = self.notification_service.get_active_notifications().await;
         let identifiers = handles
             .into_iter()
@@ -193,7 +193,31 @@ impl NavigationCubitBase {
     pub fn close_chat(&self) {
         self.core.state_tx().send_if_modified(|state| match state {
             NavigationState::Intro { .. } => false,
-            NavigationState::Home { home } => mem::replace(&mut home.chat_open, false),
+            NavigationState::Home { home } => {
+                let mut changed = false;
+                if mem::replace(&mut home.chat_open, false) {
+                    changed = true;
+                }
+                if mem::replace(&mut home.chat_details_open, false) {
+                    changed = true;
+                }
+                if mem::replace(&mut home.add_members_open, false) {
+                    changed = true;
+                }
+                if mem::replace(&mut home.group_members_open, false) {
+                    changed = true;
+                }
+                if mem::replace(&mut home.create_group_open, false) {
+                    changed = true;
+                }
+                if home.member_details.take().is_some() {
+                    changed = true;
+                }
+                if home.chat_id.take().is_some() {
+                    changed = true;
+                }
+                changed
+            }
         });
     }
 
@@ -228,12 +252,24 @@ impl NavigationCubitBase {
         });
     }
 
-    pub fn open_user_settings(&self, screen: UserSettingsScreenType) {
+    pub fn open_group_members(&self) {
         self.core.state_tx().send_if_modified(|state| match state {
             NavigationState::Intro { .. } => false,
-            NavigationState::Home { home } => {
-                home.user_settings_screen.replace(screen) != Some(screen)
-            }
+            NavigationState::Home { home } => !mem::replace(&mut home.group_members_open, true),
+        });
+    }
+
+    pub fn open_create_group(&self) {
+        self.core.state_tx().send_if_modified(|state| match state {
+            NavigationState::Intro { .. } => false,
+            NavigationState::Home { home } => !mem::replace(&mut home.create_group_open, true),
+        });
+    }
+
+    pub fn open_user_profile(&self) {
+        self.core.state_tx().send_if_modified(|state| match state {
+            NavigationState::Intro { .. } => false,
+            NavigationState::Home { home } => !mem::replace(&mut home.user_profile_open, true),
         });
     }
 
@@ -305,45 +341,33 @@ impl NavigationCubitBase {
                     .replace(DeveloperSettingsScreenType::Root);
                 true
             }
-            NavigationState::Home {
-                home:
-                    home @ HomeNavigationState {
-                        user_settings_screen: Some(UserSettingsScreenType::Root),
-                        ..
-                    },
-            } => {
-                home.user_settings_screen.take();
-                true
-            }
-            NavigationState::Home {
-                home:
-                    home @ HomeNavigationState {
-                        user_settings_screen:
-                            Some(
-                                UserSettingsScreenType::EditDisplayName
-                                | UserSettingsScreenType::AddUserHandle
-                                | UserSettingsScreenType::Help,
-                            ),
-                        ..
-                    },
-            } => {
-                home.user_settings_screen
-                    .replace(UserSettingsScreenType::Root);
+            NavigationState::Home { home } if home.user_profile_open => {
+                home.user_profile_open = false;
                 true
             }
             NavigationState::Home { home } if home.member_details.is_some() => {
                 home.member_details.take();
                 true
             }
+            NavigationState::Home { home } if home.create_group_open => {
+                home.create_group_open = false;
+                true
+            }
             NavigationState::Home { home } if home.chat_id.is_some() && home.add_members_open => {
                 home.add_members_open = false;
                 true
             }
-            NavigationState::Home { home } if home.chat_id.is_some() && home.chat_details_open => {
-                home.chat_details_open = false;
+            NavigationState::Home { home } if home.chat_id.is_some() && home.group_members_open => {
+                home.group_members_open = false;
                 true
             }
-            NavigationState::Home { home } if home.chat_id.is_some() => {
+            NavigationState::Home { home } if home.chat_id.is_some() && home.chat_details_open => {
+                home.chat_details_open = false;
+                home.group_members_open = false;
+                home.add_members_open = false;
+                true
+            }
+            NavigationState::Home { home } if home.chat_id.is_some() && home.chat_open => {
                 home.chat_open = false;
                 true
             }

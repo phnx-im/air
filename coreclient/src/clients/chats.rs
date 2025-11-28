@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::UserId;
+use aircommon::{identifiers::UserId, time::TimeStamp};
 use anyhow::{Context, Result, anyhow, bail};
 use create_chat_flow::IntitialChatData;
 use delete_chat_flow::DeleteChatData;
@@ -11,10 +11,10 @@ use mimi_room_policy::VerifiedRoomState;
 use tracing::error;
 
 use crate::{
-    MessageId,
+    ChatAttributes, MessageId, SystemMessage,
     chats::{Chat, messages::ChatMessage},
     groups::{Group, openmls_provider::AirOpenMlsProvider},
-    utils::image::resize_profile_image,
+    utils::{connection_ext::StoreExt, image::resize_profile_image},
 };
 
 use super::{ChatId, CoreUser};
@@ -44,13 +44,28 @@ impl CoreUser {
             })
             .await?;
 
-        created_group
+        let chat_id = created_group
             .create_group_on_ds(
                 &self.inner.api_clients,
                 self.signing_key(),
                 self.create_own_client_reference(),
             )
-            .await
+            .await?;
+
+        // FIXME: Use the DS timestamp here <https://github.com/phnx-im/air/issues/853>
+        self.with_transaction_and_notifier(async |txn, notifier| {
+            ChatMessage::new_system_message(
+                chat_id,
+                TimeStamp::now(),
+                SystemMessage::CreateGroup(self.user_id().clone()),
+            )
+            .store(txn.as_mut(), notifier)
+            .await?;
+            Ok(())
+        })
+        .await?;
+
+        Ok(chat_id)
     }
 
     /// Delete the chat with the given [`ChatId`].
@@ -137,8 +152,7 @@ impl CoreUser {
             // Phase 3: Merge the commit into the group
             leave
                 .store_update(txn, notifier, chat_id, self.user_id())
-                .await?;
-            Ok(())
+                .await
         })
         .await?;
         Ok(())
@@ -149,19 +163,44 @@ impl CoreUser {
         chat_id: ChatId,
         picture: Option<Vec<u8>>,
     ) -> Result<()> {
-        let mut connection = self.pool().acquire().await?;
-        let mut chat = Chat::load(&mut connection, &chat_id)
+        let chat = Chat::load(self.pool().acquire().await?.as_mut(), &chat_id)
             .await?
             .ok_or_else(|| {
                 let id = chat_id.uuid();
                 anyhow!("Can't find chat with id {id}")
             })?;
-        let resized_picture_option =
-            picture.and_then(|picture| resize_profile_image(&picture).ok());
-        let mut notifier = self.store_notifier();
-        chat.set_picture(&mut *connection, &mut notifier, resized_picture_option)
-            .await?;
-        notifier.notify();
+        let resized_picture_option = tokio::task::spawn_blocking(|| {
+            picture.and_then(|picture| resize_profile_image(&picture).ok())
+        })
+        .await?;
+        if resized_picture_option == chat.attributes().picture {
+            // No change
+            return Ok(());
+        }
+        let new_attributes = ChatAttributes::new(chat.attributes.title, resized_picture_option);
+
+        // Update the group and send out the update
+        self.update_key(chat_id, Some(&new_attributes)).await?;
+
+        Ok(())
+    }
+
+    pub(crate) async fn set_chat_title(&self, chat_id: ChatId, title: String) -> Result<()> {
+        let chat = Chat::load(self.pool().acquire().await?.as_mut(), &chat_id)
+            .await?
+            .ok_or_else(|| {
+                let id = chat_id.uuid();
+                anyhow!("Can't find chat with id {id}")
+            })?;
+        if title == chat.attributes().title {
+            // No change
+            return Ok(());
+        }
+        let new_attributes = ChatAttributes::new(title, chat.attributes.picture);
+
+        // Update the group and send out the update
+        self.update_key(chat_id, Some(&new_attributes)).await?;
+
         Ok(())
     }
 
@@ -175,10 +214,6 @@ impl CoreUser {
 
     pub(crate) async fn next_message(&self, message_id: MessageId) -> Result<Option<ChatMessage>> {
         Ok(ChatMessage::next_message(self.pool(), message_id).await?)
-    }
-
-    pub(crate) async fn chats(&self) -> sqlx::Result<Vec<Chat>> {
-        Chat::load_all(self.pool().acquire().await?.as_mut()).await
     }
 
     pub async fn chat(&self, chat: &ChatId) -> Option<Chat> {
@@ -312,8 +347,8 @@ mod create_chat_flow {
                 group_membership.user_id(),
             )?;
 
-            group_membership.store(txn.as_mut()).await?;
             group.store(txn.as_mut()).await?;
+            group_membership.store(txn.as_mut()).await?;
 
             let chat = Chat::new_group_chat(partial_params.group_id.clone(), attributes);
             chat.store(txn.as_mut(), notifier).await?;
@@ -504,7 +539,7 @@ mod delete_chat_flow {
                 state: DeletedGroupOnDs(ds_timestamp),
             } = self;
 
-            let messages = group
+            let (messages, _) = group
                 .merge_pending_commit(connection, None, ds_timestamp)
                 .await?;
 

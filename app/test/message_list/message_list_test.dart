@@ -4,11 +4,12 @@
 
 import 'dart:typed_data';
 
+import 'package:air/core/api/markdown.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:air/chat_details/chat_details.dart';
+import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/message_list.dart';
@@ -20,13 +21,15 @@ import '../chat_list/chat_list_content_test.dart';
 import '../helpers.dart';
 import '../mocks.dart';
 
+const testSize = Size(1080, 2800);
+
 final chatId = 1.chatId();
 
 final messages = [
   UiChatMessage(
     id: 1.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:00:00.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 2.userId(),
@@ -46,7 +49,7 @@ final messages = [
   UiChatMessage(
     id: 2.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:01:00.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:01:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 3.userId(),
@@ -63,13 +66,28 @@ final messages = [
         ),
       ),
     ),
-    position: UiFlightPosition.single,
+    position: UiFlightPosition.start,
     status: UiMessageStatus.sent,
+  ),
+  UiChatMessage(
+    id: 100.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:04:01.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 3.userId(),
+        sent: true,
+        edited: false,
+        content: richContent,
+      ),
+    ),
+    position: UiFlightPosition.end,
+    status: UiMessageStatus.delivered,
   ),
   UiChatMessage(
     id: 3.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:02:00.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:02:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -89,7 +107,7 @@ final messages = [
   UiChatMessage(
     id: 4.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:03:00.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:03:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -109,7 +127,7 @@ final messages = [
   UiChatMessage(
     id: 5.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:03:00.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:03:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -135,7 +153,22 @@ This is a message with multiple lines. It should be properly displayed in the me
   UiChatMessage(
     id: 7.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:04:01.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:04:01.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 1.userId(),
+        sent: true,
+        edited: false,
+        content: richContent,
+      ),
+    ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.delivered,
+  ),
+  UiChatMessage(
+    id: 8.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:04:01.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -153,9 +186,9 @@ This is a message with multiple lines. It should be properly displayed in the me
     status: UiMessageStatus.delivered,
   ),
   UiChatMessage(
-    id: 8.messageId(),
+    id: 9.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:04:02.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:04:02.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -174,6 +207,72 @@ This is a message with multiple lines. It should be properly displayed in the me
   ),
 ];
 
+final richContent = UiMimiContent(
+  topicId: Uint8List(0),
+  plainBody: "This is a message with a link https://example.com",
+  content: const MessageContent(
+    elements: [
+      RangedBlockElement(
+        start: 0,
+        end: 0,
+        element: BlockElement_Paragraph([
+          RangedInlineElement(
+            start: 0,
+            end: 0,
+            element: InlineElement_Text("This is a rich content message "),
+          ),
+          RangedInlineElement(
+            start: 0,
+            end: 0,
+            element: InlineElement_Link(
+              destUrl: "https://example.com",
+              children: [
+                RangedInlineElement(
+                  start: 0,
+                  end: 0,
+                  element: InlineElement_Text("https://example.com"),
+                ),
+              ],
+            ),
+          ),
+        ]),
+      ),
+      RangedBlockElement(
+        start: 0,
+        end: 0,
+        element: BlockElement_Quote([
+          RangedBlockElement(
+            start: 0,
+            end: 0,
+            element: BlockElement_Paragraph([
+              RangedInlineElement(
+                start: 0,
+                end: 0,
+                element: InlineElement_Text("This is a quote "),
+              ),
+              RangedInlineElement(
+                start: 0,
+                end: 0,
+                element: InlineElement_Link(
+                  destUrl: "https://example.com",
+                  children: [
+                    RangedInlineElement(
+                      start: 0,
+                      end: 0,
+                      element: InlineElement_Text("https://example.com"),
+                    ),
+                  ],
+                ),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ],
+  ),
+  attachments: [],
+);
+
 final imageAttachment = UiAttachment(
   attachmentId: 2.attachmentId(),
   filename: "image.png",
@@ -191,7 +290,7 @@ final attachmentMessages = [
   UiChatMessage(
     id: 6.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:04:00.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:04:00.000Z'),
     position: UiFlightPosition.start,
     message: UiMessage_Content(
       UiContentMessage(
@@ -219,7 +318,7 @@ final attachmentMessages = [
   UiChatMessage(
     id: 7.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:04:01.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:04:01.000Z'),
     position: UiFlightPosition.end,
     message: UiMessage_Content(
       UiContentMessage(
@@ -239,7 +338,7 @@ final attachmentMessages = [
   UiChatMessage(
     id: 8.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:04:02.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:04:02.000Z'),
     position: UiFlightPosition.single,
     message: UiMessage_Content(
       UiContentMessage(
@@ -257,7 +356,7 @@ final attachmentMessages = [
   UiChatMessage(
     id: 9.messageId(),
     chatId: chatId,
-    timestamp: '2023-01-01T00:04:03.000Z',
+    timestamp: DateTime.parse('2023-01-01T00:04:03.000Z'),
     position: UiFlightPosition.single,
     message: UiMessage_Content(
       UiContentMessage(
@@ -292,6 +391,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(0.messageId());
     registerFallbackValue(0.userId());
+    registerFallbackValue(0.attachmentId());
   });
 
   group('MessageListView', () {
@@ -300,6 +400,7 @@ void main() {
     late MockChatDetailsCubit chatDetailsCubit;
     late MockMessageListCubit messageListCubit;
     late MockAttachmentsRepository attachmentsRepository;
+    late MockUserSettingsCubit userSettingsCubit;
 
     setUp(() async {
       userCubit = MockUserCubit();
@@ -307,6 +408,7 @@ void main() {
       chatDetailsCubit = MockChatDetailsCubit();
       messageListCubit = MockMessageListCubit();
       attachmentsRepository = MockAttachmentsRepository();
+      userSettingsCubit = MockUserSettingsCubit();
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
       when(
@@ -318,6 +420,7 @@ void main() {
           untilTimestamp: any(named: 'untilTimestamp'),
         ),
       ).thenAnswer((_) => Future.value());
+      when(() => userSettingsCubit.state).thenReturn(const UserSettings());
     });
 
     Widget buildSubject() => RepositoryProvider<AttachmentsRepository>.value(
@@ -328,6 +431,7 @@ void main() {
           BlocProvider<UsersCubit>.value(value: contactsCubit),
           BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
           BlocProvider<MessageListCubit>.value(value: messageListCubit),
+          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
         ],
         child: Builder(
           builder: (context) {
@@ -358,6 +462,11 @@ void main() {
     });
 
     testWidgets('renders correctly', (tester) async {
+      tester.view.physicalSize = testSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
       when(
         () => messageListCubit.state,
       ).thenReturn(MockMessageListState(messages));
@@ -372,16 +481,51 @@ void main() {
       );
     });
 
+    testWidgets('renders correctly (dark mode)', (tester) async {
+      tester.view.physicalSize = testSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      when(
+        () => messageListCubit.state,
+      ).thenReturn(MockMessageListState(messages));
+
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      addTearDown(() {
+        tester.platformDispatcher.clearPlatformBrightnessTestValue();
+      });
+
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+
+      await tester.pumpWidget(buildSubject());
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_list_dark_mode.png'),
+      );
+    });
+
     testWidgets('renders correctly with attachments', (tester) async {
+      tester.view.physicalSize = testSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
       when(
         () => messageListCubit.state,
       ).thenReturn(MockMessageListState(messages + attachmentMessages));
       when(
         () => attachmentsRepository.loadImageAttachment(
-          attachmentId: imageAttachment.attachmentId,
+          attachmentId: any(named: 'attachmentId'),
           chunkEventCallback: any(named: "chunkEventCallback"),
         ),
       ).thenAnswer((_) async => Future.any([]));
+      when(
+        () => attachmentsRepository.statusStream(
+          attachmentId: any(named: 'attachmentId'),
+        ),
+      ).thenAnswer((_) => Stream.value(const UiAttachmentStatus.completed()));
 
       VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
@@ -394,6 +538,11 @@ void main() {
     });
 
     testWidgets('renders correctly with blocked messages', (tester) async {
+      tester.view.physicalSize = testSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
       final messageWithBobBlocked = [
         for (final message in messages)
           switch (message.message) {
@@ -420,6 +569,11 @@ void main() {
     testWidgets('renders correctly with blocked messages in contact chat', (
       tester,
     ) async {
+      tester.view.physicalSize = testSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
       final messageWithBobBlocked = [
         for (final message in messages) ...[
           if (message.sender == 1.userId()) message,
@@ -438,6 +592,31 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/message_list_blocked_contact_chat.png'),
+      );
+    });
+
+    testWidgets('renders correctly with disabled read receipts', (
+      tester,
+    ) async {
+      tester.view.physicalSize = testSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      when(
+        () => messageListCubit.state,
+      ).thenReturn(MockMessageListState(messages));
+      when(
+        () => userSettingsCubit.state,
+      ).thenReturn(const UserSettings(readReceipts: false));
+
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+
+      await tester.pumpWidget(buildSubject());
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_list_disabled_read_receipts.png'),
       );
     });
   });

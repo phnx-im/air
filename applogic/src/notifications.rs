@@ -18,7 +18,8 @@ impl User {
         for message in messages {
             if let Some(chat) = self.user.chat(&message.chat_id()).await {
                 let title = match chat.chat_type() {
-                    ChatType::Connection(user_id) => self
+                    ChatType::TargetedMessageConnection(user_id)
+                    | ChatType::Connection(user_id) => self
                         .user
                         .user_profile(user_id)
                         .await
@@ -27,10 +28,13 @@ impl User {
                     ChatType::HandleConnection(handle) => handle.plaintext().to_owned(),
                     ChatType::Group => chat.attributes().title().to_string(),
                 };
-                let body = message
+                let Some(body) = message
                     .message()
                     .string_representation(&self.user, chat.chat_type())
-                    .await;
+                    .await
+                else {
+                    continue;
+                };
                 notifications.push(NotificationContent {
                     identifier: NotificationId::random(),
                     title: title.to_owned(),
@@ -92,10 +96,6 @@ pub struct NotificationId(pub Uuid);
 impl NotificationId {
     pub(crate) fn random() -> Self {
         Self(Uuid::new_v4())
-    }
-
-    pub(crate) fn invalid() -> Self {
-        Self(Uuid::nil())
     }
 }
 

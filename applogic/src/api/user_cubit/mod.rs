@@ -9,6 +9,7 @@ use std::sync::Arc;
 use aircommon::identifiers::{UserHandle, UserId};
 use aircoreclient::Asset;
 use aircoreclient::{ChatId, clients::CoreUser, store::Store};
+use anyhow::ensure;
 use flutter_rust_bridge::frb;
 use qs::QueueContext;
 use tokio::sync::watch;
@@ -34,6 +35,8 @@ use super::{
 mod qs;
 mod user_handle;
 
+const DELETE_ACCOUNT_CONFIRMATION_TEXT: &str = "delete";
+
 /// State of the [`UserCubit`] which is the logged in user
 ///
 /// Opaque, cheaply clonable, copy-on-write type
@@ -44,7 +47,7 @@ mod user_handle;
 // should do it, to minimize the amount of UI rebuilds in Flutter.
 //
 // See:
-// * <https://github.com/phnx-im/infra/issues/247>
+// * <https://github.com/phnx-im/air/issues/247>
 // * <https://github.com/fzyzcjy/flutter_rust_bridge/issues/2238>
 #[frb(opaque)]
 #[derive(Debug, Clone)]
@@ -352,6 +355,18 @@ impl UserCubitBase {
     pub async fn unblock_contact(&self, user_id: UiUserId) -> anyhow::Result<()> {
         self.context.core_user.unblock_contact(user_id.into()).await
     }
+
+    pub async fn delete_account(
+        &self,
+        db_path: &str,
+        confirmation_text: &str,
+    ) -> anyhow::Result<()> {
+        ensure!(
+            confirmation_text == DELETE_ACCOUNT_CONFIRMATION_TEXT,
+            "unexpected confirmation text"
+        );
+        self.context.core_user.delete_account(Some(db_path)).await
+    }
 }
 
 impl Drop for UserCubitBase {
@@ -446,14 +461,11 @@ impl CubitContext {
                     HomeNavigationState {
                         chat_id: None,
                         developer_settings_screen,
-                        user_settings_screen,
+                        user_profile_open,
                         ..
                     },
             } => {
-                if !IS_DESKTOP
-                    && developer_settings_screen.is_none()
-                    && user_settings_screen.is_none()
-                {
+                if !IS_DESKTOP && developer_settings_screen.is_none() && !user_profile_open {
                     NotificationContext::ChatList
                 } else {
                     NotificationContext::Other

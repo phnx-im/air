@@ -6,7 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
-import 'package:air/chat_details/chat_details.dart';
+import 'package:air/chat/chat_details.dart';
+import 'package:air/chat/create_group_screen.dart';
 import 'package:air/developer/developer.dart';
 import 'package:air/home_screen.dart';
 import 'package:air/intro_screen.dart';
@@ -68,18 +69,14 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
     // routing
     final List<MaterialPage> pages = switch (navigationState) {
       NavigationState_Intro(:final screens) => [
-        if (screens.isEmpty)
-          MaterialPage(
-            key: const IntroScreenType.intro().key,
-            canPop: false,
-            child: const IntroScreenType.intro().screen,
-          ),
+        // The first screen is always the intro screen
+        const MaterialPage(
+          key: ValueKey("intro-screen"),
+          canPop: false,
+          child: IntroScreen(),
+        ),
         for (final screenType in screens)
-          MaterialPage(
-            key: screenType.key,
-            canPop: screenType != const IntroScreenType.intro(),
-            child: screenType.screen,
-          ),
+          MaterialPage(key: screenType.key, child: screenType.screen),
       ],
       NavigationState_Home(:final home) => home.pages(screenType),
     };
@@ -98,7 +95,7 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
         // whether the page was popped by the user or programmatically.
         //
         // Also see
-        //   * <https://github.com/phnx-im/infra/issues/244>
+        //   * <https://github.com/phnx-im/air/issues/244>
         //   * <https://github.com/flutter/flutter/issues/109494>
         //
         // ignore: deprecated_member_use
@@ -119,9 +116,24 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
   /// Back button handler
   @override
   Future<bool> popRoute() {
-    return SynchronousFuture(
-      _navigatorKey.currentContext?.read<NavigationCubit>().pop() ?? false,
-    );
+    // Pop the last route if it is pageless. See `isPageless`.
+    var poppedPagelessRoute = false;
+    var triedToPop = false;
+    _navigatorKey.currentState?.popUntil((route) {
+      if (triedToPop) {
+        return true; // stop popping
+      }
+      triedToPop = true;
+      poppedPagelessRoute = isPageless(route);
+      return !poppedPagelessRoute; // pop if is pageless
+    });
+
+    return poppedPagelessRoute
+        ? SynchronousFuture(true)
+        : SynchronousFuture(
+            _navigatorKey.currentContext?.read<NavigationCubit>().pop() ??
+                false,
+          );
   }
 
   @override
@@ -146,16 +158,18 @@ class AppBackButtonDispatcher extends RootBackButtonDispatcher {}
 /// Convert an [IntroScreenType] into a [ValueKey] and a screen [Widget].
 extension on IntroScreenType {
   ValueKey<String> get key => switch (this) {
-    IntroScreenType_Intro() => const ValueKey("intro-screen"),
     IntroScreenType_SignUp() => const ValueKey("sign-up-screen"),
+    IntroScreenType_UsernameOnboarding() => const ValueKey(
+      "username-onboarding-screen",
+    ),
     IntroScreenType_DeveloperSettings(field0: final screen) => ValueKey(
       "developer-settings-screen-$screen",
     ),
   };
 
   Widget get screen => switch (this) {
-    IntroScreenType_Intro() => const IntroScreen(),
     IntroScreenType_SignUp() => const SignUpScreen(),
+    IntroScreenType_UsernameOnboarding() => const UsernameOnboardingScreen(),
     IntroScreenType_DeveloperSettings(field0: final screen) => switch (screen) {
       DeveloperSettingsScreenType.root => const DeveloperSettingsScreen(),
       DeveloperSettingsScreenType.changeUser => const ChangeUserScreen(),
@@ -176,45 +190,16 @@ extension on HomeNavigationState {
     );
     return [
       homeScreenPage,
-      ...switch (userSettingsScreen) {
-        null => [],
-        UserSettingsScreenType.root => [
-          const MaterialPage(
-            key: ValueKey("user-settings-screen-root"),
-            child: UserSettingsScreen(),
-          ),
-        ],
-        UserSettingsScreenType.editDisplayName => [
-          const MaterialPage(
-            key: ValueKey("user-settings-screen-root"),
-            child: UserSettingsScreen(),
-          ),
-          const MaterialPage(
-            key: ValueKey("user-settings-screen-edit-display-name"),
-            child: EditDisplayNameScreen(),
-          ),
-        ],
-        UserSettingsScreenType.addUserHandle => [
-          const MaterialPage(
-            key: ValueKey("user-settings-screen-root"),
-            child: UserSettingsScreen(),
-          ),
-          const MaterialPage(
-            key: ValueKey("user-settings-screen-add-user-handle"),
-            child: AddUserHandleScreen(),
-          ),
-        ],
-        UserSettingsScreenType.help => [
-          const MaterialPage(
-            key: ValueKey("user-settings-screen-root"),
-            child: UserSettingsScreen(),
-          ),
-          const MaterialPage(
-            key: ValueKey("user-settings-screen-help"),
-            child: HelpScreen(),
-          ),
-        ],
-      },
+      if (createGroupOpen)
+        const MaterialPage(
+          key: ValueKey("create-group-screen"),
+          child: CreateGroupScreen(),
+        ),
+      if (userProfileOpen)
+        const MaterialPage(
+          key: ValueKey("user-profile-screen"),
+          child: UserSettingsScreen(),
+        ),
       if (openChatId != null && screenType == ResponsiveScreenType.mobile)
         const MaterialPage(key: ValueKey("chat-screen"), child: ChatScreen()),
       if (openChatId != null && chatDetailsOpen)
@@ -222,7 +207,12 @@ extension on HomeNavigationState {
           key: ValueKey("chat-details-screen"),
           child: ChatDetailsScreen(),
         ),
-      if (openChatId != null && chatDetailsOpen && memberDetails != null)
+      if (openChatId != null && chatDetailsOpen && groupMembersOpen)
+        const MaterialPage(
+          key: ValueKey("chat-group-members-screen"),
+          child: GroupMembersScreen(),
+        ),
+      if (openChatId != null && memberDetails != null)
         const MaterialPage(
           key: ValueKey("chat-member-details-screen"),
           child: MemberDetailsScreen(),
@@ -296,3 +286,9 @@ class NoAnimationMaterialPageRoute<T> extends MaterialPageRoute<T> {
     return child;
   }
 }
+
+/// A route which does not correspond to a page in the app.
+///
+/// Such a route is added by [`Navigator.push`] and does not correspond to a state in the
+/// `NavigationState` inside `NavigationCubit`.
+bool isPageless(Route<dynamic> route) => route.settings is! Page;

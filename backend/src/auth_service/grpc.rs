@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::io;
+
 use airprotos::{
     auth_service::v1::{auth_service_server, *},
     validation::MissingFieldExt,
@@ -31,8 +33,10 @@ use privacypass::{amortized_tokens::AmortizedBatchTokenRequest, private_tokens::
 use tls_codec::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
-use tonic::{Request, Response, Status, Streaming, async_trait};
+use tonic::{Code, Request, Response, Status, Streaming, async_trait};
 use tracing::error;
+
+use crate::util::find_cause;
 
 use super::{
     AuthService,
@@ -124,9 +128,18 @@ impl GrpcAs {
     ) {
         while let Some(request) = requests.next().await {
             if let Err(error) = Self::process_listen_handle_request(&queues, request).await {
-                // We report the error, but don't stop processing requests.
-                // TODO(#466): Send this to the client.
-                error!(%error, "error processing listen request");
+                if let Code::Unknown = error.code()
+                    && let Some(h2_error) = find_cause::<h2::Error>(&error)
+                    && let Some(io_error) = h2_error.get_io()
+                    && io_error.kind() == io::ErrorKind::BrokenPipe
+                {
+                    // Client closed connection => not an error
+                    continue;
+                } else {
+                    // We report the error, but don't stop processing requests.
+                    // TODO(#466): Send this to the client.
+                    error!(%error, "error processing listen request");
+                }
             }
         }
     }
@@ -328,6 +341,18 @@ impl auth_service_server::AuthService for GrpcAs {
         // TODO: forward to the spam reporting service
 
         Ok(Response::new(ReportSpamResponse {}))
+    }
+
+    async fn check_handle_exists(
+        &self,
+        request: Request<CheckHandleExistsRequest>,
+    ) -> Result<Response<CheckHandleExistsResponse>, Status> {
+        let request = request.into_inner();
+        let hash = request.hash.ok_or_missing_field("hash")?.try_into()?;
+
+        let exists = self.inner.as_check_handle_exists(&hash).await?;
+
+        Ok(Response::new(CheckHandleExistsResponse { exists }))
     }
 
     async fn create_handle(

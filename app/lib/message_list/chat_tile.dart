@@ -60,6 +60,7 @@ class ChatTile extends StatelessWidget {
             flightPosition: position,
             status: adjustedStatus,
             isSender: isSender,
+            showSender: !isConnectionChat,
           ),
           UiMessage_Display(field0: final display) => DisplayMessageTile(
             display,
@@ -133,8 +134,9 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
         sizeFactor: animation,
         child: ScaleTransition(
           scale: animation,
-          alignment:
-              widget.isSender ? Alignment.bottomRight : Alignment.bottomLeft,
+          alignment: widget.isSender
+              ? Alignment.bottomRight
+              : Alignment.bottomLeft,
           child: widget.child,
         ),
       ),

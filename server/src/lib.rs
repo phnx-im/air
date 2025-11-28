@@ -4,7 +4,9 @@
 
 //! Server that makes the logic implemented in the backend available to clients via a REST API
 
-use std::time::Duration;
+#![warn(clippy::large_futures)]
+
+use std::{future, time::Duration};
 
 use airbackend::{
     auth_service::{AuthService, grpc::GrpcAs},
@@ -12,13 +14,17 @@ use airbackend::{
     qs::{
         Qs, QsConnector, errors::QsEnqueueError, grpc::GrpcQs, network_provider::NetworkProvider,
     },
+    settings::RateLimitsSettings,
 };
 use airprotos::{
     auth_service::v1::auth_service_server::AuthServiceServer,
     delivery_service::v1::delivery_service_server::DeliveryServiceServer,
     queue_service::v1::queue_service_server::QueueServiceServer,
 };
+use axum::extract::State;
 use connect_info::ConnectInfoInterceptor;
+use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
+use tokio::net::TcpListener;
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::service::InterceptorLayer;
 use tonic_health::pb::health_server::{Health, HealthServer};
@@ -26,29 +32,26 @@ use tower_governor::{
     GovernorLayer, governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor,
 };
 use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer};
-use tracing::{Level, enabled, info};
+use tracing::{Level, enabled, error, info};
+
+use crate::grpc_metrics::GrpcMetricsLayer;
 
 pub mod configurations;
 mod connect_info;
 pub mod enqueue_provider;
+mod grpc_metrics;
+pub mod logging;
 pub mod network_provider;
 pub mod push_notification_provider;
-pub mod telemetry;
 
 pub struct ServerRunParams<Qc> {
-    pub listener: tokio::net::TcpListener,
+    pub listener: TcpListener,
+    pub metrics_listener: Option<TcpListener>,
     pub ds: Ds,
     pub auth_service: AuthService,
     pub qs: Qs,
     pub qs_connector: Qc,
-    pub rate_limits: RateLimitsConfig,
-}
-
-/// Every `period`, allow bursts of up to `burst_size`-many requests, and replenish one element
-/// after the `period`.
-pub struct RateLimitsConfig {
-    pub period: Duration,
-    pub burst_size: u32,
+    pub rate_limits: RateLimitsSettings,
 }
 
 /// Configure and run the server application.
@@ -57,7 +60,8 @@ pub async fn run<
     Np: NetworkProvider,
 >(
     ServerRunParams {
-        listener: grpc_listener,
+        listener,
+        metrics_listener,
         ds,
         auth_service,
         qs,
@@ -65,21 +69,23 @@ pub async fn run<
         rate_limits,
     }: ServerRunParams<Qc>,
 ) -> impl Future<Output = Result<(), tonic::transport::Error>> {
-    let grpc_addr = grpc_listener
-        .local_addr()
-        .expect("Could not get local address");
+    let grpc_addr = listener.local_addr().expect("Could not get local address");
 
     info!(%grpc_addr, "Starting server");
+
+    serve_metrics(metrics_listener);
 
     // GRPC server
     let grpc_as = GrpcAs::new(auth_service);
     let grpc_ds = GrpcDs::new(ds, qs_connector);
     let grpc_qs = GrpcQs::new(qs);
 
-    let RateLimitsConfig { period, burst_size } = rate_limits;
+    info!(?rate_limits, "Applying rate limits");
+    let RateLimitsSettings { period, burst } = rate_limits;
+
     let governor_config = GovernorConfigBuilder::default()
         .period(period)
-        .burst_size(burst_size)
+        .burst_size(burst)
         .key_extractor(SmartIpKeyExtractor)
         .finish()
         .expect("invalid governor config");
@@ -98,6 +104,7 @@ pub async fn run<
     tonic::transport::Server::builder()
         .http2_keepalive_interval(Some(Duration::from_secs(30)))
         .layer(InterceptorLayer::new(ConnectInfoInterceptor))
+        .layer(GrpcMetricsLayer::new())
         .layer(
             TraceLayer::new_for_grpc()
                 .make_span_with(
@@ -117,7 +124,41 @@ pub async fn run<
         .add_service(AuthServiceServer::new(grpc_as))
         .add_service(DeliveryServiceServer::new(grpc_ds))
         .add_service(QueueServiceServer::new(grpc_qs))
-        .serve_with_incoming(TcpListenerStream::new(grpc_listener))
+        .serve_with_incoming(TcpListenerStream::new(listener))
+}
+
+fn serve_metrics(metrics_listener: Option<TcpListener>) {
+    GrpcMetricsLayer::describe_metrics();
+    if let Some(listener) = metrics_listener {
+        let addr = listener.local_addr().expect("Could not get local address");
+
+        let recorder = PrometheusBuilder::new().build_recorder();
+        let handle = recorder.handle();
+        metrics::set_global_recorder(recorder).expect("metrics already set");
+
+        let router = axum::Router::new().route(
+            "/metrics",
+            axum::routing::get(|State(handle): State<PrometheusHandle>| {
+                future::ready(handle.render())
+            })
+            .with_state(handle.clone()),
+        );
+
+        const UPKEEP_TIMEOUT: Duration = Duration::from_secs(5);
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(UPKEEP_TIMEOUT).await;
+                handle.run_upkeep();
+            }
+        });
+
+        tokio::spawn(async move {
+            info!(%addr, "Serving metrics");
+            if let Err(error) = axum::serve(listener, router.into_make_service()).await {
+                error!(%error, "Metrics server stopped");
+            }
+        });
+    }
 }
 
 async fn configure_health_service<

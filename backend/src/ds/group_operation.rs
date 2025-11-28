@@ -24,7 +24,7 @@ use aircommon::{
         ear::keys::{EncryptedUserProfileKey, GroupStateEarKey},
         hpke::{HpkeEncryptable, JoinerInfoEncryptionKey},
     },
-    identifiers::{QS_CLIENT_REFERENCE_EXTENSION_TYPE, QsReference},
+    identifiers::QsReference,
     messages::{
         client_ds::{
             AadMessage, AadPayload, AddUsersInfo, DsJoinerInformation, GroupOperationParams,
@@ -32,7 +32,9 @@ use aircommon::{
         },
         welcome_attribution_info::EncryptedWelcomeAttributionInfo,
     },
+    mls_group_config::QS_CLIENT_REFERENCE_EXTENSION_TYPE,
     time::{Duration, TimeStamp},
+    utils::removed_clients,
 };
 use tls_codec::DeserializeBytes;
 use tracing::{error, warn};
@@ -218,10 +220,7 @@ impl DsGroupState {
             _ => None,
         };
 
-        let removed_clients = staged_commit
-            .remove_proposals()
-            .map(|remove_proposal| remove_proposal.remove_proposal().removed())
-            .collect::<Vec<_>>();
+        let removed_clients = removed_clients(staged_commit);
 
         for removed in &removed_clients {
             if *removed == sender_index.leaf_index() {
@@ -390,6 +389,7 @@ impl DsGroupState {
                         .map_err(|_| GroupOperationError::LibraryError)?,
                 ),
                 client_reference: client_queue_config,
+                suppress_notifications: false.into(),
             };
             fan_out_messages.push(fan_out_message);
         }

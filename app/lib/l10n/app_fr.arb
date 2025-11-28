@@ -2,55 +2,97 @@
   "appTitle": "Air",
 
   "userSettingsScreen_title": "Paramètres utilisateur",
-  "userSettingsScreen_idCopied": "ID utilisateur copié dans le presse-papiers",
   "userSettingsScreen_profileDescription": "Les autres verront votre photo et votre nom lorsque vous communiquez avec eux.",
   "userSettingsScreen_userNamesDescription": "Partagez des noms d'utilisateur avec d'autres pour qu'ils puissent se connecter avec vous. Après la connexion, les noms d'utilisateur ne sont plus visibles aux autres. Vous pouvez avoir jusqu'à 5 noms d'utilisateur.",
   "userSettingsScreen_interfaceScale": "Échelle de l'interface",
   "userSettingsScreen_help": "Aide",
+  "userSettingsScreen_deleteAccount": "Supprimer le compte Air",
+  "userSettingsScreen_sendWithEnter": "Envoyer avec Entrée",
+  "userSettingsScreen_readReceipts": "Accusés de lecture",
+  "userSettingsScreen_readReceiptsDescription": "Si vous les désactivez, les autres ne verront pas quand vous aurez lu leurs messages et vous ne verrez pas quand ils auront lu les vôtres.",
 
   "removeUsernameDialog_title": "Supprimer le nom d'utilisateur",
   "removeUsernameDialog_content": "Si vous continuez, votre nom d'utilisateur sera supprimé et pourra être réclamé par quelqu'un d'autre. Vous ne serez plus accessible par son intermédiaire.",
   "removeUsernameDialog_cancel": "Annuler",
   "removeUsernameDialog_remove": "Supprimer",
-  "userSettingsScreen_noUserHandles": "aucun pseudo pour le moment",
   "userSettingsScreen_userHandlePlaceholder": "Nom d'utilisateur",
 
-  "addMembersScreen_title": "Ajouter des membres",
   "addMembersScreen_addMembers": "Ajouter membre(s)",
-  "addMembersScreen_error_noActiveChat": "une chat active est obligatoire",
+  "addMembersScreen_error_noActiveChat": "un chat actif est obligatoire",
 
-  "chatDetailsScreen_title": "Détails",
-  "chatDetailsScreen_unknownChat": "Chat inconnue",
+  "chatDetailsScreen_unknownChat": "Chat inconnu",
+  "blockedChatFooter_message": "Vous ne recevrez pas de messages de {displayName} tant que vous ne l'aurez pas débloqué.",
+  "inactiveChatFooter_message": "Vous n'êtes plus membre de ce chat.",
 
-  "chatScreen_emptyChat": "Sélectionnez une chat pour commencer à envoyer des messages",
+  "chatScreen_emptyChat": "Sélectionnez un chat pour commencer à envoyer des messages",
 
-  "memberDetailsScreen_title": "Détails du membre",
   "removeUserDialog_title": "Retirer l'utilisateur",
   "removeUserDialog_content": "Êtes-vous sûr de vouloir retirer cet utilisateur du groupe ?",
-  "removeUserDialog_cancel": "Annuler",
   "removeUserDialog_removeUser": "Retirer l'utilisateur",
   "removeUserButton_text": "Retirer l'utilisateur",
+  "blockContactButton_text": "Bloquer",
+  "blockContactDialog_title": "Bloquer {displayName} ?",
+  "blockContactDialog_content": "Vous ne recevrez plus de messages de {displayName} et cette personne ne pourra pas voir les mises à jour de votre profil. Elle ne verra pas que vous l'avez bloqué. Vous pourrez le débloquer à tout moment.",
+  "blockContactDialog_cancel": "Annuler",
+  "blockContactDialog_block": "Bloquer",
+
+  "unblockContactButton_text": "Débloquer",
+  "unblockContactDialog_title": "Débloquer {displayName} ?",
+  "unblockContactDialog_content": "Vous pourrez envoyer et recevoir des messages de {displayName} et cette personne pourra voir votre profil actuel.",
+  "unblockContactDialog_cancel": "Annuler",
+  "unblockContactDialog_unblock": "Débloquer",
+
+  "deleteContactButton_text": "Supprimer le contact Air",
+  "deleteContactDialog_title": "Supprimer le contact Air",
+  "deleteContactDialog_content": "Voulez-vous vraiment supprimer votre contact Air {displayName} ? Cela supprimera le chat et son historique.",
+  "deleteContactDialog_cancel": "Annuler",
+  "deleteContactDialog_delete": "Supprimer",
 
   "introScreen_signUp": "S'inscrire",
+  "introScreen_termsLinkText": "Conditions d'utilisation",
+  "introScreen_termsText": "En vous inscrivant, vous acceptez nos {termsOfUseLink}.",
+  "@introScreen_termsText": {
+    "placeholders": {
+      "termsOfUseLink": {}
+    }
+  },
+
+  "signUpScreen_header": "Créez votre profil",
+  "signUpScreen_subheader": "Votre profil est visible pour les personnes avec lesquelles vous vous connectez et les membres de vos groupes. Air exige un nom d'affichage, mais la photo est facultative.",
+  "usernameOnboarding_header": "Ajoutez un nom d'utilisateur",
+  "usernameOnboarding_body": "On peut se connecter à d'autres grace aux noms d'utilisateur sur Air. Ils ne seront plus visibles pour les autres une fois la connexion établie.\n\nAjoutez, modifiez ou supprimez des noms d'utilisateur à tout moment dans votre profil.",
+  "usernameOnboarding_syntax": "Utilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.",
+  "usernameOnboarding_addButton": "Ajouter",
+  "usernameOnboarding_skip": "Ignorer",
+  "usernameOnboarding_userameInputName": "Nom d'utilisateur (facultatif)",
+  "usernameOnboarding_userameInputHint": "Ajoutez un nom...",
+  "signUpScreen_actionButton": "S'inscrire",
+  "signUpScreen_displayNameInputName": "Nom d'affichage (obligatoire)",
+  "signUpScreen_displayNameInputHint": "Ajoutez un nom...",
+  "signUpScreen_serverLabel": "Choisissez le serveur sur lequel vous voulez créer votre compte.",
+  "signUpScreen_serverHint": "NOM DE DOMAINE",
+  "signUpScreen_error_invalidDomain": "Le domaine n'est pas valide",
+  "signUpScreen_error_emptyDisplayName": "Ajoutez un nom d'affichage d'au moins un caractère",
+  "signUpScreen_error_register": "Erreur lors de l'enregistrement de l'utilisateur : {error}",
 
   "userHandleScreen_title": "Nom d'utilisateur",
   "userHandleScreen_inputHint": "Nom d'utilisateur",
   "userHandleScreen_error_emptyHandle": "Le nom d'utilisateur ne peut pas être vide",
-  "userHandleScreen_description": "Choisissez un nom d'utilisateur que d'autres peuvent utiliser pour se connecter avec vous.\n\nUtilisez des lettres, des chiffres ou des traits de soulignement. Minimum 5 caractères.",
+  "userHandleScreen_error_alreadyExists": "Ce nom d'utilisateur est déjà utilisé",
+  "userHandleScreen_description": "Choisissez un nom d'utilisateur que d'autres peuvent utiliser pour se connecter avec vous.\n\nUtilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.",
   "userHandleScreen_save": "Enregistrer",
 
   "editDisplayNameScreen_title": "Nom d'affichage",
-  "editDisplayNameScreen_hintText": "Nom d'affichage",
   "editDisplayNameScreen_description": "Choisissez un nom que les autres verront lorsque vous communiquez avec eux.",
   "editDisplayNameScreen_save": "Enregistrer",
 
-  "systemMessage_userAddedUser_prefix": "",
+  "systemMessage_userAddedUser_prefix": "{user1}",
   "systemMessage_userAddedUser_infix": " a ajouté ",
-  "systemMessage_userAddedUser_suffix": "",
+  "systemMessage_userAddedUser_suffix": "{user2}",
 
-  "systemMessage_userRemovedUser_prefix": "",
+  "systemMessage_userRemovedUser_prefix": "{user1}",
   "systemMessage_userRemovedUser_infix": " a retiré ",
-  "systemMessage_userRemovedUser_suffix": "",
+  "systemMessage_userRemovedUser_suffix": "{user2}",
 
   "timestamp_now": "Maintenant",
   "timestamp_yesterday": "Hier",
@@ -63,24 +105,17 @@
   "chatList_you": "Vous",
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
+  "chatList_blocked": "Bloqué",
 
-  "settings_profile": "Profil",
-  "settings_developerSettings": "Paramètres (développeur)",
-
-  "newChatDialog_newChatTitle": "Nouvelle chat",
-  "newChatDialog_newChatDescription": "Choisissez un nom pour la nouvelle chat",
-  "newChatDialog_chatNamePlaceholder": "Nom de la chat",
-  "newChatDialog_actionButton": "Créer une chat",
-  "newChatDialog_error": "Impossible d'ajouter une chat avec le nom {chatName}",
-  "newChatDialog_error_emptyGroupName": "Le nom de la chat ne peut pas être vide",
+  "newChatDialog_error": "Impossible d'ajouter un chat avec le nom {chatName}",
 
   "newConnectionDialog_newConnectionTitle": "Nouvelle connexion",
-  "newConnectionDialog_newConnectionDescription": "Saisissez le pseudo de l'utilisateur avec lequel vous souhaitez vous connecter",
+  "newConnectionDialog_newConnectionDescription": "Saisissez le nom d'utilisateur de la personne avec laquelle vous souhaitez vous connecter",
   "newConnectionDialog_usernamePlaceholder": "Nom d'utilisateur",
   "newConnectionDialog_actionButton": "Se connecter",
-  "newConnectionDialog_error": "Impossible d'ajouter l'utilisateur avec le pseudo {username}. Veuillez réessayer.",
-  "newConnectionDialog_error_emptyHandle": "Le pseudo ne peut pas être vide",
-  "newConnectionDialog_error_handleNotFound": "Le pseudo {username} n'existe pas",
+  "newConnectionDialog_error": "Impossible d'ajouter l'utilisateur avec le nom d'utilisateur {username}. Veuillez réessayer.",
+  "newConnectionDialog_error_emptyHandle": "Le nom d'utilisateur ne peut pas être vide",
+  "newConnectionDialog_error_handleNotFound": "Le nom d'utilisateur {username} n'existe pas",
 
   "composer_inputHint": "Message à {chatTitle}",
   "composer_editMessage": "Modifier le message",
@@ -100,6 +135,10 @@
   },
 
   "textMessage_edited": "modifié",
+  "textMessage_hiddenPlaceholder": "Utilisateur bloqué, appuyez pour afficher le message",
+  "textMessage_deleted": "Message supprimé",
+  "messageContextMenu_copy": "Copier",
+  "messageContextMenu_edit": "Modifier",
 
   "reportSpamButton_text": "Signaler comme spam",
   "reportSpamDialog_title": "Signaler comme spam ?",
@@ -131,6 +170,43 @@
   "contactUsScreen_body_tooShort": "Veuillez fournir plus d'informations",
   "contactUsScreen_errorLaunchingEmail": "Impossible de lancer le client de messagerie",
 
+  "groupDetails_addPerson": "Ajouter une personne",
+  "groupDetails_leaveChat": "Quitter",
+  "groupDetails_deleteChat": "Supprimer",
+  "groupDetails_seeAll": "Voir tout",
+  "groupDetails_memberCount": "{count, plural, one {{count} membre} other {{count} membres}}",
+  "@groupDetails_memberCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupMembersScreen_title": "Membres du groupe",
+  "groupMembersScreen_searchHint": "Chercher",
+  "groupCreationScreen_title": "Ajouter des membres",
+  "groupCreationScreen_next": "Suivant",
+  "groupCreationScreen_skip": "Ignorer",
+  "groupCreationDetails_title": "Détails du groupe",
+  "groupCreationDetails_groupNameHint": "Nom du groupe (obligatoire)",
+  "groupCreationDetails_groupNameHintFocused": "Nom du groupe",
+  "groupCreationDetails_groupNameHelper": "Au moins un caractère, s'il vous plaît",
+  "groupCreationDetails_descriptionHint": "Description du groupe (facultatif)",
+  "groupCreationDetails_descriptionHintFocused": "Description du groupe",
+  "groupCreationDetails_create": "Créer",
+  "groupCreationDetails_emptySelection": "Aucun membre",
+
+  "addMembersScreen_addMembers": "Ajouter des membres",
+  "addMembersScreen_done": "Terminé",
+  "leaveChatDialog_title": "Quitter le chat",
+  "leaveChatDialog_content": "Êtes-vous sûr de vouloir quitter {chatName} ?",
+  "leaveChatDialog_cancel": "Annuler",
+  "leaveChatDialog_leave": "Quitter",
+
+  "deleteChatDialog_title": "Supprimer le chat ?",
+  "deleteChatDialog_content": "Ce chat sera supprimé. Cette action est irréversible.",
+  "deleteChatDialog_delete": "Supprimer",
+
   "byteUnit_B": "o",
   "byteUnit_KB": "Ko",
   "byteUnit_MB": "Mo",
@@ -139,5 +215,13 @@
   "byteUnit_PB": "Po",
   "byteUnit_EB": "Eo",
   "byteUnit_ZB": "Zo",
-  "byteUnit_YB": "Yo"
+  "byteUnit_YB": "Yo",
+
+  "deleteAccountScreen_title": "Supprimer mon compte",
+  "deleteAccountScreen_explanatoryText": "Cela supprimera votre compte Air et réinitialisera l'application. Vous ne pourrez pas récupérer votre compte.",
+  "deleteAccountScreen_confirmationInputHint": "Confirmation",
+  "deleteAccountScreen_confirmationInputLabel": "Tapez 'delete' pour confirmer",
+  "deleteAccountScreen_confirmButtonText": "Supprimer le compte Air",
+  "deleteAccountScreen_cancelButtonText": "Annuler",
+  "deleteAccountScreen_deleteAccountError": "Un problème est survenu de notre côté. Veuillez patienter un instant puis réessayer."
 }

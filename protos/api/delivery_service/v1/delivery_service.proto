@@ -32,6 +32,9 @@ service DeliveryService {
 
   rpc GroupOperation(GroupOperationRequest) returns (GroupOperationResponse);
 
+  // Sends a message to a member of a given group (and only to that member).
+  rpc TargetedMessage(TargetedMessageRequest) returns (TargetedMessageResponse);
+
   rpc UpdateProfileKey(UpdateProfileKeyRequest) returns (UpdateProfileKeyResponse);
 
   // Generates an attachment ID and returns a pre-signed URL for uploading an attachment.
@@ -155,6 +158,7 @@ message ExternalCommitInfoResponse {
   RatchetTree ratchet_tree = 2;
   repeated EncryptedUserProfileKey encrypted_user_profile_keys = 4;
   RoomState room_state = 5;
+  repeated MlsMessage proposals = 6;
 }
 
 message GroupInfo {
@@ -173,6 +177,7 @@ message ConnectionGroupInfoResponse {
   RatchetTree ratchet_tree = 2;
   repeated EncryptedUserProfileKey encrypted_user_profile_keys = 4;
   RoomState room_state = 5;
+  repeated MlsMessage proposals = 6;
 }
 
 // join connection group
@@ -192,6 +197,8 @@ message JoinConnectionGroupResponse {
 message ResyncRequest {
   ResyncPayload payload = 1;
   common.v1.Signature signature = 2;
+  // Index of the sender before processing the commit
+  LeafNodeIndex sender_index = 3;
 }
 
 message ResyncPayload {
@@ -231,6 +238,7 @@ message SendMessagePayload {
   GroupStateEarKey group_state_ear_key = 1;
   AssistedMessage message = 2;
   LeafNodeIndex sender = 3;
+  optional bool suppress_notifications = 4;
 }
 
 message SendMessageResponse {
@@ -279,6 +287,32 @@ message GroupOperationResponse {
   common.v1.Timestamp fanout_timestamp = 1;
 }
 
+// targeted messages
+
+message TargetedMessageRequest {
+  TargetedMessagePayload payload = 1;
+  common.v1.Signature signature = 2;
+}
+
+message TargetedMessagePayload {
+  GroupStateEarKey group_state_ear_key = 1;
+  LeafNodeIndex sender = 2;
+  oneof targeted_message_type {
+    TargetedApplicationMessage application_message = 3;
+  }
+}
+
+// This is meant to be replaced later after we implement MLS's targeted message
+// feature
+message TargetedApplicationMessage {
+  AssistedMessage message = 1;
+  LeafNodeIndex recipient = 2;
+}
+
+message TargetedMessageResponse {
+  common.v1.Timestamp fanout_timestamp = 1;
+}
+
 // update profile key
 
 message UpdateProfileKeyRequest {
@@ -306,6 +340,8 @@ message ProvisionAttachmentPayload {
   GroupStateEarKey group_state_ear_key = 1;
   common.v1.QualifiedGroupId group_id = 2;
   LeafNodeIndex sender = 3;
+  bool use_post_policy = 4;
+  int64 content_length = 5;
 }
 
 message ProvisionAttachmentResponse {
@@ -313,6 +349,13 @@ message ProvisionAttachmentResponse {
   common.v1.ExpirationData upload_url_expiration = 2;
   string upload_url = 4; // non-empty
   repeated HeaderEntry upload_headers = 5; // can be empty
+  // If present, the attachment should be uploaded via POST multipart/form-data
+  optional SignedPostPolicy post_policy = 6;
+}
+
+message SignedPostPolicy {
+  string base64 = 2;
+  string signature = 3;
 }
 
 message HeaderEntry {

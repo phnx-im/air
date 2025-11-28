@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/chat/chat_details.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/theme/theme.dart';
@@ -13,19 +14,28 @@ import 'chat_list_cubit.dart';
 import 'chat_list_header.dart';
 
 class ChatListContainer extends StatelessWidget {
-  const ChatListContainer({super.key});
+  const ChatListContainer({required this.isStandalone, super.key});
+
+  final bool isStandalone;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) => ChatListCubit(userCubit: context.read<UserCubit>()),
-      child: const ChatListView(),
+      child: ChatListView(scaffold: isStandalone),
     );
   }
 }
 
 class ChatListView extends StatelessWidget {
-  const ChatListView({super.key});
+  const ChatListView({
+    super.key,
+    this.scaffold = false,
+    this.createChatDetailsCubit = ChatDetailsCubit.new,
+  });
+
+  final bool scaffold;
+  final ChatDetailsCubitCreate createChatDetailsCubit;
 
   double _topPadding() {
     return isPointer() ? Spacings.l : kToolbarHeight;
@@ -33,13 +43,28 @@ class ChatListView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final widget = Container(
       color: CustomColorScheme.of(context).backgroundBase.primary,
       padding: EdgeInsets.only(top: _topPadding()),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [ChatListHeader(), Expanded(child: ChatListContent())],
+        children: [
+          const ChatListHeader(),
+          Expanded(
+            child: ChatListContent(
+              createChatDetailsCubit: createChatDetailsCubit,
+            ),
+          ),
+        ],
       ),
     );
+    return scaffold
+        ? Scaffold(
+            backgroundColor: CustomColorScheme.of(
+              context,
+            ).backgroundBase.primary,
+            body: widget,
+          )
+        : widget;
   }
 }

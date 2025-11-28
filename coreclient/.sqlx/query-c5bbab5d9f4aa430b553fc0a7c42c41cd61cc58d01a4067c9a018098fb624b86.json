@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO timed_tasks_queue\n                    (due_at, task_kind)\n                VALUES (?1, ?2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "c5bbab5d9f4aa430b553fc0a7c42c41cd61cc58d01a4067c9a018098fb624b86"
+}

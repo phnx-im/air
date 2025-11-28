@@ -15,7 +15,7 @@ import 'types.dart';
 part 'navigation_cubit.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `home`, `intro`, `subscribe`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NavigationCubitBase>>
 abstract class NavigationCubitBase implements RustOpaqueInterface {
@@ -37,9 +37,13 @@ abstract class NavigationCubitBase implements RustOpaqueInterface {
 
   Future<void> openChatDetails();
 
+  Future<void> openCreateGroup();
+
   Future<void> openDeveloperSettings({
     required DeveloperSettingsScreenType screen,
   });
+
+  Future<void> openGroupMembers();
 
   Future<void> openHome();
 
@@ -49,7 +53,7 @@ abstract class NavigationCubitBase implements RustOpaqueInterface {
 
   Future<void> openMemberDetails({required UiUserId member});
 
-  Future<void> openUserSettings({required UserSettingsScreenType screen});
+  Future<void> openUserProfile();
 
   bool pop();
 
@@ -74,9 +78,11 @@ sealed class HomeNavigationState with _$HomeNavigationState {
     ChatId? chatId,
     DeveloperSettingsScreenType? developerSettingsScreen,
     UiUserId? memberDetails,
-    UserSettingsScreenType? userSettingsScreen,
+    @Default(false) bool userProfileOpen,
     @Default(false) bool chatDetailsOpen,
     @Default(false) bool addMembersOpen,
+    @Default(false) bool groupMembersOpen,
+    @Default(false) bool createGroupOpen,
   }) = _HomeNavigationState;
   static Future<HomeNavigationState> default_() =>
       RustLib.instance.api.crateApiNavigationCubitHomeNavigationStateDefault();
@@ -86,8 +92,9 @@ sealed class HomeNavigationState with _$HomeNavigationState {
 sealed class IntroScreenType with _$IntroScreenType {
   const IntroScreenType._();
 
-  const factory IntroScreenType.intro() = IntroScreenType_Intro;
   const factory IntroScreenType.signUp() = IntroScreenType_SignUp;
+  const factory IntroScreenType.usernameOnboarding() =
+      IntroScreenType_UsernameOnboarding;
   const factory IntroScreenType.developerSettings(
     DeveloperSettingsScreenType field0,
   ) = IntroScreenType_DeveloperSettings;
@@ -98,6 +105,8 @@ sealed class NavigationState with _$NavigationState {
   const NavigationState._();
 
   /// Intro screen: welcome and registration screen
+  ///
+  /// The first screen is always the intro screen is not part of the list of screens.
   const factory NavigationState.intro({
     @Default([]) List<IntroScreenType> screens,
   }) = NavigationState_Intro;
@@ -105,5 +114,3 @@ sealed class NavigationState with _$NavigationState {
     @Default(HomeNavigationState()) HomeNavigationState home,
   }) = NavigationState_Home;
 }
-
-enum UserSettingsScreenType { root, editDisplayName, addUserHandle, help }

@@ -5,7 +5,10 @@
 use aircommon::identifiers::UserId;
 use invite_users_flow::InviteUsersData;
 
-use crate::{ChatId, ChatMessage, utils::connection_ext::ConnectionExt as _};
+use crate::{
+    ChatId, ChatMessage,
+    utils::connection_ext::{ConnectionExt as _, StoreExt},
+};
 
 use super::CoreUser;
 
@@ -261,7 +264,7 @@ mod invite_users_flow {
                 ds_timestamp,
             } = self;
 
-            let group_messages = group
+            let (group_messages, _) = group
                 .merge_pending_commit(&mut *connection, None, ds_timestamp)
                 .await?;
             group.store_update(&mut *connection).await?;

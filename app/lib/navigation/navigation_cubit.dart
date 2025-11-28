@@ -43,6 +43,10 @@ class NavigationCubit implements StateStreamableSource<NavigationState> {
 
   Future<void> openAddMembers() => _impl.openAddMembers();
 
+  Future<void> openCreateGroup() => _impl.openCreateGroup();
+
+  Future<void> openGroupMembers() => _impl.openGroupMembers();
+
   Future<void> openMemberDetails(UiUserId member) =>
       _impl.openMemberDetails(member: member);
 
@@ -57,12 +61,10 @@ class NavigationCubit implements StateStreamableSource<NavigationState> {
   Future<void> openIntroScreen(IntroScreenType screen) =>
       _impl.openIntroScreen(screen: screen);
 
-  Future<void> openUserSettings({
-    UserSettingsScreenType screen = UserSettingsScreenType.root,
-  }) => _impl.openUserSettings(screen: screen);
+  Future<void> openUserProfile() => _impl.openUserProfile();
 
   bool pop() => _impl.pop();
 
-  Future<void> openServerChoice() =>
+  Future<void> openSignUp() =>
       _impl.openIntroScreen(screen: const IntroScreenType.signUp());
 }

@@ -1,37 +1,47 @@
 {
   "appTitle": "Air",
 
-  "userSettingsScreen_title": "User Settings",
-  "userSettingsScreen_idCopied": "User ID copied to clipboard",
-  "userSettingsScreen_profileDescription": "Others will see your picture and name when you communicate with them.",
-  "userSettingsScreen_userNamesDescription": "Share usernames with others so they can connect with you. After the connection, usernames are not visible to others anymore. You can have up to 5 usernames.",
+  "userSettingsScreen_title": "Profile and Settings",
+  "userSettingsScreen_profileDescription": "Your display name and profile picture are visible to your Air contacts and members of groups you’re in.",
+  "userSettingsScreen_userNamesDescription": "Share usernames with anyone you want to connect with. Usernames aren’t visible to others, even your Air contacts. You can have up to 5 usernames.",
   "userSettingsScreen_interfaceScale": "Interface scale",
   "userSettingsScreen_help": "Help",
+  "userSettingsScreen_deleteAccount": "Delete Air account",
+  "userSettingsScreen_sendWithEnter": "Send with Enter",
+  "userSettingsScreen_sendWithEnterDescription": "If disabled, pressing the Enter key won’t send a message.",
+  "userSettingsScreen_readReceipts": "Read receipts",
+  "userSettingsScreen_readReceiptsDescription": "If disabled, others won’t be able to see when you’ve read their messages and you won’t be able to see when they’ve read yours.",
 
-  "removeUsernameDialog_title": "Remove Username",
-  "removeUsernameDialog_content": "If you continue, your username will be removed and may be claimed by someone else. You’ll no longer be reachable through it.",
+  "userSettingsScreen_displayNameLabel": "Display name",
+
+  "userSettingsScreen_usernamesSection": "Usernames",
+  "userSettingsScreen_settingsSection": "Settings",
+  "userSettingsScreen_helpSection": "Help",
+  "userSettingsScreen_accountSection": "Account",
+
+  "userSettingsScreen_userHandlePlaceholder": "Add another username...",
+  "settingsScreen_copiedToClipboard": "Copied to clipboard",
+
+  "removeUsernameDialog_title": "Remove username?",
+  "removeUsernameDialog_content": "People won’t be able to send you a contact request using this username, and it may be taken by someone else.",
   "removeUsernameDialog_cancel": "Cancel",
   "removeUsernameDialog_remove": "Remove",
-  "userSettingsScreen_noUserHandles": "no usernames yet",
   "userSettingsScreen_userHandlePlaceholder": "Username",
 
-  "addMembersScreen_title": "Add members",
   "addMembersScreen_addMembers": "Add member(s)",
   "addMembersScreen_error_noActiveChat": "an active chat is obligatory",
 
-  "chatDetailsScreen_title": "Details",
   "chatDetailsScreen_unknownChat": "Unknown chat",
 
   "blockedChatFooter_message": "You won’t receive messages from {displayName} unless you unblock them.",
+  "inactiveChatFooter_message": "You're no longer a member of this chat.",
 
   "chatScreen_emptyChat": "Select a chat to start messaging",
 
-  "memberDetailsScreen_title": "Member details",
   "removeUserDialog_title": "Remove user",
-  "removeUserDialog_content": "Are you sure you want to remove this user from the group?",
-  "removeUserDialog_cancel": "Cancel",
-  "removeUserDialog_removeUser": "Remove User",
-  "removeUserButton_text": "Remove User",
+  "removeUserDialog_content": "Are you sure you want to remove {displayName} from the group?",
+  "removeUserDialog_removeUser": "Remove user",
+  "removeUserButton_text": "Remove",
 
   "blockContactButton_text": "Block",
   "blockContactDialog_title": "Block {displayName}?",
@@ -43,52 +53,89 @@
   "unblockContactDialog_title": "Unblock {displayName}?",
   "unblockContactDialog_content": "You’ll be able to send and receive messages from {displayName} and they’ll be able to view your current profile.",
   "unblockContactDialog_cancel": "Cancel",
-  "unblockContactDialog_unblock": "Unblock User",
+  "unblockContactDialog_unblock": "Unblock",
 
-  "deleteContactButton_text": "Delete Air Contact",
-  "deleteContactDialog_title": "Delete Air Contact",
-  "deleteContactDialog_content": "Are you sure you want to delete your Air Contact {displayName}? If you do, the chat and its message history will be deleted.",
+  "deleteContactButton_text": "Delete Air contact",
+  "deleteContactDialog_title": "Delete Air contact",
+  "deleteContactDialog_content": "Are you sure you want to delete your Air contact {displayName}? If you do, the chat and its message history will be deleted.",
   "deleteContactDialog_cancel": "Cancel",
   "deleteContactDialog_delete": "Delete",
 
-  "introScreen_signUp": "Sign Up",
+  "introScreen_signUp": "Start",
+  "introScreen_termsLinkText": "Terms of Use",
+  "introScreen_termsText": "By signing up, you agree to our {termsOfUseLink}.",
+  "@introScreen_termsText": {
+    "placeholders": {
+      "termsOfUseLink": {}
+    }
+  },
 
-  "signUpScreen_title": "Sign Up",
-  "signUpScreen_actionButton": "Sign Up",
-  "signUpScreen_displayNameLabel": "Choose a picture and a display name.",
-  "signUpScreen_displayNameHint": "DISPLAY NAME",
+  "signUpScreen_header": "Create your profile",
+  "signUpScreen_subheader": "Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.",
+  "usernameOnboarding_header": "Add a username",
+  "usernameOnboarding_body": "Usernames are how people connect on Air. They aren't visible to others once you're connected.\n\nAdd, change, or delete usernames at any time in your profile.",
+  "usernameOnboarding_syntax": "Use letters, numbers, or dashes. Minimum 5 characters.",
+  "usernameOnboarding_addButton": "Add",
+  "usernameOnboarding_skip": "Skip",
+  "usernameOnboarding_userameInputName": "Username (optional)",
+  "usernameOnboarding_userameInputHint": "Add a username...",
+  "signUpScreen_actionButton": "Create",
+  "signUpScreen_displayNameInputName": "Display name (required)",
+  "signUpScreen_displayNameInputHint": "Add a name...",
   "signUpScreen_serverLabel": "Choose a server where you want to create your account.",
   "signUpScreen_serverHint": "DOMAIN NAME",
   "signUpScreen_error_invalidDomain": "Domain is invalid",
-  "signUpScreen_error_emptyDisplayName": "Display name cannot be empty",
+  "signUpScreen_error_emptyDisplayName": "Add a display name of at least one character",
   "signUpScreen_error_register": "Error when registering user: {error}",
 
-  "userHandleScreen_title": "Username",
-  "userHandleScreen_inputHint": "Username",
+  "userHandleScreen_title": "Add username",
+  "userHandleScreen_inputHint": "Type a username...",
   "userHandleScreen_error_emptyHandle": "Username cannot be empty",
-  "userHandleScreen_error_alreadyExists": "Username already exists",
-  "userHandleScreen_description": "Choose a username that others can use to connect with you.\n\nUse letters, numbers, or underscores. Minimum 5 characters.",
+  "userHandleScreen_error_alreadyExists": "Username is already in use",
+  "userHandleScreen_description": "Choose a username that others can use to connect with you. Use letters, numbers, or dashes. Minimum 5 characters.",
+  "userHandleScreen_cancel": "Cancel",
+  "userHandleScreen_confirm": "Add",
   "userHandleScreen_save": "Save",
 
-  "editDisplayNameScreen_title": "Display Name",
-  "editDisplayNameScreen_hintText": "Display name",
-  "editDisplayNameScreen_description": "Choose a name that others will see when you communicate with them.",
+  "editDisplayNameScreen_title": "Change display name",
+  "editDisplayNameScreen_description": "Choose a name that others will see.",
+  "editDisplayNameScreen_cancel": "Cancel",
   "editDisplayNameScreen_save": "Save",
 
-  "systemMessage_userAddedUser_prefix": "",
+  "systemMessage_userAddedUser_prefix": "{user1}",
   "systemMessage_userAddedUser_infix": " added ",
-  "systemMessage_userAddedUser_suffix": "",
+  "systemMessage_userAddedUser_suffix": "{user2}",
 
-  "systemMessage_userRemovedUser_prefix": "",
+  "systemMessage_userRemovedUser_prefix": "{user1}",
   "systemMessage_userRemovedUser_infix": " removed ",
-  "systemMessage_userRemovedUser_suffix": "",
+  "systemMessage_userRemovedUser_suffix": "{user2}",
+
+  "systemMessage_userChangedTitle_prefix": "{user}",
+  "systemMessage_userChangedTitle_infix_1": " changed the group name from ",
+  "systemMessage_userChangedTitle_infix_2": "{old_name}",
+  "systemMessage_userChangedTitle_infix_3": " to ",
+  "systemMessage_userChangedTitle_suffix": "{new_name}",
+
+  "systemMessage_acceptedHandleConnectionRequest": "You accepted {displayName}'s contact request made through your username {username}.",
+  "systemMessage_acceptedDirectConnectionRequest": "You accepted {displayName}'s contact request made through a mutual group chat.",
+  "systemMessage_receivedConnectionConfirmation": "{displayName} accepted your contact request.",
+  "systemMessage_newHandleConnectionChat": "You sent a contact request to username {username}. They might not be immediately notified about your request.",
+  "systemMessage_newDirectConnectionChat": "You sent a contact request to {displayName}. They might not be immediately notified about your request.",
+  "systemMessage_receivedHandleConnectionRequest": "{displayName} sent you a contact request through your username {username}.",
+  "systemMessage_receivedDirectConnectionRequest": "{displayName} sent you a contact request through the group chat {groupName}.",
+
+  "systemMessage_userChangedPicture_prefix": "{user}",
+  "systemMessage_userChangedPicture_infix": " changed the group picture",
+
+  "systemMessage_userCreatedGroup_prefix": "{user}",
+  "systemMessage_userCreatedGroup_suffix": " created the group",
 
   "timestamp_now": "Now",
   "timestamp_yesterday": "Yesterday",
 
-  "chatList_newContact": "New contact",
-  "chatList_newGroup": "New group",
-  "chatList_emptyMessage": "Create a new connection to get started",
+  "chatList_newContact": "New Air contact",
+  "chatList_newGroup": "New group chat",
+  "chatList_emptyMessage": "Add your first Air contact to get started",
 
   "chatList_draft": "Draft",
   "chatList_you": "You",
@@ -96,27 +143,19 @@
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blocked",
 
-  "settings_profile": "Profile",
-  "settings_developerSettings": "Settings (developer)",
+  "newChatDialog_error": "Failed to create new group chat with name {chatName}",
 
-  "newChatDialog_newChatTitle": "New chat",
-  "newChatDialog_newChatDescription": "Choose a name for the new chat",
-  "newChatDialog_chatNamePlaceholder": "Chat name",
-  "newChatDialog_actionButton": "Create chat",
-  "newChatDialog_error": "Failed to add chat with name {chatName}",
-  "newChatDialog_error_emptyGroupName": "Chat name cannot be empty",
-
-  "newConnectionDialog_newConnectionTitle": "New connection",
-  "newConnectionDialog_newConnectionDescription": "Enter the username of the user you want to connect to",
+  "newConnectionDialog_newConnectionTitle": "New Air contact",
+  "newConnectionDialog_newConnectionDescription": "Type the username of the person you want to connect to",
   "newConnectionDialog_usernamePlaceholder": "Username",
   "newConnectionDialog_actionButton": "Connect",
-  "newConnectionDialog_error": "Failed to add user with username {username}. Please try again.",
-  "newConnectionDialog_error_emptyHandle": "Username cannot be empty",
-  "newConnectionDialog_error_handleNotFound": "Username {username} does not exist",
+  "newConnectionDialog_error": "Failed to send {username} a contact request. Try again.",
+  "newConnectionDialog_error_emptyHandle": "Type the username",
+  "newConnectionDialog_error_handleNotFound": "Username {username} doesn't exist",
 
   "composer_inputHint": "Message {chatTitle}",
-  "composer_editMessage": "Edit Message",
-  "composer_error_attachment": "Failed to upload attachment. Please try again.",
+  "composer_editMessage": "Edit message",
+  "composer_error_attachment": "Failed to upload attachment. Try again.",
 
   "attachmentSize": "{size} {byteUnit}",
   "@attachmentSize": {
@@ -131,21 +170,33 @@
     }
   },
 
-  "textMessage_edited": "edited",
-  "textMessage_hiddenPlaceholder": "Blocked contact, tap to reveal message",
-  "textMessage_deleted": "Deleted message",
+  "attachment_tryAgain": "Try again",
+  "attachment_gallery": "Gallery",
+  "attachment_camera": "Camera",
+  "attachment_file": "File",
 
-  "reportSpamButton_text": "Report Spam",
-  "reportSpamDialog_title": "Report Spam?",
+  "textMessage_edited": "edited",
+  "textMessage_hiddenPlaceholder": "Blocked user, tap to reveal message",
+  "textMessage_deleted": "Deleted message",
+  "messageContextMenu_copy": "Copy",
+  "messageContextMenu_edit": "Edit",
+  "messageContextMenu_save": "Save",
+  "messageContextMenu_share": "Share",
+
+  "messageContextMenu_saveError": "Failed to save attachment",
+  "messageContextMenu_saveConfirmation": "Attachment saved",
+
+  "reportSpamButton_text": "Report spam",
+  "reportSpamDialog_title": "Report spam?",
   "reportSpamDialog_content": "Air will be notified that this person may be sending spam. Air is never able to see the contents of any chats.",
   "reportSpamDialog_cancel": "Cancel",
-  "reportSpamDialog_reportSpam": "Report Spam",
+  "reportSpamDialog_reportSpam": "Report spam",
   "reportSpamDialog_success": "Spam reported",
-  "reportSpamDialog_error": "Failed to report spam. Please try again.",
+  "reportSpamDialog_error": "Failed to report spam. Try again.",
 
   "helpScreen_title": "Help",
-  "helpScreen_contactUs": "Contact Us",
-  "helpScreen_versionInfo": "Version Info",
+  "helpScreen_contactUs": "Contact us",
+  "helpScreen_versionInfo": "Version info",
   "helpScreen_licenses": "Licenses",
 
   "licensesScreen_title": "Licenses",
@@ -165,19 +216,40 @@
   "contactUsScreen_body_tooShort": "Provide more information",
   "contactUsScreen_errorLaunchingEmail": "Couldn't launch email client",
 
-  "groupDetails_members": "Members",
-  "groupDetails_addMembers": "Add Members",
-  "groupDetails_leaveChat": "Leave Chat",
-  "groupDetails_deleteChat": "Delete Chat",
+  "groupDetails_leaveChat": "Leave",
+  "groupDetails_deleteChat": "Delete",
+  "groupDetails_seeAll": "See all",
+  "groupDetails_memberCount": "{count, plural, one {{count} member} other {{count} members}}",
+  "@groupDetails_memberCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupMembersScreen_title": "Group members",
+  "groupMembersScreen_searchHint": "Search",
+  "groupCreationScreen_title": "Add members",
+  "groupCreationScreen_next": "Next",
+  "groupCreationScreen_skip": "Skip",
+  "groupCreationDetails_title": "Group details",
+  "groupCreationDetails_groupNameHint": "Group name (required)",
+  "groupCreationDetails_groupNameHintFocused": "Group name",
+  "groupCreationDetails_groupNameHelper": "Use at least one character",
+  "groupCreationDetails_descriptionHint": "Group description (optional)",
+  "groupCreationDetails_descriptionHintFocused": "Group description",
+  "groupCreationDetails_create": "Create",
+  "groupCreationDetails_emptySelection": "No members",
 
-  "leaveChatDialog_title": "Leave Chat",
-  "leaveChatDialog_content": "Are you sure you want to leave this chat?",
+  "addMembersScreen_addMembers": "Add members",
+  "addMembersScreen_done": "Done",
+  "leaveChatDialog_title": "Leave group",
+  "leaveChatDialog_content": "Are you sure you want to leave {chatName}?",
   "leaveChatDialog_cancel": "Cancel",
   "leaveChatDialog_leave": "Leave",
 
-  "deleteChatDialog_title": "Delete Chat?",
+  "deleteChatDialog_title": "Delete chat?",
   "deleteChatDialog_content": "This chat will be deleted. There is no way to undo this.",
-  "deleteChatDialog_cancel": "Cancel",
   "deleteChatDialog_delete": "Delete",
 
   "byteUnit_B": "B",
@@ -188,5 +260,14 @@
   "byteUnit_PB": "PB",
   "byteUnit_EB": "EB",
   "byteUnit_ZB": "ZB",
-  "byteUnit_YB": "YB"
+  "byteUnit_YB": "YB",
+
+  "deleteAccountScreen_title": "Delete my account",
+  "deleteAccountScreen_explanatoryText": "This will delete your Air account and reset the application. You will not be able to recover your account.",
+  "deleteAccountScreen_confirmationInputHint": "Confirmation",
+  "deleteAccountScreen_confirmationInputLabel": "Type 'delete' to confirm.",
+  "deleteAccountScreen_confirmButtonText": "Delete",
+  "deleteAccountScreen_cancelButtonText": "Cancel",
+  "deleteAccountScreen_deleteAccountError": "Something went wrong on our end. Wait a moment, then try again."
+
 }

@@ -2,19 +2,58 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/navigation/navigation.dart';
+import 'package:air/theme/spacings.dart';
+import 'package:air/ui/colors/themes.dart';
 import 'package:flutter/material.dart';
+import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
+import 'package:provider/provider.dart';
 
 class AppBarBackButton extends StatelessWidget {
-  const AppBarBackButton({super.key});
+  const AppBarBackButton({
+    super.key,
+    this.foregroundColor,
+    this.backgroundColor,
+  });
+
+  final Color? foregroundColor;
+  final Color? backgroundColor;
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.arrow_back),
-      hoverColor: Colors.transparent,
-      splashColor: Colors.transparent,
-      highlightColor: Colors.transparent,
-      onPressed: () => Navigator.of(context).pop(),
+    final colors = CustomColorScheme.of(context);
+    final foregroundColor = this.foregroundColor ?? colors.text.primary;
+    final backgroundColor =
+        this.backgroundColor ?? colors.backgroundBase.secondary;
+
+    return Padding(
+      padding: const EdgeInsets.only(left: Spacings.s),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          overlayColor: WidgetStateProperty.all(Colors.transparent),
+          onTap: () async {
+            final navigator = Navigator.of(context);
+            final popped = await navigator.maybePop();
+            if (!popped && context.mounted) {
+              context.read<NavigationCubit>().pop();
+            }
+          },
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              shape: BoxShape.circle,
+            ),
+            child: SizedBox.square(
+              dimension: 24,
+              child: Center(
+                child: iconoir.ArrowLeft(width: 16, color: foregroundColor),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

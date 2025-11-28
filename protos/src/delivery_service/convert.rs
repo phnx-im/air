@@ -16,6 +16,9 @@ use tonic::Status;
 use crate::{
     common::convert::InvalidNonceLen,
     convert::{FromRef, TryFromRef, TryRefInto},
+    delivery_service::v1::{
+        TargetedApplicationMessage, targeted_message_payload::TargetedMessageType,
+    },
     validation::{MissingFieldError, MissingFieldExt},
 };
 
@@ -129,6 +132,12 @@ impl TryFromRef<'_, openmls::framing::MlsMessageOut> for MlsMessage {
         Ok(Self {
             tls: value.tls_serialize_detached()?,
         })
+    }
+}
+
+impl From<Vec<u8>> for MlsMessage {
+    fn from(value: Vec<u8>) -> Self {
+        Self { tls: value }
     }
 }
 
@@ -381,5 +390,27 @@ impl TryFromRef<'_, GroupInfo> for group_info::VerifiableGroupInfo {
 
     fn try_from_ref(proto: &GroupInfo) -> Result<Self, Self::Error> {
         DeserializeBytes::tls_deserialize_exact_bytes(&proto.tls)
+    }
+}
+
+impl TryFromRef<'_, aircommon::messages::client_ds_out::TargetedMessageType>
+    for TargetedMessageType
+{
+    type Error = tls_codec::Error;
+
+    fn try_from_ref(
+        value: &aircommon::messages::client_ds_out::TargetedMessageType,
+    ) -> Result<Self, Self::Error> {
+        match value {
+            aircommon::messages::client_ds_out::TargetedMessageType::ApplicationMessage {
+                message,
+                recipient,
+            } => Ok(TargetedMessageType::ApplicationMessage(
+                TargetedApplicationMessage {
+                    message: Some(message.try_ref_into()?),
+                    recipient: Some((*recipient).into()),
+                },
+            )),
+        }
     }
 }

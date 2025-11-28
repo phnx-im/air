@@ -4,7 +4,7 @@
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:air/chat_details/chat_details.dart';
+import 'package:air/chat/chat_details.dart';
 import 'package:air/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/message_list/message_cubit.dart';
@@ -18,7 +18,10 @@ import 'helpers.dart';
 class MockNavigationCubit extends MockCubit<NavigationState>
     implements NavigationCubit {}
 
-class MockUserCubit extends MockCubit<UiUser> implements UserCubit {}
+class MockUserCubit extends MockCubit<UiUser> implements UserCubit {
+  @override
+  AppState get appState => AppState.foreground;
+}
 
 class MockUsersCubit extends MockCubit<UsersState> implements UsersCubit {}
 
@@ -132,3 +135,5 @@ class MockAttachmentsRepository extends Mock implements AttachmentsRepository {}
 
 class MockUserSettingsCubit extends MockCubit<UserSettings>
     implements UserSettingsCubit {}
+
+class MockChatsRepository extends Mock implements ChatsRepository {}

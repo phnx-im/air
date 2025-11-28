@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ChatListState {
 
- List<UiChatDetails> get chats;
+ List<ChatId> get chatIds;
 /// Create a copy of ChatListState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $ChatListStateCopyWith<ChatListState> get copyWith => _$ChatListStateCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatListState&&const DeepCollectionEquality().equals(other.chats, chats));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatListState&&const DeepCollectionEquality().equals(other.chatIds, chatIds));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(chats));
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(chatIds));
 
 @override
 String toString() {
-  return 'ChatListState(chats: $chats)';
+  return 'ChatListState(chatIds: $chatIds)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $ChatListStateCopyWith<$Res>  {
   factory $ChatListStateCopyWith(ChatListState value, $Res Function(ChatListState) _then) = _$ChatListStateCopyWithImpl;
 @useResult
 $Res call({
- List<UiChatDetails> chats
+ List<ChatId> chatIds
 });
 
 
@@ -62,10 +62,10 @@ class _$ChatListStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatListState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? chats = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? chatIds = null,}) {
   return _then(_self.copyWith(
-chats: null == chats ? _self.chats : chats // ignore: cast_nullable_to_non_nullable
-as List<UiChatDetails>,
+chatIds: null == chatIds ? _self.chatIds : chatIds // ignore: cast_nullable_to_non_nullable
+as List<ChatId>,
   ));
 }
 
@@ -77,14 +77,14 @@ as List<UiChatDetails>,
 
 
 class _ChatListState extends ChatListState {
-  const _ChatListState({required final  List<UiChatDetails> chats}): _chats = chats,super._();
+  const _ChatListState({required final  List<ChatId> chatIds}): _chatIds = chatIds,super._();
   
 
- final  List<UiChatDetails> _chats;
-@override List<UiChatDetails> get chats {
-  if (_chats is EqualUnmodifiableListView) return _chats;
+ final  List<ChatId> _chatIds;
+@override List<ChatId> get chatIds {
+  if (_chatIds is EqualUnmodifiableListView) return _chatIds;
   // ignore: implicit_dynamic_type
-  return EqualUnmodifiableListView(_chats);
+  return EqualUnmodifiableListView(_chatIds);
 }
 
 
@@ -98,16 +98,16 @@ _$ChatListStateCopyWith<_ChatListState> get copyWith => __$ChatListStateCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatListState&&const DeepCollectionEquality().equals(other._chats, _chats));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatListState&&const DeepCollectionEquality().equals(other._chatIds, _chatIds));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_chats));
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_chatIds));
 
 @override
 String toString() {
-  return 'ChatListState(chats: $chats)';
+  return 'ChatListState(chatIds: $chatIds)';
 }
 
 
@@ -118,7 +118,7 @@ abstract mixin class _$ChatListStateCopyWith<$Res> implements $ChatListStateCopy
   factory _$ChatListStateCopyWith(_ChatListState value, $Res Function(_ChatListState) _then) = __$ChatListStateCopyWithImpl;
 @override @useResult
 $Res call({
- List<UiChatDetails> chats
+ List<ChatId> chatIds
 });
 
 
@@ -135,10 +135,10 @@ class __$ChatListStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatListState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? chats = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? chatIds = null,}) {
   return _then(_ChatListState(
-chats: null == chats ? _self._chats : chats // ignore: cast_nullable_to_non_nullable
-as List<UiChatDetails>,
+chatIds: null == chatIds ? _self._chatIds : chatIds // ignore: cast_nullable_to_non_nullable
+as List<ChatId>,
   ));
 }
 

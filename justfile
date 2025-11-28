@@ -97,6 +97,7 @@ regenerate-frb:
 
 # Regenerate localization files.
 regenerate-l10n:
+    cd app && cargo xtask prune-unused-l10n # pass --apply and optionally --safe to prevent data loss
     cd app && fvm flutter gen-l10n
 
 regenerate-sqlx:
@@ -153,3 +154,7 @@ run-client-cached device="macos":
 # Start the server.
 run-server:
     cargo run --bin airserver | bunyan
+
+# Increment minor version numbers and update changelog.
+bump-version:
+    cargo xtask bump-version

@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/theme/spacings.dart';
 import 'package:air/ui/theme/font.dart';
 import 'package:flutter/material.dart';
 import 'package:air/ui/colors/themes.dart';
@@ -46,7 +47,7 @@ class CustomTextButtonStyle extends ButtonStyle {
          splashFactory: NoSplash.splashFactory,
          padding: WidgetStateProperty.all(const EdgeInsets.all(20)),
          textStyle: WidgetStateProperty.all<TextStyle>(
-           baselineTextTheme.labelLarge!.merge(customTextScheme.labelLarge!),
+           baselineTextTheme.labelMedium!.merge(customTextScheme.labelMedium!),
          ),
        );
 }
@@ -75,7 +76,10 @@ class CustomOutlineButtonStyle extends ButtonStyle {
          elevation: WidgetStateProperty.all<double>(0),
          shadowColor: WidgetStateProperty.all<Color>(Colors.transparent),
          padding: WidgetStateProperty.all<EdgeInsetsGeometry>(
-           const EdgeInsets.symmetric(vertical: 25, horizontal: 50),
+           const EdgeInsets.symmetric(
+             vertical: Spacings.s,
+             horizontal: Spacings.s,
+           ),
          ),
          splashFactory: NoSplash.splashFactory,
          surfaceTintColor: WidgetStateProperty.all<Color>(Colors.transparent),
@@ -92,10 +96,6 @@ class CustomOutlineButtonStyle extends ButtonStyle {
              borderRadius: BorderRadius.circular(12),
            ),
          ),
-         textStyle: WidgetStatePropertyAll(
-           baselineTextTheme.labelLarge!.merge(
-             customTextScheme.labelLarge!.copyWith(fontWeight: FontWeight.bold),
-           ),
-         ),
+         textStyle: WidgetStatePropertyAll(baselineTextTheme.labelLarge!),
        );
 }

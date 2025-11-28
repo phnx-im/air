@@ -16,18 +16,14 @@ use super::api_clients::ApiClients;
 async fn user_stages() -> anyhow::Result<()> {
     // Set up backend
     let setup = TestBackend::single().await;
-    let server_url = setup.url().unwrap();
+    let server_url = setup.server_url();
 
     let user_id = UserId::random("example.com".parse().unwrap());
 
     let air_db = open_db_in_memory().await?;
     let client_db = open_db_in_memory().await?;
 
-    let api_clients = ApiClients::new(
-        user_id.domain().clone(),
-        server_url.clone(),
-        setup.grpc_port(),
-    );
+    let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone());
 
     let computed_state =
         UserCreationState::new(&client_db, &air_db, user_id.clone(), server_url, None).await?;

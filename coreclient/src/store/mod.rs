@@ -7,14 +7,17 @@ use std::{collections::HashSet, path::Path};
 
 use aircommon::identifiers::{AttachmentId, MimiId, UserHandle, UserId};
 use aircommon::messages::client_as_out::UserHandleDeleteResponse;
-use mimi_content::{MessageStatus, MimiContent};
+use mimi_content::MimiContent;
 use mimi_room_policy::VerifiedRoomState;
 use tokio_stream::Stream;
 use uuid::Uuid;
 
+use crate::clients::add_contact::AddHandleContactResult;
+use crate::contacts::{ContactType, TargetedMessageContact};
 use crate::{
-    AttachmentContent, Chat, ChatId, ChatMessage, Contact, DownloadProgress, MessageDraft,
-    MessageId, contacts::HandleContact, user_handles::UserHandleRecord, user_profiles::UserProfile,
+    AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact, MessageDraft,
+    MessageId, clients::attachment::progress::AttachmentProgress, contacts::HandleContact,
+    user_handles::UserHandleRecord, user_profiles::UserProfile,
 };
 
 pub use notification::{StoreEntityId, StoreNotification, StoreOperation};
@@ -45,6 +48,11 @@ pub trait Store {
 
     async fn report_spam(&self, spammer_id: UserId) -> anyhow::Result<()>;
 
+    /// Delete the account on the server and locally.
+    ///
+    /// If `db_path` is provided, the client database is also deleted.
+    async fn delete_account(&self, db_path: Option<&str>) -> anyhow::Result<()>;
+
     /// Loads a user setting
     ///
     /// If the setting is not found, or loading or decoding failed, `None` is returned.
@@ -53,6 +61,10 @@ pub trait Store {
     async fn set_user_setting<T: UserSetting>(&self, value: &T) -> StoreResult<()>;
 
     // user handles
+
+    /// Check whether a user handle exists on the AS. Relatively expensive
+    /// operation, as it requires computation of a handle hash.
+    async fn check_handle_exists(&self, user_handle: &UserHandle) -> StoreResult<bool>;
 
     async fn user_handles(&self) -> StoreResult<Vec<UserHandle>>;
 
@@ -77,7 +89,13 @@ pub trait Store {
 
     async fn set_chat_picture(&self, chat_id: ChatId, picture: Option<Vec<u8>>) -> StoreResult<()>;
 
-    async fn chats(&self) -> StoreResult<Vec<Chat>>;
+    async fn set_chat_title(&self, chat_id: ChatId, title: String) -> StoreResult<()>;
+
+    /// Returns the list of all chat ids in the order they should be displayed:
+    ///
+    /// 1. First return all chats having a draft ordered by the timestamp of the draft, descending.
+    /// 2. Then return all chats ordered by the timestamp of the last message, descending.
+    async fn ordered_chat_ids(&self) -> StoreResult<Vec<ChatId>>;
 
     async fn chat(&self, chat_id: ChatId) -> StoreResult<Option<Chat>>;
 
@@ -85,13 +103,13 @@ pub trait Store {
 
     /// Mark the chat with the given [`ChatId`] as read until the given message id (including).
     ///
-    /// Returns whether the chat was marked as read and the mimi ids of the messages that were
+    /// Returns whether the chat was marked as read and the message ids of the messages that were
     /// marked as read.
     async fn mark_chat_as_read(
         &self,
         chat_id: ChatId,
         until: MessageId,
-    ) -> StoreResult<(bool, Vec<MimiId>)>;
+    ) -> StoreResult<(bool, Vec<(MessageId, MimiId)>)>;
 
     /// Delete the chat with the given [`ChatId`].
     ///
@@ -150,7 +168,15 @@ pub trait Store {
     ///
     /// Returns the [`ChatId`] of the newly created connection
     /// chat, or `None` if the user handle does not exist.
-    async fn add_contact(&self, handle: UserHandle) -> StoreResult<Option<ChatId>>;
+    async fn add_contact(&self, handle: UserHandle) -> StoreResult<AddHandleContactResult>;
+
+    /// Create a connection with a new user via an existing group chat.
+    ///
+    /// The group chat must contain the user to connect to.
+    /// Returns the [`ChatId`] of the newly created connection
+    /// chat.
+    async fn add_contact_from_group(&self, chat_id: ChatId, user_id: UserId)
+    -> StoreResult<ChatId>;
 
     async fn block_contact(&self, user_id: UserId) -> StoreResult<()>;
 
@@ -158,9 +184,11 @@ pub trait Store {
 
     async fn contacts(&self) -> StoreResult<Vec<Contact>>;
 
-    async fn contact(&self, user_id: &UserId) -> StoreResult<Option<Contact>>;
+    async fn contact(&self, user_id: &UserId) -> StoreResult<Option<ContactType>>;
 
     async fn handle_contacts(&self) -> StoreResult<Vec<HandleContact>>;
+
+    async fn targeted_message_contacts(&self) -> StoreResult<Vec<TargetedMessageContact>>;
 
     async fn user_profile(&self, user_id: &UserId) -> UserProfile;
 
@@ -190,6 +218,8 @@ pub trait Store {
         message_draft: Option<&MessageDraft>,
     ) -> StoreResult<()>;
 
+    async fn commit_all_message_drafts(&self) -> StoreResult<()>;
+
     async fn messages_count(&self, chat_id: ChatId) -> StoreResult<usize>;
 
     async fn unread_messages_count(&self, chat_id: ChatId) -> StoreResult<usize>;
@@ -203,32 +233,51 @@ pub trait Store {
         replaces_id: Option<MessageId>,
     ) -> StoreResult<ChatMessage>;
 
-    /// Sends a delivery receipt for the message with the given MimiId.
-    ///
-    /// Also stores the message status report locally.
-    async fn send_delivery_receipts<'a>(
-        &self,
-        chat_id: ChatId,
-        statuses: impl IntoIterator<Item = (&'a MimiId, MessageStatus)> + Send,
-    ) -> StoreResult<()>;
-
     async fn resend_message(&self, local_message_id: Uuid) -> StoreResult<()>;
 
     // attachments
 
-    async fn upload_attachment(&self, chat_id: ChatId, path: &Path) -> StoreResult<ChatMessage>;
+    /// Stores local attachment incl. the corresponding message, and returns a task for uploading
+    /// attachment and its uploading progress.
+    ///
+    /// The returned task uploads the attachment fully to the server and returns the message corresponding
+    /// to the attachment. The message is *not* enqueued to the outbound service. It is the caller's
+    /// responsibility to enqueue the message.
+    async fn upload_attachment(
+        &self,
+        chat_id: ChatId,
+        path: &Path,
+    ) -> StoreResult<(
+        AttachmentId,
+        AttachmentProgress,
+        impl Future<Output = StoreResult<ChatMessage>> + use<Self>,
+    )>;
+
+    async fn retry_upload_attachment(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> StoreResult<(
+        AttachmentId,
+        AttachmentProgress,
+        impl Future<Output = StoreResult<ChatMessage>> + use<Self>,
+    )>;
 
     fn download_attachment(
         &self,
         attachment_id: AttachmentId,
     ) -> (
-        DownloadProgress,
+        AttachmentProgress,
         impl Future<Output = StoreResult<()>> + use<Self>,
     );
 
     async fn pending_attachments(&self) -> StoreResult<Vec<AttachmentId>>;
 
     async fn load_attachment(&self, attachment_id: AttachmentId) -> StoreResult<AttachmentContent>;
+
+    async fn attachment_status(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> StoreResult<Option<AttachmentStatus>>;
 
     // observability
 

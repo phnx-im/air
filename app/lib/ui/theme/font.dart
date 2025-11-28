@@ -63,7 +63,7 @@ final customTextScheme = TextTheme(
     letterSpacing: isCupertino ? LabelCupertinoTracking.small1.spacing : null,
   ),
   labelMedium: TextStyle(
-    fontSize: LabelFontSize.small2.size,
+    fontSize: LabelFontSize.small1.size,
     letterSpacing: isCupertino ? LabelCupertinoTracking.small2.spacing : null,
   ),
   labelSmall: TextStyle(

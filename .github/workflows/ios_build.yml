@@ -11,6 +11,7 @@ concurrency:
 on:
   pull_request:
     branches: ["main"]
+  merge_group:
 
 env:
   CARGO_TERM_COLOR: always
@@ -19,7 +20,7 @@ env:
 
 jobs:
   ios-build:
-    runs-on: macos-latest
+    runs-on: macos-26
 
     steps:
       - name: Checkout code
@@ -45,25 +46,29 @@ jobs:
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: 16.4
+          xcode-version: latest-stable
 
       - name: Detect if PR is from a fork
         id: detect_fork
         shell: bash
         run: |
-          if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
-            echo "is_fork=false" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
+              echo "is_fork=false" >> $GITHUB_OUTPUT
+            else
+              echo "is_fork=true" >> $GITHUB_OUTPUT
+            fi
           else
-            echo "is_fork=true" >> $GITHUB_OUTPUT
+            echo "is_fork=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Build iOS app
-        if: ${{ steps.detect_fork.outputs.is_fork == 'true' }}
+        if: ${{ steps.detect_fork.outputs.is_fork == 'true' || github.actor == 'dependabot[bot]' }}
         run: |
           cd app && fastlane ios build_ios --verbose
 
       - name: Build and sign iOS app
-        if: ${{ steps.detect_fork.outputs.is_fork == 'false' }}
+        if: ${{ steps.detect_fork.outputs.is_fork == 'false' && github.actor != 'dependabot[bot]' }}
         env:
           APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
           APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}

@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name = "xtask"
+version = "0.5.0"
+edition = "2024"
+publish = false
+license = "AGPL-3.0-or-later"
+
+[dependencies]
+anyhow.workspace = true
+camino.workspace = true
+cargo_metadata.workspace = true
+clap.workspace = true
+ignore.workspace = true
+regex.workspace = true
+semver.workspace = true
+serde_json.workspace = true
+xshell.workspace = true

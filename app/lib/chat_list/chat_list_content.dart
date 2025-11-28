@@ -4,7 +4,10 @@
 
 import 'dart:async';
 
+import 'package:air/chat/chat_details.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:iconoir_flutter/regular/prohibition.dart';
 import 'package:intl/intl.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
@@ -12,32 +15,59 @@ import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
-import 'package:air/ui/typography/monospace.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
-import 'package:provider/provider.dart';
 
 import 'chat_list_cubit.dart';
 
+typedef ChatDetailsCubitCreate =
+    ChatDetailsCubit Function({
+      required UserCubit userCubit,
+      required UserSettingsCubit userSettingsCubit,
+      required ChatId chatId,
+      required ChatsRepository chatsRepository,
+      required AttachmentsRepository attachmentsRepository,
+      bool withMembers,
+    });
+
 class ChatListContent extends StatelessWidget {
-  const ChatListContent({super.key});
+  const ChatListContent({
+    super.key,
+    this.createChatDetailsCubit = ChatDetailsCubit.new,
+  });
+
+  final ChatDetailsCubitCreate createChatDetailsCubit;
 
   @override
   Widget build(BuildContext context) {
-    final chats = context.select((ChatListCubit cubit) => cubit.state.chats);
+    final chatIds = context.select(
+      (ChatListCubit cubit) => cubit.state.chatIds,
+    );
 
-    if (chats.isEmpty) {
+    if (chatIds.isEmpty) {
       return const _NoChats();
     }
 
     return ListView.builder(
       padding: const EdgeInsets.all(0),
-      itemCount: chats.length,
+      itemCount: chatIds.length,
       physics: const BouncingScrollPhysics().applyTo(
         const AlwaysScrollableScrollPhysics(),
       ),
       itemBuilder: (BuildContext context, int index) {
-        return _ListTile(chat: chats[index]);
+        return BlocProvider(
+          key: ValueKey(chatIds[index]),
+          create: (context) => createChatDetailsCubit(
+            userCubit: context.read<UserCubit>(),
+            userSettingsCubit: context.read<UserSettingsCubit>(),
+            chatId: chatIds[index],
+            chatsRepository: context.read<ChatsRepository>(),
+            attachmentsRepository: context.read<AttachmentsRepository>(),
+            withMembers: false,
+          ),
+          lazy: false,
+          child: _ListTile(chatId: chatIds[index]),
+        );
       },
     );
   }
@@ -61,16 +91,17 @@ class _NoChats extends StatelessWidget {
 }
 
 class _ListTile extends StatelessWidget {
-  const _ListTile({required this.chat});
+  const _ListTile({required this.chatId});
 
-  final UiChatDetails chat;
+  final ChatId chatId;
 
   @override
   Widget build(BuildContext context) {
     final currentChatId = context.select(
       (NavigationCubit cubit) => cubit.state.openChatId,
     );
-    final isSelected = currentChatId == chat.id;
+    final isSelected = currentChatId == chatId;
+
     return ListTile(
       horizontalTitleGap: 0,
       contentPadding: const EdgeInsets.symmetric(
@@ -88,33 +119,43 @@ class _ListTile extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(Spacings.s),
-          color:
-              isSelected
-                  ? CustomColorScheme.of(context).backgroundBase.quaternary
-                  : null,
+          color: isSelected
+              ? CustomColorScheme.of(context).backgroundBase.quaternary
+              : null,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          spacing: Spacings.s,
-          children: [
-            UserAvatar(size: 50, image: chat.picture, displayName: chat.title),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.start,
-                spacing: Spacings.xxxs,
-                children: [
-                  _ListTileTop(chat: chat),
-                  Expanded(child: _ListTileBottom(chat: chat)),
-                ],
-              ),
-            ),
-          ],
+        child: Builder(
+          builder: (context) {
+            final chat = context.select(
+              (ChatDetailsCubit cubit) => cubit.state.chat,
+            );
+            if (chat == null) {
+              return const SizedBox.shrink();
+            }
+
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              spacing: Spacings.s,
+              children: [
+                GroupAvatar(chatId: chat.id, size: 50),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    spacing: Spacings.xxxs,
+                    children: [
+                      _ListTileTop(chat: chat),
+                      Expanded(child: _ListTileBottom(chat: chat)),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
       selected: isSelected,
-      onTap: () => context.read<NavigationCubit>().openChat(chat.id),
+      onTap: () => context.read<NavigationCubit>().openChat(chatId),
     );
   }
 }
@@ -144,7 +185,12 @@ class _ListTileBottom extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ownClientId = context.select((UserCubit cubit) => cubit.state.userId);
+    late final UiUserId ownClientId;
+    try {
+      ownClientId = context.select((UserCubit cubit) => cubit.state.userId);
+    } on ProviderNotFoundException {
+      return const SizedBox.shrink();
+    }
     final isBlocked = chat.status == const UiChatStatus.blocked();
 
     return Row(
@@ -180,7 +226,7 @@ class _BlockedBadge extends StatelessWidget {
     final color = CustomColorScheme.of(context).text.tertiary;
     return Row(
       children: [
-        Icon(Icons.block, color: color),
+        Prohibition(color: color),
         const SizedBox(width: Spacings.xxxs),
         Text(
           loc.chatList_blocked,
@@ -199,13 +245,17 @@ class _UnreadBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (count < 1) {
+      return const SizedBox.shrink();
+    }
+
     final currentChatId = context.select(
       (NavigationCubit cubit) => cubit.state.chatId,
     );
 
-    if (count < 1 || chatId == currentChatId) {
-      return const SizedBox();
-    }
+    final backgroundColor = currentChatId == chatId
+        ? CustomColorScheme.of(context).backgroundBase.primary
+        : CustomColorScheme.of(context).backgroundBase.quaternary;
 
     final badgeText = count <= 100 ? "$count" : "100+";
     const double badgeSize = 26;
@@ -215,7 +265,7 @@ class _UnreadBadge extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(7, 0, 7, 2),
       height: badgeSize,
       decoration: BoxDecoration(
-        color: CustomColorScheme.of(context).backgroundBase.quaternary,
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(badgeSize / 2),
       ),
       child: Text(
@@ -244,6 +294,16 @@ class _LastMessage extends StatelessWidget {
 
     final lastMessage = chat.lastMessage;
     final draftMessage = chat.draft?.message.trim();
+    final lastSender = switch (lastMessage?.message) {
+      UiMessage_Content(field0: final content) => content.sender,
+      _ => null,
+    };
+    final senderDisplayName = lastSender == null
+        ? null
+        : context.select(
+            (UsersCubit cubit) => cubit.state.displayName(userId: lastSender),
+          );
+    final isGroupChat = chat.chatType is UiChatType_Group;
 
     final isHidden = lastMessage?.status == UiMessageStatus.hidden;
     if (isHidden) {
@@ -269,43 +329,38 @@ class _LastMessage extends StatelessWidget {
 
     final showDraft = !isCurrentChat && draftMessage?.isNotEmpty == true;
 
-    final prefixStyle =
-        showDraft
-            ? draftStyle
-            : readStyle.copyWith(
-              fontWeight: FontWeight.normal,
-              color: CustomColorScheme.of(context).text.tertiary,
-            );
+    final prefixStyle = showDraft
+        ? draftStyle
+        : readStyle.copyWith(
+            color: CustomColorScheme.of(context).text.tertiary,
+          );
 
-    final suffixStyle =
-        isCurrentChat && chat.unreadMessages > 0 ? unreadStyle : readStyle;
+    final suffixStyle = chat.unreadMessages > 0 ? unreadStyle : readStyle;
 
     final loc = AppLocalizations.of(context);
 
-    final prefix =
-        showDraft
-            ? "${loc.chatList_draft}: "
-            : switch (lastMessage?.message) {
-              UiMessage_Content(field0: final content)
-                  when content.sender == ownClientId =>
-                "${loc.chatList_you}: ",
-              _ => null,
-            };
+    final prefix = showDraft
+        ? "${loc.chatList_draft}: "
+        : switch (lastSender) {
+            final sender when sender == ownClientId => "${loc.chatList_you}: ",
+            final sender when sender != null && isGroupChat =>
+              senderDisplayName != null ? "$senderDisplayName: " : null,
+            _ => null,
+          };
 
-    final suffix =
-        showDraft
-            ? draftMessage
-            : switch (lastMessage?.message) {
-              UiMessage_Content(field0: final content) =>
-                content.content.plainBody?.isNotEmpty == true
-                    ? content.content.plainBody
-                    : content.content.attachments.isNotEmpty
-                    ? content.content.attachments.first.imageMetadata != null
+    final suffix = showDraft
+        ? draftMessage
+        : switch (lastMessage?.message) {
+            UiMessage_Content(field0: final content) =>
+              content.content.plainBody?.isNotEmpty == true
+                  ? content.content.plainBody
+                  : content.content.attachments.isNotEmpty
+                  ? content.content.attachments.first.imageMetadata != null
                         ? loc.chatList_imageEmoji
                         : loc.chatList_fileEmoji
-                    : '',
-              _ => null,
-            };
+                  : '',
+            _ => null,
+          };
 
     return Text.rich(
       maxLines: 1,
@@ -392,13 +447,10 @@ class _ChatTitle extends StatelessWidget {
       baseline: Spacings.s,
       baselineType: TextBaseline.alphabetic,
       child: Text(
-        title.toUpperCase(),
+        title,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(
+        style: TextTheme.of(context).labelSmall!.copyWith(
           color: CustomColorScheme.of(context).text.tertiary,
-          fontFamily: getSystemMonospaceFontFamily(),
-          fontSize: LabelFontSize.small2.size,
-          letterSpacing: 1,
         ),
       ),
     );
@@ -412,17 +464,8 @@ String _localizedTimestamp(String original, AppLocalizations loc) =>
       _ => original,
     };
 
-String formatTimestamp(String t, {DateTime? now}) {
-  DateTime timestamp;
-  try {
-    timestamp = DateTime.parse(t);
-  } catch (e) {
-    return '';
-  }
-
+String formatTimestamp(DateTime timestamp, {DateTime? now}) {
   now ??= DateTime.now();
-
-  now = now.toLocal();
 
   final difference = now.difference(timestamp);
   final yesterday = DateTime(now.year, now.month, now.day - 1);
