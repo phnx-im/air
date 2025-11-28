@@ -12,6 +12,7 @@ use mimi_room_policy::VerifiedRoomState;
 use tokio_stream::Stream;
 use uuid::Uuid;
 
+use crate::clients::add_contact::AddHandleContactResult;
 use crate::contacts::{ContactType, TargetedMessageContact};
 use crate::{
     AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact, MessageDraft,
@@ -28,22 +29,6 @@ mod persistence;
 
 /// The result type of a failable [`Store`] method
 pub type StoreResult<T> = anyhow::Result<T>;
-
-#[derive(Debug)]
-pub enum AddHandleContactResult {
-    Ok(ChatId),
-    Err(AddHandleContactError),
-}
-
-#[derive(Debug)]
-pub enum AddHandleContactError {
-    /// The contact could not be added because the user handle does not exist
-    HandleNotFound,
-    /// There is already a pending contact request for this user handle
-    DuplicateRequest,
-    /// The given handle is our own
-    OwnHandle,
-}
 
 /// Unified access to the client data
 ///

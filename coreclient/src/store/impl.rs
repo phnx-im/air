@@ -18,11 +18,12 @@ use crate::{
     MessageId,
     clients::{
         CoreUser,
+        add_contact::AddHandleContactResult,
         attachment::{AttachmentRecord, progress::AttachmentProgress},
         user_settings::UserSettingRecord,
     },
     contacts::{ContactType, HandleContact, PartialContact, TargetedMessageContact},
-    store::{AddHandleContactResult, UserSetting},
+    store::UserSetting,
     user_handles::UserHandleRecord,
     user_profiles::UserProfile,
     utils::connection_ext::StoreExt,

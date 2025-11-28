@@ -9,14 +9,17 @@
 
 use std::fmt;
 
-pub use aircommon::identifiers::UserHandle;
+// Re-export for FRB-reasons
+pub(crate) use aircommon::identifiers::UserHandle;
+pub(crate) use aircoreclient::{
+    AddHandleContactError, AddHandleContactResult, ChatId, MessageDraft, MessageId,
+};
+
 use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact, ContentMessage, DisplayName,
-    ErrorMessage, EventMessage, InactiveChat, Message, SystemMessage, UserProfile,
-    store::{AddHandleContactError, AddHandleContactResult, Store},
+    ErrorMessage, EventMessage, InactiveChat, Message, SystemMessage, UserProfile, store::Store,
 };
-pub use aircoreclient::{ChatId, MessageDraft, MessageId};
 use chrono::{DateTime, Duration, Local, Utc};
 use flutter_rust_bridge::frb;
 use mimi_content::MessageStatus;
@@ -519,34 +522,20 @@ impl From<Contact> for UiContact {
     }
 }
 
-pub enum UiAddHandleContactResult {
+/// Mirror of the [`ChatId`] type
+#[doc(hidden)]
+#[frb(mirror(AddHandleContactResult))]
+pub enum _AddHandleContactResult {
     Ok(ChatId),
-    Err(UiAddHandleContactError),
+    Err(AddHandleContactError),
 }
 
-impl From<AddHandleContactResult> for UiAddHandleContactResult {
-    fn from(result: AddHandleContactResult) -> Self {
-        match result {
-            AddHandleContactResult::Ok(chat_id) => UiAddHandleContactResult::Ok(chat_id),
-            AddHandleContactResult::Err(err) => UiAddHandleContactResult::Err(err.into()),
-        }
-    }
-}
-
-pub enum UiAddHandleContactError {
+#[doc(hidden)]
+#[frb(mirror(AddHandleContactError))]
+pub enum _AddHandleContactError {
     HandleNotFound,
     DuplicateRequest,
     OwnHandle,
-}
-
-impl From<AddHandleContactError> for UiAddHandleContactError {
-    fn from(error: AddHandleContactError) -> Self {
-        match error {
-            AddHandleContactError::HandleNotFound => UiAddHandleContactError::HandleNotFound,
-            AddHandleContactError::DuplicateRequest => UiAddHandleContactError::DuplicateRequest,
-            AddHandleContactError::OwnHandle => UiAddHandleContactError::OwnHandle,
-        }
-    }
 }
 
 /// Profile of a user

@@ -593,6 +593,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UuidValue dco_decode_Uuid(dynamic raw);
 
   @protected
+  AddHandleContactError dco_decode_add_handle_contact_error(dynamic raw);
+
+  @protected
+  AddHandleContactResult dco_decode_add_handle_contact_result(dynamic raw);
+
+  @protected
   AppState dco_decode_app_state(dynamic raw);
 
   @protected
@@ -897,12 +903,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_u_8(dynamic raw);
-
-  @protected
-  UiAddHandleContactError dco_decode_ui_add_handle_contact_error(dynamic raw);
-
-  @protected
-  UiAddHandleContactResult dco_decode_ui_add_handle_contact_result(dynamic raw);
 
   @protected
   UiAttachment dco_decode_ui_attachment(dynamic raw);
@@ -1438,6 +1438,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UuidValue sse_decode_Uuid(SseDeserializer deserializer);
 
   @protected
+  AddHandleContactError sse_decode_add_handle_contact_error(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  AddHandleContactResult sse_decode_add_handle_contact_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   AppState sse_decode_app_state(SseDeserializer deserializer);
 
   @protected
@@ -1828,16 +1838,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
-
-  @protected
-  UiAddHandleContactError sse_decode_ui_add_handle_contact_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiAddHandleContactResult sse_decode_ui_add_handle_contact_result(
-    SseDeserializer deserializer,
-  );
 
   @protected
   UiAttachment sse_decode_ui_attachment(SseDeserializer deserializer);
@@ -2481,6 +2481,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_Uuid(UuidValue self, SseSerializer serializer);
 
   @protected
+  void sse_encode_add_handle_contact_error(
+    AddHandleContactError self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_add_handle_contact_result(
+    AddHandleContactResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_app_state(AppState self, SseSerializer serializer);
 
   @protected
@@ -2969,18 +2981,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_u_8(int self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_ui_add_handle_contact_error(
-    UiAddHandleContactError self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ui_add_handle_contact_result(
-    UiAddHandleContactResult self,
-    SseSerializer serializer,
-  );
 
   @protected
   void sse_encode_ui_attachment(UiAttachment self, SseSerializer serializer);

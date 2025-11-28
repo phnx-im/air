@@ -209,7 +209,7 @@ abstract class RustLibApi extends BaseApi {
     required ChatListCubitBase that,
   });
 
-  Future<UiAddHandleContactResult>
+  Future<AddHandleContactResult>
   crateApiChatListCubitChatListCubitBaseCreateContactChat({
     required ChatListCubitBase that,
     required UiUserHandle handle,
@@ -1719,7 +1719,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<UiAddHandleContactResult>
+  Future<AddHandleContactResult>
   crateApiChatListCubitChatListCubitBaseCreateContactChat({
     required ChatListCubitBase that,
     required UiUserHandle handle,
@@ -1741,7 +1741,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_ui_add_handle_contact_result,
+          decodeSuccessData: sse_decode_add_handle_contact_result,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta:
@@ -6910,6 +6910,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AddHandleContactError dco_decode_add_handle_contact_error(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return AddHandleContactError.values[raw as int];
+  }
+
+  @protected
+  AddHandleContactResult dco_decode_add_handle_contact_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return AddHandleContactResult_Ok(
+          dco_decode_box_autoadd_chat_id(raw[1]),
+        );
+      case 1:
+        return AddHandleContactResult_Err(
+          dco_decode_add_handle_contact_error(raw[1]),
+        );
+      default:
+        throw Exception("unreachable");
+    }
+  }
+
+  @protected
   AppState dco_decode_app_state(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return AppState.values[raw as int];
@@ -7724,31 +7747,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   int dco_decode_u_8(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
-  }
-
-  @protected
-  UiAddHandleContactError dco_decode_ui_add_handle_contact_error(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return UiAddHandleContactError.values[raw as int];
-  }
-
-  @protected
-  UiAddHandleContactResult dco_decode_ui_add_handle_contact_result(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    switch (raw[0]) {
-      case 0:
-        return UiAddHandleContactResult_Ok(
-          dco_decode_box_autoadd_chat_id(raw[1]),
-        );
-      case 1:
-        return UiAddHandleContactResult_Err(
-          dco_decode_ui_add_handle_contact_error(raw[1]),
-        );
-      default:
-        throw Exception("unreachable");
-    }
   }
 
   @protected
@@ -9018,6 +9016,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AddHandleContactError sse_decode_add_handle_contact_error(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return AddHandleContactError.values[inner];
+  }
+
+  @protected
+  AddHandleContactResult sse_decode_add_handle_contact_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        var var_field0 = sse_decode_box_autoadd_chat_id(deserializer);
+        return AddHandleContactResult_Ok(var_field0);
+      case 1:
+        var var_field0 = sse_decode_add_handle_contact_error(deserializer);
+        return AddHandleContactResult_Err(var_field0);
+      default:
+        throw UnimplementedError('');
+    }
+  }
+
+  @protected
   AppState sse_decode_app_state(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_i_32(deserializer);
@@ -10079,34 +10105,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   int sse_decode_u_8(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint8();
-  }
-
-  @protected
-  UiAddHandleContactError sse_decode_ui_add_handle_contact_error(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var inner = sse_decode_i_32(deserializer);
-    return UiAddHandleContactError.values[inner];
-  }
-
-  @protected
-  UiAddHandleContactResult sse_decode_ui_add_handle_contact_result(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var tag_ = sse_decode_i_32(deserializer);
-    switch (tag_) {
-      case 0:
-        var var_field0 = sse_decode_box_autoadd_chat_id(deserializer);
-        return UiAddHandleContactResult_Ok(var_field0);
-      case 1:
-        var var_field0 = sse_decode_ui_add_handle_contact_error(deserializer);
-        return UiAddHandleContactResult_Err(var_field0);
-      default:
-        throw UnimplementedError('');
-    }
   }
 
   @protected
@@ -11636,6 +11634,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_add_handle_contact_error(
+    AddHandleContactError self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_add_handle_contact_result(
+    AddHandleContactResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case AddHandleContactResult_Ok(field0: final field0):
+        sse_encode_i_32(0, serializer);
+        sse_encode_box_autoadd_chat_id(field0, serializer);
+      case AddHandleContactResult_Err(field0: final field0):
+        sse_encode_i_32(1, serializer);
+        sse_encode_add_handle_contact_error(field0, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_app_state(AppState self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
@@ -12666,31 +12689,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_ui_add_handle_contact_error(
-    UiAddHandleContactError self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.index, serializer);
-  }
-
-  @protected
-  void sse_encode_ui_add_handle_contact_result(
-    UiAddHandleContactResult self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    switch (self) {
-      case UiAddHandleContactResult_Ok(field0: final field0):
-        sse_encode_i_32(0, serializer);
-        sse_encode_box_autoadd_chat_id(field0, serializer);
-      case UiAddHandleContactResult_Err(field0: final field0):
-        sse_encode_i_32(1, serializer);
-        sse_encode_ui_add_handle_contact_error(field0, serializer);
-    }
-  }
-
-  @protected
   void sse_encode_ui_attachment(UiAttachment self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_attachment_id(self.attachmentId, serializer);
@@ -13239,7 +13237,7 @@ class ChatListCubitBaseImpl extends RustOpaque implements ChatListCubitBase {
   /// Creates a new 1:1 connection with the given user via a user handle.
   ///
   /// Returns `None` if the provided handle does not exist.
-  Future<UiAddHandleContactResult> createContactChat({
+  Future<AddHandleContactResult> createContactChat({
     required UiUserHandle handle,
   }) => RustLib.instance.api
       .crateApiChatListCubitChatListCubitBaseCreateContactChat(

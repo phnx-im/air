@@ -34,11 +34,27 @@ use crate::{
     contacts::{HandleContact, TargetedMessageContact},
     groups::{Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider},
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
-    store::{AddHandleContactError, AddHandleContactResult, Store, StoreNotifier},
+    store::{Store, StoreNotifier},
     utils::connection_ext::StoreExt,
 };
 
 use super::{CoreUser, connection_offer::payload::ConnectionOfferPayload};
+
+#[derive(Debug)]
+pub enum AddHandleContactResult {
+    Ok(ChatId),
+    Err(AddHandleContactError),
+}
+
+#[derive(Debug)]
+pub enum AddHandleContactError {
+    /// The contact could not be added because the user handle does not exist
+    HandleNotFound,
+    /// There is already a pending contact request for this user handle
+    DuplicateRequest,
+    /// The given handle is our own
+    OwnHandle,
+}
 
 impl CoreUser {
     /// Create a connection via a user handle.

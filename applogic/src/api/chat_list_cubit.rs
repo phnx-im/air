@@ -7,10 +7,10 @@
 use std::sync::Arc;
 
 use aircommon::identifiers::UserHandle;
-use aircoreclient::{ChatId, store::StoreNotification};
 use aircoreclient::{
+    AddHandleContactResult, ChatId,
     clients::CoreUser,
-    store::{Store, StoreEntityId},
+    store::{Store, StoreEntityId, StoreNotification},
 };
 use flutter_rust_bridge::frb;
 use tokio::sync::watch;
@@ -18,7 +18,6 @@ use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
 use tracing::error;
 
-use crate::api::types::UiAddHandleContactResult;
 use crate::{
     StreamSink,
     util::{Cubit, CubitCore, spawn_from_sync},
@@ -88,9 +87,9 @@ impl ChatListCubitBase {
     pub async fn create_contact_chat(
         &self,
         handle: UiUserHandle,
-    ) -> anyhow::Result<UiAddHandleContactResult> {
+    ) -> anyhow::Result<AddHandleContactResult> {
         let handle = UserHandle::new(handle.plaintext)?;
-        self.context.store.add_contact(handle).await.map(Into::into)
+        self.context.store.add_contact(handle).await
     }
 
     /// Creates a new group chat with the given name.

@@ -32,15 +32,15 @@ class ChatListCubit implements StateStreamableSource<ChatListState> {
     final res = await _impl.createContactChat(handle: handle);
 
     switch (res) {
-      case UiAddHandleContactResult_Ok(:final field0):
-        return field0;
-      case UiAddHandleContactResult_Err(:final field0):
-        switch (field0) {
-          case UiAddHandleContactError.handleNotFound:
+      case AddHandleContactResult_Ok(field0: final chatId):
+        return chatId;
+      case AddHandleContactResult_Err(field0: final error):
+        switch (error) {
+          case AddHandleContactError.handleNotFound:
             return null;
-          case UiAddHandleContactError.duplicateRequest:
-          case UiAddHandleContactError.ownHandle:
-            throw Exception('Failed to create contact chat: $field0');
+          case AddHandleContactError.duplicateRequest:
+          case AddHandleContactError.ownHandle:
+            throw Exception('Failed to create contact chat: $error');
         }
     }
   }

@@ -76,7 +76,7 @@ use crate::{store::StoreNotificationsSender, user_profiles::UserProfile};
 
 use self::{api_clients::ApiClients, create_user::InitialUserState, store::UserCreationState};
 
-mod add_contact;
+pub(crate) mod add_contact;
 pub(crate) mod api_clients;
 pub(crate) mod attachment;
 pub(crate) mod block_contact;

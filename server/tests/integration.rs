@@ -21,14 +21,15 @@ use aircommon::{
     mls_group_config::MAX_PAST_EPOCHS,
 };
 use aircoreclient::{
-    Asset, AttachmentProgressEvent, BlockedContactError, ChatId, ChatMessage, DisplayName,
-    EventMessage, Message, SystemMessage, UserProfile,
+    AddHandleContactError, AddHandleContactResult, Asset, AttachmentProgressEvent,
+    BlockedContactError, ChatId, ChatMessage, DisplayName, EventMessage, Message, SystemMessage,
+    UserProfile,
     clients::{
         CoreUser,
         process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
     },
     outbound_service::KEY_PACKAGES,
-    store::{AddHandleContactError, AddHandleContactResult, Store},
+    store::Store,
 };
 use airserver::RateLimitsConfig;
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
