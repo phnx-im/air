@@ -337,6 +337,50 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
+  String systemMessage_acceptedHandleConnectionRequest(
+    Object displayName,
+    Object username,
+  ) {
+    return 'You accepted $displayName\'s contact request made through your username $username.';
+  }
+
+  @override
+  String systemMessage_acceptedDirectConnectionRequest(Object displayName) {
+    return 'You accepted $displayName\'s contact request made through a mutual group chat.';
+  }
+
+  @override
+  String systemMessage_receivedConnectionConfirmation(Object displayName) {
+    return '$displayName accepted your contact request.';
+  }
+
+  @override
+  String systemMessage_newHandleConnectionChat(Object username) {
+    return 'You sent a contact request to username $username. They might not be immediately notified about your request.';
+  }
+
+  @override
+  String systemMessage_newDirectConnectionChat(Object displayName) {
+    return 'You sent a contact request to $displayName. They might not be immediately notified about your request.';
+  }
+
+  @override
+  String systemMessage_receivedHandleConnectionRequest(
+    Object displayName,
+    Object username,
+  ) {
+    return '$displayName sent you a contact request through your username $username.';
+  }
+
+  @override
+  String systemMessage_receivedDirectConnectionRequest(
+    Object displayName,
+    Object groupName,
+  ) {
+    return '$displayName sent you a contact request through the group chat $groupName.';
+  }
+
+  @override
   String systemMessage_userChangedPicture_prefix(Object user) {
     return '$user';
   }
@@ -470,6 +514,9 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get messageContextMenu_save => 'Save';
+
+  @override
+  String get messageContextMenu_share => 'Share';
 
   @override
   String get messageContextMenu_saveError => 'Failed to save attachment';

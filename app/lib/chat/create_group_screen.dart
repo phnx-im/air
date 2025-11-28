@@ -197,9 +197,7 @@ class _CreateGroupDetailsStep extends StatefulWidget {
 
 class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _descriptionController = TextEditingController();
   final FocusNode _nameFocusNode = FocusNode();
-  final FocusNode _descriptionFocusNode = FocusNode();
   Uint8List? _picture;
   bool _isCreating = false;
 
@@ -207,18 +205,14 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
   void initState() {
     super.initState();
     _nameFocusNode.addListener(_handleFocusChange);
-    _descriptionFocusNode.addListener(_handleFocusChange);
     _nameController.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
     _nameFocusNode.removeListener(_handleFocusChange);
-    _descriptionFocusNode.removeListener(_handleFocusChange);
     _nameFocusNode.dispose();
-    _descriptionFocusNode.dispose();
     _nameController.dispose();
-    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -227,8 +221,6 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
   bool get _isGroupNameValid => _nameController.text.trim().isNotEmpty;
 
   bool get _showHelperText => _nameFocusNode.hasFocus && !_isGroupNameValid;
-
-  bool get _isDescriptionFocused => _descriptionFocusNode.hasFocus;
 
   @override
   Widget build(BuildContext context) {
@@ -330,27 +322,6 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
                         ),
                       ),
                     ],
-                    SizedBox(
-                      width: double.infinity,
-                      child: TextField(
-                        controller: _descriptionController,
-                        focusNode: _descriptionFocusNode,
-                        maxLines: null,
-                        keyboardType: TextInputType.multiline,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                        decoration: InputDecoration(
-                          hintText: _isDescriptionFocused
-                              ? loc.groupCreationDetails_descriptionHintFocused
-                              : loc.groupCreationDetails_descriptionHint,
-                          hintStyle: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: colors.text.tertiary),
-                          border: InputBorder.none,
-                          fillColor: Colors.transparent,
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                      ),
-                    ),
                     const SizedBox(height: Spacings.l),
                     if (selectedIds.isNotEmpty)
                       Wrap(

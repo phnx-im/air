@@ -22,6 +22,7 @@ part 'attachments_repository.freezed.dart';
 abstract class AttachmentsRepository implements RustOpaqueInterface {
   Future<void> cancel({required AttachmentId attachmentId});
 
+  /// Load attachment's data from database
   Future<Uint8List?> loadAttachment({required AttachmentId attachmentId});
 
   Future<Uint8List> loadImageAttachment({

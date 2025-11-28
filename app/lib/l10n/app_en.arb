@@ -116,6 +116,14 @@
   "systemMessage_userChangedTitle_infix_3": " to ",
   "systemMessage_userChangedTitle_suffix": "{new_name}",
 
+  "systemMessage_acceptedHandleConnectionRequest": "You accepted {displayName}'s contact request made through your username {username}.",
+  "systemMessage_acceptedDirectConnectionRequest": "You accepted {displayName}'s contact request made through a mutual group chat.",
+  "systemMessage_receivedConnectionConfirmation": "{displayName} accepted your contact request.",
+  "systemMessage_newHandleConnectionChat": "You sent a contact request to username {username}. They might not be immediately notified about your request.",
+  "systemMessage_newDirectConnectionChat": "You sent a contact request to {displayName}. They might not be immediately notified about your request.",
+  "systemMessage_receivedHandleConnectionRequest": "{displayName} sent you a contact request through your username {username}.",
+  "systemMessage_receivedDirectConnectionRequest": "{displayName} sent you a contact request through the group chat {groupName}.",
+
   "systemMessage_userChangedPicture_prefix": "{user}",
   "systemMessage_userChangedPicture_infix": " changed the group picture",
 
@@ -173,6 +181,7 @@
   "messageContextMenu_copy": "Copy",
   "messageContextMenu_edit": "Edit",
   "messageContextMenu_save": "Save",
+  "messageContextMenu_share": "Share",
 
   "messageContextMenu_saveError": "Failed to save attachment",
   "messageContextMenu_saveConfirmation": "Attachment saved",

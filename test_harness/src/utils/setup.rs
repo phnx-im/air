@@ -337,6 +337,15 @@ impl TestBackend {
                 assert_eq!(before.id(), after.id());
             });
         let user1_chat_id = chat.id();
+        let chat_message = user1.messages(chat.id(), 1).await.unwrap().pop().unwrap();
+        let Message::Event(EventMessage::System(system_message)) = chat_message.message() else {
+            panic!("Last message should be an event message of type system");
+        };
+        assert!(matches!(
+            system_message,
+            SystemMessage::NewHandleConnectionChat(handle)
+            if handle == user2_handle
+        ));
 
         let test_user2 = self.users.get_mut(user2_id).unwrap();
         let user2 = &mut test_user2.user;
@@ -395,6 +404,30 @@ impl TestBackend {
                 assert_eq!(before.id(), after.id());
             });
         let user2_chat_id = chat.id();
+        // User 2 should see two system messages
+        let mut chat_messages = user2.messages(chat.id(), 2).await.unwrap();
+        let accepted_request_message = chat_messages.pop().unwrap();
+        let received_request_message = chat_messages.pop().unwrap();
+        let Message::Event(EventMessage::System(system_message)) =
+            accepted_request_message.message()
+        else {
+            panic!("Last message should be an event message of type system");
+        };
+        assert!(matches!(
+            system_message,
+            SystemMessage::AcceptedConnectionRequest { contact, user_handle: Some(handle) }
+            if contact == user1_id && handle == user2_handle
+        ));
+        let Message::Event(EventMessage::System(system_message)) =
+            received_request_message.message()
+        else {
+            panic!("Last message should be an event message of type system");
+        };
+        assert!(matches!(
+            system_message,
+            SystemMessage::ReceivedHandleConnectionRequest { sender, user_handle }
+            if sender == user1_id && user_handle == user2_handle
+        ));
 
         let user2_id = user2.user_id().clone();
         let test_user1 = self.users.get_mut(user1_id).unwrap();
@@ -438,6 +471,15 @@ impl TestBackend {
         let ids_after: HashSet<_> = user1_chats_after.iter().map(|c| c.id()).collect();
         assert!(ids_before.is_superset(&ids_after));
         debug_assert_eq!(user1_chat_id, user2_chat_id);
+        let chat_message = user1.messages(chat.id(), 1).await.unwrap().pop().unwrap();
+        let Message::Event(EventMessage::System(system_message)) = chat_message.message() else {
+            panic!("Last message should be an event message of type system");
+        };
+        assert!(matches!(
+            system_message,
+            SystemMessage::ReceivedConnectionConfirmation { sender, user_handle: Some(user_handle) }
+            if sender == &user2_id && user_handle == user2_handle
+        ));
 
         let user1_unread_messages = self
             .users
@@ -1567,7 +1609,46 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                     SystemMessage::CreateGroup(user_id) => {
                         Some(format!("{user_id:?} created the group"))
                     }
-                }
+                    SystemMessage::NewHandleConnectionChat(user_handle) => {
+                        let user_handle_str = user_handle.plaintext();
+                        Some(format!("You requested a connection with {user_handle_str}"))
+                    }
+                    SystemMessage::AcceptedConnectionRequest { contact, user_handle } => {
+                        let base_str =
+                            format!("You accepted a connection request from {contact:?}");
+                        if let Some(user_handle) = user_handle {
+                            let user_handle_str = user_handle.plaintext();
+                            Some(format!("{base_str} through the handle {user_handle_str}"))
+                        } else {
+                            Some(base_str)
+                        }
+                    }
+                    SystemMessage::ReceivedConnectionConfirmation { sender, user_handle } => {
+                        let base_str =
+                            format!("User {sender:?} confirmed your connection request");
+                        if let Some(user_handle) = user_handle {
+                            let user_handle_str = user_handle.plaintext();
+                            Some(format!("{base_str} to handle {user_handle_str}"))
+                        } else {
+                            Some(base_str)
+                        }
+                    }
+                    SystemMessage::ReceivedHandleConnectionRequest { sender, user_handle } => {
+                        let user_handle_str = user_handle.plaintext();
+                        Some(format!(
+                            "User {sender:?} requested a connection to your handle {user_handle_str}"
+                        ))
+                    }
+                    SystemMessage::ReceivedDirectConnectionRequest { sender, chat_name } => {
+                        format!(
+                            "User {sender:?} requested a direct connection to your contact through the chat {chat_name}"
+                        )
+                        .into()
+                    },
+                    SystemMessage::NewDirectConnectionChat(user_id) => {
+                        format!("You requested a connection with {user_id:?}").into()
+                    },
+                                    }
             } else {
                 None
             }

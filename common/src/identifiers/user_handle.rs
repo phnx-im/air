@@ -21,7 +21,10 @@ const USER_HANDLE_CHARSET: &[u8] = b"-_0123456789abcdefghijklmnopqrstuvwxyz";
 pub const USER_HANDLE_VALIDITY_PERIOD: Duration = Duration::days(30);
 
 /// Validated plaintext user handle
-#[derive(Clone, PartialEq, Eq, Hash, TlsSize, TlsSerialize, TlsDeserializeBytes)]
+#[derive(
+    Clone, PartialEq, Eq, Hash, TlsSize, TlsSerialize, TlsDeserializeBytes, Serialize, Deserialize,
+)]
+#[serde(transparent)]
 pub struct UserHandle {
     plaintext: TlsString,
 }

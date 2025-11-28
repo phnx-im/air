@@ -344,6 +344,24 @@ pub enum UiSystemMessage {
     Remove(UiUserId, UiUserId),
     ChangeTitle(UiUserId, String, String),
     ChangePicture(UiUserId),
+    ReceivedHandleConnectionRequest {
+        sender: UiUserId,
+        user_handle: UiUserHandle,
+    },
+    ReceivedDirectConnectionRequest {
+        sender: UiUserId,
+        chat_name: String,
+    },
+    AcceptedConnectionRequest {
+        sender: UiUserId,
+        user_handle: Option<UiUserHandle>,
+    },
+    ReceivedConnectionConfirmation {
+        sender: UiUserId,
+        user_handle: Option<UiUserHandle>,
+    },
+    NewHandleConnectionChat(UiUserHandle),
+    NewDirectConnectionChat(UiUserId),
     CreateGroup(UiUserId),
 }
 
@@ -362,6 +380,39 @@ impl From<SystemMessage> for UiSystemMessage {
                 new_title,
             } => UiSystemMessage::ChangeTitle(user_id.into(), old_title, new_title),
             SystemMessage::ChangePicture(user_id) => UiSystemMessage::ChangePicture(user_id.into()),
+            SystemMessage::NewHandleConnectionChat(user_handle) => {
+                UiSystemMessage::NewHandleConnectionChat(user_handle.into())
+            }
+            SystemMessage::AcceptedConnectionRequest {
+                contact,
+                user_handle,
+            } => UiSystemMessage::AcceptedConnectionRequest {
+                sender: contact.into(),
+                user_handle: user_handle.map(Into::into),
+            },
+            SystemMessage::ReceivedConnectionConfirmation {
+                sender,
+                user_handle,
+            } => UiSystemMessage::ReceivedConnectionConfirmation {
+                sender: sender.into(),
+                user_handle: user_handle.map(Into::into),
+            },
+            SystemMessage::ReceivedHandleConnectionRequest {
+                sender,
+                user_handle,
+            } => UiSystemMessage::ReceivedHandleConnectionRequest {
+                sender: sender.into(),
+                user_handle: user_handle.into(),
+            },
+            SystemMessage::ReceivedDirectConnectionRequest { sender, chat_name } => {
+                UiSystemMessage::ReceivedDirectConnectionRequest {
+                    sender: sender.into(),
+                    chat_name,
+                }
+            }
+            SystemMessage::NewDirectConnectionChat(user_id) => {
+                UiSystemMessage::NewDirectConnectionChat(user_id.into())
+            }
             SystemMessage::CreateGroup(user_id) => UiSystemMessage::CreateGroup(user_id.into()),
         }
     }

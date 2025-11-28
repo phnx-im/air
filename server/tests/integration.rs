@@ -22,7 +22,7 @@ use aircommon::{
 };
 use aircoreclient::{
     Asset, AttachmentProgressEvent, BlockedContactError, ChatId, ChatMessage, DisplayName,
-    UserProfile,
+    EventMessage, Message, SystemMessage, UserProfile,
     clients::{
         CoreUser,
         process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
@@ -1808,20 +1808,75 @@ async fn connect_users_via_targeted_message() {
     // shared group.
     let bob = setup.get_user(&BOB);
     let bob_user = &bob.user;
-    bob_user
+    let bob_chat_id = bob_user
         .add_contact_from_group(group_chat_id, CHARLIE.clone())
         .await
         .unwrap();
+
+    // Bob should have the right system message in the chat
+    let chat_message = bob_user
+        .messages(bob_chat_id, 1)
+        .await
+        .unwrap()
+        .pop()
+        .unwrap();
+    let Message::Event(EventMessage::System(SystemMessage::NewDirectConnectionChat(user_id))) =
+        chat_message.message()
+    else {
+        panic!("Expected NewDirectConnectionChat system message");
+    };
+    assert!(
+        *user_id == *CHARLIE,
+        "System message should indicate connection to Charlie"
+    );
 
     // Charlie picks up his messages
     let charlie = setup.get_user_mut(&CHARLIE);
     let charlie_user = &mut charlie.user;
     let qs_messages = charlie_user.qs_fetch_messages().await.unwrap();
-    let result = charlie_user.fully_process_qs_messages(qs_messages).await;
+    let mut result = charlie_user.fully_process_qs_messages(qs_messages).await;
     assert!(
         result.errors.is_empty(),
         "Charlie should process Bob's targeted message without errors"
     );
+
+    // Due to auto-accept, Charlie should have two messages in the new chat.
+    let charlie_chat_id = result.new_connections.pop().unwrap();
+    let charlie_chat_title = charlie_user
+        .chat(&charlie_chat_id)
+        .await
+        .unwrap()
+        .attributes
+        .title
+        .clone();
+    let messages = charlie_user.messages(charlie_chat_id, 2).await.unwrap();
+    let Message::Event(EventMessage::System(SystemMessage::ReceivedDirectConnectionRequest {
+        sender,
+        chat_name,
+    })) = messages[0].message()
+    else {
+        panic!("Expected NewDirectConnectionChat system message");
+    };
+    assert!(
+        *sender == *BOB,
+        "System message should indicate connection from Bob"
+    );
+    assert!(
+        *chat_name == charlie_chat_title,
+        "System message should have the correct chat title"
+    );
+    let Message::Event(EventMessage::System(SystemMessage::AcceptedConnectionRequest {
+        contact,
+        user_handle: None,
+    })) = messages[1].message()
+    else {
+        panic!("Expected AcceptedConnectionRequest system message");
+    };
+    assert!(
+        *contact == *BOB,
+        "System message should indicate acceptance of connection from Bob"
+    );
+
     // Now Bob picks up his messages
     let bob = setup.get_user_mut(&BOB);
     let bob_user = &mut bob.user;
@@ -1830,6 +1885,20 @@ async fn connect_users_via_targeted_message() {
     assert!(
         result.errors.is_empty(),
         "Bob should process Charlie's response without errors"
+    );
+
+    // Bob should have a system message indicating that Charlie accepted the connection
+    let messages = bob_user.messages(bob_chat_id, 1).await.unwrap();
+    let Message::Event(EventMessage::System(SystemMessage::ReceivedConnectionConfirmation {
+        sender,
+        user_handle: None,
+    })) = messages[0].message()
+    else {
+        panic!("Expected ReceivedConnectionConfirmation system message");
+    };
+    assert!(
+        *sender == *CHARLIE,
+        "System message should indicate acceptance of connection from Charlie"
     );
 
     // Bob and Charlie should now be connected
