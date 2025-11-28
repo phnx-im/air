@@ -148,7 +148,6 @@ fn serve_metrics(metrics_listener: Option<TcpListener>) {
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(UPKEEP_TIMEOUT).await;
-                info!("running upkeep");
                 handle.run_upkeep();
             }
         });
