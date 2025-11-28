@@ -138,8 +138,8 @@ class MainActivity : FlutterActivity() {
                     val mimeType = call.argument<String>("mimeType")
                     val data = call.argument<ByteArray>("data")
 
-                    if (filename != null && mimeType != null && data != null) {
-                        saveFile(filename, mimeType, data, result)
+                    if (fileName != null && mimeType != null && data != null) {
+                        saveFile(fileName, mimeType, data, result)
                     } else {
                         result.error(
                             "INVALID_ARGUMENTS",
