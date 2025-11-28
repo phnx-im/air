@@ -68,8 +68,8 @@ class _EmptyChatPane extends StatelessWidget {
     return Center(
       child: Text(
         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: CustomColorScheme.of(context).text.tertiary,
-            ),
+          color: CustomColorScheme.of(context).text.tertiary,
+        ),
         loc.chatScreen_emptyChat,
       ),
     );
@@ -121,7 +121,8 @@ class ChatScreenView extends StatelessWidget {
     final bool isCurrentUserMember =
         members.isEmpty || members.contains(ownUserId);
 
-    final bool showInactiveFooter = switch (status) {
+    final bool showInactiveFooter =
+        switch (status) {
           UiChatStatus_Inactive() => true,
           _ => false,
         } ||
@@ -184,8 +185,8 @@ class _ChatHeader extends StatelessWidget {
         elevation: 0,
         toolbarHeight:
             context.responsiveScreenType == ResponsiveScreenType.desktop
-                ? kToolbarHeight
-                : null,
+            ? kToolbarHeight
+            : null,
         leading: context.responsiveScreenType == ResponsiveScreenType.mobile
             ? const AppBarBackButton()
             : const SizedBox.shrink(),
@@ -209,8 +210,8 @@ class _ChatHeader extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextTheme.of(context).labelMedium!.copyWith(
-                          color: CustomColorScheme.of(context).text.tertiary,
-                        ),
+                      color: CustomColorScheme.of(context).text.tertiary,
+                    ),
                   ),
                 ),
               ],
@@ -288,8 +289,8 @@ class _InactiveChatFooter extends StatelessWidget {
         loc.inactiveChatFooter_message,
         textAlign: TextAlign.center,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: CustomColorScheme.of(context).text.tertiary,
-            ),
+          color: CustomColorScheme.of(context).text.tertiary,
+        ),
       ),
     );
   }
