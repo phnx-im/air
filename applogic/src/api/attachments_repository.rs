@@ -112,11 +112,7 @@ impl AttachmentsRepository {
     ) -> anyhow::Result<Option<Vec<u8>>> {
         match self.store.load_attachment(attachment_id).await? {
             AttachmentContent::Ready(data) | AttachmentContent::Uploading(data) => Ok(Some(data)),
-            AttachmentContent::None
-            | AttachmentContent::Pending
-            | AttachmentContent::Downloading
-            | AttachmentContent::Failed
-            | AttachmentContent::Unknown => Ok(None),
+            _ => Ok(None),
         }
     }
 
