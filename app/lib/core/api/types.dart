@@ -19,6 +19,18 @@ part 'types.freezed.dart';
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `from`
 
+enum AddHandleContactError { handleNotFound, duplicateRequest, ownHandle }
+
+@freezed
+sealed class AddHandleContactResult with _$AddHandleContactResult {
+  const AddHandleContactResult._();
+
+  const factory AddHandleContactResult.ok(ChatId field0) =
+      AddHandleContactResult_Ok;
+  const factory AddHandleContactResult.err(AddHandleContactError field0) =
+      AddHandleContactResult_Err;
+}
+
 /// Mirror of the [`ChatId`] type
 class ChatId {
   final UuidValue uuid;

@@ -6962,6 +6962,14 @@ fn wire__crate__api__username_suggestions__username_from_display_impl(
 
 #[allow(clippy::unnecessary_literal_unwrap)]
 const _: fn() = || {
+    match None::<crate::api::types::AddHandleContactResult>.unwrap() {
+        crate::api::types::AddHandleContactResult::Ok(field0) => {
+            let _: crate::api::types::ChatId = field0;
+        }
+        crate::api::types::AddHandleContactResult::Err(field0) => {
+            let _: crate::api::types::AddHandleContactError = field0;
+        }
+    }
     {
         let AttachmentId = None::<crate::api::message_content::AttachmentId>.unwrap();
         let _: uuid::Uuid = AttachmentId.uuid;
@@ -7723,6 +7731,40 @@ impl SseDecode for uuid::Uuid {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <Vec<u8>>::sse_decode(deserializer);
         return uuid::Uuid::from_slice(&inner).expect("fail to decode uuid");
+    }
+}
+
+impl SseDecode for crate::api::types::AddHandleContactError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::AddHandleContactError::HandleNotFound,
+            1 => crate::api::types::AddHandleContactError::DuplicateRequest,
+            2 => crate::api::types::AddHandleContactError::OwnHandle,
+            _ => unreachable!("Invalid variant for AddHandleContactError: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::AddHandleContactResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                let mut var_field0 = <crate::api::types::ChatId>::sse_decode(deserializer);
+                return crate::api::types::AddHandleContactResult::Ok(var_field0);
+            }
+            1 => {
+                let mut var_field0 =
+                    <crate::api::types::AddHandleContactError>::sse_decode(deserializer);
+                return crate::api::types::AddHandleContactResult::Err(var_field0);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 
@@ -9750,6 +9792,55 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<UsersState>> for UsersState {
 }
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AddHandleContactError> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self.0 {
+            crate::api::types::AddHandleContactError::HandleNotFound => 0.into_dart(),
+            crate::api::types::AddHandleContactError::DuplicateRequest => 1.into_dart(),
+            crate::api::types::AddHandleContactError::OwnHandle => 2.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::types::AddHandleContactError>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::AddHandleContactError>>
+    for crate::api::types::AddHandleContactError
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::types::AddHandleContactError> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AddHandleContactResult> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self.0 {
+            crate::api::types::AddHandleContactResult::Ok(field0) => {
+                [0.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::types::AddHandleContactResult::Err(field0) => {
+                [1.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::types::AddHandleContactResult>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::AddHandleContactResult>>
+    for crate::api::types::AddHandleContactResult
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::types::AddHandleContactResult> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::user_cubit::AppState {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -11463,6 +11554,42 @@ impl SseEncode for uuid::Uuid {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Vec<u8>>::sse_encode(self.as_bytes().to_vec(), serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::AddHandleContactError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::AddHandleContactError::HandleNotFound => 0,
+                crate::api::types::AddHandleContactError::DuplicateRequest => 1,
+                crate::api::types::AddHandleContactError::OwnHandle => 2,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::types::AddHandleContactResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::api::types::AddHandleContactResult::Ok(field0) => {
+                <i32>::sse_encode(0, serializer);
+                <crate::api::types::ChatId>::sse_encode(field0, serializer);
+            }
+            crate::api::types::AddHandleContactResult::Err(field0) => {
+                <i32>::sse_encode(1, serializer);
+                <crate::api::types::AddHandleContactError>::sse_encode(field0, serializer);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 

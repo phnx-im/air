@@ -22,8 +22,9 @@ use aircommon::{
     mls_group_config::MAX_PAST_EPOCHS,
 };
 use aircoreclient::{
-    Asset, AttachmentProgressEvent, BlockedContactError, ChatId, ChatMessage, DisplayName,
-    EventMessage, Message, SystemMessage, UserProfile,
+    AddHandleContactError, AddHandleContactResult, Asset, AttachmentProgressEvent,
+    BlockedContactError, ChatId, ChatMessage, DisplayName, EventMessage, Message, SystemMessage,
+    UserProfile,
     clients::{
         CoreUser,
         process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
@@ -715,9 +716,13 @@ async fn error_if_user_doesnt_exist() {
 
     let res = alice_user
         .add_contact(UserHandle::new("non_existent".to_owned()).unwrap())
-        .await;
+        .await
+        .unwrap();
 
-    assert!(matches!(res, Ok(None)));
+    assert!(matches!(
+        res,
+        AddHandleContactResult::Err(AddHandleContactError::HandleNotFound)
+    ));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -1948,17 +1953,29 @@ async fn handle_sanity_checks() {
     let handle_record = alice.add_user_handle().await.unwrap();
     let alice_handle = handle_record.handle.clone();
     let alice_user = &alice.user;
-    let res = alice_user.add_contact(alice_handle.clone()).await;
+    let res = alice_user.add_contact(alice_handle.clone()).await.unwrap();
     assert!(
-        res.is_err(),
+        matches!(
+            res,
+            AddHandleContactResult::Err(AddHandleContactError::OwnHandle)
+        ),
         "Should not be able to add own handle as contact"
     );
 
     // Try to add Bob twice
-    let res = alice_user.add_contact(bob_handle.clone()).await;
-    assert!(res.is_ok(), "Should be able to add Bob as contact");
-    let res = alice_user.add_contact(bob_handle.clone()).await;
-    assert!(res.is_err(), "Should not be able to add Bob twice");
+    let res = alice_user.add_contact(bob_handle.clone()).await.unwrap();
+    assert!(
+        matches!(res, AddHandleContactResult::Ok(_)),
+        "Should be able to add Bob as contact"
+    );
+    let res = alice_user.add_contact(bob_handle.clone()).await.unwrap();
+    assert!(
+        matches!(
+            res,
+            AddHandleContactResult::Err(AddHandleContactError::DuplicateRequest)
+        ),
+        "Should not be able to add Bob twice"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

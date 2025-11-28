@@ -9,13 +9,17 @@
 
 use std::fmt;
 
-pub use aircommon::identifiers::UserHandle;
+// Re-export for FRB-reasons
+pub(crate) use aircommon::identifiers::UserHandle;
+pub(crate) use aircoreclient::{
+    AddHandleContactError, AddHandleContactResult, ChatId, MessageDraft, MessageId,
+};
+
 use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact, ContentMessage, DisplayName,
     ErrorMessage, EventMessage, InactiveChat, Message, SystemMessage, UserProfile, store::Store,
 };
-pub use aircoreclient::{ChatId, MessageDraft, MessageId};
 use chrono::{DateTime, Duration, Local, Utc};
 use flutter_rust_bridge::frb;
 use mimi_content::MessageStatus;
@@ -516,6 +520,22 @@ impl From<Contact> for UiContact {
             user_id: contact.user_id.into(),
         }
     }
+}
+
+/// Mirror of the [`ChatId`] type
+#[doc(hidden)]
+#[frb(mirror(AddHandleContactResult))]
+pub enum _AddHandleContactResult {
+    Ok(ChatId),
+    Err(AddHandleContactError),
+}
+
+#[doc(hidden)]
+#[frb(mirror(AddHandleContactError))]
+pub enum _AddHandleContactError {
+    HandleNotFound,
+    DuplicateRequest,
+    OwnHandle,
 }
 
 /// Profile of a user

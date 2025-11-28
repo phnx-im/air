@@ -12,6 +12,7 @@ use mimi_room_policy::VerifiedRoomState;
 use tokio_stream::Stream;
 use uuid::Uuid;
 
+use crate::clients::add_contact::AddHandleContactResult;
 use crate::contacts::{ContactType, TargetedMessageContact};
 use crate::{
     AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact, MessageDraft,
@@ -167,7 +168,7 @@ pub trait Store {
     ///
     /// Returns the [`ChatId`] of the newly created connection
     /// chat, or `None` if the user handle does not exist.
-    async fn add_contact(&self, handle: UserHandle) -> StoreResult<Option<ChatId>>;
+    async fn add_contact(&self, handle: UserHandle) -> StoreResult<AddHandleContactResult>;
 
     /// Create a connection with a new user via an existing group chat.
     ///
