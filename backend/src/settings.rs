@@ -21,6 +21,8 @@ pub struct Settings {
     pub fcm: Option<FcmSettings>,
     /// If this isn't present, the support for attachments is disabled.
     pub storage: Option<StorageSettings>,
+    #[serde(default)]
+    pub ratelimits: RateLimitsSettings,
 }
 
 /// Configuration for the application.
@@ -171,12 +173,39 @@ impl DatabaseSettings {
     }
 }
 
+/// Every `period`, allow bursts of up to `burst`-many requests, and replenish one element after
+/// the `period`.
+#[derive(Debug, Deserialize, Clone)]
+pub struct RateLimitsSettings {
+    #[serde(with = "duration_millis", default = "default_500ms")]
+    pub period: std::time::Duration,
+    #[serde(default = "default_burst")]
+    pub burst: u32,
+}
+
+impl Default for RateLimitsSettings {
+    fn default() -> Self {
+        Self {
+            period: std::time::Duration::from_millis(500),
+            burst: 100,
+        }
+    }
+}
+
 fn default_5min() -> Duration {
     Duration::seconds(5 * 60)
 }
 
+fn default_500ms() -> std::time::Duration {
+    std::time::Duration::from_millis(500)
+}
+
 fn default_20mib() -> u64 {
     20 * 1024 * 1024
+}
+
+fn default_burst() -> u32 {
+    100
 }
 
 mod duration_seconds {
@@ -193,5 +222,19 @@ mod duration_seconds {
             .try_into()
             .map_err(|_| de::Error::custom("out of range"))?;
         Ok(Duration::seconds(seconds))
+    }
+}
+
+mod duration_millis {
+    use serde::de;
+
+    use std::time::Duration;
+
+    pub fn deserialize<'de, D>(d: D) -> Result<Duration, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let millis: u64 = serde::Deserialize::deserialize(d)?;
+        Ok(Duration::from_millis(millis))
     }
 }

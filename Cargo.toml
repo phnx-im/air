@@ -127,6 +127,7 @@ tls_codec = { git = "https://github.com/boxdot/formats", rev = "9846c69f91e732b4
 tls_codec_derive = { git = "https://github.com/boxdot/formats", rev = "9846c69f91e732b493dcccf92f4c163bfc711b7d" }
 
 [profile.release]
-strip = true
+strip = false
 lto = true
 codegen-units = 1
+debug = true

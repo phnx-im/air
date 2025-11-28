@@ -13,10 +13,11 @@ use airbackend::{
     auth_service::AuthService,
     ds::{Ds, storage::Storage},
     qs::Qs,
+    settings::RateLimitsSettings,
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
-    RateLimitsConfig, ServerRunParams, configurations::get_configuration_from_str,
+    ServerRunParams, configurations::get_configuration_from_str,
     enqueue_provider::SimpleEnqueueProvider, network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
 };
@@ -28,9 +29,9 @@ use crate::init_test_tracing;
 const BASE_CONFIG: &str = include_str!("../../../server/configuration/base.yaml");
 const LOCAL_CONFIG: &str = include_str!("../../../server/configuration/local.yaml");
 
-const TEST_RATE_LIMITS: RateLimitsConfig = RateLimitsConfig {
+const TEST_RATE_LIMITS: RateLimitsSettings = RateLimitsSettings {
     period: Duration::from_millis(1),
-    burst_size: 1000,
+    burst: 1000,
 };
 
 /// Start the server and initialize the database connection.
@@ -45,7 +46,7 @@ pub async fn spawn_app(domain: Fqdn, network_provider: MockNetworkProvider) -> S
 pub async fn spawn_app_with_rate_limits(
     domain: Fqdn,
     network_provider: MockNetworkProvider,
-    rate_limits: RateLimitsConfig,
+    rate_limits: RateLimitsSettings,
 ) -> SocketAddr {
     init_test_tracing();
 
