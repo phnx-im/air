@@ -161,7 +161,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get unblockContactDialog_unblock => 'Entsperren';
 
   @override
-  String get deleteContactButton_text => 'Air-Kontakt löschen';
+  String get deleteContactButton_text => 'Löschen';
 
   @override
   String get deleteContactDialog_title => 'Air-Kontakt löschen';
@@ -176,6 +176,20 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get deleteContactDialog_delete => 'Löschen';
+
+  @override
+  String get addContactDialog_title => 'Add Air contact';
+
+  @override
+  String addContactDialog_content(Object displayName, Object groupTitle) {
+    return '$displayName from the group chat \"$groupTitle\" isn\'t an Air contact. To chat with them, send a contact request.';
+  }
+
+  @override
+  String get addContactDialog_cancel => 'Cancel';
+
+  @override
+  String get addContactDialog_confirm => 'Send';
 
   @override
   String get changeGroupTitleDialog_title => 'Change group title';

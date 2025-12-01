@@ -3,14 +3,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/navigation/navigation.dart';
+import 'package:air/ui/components/app_scaffold.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/widgets/widgets.dart';
 
-import 'connection_details.dart';
+import 'contact_details.dart';
 import 'chat_details_cubit.dart';
 import 'group_details.dart';
 
@@ -51,41 +51,37 @@ class ChatDetailsScreenView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final chatExists = context.select(
-      (NavigationCubit cubit) => switch (cubit.state) {
-        NavigationState_Intro() => false,
-        NavigationState_Home(:final home) => home.chatId != null,
-      },
-    );
-    if (!chatExists) {
-      return const SizedBox.shrink();
-    }
-
     final chatType = context.select(
       (ChatDetailsCubit cubit) => cubit.state.chat?.chatType,
     );
 
-    final chatTitle = context.select(
-      (ChatDetailsCubit cubit) => cubit.state.chat?.title ?? '',
-    );
-
-    final loc = AppLocalizations.of(context);
-
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: const AppBarBackButton(),
-        title: Text(chatTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-      ),
-      body: SafeArea(
-        child: switch (chatType) {
-          UiChatType_HandleConnection() ||
-          UiChatType_Connection() => const ConnectionDetails(),
-          UiChatType_Group() => const GroupDetails(),
-          null => Center(child: Text(loc.chatDetailsScreen_unknownChat)),
-        },
-      ),
+    return AppScaffold(
+      child: switch (chatType) {
+        UiChatType_Connection(field0: final profile) => Builder(
+          builder: (context) {
+            final chat = context.select(
+              (ChatDetailsCubit cubit) => cubit.state.chat,
+            );
+            if (chat == null) {
+              return const SizedBox.shrink();
+            }
+            return ContactDetailsView(
+              profile: profile,
+              relationship: ContactRelationship(
+                contactChatId: chat.id,
+                isBlocked: chat.status == const UiChatStatus.blocked(),
+              ),
+            );
+          },
+        ),
+        UiChatType_Group() => const GroupDetails(),
+        UiChatType_HandleConnection() || null => Builder(
+          builder: (context) {
+            final loc = AppLocalizations.of(context);
+            return Center(child: Text(loc.chatDetailsScreen_unknownChat));
+          },
+        ),
+      },
     );
   }
 }

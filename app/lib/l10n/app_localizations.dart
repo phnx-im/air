@@ -361,19 +361,19 @@ abstract class AppLocalizations {
   /// No description provided for @deleteContactButton_text.
   ///
   /// In en, this message translates to:
-  /// **'Delete Air contact'**
+  /// **'Delete'**
   String get deleteContactButton_text;
 
   /// No description provided for @deleteContactDialog_title.
   ///
   /// In en, this message translates to:
-  /// **'Delete Air contact'**
+  /// **'Delete Air Contact'**
   String get deleteContactDialog_title;
 
   /// No description provided for @deleteContactDialog_content.
   ///
   /// In en, this message translates to:
-  /// **'Are you sure you want to delete your Air contact {displayName}? If you do, the chat and its message history will be deleted.'**
+  /// **'Are you sure you want to delete your Air Contact {displayName}? If you do, the chat and its message history will be deleted.'**
   String deleteContactDialog_content(Object displayName);
 
   /// No description provided for @deleteContactDialog_cancel.
@@ -387,6 +387,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete'**
   String get deleteContactDialog_delete;
+
+  /// No description provided for @addContactDialog_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Air contact'**
+  String get addContactDialog_title;
+
+  /// No description provided for @addContactDialog_content.
+  ///
+  /// In en, this message translates to:
+  /// **'{displayName} from the group chat \"{groupTitle}\" isn\'t an Air contact. To chat with them, send a contact request.'**
+  String addContactDialog_content(Object displayName, Object groupTitle);
+
+  /// No description provided for @addContactDialog_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get addContactDialog_cancel;
+
+  /// No description provided for @addContactDialog_confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get addContactDialog_confirm;
 
   /// No description provided for @changeGroupTitleDialog_title.
   ///

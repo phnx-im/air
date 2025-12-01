@@ -518,6 +518,7 @@ impl From<Contact> for UiContact {
     fn from(contact: Contact) -> Self {
         Self {
             user_id: contact.user_id.into(),
+            chat_id: contact.chat_id,
         }
     }
 }
