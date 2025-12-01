@@ -15,7 +15,6 @@ import 'package:air/widgets/app_bar_back_button.dart';
 import 'package:air/widgets/avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:uuid/uuid.dart';
 
 import 'chat_details_cubit.dart';
 import 'delete_contact_button.dart';
