@@ -143,13 +143,13 @@ class ChatScreenView extends StatelessWidget {
     }
 
     return Scaffold(
+      appBar: const _ChatHeader(),
       body: Container(
         decoration: BoxDecoration(
           color: CustomColorScheme.of(context).backgroundBase.primary,
         ),
         child: Column(
           children: [
-            const _ChatHeader(),
             Expanded(
               child: MessageListView(createMessageCubit: createMessageCubit),
             ),
@@ -161,8 +161,11 @@ class ChatScreenView extends StatelessWidget {
   }
 }
 
-class _ChatHeader extends StatelessWidget {
+class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
   const _ChatHeader();
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   @override
   Widget build(BuildContext context) {
@@ -174,46 +177,40 @@ class _ChatHeader extends StatelessWidget {
       ),
     );
 
-    return SafeArea(
-      child: AppBar(
-        automaticallyImplyLeading: false,
-        backgroundColor: CustomColorScheme.of(context).backgroundBase.primary,
-        surfaceTintColor: Colors.transparent,
-        scrolledUnderElevation: 0,
-        elevation: 0,
-        toolbarHeight:
-            context.responsiveScreenType == ResponsiveScreenType.desktop
-            ? kToolbarHeight
-            : null,
-        leading: context.responsiveScreenType == ResponsiveScreenType.mobile
-            ? const AppBarBackButton()
-            : const SizedBox.shrink(),
-        centerTitle: true,
-        title: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () {
-              context.read<NavigationCubit>().openChatDetails();
-            },
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              spacing: Spacings.xs,
-              children: [
-                GroupAvatar(chatId: chatId, size: Spacings.l),
-                Flexible(
-                  child: Text(
-                    title ?? "",
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextTheme.of(context).labelMedium!.copyWith(
-                      color: CustomColorScheme.of(context).text.tertiary,
-                    ),
+    return AppBar(
+      automaticallyImplyLeading: false,
+      backgroundColor: CustomColorScheme.of(context).backgroundBase.primary,
+      surfaceTintColor: Colors.transparent,
+      scrolledUnderElevation: 0,
+      elevation: 0,
+      leading: context.responsiveScreenType == ResponsiveScreenType.mobile
+          ? const AppBarBackButton()
+          : const SizedBox.shrink(),
+      centerTitle: true,
+      title: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            context.read<NavigationCubit>().openChatDetails();
+          },
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: Spacings.xs,
+            children: [
+              GroupAvatar(chatId: chatId, size: Spacings.l),
+              Flexible(
+                child: Text(
+                  title ?? "",
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextTheme.of(context).labelMedium!.copyWith(
+                    color: CustomColorScheme.of(context).text.tertiary,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
