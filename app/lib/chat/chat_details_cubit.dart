@@ -49,6 +49,9 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
   Future<void> setChatPicture({required Uint8List? bytes}) =>
       _impl.setChatPicture(bytes: bytes);
 
+  Future<void> setChatTitle({required String title}) =>
+      _impl.setChatTitle(title: title);
+
   Future<void> sendMessage(String messageText) =>
       _impl.sendMessage(messageText: messageText);
 

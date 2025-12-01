@@ -61,6 +61,11 @@
   "deleteContactDialog_cancel": "Cancel",
   "deleteContactDialog_delete": "Delete",
 
+  "changeGroupTitleDialog_title": "Change group title",
+  "changeGroupTitleDialog_content": "Choose a title for the group.",
+  "changeGroupTitleDialog_cancel": "Cancel",
+  "changeGroupTitleDialog_confirm": "Save",
+
   "introScreen_signUp": "Start",
   "introScreen_termsLinkText": "Terms of Use",
   "introScreen_termsText": "By signing up, you agree to our {termsOfUseLink}.",
