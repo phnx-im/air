@@ -73,7 +73,7 @@ pub async fn run<
 
     info!(%grpc_addr, "Starting server");
 
-    serve_metrics(metrics_listener);
+    // serve_metrics(metrics_listener);
 
     // GRPC server
     let grpc_as = GrpcAs::new(auth_service);
@@ -102,7 +102,7 @@ pub async fn run<
     let health_service = configure_health_service::<Qc, Np>().await;
 
     tonic::transport::Server::builder()
-        .http2_keepalive_interval(Some(Duration::from_secs(30)))
+        .http2_keepalive_interval(Some(Duration::from_secs(1)))
         .layer(InterceptorLayer::new(ConnectInfoInterceptor))
         .layer(GrpcMetricsLayer::new())
         .layer(

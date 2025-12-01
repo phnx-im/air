@@ -42,6 +42,7 @@ use tonic_health::pb::{
 };
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
+use uuid::Uuid;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Connect users test", skip_all)]
@@ -1985,4 +1986,42 @@ async fn check_handle_exists() {
     alice_user.remove_user_handle(&alice_handle).await.unwrap();
     let exists = alice_user.check_handle_exists(&alice_handle).await.unwrap();
     assert!(!exists, "Alice's handle should not exist after removal");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Check handle exists", skip_all)]
+async fn create_users() {
+    init_test_tracing();
+    let mut setup = TestBackend::single().await;
+    std::fs::create_dir("test_users").unwrap();
+    for i in 0..100 {
+        info!(i, "Adding user");
+        setup
+            .add_persisted_user_with_id(Uuid::from_u128(i as u128), "test_users")
+            .await;
+    }
+    info!("All users created");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Check handle exists", skip_all)]
+async fn many_listen() {
+    init_test_tracing();
+    let setup = TestBackend::single().await;
+    let domain = setup.domain().clone();
+    for i in 0..100 {
+        let domain = domain.clone();
+        tokio::spawn(async move {
+            let user_id = UserId::new(Uuid::from_u128(i as u128), domain);
+            let user = CoreUser::load(user_id, "test_users").await.unwrap();
+            let (mut stream, _responder) = user.listen_queue().await.unwrap();
+            info!(i, "Listening");
+            while let Some(event) = stream.next().await {
+                tracing::debug!(event = ?event);
+            }
+            info!(i, "Stopped listening");
+        });
+    }
+    info!("All users listening");
+    sleep(Duration::from_secs(10000)).await;
 }

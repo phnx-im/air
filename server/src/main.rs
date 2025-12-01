@@ -2,24 +2,52 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::time::Duration;
+
+use tikv_jemallocator::Jemalloc;
+
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
+
 use airbackend::{
     air_service::BackendService,
     auth_service::AuthService,
     ds::{Ds, storage::Storage},
     qs::Qs,
 };
+
 use aircommon::identifiers::Fqdn;
 use airserver::{
     ServerRunParams, configurations::*, enqueue_provider::SimpleEnqueueProvider,
     logging::init_logging, network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
 };
-use tokio::net::TcpListener;
+use tikv_jemalloc_ctl::{epoch, stats};
+use tokio::{net::TcpListener, time};
 use tracing::info;
+
+fn print_allocated() -> Result<(), tikv_jemalloc_ctl::Error> {
+    // 1. Advance the epoch to ensure all tcache counters are merged
+    // This is crucial for getting the freshest statistic.
+    epoch::advance()?;
+
+    // 2. Fetch the 'allocated' value using the idiomatic stats::allocated reader
+    let allocated_bytes = stats::allocated::read()?;
+
+    eprintln!("Jemalloc Current Allocated Bytes: {}", allocated_bytes);
+    Ok(())
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     init_logging();
+
+    tokio::spawn(async {
+        loop {
+            print_allocated().unwrap();
+            time::sleep(Duration::from_secs(3)).await;
+        }
+    });
 
     // Load configuration
     let mut configuration = get_configuration("server/").expect("Could not load configuration.");
@@ -57,7 +85,7 @@ async fn main() -> anyhow::Result<()> {
     // Try again for 10 times each second in case the postgres server is coming up.
     while let Err(e) = ds_result {
         info!("Failed to connect to postgres server: {}", e);
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        time::sleep(std::time::Duration::from_secs(1)).await;
         counter += 1;
         if counter > 10 {
             panic!("Database not ready after 10 seconds.");

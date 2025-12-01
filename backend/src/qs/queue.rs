@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::VecDeque, sync::Arc};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+};
 
 use aircommon::identifiers::QsClientId;
 use airprotos::queue_service::v1::{
@@ -12,7 +15,7 @@ use dashmap::DashMap;
 use futures_util::{Stream, stream};
 use metrics::gauge;
 use sqlx::{PgExecutor, PgPool, PgTransaction};
-use tokio::sync::mpsc;
+use tokio::sync::{Mutex, mpsc};
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
@@ -30,7 +33,7 @@ const MAX_BUFFER_SIZE: usize = 32;
 #[derive(Debug, Clone)]
 pub(crate) struct Queues {
     pool: PgPool,
-    listeners: Arc<DashMap<QsClientId, ListenerContext>>,
+    listeners: Arc<Mutex<HashMap<QsClientId, ListenerContext>>>,
     pg_listener_task_handle: PgListenerTaskHandle<QsClientId>,
 }
 
@@ -86,6 +89,13 @@ impl Queues {
             state: FetchState::Init,
         };
 
+        {
+            let map = self.listeners.lock().await;
+            let capacity = map.capacity();
+            let len = map.len();
+            tracing::info!("Listening {} queues, capacity {}", len, capacity);
+        }
+
         let message_stream = context.into_stream().map(|message| match message {
             Some(message) => Some(QueueEvent {
                 event: Some(queue_event::Event::Message(message)),
@@ -119,6 +129,8 @@ impl Queues {
 
         let is_listening = self
             .listeners
+            .lock()
+            .await
             .get(&queue_id)
             .map(|context| !context.cancel.is_cancelled())
             .unwrap_or(false);
@@ -147,6 +159,8 @@ impl Queues {
     ) -> Result<bool, QueueError> {
         let Some(tx) = self
             .listeners
+            .lock()
+            .await
             .get(&queue_id)
             .map(|context| context.payload_tx.clone())
         else {
@@ -163,12 +177,20 @@ impl Queues {
     ) -> sqlx::Result<CancellationToken> {
         // Clean up cancelled listeners
         self.listeners
+            .lock()
+            .await
             .retain(|_id, context| !context.cancel.is_cancelled());
 
         let cancel = CancellationToken::new();
         let context = ListenerContext::new(cancel.clone(), payload_tx);
 
-        if self.listeners.insert(client_id, context).is_none() {
+        if self
+            .listeners
+            .lock()
+            .await
+            .insert(client_id, context)
+            .is_none()
+        {
             self.pg_listener_task_handle.listen(client_id);
         }
 

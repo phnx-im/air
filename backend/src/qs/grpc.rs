@@ -19,6 +19,7 @@ use aircommon::{
     time::TimeStamp,
 };
 use displaydoc::Display;
+use tokio::stream;
 use tokio_stream::{Stream, StreamExt};
 use tonic::{Code, Request, Response, Status, Streaming, async_trait};
 use tracing::error;
@@ -45,24 +46,24 @@ impl GrpcQs {
         queue_id: identifiers::QsClientId,
         mut requests: Streaming<ListenRequest>,
     ) {
-        while let Some(request) = requests.next().await {
-            if let Err(error) = Self::process_listen_queue_request(&queues, queue_id, request).await
-            {
-                if let ProcessListenQueueRequestError::Status(error) = &error
-                    && let Code::Unknown = error.code()
-                    && let Some(h2_error) = find_cause::<h2::Error>(&error)
-                    && let Some(io_error) = h2_error.get_io()
-                    && io_error.kind() == io::ErrorKind::BrokenPipe
-                {
-                    // Client closed connection => not an error
-                    continue;
-                } else {
-                    // We report the error, but don't stop processing requests.
-                    // TODO(#466): Send this to the client.
-                    error!(%error, "error processing listen queue request");
-                }
-            }
-        }
+        // while let Some(request) = requests.next().await {
+        //     if let Err(error) = Self::process_listen_queue_request(&queues, queue_id, request).await
+        //     {
+        //         if let ProcessListenQueueRequestError::Status(error) = &error
+        //             && let Code::Unknown = error.code()
+        //             && let Some(h2_error) = find_cause::<h2::Error>(&error)
+        //             && let Some(io_error) = h2_error.get_io()
+        //             && io_error.kind() == io::ErrorKind::BrokenPipe
+        //         {
+        //             // Client closed connection => not an error
+        //             continue;
+        //         } else {
+        //             // We report the error, but don't stop processing requests.
+        //             // TODO(#466): Send this to the client.
+        //             error!(%error, "error processing listen queue request");
+        //         }
+        //     }
+        // }
     }
 
     async fn process_listen_queue_request(
@@ -336,32 +337,39 @@ impl QueueService for GrpcQs {
             return Err(ListenQueueProtocolViolation::MissingInitRequest.into());
         };
 
-        let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
+        // 1809056
+        // 6469200
+        // 10029688
+        // 10843520
 
-        let queue_messages = self
-            .qs
-            .queues
-            .listen(client_id, sequence_number_start)
-            .await?;
-        let responses = queue_messages.map(|message| match message {
-            Some(event) => event,
-            None => QueueEvent {
-                event: Some(queue_event::Event::Empty(QueueEmpty {})),
-            },
-        });
+        // let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
 
-        self.update_client_activity_and_report_metrics(client_id)
-            .await
-            .inspect_err(|error| {
-                error!(%error, "Error updating client activity and reporting metrics");
-            })
-            .ok();
+        // let queue_messages = self
+        //     .qs
+        //     .queues
+        //     .listen(client_id, sequence_number_start)
+        //     .await?;
+        // let responses = queue_messages.map(|message| match message {
+        //     Some(event) => event,
+        //     None => QueueEvent {
+        //         event: Some(queue_event::Event::Empty(QueueEmpty {})),
+        //     },
+        // });
 
-        tokio::spawn(Self::process_listen_queue_requests_task(
-            self.qs.queues.clone(),
-            client_id,
-            requests,
-        ));
+        let responses = futures_util::stream::empty();
+
+        // self.update_client_activity_and_report_metrics(client_id)
+        //     .await
+        //     .inspect_err(|error| {
+        //         error!(%error, "Error updating client activity and reporting metrics");
+        //     })
+        //     .ok();
+
+        // tokio::spawn(Self::process_listen_queue_requests_task(
+        //     self.qs.queues.clone(),
+        //     client_id,
+        //     requests,
+        // ));
 
         Ok(Response::new(Box::pin(responses.map(Ok))))
     }

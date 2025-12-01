@@ -31,6 +31,7 @@ airprotos.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 config.workspace = true
+# jemalloc-ctl = "0.5.4"
 jsonwebtoken.workspace = true
 metrics.workspace = true
 metrics-exporter-prometheus.workspace = true
@@ -39,6 +40,10 @@ reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+# tikv-jemalloc-sys = "0.5"
+tikv-jemalloc-ctl = { version = "0.6", features = ["stats", "profiling"] }
+tikv-jemallocator = { version = "0.6", features = ["stats", "profiling"] }
+# jemallocator = { version = "0.5", features = ["profiling", "stats"] }
 tls_codec.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tokio-stream.workspace = true

@@ -197,11 +197,27 @@ impl TestBackend {
         self.temp_dir.path()
     }
 
+    pub async fn add_persisted_user_with_id(&mut self, user_uuid: Uuid, path: &str) -> UserId {
+        let user_id = UserId::new(user_uuid, self.domain().clone());
+        info!(%path, ?user_id, "Creating persisted user");
+        let user = TestUser::new_persisted(&user_id, self.server_url(), path).await;
+        self.users.insert(user_id.clone(), user);
+        user_id
+    }
+
     pub async fn add_persisted_user(&mut self) -> UserId {
         let user_id = self.random_user_id();
         let path = self.temp_dir.path().to_str().unwrap();
         info!(%path, ?user_id, "Creating persisted user");
         let user = TestUser::new_persisted(&user_id, self.server_url(), path).await;
+        self.users.insert(user_id.clone(), user);
+        user_id
+    }
+
+    pub async fn add_user_with_id(&mut self, user_uuid: Uuid) -> UserId {
+        let user_id = UserId::new(user_uuid, self.domain().clone());
+        info!(?user_uuid, "Creating user");
+        let user = TestUser::new(&user_id, self.server_url()).await;
         self.users.insert(user_id.clone(), user);
         user_id
     }
