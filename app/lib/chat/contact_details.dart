@@ -3,19 +3,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/chat/widgets/remove_member_button.dart';
+import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
+import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/modal/app_dialog.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
-import 'package:flutter/material.dart';
-import 'package:air/core/core.dart';
-import 'package:air/theme/theme.dart';
 import 'package:air/widgets/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:provider/provider.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
+import 'package:provider/provider.dart';
 
 import 'block_contact_button.dart';
 import 'delete_contact_button.dart';
@@ -75,7 +75,7 @@ class ContactDetailsView extends StatelessWidget {
         children: [
           const SizedBox(height: Spacings.s),
 
-          UserAvatar(size: 192, userId: profile.userId),
+          UserAvatar(size: 192, userId: profile.userId, profile: profile),
 
           const SizedBox(height: Spacings.s),
 

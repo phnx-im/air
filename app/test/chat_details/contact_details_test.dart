@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/chat/contact_details.dart';
+import 'package:air/ui/components/app_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/l10n/l10n.dart';
@@ -20,8 +21,8 @@ void main() {
           debugShowCheckedModeBanner: false,
           theme: lightTheme,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: Scaffold(
-            body: ContactDetailsView(
+          home: AppScaffold(
+            child: ContactDetailsView(
               profile: userProfiles[1],
               relationship: relationship,
             ),
