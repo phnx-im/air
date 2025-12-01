@@ -60,10 +60,31 @@ class ChatListView extends StatelessWidget {
             body: Stack(
               children: [
                 SafeArea(bottom: false, child: widget),
-                const SafeArea(child: SizedBox.expand()),
+                const Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: _ScrollGestureFix(),
+                ),
               ],
             ),
           )
         : widget;
+  }
+}
+
+/// This widget fixes the isssue on Android, where the swipe from the bottom
+/// of the screen opens the OS app switcher and the same time scrolls the chat list
+/// view.
+class _ScrollGestureFix extends StatelessWidget {
+  const _ScrollGestureFix();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.paddingOf(context).bottom,
+      // Note: Color is required otherwise the scroll gesture is still handled by the widget below.
+      color: Colors.transparent,
+    );
   }
 }
