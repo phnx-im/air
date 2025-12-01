@@ -14,17 +14,26 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
 class UserAvatar extends StatelessWidget {
-  const UserAvatar({super.key, this.userId, this.size = 24.0, this.onPressed});
+  const UserAvatar({
+    super.key,
+    this.userId,
+    this.profile,
+    this.size = 24.0,
+    this.onPressed,
+  });
 
   final UiUserId? userId;
+  final UiUserProfile? profile;
   final double size;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final profile = context.select(
-      (UsersCubit cubit) => cubit.state.profile(userId: userId),
-    );
+    final profile = this.profile != null
+        ? this.profile!
+        : context.select(
+            (UsersCubit cubit) => cubit.state.profile(userId: userId),
+          );
 
     final displayName = profile.displayName;
     final image = profile.profilePicture;

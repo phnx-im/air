@@ -161,7 +161,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get unblockContactDialog_unblock => 'Entsperren';
 
   @override
-  String get deleteContactButton_text => 'Air-Kontakt löschen';
+  String get deleteContactButton_text => 'Löschen';
 
   @override
   String get deleteContactDialog_title => 'Air-Kontakt löschen';
