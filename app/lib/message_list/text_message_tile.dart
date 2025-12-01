@@ -706,6 +706,7 @@ class _FileAttachmentContent extends StatelessWidget {
       padding: _messagePadding,
       child: AttachmentFile(
         attachment: attachment,
+        isSender: isSender,
         color: isSender
             ? CustomColorScheme.of(context).message.selfText
             : CustomColorScheme.of(context).message.otherText,
@@ -751,6 +752,7 @@ class _ImageAttachmentContent extends StatelessWidget {
             child: AttachmentImage(
               attachment: attachment,
               imageMetadata: imageMetadata,
+              isSender: isSender,
               fit: BoxFit.cover,
             ),
           ),
