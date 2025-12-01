@@ -145,26 +145,22 @@ class ChatScreenView extends StatelessWidget {
     }
 
     final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0.0;
-    final bottomViewPadding = MediaQuery.viewPaddingOf(context).bottom;
+    // Note: This is a magic value for Android. Can we do better?
     final bottomPadding = Platform.isAndroid && keyboardVisible
-        ? bottomViewPadding
-        : isLargeScreen(context) || keyboardVisible
-        ? Spacings.xs
-        : 0.0;
+        ? Spacings.m + Spacings.xxs
+        : Spacings.xs;
 
     return Scaffold(
       appBar: _ChatHeader(),
       body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.only(bottom: bottomPadding),
-          child: Column(
-            children: [
-              Expanded(
-                child: MessageListView(createMessageCubit: createMessageCubit),
-              ),
-              footer,
-            ],
-          ),
+        minimum: EdgeInsets.only(bottom: bottomPadding),
+        child: Column(
+          children: [
+            Expanded(
+              child: MessageListView(createMessageCubit: createMessageCubit),
+            ),
+            footer,
+          ],
         ),
       ),
     );
