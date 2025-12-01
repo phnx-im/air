@@ -57,7 +57,8 @@ class ChatDetailsScreenView extends StatelessWidget {
 
     return AppScaffold(
       child: switch (chatType) {
-        UiChatType_Connection(field0: final profile) => Builder(
+        UiChatType_Connection(field0: final profile) ||
+        UiChatType_TargetedMessageConnection(field0: final profile) => Builder(
           builder: (context) {
             final chat = context.select(
               (ChatDetailsCubit cubit) => cubit.state.chat,

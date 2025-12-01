@@ -191,6 +191,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addContactDialog_confirm => 'Send';
 
   @override
+  String addContactDialog_error(Object username) {
+    return 'Failed to send $username a contact request. Try again.';
+  }
+
+  @override
   String get changeGroupTitleDialog_title => 'Change group title';
 
   @override

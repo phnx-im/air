@@ -34,7 +34,7 @@ pub use crate::{
         },
         block_contact::BlockedContactError,
     },
-    contacts::Contact,
+    contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},
     user_handles::UserHandleRecord,
     user_profiles::{Asset, DisplayName, DisplayNameError, UserProfile},
     utils::persistence::{

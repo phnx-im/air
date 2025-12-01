@@ -2,9 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/app.dart';
 import 'package:air/chat/widgets/remove_member_button.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/main.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
@@ -15,12 +17,15 @@ import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
+import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
 import 'block_contact_button.dart';
 import 'delete_contact_button.dart';
 import 'report_spam_button.dart';
 import 'unblock_contact_button.dart';
+
+final _log = Logger("ContactDetails");
 
 /// Either a direct contact or a member of a group
 sealed class Relationship {
@@ -166,23 +171,25 @@ class ContactDetailsView extends StatelessWidget {
         navigationCubit.openChat(contactChatId);
         return;
 
-      case MemberRelationship(:final groupTitle):
-        final contact = await context.read<UserCubit>().contact(
-          userId: profile.userId,
-        );
-        debugPrint("Contact: $contact");
-        if (contact != null && context.mounted) {
+      case MemberRelationship(:final groupChatId, :final groupTitle):
+        final userCubit = context.read<UserCubit>();
+        final contact = await userCubit.contact(userId: profile.userId);
+
+        if (!context.mounted) return;
+
+        if (contact != null) {
           final navigationCubit = context.read<NavigationCubit>();
           navigationCubit.openChat(contact.chatId);
           return;
         }
 
         // No contact found means we can establish a new connection
-        if (!context.mounted) return;
         showDialog(
           context: context,
           builder: (context) => _AddContactDialog(
+            userId: profile.userId,
             displayName: profile.displayName,
+            groupChatId: groupChatId,
             groupTitle: groupTitle,
           ),
         );
@@ -192,11 +199,15 @@ class ContactDetailsView extends StatelessWidget {
 
 class _AddContactDialog extends HookWidget {
   const _AddContactDialog({
+    required this.userId,
     required this.displayName,
+    required this.groupChatId,
     required this.groupTitle,
   });
 
+  final UiUserId userId;
   final String displayName;
+  final ChatId groupChatId;
   final String groupTitle;
 
   @override
@@ -249,8 +260,10 @@ class _AddContactDialog extends HookWidget {
               const SizedBox(width: Spacings.xs),
 
               Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _handleSendChatRequest(context),
+                child: AppDialogProgressButton(
+                  onPressed: (inProgress) =>
+                      _handleSendChatRequest(context, inProgress),
+                  progressColor: colors.function.toggleWhite,
                   style: ButtonStyle(
                     backgroundColor: WidgetStatePropertyAll(
                       colors.accent.primary,
@@ -273,7 +286,31 @@ class _AddContactDialog extends HookWidget {
     );
   }
 
-  void _handleSendChatRequest(BuildContext context) async {
-    // TODO: Implement
+  void _handleSendChatRequest(
+    BuildContext context,
+    ValueNotifier<bool> inProgress,
+  ) async {
+    inProgress.value = true;
+
+    final userCubit = context.read<UserCubit>();
+    final navigationCubit = context.read<NavigationCubit>();
+
+    try {
+      final chatId = await userCubit.addContactFromGroup(
+        userId: userId,
+        chatId: groupChatId,
+      );
+      navigationCubit.openChat(chatId);
+    } catch (error) {
+      _log.severe("Failed to send contact request: ${error.toString()}");
+
+      if (!context.mounted) return;
+      Navigator.of(context).pop();
+
+      final loc = AppLocalizations.of(context);
+      showErrorBannerStandalone(loc.newConnectionDialog_error(displayName));
+    } finally {
+      inProgress.value = false;
+    }
   }
 }

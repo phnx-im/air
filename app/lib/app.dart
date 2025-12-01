@@ -20,6 +20,8 @@ import 'package:provider/provider.dart';
 
 final _appRouter = AppRouter();
 
+final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
 class App extends StatefulWidget {
   const App({super.key});
 
@@ -122,6 +124,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       ],
       child: InterfaceScale(
         child: MaterialApp.router(
+          scaffoldMessengerKey: scaffoldMessengerKey,
           onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,

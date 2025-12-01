@@ -102,6 +102,8 @@ class _ListTile extends StatelessWidget {
     );
     final isSelected = currentChatId == chatId;
 
+    debugPrint("chatId: $chatId, currentChatId: $currentChatId");
+
     return ListTile(
       horizontalTitleGap: 0,
       contentPadding: const EdgeInsets.symmetric(
@@ -128,6 +130,7 @@ class _ListTile extends StatelessWidget {
             final chat = context.select(
               (ChatDetailsCubit cubit) => cubit.state.chat,
             );
+            debugPrint("chat: $chat");
             if (chat == null) {
               return const SizedBox.shrink();
             }

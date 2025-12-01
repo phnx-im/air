@@ -412,6 +412,12 @@ abstract class AppLocalizations {
   /// **'Send'**
   String get addContactDialog_confirm;
 
+  /// No description provided for @addContactDialog_error.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send {username} a contact request. Try again.'**
+  String addContactDialog_error(Object username);
+
   /// No description provided for @changeGroupTitleDialog_title.
   ///
   /// In en, this message translates to:
