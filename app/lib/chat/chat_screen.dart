@@ -183,10 +183,6 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
       surfaceTintColor: Colors.transparent,
       scrolledUnderElevation: 0,
       elevation: 0,
-      toolbarHeight:
-          context.responsiveScreenType == ResponsiveScreenType.desktop
-          ? kToolbarHeight
-          : null,
       leading: context.responsiveScreenType == ResponsiveScreenType.mobile
           ? const AppBarBackButton()
           : const SizedBox.shrink(),
