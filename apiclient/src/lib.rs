@@ -7,8 +7,7 @@
 use std::{sync::Arc, time::Duration};
 
 use airprotos::{
-    auth_service::v1::auth_service_client::AuthServiceClient,
-    common::v1::{ClientMetadata, Platform, ReleaseChannel},
+    auth_service::v1::auth_service_client::AuthServiceClient, common::v1::ClientMetadata,
     delivery_service::v1::delivery_service_client::DeliveryServiceClient,
     queue_service::v1::queue_service_client::QueueServiceClient,
 };
@@ -19,6 +18,7 @@ use url::{ParseError, Url};
 
 pub mod as_api;
 pub mod ds_api;
+mod metadata;
 pub mod qs_api;
 pub(crate) mod util;
 
@@ -45,7 +45,6 @@ pub struct ApiClient {
 
 #[derive(Debug)]
 struct ApiClientInner {
-    metadata: ClientMetadata,
     as_grpc_client: AuthServiceClient<Channel>,
     qs_grpc_client: QueueServiceClient<Channel>,
     ds_grpc_client: DeliveryServiceClient<Channel>,
@@ -56,13 +55,6 @@ impl ApiClient {
     ///
     /// The endpoint can be an URL or a hostname with an optional port.
     pub fn new(endpoint: &str) -> Result<Self, ApiClientInitError> {
-        // TODO
-        let metadata = ClientMetadata {
-            version: "0.1.0".to_owned(),
-            platform: Platform::Android.into(),
-            channel: ReleaseChannel::Stable.into(),
-        };
-
         let url = match Url::parse(endpoint) {
             // We first check if the domain is a valid URL.
             Ok(url) => url,
@@ -88,7 +80,6 @@ impl ApiClient {
 
         Ok(Self {
             inner: Arc::new(ApiClientInner {
-                metadata,
                 as_grpc_client,
                 qs_grpc_client,
                 ds_grpc_client,
@@ -109,6 +100,6 @@ impl ApiClient {
     }
 
     pub(crate) fn metadata(&self) -> &ClientMetadata {
-        &self.inner.metadata
+        &metadata::METADATA
     }
 }

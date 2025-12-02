@@ -95,6 +95,7 @@ serde = { version = "1.0.147", features = ["derive"] }
 serde_bytes = "0.11.17"
 serde_json = "1.0.140"
 sha2 = "0.10.9"
+shadow-rs = { version = "1.4.0", default-features = false }
 sqlx = { version = "0.8.5", default-features = false, features = ["macros", "uuid", "chrono", "migrate", "bigdecimal", "runtime-tokio"] }
 tar = "0.4.44"
 tempfile = "3.23.0"
