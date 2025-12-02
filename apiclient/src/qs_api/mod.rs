@@ -41,8 +41,6 @@ use crate::{
     util::{CancellableStream, CancellingStream},
 };
 
-pub mod grpc;
-
 #[derive(Error, Debug)]
 pub enum QsRequestError {
     #[error(transparent)]
@@ -76,7 +74,6 @@ impl ApiClient {
         };
         let response = self
             .qs_grpc_client()
-            .client()
             .create_user(request)
             .await?
             .into_inner();
@@ -112,7 +109,7 @@ impl ApiClient {
             user_record_auth_key: Some(signing_key.verifying_key().clone().into()),
             friendship_token: Some(friendship_token.into()),
         };
-        self.qs_grpc_client().client().update_user(request).await?;
+        self.qs_grpc_client().update_user(request).await?;
         Ok(())
     }
 
@@ -125,7 +122,7 @@ impl ApiClient {
             client_metadata: Some(self.metadata().clone()),
             sender: Some(sender.into()),
         };
-        self.qs_grpc_client().client().delete_user(request).await?;
+        self.qs_grpc_client().delete_user(request).await?;
         Ok(())
     }
 
@@ -148,7 +145,6 @@ impl ApiClient {
         };
         let response = self
             .qs_grpc_client()
-            .client()
             .create_client(request)
             .await?
             .into_inner();
@@ -178,10 +174,7 @@ impl ApiClient {
             queue_encryption_key: Some(queue_encryption_key.into()),
             encrypted_push_token: encrypted_push_token.map(|token| token.into()),
         };
-        self.qs_grpc_client()
-            .client()
-            .update_client(request)
-            .await?;
+        self.qs_grpc_client().update_client(request).await?;
         Ok(())
     }
 
@@ -194,10 +187,7 @@ impl ApiClient {
             client_metadata: Some(self.metadata().clone()),
             sender: Some(sender.into()),
         };
-        self.qs_grpc_client()
-            .client()
-            .delete_client(request)
-            .await?;
+        self.qs_grpc_client().delete_client(request).await?;
         Ok(())
     }
 
@@ -215,10 +205,7 @@ impl ApiClient {
                 .map(|key_package| key_package.try_into())
                 .collect::<Result<Vec<_>, _>>()?,
         };
-        self.qs_grpc_client()
-            .client()
-            .publish_key_packages(request)
-            .await?;
+        self.qs_grpc_client().publish_key_packages(request).await?;
         Ok(())
     }
 
@@ -232,7 +219,6 @@ impl ApiClient {
         };
         let response = self
             .qs_grpc_client()
-            .client()
             .key_package(request)
             .await?
             .into_inner();
@@ -253,7 +239,6 @@ impl ApiClient {
         };
         let response = self
             .qs_grpc_client()
-            .client()
             .qs_encryption_key(request)
             .await?
             .into_inner();
@@ -295,7 +280,7 @@ impl ApiClient {
             cancel.clone(),
         );
 
-        let response = self.qs_grpc_client().client().listen(requests).await?;
+        let response = self.qs_grpc_client().listen(requests).await?;
         let responses = response.into_inner().map_while(|response| {
             response
                 .inspect_err(|status| error!(?status, "terminating listen stream due to an error"))

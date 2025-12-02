@@ -263,7 +263,7 @@ mod tests {
             self, ConnectionOfferMessage, EnqueueConnectionOfferResponse,
             EnqueueConnectionOfferStep, FetchConnectionPackageStep,
         },
-        common::v1::{Channel, ClientMetadata, Platform},
+        common::v1::{ClientMetadata, Platform, ReleaseChannel},
     };
     use mockall::predicate::*;
     use tokio::{sync::mpsc, task::JoinHandle, time::timeout};
@@ -287,7 +287,7 @@ mod tests {
     static CLIENT_METADATA: LazyLock<ClientMetadata> = LazyLock::new(|| ClientMetadata {
         version: "0.1.0".to_owned(),
         platform: Platform::Linux.into(),
-        channel: Channel::Dev.into(),
+        channel: ReleaseChannel::Dev.into(),
     });
 
     #[expect(clippy::type_complexity, reason = "usage in tests is straightforward")]

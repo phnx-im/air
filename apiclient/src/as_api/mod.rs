@@ -41,8 +41,6 @@ use tonic::Request;
 use tracing::error;
 use uuid::Uuid;
 
-pub mod grpc;
-
 use crate::ApiClient;
 
 #[derive(Error, Debug)]
@@ -82,7 +80,6 @@ impl ApiClient {
         };
         let response = self
             .as_grpc_client()
-            .client()
             .register_user(Request::new(request))
             .await?
             .into_inner();
@@ -113,7 +110,6 @@ impl ApiClient {
         };
         let response = self
             .as_grpc_client()
-            .client()
             .get_user_profile(request)
             .await?
             .into_inner();
@@ -144,10 +140,7 @@ impl ApiClient {
             encrypted_user_profile: Some(encrypted_user_profile.into()),
         };
         let request = payload.sign(signing_key)?;
-        self.as_grpc_client()
-            .client()
-            .stage_user_profile(request)
-            .await?;
+        self.as_grpc_client().stage_user_profile(request).await?;
         Ok(())
     }
 
@@ -161,10 +154,7 @@ impl ApiClient {
             user_id: Some(user_id.into()),
         };
         let request = payload.sign(signing_key)?;
-        self.as_grpc_client()
-            .client()
-            .merge_user_profile(request)
-            .await?;
+        self.as_grpc_client().merge_user_profile(request).await?;
         Ok(())
     }
 
@@ -178,7 +168,7 @@ impl ApiClient {
             user_id: Some(user_id.into()),
         };
         let request = payload.sign(signing_key)?;
-        self.as_grpc_client().client().delete_user(request).await?;
+        self.as_grpc_client().delete_user(request).await?;
         Ok(())
     }
 
@@ -195,7 +185,6 @@ impl ApiClient {
         };
         let request = payload.sign(signing_key)?;
         self.as_grpc_client()
-            .client()
             .publish_connection_packages(request)
             .await?;
         Ok(())
@@ -213,7 +202,7 @@ impl ApiClient {
             spammer_id: Some(spammer_id.into()),
         };
         let request = payload.sign(signing_key)?;
-        self.as_grpc_client().client().report_spam(request).await?;
+        self.as_grpc_client().report_spam(request).await?;
         Ok(())
     }
 
@@ -257,7 +246,6 @@ impl ApiClient {
             .filter_map(identity);
         let mut responses = self
             .as_grpc_client()
-            .client()
             .connect_handle(requests)
             .await?
             .into_inner();
@@ -343,7 +331,6 @@ impl ApiClient {
 
         let responses = self
             .as_grpc_client()
-            .client()
             .listen_handle(requests)
             .await?
             .into_inner();
@@ -368,7 +355,6 @@ impl ApiClient {
         };
         let response = self
             .as_grpc_client()
-            .client()
             .as_credentials(request)
             .await?
             .into_inner();
@@ -413,7 +399,6 @@ impl ApiClient {
         };
         let response = self
             .as_grpc_client()
-            .client()
             .check_handle_exists(request)
             .await?
             .into_inner();
@@ -433,7 +418,7 @@ impl ApiClient {
             hash: Some(hash.into()),
         };
         let request = payload.sign(signing_key)?;
-        match self.as_grpc_client().client().create_handle(request).await {
+        match self.as_grpc_client().create_handle(request).await {
             Ok(_) => Ok(true),
             Err(e) if e.code() == tonic::Code::AlreadyExists => Ok(false),
             Err(e) => Err(e.into()),
@@ -450,7 +435,7 @@ impl ApiClient {
             hash: Some(hash.into()),
         };
         let request = payload.sign(signing_key)?;
-        let res = self.as_grpc_client().client().delete_handle(request).await;
+        let res = self.as_grpc_client().delete_handle(request).await;
         match res {
             Ok(_) => Ok(UserHandleDeleteResponse::Success),
             Err(status) => match status.code() {

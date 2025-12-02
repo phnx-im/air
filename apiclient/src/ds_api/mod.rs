@@ -40,8 +40,6 @@ use tracing::error;
 
 use crate::ApiClient;
 
-pub mod grpc;
-
 #[derive(Debug, thiserror::Error)]
 pub enum DsRequestError {
     #[error("Library Error")]
@@ -80,7 +78,7 @@ impl ApiClient {
             room_state: Some(payload.room_state.unverified().try_ref_into()?),
         };
         let request = payload.sign(signing_key)?;
-        self.ds_grpc_client().client().create_group(request).await?;
+        self.ds_grpc_client().create_group(request).await?;
         Ok(())
     }
 
@@ -113,7 +111,6 @@ impl ApiClient {
         let request = payload.sign(signing_key)?;
         let response = self
             .ds_grpc_client()
-            .client()
             .group_operation(request)
             .await?
             .into_inner();
@@ -142,7 +139,6 @@ impl ApiClient {
         let request = payload.sign(signing_key)?;
         let response = self
             .ds_grpc_client()
-            .client()
             .welcome_info(request)
             .await?
             .into_inner();
@@ -181,7 +177,6 @@ impl ApiClient {
         };
         let response = self
             .ds_grpc_client()
-            .client()
             .external_commit_info(request)
             .await?
             .into_inner();
@@ -225,7 +220,6 @@ impl ApiClient {
         };
         let response = self
             .ds_grpc_client()
-            .client()
             .connection_group_info(request)
             .await?
             .into_inner();
@@ -271,7 +265,6 @@ impl ApiClient {
         let request = payload.sign(signing_key)?;
         let response = self
             .ds_grpc_client()
-            .client()
             .group_operation(request)
             .await?
             .into_inner();
@@ -298,7 +291,6 @@ impl ApiClient {
         };
         let response = self
             .ds_grpc_client()
-            .client()
             .join_connection_group(request)
             .await?
             .into_inner();
@@ -325,12 +317,7 @@ impl ApiClient {
             sender: Some(own_leaf_index.into()),
         };
         let request = payload.sign(signing_key)?;
-        let response = self
-            .ds_grpc_client()
-            .client()
-            .resync(request)
-            .await?
-            .into_inner();
+        let response = self.ds_grpc_client().resync(request).await?.into_inner();
         Ok(response
             .fanout_timestamp
             .ok_or(DsRequestError::UnexpectedResponse)?
@@ -352,7 +339,6 @@ impl ApiClient {
         let request = payload.sign(signing_key)?;
         let response = self
             .ds_grpc_client()
-            .client()
             .self_remove(request)
             .await?
             .into_inner();
@@ -379,7 +365,6 @@ impl ApiClient {
         let request = payload.sign(signing_key)?;
         let response = self
             .ds_grpc_client()
-            .client()
             .send_message(request)
             .await?
             .into_inner();
@@ -405,7 +390,6 @@ impl ApiClient {
         let request = payload.sign(signing_key)?;
         let response = self
             .ds_grpc_client()
-            .client()
             .targeted_message(request)
             .await?
             .into_inner();
@@ -430,7 +414,6 @@ impl ApiClient {
         let request = payload.sign(signing_key)?;
         let response = self
             .ds_grpc_client()
-            .client()
             .delete_group(request)
             .await?
             .into_inner();
@@ -456,10 +439,7 @@ impl ApiClient {
             encrypted_user_profile_key: Some(params.user_profile_key.into()),
         };
         let request = payload.sign(signing_key)?;
-        self.ds_grpc_client()
-            .client()
-            .update_profile_key(request)
-            .await?;
+        self.ds_grpc_client().update_profile_key(request).await?;
         Ok(())
     }
 
@@ -467,7 +447,6 @@ impl ApiClient {
     pub async fn ds_request_group_id(&self) -> Result<GroupId, DsRequestError> {
         let response = self
             .ds_grpc_client()
-            .client()
             .request_group_id(RequestGroupIdRequest {
                 client_metadata: Some(self.metadata().clone()),
             })
@@ -511,7 +490,6 @@ impl ApiClient {
         let request = payload.sign(signing_key)?;
         let response = self
             .ds_grpc_client()
-            .client()
             .provision_attachment(request)
             .await?
             .into_inner();
@@ -538,7 +516,6 @@ impl ApiClient {
         let request = payload.sign(signing_key)?;
         let response = self
             .ds_grpc_client()
-            .client()
             .get_attachment_url(request)
             .await?
             .into_inner();

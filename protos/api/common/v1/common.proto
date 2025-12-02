@@ -65,7 +65,7 @@ message ClientMetadata {
   // Semver version of the client
   string version = 1;
   Platform platform = 2;
-  Channel channel = 3;
+  ReleaseChannel channel = 3;
 }
 
 enum Platform {
@@ -77,9 +77,9 @@ enum Platform {
   PLATFORM_LINUX = 5;
 }
 
-enum Channel {
-  CHANNEL_UNSPECIFIED = 0;
-  CHANNEL_DEV = 1;
-  CHANNEL_BETA = 2;
-  CHANNEL_STABLE = 3;
+enum ReleaseChannel {
+  RELEASE_CHANNEL_UNSPECIFIED = 0;
+  RELEASE_CHANNEL_STABLE = 1;
+  RELEASE_CHANNEL_BETA = 2;
+  RELEASE_CHANNEL_DEV = 3;
 }

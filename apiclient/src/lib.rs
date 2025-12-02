@@ -8,15 +8,12 @@ use std::{sync::Arc, time::Duration};
 
 use airprotos::{
     auth_service::v1::auth_service_client::AuthServiceClient,
-    common::v1::{Channel, ClientMetadata, Platform},
+    common::v1::{ClientMetadata, Platform, ReleaseChannel},
     delivery_service::v1::delivery_service_client::DeliveryServiceClient,
     queue_service::v1::queue_service_client::QueueServiceClient,
 };
-use as_api::grpc::AsGrpcClient;
-use ds_api::grpc::DsGrpcClient;
-use qs_api::grpc::QsGrpcClient;
 use thiserror::Error;
-use tonic::transport::ClientTlsConfig;
+use tonic::transport::{Channel, ClientTlsConfig};
 use tracing::info;
 use url::{ParseError, Url};
 
@@ -49,9 +46,9 @@ pub struct ApiClient {
 #[derive(Debug)]
 struct ApiClientInner {
     metadata: ClientMetadata,
-    as_grpc_client: AsGrpcClient,
-    qs_grpc_client: QsGrpcClient,
-    ds_grpc_client: DsGrpcClient,
+    as_grpc_client: AuthServiceClient<Channel>,
+    qs_grpc_client: QueueServiceClient<Channel>,
+    ds_grpc_client: DeliveryServiceClient<Channel>,
 }
 
 impl ApiClient {
@@ -63,7 +60,7 @@ impl ApiClient {
         let metadata = ClientMetadata {
             version: "0.1.0".to_owned(),
             platform: Platform::Android.into(),
-            channel: Channel::Stable.into(),
+            channel: ReleaseChannel::Stable.into(),
         };
 
         let url = match Url::parse(endpoint) {
@@ -85,9 +82,9 @@ impl ApiClient {
             .tls_config(ClientTlsConfig::new().with_webpki_roots())?
             .http2_keep_alive_interval(Duration::from_secs(30))
             .connect_lazy();
-        let as_grpc_client = AsGrpcClient::new(AuthServiceClient::new(channel.clone()));
-        let ds_grpc_client = DsGrpcClient::new(DeliveryServiceClient::new(channel.clone()));
-        let qs_grpc_client = QsGrpcClient::new(QueueServiceClient::new(channel));
+        let as_grpc_client = AuthServiceClient::new(channel.clone());
+        let ds_grpc_client = DeliveryServiceClient::new(channel.clone());
+        let qs_grpc_client = QueueServiceClient::new(channel);
 
         Ok(Self {
             inner: Arc::new(ApiClientInner {
@@ -99,16 +96,16 @@ impl ApiClient {
         })
     }
 
-    pub(crate) fn as_grpc_client(&self) -> &AsGrpcClient {
-        &self.inner.as_grpc_client
+    pub(crate) fn as_grpc_client(&self) -> AuthServiceClient<Channel> {
+        self.inner.as_grpc_client.clone()
     }
 
-    pub(crate) fn qs_grpc_client(&self) -> &QsGrpcClient {
-        &self.inner.qs_grpc_client
+    pub(crate) fn qs_grpc_client(&self) -> QueueServiceClient<Channel> {
+        self.inner.qs_grpc_client.clone()
     }
 
-    pub(crate) fn ds_grpc_client(&self) -> &DsGrpcClient {
-        &self.inner.ds_grpc_client
+    pub(crate) fn ds_grpc_client(&self) -> DeliveryServiceClient<Channel> {
+        self.inner.ds_grpc_client.clone()
     }
 
     pub(crate) fn metadata(&self) -> &ClientMetadata {
