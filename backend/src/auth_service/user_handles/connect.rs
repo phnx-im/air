@@ -252,15 +252,18 @@ impl AuthService {
 
 #[cfg(test)]
 mod tests {
-    use std::time;
+    use std::{sync::LazyLock, time};
 
     use aircommon::{
         credentials::keys::{HandleSigningKey, HandleVerifyingKey},
         time::Duration,
     };
-    use airprotos::auth_service::v1::{
-        self, ConnectionOfferMessage, EnqueueConnectionOfferResponse, EnqueueConnectionOfferStep,
-        FetchConnectionPackageStep,
+    use airprotos::{
+        auth_service::v1::{
+            self, ConnectionOfferMessage, EnqueueConnectionOfferResponse,
+            EnqueueConnectionOfferStep, FetchConnectionPackageStep,
+        },
+        common::v1::{Channel, ClientMetadata, Platform},
     };
     use mockall::predicate::*;
     use tokio::{sync::mpsc, task::JoinHandle, time::timeout};
@@ -280,6 +283,12 @@ mod tests {
     }
 
     const PROTOCOL_TIMEOUT: time::Duration = time::Duration::from_secs(1);
+
+    static CLIENT_METADATA: LazyLock<ClientMetadata> = LazyLock::new(|| ClientMetadata {
+        version: "0.1.0".to_owned(),
+        platform: Platform::Linux.into(),
+        channel: Channel::Dev.into(),
+    });
 
     #[expect(clippy::type_complexity, reason = "usage in tests is straightforward")]
     fn run_test_protocol(
@@ -347,6 +356,7 @@ mod tests {
 
         let request_fetch = ConnectRequest {
             step: Some(connect_request::Step::Fetch(FetchConnectionPackageStep {
+                client_metadata: Some(CLIENT_METADATA.clone()),
                 hash: Some(hash.into()),
             })),
         };
@@ -403,6 +413,7 @@ mod tests {
 
         let request_fetch = ConnectRequest {
             step: Some(connect_request::Step::Fetch(FetchConnectionPackageStep {
+                client_metadata: Some(CLIENT_METADATA.clone()),
                 hash: Some(hash.into()),
             })),
         };
@@ -434,6 +445,7 @@ mod tests {
 
         let request_fetch = ConnectRequest {
             step: Some(connect_request::Step::Fetch(FetchConnectionPackageStep {
+                client_metadata: Some(CLIENT_METADATA.clone()),
                 hash: Some(hash.into()),
             })),
         };
@@ -521,6 +533,7 @@ mod tests {
         requests
             .send(Ok(ConnectRequest {
                 step: Some(connect_request::Step::Fetch(FetchConnectionPackageStep {
+                    client_metadata: Some(CLIENT_METADATA.clone()),
                     hash: Some(hash.into()),
                 })),
             }))
@@ -532,6 +545,7 @@ mod tests {
         requests
             .send(Ok(ConnectRequest {
                 step: Some(connect_request::Step::Fetch(FetchConnectionPackageStep {
+                    client_metadata: Some(CLIENT_METADATA.clone()),
                     hash: Some(hash.into()),
                 })),
             }))

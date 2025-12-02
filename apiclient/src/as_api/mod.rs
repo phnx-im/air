@@ -81,7 +81,7 @@ impl ApiClient {
             encrypted_user_profile: Some(encrypted_user_profile.into()),
         };
         let response = self
-            .as_grpc_client
+            .as_grpc_client()
             .client()
             .register_user(Request::new(request))
             .await?
@@ -107,11 +107,12 @@ impl ApiClient {
         key_index: UserProfileKeyIndex,
     ) -> Result<GetUserProfileResponse, AsRequestError> {
         let request = GetUserProfileRequest {
+            client_metadata: Some(self.metadata().clone()),
             user_id: Some(user_id.into()),
             key_index: key_index.into_bytes().to_vec(),
         };
         let response = self
-            .as_grpc_client
+            .as_grpc_client()
             .client()
             .get_user_profile(request)
             .await?
@@ -138,11 +139,12 @@ impl ApiClient {
         encrypted_user_profile: EncryptedUserProfile,
     ) -> Result<(), AsRequestError> {
         let payload = StageUserProfilePayload {
+            client_metadata: Some(self.metadata().clone()),
             user_id: Some(user_id.into()),
             encrypted_user_profile: Some(encrypted_user_profile.into()),
         };
         let request = payload.sign(signing_key)?;
-        self.as_grpc_client
+        self.as_grpc_client()
             .client()
             .stage_user_profile(request)
             .await?;
@@ -155,10 +157,11 @@ impl ApiClient {
         signing_key: &ClientSigningKey,
     ) -> Result<(), AsRequestError> {
         let payload = MergeUserProfilePayload {
+            client_metadata: Some(self.metadata().clone()),
             user_id: Some(user_id.into()),
         };
         let request = payload.sign(signing_key)?;
-        self.as_grpc_client
+        self.as_grpc_client()
             .client()
             .merge_user_profile(request)
             .await?;
@@ -171,10 +174,11 @@ impl ApiClient {
         signing_key: &ClientSigningKey,
     ) -> Result<(), AsRequestError> {
         let payload = DeleteUserPayload {
+            client_metadata: Some(self.metadata().clone()),
             user_id: Some(user_id.into()),
         };
         let request = payload.sign(signing_key)?;
-        self.as_grpc_client.client().delete_user(request).await?;
+        self.as_grpc_client().client().delete_user(request).await?;
         Ok(())
     }
 
@@ -185,11 +189,12 @@ impl ApiClient {
         signing_key: &HandleSigningKey,
     ) -> Result<(), AsRequestError> {
         let payload = PublishConnectionPackagesPayload {
+            client_metadata: Some(self.metadata().clone()),
             hash: Some(hash.into()),
             connection_packages: connection_packages.into_iter().map(From::from).collect(),
         };
         let request = payload.sign(signing_key)?;
-        self.as_grpc_client
+        self.as_grpc_client()
             .client()
             .publish_connection_packages(request)
             .await?;
@@ -203,11 +208,12 @@ impl ApiClient {
         signing_key: &ClientSigningKey,
     ) -> Result<(), AsRequestError> {
         let payload = ReportSpamPayload {
+            client_metadata: Some(self.metadata().clone()),
             reporter_id: Some(reporter_id.into()),
             spammer_id: Some(spammer_id.into()),
         };
         let request = payload.sign(signing_key)?;
-        self.as_grpc_client.client().report_spam(request).await?;
+        self.as_grpc_client().client().report_spam(request).await?;
         Ok(())
     }
 
@@ -229,6 +235,7 @@ impl ApiClient {
         // Step 1: Fetch connection package
         let fetch_request = ConnectRequest {
             step: Some(connect_request::Step::Fetch(FetchConnectionPackageStep {
+                client_metadata: Some(self.metadata().clone()),
                 hash: Some(hash.into()),
             })),
         };
@@ -249,7 +256,7 @@ impl ApiClient {
             .chain(connection_offer_fut.into_stream())
             .filter_map(identity);
         let mut responses = self
-            .as_grpc_client
+            .as_grpc_client()
             .client()
             .connect_handle(requests)
             .await?
@@ -313,6 +320,7 @@ impl ApiClient {
         AsRequestError,
     > {
         let init_payload = InitListenHandlePayload {
+            client_metadata: Some(self.metadata().clone()),
             hash: Some(hash.into()),
         };
         let init_request = init_payload.sign(signing_key)?;
@@ -334,7 +342,7 @@ impl ApiClient {
         );
 
         let responses = self
-            .as_grpc_client
+            .as_grpc_client()
             .client()
             .listen_handle(requests)
             .await?
@@ -355,9 +363,11 @@ impl ApiClient {
     }
 
     pub async fn as_as_credentials(&self) -> Result<AsCredentialsResponseIn, AsRequestError> {
-        let request = AsCredentialsRequest {};
+        let request = AsCredentialsRequest {
+            client_metadata: Some(self.metadata().clone()),
+        };
         let response = self
-            .as_grpc_client
+            .as_grpc_client()
             .client()
             .as_credentials(request)
             .await?
@@ -398,10 +408,11 @@ impl ApiClient {
         user_handle_hash: UserHandleHash,
     ) -> Result<bool, AsRequestError> {
         let request = CheckHandleExistsRequest {
+            client_metadata: Some(self.metadata().clone()),
             hash: Some(user_handle_hash.into()),
         };
         let response = self
-            .as_grpc_client
+            .as_grpc_client()
             .client()
             .check_handle_exists(request)
             .await?
@@ -416,12 +427,13 @@ impl ApiClient {
         signing_key: &HandleSigningKey,
     ) -> Result<bool, AsRequestError> {
         let payload = CreateHandlePayload {
+            client_metadata: Some(self.metadata().clone()),
             verifying_key: Some(signing_key.verifying_key().clone().into()),
             plaintext: user_handle.plaintext().into(),
             hash: Some(hash.into()),
         };
         let request = payload.sign(signing_key)?;
-        match self.as_grpc_client.client().create_handle(request).await {
+        match self.as_grpc_client().client().create_handle(request).await {
             Ok(_) => Ok(true),
             Err(e) if e.code() == tonic::Code::AlreadyExists => Ok(false),
             Err(e) => Err(e.into()),
@@ -434,10 +446,11 @@ impl ApiClient {
         signing_key: &HandleSigningKey,
     ) -> Result<UserHandleDeleteResponse, AsRequestError> {
         let payload = DeleteHandlePayload {
+            client_metadata: Some(self.metadata().clone()),
             hash: Some(hash.into()),
         };
         let request = payload.sign(signing_key)?;
-        let res = self.as_grpc_client.client().delete_handle(request).await;
+        let res = self.as_grpc_client().client().delete_handle(request).await;
         match res {
             Ok(_) => Ok(UserHandleDeleteResponse::Success),
             Err(status) => match status.code() {

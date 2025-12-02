@@ -60,3 +60,26 @@ message ExpirationData {
   Timestamp not_before = 1;
   Timestamp not_after = 2;
 }
+
+message ClientMetadata {
+  // Semver version of the client
+  string version = 1;
+  Platform platform = 2;
+  Channel channel = 3;
+}
+
+enum Platform {
+  PLATFORM_UNSPECIFIED = 0;
+  PLATFORM_IOS = 1;
+  PLATFORM_ANDROID = 2;
+  PLATFORM_MACOS = 3;
+  PLATFORM_WINDOWS = 4;
+  PLATFORM_LINUX = 5;
+}
+
+enum Channel {
+  CHANNEL_UNSPECIFIED = 0;
+  CHANNEL_DEV = 1;
+  CHANNEL_BETA = 2;
+  CHANNEL_STABLE = 3;
+}

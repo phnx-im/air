@@ -7,8 +7,8 @@
 use aircommon::{
     LibraryError,
     credentials::keys::ClientSigningKey,
-    crypto::ear::keys::GroupStateEarKey,
-    identifiers::{AttachmentId, QsReference},
+    crypto::{ear::keys::GroupStateEarKey, signatures::signable::Signable},
+    identifiers::{AttachmentId, QsReference, QualifiedGroupId},
     messages::{
         client_ds::UserProfileKeyUpdateParams,
         client_ds_out::{
@@ -20,10 +20,23 @@ use aircommon::{
     time::TimeStamp,
 };
 pub use airprotos::delivery_service::v1::ProvisionAttachmentResponse;
+use airprotos::{
+    convert::{RefInto, TryRefInto},
+    delivery_service::v1::{
+        AddUsersInfo, ConnectionGroupInfoRequest, CreateGroupPayload, DeleteGroupPayload,
+        ExternalCommitInfoRequest, GetAttachmentUrlPayload, GroupOperationPayload,
+        JoinConnectionGroupRequest, ProvisionAttachmentPayload, RequestGroupIdRequest,
+        ResyncPayload, SelfRemovePayload, SendMessagePayload, TargetedMessagePayload,
+        UpdateProfileKeyPayload, WelcomeInfoPayload,
+    },
+    validation::MissingFieldExt,
+};
+use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
     messages::AssistedMessageOut,
     openmls::prelude::{GroupEpoch, GroupId, LeafNodeIndex, MlsMessageOut},
 };
+use tracing::error;
 
 use crate::ApiClient;
 
@@ -55,9 +68,20 @@ impl ApiClient {
         signing_key: &ClientSigningKey,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<(), DsRequestError> {
-        self.ds_grpc_client
-            .create_group(payload, signing_key, group_state_ear_key)
-            .await
+        let qgid: QualifiedGroupId = payload.group_id.try_into()?;
+        let payload = CreateGroupPayload {
+            client_metadata: Some(self.metadata().clone()),
+            qgid: Some(qgid.ref_into()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            ratchet_tree: Some(payload.ratchet_tree.try_ref_into()?),
+            encrypted_user_profile_key: Some(payload.encrypted_user_profile_key.into()),
+            creator_client_reference: Some(payload.creator_client_reference.into()),
+            group_info: Some(payload.group_info.try_ref_into()?),
+            room_state: Some(payload.room_state.unverified().try_ref_into()?),
+        };
+        let request = payload.sign(signing_key)?;
+        self.ds_grpc_client().client().create_group(request).await?;
+        Ok(())
     }
 
     /// Performs a group operation.
@@ -67,9 +91,36 @@ impl ApiClient {
         signing_key: &ClientSigningKey,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
-        self.ds_grpc_client
-            .group_operation(payload, signing_key, group_state_ear_key)
-            .await
+        let add_users_info = payload
+            .add_users_info_option
+            .map(|add_user_infos| {
+                Ok::<_, DsRequestError>(AddUsersInfo {
+                    welcome: Some(add_user_infos.welcome.try_ref_into()?),
+                    encrypted_welcome_attribution_info: add_user_infos
+                        .encrypted_welcome_attribution_infos
+                        .into_iter()
+                        .map(From::from)
+                        .collect(),
+                })
+            })
+            .transpose()?;
+        let payload = GroupOperationPayload {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            commit: Some(payload.commit.try_ref_into()?),
+            add_users_info,
+        };
+        let request = payload.sign(signing_key)?;
+        let response = self
+            .ds_grpc_client()
+            .client()
+            .group_operation(request)
+            .await?
+            .into_inner();
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
     }
 
     /// Get welcome information for a group.
@@ -80,9 +131,40 @@ impl ApiClient {
         group_state_ear_key: &GroupStateEarKey,
         signing_key: &ClientSigningKey,
     ) -> Result<WelcomeInfoIn, DsRequestError> {
-        self.ds_grpc_client
-            .welcome_info(group_id, epoch, group_state_ear_key, signing_key)
-            .await
+        let qgid: QualifiedGroupId = group_id.try_into()?;
+        let payload = WelcomeInfoPayload {
+            client_metadata: Some(self.metadata().clone()),
+            qgid: Some(qgid.ref_into()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            sender: Some(signing_key.credential().verifying_key().clone().into()),
+            epoch: Some(epoch.into()),
+        };
+        let request = payload.sign(signing_key)?;
+        let response = self
+            .ds_grpc_client()
+            .client()
+            .welcome_info(request)
+            .await?
+            .into_inner();
+        Ok(WelcomeInfoIn {
+            ratchet_tree: response
+                .ratchet_tree
+                .ok_or(DsRequestError::UnexpectedResponse)?
+                .try_ref_into()?,
+            encrypted_user_profile_keys: response
+                .encrypted_user_profile_keys
+                .into_iter()
+                .map(TryFrom::try_from)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|_| DsRequestError::UnexpectedResponse)?,
+            room_state: VerifiedRoomState::verify(
+                response
+                    .room_state
+                    .ok_or(DsRequestError::UnexpectedResponse)?
+                    .try_ref_into()?,
+            )
+            .map_err(|_| DsRequestError::UnexpectedResponse)?,
+        })
     }
 
     /// Get external commit information for a group.
@@ -91,9 +173,42 @@ impl ApiClient {
         group_id: GroupId,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<ExternalCommitInfoIn, DsRequestError> {
-        self.ds_grpc_client
-            .external_commit_info(group_id, group_state_ear_key)
-            .await
+        let qgid: QualifiedGroupId = group_id.try_into()?;
+        let request = ExternalCommitInfoRequest {
+            client_metadata: Some(self.metadata().clone()),
+            qgid: Some(qgid.ref_into()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+        };
+        let response = self
+            .ds_grpc_client()
+            .client()
+            .external_commit_info(request)
+            .await?
+            .into_inner();
+        Ok(ExternalCommitInfoIn {
+            verifiable_group_info: response
+                .group_info
+                .ok_or(DsRequestError::UnexpectedResponse)?
+                .try_ref_into()?,
+            ratchet_tree_in: response
+                .ratchet_tree
+                .ok_or(DsRequestError::UnexpectedResponse)?
+                .try_ref_into()?,
+            encrypted_user_profile_keys: response
+                .encrypted_user_profile_keys
+                .into_iter()
+                .map(TryFrom::try_from)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|_| DsRequestError::UnexpectedResponse)?,
+            room_state: VerifiedRoomState::verify(
+                response
+                    .room_state
+                    .ok_or(DsRequestError::UnexpectedResponse)?
+                    .try_ref_into()?,
+            )
+            .map_err(|_| DsRequestError::UnexpectedResponse)?,
+            proposals: response.proposals.into_iter().map(|m| m.tls).collect(),
+        })
     }
 
     /// Get external commit information for a connection group.
@@ -102,9 +217,42 @@ impl ApiClient {
         group_id: GroupId,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<ExternalCommitInfoIn, DsRequestError> {
-        self.ds_grpc_client
-            .connection_group_info(group_id, group_state_ear_key)
-            .await
+        let qgid: QualifiedGroupId = group_id.try_into()?;
+        let request = ConnectionGroupInfoRequest {
+            client_metadata: Some(self.metadata().clone()),
+            group_id: Some(qgid.ref_into()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+        };
+        let response = self
+            .ds_grpc_client()
+            .client()
+            .connection_group_info(request)
+            .await?
+            .into_inner();
+        Ok(ExternalCommitInfoIn {
+            verifiable_group_info: response
+                .group_info
+                .ok_or(DsRequestError::UnexpectedResponse)?
+                .try_ref_into()?,
+            ratchet_tree_in: response
+                .ratchet_tree
+                .ok_or(DsRequestError::UnexpectedResponse)?
+                .try_ref_into()?,
+            encrypted_user_profile_keys: response
+                .encrypted_user_profile_keys
+                .into_iter()
+                .map(TryFrom::try_from)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|_| DsRequestError::UnexpectedResponse)?,
+            room_state: VerifiedRoomState::verify(
+                response
+                    .room_state
+                    .ok_or(DsRequestError::UnexpectedResponse)?
+                    .try_ref_into()?,
+            )
+            .map_err(|_| DsRequestError::UnexpectedResponse)?,
+            proposals: response.proposals.into_iter().map(|m| m.tls).collect(),
+        })
     }
 
     /// Update your client in this group.
@@ -114,9 +262,23 @@ impl ApiClient {
         signing_key: &ClientSigningKey,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
-        self.ds_grpc_client
-            .update(params.commit, signing_key, group_state_ear_key)
-            .await
+        let payload = GroupOperationPayload {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            commit: Some(params.commit.try_ref_into()?),
+            add_users_info: None,
+        };
+        let request = payload.sign(signing_key)?;
+        let response = self
+            .ds_grpc_client()
+            .client()
+            .group_operation(request)
+            .await?
+            .into_inner();
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
     }
 
     /// Join the connection group with a new client.
@@ -128,9 +290,22 @@ impl ApiClient {
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
         let external_commit = AssistedMessageOut::new(commit, Some(group_info));
-        self.ds_grpc_client
-            .join_connection_group(external_commit, qs_client_reference, group_state_ear_key)
-            .await
+        let request = JoinConnectionGroupRequest {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            external_commit: Some(external_commit.try_ref_into()?),
+            qs_client_reference: Some(qs_client_reference.into()),
+        };
+        let response = self
+            .ds_grpc_client()
+            .client()
+            .join_connection_group(request)
+            .await?
+            .into_inner();
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
     }
 
     /// Resync a client to rejoin a group.
@@ -143,14 +318,23 @@ impl ApiClient {
         own_leaf_index: LeafNodeIndex,
     ) -> Result<TimeStamp, DsRequestError> {
         let external_commit = AssistedMessageOut::new(commit, Some(group_info));
-        self.ds_grpc_client
-            .resync(
-                external_commit,
-                signing_key,
-                own_leaf_index,
-                group_state_ear_key,
-            )
-            .await
+        let payload = ResyncPayload {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            external_commit: Some(external_commit.try_ref_into()?),
+            sender: Some(own_leaf_index.into()),
+        };
+        let request = payload.sign(signing_key)?;
+        let response = self
+            .ds_grpc_client()
+            .client()
+            .resync(request)
+            .await?
+            .into_inner();
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
     }
 
     /// Leave the given group with this client.
@@ -160,9 +344,22 @@ impl ApiClient {
         signing_key: &ClientSigningKey,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
-        self.ds_grpc_client
-            .self_remove(params.remove_proposal, signing_key, group_state_ear_key)
-            .await
+        let payload = SelfRemovePayload {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            remove_proposal: Some(params.remove_proposal.try_ref_into()?),
+        };
+        let request = payload.sign(signing_key)?;
+        let response = self
+            .ds_grpc_client()
+            .client()
+            .self_remove(request)
+            .await?
+            .into_inner();
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
     }
 
     /// Send a message to the given group.
@@ -172,9 +369,24 @@ impl ApiClient {
         signing_key: &ClientSigningKey,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
-        self.ds_grpc_client
-            .send_message(params, signing_key, group_state_ear_key)
-            .await
+        let payload = SendMessagePayload {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            message: Some(params.message.try_ref_into()?),
+            sender: Some(params.sender.into()),
+            suppress_notifications: Some(params.suppress_notifications),
+        };
+        let request = payload.sign(signing_key)?;
+        let response = self
+            .ds_grpc_client()
+            .client()
+            .send_message(request)
+            .await?
+            .into_inner();
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
     }
 
     /// Send a message to the recipient within the given group.
@@ -184,9 +396,23 @@ impl ApiClient {
         signing_key: &ClientSigningKey,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
-        self.ds_grpc_client
-            .targeted_message(params, signing_key, group_state_ear_key)
-            .await
+        let payload = TargetedMessagePayload {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            sender: Some(params.sender.into()),
+            targeted_message_type: Some(params.message_type.try_ref_into()?),
+        };
+        let request = payload.sign(signing_key)?;
+        let response = self
+            .ds_grpc_client()
+            .client()
+            .targeted_message(request)
+            .await?
+            .into_inner();
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
     }
 
     /// Delete the given group.
@@ -196,9 +422,22 @@ impl ApiClient {
         signing_key: &ClientSigningKey,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
-        self.ds_grpc_client
-            .delete_group(params, signing_key, group_state_ear_key)
-            .await
+        let payload = DeleteGroupPayload {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            commit: Some(params.commit.try_ref_into()?),
+        };
+        let request = payload.sign(signing_key)?;
+        let response = self
+            .ds_grpc_client()
+            .client()
+            .delete_group(request)
+            .await?
+            .into_inner();
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
     }
 
     /// Update the user's user profile key
@@ -208,14 +447,45 @@ impl ApiClient {
         signing_key: &ClientSigningKey,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<(), DsRequestError> {
-        self.ds_grpc_client
-            .user_profile_key_update(params, signing_key, group_state_ear_key)
-            .await
+        let qgid: QualifiedGroupId = params.group_id.try_into()?;
+        let payload = UpdateProfileKeyPayload {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            group_id: Some(qgid.ref_into()),
+            sender: Some(params.sender_index.into()),
+            encrypted_user_profile_key: Some(params.user_profile_key.into()),
+        };
+        let request = payload.sign(signing_key)?;
+        self.ds_grpc_client()
+            .client()
+            .update_profile_key(request)
+            .await?;
+        Ok(())
     }
 
     /// Request a group ID.
     pub async fn ds_request_group_id(&self) -> Result<GroupId, DsRequestError> {
-        self.ds_grpc_client.request_group_id().await
+        let response = self
+            .ds_grpc_client()
+            .client()
+            .request_group_id(RequestGroupIdRequest {
+                client_metadata: Some(self.metadata().clone()),
+            })
+            .await?
+            .into_inner();
+        let qgid: QualifiedGroupId = response
+            .group_id
+            .ok_or_missing_field("group_id")
+            .map_err(|error| {
+                error!(%error, "unexpected response");
+                DsRequestError::UnexpectedResponse
+            })?
+            .try_ref_into()
+            .map_err(|error| {
+                error!(%error, "unexpected response");
+                DsRequestError::UnexpectedResponse
+            })?;
+        Ok(qgid.into())
     }
 
     /// Provision an attachment for a group.
@@ -229,15 +499,23 @@ impl ApiClient {
         sender_index: LeafNodeIndex,
         content_length: i64,
     ) -> Result<ProvisionAttachmentResponse, DsRequestError> {
-        self.ds_grpc_client
-            .provision_attachment(
-                signing_key,
-                group_state_ear_key,
-                group_id,
-                sender_index,
-                content_length,
-            )
-            .await
+        let qgid: QualifiedGroupId = group_id.try_into()?;
+        let payload = ProvisionAttachmentPayload {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            group_id: Some(qgid.ref_into()),
+            sender: Some(sender_index.into()),
+            use_post_policy: true,
+            content_length,
+        };
+        let request = payload.sign(signing_key)?;
+        let response = self
+            .ds_grpc_client()
+            .client()
+            .provision_attachment(request)
+            .await?
+            .into_inner();
+        Ok(response)
     }
 
     /// Get the download URL for an attachment.
@@ -249,14 +527,21 @@ impl ApiClient {
         sender_index: LeafNodeIndex,
         attachment_id: AttachmentId,
     ) -> Result<String, DsRequestError> {
-        self.ds_grpc_client
-            .get_attachment_url(
-                signing_key,
-                group_state_ear_key,
-                group_id,
-                sender_index,
-                attachment_id,
-            )
-            .await
+        let qgid: QualifiedGroupId = group_id.try_into()?;
+        let payload = GetAttachmentUrlPayload {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            group_id: Some(qgid.ref_into()),
+            sender: Some(sender_index.into()),
+            attachment_id: Some(attachment_id.uuid().into()),
+        };
+        let request = payload.sign(signing_key)?;
+        let response = self
+            .ds_grpc_client()
+            .client()
+            .get_attachment_url(request)
+            .await?
+            .into_inner();
+        Ok(response.download_url)
     }
 }

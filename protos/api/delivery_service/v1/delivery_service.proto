@@ -80,7 +80,9 @@ message RoomState {
 
 // request group id
 
-message RequestGroupIdRequest {}
+message RequestGroupIdRequest {
+  common.v1.ClientMetadata client_metadata = 1;
+}
 
 message RequestGroupIdResponse {
   common.v1.QualifiedGroupId group_id = 1;
@@ -96,6 +98,7 @@ message CreateGroupRequest {
 message CreateGroupResponse {}
 
 message CreateGroupPayload {
+  common.v1.ClientMetadata client_metadata = 9;
   common.v1.QualifiedGroupId qgid = 1;
   GroupStateEarKey group_state_ear_key = 2;
   RatchetTree ratchet_tree = 3;
@@ -126,6 +129,7 @@ message WelcomeInfoRequest {
 }
 
 message WelcomeInfoPayload {
+  common.v1.ClientMetadata client_metadata = 5;
   common.v1.QualifiedGroupId qgid = 1;
   GroupStateEarKey group_state_ear_key = 2;
   ClientVerifyingKey sender = 3;
@@ -149,6 +153,7 @@ message WelcomeInfoResponse {
 // external commit info
 
 message ExternalCommitInfoRequest {
+  common.v1.ClientMetadata client_metadata = 3;
   common.v1.QualifiedGroupId qgid = 1;
   GroupStateEarKey group_state_ear_key = 2;
 }
@@ -168,6 +173,7 @@ message GroupInfo {
 // connection group info
 
 message ConnectionGroupInfoRequest {
+  common.v1.ClientMetadata client_metadata = 3;
   common.v1.QualifiedGroupId group_id = 1;
   GroupStateEarKey group_state_ear_key = 2;
 }
@@ -183,6 +189,7 @@ message ConnectionGroupInfoResponse {
 // join connection group
 
 message JoinConnectionGroupRequest {
+  common.v1.ClientMetadata client_metadata = 4;
   GroupStateEarKey group_state_ear_key = 1;
   AssistedMessage external_commit = 2;
   QsReference qs_client_reference = 3;
@@ -202,6 +209,7 @@ message ResyncRequest {
 }
 
 message ResyncPayload {
+  common.v1.ClientMetadata client_metadata = 4;
   GroupStateEarKey group_state_ear_key = 1;
   AssistedMessage external_commit = 2;
   LeafNodeIndex sender = 3;
@@ -219,6 +227,7 @@ message SelfRemoveRequest {
 }
 
 message SelfRemovePayload {
+  common.v1.ClientMetadata client_metadata = 3;
   GroupStateEarKey group_state_ear_key = 1;
   AssistedMessage remove_proposal = 2;
 }
@@ -235,6 +244,7 @@ message SendMessageRequest {
 }
 
 message SendMessagePayload {
+  common.v1.ClientMetadata client_metadata = 5;
   GroupStateEarKey group_state_ear_key = 1;
   AssistedMessage message = 2;
   LeafNodeIndex sender = 3;
@@ -253,6 +263,7 @@ message DeleteGroupRequest {
 }
 
 message DeleteGroupPayload {
+  common.v1.ClientMetadata client_metadata = 3;
   GroupStateEarKey group_state_ear_key = 1;
   AssistedMessage commit = 2;
 }
@@ -269,6 +280,7 @@ message GroupOperationRequest {
 }
 
 message GroupOperationPayload {
+  common.v1.ClientMetadata client_metadata = 4;
   GroupStateEarKey group_state_ear_key = 1;
   AssistedMessage commit = 2;
   optional AddUsersInfo add_users_info = 3;
@@ -295,6 +307,7 @@ message TargetedMessageRequest {
 }
 
 message TargetedMessagePayload {
+  common.v1.ClientMetadata client_metadata = 4;
   GroupStateEarKey group_state_ear_key = 1;
   LeafNodeIndex sender = 2;
   oneof targeted_message_type {
@@ -321,6 +334,7 @@ message UpdateProfileKeyRequest {
 }
 
 message UpdateProfileKeyPayload {
+  common.v1.ClientMetadata client_metadata = 5;
   GroupStateEarKey group_state_ear_key = 1;
   common.v1.QualifiedGroupId group_id = 2;
   LeafNodeIndex sender = 3;
@@ -337,6 +351,7 @@ message ProvisionAttachmentRequest {
 }
 
 message ProvisionAttachmentPayload {
+  common.v1.ClientMetadata client_metadata = 6;
   GroupStateEarKey group_state_ear_key = 1;
   common.v1.QualifiedGroupId group_id = 2;
   LeafNodeIndex sender = 3;
@@ -371,6 +386,7 @@ message GetAttachmentUrlRequest {
 }
 
 message GetAttachmentUrlPayload {
+  common.v1.ClientMetadata client_metadata = 5;
   GroupStateEarKey group_state_ear_key = 1;
   common.v1.QualifiedGroupId group_id = 2;
   LeafNodeIndex sender = 3;
