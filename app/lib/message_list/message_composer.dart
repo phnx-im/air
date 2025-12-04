@@ -145,7 +145,7 @@ class _MessageComposerState extends State<MessageComposer>
           right: Spacings.xs,
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Expanded(
               child: Container(
