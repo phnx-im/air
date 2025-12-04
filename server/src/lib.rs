@@ -26,7 +26,10 @@ use connect_info::ConnectInfoInterceptor;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use tokio::net::TcpListener;
 use tokio_stream::wrappers::TcpListenerStream;
-use tonic::service::InterceptorLayer;
+use tonic::{
+    service::InterceptorLayer,
+    transport::{Identity, ServerTlsConfig},
+};
 use tonic_health::pb::health_server::{Health, HealthServer};
 use tower_governor::{
     GovernorLayer, governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor,
@@ -101,7 +104,11 @@ pub async fn run<
 
     let health_service = configure_health_service::<Qc, Np>().await;
 
+    let tls = configure_tls().unwrap();
+
     tonic::transport::Server::builder()
+        .tls_config(tls)
+        .unwrap()
         .http2_keepalive_interval(Some(Duration::from_secs(30)))
         .layer(InterceptorLayer::new(ConnectInfoInterceptor))
         .layer(GrpcMetricsLayer::new())
@@ -172,4 +179,14 @@ async fn configure_health_service<
         .await;
     reporter.set_serving::<QueueServiceServer<GrpcQs>>().await;
     service
+}
+
+fn configure_tls() -> anyhow::Result<ServerTlsConfig> {
+    let data_dir = std::path::PathBuf::from_iter([std::env!("CARGO_MANIFEST_DIR"), "data"]);
+    let cert = std::fs::read_to_string(data_dir.join("tls/server.pem"))?;
+    let key = std::fs::read_to_string(data_dir.join("tls/server.key"))?;
+
+    let identity = Identity::from_pem(cert, key);
+
+    Ok(ServerTlsConfig::new().identity(identity))
 }
