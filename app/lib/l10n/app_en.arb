@@ -61,6 +61,12 @@
   "deleteContactDialog_cancel": "Cancel",
   "deleteContactDialog_delete": "Delete",
 
+  "addContactDialog_title": "Add Air contact",
+  "addContactDialog_content": "{displayName} from the group chat \"{groupTitle}\" isn't an Air contact. To chat with them, send a contact request.",
+  "addContactDialog_cancel": "Cancel",
+  "addContactDialog_confirm": "Send",
+  "addContactDialog_error": "Failed to send {username} a contact request. Try again.",
+
   "changeGroupTitleDialog_title": "Change group title",
   "changeGroupTitleDialog_content": "Choose a title for the group.",
   "changeGroupTitleDialog_cancel": "Cancel",

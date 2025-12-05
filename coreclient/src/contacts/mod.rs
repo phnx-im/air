@@ -35,7 +35,7 @@ pub struct Contact {
     pub(crate) wai_ear_key: WelcomeAttributionInfoEarKey,
     pub(crate) friendship_token: FriendshipToken,
     // ID of the connection chat with this contact.
-    pub(crate) chat_id: ChatId,
+    pub chat_id: ChatId,
 }
 
 #[derive(Debug, Clone)]

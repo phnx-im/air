@@ -388,6 +388,36 @@ abstract class AppLocalizations {
   /// **'Delete'**
   String get deleteContactDialog_delete;
 
+  /// No description provided for @addContactDialog_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Air contact'**
+  String get addContactDialog_title;
+
+  /// No description provided for @addContactDialog_content.
+  ///
+  /// In en, this message translates to:
+  /// **'{displayName} from the group chat \"{groupTitle}\" isn\'t an Air contact. To chat with them, send a contact request.'**
+  String addContactDialog_content(Object displayName, Object groupTitle);
+
+  /// No description provided for @addContactDialog_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get addContactDialog_cancel;
+
+  /// No description provided for @addContactDialog_confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get addContactDialog_confirm;
+
+  /// No description provided for @addContactDialog_error.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send {username} a contact request. Try again.'**
+  String addContactDialog_error(Object username);
+
   /// No description provided for @changeGroupTitleDialog_title.
   ///
   /// In en, this message translates to:
