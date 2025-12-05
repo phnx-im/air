@@ -74,7 +74,7 @@ void main() {
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
     });
 
-    Widget buildSubject({bool useDarkTheme = false}) => MultiBlocProvider(
+    Widget buildSubject() => MultiBlocProvider(
       providers: [
         BlocProvider<NavigationCubit>.value(value: navigationCubit),
         BlocProvider<UserCubit>.value(value: userCubit),
@@ -87,7 +87,7 @@ void main() {
         builder: (context) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
-            theme: useDarkTheme ? darkTheme : lightTheme,
+            theme: themeData(MediaQuery.platformBrightnessOf(context)),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             home: const Scaffold(
               body: ChatScreenView(createMessageCubit: createMockMessageCubit),
@@ -130,6 +130,11 @@ void main() {
     });
 
     testWidgets('renders correctly (dark mode)', (tester) async {
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      addTearDown(() {
+        tester.platformDispatcher.clearPlatformBrightnessTestValue();
+      });
+
       when(() => navigationCubit.state).thenReturn(
         NavigationState.home(home: HomeNavigationState(chatId: chat.id)),
       );
@@ -139,7 +144,7 @@ void main() {
 
       VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
-      await tester.pumpWidget(buildSubject(useDarkTheme: true));
+      await tester.pumpWidget(buildSubject());
 
       await expectLater(
         find.byType(MaterialApp),

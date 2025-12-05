@@ -55,11 +55,17 @@
   "unblockContactDialog_cancel": "Cancel",
   "unblockContactDialog_unblock": "Unblock",
 
-  "deleteContactButton_text": "Delete Air contact",
-  "deleteContactDialog_title": "Delete Air contact",
-  "deleteContactDialog_content": "Are you sure you want to delete your Air contact {displayName}? If you do, the chat and its message history will be deleted.",
+  "deleteContactButton_text": "Delete",
+  "deleteContactDialog_title": "Delete Air Contact",
+  "deleteContactDialog_content": "Are you sure you want to delete your Air Contact {displayName}? If you do, the chat and its message history will be deleted.",
   "deleteContactDialog_cancel": "Cancel",
   "deleteContactDialog_delete": "Delete",
+
+  "addContactDialog_title": "Add Air contact",
+  "addContactDialog_content": "{displayName} from the group chat \"{groupTitle}\" isn't an Air contact. To chat with them, send a contact request.",
+  "addContactDialog_cancel": "Cancel",
+  "addContactDialog_confirm": "Send",
+  "addContactDialog_error": "Failed to send {username} a contact request. Try again.",
 
   "changeGroupTitleDialog_title": "Change group title",
   "changeGroupTitleDialog_content": "Choose a title for the group.",

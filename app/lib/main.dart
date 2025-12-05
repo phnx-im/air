@@ -51,3 +51,35 @@ void showErrorBanner(BuildContext context, String errorDescription) {
     ),
   );
 }
+
+/// TODO: Consolidate with [showErrorBanner]. Also, move into a separate file.
+void showErrorBannerStandalone(String errorDescription) {
+  scaffoldMessengerKey.currentState?.removeCurrentMaterialBanner.call();
+
+  final colors = CustomColorScheme.of(scaffoldMessengerKey.currentContext!);
+  scaffoldMessengerKey.currentState?.showMaterialBanner(
+    MaterialBanner(
+      backgroundColor: colors.function.danger,
+      elevation: 0,
+      dividerColor: Colors.transparent,
+      leading: WarningCircle(width: 32, color: colors.function.white),
+      padding: const EdgeInsets.all(20),
+      content: Text(
+        errorDescription,
+        style: TextStyle(color: colors.function.white),
+      ),
+      actions: [
+        Builder(
+          builder: (context) {
+            return TextButton(
+              child: Text('OK', style: TextStyle(color: colors.function.white)),
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+              },
+            );
+          },
+        ),
+      ],
+    ),
+  );
+}

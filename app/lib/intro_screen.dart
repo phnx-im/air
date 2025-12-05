@@ -15,6 +15,8 @@ import 'package:air/util/notification_permissions.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'ui/components/desktop/width_constraints.dart';
+
 class IntroScreen extends StatelessWidget {
   const IntroScreen({super.key});
 
@@ -34,11 +36,6 @@ class IntroScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: colors.backgroundBase.secondary,
       body: SafeArea(
-        minimum: const EdgeInsets.only(
-          left: Spacings.s,
-          right: Spacings.s,
-          bottom: Spacings.l + Spacings.xxs,
-        ),
         child: Stack(
           children: [
             Align(
@@ -61,8 +58,7 @@ class IntroScreen extends StatelessWidget {
             ),
             Align(
               alignment: Alignment.bottomCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
+              child: ConstrainedWidth(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -73,6 +69,8 @@ class IntroScreen extends StatelessWidget {
                         width: double.infinity,
                         child: Padding(
                           padding: const EdgeInsets.only(
+                            left: Spacings.m,
+                            right: Spacings.m,
                             top: Spacings.l + Spacings.xxs,
                           ),
                           child: OutlinedButton(
@@ -92,11 +90,18 @@ class IntroScreen extends StatelessWidget {
                               }
                               context.read<NavigationCubit>().openSignUp();
                             },
-                            child: Text(loc.introScreen_signUp),
+                            child: Text(
+                              loc.introScreen_signUp,
+                              style: TextStyle(
+                                color: colors.function.toggleWhite,
+                                fontSize: LabelFontSize.base.size,
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ],
+                    const SizedBox(height: Spacings.s),
                   ],
                 ),
               ),

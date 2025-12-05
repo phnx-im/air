@@ -49,7 +49,6 @@ class _MessageComposerState extends State<MessageComposer>
   StreamSubscription<ChatDetailsState>? _draftLoadingSubscription;
   final _focusNode = FocusNode();
   late ChatDetailsCubit _chatDetailsCubit;
-  bool _keyboardVisible = false;
   bool _inputIsEmpty = true;
   final LayerLink _inputFieldLink = LayerLink();
   final GlobalKey _inputFieldKey = GlobalKey();
@@ -126,19 +125,6 @@ class _MessageComposerState extends State<MessageComposer>
   }
 
   @override
-  void didChangeMetrics() {
-    final view = View.of(context);
-    final bottomInset = view.viewInsets.bottom;
-    final keyboardVisible = bottomInset > 0.0;
-
-    if (_keyboardVisible != keyboardVisible) {
-      setState(() {
-        _keyboardVisible = keyboardVisible;
-      });
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
     final (chatTitle, editingId) = context.select(
       (ChatDetailsCubit cubit) =>
@@ -153,11 +139,8 @@ class _MessageComposerState extends State<MessageComposer>
       duration: const Duration(milliseconds: 1000),
       child: Container(
         color: CustomColorScheme.of(context).backgroundBase.primary,
-        padding: EdgeInsets.only(
+        padding: const EdgeInsets.only(
           top: Spacings.xs,
-          bottom: isSmallScreen(context) && !_keyboardVisible
-              ? Spacings.m
-              : Spacings.xs,
           left: Spacings.xs,
           right: Spacings.xs,
         ),

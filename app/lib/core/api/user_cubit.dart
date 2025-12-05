@@ -26,6 +26,11 @@ abstract class UiUser implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>>
 abstract class UserCubitBase implements RustOpaqueInterface {
+  Future<ChatId> addContactFromGroup({
+    required ChatId chatId,
+    required UiUserId userId,
+  });
+
   Future<bool> addUserHandle({required UiUserHandle userHandle});
 
   Future<void> addUserToChat(ChatId chatId, UiUserId userId);
@@ -35,6 +40,8 @@ abstract class UserCubitBase implements RustOpaqueInterface {
   Future<void> blockContact({required UiUserId userId});
 
   Future<void> close();
+
+  Future<UiContact?> contact({required UiUserId userId});
 
   Future<List<UiContact>> get contacts;
 

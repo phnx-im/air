@@ -18,7 +18,8 @@ pub(crate) use aircoreclient::{
 use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact, ContentMessage, DisplayName,
-    ErrorMessage, EventMessage, InactiveChat, Message, SystemMessage, UserProfile, store::Store,
+    ErrorMessage, EventMessage, InactiveChat, Message, SystemMessage, TargetedMessageContact,
+    UserProfile, store::Store,
 };
 use chrono::{DateTime, Duration, Local, Utc};
 use flutter_rust_bridge::frb;
@@ -164,6 +165,9 @@ pub enum UiChatType {
     /// A connection chat that is confirmed by the other party and for which we have
     /// received the necessary secrets.
     Connection(UiUserProfile),
+    /// A connection chat that was established via a targeted message and is not yet confirmed by
+    /// the other party.
+    TargetedMessageConnection(UiUserProfile),
     /// A group chat, that is, it can contains multiple participants.
     Group,
 }
@@ -185,9 +189,12 @@ impl UiChatType {
                 let profile = UiUserProfile::from_profile(user_profile);
                 Self::Connection(profile)
             }
+            ChatType::TargetedMessageConnection(user_id) => {
+                let user_profile = store.user_profile(&user_id).await;
+                let profile = UiUserProfile::from_profile(user_profile);
+                Self::TargetedMessageConnection(profile)
+            }
             ChatType::Group => Self::Group,
-            // TODO: UI implementation for targeted message connections
-            ChatType::TargetedMessageConnection(_) => unreachable!(),
         }
     }
 }
@@ -512,12 +519,23 @@ impl UiFlightPosition {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct UiContact {
     pub user_id: UiUserId,
+    pub chat_id: ChatId,
 }
 
 impl From<Contact> for UiContact {
     fn from(contact: Contact) -> Self {
         Self {
             user_id: contact.user_id.into(),
+            chat_id: contact.chat_id,
+        }
+    }
+}
+
+impl From<TargetedMessageContact> for UiContact {
+    fn from(contact: TargetedMessageContact) -> Self {
+        Self {
+            user_id: contact.user_id.into(),
+            chat_id: contact.chat_id,
         }
     }
 }
