@@ -37,15 +37,15 @@ class CustomColorScheme {
 final CustomColorScheme lightCustomColorScheme = CustomColorScheme(
   backgroundBase: BackGroundBaseColors(
     primary: AppColors.neutral[0]!,
-    secondary: AppColors.neutral[25]!,
+    secondary: AppColors.neutral[50]!,
     tertiary: AppColors.neutral[0]!,
     quaternary: AppColors.neutral[50]!,
   ),
   backgroundElevated: BackGroundElevatedColors(
     primary: AppColors.neutral[0]!,
-    secondary: AppColors.neutral[25]!,
+    secondary: AppColors.neutral[50]!,
     tertiary: AppColors.neutral[0]!,
-    quaternary: AppColors.neutral[50]!,
+    quaternary: AppColors.neutral[100]!,
   ),
   text: TextColors(
     primary: AppColors.neutral[950]!.withValues(alpha: 0.95),
@@ -106,30 +106,30 @@ final CustomColorScheme lightCustomColorScheme = CustomColorScheme(
 final CustomColorScheme darkCustomColorScheme = CustomColorScheme(
   backgroundBase: BackGroundBaseColors(
     primary: AppColors.neutral[1000]!,
-    secondary: AppColors.neutral[975]!,
+    secondary: AppColors.neutral[950]!,
     tertiary: AppColors.neutral[1000]!,
-    quaternary: AppColors.neutral[950]!,
+    quaternary: AppColors.neutral[900]!,
   ),
   backgroundElevated: BackGroundElevatedColors(
-    primary: AppColors.neutral[950]!,
+    primary: AppColors.neutral[900]!,
     secondary: AppColors.neutral[800]!,
     tertiary: AppColors.neutral[700]!,
     quaternary: AppColors.neutral[600]!,
   ),
   text: TextColors(
-    primary: AppColors.neutral[50]!.withValues(alpha: 0.95),
-    secondary: AppColors.neutral[50]!.withValues(alpha: 0.85),
-    tertiary: AppColors.neutral[50]!.withValues(alpha: 0.60),
-    quaternary: AppColors.neutral[50]!.withValues(alpha: 0.40),
+    primary: AppColors.neutral[0]!.withValues(alpha: 0.95),
+    secondary: AppColors.neutral[0]!.withValues(alpha: 0.85),
+    tertiary: AppColors.neutral[0]!.withValues(alpha: 0.60),
+    quaternary: AppColors.neutral[0]!.withValues(alpha: 0.40),
   ),
   separator: SeparatorColors(
-    primary: AppColors.neutral[50]!.withValues(alpha: 0.20),
-    secondary: AppColors.neutral[50]!.withValues(alpha: 0.10),
+    primary: AppColors.neutral[0]!.withValues(alpha: 0.20),
+    secondary: AppColors.neutral[0]!.withValues(alpha: 0.10),
   ),
   fill: FillColors(
-    primary: AppColors.neutral[50]!.withValues(alpha: 0.20),
-    secondary: AppColors.neutral[50]!.withValues(alpha: 0.15),
-    tertiary: AppColors.neutral[50]!.withValues(alpha: 0.10),
+    primary: AppColors.neutral[0]!.withValues(alpha: 0.20),
+    secondary: AppColors.neutral[0]!.withValues(alpha: 0.15),
+    tertiary: AppColors.neutral[0]!.withValues(alpha: 0.10),
   ),
   function: FunctionColors(
     white: AppColors.neutral[0]!,
