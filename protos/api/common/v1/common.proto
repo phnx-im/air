@@ -63,23 +63,16 @@ message ExpirationData {
 
 message ClientMetadata {
   // Semver version of the client
-  string version = 1;
-  Platform platform = 2;
-  ReleaseChannel channel = 3;
+  Version version = 1;
 }
 
-enum Platform {
-  PLATFORM_UNSPECIFIED = 0;
-  PLATFORM_IOS = 1;
-  PLATFORM_ANDROID = 2;
-  PLATFORM_MACOS = 3;
-  PLATFORM_WINDOWS = 4;
-  PLATFORM_LINUX = 5;
-}
-
-enum ReleaseChannel {
-  RELEASE_CHANNEL_UNSPECIFIED = 0;
-  RELEASE_CHANNEL_STABLE = 1;
-  RELEASE_CHANNEL_BETA = 2;
-  RELEASE_CHANNEL_DEV = 3;
+// Semver with additional build metadata
+message Version {
+  uint64 major = 1;
+  uint64 minor = 2;
+  uint64 patch = 3;
+  string pre = 4;
+  uint64 build_number = 5;
+  // Possibly truncated hash of the commit
+  bytes commit_hash = 6;
 }

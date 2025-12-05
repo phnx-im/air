@@ -4,53 +4,30 @@
 
 use std::sync::LazyLock;
 
-use airprotos::common::v1::{ClientMetadata, Platform, ReleaseChannel};
+use airprotos::common::{self, v1::ClientMetadata};
 
 shadow_rs::shadow!(build);
 
 pub(super) static METADATA: LazyLock<ClientMetadata> = LazyLock::new(|| {
     let mut version = semver::Version::parse(build::PKG_VERSION).unwrap();
-    if build::GIT_CLEAN {
-        version.build = semver::BuildMetadata::new(&format!(
-            "{}.{}",
-            build::COMMITS_SINCE_TAG,
-            build::COMMIT_HASH.get(..8).unwrap()
-        ))
-        .unwrap();
-    } else {
+
+    if !build::GIT_CLEAN {
         version.pre = semver::Prerelease::new("dev").unwrap();
-        version.build = semver::BuildMetadata::new(&format!(
-            "{}.{}",
-            build::COMMITS_SINCE_TAG,
-            build::COMMIT_HASH.get(..8).unwrap()
-        ))
-        .unwrap();
     }
 
-    let channel = if build::GIT_CLEAN && build::BRANCH == "main" {
-        ReleaseChannel::Stable
-    } else {
-        ReleaseChannel::Dev
+    let build_number = u64::try_from(build::COMMITS_SINCE_TAG).unwrap();
+    let commit_hash = build::COMMIT_HASH.as_bytes()[0..8].to_vec();
+
+    let proto_version = common::v1::Version {
+        major: version.major,
+        minor: version.minor,
+        patch: version.patch,
+        pre: version.pre.as_str().to_owned(),
+        build_number,
+        commit_hash,
     };
 
     ClientMetadata {
-        version: version.to_string(),
-        platform: PLATFORM.into(),
-        channel: channel.into(),
+        version: Some(proto_version),
     }
 });
-
-#[cfg(target_os = "android")]
-const PLATFORM: Platform = Platform::Android;
-
-#[cfg(target_os = "ios")]
-const PLATFORM: Platform = Platform::Ios;
-
-#[cfg(target_os = "macos")]
-const PLATFORM: Platform = Platform::Macos;
-
-#[cfg(target_os = "linux")]
-const PLATFORM: Platform = Platform::Linux;
-
-#[cfg(target_os = "windows")]
-const PLATFORM: Platform = Platform::Windows;
