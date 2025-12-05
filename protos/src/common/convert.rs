@@ -15,10 +15,12 @@ use aircommon::{
     identifiers, time,
 };
 use chrono::DateTime;
+use itertools::Itertools;
+use semver::BuildMetadata;
 use tonic::Status;
 
 use crate::{
-    common::v1::ExpirationData,
+    common::v1::{ExpirationData, Version},
     convert::{FromRef, TryFromRef, TryRefInto},
     validation::{MissingFieldError, MissingFieldExt},
 };
@@ -394,6 +396,40 @@ impl From<time::ExpirationData> for ExpirationData {
     }
 }
 
+/// Convert a semver version to a proto version omitting the build metadata.
+impl From<semver::Version> for Version {
+    fn from(value: semver::Version) -> Self {
+        Self {
+            major: value.major,
+            minor: value.minor,
+            patch: value.patch,
+            pre: value.pre.as_str().to_owned(),
+            build_number: Default::default(),
+            commit_hash: Default::default(),
+        }
+    }
+}
+
+impl TryFrom<Version> for semver::Version {
+    type Error = semver::Error;
+
+    fn try_from(value: Version) -> Result<Self, Self::Error> {
+        let mut version = semver::Version::new(value.major, value.minor, value.patch);
+        if !value.pre.is_empty() {
+            version.pre = semver::Prerelease::new(&value.pre)?;
+        }
+        version.build = BuildMetadata::new(&format!(
+            "{}.{}",
+            value.build_number,
+            value
+                .commit_hash
+                .iter()
+                .format_with("", |byte, f| f(&format_args!("{:02x}", byte)))
+        ))?;
+        Ok(version)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use uuid::uuid;
@@ -406,5 +442,26 @@ mod test {
         let proto_uuid = Uuid::from(uuid);
         assert_eq!(uuid, uuid::Uuid::from(proto_uuid));
         assert_eq!(proto_uuid, Uuid::from(uuid));
+    }
+
+    #[test]
+    fn version_conversion() {
+        let version: semver::Version = "1.2.3-alpha.1+12345678".parse().unwrap();
+        let mut proto_version = Version::from(version.clone());
+        assert_eq!(proto_version.major, version.major);
+        assert_eq!(proto_version.minor, version.minor);
+        assert_eq!(proto_version.patch, version.patch);
+        assert_eq!(proto_version.pre, version.pre.as_str());
+        assert_eq!(proto_version.build_number, 0);
+        assert!(proto_version.commit_hash.is_empty());
+
+        proto_version.build_number = 100;
+        proto_version.commit_hash = vec![0xa1, 0xb1, 0xc1, 0xd1];
+        let version = semver::Version::try_from(proto_version).unwrap();
+        assert_eq!(version.major, version.major);
+        assert_eq!(version.minor, version.minor);
+        assert_eq!(version.patch, version.patch);
+        assert_eq!(version.pre.as_str(), version.pre.as_str());
+        assert_eq!(version.build.as_str(), "100.a1b1c1d1");
     }
 }

@@ -19,12 +19,9 @@ pub(super) static METADATA: LazyLock<ClientMetadata> = LazyLock::new(|| {
     let commit_hash = build::COMMIT_HASH.as_bytes()[0..8].to_vec();
 
     let proto_version = common::v1::Version {
-        major: version.major,
-        minor: version.minor,
-        patch: version.patch,
-        pre: version.pre.as_str().to_owned(),
         build_number,
         commit_hash,
+        ..version.into()
     };
 
     ClientMetadata {

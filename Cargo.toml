@@ -63,6 +63,7 @@ ignore = "0.4"
 image = "0.25.1"
 infer = "0.19.0"
 insta = { version = "1.42.1", features = ["json"] }
+itertools = "0.14.0"
 jni = "0.21"
 jsonwebtoken = "9"
 kamadak-exif = "0.6.1"
@@ -90,7 +91,7 @@ rand_chacha = "0.3.1"
 regex = "1.11.1"
 reqwest = { version = "^0.12", features = ["json", "rustls-tls-webpki-roots", "brotli", "http2", "charset"], default-features = false }
 secrecy = "0.10"
-semver = "1.0"
+semver = { version = "1.0", features = ["serde"] }
 serde = { version = "1.0.147", features = ["derive"] }
 serde_bytes = "0.11.17"
 serde_json = "1.0.140"
@@ -121,6 +122,7 @@ uuid = "1.16.0"
 webp = "0.3.0"
 xshell = "0.2"
 zeroize = "1.8.1"
+
 
 [patch.crates-io]
 # PR: <https://github.com/RustCrypto/formats/pull/1656/files>
