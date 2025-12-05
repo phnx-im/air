@@ -17,6 +17,8 @@ futures-util.workspace = true
 mimi-room-policy.workspace = true
 mls-assist.workspace = true
 pin-project.workspace = true
+semver.workspace = true
+shadow-rs.workspace = true
 thiserror.workspace = true
 tls_codec.workspace = true
 tokio.workspace = true
@@ -31,3 +33,6 @@ uuid.workspace = true
 tokio.workspace = true
 tracing-subscriber.workspace = true
 uuid.workspace = true
+
+[build-dependencies]
+shadow-rs = { workspace = true, features = ["build"] }
