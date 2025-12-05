@@ -75,6 +75,7 @@ impl ApiClient {
         encrypted_user_profile: EncryptedUserProfile,
     ) -> Result<RegisterUserResponseIn, AsRequestError> {
         let request = RegisterUserRequest {
+            client_metadata: Some(self.metadata().clone()),
             client_credential_payload: Some(client_payload.into()),
             encrypted_user_profile: Some(encrypted_user_profile.into()),
         };

@@ -151,6 +151,7 @@ message Hash {
 // register user
 
 message RegisterUserRequest {
+  common.v1.ClientMetadata client_metadata = 5;
   ClientCredentialPayload client_credential_payload = 1;
   EncryptedUserProfile encrypted_user_profile = 4;
 }
