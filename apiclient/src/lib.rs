@@ -4,23 +4,21 @@
 
 //! HTTP client for the server REST API
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use airprotos::{
-    auth_service::v1::auth_service_client::AuthServiceClient,
+    auth_service::v1::auth_service_client::AuthServiceClient, common::v1::ClientMetadata,
     delivery_service::v1::delivery_service_client::DeliveryServiceClient,
     queue_service::v1::queue_service_client::QueueServiceClient,
 };
-use as_api::grpc::AsGrpcClient;
-use ds_api::grpc::DsGrpcClient;
-use qs_api::grpc::QsGrpcClient;
 use thiserror::Error;
-use tonic::transport::ClientTlsConfig;
+use tonic::transport::{Channel, ClientTlsConfig};
 use tracing::info;
 use url::{ParseError, Url};
 
 pub mod as_api;
 pub mod ds_api;
+mod metadata;
 pub mod qs_api;
 pub(crate) mod util;
 
@@ -42,9 +40,14 @@ pub enum ApiClientInitError {
 // It exposes a single function for each API endpoint.
 #[derive(Debug, Clone)]
 pub struct ApiClient {
-    as_grpc_client: AsGrpcClient,
-    qs_grpc_client: QsGrpcClient,
-    ds_grpc_client: DsGrpcClient,
+    inner: Arc<ApiClientInner>,
+}
+
+#[derive(Debug)]
+struct ApiClientInner {
+    as_grpc_client: AuthServiceClient<Channel>,
+    qs_grpc_client: QueueServiceClient<Channel>,
+    ds_grpc_client: DeliveryServiceClient<Channel>,
 }
 
 impl ApiClient {
@@ -71,14 +74,32 @@ impl ApiClient {
             .tls_config(ClientTlsConfig::new().with_webpki_roots())?
             .http2_keep_alive_interval(Duration::from_secs(30))
             .connect_lazy();
-        let as_grpc_client = AsGrpcClient::new(AuthServiceClient::new(channel.clone()));
-        let ds_grpc_client = DsGrpcClient::new(DeliveryServiceClient::new(channel.clone()));
-        let qs_grpc_client = QsGrpcClient::new(QueueServiceClient::new(channel));
+        let as_grpc_client = AuthServiceClient::new(channel.clone());
+        let ds_grpc_client = DeliveryServiceClient::new(channel.clone());
+        let qs_grpc_client = QueueServiceClient::new(channel);
 
         Ok(Self {
-            as_grpc_client,
-            qs_grpc_client,
-            ds_grpc_client,
+            inner: Arc::new(ApiClientInner {
+                as_grpc_client,
+                qs_grpc_client,
+                ds_grpc_client,
+            }),
         })
+    }
+
+    pub(crate) fn as_grpc_client(&self) -> AuthServiceClient<Channel> {
+        self.inner.as_grpc_client.clone()
+    }
+
+    pub(crate) fn qs_grpc_client(&self) -> QueueServiceClient<Channel> {
+        self.inner.qs_grpc_client.clone()
+    }
+
+    pub(crate) fn ds_grpc_client(&self) -> DeliveryServiceClient<Channel> {
+        self.inner.ds_grpc_client.clone()
+    }
+
+    pub(crate) fn metadata(&self) -> &ClientMetadata {
+        &metadata::METADATA
     }
 }

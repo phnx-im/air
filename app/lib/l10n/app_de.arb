@@ -42,7 +42,7 @@
   "unblockContactDialog_cancel": "Abbrechen",
   "unblockContactDialog_unblock": "Entsperren",
 
-  "deleteContactButton_text": "Air-Kontakt löschen",
+  "deleteContactButton_text": "Löschen",
   "deleteContactDialog_title": "Air-Kontakt löschen",
   "deleteContactDialog_content": "Möchtest du deinen Air-Kontakt {displayName} wirklich löschen? Dadurch werden der Chat und sein Nachrichtenverlauf gelöscht.",
   "deleteContactDialog_cancel": "Abbrechen",
