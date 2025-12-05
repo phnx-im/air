@@ -72,6 +72,7 @@ class UsernameOnboardingScreen extends HookWidget {
     }
 
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: Text(
@@ -87,53 +88,51 @@ class UsernameOnboardingScreen extends HookWidget {
           ),
         ],
       ),
-      body: Container(
-        color: backgroundColor,
-        child: SafeArea(
-          child: ConstrainedWidth(
-            child: Column(
-              children: [
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      return SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: Spacings.m,
-                          vertical: Spacings.xs,
-                        ),
-                        child: Form(
-                          key: formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                loc.usernameOnboarding_body,
-                                textAlign: TextAlign.left,
-                                style: Theme.of(context).textTheme.bodyMedium,
+      body: SafeArea(
+        child: ConstrainedWidth(
+          child: Column(
+            children: [
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: Spacings.m,
+                        vertical: Spacings.xs,
+                      ),
+                      child: Form(
+                        key: formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              loc.usernameOnboarding_body,
+                              textAlign: TextAlign.left,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                            const SizedBox(height: Spacings.m),
+                            _UsernameTextField(
+                              controller: controller,
+                              focusNode: focusNode,
+                              handleExists: handleExists,
+                              formKey: formKey,
+                              validator: (value) => _validateHandle(
+                                loc,
+                                handleExists.value,
+                                value,
                               ),
-                              const SizedBox(height: Spacings.m),
-                              _UsernameTextField(
-                                controller: controller,
-                                focusNode: focusNode,
-                                handleExists: handleExists,
-                                formKey: formKey,
-                                validator: (value) => _validateHandle(
-                                  loc,
-                                  handleExists.value,
-                                  value,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  },
                 ),
-                _AddButton(isSubmitting: isSubmitting.value, onPressed: submit),
-              ],
-            ),
+              ),
+              _AddButton(isSubmitting: isSubmitting.value, onPressed: submit),
+              const SizedBox(height: Spacings.s),
+            ],
           ),
         ),
       ),
@@ -187,11 +186,17 @@ class _AddButton extends StatelessWidget {
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    colors.text.primary,
+                    colors.function.toggleWhite,
                   ),
                 ),
               )
-            : Text(loc.usernameOnboarding_addButton),
+            : Text(
+                loc.usernameOnboarding_addButton,
+                style: TextStyle(
+                  color: colors.function.toggleWhite,
+                  fontSize: LabelFontSize.base.size,
+                ),
+              ),
       ),
     );
   }

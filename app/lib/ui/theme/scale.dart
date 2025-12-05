@@ -45,8 +45,14 @@ ScalingFactors getScalingFactors(BuildContext context) {
       textFactor: macosTextTweak,
     );
   } else if (Platform.isAndroid) {
+    const uiFactor = android / android * androidUiTweak;
+    assert(
+      uiFactor == 1.0,
+      "Android UI scaling factor must be 1.0, "
+      "in particular because of paddings to avoid system UI.",
+    );
     return const ScalingFactors(
-      uiFactor: android / refBase * androidUiTweak,
+      uiFactor: uiFactor,
       textFactor: androidTextTweak,
     );
   } else if (Platform.isWindows) {
