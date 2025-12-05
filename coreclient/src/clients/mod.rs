@@ -27,9 +27,7 @@ use aircommon::{
     messages::{FriendshipToken, QueueMessage, push_token::PushToken},
 };
 pub use airprotos::auth_service::v1::{HandleQueueMessage, handle_queue_message};
-pub use airprotos::queue_service::v1::{
-    QueueEvent, QueueEventPayload, QueueEventUpdate, queue_event,
-};
+pub use airprotos::queue_service::v1::{QueueEvent, QueueEventPayload, queue_event};
 use anyhow::{Context, Result, anyhow, ensure};
 use chrono::{DateTime, Utc};
 use openmls::prelude::Ciphersuite;

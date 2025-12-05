@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/app.dart';
 import 'package:air/chat/widgets/remove_member_button.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
