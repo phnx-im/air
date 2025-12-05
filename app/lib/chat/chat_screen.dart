@@ -143,18 +143,20 @@ class ChatScreenView extends StatelessWidget {
     }
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          color: CustomColorScheme.of(context).backgroundBase.primary,
-        ),
-        child: Column(
-          children: [
-            const _ChatHeader(),
-            Expanded(
-              child: MessageListView(createMessageCubit: createMessageCubit),
-            ),
-            footer,
-          ],
+      body: SafeArea(
+        child: Container(
+          decoration: BoxDecoration(
+            color: CustomColorScheme.of(context).backgroundBase.primary,
+          ),
+          child: Column(
+            children: [
+              const _ChatHeader(),
+              Expanded(
+                child: MessageListView(createMessageCubit: createMessageCubit),
+              ),
+              footer,
+            ],
+          ),
         ),
       ),
     );
