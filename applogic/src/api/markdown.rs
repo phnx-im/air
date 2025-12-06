@@ -5,8 +5,10 @@
 use std::{iter::Peekable, sync::LazyLock};
 
 use flutter_rust_bridge::frb;
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 use regex::Regex;
+
+use crate::api::highlight::HighlightRange;
 
 const MAX_DEPTH: usize = 50;
 
@@ -74,6 +76,7 @@ pub struct RangedCodeBlock {
     pub start: u32,
     pub end: u32,
     pub value: String,
+    pub highlight_ranges: Option<Vec<HighlightRange>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -156,7 +159,7 @@ impl MessageContent {
             Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TABLES | Options::ENABLE_TASKLISTS,
         )
         .into_offset_iter();
-        let mut result = Vec::new();
+        let mut elements = Vec::new();
         let mut iter = parsed
             .map(|(event, range)| RangedEvent {
                 start: u32::try_from(range.start).unwrap_or(u32::MAX),
@@ -166,10 +169,10 @@ impl MessageContent {
             .peekable();
 
         while iter.peek().is_some() {
-            result.push(parse_block_element(&mut iter, 1)?);
+            elements.push(parse_block_element(&mut iter, 1)?);
         }
 
-        Ok(Self { elements: result })
+        Ok(Self { elements })
     }
 }
 
@@ -265,7 +268,7 @@ where
                 element: BlockElement::Quote(quote_blocks),
             }
         }
-        Event::Start(Tag::CodeBlock(_code_block_kind)) => {
+        Event::Start(Tag::CodeBlock(code_block_kind)) => {
             let start = iter.next().expect("we already peeked");
             let mut value = Vec::new();
 
@@ -273,16 +276,30 @@ where
             {
                 let event = iter.next().expect("we already peeked");
 
+                dbg!(&code_block_kind);
+
                 // We need this code, otherwise there is an empty line at the end of code blocks
                 let mut str = str.into_string();
                 if str.ends_with('\n') {
                     str.truncate(str.len() - 1);
                 }
 
+                let highlight_ranges = if let CodeBlockKind::Fenced(lang) = &code_block_kind {
+                    crate::api::highlight::highlight_code_block(dbg!(&str), lang)
+                        .inspect_err(|error| {
+                            tracing::error!(%error, "Invalid code block");
+                        })
+                        .ok()
+                        .flatten()
+                } else {
+                    None
+                };
+
                 value.push(RangedCodeBlock {
                     start: event.start,
                     end: event.end,
                     value: str.to_string(),
+                    highlight_ranges,
                 });
             }
 
@@ -786,12 +803,16 @@ But it ends after the paragraph"#,
 
     #[test]
     fn indented_code_block() {
-        MessageContent::try_parse_markdown(
-            r#"
-    asdf
-    asdf"#,
-        )
-        .unwrap();
+        let content = dbg!(
+            MessageContent::try_parse_markdown(
+                r#"
+```rust
+let x = 42;
+println!("{x}");
+```"#
+            )
+            .unwrap()
+        );
     }
 
     #[test]

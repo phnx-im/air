@@ -1600,7 +1600,7 @@ $BlockElementCopyWith<$Res> get element {
 /// @nodoc
 mixin _$RangedCodeBlock {
 
- int get start; int get end; String get value;
+ int get start; int get end; String get value; List<HighlightRange>? get highlightRanges;
 /// Create a copy of RangedCodeBlock
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1611,16 +1611,16 @@ $RangedCodeBlockCopyWith<RangedCodeBlock> get copyWith => _$RangedCodeBlockCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RangedCodeBlock&&(identical(other.start, start) || other.start == start)&&(identical(other.end, end) || other.end == end)&&(identical(other.value, value) || other.value == value));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RangedCodeBlock&&(identical(other.start, start) || other.start == start)&&(identical(other.end, end) || other.end == end)&&(identical(other.value, value) || other.value == value)&&const DeepCollectionEquality().equals(other.highlightRanges, highlightRanges));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,start,end,value);
+int get hashCode => Object.hash(runtimeType,start,end,value,const DeepCollectionEquality().hash(highlightRanges));
 
 @override
 String toString() {
-  return 'RangedCodeBlock(start: $start, end: $end, value: $value)';
+  return 'RangedCodeBlock(start: $start, end: $end, value: $value, highlightRanges: $highlightRanges)';
 }
 
 
@@ -1631,7 +1631,7 @@ abstract mixin class $RangedCodeBlockCopyWith<$Res>  {
   factory $RangedCodeBlockCopyWith(RangedCodeBlock value, $Res Function(RangedCodeBlock) _then) = _$RangedCodeBlockCopyWithImpl;
 @useResult
 $Res call({
- int start, int end, String value
+ int start, int end, String value, List<HighlightRange>? highlightRanges
 });
 
 
@@ -1648,12 +1648,13 @@ class _$RangedCodeBlockCopyWithImpl<$Res>
 
 /// Create a copy of RangedCodeBlock
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? start = null,Object? end = null,Object? value = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? start = null,Object? end = null,Object? value = null,Object? highlightRanges = freezed,}) {
   return _then(_self.copyWith(
 start: null == start ? _self.start : start // ignore: cast_nullable_to_non_nullable
 as int,end: null == end ? _self.end : end // ignore: cast_nullable_to_non_nullable
 as int,value: null == value ? _self.value : value // ignore: cast_nullable_to_non_nullable
-as String,
+as String,highlightRanges: freezed == highlightRanges ? _self.highlightRanges : highlightRanges // ignore: cast_nullable_to_non_nullable
+as List<HighlightRange>?,
   ));
 }
 
@@ -1665,12 +1666,21 @@ as String,
 
 
 class _RangedCodeBlock implements RangedCodeBlock {
-  const _RangedCodeBlock({required this.start, required this.end, required this.value});
+  const _RangedCodeBlock({required this.start, required this.end, required this.value, final  List<HighlightRange>? highlightRanges}): _highlightRanges = highlightRanges;
   
 
 @override final  int start;
 @override final  int end;
 @override final  String value;
+ final  List<HighlightRange>? _highlightRanges;
+@override List<HighlightRange>? get highlightRanges {
+  final value = _highlightRanges;
+  if (value == null) return null;
+  if (_highlightRanges is EqualUnmodifiableListView) return _highlightRanges;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(value);
+}
+
 
 /// Create a copy of RangedCodeBlock
 /// with the given fields replaced by the non-null parameter values.
@@ -1682,16 +1692,16 @@ _$RangedCodeBlockCopyWith<_RangedCodeBlock> get copyWith => __$RangedCodeBlockCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RangedCodeBlock&&(identical(other.start, start) || other.start == start)&&(identical(other.end, end) || other.end == end)&&(identical(other.value, value) || other.value == value));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RangedCodeBlock&&(identical(other.start, start) || other.start == start)&&(identical(other.end, end) || other.end == end)&&(identical(other.value, value) || other.value == value)&&const DeepCollectionEquality().equals(other._highlightRanges, _highlightRanges));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,start,end,value);
+int get hashCode => Object.hash(runtimeType,start,end,value,const DeepCollectionEquality().hash(_highlightRanges));
 
 @override
 String toString() {
-  return 'RangedCodeBlock(start: $start, end: $end, value: $value)';
+  return 'RangedCodeBlock(start: $start, end: $end, value: $value, highlightRanges: $highlightRanges)';
 }
 
 
@@ -1702,7 +1712,7 @@ abstract mixin class _$RangedCodeBlockCopyWith<$Res> implements $RangedCodeBlock
   factory _$RangedCodeBlockCopyWith(_RangedCodeBlock value, $Res Function(_RangedCodeBlock) _then) = __$RangedCodeBlockCopyWithImpl;
 @override @useResult
 $Res call({
- int start, int end, String value
+ int start, int end, String value, List<HighlightRange>? highlightRanges
 });
 
 
@@ -1719,12 +1729,13 @@ class __$RangedCodeBlockCopyWithImpl<$Res>
 
 /// Create a copy of RangedCodeBlock
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? start = null,Object? end = null,Object? value = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? start = null,Object? end = null,Object? value = null,Object? highlightRanges = freezed,}) {
   return _then(_RangedCodeBlock(
 start: null == start ? _self.start : start // ignore: cast_nullable_to_non_nullable
 as int,end: null == end ? _self.end : end // ignore: cast_nullable_to_non_nullable
 as int,value: null == value ? _self.value : value // ignore: cast_nullable_to_non_nullable
-as String,
+as String,highlightRanges: freezed == highlightRanges ? _self._highlightRanges : highlightRanges // ignore: cast_nullable_to_non_nullable
+as List<HighlightRange>?,
   ));
 }
 
