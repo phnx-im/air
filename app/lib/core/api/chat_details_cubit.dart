@@ -9,6 +9,7 @@ import 'package:convert/convert.dart';
 import '../frb_generated.dart';
 import 'attachments_repository.dart';
 import 'chats_repository.dart';
+import 'highlight.dart';
 import 'markdown.dart';
 import 'message_content.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';

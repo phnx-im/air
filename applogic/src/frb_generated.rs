@@ -8040,6 +8040,59 @@ impl SseDecode for f64 {
     }
 }
 
+impl SseDecode for crate::api::highlight::HighlightColor {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_r = <u8>::sse_decode(deserializer);
+        let mut var_g = <u8>::sse_decode(deserializer);
+        let mut var_b = <u8>::sse_decode(deserializer);
+        let mut var_a = <u8>::sse_decode(deserializer);
+        return crate::api::highlight::HighlightColor {
+            r: var_r,
+            g: var_g,
+            b: var_b,
+            a: var_a,
+        };
+    }
+}
+
+impl SseDecode for crate::api::highlight::HighlightFontStyle {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_bits = <u8>::sse_decode(deserializer);
+        return crate::api::highlight::HighlightFontStyle { bits: var_bits };
+    }
+}
+
+impl SseDecode for crate::api::highlight::HighlightRange {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_start = <u16>::sse_decode(deserializer);
+        let mut var_end = <u16>::sse_decode(deserializer);
+        let mut var_style = <crate::api::highlight::HighlightStyle>::sse_decode(deserializer);
+        return crate::api::highlight::HighlightRange {
+            start: var_start,
+            end: var_end,
+            style: var_style,
+        };
+    }
+}
+
+impl SseDecode for crate::api::highlight::HighlightStyle {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_fg = <Option<crate::api::highlight::HighlightColor>>::sse_decode(deserializer);
+        let mut var_bg = <Option<crate::api::highlight::HighlightColor>>::sse_decode(deserializer);
+        let mut var_style =
+            <Option<crate::api::highlight::HighlightFontStyle>>::sse_decode(deserializer);
+        return crate::api::highlight::HighlightStyle {
+            fg: var_fg,
+            bg: var_bg,
+            style: var_style,
+        };
+    }
+}
+
 impl SseDecode for crate::api::navigation_cubit::HomeNavigationState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -8192,6 +8245,20 @@ impl SseDecode for Vec<crate::api::types::ChatId> {
         let mut ans_ = vec![];
         for idx_ in 0..len_ {
             ans_.push(<crate::api::types::ChatId>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::highlight::HighlightRange> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::highlight::HighlightRange>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -8623,6 +8690,32 @@ impl SseDecode for Option<f64> {
     }
 }
 
+impl SseDecode for Option<crate::api::highlight::HighlightColor> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::highlight::HighlightColor>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::highlight::HighlightFontStyle> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::highlight::HighlightFontStyle>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::types::ImageData> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -8750,6 +8843,19 @@ impl SseDecode for Option<crate::api::types::UiUserId> {
     }
 }
 
+impl SseDecode for Option<Vec<crate::api::highlight::HighlightRange>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<Vec<crate::api::highlight::HighlightRange>>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<Vec<u8>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -8801,10 +8907,13 @@ impl SseDecode for crate::api::markdown::RangedCodeBlock {
         let mut var_start = <u32>::sse_decode(deserializer);
         let mut var_end = <u32>::sse_decode(deserializer);
         let mut var_value = <String>::sse_decode(deserializer);
+        let mut var_highlightRanges =
+            <Option<Vec<crate::api::highlight::HighlightRange>>>::sse_decode(deserializer);
         return crate::api::markdown::RangedCodeBlock {
             start: var_start,
             end: var_end,
             value: var_value,
+            highlight_ranges: var_highlightRanges,
         };
     }
 }
@@ -8820,6 +8929,13 @@ impl SseDecode for crate::api::markdown::RangedInlineElement {
             end: var_end,
             element: var_element,
         };
+    }
+}
+
+impl SseDecode for u16 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_u16::<NativeEndian>().unwrap()
     }
 }
 
@@ -10151,6 +10267,90 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::navigation_cubit::DeveloperSe
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::highlight::HighlightColor {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.r.into_into_dart().into_dart(),
+            self.g.into_into_dart().into_dart(),
+            self.b.into_into_dart().into_dart(),
+            self.a.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::highlight::HighlightColor
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::highlight::HighlightColor>
+    for crate::api::highlight::HighlightColor
+{
+    fn into_into_dart(self) -> crate::api::highlight::HighlightColor {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::highlight::HighlightFontStyle {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [self.bits.into_into_dart().into_dart()].into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::highlight::HighlightFontStyle
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::highlight::HighlightFontStyle>
+    for crate::api::highlight::HighlightFontStyle
+{
+    fn into_into_dart(self) -> crate::api::highlight::HighlightFontStyle {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::highlight::HighlightRange {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.start.into_into_dart().into_dart(),
+            self.end.into_into_dart().into_dart(),
+            self.style.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::highlight::HighlightRange
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::highlight::HighlightRange>
+    for crate::api::highlight::HighlightRange
+{
+    fn into_into_dart(self) -> crate::api::highlight::HighlightRange {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::highlight::HighlightStyle {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.fg.into_into_dart().into_dart(),
+            self.bg.into_into_dart().into_dart(),
+            self.style.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::highlight::HighlightStyle
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::highlight::HighlightStyle>
+    for crate::api::highlight::HighlightStyle
+{
+    fn into_into_dart(self) -> crate::api::highlight::HighlightStyle {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::navigation_cubit::HomeNavigationState {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -10554,6 +10754,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::markdown::RangedCodeBlock {
             self.start.into_into_dart().into_dart(),
             self.end.into_into_dart().into_dart(),
             self.value.into_into_dart().into_dart(),
+            self.highlight_ranges.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -11880,6 +12081,41 @@ impl SseEncode for f64 {
     }
 }
 
+impl SseEncode for crate::api::highlight::HighlightColor {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u8>::sse_encode(self.r, serializer);
+        <u8>::sse_encode(self.g, serializer);
+        <u8>::sse_encode(self.b, serializer);
+        <u8>::sse_encode(self.a, serializer);
+    }
+}
+
+impl SseEncode for crate::api::highlight::HighlightFontStyle {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u8>::sse_encode(self.bits, serializer);
+    }
+}
+
+impl SseEncode for crate::api::highlight::HighlightRange {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u16>::sse_encode(self.start, serializer);
+        <u16>::sse_encode(self.end, serializer);
+        <crate::api::highlight::HighlightStyle>::sse_encode(self.style, serializer);
+    }
+}
+
+impl SseEncode for crate::api::highlight::HighlightStyle {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<crate::api::highlight::HighlightColor>>::sse_encode(self.fg, serializer);
+        <Option<crate::api::highlight::HighlightColor>>::sse_encode(self.bg, serializer);
+        <Option<crate::api::highlight::HighlightFontStyle>>::sse_encode(self.style, serializer);
+    }
+}
+
 impl SseEncode for crate::api::navigation_cubit::HomeNavigationState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -12007,6 +12243,16 @@ impl SseEncode for Vec<crate::api::types::ChatId> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::types::ChatId>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::highlight::HighlightRange> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::highlight::HighlightRange>::sse_encode(item, serializer);
         }
     }
 }
@@ -12346,6 +12592,26 @@ impl SseEncode for Option<f64> {
     }
 }
 
+impl SseEncode for Option<crate::api::highlight::HighlightColor> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::highlight::HighlightColor>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::highlight::HighlightFontStyle> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::highlight::HighlightFontStyle>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::types::ImageData> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -12456,6 +12722,16 @@ impl SseEncode for Option<crate::api::types::UiUserId> {
     }
 }
 
+impl SseEncode for Option<Vec<crate::api::highlight::HighlightRange>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <Vec<crate::api::highlight::HighlightRange>>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<Vec<u8>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -12500,6 +12776,10 @@ impl SseEncode for crate::api::markdown::RangedCodeBlock {
         <u32>::sse_encode(self.start, serializer);
         <u32>::sse_encode(self.end, serializer);
         <String>::sse_encode(self.value, serializer);
+        <Option<Vec<crate::api::highlight::HighlightRange>>>::sse_encode(
+            self.highlight_ranges,
+            serializer,
+        );
     }
 }
 
@@ -12509,6 +12789,13 @@ impl SseEncode for crate::api::markdown::RangedInlineElement {
         <u32>::sse_encode(self.start, serializer);
         <u32>::sse_encode(self.end, serializer);
         <crate::api::markdown::InlineElement>::sse_encode(self.element, serializer);
+    }
+}
+
+impl SseEncode for u16 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_u16::<NativeEndian>(self).unwrap();
     }
 }
 

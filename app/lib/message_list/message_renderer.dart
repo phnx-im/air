@@ -5,8 +5,10 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:air/core/api/highlight.dart';
 import 'package:air/theme/spacings.dart';
 import 'package:air/ui/typography/monospace.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:air/core/api/markdown.dart';
@@ -234,15 +236,22 @@ Widget buildBlockElement(
       ),
     ),
     BlockElement_CodeBlock(:final field0) => Text.rich(
+      style: TextStyle(
+        fontFamily: getSystemMonospaceFontFamily(),
+        fontSize: BodyFontSize.small2.size,
+        color: isSender
+            ? CustomColorScheme.of(context).message.selfText
+            : CustomColorScheme.of(context).message.otherText,
+      ),
       TextSpan(
-        text: field0.map((e) => e.value).join('\n'),
-        style: TextStyle(
-          fontFamily: getSystemMonospaceFontFamily(),
-          fontSize: BodyFontSize.small2.size,
-          color: isSender
-              ? CustomColorScheme.of(context).message.selfText
-              : CustomColorScheme.of(context).message.otherText,
-        ),
+        children: field0
+            .map((e) {
+              return e.highlightRanges != null
+                  ? highlightCode(e.value, e.highlightRanges!)
+                  : [TextSpan(text: "${e.value}\n")];
+            })
+            .flattened
+            .toList(),
       ),
     ),
     BlockElement_Error(:final field0) => Container(
@@ -259,6 +268,33 @@ Widget buildBlockElement(
       child: Text.rich(TextSpan(text: field0)),
     ),
   };
+}
+
+List<InlineSpan> highlightCode(
+  String value,
+  List<HighlightRange> highlightRanges,
+) {
+  return [
+    for (final range in highlightRanges)
+      TextSpan(
+        text: value.substring(range.start, range.end),
+        style: TextStyle(
+          color: range.style.fg?.color,
+        ).merge(range.style.style?.style),
+      ),
+  ];
+}
+
+extension HighlightColorExtension on HighlightColor {
+  Color get color => Color.fromARGB(a, r, g, b);
+}
+
+extension HighlightFontStyleExtension on HighlightFontStyle {
+  TextStyle get style => TextStyle(
+    fontWeight: bits & (1 << 0) != 0 ? FontWeight.bold : null,
+    decoration: bits & (1 << 1) != 0 ? TextDecoration.underline : null,
+    fontStyle: bits & (1 << 2) != 0 ? FontStyle.italic : null,
+  );
 }
 
 InlineSpan buildInlineElement(

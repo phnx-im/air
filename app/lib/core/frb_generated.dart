@@ -10,6 +10,7 @@ import 'api/attachments_repository.dart';
 import 'api/chat_details_cubit.dart';
 import 'api/chat_list_cubit.dart';
 import 'api/chats_repository.dart';
+import 'api/highlight.dart';
 import 'api/logging.dart';
 import 'api/markdown.dart';
 import 'api/member_details_cubit.dart';
@@ -7173,6 +7174,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  HighlightColor dco_decode_box_autoadd_highlight_color(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_highlight_color(raw);
+  }
+
+  @protected
+  HighlightFontStyle dco_decode_box_autoadd_highlight_font_style(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_highlight_font_style(raw);
+  }
+
+  @protected
   HomeNavigationState dco_decode_box_autoadd_home_navigation_state(
     dynamic raw,
   ) {
@@ -7339,6 +7352,55 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  HighlightColor dco_decode_highlight_color(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return HighlightColor(
+      r: dco_decode_u_8(arr[0]),
+      g: dco_decode_u_8(arr[1]),
+      b: dco_decode_u_8(arr[2]),
+      a: dco_decode_u_8(arr[3]),
+    );
+  }
+
+  @protected
+  HighlightFontStyle dco_decode_highlight_font_style(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 1)
+      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
+    return HighlightFontStyle(bits: dco_decode_u_8(arr[0]));
+  }
+
+  @protected
+  HighlightRange dco_decode_highlight_range(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return HighlightRange(
+      start: dco_decode_u_16(arr[0]),
+      end: dco_decode_u_16(arr[1]),
+      style: dco_decode_highlight_style(arr[2]),
+    );
+  }
+
+  @protected
+  HighlightStyle dco_decode_highlight_style(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return HighlightStyle(
+      fg: dco_decode_opt_box_autoadd_highlight_color(arr[0]),
+      bg: dco_decode_opt_box_autoadd_highlight_color(arr[1]),
+      style: dco_decode_opt_box_autoadd_highlight_font_style(arr[2]),
+    );
+  }
+
+  @protected
   HomeNavigationState dco_decode_home_navigation_state(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -7447,6 +7509,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<ChatId> dco_decode_list_chat_id(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_chat_id).toList();
+  }
+
+  @protected
+  List<HighlightRange> dco_decode_list_highlight_range(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_highlight_range).toList();
   }
 
   @protected
@@ -7743,6 +7811,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  HighlightColor? dco_decode_opt_box_autoadd_highlight_color(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_highlight_color(raw);
+  }
+
+  @protected
+  HighlightFontStyle? dco_decode_opt_box_autoadd_highlight_font_style(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_highlight_font_style(raw);
+  }
+
+  @protected
   ImageData? dco_decode_opt_box_autoadd_image_data(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_image_data(raw);
@@ -7811,6 +7895,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<HighlightRange>? dco_decode_opt_list_highlight_range(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_list_highlight_range(raw);
+  }
+
+  @protected
   Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_list_prim_u_8_strict(raw);
@@ -7846,12 +7936,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   RangedCodeBlock dco_decode_ranged_code_block(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return RangedCodeBlock(
       start: dco_decode_u_32(arr[0]),
       end: dco_decode_u_32(arr[1]),
       value: dco_decode_String(arr[2]),
+      highlightRanges: dco_decode_opt_list_highlight_range(arr[3]),
     );
   }
 
@@ -7866,6 +7957,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       end: dco_decode_u_32(arr[1]),
       element: dco_decode_inline_element(arr[2]),
     );
+  }
+
+  @protected
+  int dco_decode_u_16(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
   }
 
   @protected
@@ -9310,6 +9407,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  HighlightColor sse_decode_box_autoadd_highlight_color(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_highlight_color(deserializer));
+  }
+
+  @protected
+  HighlightFontStyle sse_decode_box_autoadd_highlight_font_style(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_highlight_font_style(deserializer));
+  }
+
+  @protected
   HomeNavigationState sse_decode_box_autoadd_home_navigation_state(
     SseDeserializer deserializer,
   ) {
@@ -9499,6 +9612,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  HighlightColor sse_decode_highlight_color(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_r = sse_decode_u_8(deserializer);
+    var var_g = sse_decode_u_8(deserializer);
+    var var_b = sse_decode_u_8(deserializer);
+    var var_a = sse_decode_u_8(deserializer);
+    return HighlightColor(r: var_r, g: var_g, b: var_b, a: var_a);
+  }
+
+  @protected
+  HighlightFontStyle sse_decode_highlight_font_style(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_bits = sse_decode_u_8(deserializer);
+    return HighlightFontStyle(bits: var_bits);
+  }
+
+  @protected
+  HighlightRange sse_decode_highlight_range(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_start = sse_decode_u_16(deserializer);
+    var var_end = sse_decode_u_16(deserializer);
+    var var_style = sse_decode_highlight_style(deserializer);
+    return HighlightRange(start: var_start, end: var_end, style: var_style);
+  }
+
+  @protected
+  HighlightStyle sse_decode_highlight_style(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_fg = sse_decode_opt_box_autoadd_highlight_color(deserializer);
+    var var_bg = sse_decode_opt_box_autoadd_highlight_color(deserializer);
+    var var_style = sse_decode_opt_box_autoadd_highlight_font_style(
+      deserializer,
+    );
+    return HighlightStyle(fg: var_fg, bg: var_bg, style: var_style);
+  }
+
+  @protected
   HomeNavigationState sse_decode_home_navigation_state(
     SseDeserializer deserializer,
   ) {
@@ -9619,6 +9771,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <ChatId>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_chat_id(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<HighlightRange> sse_decode_list_highlight_range(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <HighlightRange>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_highlight_range(deserializer));
     }
     return ans_;
   }
@@ -10041,6 +10207,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  HighlightColor? sse_decode_opt_box_autoadd_highlight_color(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_highlight_color(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  HighlightFontStyle? sse_decode_opt_box_autoadd_highlight_font_style(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_highlight_font_style(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   ImageData? sse_decode_opt_box_autoadd_image_data(
     SseDeserializer deserializer,
   ) {
@@ -10184,6 +10376,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<HighlightRange>? sse_decode_opt_list_highlight_range(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_highlight_range(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -10234,7 +10439,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_start = sse_decode_u_32(deserializer);
     var var_end = sse_decode_u_32(deserializer);
     var var_value = sse_decode_String(deserializer);
-    return RangedCodeBlock(start: var_start, end: var_end, value: var_value);
+    var var_highlightRanges = sse_decode_opt_list_highlight_range(deserializer);
+    return RangedCodeBlock(
+      start: var_start,
+      end: var_end,
+      value: var_value,
+      highlightRanges: var_highlightRanges,
+    );
   }
 
   @protected
@@ -10250,6 +10461,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       end: var_end,
       element: var_element,
     );
+  }
+
+  @protected
+  int sse_decode_u_16(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getUint16();
   }
 
   @protected
@@ -11941,6 +12158,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_highlight_color(
+    HighlightColor self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_highlight_color(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_highlight_font_style(
+    HighlightFontStyle self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_highlight_font_style(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_home_navigation_state(
     HomeNavigationState self,
     SseSerializer serializer,
@@ -12161,6 +12396,49 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_highlight_color(
+    HighlightColor self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_8(self.r, serializer);
+    sse_encode_u_8(self.g, serializer);
+    sse_encode_u_8(self.b, serializer);
+    sse_encode_u_8(self.a, serializer);
+  }
+
+  @protected
+  void sse_encode_highlight_font_style(
+    HighlightFontStyle self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_8(self.bits, serializer);
+  }
+
+  @protected
+  void sse_encode_highlight_range(
+    HighlightRange self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_16(self.start, serializer);
+    sse_encode_u_16(self.end, serializer);
+    sse_encode_highlight_style(self.style, serializer);
+  }
+
+  @protected
+  void sse_encode_highlight_style(
+    HighlightStyle self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_box_autoadd_highlight_color(self.fg, serializer);
+    sse_encode_opt_box_autoadd_highlight_color(self.bg, serializer);
+    sse_encode_opt_box_autoadd_highlight_font_style(self.style, serializer);
+  }
+
+  @protected
   void sse_encode_home_navigation_state(
     HomeNavigationState self,
     SseSerializer serializer,
@@ -12263,6 +12541,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_chat_id(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_highlight_range(
+    List<HighlightRange> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_highlight_range(item, serializer);
     }
   }
 
@@ -12655,6 +12945,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_highlight_color(
+    HighlightColor? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_highlight_color(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_highlight_font_style(
+    HighlightFontStyle? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_highlight_font_style(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_image_data(
     ImageData? self,
     SseSerializer serializer,
@@ -12798,6 +13114,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_list_highlight_range(
+    List<HighlightRange>? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_highlight_range(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_list_prim_u_8_strict(
     Uint8List? self,
     SseSerializer serializer,
@@ -12846,6 +13175,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_32(self.start, serializer);
     sse_encode_u_32(self.end, serializer);
     sse_encode_String(self.value, serializer);
+    sse_encode_opt_list_highlight_range(self.highlightRanges, serializer);
   }
 
   @protected
@@ -12857,6 +13187,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_32(self.start, serializer);
     sse_encode_u_32(self.end, serializer);
     sse_encode_inline_element(self.element, serializer);
+  }
+
+  @protected
+  void sse_encode_u_16(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putUint16(self);
   }
 
   @protected
