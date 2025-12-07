@@ -291,12 +291,8 @@ InlineSpan buildInlineElement(
           )
           .toList(),
       style: TextStyle(
-        color: isSender
-            ? CustomColorScheme.of(context).function.selfLink
-            : CustomColorScheme.of(context).function.link,
-        decorationColor: isSender
-            ? CustomColorScheme.of(context).function.selfLink
-            : CustomColorScheme.of(context).function.link,
+        color: CustomColorScheme.of(context).function.link,
+        decorationColor: CustomColorScheme.of(context).function.link,
         decoration: TextDecoration.underline,
       ),
     ),
