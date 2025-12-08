@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::fmt;
+use std::fmt::{self, Write};
 
 use aircommon::{
     credentials::keys::{AsIntermediateSignature, AsSignature, ClientSignature, HandleSignature},
@@ -17,7 +17,6 @@ use aircommon::{
     identifiers, time,
 };
 use chrono::DateTime;
-use itertools::Itertools;
 use semver::BuildMetadata;
 use tonic::Status;
 
@@ -414,7 +413,7 @@ impl fmt::Display for Version {
     }
 }
 
-/// Convert a semver version to a proto version omitting the build metadata.
+/// Note: Conversion is lossy, i.e. the build metadata is omitted.
 impl From<semver::Version> for Version {
     fn from(value: semver::Version) -> Self {
         Self {
@@ -436,16 +435,29 @@ impl TryFrom<Version> for semver::Version {
         if !value.pre.is_empty() {
             version.pre = semver::Prerelease::new(&value.pre)?;
         }
-        version.build = BuildMetadata::new(&format!(
-            "{}.{}",
-            value.build_number,
-            value
-                .commit_hash
-                .iter()
-                .format_with("", |byte, f| f(&format_args!("{:02x}", byte)))
-        ))?;
+
+        let mut build = String::new();
+        if write_build(&value, &mut build).is_ok() {
+            version.build = BuildMetadata::new(&build)?;
+        }
+
         Ok(version)
     }
+}
+
+fn write_build(value: &Version, buf: &mut String) -> fmt::Result {
+    if value.build_number > 0 {
+        write!(buf, "{}", value.build_number)?;
+    }
+    if !value.commit_hash.is_empty() {
+        if !buf.is_empty() {
+            buf.push('.');
+        }
+        for byte in value.commit_hash.iter() {
+            write!(buf, "{:02x}", byte)?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -475,11 +487,23 @@ mod test {
 
         proto_version.build_number = 100;
         proto_version.commit_hash = vec![0xa1, 0xb1, 0xc1, 0xd1];
-        let version = semver::Version::try_from(proto_version).unwrap();
-        assert_eq!(version.major, version.major);
-        assert_eq!(version.minor, version.minor);
-        assert_eq!(version.patch, version.patch);
-        assert_eq!(version.pre.as_str(), version.pre.as_str());
-        assert_eq!(version.build.as_str(), "100.a1b1c1d1");
+        let version = semver::Version::try_from(proto_version)
+            .unwrap()
+            .to_string();
+        assert_eq!(version, "1.2.3-alpha.1+100.a1b1c1d1");
+    }
+
+    #[test]
+    fn convert_version_empty_build() {
+        let version = Version {
+            major: 1,
+            minor: 2,
+            patch: 3,
+            pre: Default::default(),
+            build_number: 0,
+            commit_hash: Default::default(),
+        };
+        let version = semver::Version::try_from(version).unwrap().to_string();
+        assert_eq!(version, "1.2.3");
     }
 }

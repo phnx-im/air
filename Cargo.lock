@@ -275,7 +275,6 @@ dependencies = [
  "chrono",
  "derive_more 0.99.20",
  "displaydoc",
- "itertools 0.14.0",
  "mimi-room-policy",
  "mls-assist",
  "openmls",

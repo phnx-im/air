@@ -374,6 +374,8 @@ mod tests {
             .with(eq(hash), eq(connection_offer.clone()))
             .returning(|_, _| Ok(()));
 
+        mock_protocol.expect_client_version_req().returning(|| None);
+
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
 
         let request_fetch = ConnectRequest {
@@ -431,6 +433,8 @@ mod tests {
             .with(eq(hash))
             .returning(|_| Ok(None));
 
+        mock_protocol.expect_client_version_req().returning(|| None);
+
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
 
         let request_fetch = ConnectRequest {
@@ -462,6 +466,8 @@ mod tests {
             .expect_load_user_handle_expiration_data()
             .with(eq(hash))
             .returning(|_| Ok(Some(ExpirationData::new(Duration::milliseconds(1)))));
+
+        mock_protocol.expect_client_version_req().returning(|| None);
 
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
 
@@ -549,6 +555,8 @@ mod tests {
             .expect_get_connection_package_for_handle()
             .with(eq(hash))
             .returning(move |_| Ok(inner_connection_package.clone()));
+
+        mock_protocol.expect_client_version_req().returning(|| None);
 
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
 

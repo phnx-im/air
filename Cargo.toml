@@ -63,7 +63,6 @@ ignore = "0.4"
 image = "0.25.1"
 infer = "0.19.0"
 insta = { version = "1.42.1", features = ["json"] }
-itertools = "0.14.0"
 jni = "0.21"
 jsonwebtoken = "9"
 kamadak-exif = "0.6.1"
