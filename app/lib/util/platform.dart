@@ -146,7 +146,11 @@ Future<int?> beginBackgroundTask() async {
     final result = await platform.invokeMethod('beginBackgroundTask');
     if (result is int) return result;
   } on PlatformException catch (e, stacktrace) {
-    _log.severe("Failed to begin background task: '${e.message}'.", e, stacktrace);
+    _log.severe(
+      "Failed to begin background task: '${e.message}'.",
+      e,
+      stacktrace,
+    );
   }
   return null;
 }
@@ -156,7 +160,11 @@ Future<void> endBackgroundTask(int? taskId) async {
   try {
     await platform.invokeMethod('endBackgroundTask', {'taskId': taskId});
   } on PlatformException catch (e, stacktrace) {
-    _log.severe("Failed to end background task: '${e.message}'.", e, stacktrace);
+    _log.severe(
+      "Failed to end background task: '${e.message}'.",
+      e,
+      stacktrace,
+    );
   }
 }
 
