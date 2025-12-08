@@ -33,7 +33,7 @@ use tracing::info;
 use url::Url;
 use uuid::Uuid;
 
-use crate::utils::spawn_app_with_rate_limits;
+use crate::utils::{controlled_listener::ControlHandle, spawn_app_with_rate_limits};
 
 use super::TEST_RATE_LIMITS;
 
@@ -134,6 +134,8 @@ pub struct TestBackend {
     server_url: ServerUrl,
     domain: Fqdn,
     temp_dir: TempDir,
+    // Present only if we spawned a local server.
+    listener_control_handle: Option<ControlHandle>,
     _guard: Option<LocalEnterGuard>,
 }
 
@@ -151,27 +153,33 @@ impl TestBackend {
         let local = LocalSet::new();
         let _guard = local.enter();
 
-        let (server_url, domain) = if let Ok(value) = std::env::var("TEST_SERVER_URL") {
-            let url: Url = value.parse().unwrap();
-            info!(%url, "using external test server");
-            let domain: Fqdn = url.host().unwrap().to_owned().into();
-            (ServerUrl::External(url), domain)
-        } else {
-            let network_provider = MockNetworkProvider::new();
-            let domain: Fqdn = "example.com".parse().unwrap();
-            let listen_addr =
-                spawn_app_with_rate_limits(domain.clone(), network_provider, rate_limits).await;
-            info!(%listen_addr, "using spawned test server");
-            (ServerUrl::Local(listen_addr), domain)
-        };
+        let (server_url, domain, listener_control_handle) =
+            if let Ok(value) = std::env::var("TEST_SERVER_URL") {
+                let url: Url = value.parse().unwrap();
+                info!(%url, "using external test server");
+                let domain: Fqdn = url.host().unwrap().to_owned().into();
+                (ServerUrl::External(url), domain, None)
+            } else {
+                let network_provider = MockNetworkProvider::new();
+                let domain: Fqdn = "example.com".parse().unwrap();
+                let (listen_addr, control_handle) =
+                    spawn_app_with_rate_limits(domain.clone(), network_provider, rate_limits).await;
+                info!(%listen_addr, "using spawned test server");
+                (ServerUrl::Local(listen_addr), domain, Some(control_handle))
+            };
         Self {
             users: HashMap::new(),
             groups: HashMap::new(),
             server_url,
             domain,
             temp_dir: tempfile::tempdir().unwrap(),
+            listener_control_handle,
             _guard: Some(_guard),
         }
+    }
+
+    pub fn listener_control_handle(&self) -> Option<&ControlHandle> {
+        self.listener_control_handle.as_ref()
     }
 
     pub fn server_url(&self) -> Url {
