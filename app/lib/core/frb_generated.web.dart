@@ -13,6 +13,7 @@ import 'api/attachments_repository.dart';
 import 'api/chat_details_cubit.dart';
 import 'api/chat_list_cubit.dart';
 import 'api/chats_repository.dart';
+import 'api/highlight.dart';
 import 'api/logging.dart';
 import 'api/markdown.dart';
 import 'api/member_details_cubit.dart';
@@ -639,6 +640,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double dco_decode_box_autoadd_f_64(dynamic raw);
 
   @protected
+  HighlightColor dco_decode_box_autoadd_highlight_color(dynamic raw);
+
+  @protected
+  HighlightFontStyle dco_decode_box_autoadd_highlight_font_style(dynamic raw);
+
+  @protected
   HomeNavigationState dco_decode_box_autoadd_home_navigation_state(dynamic raw);
 
   @protected
@@ -716,6 +723,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double dco_decode_f_64(dynamic raw);
 
   @protected
+  HighlightColor dco_decode_highlight_color(dynamic raw);
+
+  @protected
+  HighlightFontStyle dco_decode_highlight_font_style(dynamic raw);
+
+  @protected
+  HighlightRange dco_decode_highlight_range(dynamic raw);
+
+  @protected
+  HighlightStyle dco_decode_highlight_style(dynamic raw);
+
+  @protected
   HomeNavigationState dco_decode_home_navigation_state(dynamic raw);
 
   @protected
@@ -738,6 +757,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ChatId> dco_decode_list_chat_id(dynamic raw);
+
+  @protected
+  List<HighlightRange> dco_decode_list_highlight_range(dynamic raw);
 
   @protected
   List<IntroScreenType> dco_decode_list_intro_screen_type(dynamic raw);
@@ -852,6 +874,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
 
   @protected
+  HighlightColor? dco_decode_opt_box_autoadd_highlight_color(dynamic raw);
+
+  @protected
+  HighlightFontStyle? dco_decode_opt_box_autoadd_highlight_font_style(
+    dynamic raw,
+  );
+
+  @protected
   ImageData? dco_decode_opt_box_autoadd_image_data(dynamic raw);
 
   @protected
@@ -887,6 +917,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiUserId? dco_decode_opt_box_autoadd_ui_user_id(dynamic raw);
 
   @protected
+  List<HighlightRange>? dco_decode_opt_list_highlight_range(dynamic raw);
+
+  @protected
   Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
 
   @protected
@@ -900,6 +933,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RangedInlineElement dco_decode_ranged_inline_element(dynamic raw);
+
+  @protected
+  int dco_decode_u_16(dynamic raw);
 
   @protected
   int dco_decode_u_32(dynamic raw);
@@ -1498,6 +1534,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
 
   @protected
+  HighlightColor sse_decode_box_autoadd_highlight_color(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  HighlightFontStyle sse_decode_box_autoadd_highlight_font_style(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   HomeNavigationState sse_decode_box_autoadd_home_navigation_state(
     SseDeserializer deserializer,
   );
@@ -1607,6 +1653,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
+  HighlightColor sse_decode_highlight_color(SseDeserializer deserializer);
+
+  @protected
+  HighlightFontStyle sse_decode_highlight_font_style(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  HighlightRange sse_decode_highlight_range(SseDeserializer deserializer);
+
+  @protected
+  HighlightStyle sse_decode_highlight_style(SseDeserializer deserializer);
+
+  @protected
   HomeNavigationState sse_decode_home_navigation_state(
     SseDeserializer deserializer,
   );
@@ -1631,6 +1691,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ChatId> sse_decode_list_chat_id(SseDeserializer deserializer);
+
+  @protected
+  List<HighlightRange> sse_decode_list_highlight_range(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<IntroScreenType> sse_decode_list_intro_screen_type(
@@ -1771,6 +1836,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
 
   @protected
+  HighlightColor? sse_decode_opt_box_autoadd_highlight_color(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  HighlightFontStyle? sse_decode_opt_box_autoadd_highlight_font_style(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ImageData? sse_decode_opt_box_autoadd_image_data(
     SseDeserializer deserializer,
   );
@@ -1824,6 +1899,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiUserId? sse_decode_opt_box_autoadd_ui_user_id(SseDeserializer deserializer);
 
   @protected
+  List<HighlightRange>? sse_decode_opt_list_highlight_range(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
@@ -1843,6 +1923,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RangedInlineElement sse_decode_ranged_inline_element(
     SseDeserializer deserializer,
   );
+
+  @protected
+  int sse_decode_u_16(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_32(SseDeserializer deserializer);
@@ -2554,6 +2637,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_highlight_color(
+    HighlightColor self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_highlight_font_style(
+    HighlightFontStyle self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_home_navigation_state(
     HomeNavigationState self,
     SseSerializer serializer,
@@ -2695,6 +2790,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
+  void sse_encode_highlight_color(
+    HighlightColor self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_highlight_font_style(
+    HighlightFontStyle self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_highlight_range(
+    HighlightRange self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_highlight_style(
+    HighlightStyle self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_home_navigation_state(
     HomeNavigationState self,
     SseSerializer serializer,
@@ -2723,6 +2842,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_chat_id(List<ChatId> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_highlight_range(
+    List<HighlightRange> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_intro_screen_type(
@@ -2904,6 +3029,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_highlight_color(
+    HighlightColor? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_highlight_font_style(
+    HighlightFontStyle? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_image_data(
     ImageData? self,
     SseSerializer serializer,
@@ -2970,6 +3107,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_list_highlight_range(
+    List<HighlightRange>? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_list_prim_u_8_strict(
     Uint8List? self,
     SseSerializer serializer,
@@ -2998,6 +3141,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     RangedInlineElement self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_u_16(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_32(int self, SseSerializer serializer);
