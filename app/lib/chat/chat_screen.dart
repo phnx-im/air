@@ -8,13 +8,11 @@ import 'package:air/message_list/message_list.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/typography/font_size.dart';
-import 'package:air/ui/typography/monospace.dart';
 import 'package:air/user/user.dart';
-import 'package:air/widgets/user_avatar.dart';
+import 'package:air/widgets/app_bar_back_button.dart';
+import 'package:air/widgets/avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:iconoir_flutter/regular/more_horiz.dart';
 
 import 'chat_details_cubit.dart';
 import 'delete_contact_button.dart';
@@ -145,13 +143,11 @@ class ChatScreenView extends StatelessWidget {
     }
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          color: CustomColorScheme.of(context).backgroundBase.primary,
-        ),
+      appBar: _ChatHeader(),
+      body: SafeArea(
+        minimum: const EdgeInsets.only(bottom: Spacings.xs),
         child: Column(
           children: [
-            const _ChatHeader(),
             Expanded(
               child: MessageListView(createMessageCubit: createMessageCubit),
             ),
@@ -163,127 +159,64 @@ class ChatScreenView extends StatelessWidget {
   }
 }
 
-class _ChatHeader extends StatelessWidget {
-  const _ChatHeader();
+class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
+  _ChatHeader();
+
+  final GlobalKey _key = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
-    final (title, image) = context.select(
-      (ChatDetailsCubit cubit) =>
-          (cubit.state.chat?.title, cubit.state.chat?.picture),
+    final (chatId, title, image) = context.select(
+      (ChatDetailsCubit cubit) => (
+        cubit.state.chat?.id,
+        cubit.state.chat?.title,
+        cubit.state.chat?.picture,
+      ),
     );
 
-    return Container(
-      padding: EdgeInsets.only(
-        top: context.responsiveScreenType == ResponsiveScreenType.mobile
-            ? kToolbarHeight
-            : Spacings.xxs,
-        bottom: Spacings.xxs,
-        left: Spacings.xs,
-        right: Spacings.xs,
-      ),
-      child: SizedBox(
-        height: Spacings.xl,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            context.responsiveScreenType == ResponsiveScreenType.mobile
-                ? const _BackButton()
-                : const SizedBox.shrink(),
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      context.read<NavigationCubit>().openChatDetails();
-                    },
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: constraints.maxWidth,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          spacing: Spacings.m,
-                          children: [
-                            UserAvatar(
-                              displayName: title ?? "",
-                              image: image,
-                              size: Spacings.l,
-                            ),
-                            Flexible(
-                              child: Text(
-                                (title ?? "").toUpperCase(),
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: LabelFontSize.small1.size,
-                                  color: CustomColorScheme.of(
-                                    context,
-                                  ).text.tertiary,
-                                  fontFamily: getSystemMonospaceFontFamily(),
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
+    return AppBar(
+      key: _key,
+      automaticallyImplyLeading: false,
+      backgroundColor: CustomColorScheme.of(context).backgroundBase.primary,
+      surfaceTintColor: Colors.transparent,
+      scrolledUnderElevation: 0,
+      elevation: 0,
+      leading: context.responsiveScreenType == ResponsiveScreenType.mobile
+          ? const AppBarBackButton()
+          : const SizedBox.shrink(),
+      centerTitle: true,
+      title: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            context.read<NavigationCubit>().openChatDetails();
+          },
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: Spacings.xs,
+            children: [
+              GroupAvatar(chatId: chatId, size: Spacings.l),
+              Flexible(
+                child: Text(
+                  title ?? "",
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextTheme.of(context).labelMedium!.copyWith(
+                    color: CustomColorScheme.of(context).text.tertiary,
+                  ),
+                ),
               ),
-            ),
-            title != null ? const _DetailsButton() : const SizedBox.shrink(),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
-}
-
-class _DetailsButton extends StatelessWidget {
-  const _DetailsButton();
 
   @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      icon: MoreHoriz(
-        width: 32,
-        color: CustomColorScheme.of(context).text.primary,
-      ),
-      color: CustomColorScheme.of(context).text.primary,
-      padding: const EdgeInsets.symmetric(horizontal: Spacings.xs),
-      hoverColor: Colors.transparent,
-      splashColor: Colors.transparent,
-      highlightColor: Colors.transparent,
-      onPressed: () {
-        context.read<NavigationCubit>().openChatDetails();
-      },
-    );
-  }
-}
-
-class _BackButton extends StatelessWidget {
-  const _BackButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.arrow_back, size: 26),
-      padding: const EdgeInsets.symmetric(horizontal: Spacings.xs),
-      color: CustomColorScheme.of(context).text.primary,
-      hoverColor: Colors.transparent,
-      splashColor: Colors.transparent,
-      highlightColor: Colors.transparent,
-      onPressed: () {
-        context.read<NavigationCubit>().closeChat();
-      },
-    );
-  }
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }
 
 class _BlockedChatFooter extends StatelessWidget {

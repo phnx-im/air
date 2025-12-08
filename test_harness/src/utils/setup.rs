@@ -9,12 +9,13 @@ use std::{
     time::Duration,
 };
 
+use airbackend::settings::RateLimitsSettings;
 use aircommon::{
     OpenMlsRand, RustCrypto,
     identifiers::{Fqdn, UserHandle, UserId},
 };
 use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, store::Store, *};
-use airserver::{RateLimitsConfig, network_provider::MockNetworkProvider};
+use airserver::network_provider::MockNetworkProvider;
 use anyhow::Context;
 use mimi_content::{
     ByteBuf, Disposition, MimiContent, NestedPart,
@@ -29,6 +30,8 @@ use tokio::{
 };
 use tokio_stream::StreamExt;
 use tracing::info;
+use url::Url;
+use uuid::Uuid;
 
 use crate::utils::spawn_app_with_rate_limits;
 
@@ -56,16 +59,14 @@ impl AsMut<CoreUser> for TestUser {
 }
 
 impl TestUser {
-    pub async fn new(user_id: &UserId, listen: SocketAddr) -> Self {
-        let user = Self::try_new(user_id, listen).await.unwrap();
+    pub async fn new(user_id: &UserId, server_url: Url) -> Self {
+        let user = Self::try_new(user_id, server_url).await.unwrap();
         // Run outbound service to upload KeyPackages
         user.user.outbound_service().run_once().await;
         user
     }
 
-    pub async fn try_new(user_id: &UserId, listen: SocketAddr) -> anyhow::Result<Self> {
-        let server_url = format!("http://{listen}").parse().unwrap();
-
+    pub async fn try_new(user_id: &UserId, server_url: Url) -> anyhow::Result<Self> {
         let user = CoreUser::new_ephemeral(user_id.clone(), server_url, None).await?;
 
         Ok(Self {
@@ -75,8 +76,7 @@ impl TestUser {
         })
     }
 
-    pub async fn new_persisted(user_id: &UserId, listen_addr: SocketAddr, db_dir: &str) -> Self {
-        let server_url = format!("http://{listen_addr}").parse().unwrap();
+    pub async fn new_persisted(user_id: &UserId, server_url: Url, db_dir: &str) -> Self {
         let user = CoreUser::new(user_id.clone(), server_url, db_dir, None)
             .await
             .unwrap();
@@ -131,9 +131,15 @@ pub struct TestBackend {
     pub users: HashMap<UserId, TestUser>,
     pub groups: HashMap<ChatId, HashSet<UserId>>,
     // This is what we feed to the test clients.
-    listen_addr: SocketAddr,
+    server_url: ServerUrl,
+    domain: Fqdn,
     temp_dir: TempDir,
     _guard: Option<LocalEnterGuard>,
+}
+
+enum ServerUrl {
+    External(Url),
+    Local(SocketAddr),
 }
 
 impl TestBackend {
@@ -141,42 +147,71 @@ impl TestBackend {
         Self::single_with_rate_limits(TEST_RATE_LIMITS).await
     }
 
-    pub async fn single_with_rate_limits(rate_limits: RateLimitsConfig) -> Self {
-        let network_provider = MockNetworkProvider::new();
-        let domain: Fqdn = "example.com".parse().unwrap();
+    pub async fn single_with_rate_limits(rate_limits: RateLimitsSettings) -> Self {
         let local = LocalSet::new();
         let _guard = local.enter();
-        let listen_addr =
-            spawn_app_with_rate_limits(domain.clone(), network_provider, rate_limits).await;
-        info!(%listen_addr, "spawned server");
+
+        let (server_url, domain) = if let Ok(value) = std::env::var("TEST_SERVER_URL") {
+            let url: Url = value.parse().unwrap();
+            info!(%url, "using external test server");
+            let domain: Fqdn = url.host().unwrap().to_owned().into();
+            (ServerUrl::External(url), domain)
+        } else {
+            let network_provider = MockNetworkProvider::new();
+            let domain: Fqdn = "example.com".parse().unwrap();
+            let listen_addr =
+                spawn_app_with_rate_limits(domain.clone(), network_provider, rate_limits).await;
+            info!(%listen_addr, "using spawned test server");
+            (ServerUrl::Local(listen_addr), domain)
+        };
         Self {
             users: HashMap::new(),
             groups: HashMap::new(),
-            listen_addr,
+            server_url,
+            domain,
             temp_dir: tempfile::tempdir().unwrap(),
             _guard: Some(_guard),
         }
     }
 
-    pub fn listen_addr(&self) -> SocketAddr {
-        self.listen_addr
+    pub fn server_url(&self) -> Url {
+        match &self.server_url {
+            ServerUrl::External(url) => url.clone(),
+            ServerUrl::Local(addr) => format!("http://{addr}").parse().unwrap(),
+        }
+    }
+
+    pub fn domain(&self) -> &Fqdn {
+        &self.domain
+    }
+
+    pub fn random_user_id(&self) -> UserId {
+        UserId::new(Uuid::new_v4(), self.domain().clone())
+    }
+
+    pub fn is_external(&self) -> bool {
+        matches!(self.server_url, ServerUrl::External(_))
     }
 
     pub fn temp_dir(&self) -> &Path {
         self.temp_dir.path()
     }
 
-    pub async fn add_persisted_user(&mut self, user_id: &UserId) {
+    pub async fn add_persisted_user(&mut self) -> UserId {
+        let user_id = self.random_user_id();
         let path = self.temp_dir.path().to_str().unwrap();
         info!(%path, ?user_id, "Creating persisted user");
-        let user = TestUser::new_persisted(user_id, self.listen_addr, path).await;
+        let user = TestUser::new_persisted(&user_id, self.server_url(), path).await;
         self.users.insert(user_id.clone(), user);
+        user_id
     }
 
-    pub async fn add_user(&mut self, user_id: &UserId) {
+    pub async fn add_user(&mut self) -> UserId {
+        let user_id = self.random_user_id();
         info!(?user_id, "Creating user");
-        let user = TestUser::new(user_id, self.listen_addr).await;
+        let user = TestUser::new(&user_id, self.server_url()).await;
         self.users.insert(user_id.clone(), user);
+        user_id
     }
 
     pub fn get_user(&self, user_id: &UserId) -> &TestUser {
@@ -337,6 +372,15 @@ impl TestBackend {
                 assert_eq!(before.id(), after.id());
             });
         let user1_chat_id = chat.id();
+        let chat_message = user1.messages(chat.id(), 1).await.unwrap().pop().unwrap();
+        let Message::Event(EventMessage::System(system_message)) = chat_message.message() else {
+            panic!("Last message should be an event message of type system");
+        };
+        assert!(matches!(
+            system_message,
+            SystemMessage::NewHandleConnectionChat(handle)
+            if handle == user2_handle
+        ));
 
         let test_user2 = self.users.get_mut(user2_id).unwrap();
         let user2 = &mut test_user2.user;
@@ -395,6 +439,30 @@ impl TestBackend {
                 assert_eq!(before.id(), after.id());
             });
         let user2_chat_id = chat.id();
+        // User 2 should see two system messages
+        let mut chat_messages = user2.messages(chat.id(), 2).await.unwrap();
+        let accepted_request_message = chat_messages.pop().unwrap();
+        let received_request_message = chat_messages.pop().unwrap();
+        let Message::Event(EventMessage::System(system_message)) =
+            accepted_request_message.message()
+        else {
+            panic!("Last message should be an event message of type system");
+        };
+        assert!(matches!(
+            system_message,
+            SystemMessage::AcceptedConnectionRequest { contact, user_handle: Some(handle) }
+            if contact == user1_id && handle == user2_handle
+        ));
+        let Message::Event(EventMessage::System(system_message)) =
+            received_request_message.message()
+        else {
+            panic!("Last message should be an event message of type system");
+        };
+        assert!(matches!(
+            system_message,
+            SystemMessage::ReceivedHandleConnectionRequest { sender, user_handle }
+            if sender == user1_id && user_handle == user2_handle
+        ));
 
         let user2_id = user2.user_id().clone();
         let test_user1 = self.users.get_mut(user1_id).unwrap();
@@ -438,6 +506,15 @@ impl TestBackend {
         let ids_after: HashSet<_> = user1_chats_after.iter().map(|c| c.id()).collect();
         assert!(ids_before.is_superset(&ids_after));
         debug_assert_eq!(user1_chat_id, user2_chat_id);
+        let chat_message = user1.messages(chat.id(), 1).await.unwrap().pop().unwrap();
+        let Message::Event(EventMessage::System(system_message)) = chat_message.message() else {
+            panic!("Last message should be an event message of type system");
+        };
+        assert!(matches!(
+            system_message,
+            SystemMessage::ReceivedConnectionConfirmation { sender, user_handle: Some(user_handle) }
+            if sender == &user2_id && user_handle == user2_handle
+        ));
 
         let user1_unread_messages = self
             .users
@@ -1567,7 +1644,46 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                     SystemMessage::CreateGroup(user_id) => {
                         Some(format!("{user_id:?} created the group"))
                     }
-                }
+                    SystemMessage::NewHandleConnectionChat(user_handle) => {
+                        let user_handle_str = user_handle.plaintext();
+                        Some(format!("You requested a connection with {user_handle_str}"))
+                    }
+                    SystemMessage::AcceptedConnectionRequest { contact, user_handle } => {
+                        let base_str =
+                            format!("You accepted a connection request from {contact:?}");
+                        if let Some(user_handle) = user_handle {
+                            let user_handle_str = user_handle.plaintext();
+                            Some(format!("{base_str} through the handle {user_handle_str}"))
+                        } else {
+                            Some(base_str)
+                        }
+                    }
+                    SystemMessage::ReceivedConnectionConfirmation { sender, user_handle } => {
+                        let base_str =
+                            format!("User {sender:?} confirmed your connection request");
+                        if let Some(user_handle) = user_handle {
+                            let user_handle_str = user_handle.plaintext();
+                            Some(format!("{base_str} to handle {user_handle_str}"))
+                        } else {
+                            Some(base_str)
+                        }
+                    }
+                    SystemMessage::ReceivedHandleConnectionRequest { sender, user_handle } => {
+                        let user_handle_str = user_handle.plaintext();
+                        Some(format!(
+                            "User {sender:?} requested a connection to your handle {user_handle_str}"
+                        ))
+                    }
+                    SystemMessage::ReceivedDirectConnectionRequest { sender, chat_name } => {
+                        format!(
+                            "User {sender:?} requested a direct connection to your contact through the chat {chat_name}"
+                        )
+                        .into()
+                    },
+                    SystemMessage::NewDirectConnectionChat(user_id) => {
+                        format!("You requested a connection with {user_id:?}").into()
+                    },
+                                    }
             } else {
                 None
             }

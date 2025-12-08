@@ -26,6 +26,9 @@ service AuthService {
 
   // User Handles API
 
+  // Checks whether the handle with the given hash exists.
+  rpc CheckHandleExists(CheckHandleExistsRequest) returns (CheckHandleExistsResponse);
+
   // Creates a new handle
   //
   // A new handle will be created with the provided verifying key and hash. The
@@ -148,6 +151,7 @@ message Hash {
 // register user
 
 message RegisterUserRequest {
+  common.v1.ClientMetadata client_metadata = 5;
   ClientCredentialPayload client_credential_payload = 1;
   EncryptedUserProfile encrypted_user_profile = 4;
 }
@@ -164,6 +168,7 @@ message DeleteUserRequest {
 }
 
 message DeleteUserPayload {
+  common.v1.ClientMetadata client_metadata = 3;
   UserId user_id = 2;
 }
 
@@ -177,21 +182,12 @@ message PublishConnectionPackagesRequest {
 }
 
 message PublishConnectionPackagesPayload {
+  common.v1.ClientMetadata client_metadata = 4;
   UserHandleHash hash = 3;
   repeated ConnectionPackage connection_packages = 2;
 }
 
 message PublishConnectionPackagesResponse {}
-
-// get user connection packages
-
-message GetUserConnectionPackagesRequest {
-  UserId user_id = 1;
-}
-
-message GetUserConnectionPackagesResponse {
-  repeated ConnectionPackage connection_packages = 1;
-}
 
 // stage user profile
 
@@ -201,6 +197,7 @@ message StageUserProfileRequest {
 }
 
 message StageUserProfilePayload {
+  common.v1.ClientMetadata client_metadata = 3;
   UserId user_id = 1;
   EncryptedUserProfile encrypted_user_profile = 2;
 }
@@ -215,6 +212,7 @@ message MergeUserProfileRequest {
 }
 
 message MergeUserProfilePayload {
+  common.v1.ClientMetadata client_metadata = 2;
   UserId user_id = 1;
 }
 
@@ -223,6 +221,7 @@ message MergeUserProfileResponse {}
 // get user profile
 
 message GetUserProfileRequest {
+  common.v1.ClientMetadata client_metadata = 3;
   UserId user_id = 1;
   bytes key_index = 2;
 }
@@ -231,33 +230,11 @@ message GetUserProfileResponse {
   EncryptedUserProfile encrypted_user_profile = 1;
 }
 
-message GetConnectionPackageRequest {
-  GetConnectionPackagePayload payload = 1;
-  common.v1.Signature signature = 2;
-}
-
-message GetConnectionPackagePayload {
-  UserId user_id = 1;
-}
-
-message GetConnectionPackageResponse {
-  ConnectionPackage connection_package = 1;
-}
-
-// user connection package
-
-message GetConnectionPackagesRequest {
-  // TODO: can we remove this field?
-  UserId user_id = 1;
-}
-
-message GetConnectionPackagesResponse {
-  repeated ConnectionPackage connection_packages = 1;
-}
-
 // as credentials
 
-message AsCredentialsRequest {}
+message AsCredentialsRequest {
+  common.v1.ClientMetadata client_metadata = 1;
+}
 
 message AsCredentialsResponse {
   repeated AsCredential as_credentials = 1;
@@ -317,6 +294,7 @@ message IssueTokensRequest {
 }
 
 message IssueTokensPayload {
+  common.v1.ClientMetadata client_metadata = 3;
   UserId user_id = 1;
   bytes token_request = 2;
 }
@@ -333,6 +311,7 @@ message ReportSpamRequest {
 }
 
 message ReportSpamPayload {
+  common.v1.ClientMetadata client_metadata = 3;
   UserId reporter_id = 1;
   UserId spammer_id = 2;
 }
@@ -357,6 +336,7 @@ message CreateHandleRequest {
 }
 
 message CreateHandlePayload {
+  common.v1.ClientMetadata client_metadata = 4;
   HandleVerifyingKey verifying_key = 1;
   string plaintext = 2;
   // Hash of the plaintext
@@ -377,6 +357,7 @@ message DeleteHandleRequest {
 }
 
 message DeleteHandlePayload {
+  common.v1.ClientMetadata client_metadata = 2;
   UserHandleHash hash = 1;
 }
 
@@ -390,6 +371,7 @@ message RefreshHandleRequest {
 }
 
 message RefreshHandlePayload {
+  common.v1.ClientMetadata client_metadata = 2;
   UserHandleHash hash = 1;
 }
 
@@ -405,6 +387,7 @@ message ConnectRequest {
 }
 
 message FetchConnectionPackageStep {
+  common.v1.ClientMetadata client_metadata = 2;
   UserHandleHash hash = 1;
 }
 
@@ -445,6 +428,7 @@ message InitListenHandleRequest {
 }
 
 message InitListenHandlePayload {
+  common.v1.ClientMetadata client_metadata = 2;
   UserHandleHash hash = 1;
 }
 
@@ -464,4 +448,13 @@ message HandleQueueMessage {
   oneof payload {
     ConnectionOfferMessage connection_offer = 3;
   }
+}
+
+message CheckHandleExistsRequest {
+  common.v1.ClientMetadata client_metadata = 2;
+  UserHandleHash hash = 1;
+}
+
+message CheckHandleExistsResponse {
+  bool exists = 1;
 }

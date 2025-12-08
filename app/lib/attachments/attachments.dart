@@ -6,3 +6,4 @@ export "attachment_category_picker.dart";
 export "attachment_file.dart";
 export "attachment_image.dart";
 export "attachment_image_provider.dart";
+export "attachment_upload_view.dart";

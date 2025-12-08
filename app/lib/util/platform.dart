@@ -79,35 +79,23 @@ Future<String> getDatabaseDirectoryMobile() async {
   return '';
 }
 
-Future<String> getDownloadsDirectoryAndroid() async {
+/// Saves file data to the appropriate public directory on Android.
+Future<void> saveFileAndroid({
+  required String fileName,
+  required String mimeType,
+  required Uint8List data,
+}) async {
   if (!Platform.isAndroid) {
     throw PlatformException(code: 'unsupported_platform');
   }
   try {
-    return await platform.invokeMethod('getDownloadsDirectory');
-  } on PlatformException catch (e, stacktrace) {
-    _log.severe(
-      "Failed to get downloads directory: '${e.message}'",
-      e,
-      stacktrace,
-    );
-    throw PlatformException(code: 'failed_to_get_downloads_directory');
-  }
-}
-
-Future<String> getPicturesDirectoryAndroid() async {
-  if (!Platform.isAndroid) {
-    throw PlatformException(code: 'unsupported_platform');
-  }
-  try {
-    return await platform.invokeMethod('getPicturesDirectory');
-  } on PlatformException catch (e, stacktrace) {
-    _log.severe(
-      "Failed to get downloads directory: '${e.message}'",
-      e,
-      stacktrace,
-    );
-    throw PlatformException(code: 'failed_to_get_pictures_directory');
+    await platform.invokeMethod('saveFile', {
+      'fileName': fileName,
+      'mimeType': mimeType,
+      'data': data,
+    });
+  } on PlatformException catch (e) {
+    _log.severe("Failed to save file: '${e.message}'.");
   }
 }
 

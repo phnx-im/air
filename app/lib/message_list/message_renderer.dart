@@ -32,7 +32,7 @@ Widget buildBlockElement(
               ? CustomColorScheme.of(context).message.selfText
               : CustomColorScheme.of(context).message.otherText,
           fontSize: BodyFontSize.base.size,
-          height: 1.4,
+          height: 1.3,
         ),
       ),
       softWrap: true,
@@ -291,12 +291,8 @@ InlineSpan buildInlineElement(
           )
           .toList(),
       style: TextStyle(
-        color: isSender
-            ? CustomColorScheme.of(context).function.selfLink
-            : CustomColorScheme.of(context).function.link,
-        decorationColor: isSender
-            ? CustomColorScheme.of(context).function.selfLink
-            : CustomColorScheme.of(context).function.link,
+        color: CustomColorScheme.of(context).function.link,
+        decorationColor: CustomColorScheme.of(context).function.link,
         decoration: TextDecoration.underline,
       ),
     ),

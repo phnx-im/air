@@ -44,7 +44,7 @@ use crate::{
         targeted_message::TargetedMessageContent,
         update_key::update_chat_attributes,
     },
-    contacts::{ContactType, PartialContact},
+    contacts::{PartialContact, PartialContactType},
     groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
@@ -648,23 +648,22 @@ impl CoreUser {
         // StagedCommitMessage Phase 1: Confirm the chat if unconfirmed
         let mut notifier = self.store_notifier();
 
-        let chat_changed = if chat.is_unconfirmed() {
-            self.handle_unconfirmed_chat(
-                txn,
-                &mut notifier,
-                aad,
-                sender,
-                sender_client_credential,
-                &mut chat,
-                group,
-            )
-            .await?;
-            true
+        let (chat_changed, mut group_messages) = if chat.is_unconfirmed() {
+            let group_messages = self
+                .handle_unconfirmed_chat(
+                    txn,
+                    &mut notifier,
+                    aad,
+                    sender,
+                    sender_client_credential,
+                    &mut chat,
+                    group,
+                )
+                .await?;
+            (true, vec![group_messages])
         } else {
-            false
+            (false, vec![])
         };
-
-        let mut group_messages = Vec::new();
 
         // StagedCommitMessage Phase 2: Merge the staged commit into the group.
 
@@ -709,8 +708,8 @@ impl CoreUser {
         sender_client_credential: &ClientCredential,
         chat: &mut Chat,
         group: &mut Group,
-    ) -> Result<(), anyhow::Error> {
-        let Some(contact) = chat.chat_type().unconfirmed_contact() else {
+    ) -> Result<TimestampedMessage, anyhow::Error> {
+        let Some(contact_type) = chat.chat_type().unconfirmed_contact() else {
             bail!("Chat is not unconfirmed");
         };
 
@@ -722,7 +721,7 @@ impl CoreUser {
 
         let sender_user_id = sender_client_credential.identity();
 
-        if let ContactType::TargetedMessage(chat_user_id) = &contact {
+        if let PartialContactType::TargetedMessage(chat_user_id) = &contact_type {
             ensure!(
                 sender_user_id == chat_user_id,
                 "Sender identity does not match targeted message user ID"
@@ -731,7 +730,7 @@ impl CoreUser {
 
         // UnconfirmedConnection Phase 1: Load up the partial contact and decrypt the
         // friendship package
-        let contact = PartialContact::load(txn.as_mut(), contact)
+        let contact = PartialContact::load(txn.as_mut(), &contact_type)
             .await?
             .context("No contact found: {contact:?}")?;
 
@@ -777,7 +776,19 @@ impl CoreUser {
         chat.confirm(txn.as_mut(), notifier, contact.user_id)
             .await?;
 
-        Ok(())
+        let user_handle = if let PartialContactType::Handle(handle) = contact_type {
+            Some(handle.clone())
+        } else {
+            None
+        };
+        let system_message = SystemMessage::ReceivedConnectionConfirmation {
+            sender: sender_user_id.clone(),
+            user_handle,
+        };
+
+        let message = TimestampedMessage::system_message(system_message, TimeStamp::now());
+
+        Ok(message)
     }
 
     async fn handle_user_profile_key_update(

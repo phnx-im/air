@@ -41,11 +41,36 @@ class AppLocalizationsDe extends AppLocalizations {
   String get userSettingsScreen_sendWithEnter => 'Mit Eingabetaste senden';
 
   @override
+  String get userSettingsScreen_sendWithEnterDescription =>
+      'If disabled, pressing the Enter key won’t send a message.';
+
+  @override
   String get userSettingsScreen_readReceipts => 'Lesebestätigungen';
 
   @override
   String get userSettingsScreen_readReceiptsDescription =>
       'Wenn deaktiviert, sehen andere nicht, wann du ihre Nachrichten gelesen hast, und du siehst nicht, wann sie deine gelesen haben.';
+
+  @override
+  String get userSettingsScreen_displayNameLabel => 'Display name';
+
+  @override
+  String get userSettingsScreen_usernamesSection => 'Usernames';
+
+  @override
+  String get userSettingsScreen_settingsSection => 'Settings';
+
+  @override
+  String get userSettingsScreen_helpSection => 'Help';
+
+  @override
+  String get userSettingsScreen_accountSection => 'Account';
+
+  @override
+  String get userSettingsScreen_userHandlePlaceholder => 'Benutzername';
+
+  @override
+  String get settingsScreen_copiedToClipboard => 'Copied to clipboard';
 
   @override
   String get removeUsernameDialog_title => 'Benutzername entfernen';
@@ -59,9 +84,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get removeUsernameDialog_remove => 'Entfernen';
-
-  @override
-  String get userSettingsScreen_userHandlePlaceholder => 'Benutzername';
 
   @override
   String get addMembersScreen_addMembers => 'Mitglieder hinzufügen';
@@ -139,7 +161,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get unblockContactDialog_unblock => 'Entsperren';
 
   @override
-  String get deleteContactButton_text => 'Air-Kontakt löschen';
+  String get deleteContactButton_text => 'Löschen';
 
   @override
   String get deleteContactDialog_title => 'Air-Kontakt löschen';
@@ -154,6 +176,37 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get deleteContactDialog_delete => 'Löschen';
+
+  @override
+  String get addContactDialog_title => 'Add Air contact';
+
+  @override
+  String addContactDialog_content(Object displayName, Object groupTitle) {
+    return '$displayName from the group chat \"$groupTitle\" isn\'t an Air contact. To chat with them, send a contact request.';
+  }
+
+  @override
+  String get addContactDialog_cancel => 'Cancel';
+
+  @override
+  String get addContactDialog_confirm => 'Send';
+
+  @override
+  String addContactDialog_error(Object username) {
+    return 'Failed to send $username a contact request. Try again.';
+  }
+
+  @override
+  String get changeGroupTitleDialog_title => 'Change group title';
+
+  @override
+  String get changeGroupTitleDialog_content => 'Choose a title for the group.';
+
+  @override
+  String get changeGroupTitleDialog_cancel => 'Cancel';
+
+  @override
+  String get changeGroupTitleDialog_confirm => 'Save';
 
   @override
   String get introScreen_signUp => 'Registrieren';
@@ -243,6 +296,12 @@ class AppLocalizationsDe extends AppLocalizations {
       'Wähle einen Benutzernamen, den andere verwenden können, um sich mit dir zu verbinden.\n\nVerwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.';
 
   @override
+  String get userHandleScreen_cancel => 'Cancel';
+
+  @override
+  String get userHandleScreen_confirm => 'Add';
+
+  @override
   String get userHandleScreen_save => 'Speichern';
 
   @override
@@ -251,6 +310,9 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get editDisplayNameScreen_description =>
       'Wähle einen Namen, den andere sehen werden, wenn du mit ihnen kommunizierst.';
+
+  @override
+  String get editDisplayNameScreen_cancel => 'Cancel';
 
   @override
   String get editDisplayNameScreen_save => 'Speichern';
@@ -301,6 +363,50 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String systemMessage_userChangedTitle_suffix(Object new_name) {
     return '$new_name';
+  }
+
+  @override
+  String systemMessage_acceptedHandleConnectionRequest(
+    Object displayName,
+    Object username,
+  ) {
+    return 'Du hast die Kontaktanfrage von $displayName akzeptiert, die über deinen Benutzernamen $username gestellt wurde.';
+  }
+
+  @override
+  String systemMessage_acceptedDirectConnectionRequest(Object displayName) {
+    return 'Du hast die Kontaktanfrage von $displayName akzeptiert, die über einen gemeinsamen Gruppenchat gestellt wurde.';
+  }
+
+  @override
+  String systemMessage_receivedConnectionConfirmation(Object displayName) {
+    return '$displayName hat deine Kontaktanfrage akzeptiert.';
+  }
+
+  @override
+  String systemMessage_newHandleConnectionChat(Object username) {
+    return 'Du hast eine Kontaktanfrage an den Benutzernamen $username gesendet. Die Person wird vielleicht nicht sofort über deine Anfrage benachrichtigt.';
+  }
+
+  @override
+  String systemMessage_newDirectConnectionChat(Object displayName) {
+    return 'Du hast eine Kontaktanfrage an $displayName gesendet. Die Person wird vielleicht nicht sofort über deine Anfrage benachrichtigt.';
+  }
+
+  @override
+  String systemMessage_receivedHandleConnectionRequest(
+    Object displayName,
+    Object username,
+  ) {
+    return '$displayName hat dir eine Kontaktanfrage über deinen Benutzernamen $username gesendet.';
+  }
+
+  @override
+  String systemMessage_receivedDirectConnectionRequest(
+    Object displayName,
+    Object groupName,
+  ) {
+    return '$displayName hat dir eine Kontaktanfrage über den Gruppenchat $groupName gesendet.';
   }
 
   @override
@@ -437,6 +543,9 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get messageContextMenu_save => 'Speichern';
+
+  @override
+  String get messageContextMenu_share => 'Share';
 
   @override
   String get messageContextMenu_saveError =>

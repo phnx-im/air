@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use aircommon::identifiers::{Fqdn, UserId};
+use aircommon::identifiers::UserId;
 use airserver_test_harness::utils::setup::TestBackend;
 use criterion::{Criterion, criterion_group, criterion_main};
 use tokio::sync::Mutex;
@@ -25,19 +25,13 @@ fn benchmarks(c: &mut Criterion) {
     let setup = runtime.block_on(TestBackend::single());
     let setup = Rc::new(Mutex::new(setup));
 
-    let mut seed = 42;
-    let mut rng = || {
-        seed = rand(seed);
-        seed
-    };
-
-    let alice = UserId::new(Uuid::from_u128(1), "example.com".parse().unwrap());
-    let bob = UserId::new(Uuid::from_u128(2), "example.com".parse().unwrap());
+    let alice = UserId::new(Uuid::new_v4(), "example.com".parse().unwrap());
+    let bob = UserId::new(Uuid::new_v4(), "example.com".parse().unwrap());
 
     let chat_alice_bob = runtime.block_on(async {
         let mut setup = setup.lock().await;
-        setup.add_user(&alice).await;
-        setup.add_user(&bob).await;
+        let alice = setup.add_user().await;
+        let bob = setup.add_user().await;
         setup.connect_users(&alice, &bob).await
     });
 
@@ -48,16 +42,13 @@ fn benchmarks(c: &mut Criterion) {
 
     group.bench_function("add_user", |b| {
         b.to_async(&runtime).iter_custom(|iter| {
-            let offset = rng();
-            let domain: Fqdn = "example.com".parse().unwrap();
             let setup = setup.clone();
             let mut elapsed = Duration::default();
             async move {
                 let mut setup = setup.lock().await;
-                for i in 0..iter {
-                    let bob = UserId::new(Uuid::from_u128((offset + i).into()), domain.clone());
+                for _ in 0..iter {
                     let time = Instant::now();
-                    setup.add_user(&bob).await;
+                    setup.add_user().await;
                     elapsed += time.elapsed();
                 }
                 elapsed
@@ -68,15 +59,12 @@ fn benchmarks(c: &mut Criterion) {
     group.bench_function("connect_users", |b| {
         b.to_async(&runtime).iter_custom(|iter| {
             let alice = alice.clone();
-            let offset = rng();
-            let domain: Fqdn = "example.com".parse().unwrap();
             let setup = setup.clone();
             let mut elapsed = Duration::default();
             async move {
                 let mut setup = setup.lock().await;
-                for i in 0..iter {
-                    let bob = UserId::new(Uuid::from_u128((offset + i).into()), domain.clone());
-                    setup.add_user(&bob).await;
+                for _ in 0..iter {
+                    let bob = setup.add_user().await;
                     let time = Instant::now();
                     setup.connect_users(&alice, &bob).await;
                     elapsed += time.elapsed();
@@ -108,16 +96,13 @@ fn benchmarks(c: &mut Criterion) {
     });
 
     const NUM_USERS: usize = 10;
-    let offset = rng();
-    let domain: Fqdn = "example.com".parse().unwrap();
-    let bobs: Vec<UserId> = (0..NUM_USERS as u64)
-        .map(|i| UserId::new(Uuid::from_u128((offset + i).into()), domain.clone()))
-        .collect();
+    let mut bobs = Vec::new();
     runtime.block_on(async {
         let mut setup = setup.lock().await;
-        for bob in &bobs {
-            setup.add_user(bob).await;
-            setup.connect_users(&alice, bob).await;
+        for _ in 0..NUM_USERS {
+            let bob = setup.add_user().await;
+            setup.connect_users(&alice, &bob).await;
+            bobs.push(bob);
         }
     });
 
@@ -175,10 +160,3 @@ fn benchmarks(c: &mut Criterion) {
 
 criterion_group!(benches, benchmarks);
 criterion_main!(benches);
-
-fn rand(mut x: u64) -> u64 {
-    x = x ^ (x << 13);
-    x = x ^ (x >> 7);
-    x = x ^ (x << 17);
-    x
-}

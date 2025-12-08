@@ -18,6 +18,7 @@ use aircommon::{
         client_ds_out::{CreateGroupParamsOut, TargetedMessageParamsOut},
         connection_package::ConnectionPackage,
     },
+    time::TimeStamp,
 };
 use anyhow::{Context, bail};
 use openmls::group::GroupId;
@@ -25,7 +26,7 @@ use sqlx::SqliteTransaction;
 use tracing::info;
 
 use crate::{
-    Chat, ChatAttributes, ChatId, UserProfile,
+    Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage, UserProfile,
     clients::{
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
         targeted_message::TargetedMessageContent,
@@ -39,22 +40,42 @@ use crate::{
 
 use super::{CoreUser, connection_offer::payload::ConnectionOfferPayload};
 
+#[derive(Debug)]
+pub enum AddHandleContactResult {
+    Ok(ChatId),
+    Err(AddHandleContactError),
+}
+
+#[derive(Debug)]
+pub enum AddHandleContactError {
+    /// The contact could not be added because the user handle does not exist
+    HandleNotFound,
+    /// There is already a pending contact request for this user handle
+    DuplicateRequest,
+    /// The given handle is our own
+    OwnHandle,
+}
+
 impl CoreUser {
     /// Create a connection via a user handle.
     pub(crate) async fn add_contact_via_handle(
         &self,
         handle: UserHandle,
-    ) -> anyhow::Result<Option<ChatId>> {
+    ) -> anyhow::Result<AddHandleContactResult> {
         let client = self.api_client()?;
 
         // Phase 0: Perform sanity checks
         // Check if a connection request is already pending
         if HandleContact::load(self.pool(), &handle).await?.is_some() {
-            bail!("Connection request for this handle is already pending");
+            return Ok(AddHandleContactResult::Err(
+                AddHandleContactError::DuplicateRequest,
+            ));
         }
         // Check if the target handle is one of our own handles
         if self.user_handles().await?.contains(&handle) {
-            bail!("Cannot create connection to own handle");
+            return Ok(AddHandleContactResult::Err(
+                AddHandleContactError::OwnHandle,
+            ));
         }
 
         // Phase 1: Fetch a connection package from the AS
@@ -62,7 +83,9 @@ impl CoreUser {
             match client.as_connect_handle(handle.clone()).await {
                 Ok(res) => res,
                 Err(error) if error.is_not_found() => {
-                    return Ok(None);
+                    return Ok(AddHandleContactResult::Err(
+                        AddHandleContactError::HandleNotFound,
+                    ));
                 }
                 Err(error) => return Err(error.into()),
             };
@@ -114,7 +137,7 @@ impl CoreUser {
                 )
                 .await?;
 
-            Ok(Some(chat_id))
+            Ok(AddHandleContactResult::Ok(chat_id))
         })
         .await
     }
@@ -229,6 +252,12 @@ impl VerifiedConnectionPackagesWithGroupId<ConnectionPackage> {
         let chat = Chat::new_handle_chat(group_id.clone(), attributes, handle.clone());
         chat.store(txn.as_mut(), notifier).await?;
 
+        // Create the initial system message for the chat
+        let system_message = SystemMessage::NewHandleConnectionChat(handle);
+        let chat_message =
+            ChatMessage::new_system_message(chat.id(), TimeStamp::now(), system_message);
+        chat_message.store(txn.as_mut(), notifier).await?;
+
         Ok(LocalGroup {
             group,
             partial_params,
@@ -264,6 +293,12 @@ impl VerifiedConnectionPackagesWithGroupId<UserId> {
         // Create the connection chat
         let chat = Chat::new_targeted_message_chat(group_id.clone(), attributes, user_id.clone());
         chat.store(txn.as_mut(), notifier).await?;
+
+        // Create the initial system message for the chat
+        let system_message = SystemMessage::NewDirectConnectionChat(user_id.clone());
+        let chat_message =
+            ChatMessage::new_system_message(chat.id(), TimeStamp::now(), system_message);
+        chat_message.store(txn.as_mut(), notifier).await?;
 
         Ok(LocalGroup {
             group,

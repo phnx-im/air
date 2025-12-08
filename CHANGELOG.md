@@ -1,11 +1,45 @@
+## [0.5.0] - 2025-11-25
+
+### 🚀 Features
+
+- *(app)* Emoji auto complete (#831)
+- *(app)* Allow group chat profile updates (#836)
+- *(app)* Image attachment upload progress (#833)
+- *(app)* Image attachment upload cancellation and retry (#834)
+- *(app)* Open member details in more places (#840)
+- *(app)* Apply design specs to onboarding (#837)
+- *(coreclient)* Connection requests via targeted messages (#846)
+- *(app)* Image viewer improvements (#838)
+- *(app)* Support uploading files and images from camera (#843)
+- *(app)* Save attachment context menu (#844)
+- *(app)* Adjust design of user profile screen (#849)
+- *(app)* Design consistency (#850)
+- *(app)* Add upload confirmation screen (#855)
+- *(backend)* Add CheckHandleExists endpoint (#857)
+- *(app)* Update text in various places (#859)
+
+### 🐛 Bug Fixes
+
+- *(ci)* Fix typo in product shot content (#839)
+- *(backend)* Verify app message signatures on DS (#841)
+- *(app)* Composer no longer shown in inactive chats (#842)
+- *(app)* Newly created chats appear on top of the chat list (#845)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(build)* Replace dart tools by rust tools (#830)
+- *(app)* Upgrade flutter to 3.38.1 and dart to 3.10.0 (#832)
+- *(coreclient)* Add sanity checks when adding contact by handle (#847)
+- *(coreclient)* Add sanity checks when adding contact from group (#848)
+
 ## [0.4.0] - 2025-11-14
 
 ### 🚀 Features
 
 - *(server)* Add max attachment size limit (#811)
-- *(server)*Add server configuration to enable/disable post policy uploads (#812)
+- *(server)* Add server configuration to enable/disable post policy uploads (#812)
 - *(server)* Add content length to attachment provisioning (#813)
-- *(app)*New onboarding flow (#817)
+- *(app)* New onboarding flow (#817)
 - *(app)* Zoomable and pannable image viewer (#820)
 
 ### 🐛 Bug Fixes

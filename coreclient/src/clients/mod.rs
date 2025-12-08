@@ -27,9 +27,7 @@ use aircommon::{
     messages::{FriendshipToken, QueueMessage, push_token::PushToken},
 };
 pub use airprotos::auth_service::v1::{HandleQueueMessage, handle_queue_message};
-pub use airprotos::queue_service::v1::{
-    QueueEvent, QueueEventPayload, QueueEventUpdate, queue_event,
-};
+pub use airprotos::queue_service::v1::{QueueEvent, QueueEventPayload, queue_event};
 use anyhow::{Context, Result, anyhow, ensure};
 use chrono::{DateTime, Utc};
 use openmls::prelude::Ciphersuite;
@@ -76,7 +74,7 @@ use crate::{store::StoreNotificationsSender, user_profiles::UserProfile};
 
 use self::{api_clients::ApiClients, create_user::InitialUserState, store::UserCreationState};
 
-mod add_contact;
+pub(crate) mod add_contact;
 pub(crate) mod api_clients;
 pub(crate) mod attachment;
 pub(crate) mod block_contact;
@@ -434,6 +432,13 @@ impl CoreUser {
 
     pub async fn try_contact(&self, user_id: &UserId) -> sqlx::Result<Option<Contact>> {
         Contact::load(self.pool(), user_id).await
+    }
+
+    pub async fn try_targeted_message_contact(
+        &self,
+        user_id: &UserId,
+    ) -> sqlx::Result<Option<TargetedMessageContact>> {
+        TargetedMessageContact::load(self.pool(), user_id).await
     }
 
     pub async fn handle_contacts(&self) -> sqlx::Result<Vec<HandleContact>> {

@@ -13,10 +13,11 @@ import 'package:air/user/user.dart';
 import 'package:air/util/dialog.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:image_picker/image_picker.dart';
-import 'package:provider/provider.dart';
 
+import 'change_group_title_dialog.dart';
 import 'chat_details_cubit.dart';
 
 /// Details of a group chat
@@ -49,18 +50,19 @@ class GroupDetails extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    UserAvatar(
+                    GroupAvatar(
+                      chatId: chat.id,
                       size: 192,
-                      image: chat.picture,
-                      displayName: chat.title,
                       onPressed: () => _selectAvatar(context, chat.id),
                     ),
                     const SizedBox(height: Spacings.m),
-                    Text(
-                      chat.title,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.displayLarge!.copyWith(
-                        fontWeight: FontWeight.bold,
+                    InkWell(
+                      onTap: () => _changeGroupTitle(context, chat.title),
+                      child: Text(
+                        chat.title,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.displayLarge!
+                            .copyWith(fontWeight: FontWeight.bold),
                       ),
                     ),
                     const SizedBox(height: Spacings.m),
@@ -174,6 +176,17 @@ class GroupDetails extends StatelessWidget {
     userCubit.deleteChat(chat.id);
     if (!context.mounted) return;
     navigationCubit.closeChat();
+  }
+
+  void _changeGroupTitle(BuildContext context, String chatTitle) {
+    final chatDetailsCubit = context.read<ChatDetailsCubit>();
+    showDialog(
+      context: context,
+      builder: (context) => BlocProvider<ChatDetailsCubit>.value(
+        value: chatDetailsCubit,
+        child: ChangeGroupTitleDialog(groupTitle: chatTitle),
+      ),
+    );
   }
 }
 

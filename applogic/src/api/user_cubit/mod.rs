@@ -7,8 +7,9 @@
 use std::sync::Arc;
 
 use aircommon::identifiers::{UserHandle, UserId};
-use aircoreclient::Asset;
-use aircoreclient::{ChatId, clients::CoreUser, store::Store};
+use aircoreclient::{Asset, PartialContact};
+use aircoreclient::{ChatId, ContactType, clients::CoreUser, store::Store};
+use anyhow::ensure;
 use flutter_rust_bridge::frb;
 use qs::QueueContext;
 use tokio::sync::watch;
@@ -33,6 +34,8 @@ use super::{
 
 mod qs;
 mod user_handle;
+
+const DELETE_ACCOUNT_CONFIRMATION_TEXT: &str = "delete";
 
 /// State of the [`UserCubit`] which is the logged in user
 ///
@@ -265,6 +268,19 @@ impl UserCubitBase {
         Ok(contacts.into_iter().map(From::from).collect())
     }
 
+    pub async fn contact(&self, user_id: UiUserId) -> anyhow::Result<Option<UiContact>> {
+        let Some(contact) = Store::contact(&self.context.core_user, &user_id.into()).await? else {
+            return Ok(None);
+        };
+        match contact {
+            ContactType::Full(contact) => Ok(Some(contact.into())),
+            ContactType::Partial(PartialContact::TargetedMessage(contact)) => {
+                Ok(Some(contact.into()))
+            }
+            ContactType::Partial(PartialContact::Handle(_)) => Ok(None),
+        }
+    }
+
     pub async fn addable_contacts(&self, chat_id: ChatId) -> anyhow::Result<Vec<UiContact>> {
         let Some(members) = self.context.core_user.chat_participants(chat_id).await else {
             return Ok(vec![]);
@@ -353,8 +369,27 @@ impl UserCubitBase {
         self.context.core_user.unblock_contact(user_id.into()).await
     }
 
-    pub async fn delete_account(&self, db_path: &str) -> anyhow::Result<()> {
+    pub async fn delete_account(
+        &self,
+        db_path: &str,
+        confirmation_text: &str,
+    ) -> anyhow::Result<()> {
+        ensure!(
+            confirmation_text == DELETE_ACCOUNT_CONFIRMATION_TEXT,
+            "unexpected confirmation text"
+        );
         self.context.core_user.delete_account(Some(db_path)).await
+    }
+
+    pub async fn add_contact_from_group(
+        &self,
+        chat_id: ChatId,
+        user_id: UiUserId,
+    ) -> anyhow::Result<ChatId> {
+        self.context
+            .core_user
+            .add_contact_from_group(chat_id, user_id.into())
+            .await
     }
 }
 
@@ -450,14 +485,11 @@ impl CubitContext {
                     HomeNavigationState {
                         chat_id: None,
                         developer_settings_screen,
-                        user_settings_screen,
+                        user_profile_open,
                         ..
                     },
             } => {
-                if !IS_DESKTOP
-                    && developer_settings_screen.is_none()
-                    && user_settings_screen.is_none()
-                {
+                if !IS_DESKTOP && developer_settings_screen.is_none() && !user_profile_open {
                     NotificationContext::ChatList
                 } else {
                     NotificationContext::Other

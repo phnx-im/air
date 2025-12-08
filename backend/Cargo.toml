@@ -4,7 +4,7 @@
 
 [package]
 name = "airbackend"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["Phoenix R&D <hello@phnx.im>"]
 edition = "2024"
 include = ["./migrations/**"]

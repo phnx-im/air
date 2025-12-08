@@ -329,6 +329,7 @@ impl QueueService for GrpcQs {
             .await
             .ok_or(ListenQueueProtocolViolation::MissingInitRequest)??;
         let Some(listen_request::Request::Init(InitListenRequest {
+            client_metadata: _,
             client_id,
             sequence_number_start,
         })) = request.request
