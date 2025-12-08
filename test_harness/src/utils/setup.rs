@@ -23,6 +23,7 @@ use mimi_content::{
 };
 use rand::{Rng, RngCore, distributions::Alphanumeric, seq::IteratorRandom};
 use rand_chacha::rand_core::OsRng;
+use semver::VersionReq;
 use tempfile::TempDir;
 use tokio::{
     task::{LocalEnterGuard, LocalSet},
@@ -33,7 +34,7 @@ use tracing::info;
 use url::Url;
 use uuid::Uuid;
 
-use crate::utils::spawn_app_with_rate_limits;
+use crate::utils::spawn_app;
 
 use super::TEST_RATE_LIMITS;
 
@@ -144,10 +145,13 @@ enum ServerUrl {
 
 impl TestBackend {
     pub async fn single() -> Self {
-        Self::single_with_rate_limits(TEST_RATE_LIMITS).await
+        Self::single_with_params(None, None).await
     }
 
-    pub async fn single_with_rate_limits(rate_limits: RateLimitsSettings) -> Self {
+    pub async fn single_with_params(
+        rate_limits: Option<RateLimitsSettings>,
+        client_version_req: Option<VersionReq>,
+    ) -> Self {
         let local = LocalSet::new();
         let _guard = local.enter();
 
@@ -159,8 +163,13 @@ impl TestBackend {
         } else {
             let network_provider = MockNetworkProvider::new();
             let domain: Fqdn = "example.com".parse().unwrap();
-            let listen_addr =
-                spawn_app_with_rate_limits(domain.clone(), network_provider, rate_limits).await;
+            let listen_addr = spawn_app(
+                domain.clone(),
+                network_provider,
+                rate_limits.unwrap_or(TEST_RATE_LIMITS),
+                client_version_req,
+            )
+            .await;
             info!(%listen_addr, "using spawned test server");
             (ServerUrl::Local(listen_addr), domain)
         };

@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::Fqdn;
+use semver::VersionReq;
 use sqlx::{Executor, PgPool};
 use thiserror::Error;
 use tracing::info;
@@ -34,6 +35,7 @@ pub trait BackendService: Sized {
     async fn new(
         database_settings: &DatabaseSettings,
         domain: Fqdn,
+        client_version_req: Option<semver::VersionReq>,
     ) -> Result<Self, ServiceCreationError> {
         let connection =
             PgPool::connect(&database_settings.connection_string_without_database()).await?;
@@ -58,19 +60,27 @@ pub trait BackendService: Sized {
 
         let db_pool = PgPool::connect(&database_settings.connection_string()).await?;
 
-        Self::new_from_pool(db_pool, domain).await
+        Self::new_from_pool(db_pool, domain, client_version_req).await
     }
 
-    async fn new_from_pool(db_pool: PgPool, domain: Fqdn) -> Result<Self, ServiceCreationError> {
+    async fn new_from_pool(
+        db_pool: PgPool,
+        domain: Fqdn,
+        client_version_req: Option<VersionReq>,
+    ) -> Result<Self, ServiceCreationError> {
         info!("Running database migration");
         sqlx::migrate!("./migrations").run(&db_pool).await?;
         info!("Database migration successful");
 
         Self::describe_metrics();
-        Self::initialize(db_pool, domain).await
+        Self::initialize(db_pool, domain, client_version_req).await
     }
 
     fn describe_metrics() {}
 
-    async fn initialize(db_pool: PgPool, domain: Fqdn) -> Result<Self, ServiceCreationError>;
+    async fn initialize(
+        db_pool: PgPool,
+        domain: Fqdn,
+        client_version_req: Option<VersionReq>,
+    ) -> Result<Self, ServiceCreationError>;
 }

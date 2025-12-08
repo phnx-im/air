@@ -15,7 +15,6 @@ aircommon.workspace = true
 chrono.workspace = true
 derive_more.workspace = true
 displaydoc.workspace = true
-itertools.workspace = true
 mimi-room-policy.workspace = true
 mls-assist.workspace = true
 openmls.workspace = true
