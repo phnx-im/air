@@ -153,10 +153,7 @@ class _MessageView extends HookWidget {
     }
 
     final showMessageStatus =
-        isSender &&
-        flightPosition.isLast &&
-        status != UiMessageStatus.sending &&
-        status != UiMessageStatus.hidden;
+        isSender && flightPosition.isLast && status != UiMessageStatus.hidden;
 
     Widget buildTimestampRow() {
       if (!flightPosition.isLast) {
@@ -464,8 +461,17 @@ class _MessageStatus extends StatelessWidget {
     final readReceiptsEnabled = context.select(
       (UserSettingsCubit cubit) => cubit.state.readReceipts,
     );
+    if (status == UiMessageStatus.sending) {
+      return iconoir.RefreshDouble(
+        height: LabelFontSize.small2.size,
+        width: LabelFontSize.small2.size,
+      );
+    }
     if (status == UiMessageStatus.error) {
-      return ErrorStatusIcon(size: LabelFontSize.small2.size);
+      return iconoir.WarningCircle(
+        height: LabelFontSize.small2.size,
+        width: LabelFontSize.small2.size,
+      );
     }
     return DoubleCheckIcon(
       size: LabelFontSize.small2.size,
