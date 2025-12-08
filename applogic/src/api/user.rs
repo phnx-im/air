@@ -153,6 +153,13 @@ impl User {
         Ok(())
     }
 
+    /// Stop background work gracefully and wait for completion.
+    #[frb(positional)]
+    pub async fn prepare_for_background(&self) -> Result<()> {
+        self.user.stop_outbound_service().await;
+        Ok(())
+    }
+
     /// Total number of unread messages across all chats
     #[frb(getter, type_64bit_int)]
     pub async fn global_unread_messages_count(&self) -> usize {

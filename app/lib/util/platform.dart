@@ -47,6 +47,10 @@ Future<void> _handleMethod(
         openedNotificationSink.add(chatId);
       }
       break;
+    case 'backgroundTaskExpired':
+      final taskId = call.arguments['taskId'];
+      _log.warning('Background task expired (taskId=$taskId)');
+      break;
     default:
       _log.severe('Unknown method called: ${call.method}');
   }
@@ -133,6 +137,26 @@ Future<void> setBadgeCount(int count) async {
     await platform.invokeMethod('setBadgeCount', {'count': count});
   } on PlatformException catch (e, stacktrace) {
     _log.severe("Failed to set badge count: '${e.message}'.", e, stacktrace);
+  }
+}
+
+Future<int?> beginBackgroundTask() async {
+  if (!Platform.isIOS) return null;
+  try {
+    final result = await platform.invokeMethod('beginBackgroundTask');
+    if (result is int) return result;
+  } on PlatformException catch (e, stacktrace) {
+    _log.severe("Failed to begin background task: '${e.message}'.", e, stacktrace);
+  }
+  return null;
+}
+
+Future<void> endBackgroundTask(int? taskId) async {
+  if (!Platform.isIOS || taskId == null) return;
+  try {
+    await platform.invokeMethod('endBackgroundTask', {'taskId': taskId});
+  } on PlatformException catch (e, stacktrace) {
+    _log.severe("Failed to end background task: '${e.message}'.", e, stacktrace);
   }
 }
 

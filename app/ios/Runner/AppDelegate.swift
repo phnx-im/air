@@ -7,6 +7,7 @@ private let kProtectedBlockedCategory = "protected-blocked"
 @objc class AppDelegate: FlutterAppDelegate {
   private var deviceToken: String?
   private let notificationChannelName: String = "ms.air/channel"
+  private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
 
   override func application(
     _ application: UIApplication,
@@ -175,6 +176,15 @@ private let kProtectedBlockedCategory = "protected-blocked"
             message: "Failed to decode cancelNotifications arguments",
             details: nil))
       }
+    } else if call.method == "beginBackgroundTask" {
+      let taskId = self.beginBackgroundTask()
+      result(Int(taskId.rawValue))
+    } else if call.method == "endBackgroundTask" {
+      if let args = call.arguments as? [String: Any],
+         let rawId = args["taskId"] as? Int {
+        self.endBackgroundTask(taskId: UIBackgroundTaskIdentifier(rawValue: rawId))
+      }
+      result(nil)
     } else {
       NSLog("Unknown method called: \(call.method)")
       result(FlutterMethodNotImplemented)
@@ -263,6 +273,36 @@ private let kProtectedBlockedCategory = "protected-blocked"
   private func setBadgeCount(_ count: Int, result: FlutterResult) {
     UIApplication.shared.applicationIconBadgeNumber = count
     result(nil)
+  }
+
+  private func beginBackgroundTask() -> UIBackgroundTaskIdentifier {
+    if backgroundTaskId != .invalid {
+      return backgroundTaskId
+    }
+    backgroundTaskId = UIApplication.shared.beginBackgroundTask(
+      withName: "prepareForBackground",
+      expirationHandler: { [weak self] in
+        guard let self else { return }
+        // Notify Flutter so it can log expiration.
+        notifyFlutter(
+          method: "backgroundTaskExpired",
+          arguments: ["taskId": Int(self.backgroundTaskId.rawValue)]
+        )
+        if self.backgroundTaskId != .invalid {
+          UIApplication.shared.endBackgroundTask(self.backgroundTaskId)
+          self.backgroundTaskId = .invalid
+        }
+      })
+    return backgroundTaskId
+  }
+
+  private func endBackgroundTask(taskId: UIBackgroundTaskIdentifier) {
+    if taskId != .invalid {
+      UIApplication.shared.endBackgroundTask(taskId)
+    }
+    if taskId == backgroundTaskId {
+      backgroundTaskId = .invalid
+    }
   }
 }
 

@@ -46,6 +46,8 @@ pub(crate) mod timed_tasks_queue;
 pub struct OutboundService<C: OutboundServiceWork = OutboundServiceContext> {
     context: C,
     run_token_tx: watch::Sender<Option<RunToken>>,
+    // Tracks the most recent stop's done token so multiple callers can await the same stop.
+    last_stop_done: Arc<Mutex<Option<CancellationToken>>>,
 }
 
 pub trait OutboundServiceWork: Clone + Send + 'static {
@@ -88,6 +90,7 @@ impl<C: OutboundServiceWork> OutboundService<C> {
         Self {
             context,
             run_token_tx,
+            last_stop_done: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -95,6 +98,10 @@ impl<C: OutboundServiceWork> OutboundService<C> {
     ///
     /// Returns a future which finishes when the background task is done.
     pub(crate) fn start(&self) -> WaitForDoneFuture {
+        // Clear any previous stop token when starting fresh.
+        if let Ok(mut last) = self.last_stop_done.lock() {
+            *last = None;
+        }
         let mut done_token = None;
         self.run_token_tx.send_if_modified(|token| match token {
             Some(run_token) => {
@@ -127,6 +134,15 @@ impl<C: OutboundServiceWork> OutboundService<C> {
             }
         });
         debug!(stopped, "stopping background task");
+        // If we are already stopped, reuse the previous stop token so late callers still await it.
+        if done_token.is_none() {
+            if let Ok(last) = self.last_stop_done.lock() {
+                done_token = last.clone();
+            }
+        } else if let (Some(token), Ok(mut last)) = (done_token.clone(), self.last_stop_done.lock())
+        {
+            *last = Some(token);
+        }
         WaitForDoneFuture::new(done_token)
     }
 
@@ -343,7 +359,10 @@ mod test {
         time::Duration,
     };
 
-    use tokio::time::{sleep, timeout};
+    use tokio::{
+        sync::Notify,
+        time::{sleep, timeout},
+    };
 
     use crate::utils::init_test_tracing;
 
@@ -496,5 +515,77 @@ mod test {
         assert_eq!(9, context.counter.load(Ordering::SeqCst));
 
         assert!(service.run_token_tx.subscribe().borrow().is_none());
+    }
+
+    #[derive(Clone)]
+    struct BlockingWork {
+        gate: Arc<Notify>,
+        started: Arc<Notify>,
+    }
+
+    impl OutboundServiceWork for BlockingWork {
+        async fn work(&self, _run_token: CancellationToken) {
+            self.started.notify_waiters();
+            // Wait until the test explicitly releases the gate.
+            self.gate.notified().await;
+        }
+    }
+
+    #[tokio::test]
+    async fn stop_reuses_done_token_for_multiple_waiters() {
+        let gate = Arc::new(Notify::new());
+        let started = Arc::new(Notify::new());
+        let context = BlockingWork {
+            gate: gate.clone(),
+            started: started.clone(),
+        };
+        let service = OutboundService::with_context(context, global_lock());
+
+        // Start the worker; do not await the done future.
+        service.start();
+
+        // Wait until the background task started work.
+        started.notified().await;
+
+        let mut stop1 = Box::pin(service.stop());
+        let mut stop2 = Box::pin(service.stop());
+        // Both futures should remain pending until the gate is released.
+        assert!(
+            timeout(Duration::from_millis(10), &mut stop1)
+                .await
+                .is_err()
+        );
+        assert!(
+            timeout(Duration::from_millis(10), &mut stop2)
+                .await
+                .is_err()
+        );
+
+        gate.notify_waiters();
+        tokio::join!(stop1, stop2);
+    }
+
+    #[tokio::test]
+    async fn stop_ready_after_previous_stop_completed() {
+        let gate = Arc::new(Notify::new());
+        let started = Arc::new(Notify::new());
+        let context = BlockingWork {
+            gate: gate.clone(),
+            started: started.clone(),
+        };
+        let service = OutboundService::with_context(context, global_lock());
+
+        service.start();
+        started.notified().await;
+        let stop_fut = service.stop();
+        gate.notify_waiters();
+        stop_fut.await;
+
+        // Subsequent stop should resolve immediately using cached done token.
+        assert!(
+            timeout(Duration::from_millis(10), service.stop())
+                .await
+                .is_ok()
+        );
     }
 }
