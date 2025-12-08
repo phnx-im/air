@@ -37,18 +37,24 @@ pub struct Ds {
     reserved_group_ids: Arc<Mutex<HashSet<Uuid>>>,
     db_pool: PgPool,
     storage: Option<Storage>,
+    client_version_req: Option<semver::VersionReq>,
 }
 
 #[derive(Debug)]
 pub(crate) struct ReservedGroupId(Uuid);
 
 impl BackendService for Ds {
-    async fn initialize(db_pool: PgPool, domain: Fqdn) -> Result<Self, ServiceCreationError> {
+    async fn initialize(
+        db_pool: PgPool,
+        domain: Fqdn,
+        client_version_req: Option<semver::VersionReq>,
+    ) -> Result<Self, ServiceCreationError> {
         let ds = Self {
             own_domain: domain,
             reserved_group_ids: Default::default(),
             db_pool,
             storage: None,
+            client_version_req,
         };
 
         Ok(ds)

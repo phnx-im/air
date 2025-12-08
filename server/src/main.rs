@@ -52,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
         "Connecting to postgres server",
     );
     let mut counter = 0;
-    let mut ds_result = Ds::new(&configuration.database, domain.clone()).await;
+    let mut ds_result = Ds::new(&configuration.database, domain.clone(), None).await;
 
     // Try again for 10 times each second in case the postgres server is coming up.
     while let Err(e) = ds_result {
@@ -62,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
         if counter > 10 {
             panic!("Database not ready after 10 seconds.");
         }
-        ds_result = Ds::new(&configuration.database, domain.clone()).await;
+        ds_result = Ds::new(&configuration.database, domain.clone(), None).await;
     }
     let mut ds = ds_result.unwrap();
     if let Some(storage_settings) = &configuration.storage {
@@ -73,15 +73,19 @@ async fn main() -> anyhow::Result<()> {
     // New database name for the QS provider
     configuration.database.name = format!("{base_db_name}_qs");
     // QS storage provider
-    let qs = Qs::new(&configuration.database, domain.clone())
+    let qs = Qs::new(&configuration.database, domain.clone(), None)
         .await
         .expect("Failed to connect to database.");
 
     // New database name for the AS provider
     configuration.database.name = format!("{base_db_name}_as");
-    let auth_service = AuthService::new(&configuration.database, domain.clone())
-        .await
-        .expect("Failed to connect to database.");
+    let auth_service = AuthService::new(
+        &configuration.database,
+        domain.clone(),
+        configuration.application.versionreq.clone(),
+    )
+    .await
+    .expect("Failed to connect to database.");
 
     let push_notification_provider =
         ProductionPushNotificationProvider::new(configuration.fcm, configuration.apns)?;

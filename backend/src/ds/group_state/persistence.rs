@@ -166,7 +166,7 @@ mod test {
 
     #[sqlx::test]
     async fn reserve_group_id(pool: PgPool) {
-        let ds = Ds::new_from_pool(pool, "example.com".parse().unwrap())
+        let ds = Ds::new_from_pool(pool, "example.com".parse().unwrap(), None)
             .await
             .expect("Error creating ephemeral Ds instance.");
 
@@ -185,7 +185,7 @@ mod test {
 
     #[sqlx::test]
     async fn group_state_lifecycle(pool: PgPool) {
-        let ds = Ds::new_from_pool(pool, "example.com".parse().unwrap())
+        let ds = Ds::new_from_pool(pool, "example.com".parse().unwrap(), None)
             .await
             .expect("Error creating ephemeral Ds instance.");
 
@@ -269,7 +269,7 @@ mod test {
 
     #[sqlx::test]
     async fn load(pool: PgPool) -> anyhow::Result<()> {
-        let ds = Ds::new_from_pool(pool.clone(), "example.com".parse().unwrap()).await?;
+        let ds = Ds::new_from_pool(pool.clone(), "example.com".parse().unwrap(), None).await?;
         let (qgid, group) = store_random_group(&pool, &ds).await?;
 
         let mut connection = pool.acquire().await?;
@@ -281,7 +281,7 @@ mod test {
 
     #[sqlx::test]
     async fn update(pool: PgPool) -> anyhow::Result<()> {
-        let ds = Ds::new_from_pool(pool.clone(), "example.com".parse().unwrap()).await?;
+        let ds = Ds::new_from_pool(pool.clone(), "example.com".parse().unwrap(), None).await?;
         let (qgid, group) = store_random_group(&pool, &ds).await?;
 
         let mut connection = pool.acquire().await?;
@@ -302,7 +302,7 @@ mod test {
 
     #[sqlx::test]
     async fn delete(pool: PgPool) -> anyhow::Result<()> {
-        let ds = Ds::new_from_pool(pool.clone(), "example.com".parse().unwrap()).await?;
+        let ds = Ds::new_from_pool(pool.clone(), "example.com".parse().unwrap(), None).await?;
         let (qgid, group) = store_random_group(&pool, &ds).await?;
 
         let mut connection = pool.acquire().await?;

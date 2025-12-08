@@ -4,21 +4,25 @@
 
 use std::{collections::HashSet, fs, io::Cursor, slice, time::Duration};
 
-use airapiclient::as_api::AsRequestError;
+use airapiclient::{ApiClient, as_api::AsRequestError, qs_api::QsRequestError};
 use airbackend::settings::RateLimitsSettings;
 use airprotos::{
-    auth_service::v1::auth_service_server, delivery_service::v1::delivery_service_server,
+    auth_service::v1::auth_service_server,
+    common::v1::{StatusDetails, StatusDetailsCode},
+    delivery_service::v1::delivery_service_server,
     queue_service::v1::queue_service_server,
 };
 use base64::{Engine, prelude::BASE64_STANDARD};
 use chrono::Utc;
 use image::{ImageBuffer, Rgba};
 use mimi_content::{MessageStatus, MimiContent, content_container::NestedPartContent};
+use prost::Message as _;
 use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
 
 use aircommon::{
     assert_matches,
-    identifiers::{UserHandle, UserId},
+    credentials::keys::HandleSigningKey,
+    identifiers::{QsClientId, UserHandle, UserId},
     mls_group_config::MAX_PAST_EPOCHS,
 };
 use aircoreclient::{
@@ -34,6 +38,7 @@ use aircoreclient::{
 };
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use png::Encoder;
+use semver::VersionReq;
 use sha2::{Digest, Sha256};
 use tokio::{task::JoinSet, time::sleep};
 use tokio_stream::StreamExt;
@@ -71,10 +76,13 @@ async fn send_message() {
 async fn rate_limit() {
     init_test_tracing();
 
-    let mut setup = TestBackend::single_with_rate_limits(RateLimitsSettings {
-        period: Duration::from_secs(1), // replenish one token every 500ms
-        burst: 30,                      // allow total 30 request
-    })
+    let mut setup = TestBackend::single_with_params(
+        Some(RateLimitsSettings {
+            period: Duration::from_secs(1), // replenish one token every 500ms
+            burst: 30,                      // allow total 30 request
+        }),
+        None,
+    )
     .await;
 
     if setup.is_external() {
@@ -2002,4 +2010,43 @@ async fn check_handle_exists() {
     alice_user.remove_user_handle(&alice_handle).await.unwrap();
     let exists = alice_user.check_handle_exists(&alice_handle).await.unwrap();
     assert!(!exists, "Alice's handle should not exist after removal");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(
+    name = "Unsupported client version on listen handle and queue",
+    skip_all
+)]
+async fn unsupported_client_version() {
+    let setup =
+        TestBackend::single_with_params(None, Some(VersionReq::parse("^0.1.0").unwrap())).await;
+
+    let client = ApiClient::new(setup.server_url().as_str()).unwrap();
+
+    let handle = UserHandle::new("test_handle".to_string()).unwrap();
+    let signing_key = HandleSigningKey::generate().unwrap();
+    let hash = handle.calculate_hash().unwrap();
+
+    let res = client.as_listen_handle(hash, &signing_key).await;
+    let status = match res {
+        Err(AsRequestError::Tonic(status)) => status,
+        Err(error) => panic!("Unexpected error type: {error:?}"),
+        Ok(_) => panic!("Expected error"),
+    };
+    assert_eq!(status.code(), tonic::Code::FailedPrecondition);
+
+    let details = StatusDetails::decode(status.details()).unwrap();
+    assert_matches!(details.code(), StatusDetailsCode::VersionUnsupported);
+
+    let client_id = QsClientId::random(&mut OsRng);
+    let res = client.listen_queue(client_id, 0).await;
+    match res {
+        Err(QsRequestError::Tonic(status)) => status,
+        Err(error) => panic!("Unexpected error type: {error:?}"),
+        Ok(_) => panic!("Expected error"),
+    };
+    assert_eq!(status.code(), tonic::Code::FailedPrecondition);
+
+    let details = StatusDetails::decode(status.details()).unwrap();
+    assert_matches!(details.code(), StatusDetailsCode::VersionUnsupported);
 }

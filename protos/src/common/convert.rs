@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::fmt;
+
 use aircommon::{
     credentials::keys::{AsIntermediateSignature, AsSignature, ClientSignature, HandleSignature},
     crypto::{
@@ -393,6 +395,22 @@ impl From<time::ExpirationData> for ExpirationData {
             not_before: Some(value.not_before().into()),
             not_after: Some(value.not_after().into()),
         }
+    }
+}
+
+impl fmt::Display for Version {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)?;
+        if !self.pre.is_empty() {
+            write!(f, "-{}", self.pre)?;
+        }
+        if self.build_number > 0 {
+            write!(f, "+{}.", self.build_number)?;
+        }
+        for byte in self.commit_hash.iter() {
+            write!(f, "{:02x}", byte)?;
+        }
+        Ok(())
     }
 }
 

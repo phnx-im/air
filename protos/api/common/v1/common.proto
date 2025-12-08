@@ -76,3 +76,13 @@ message Version {
   // Possibly truncated hash of the commit
   bytes commit_hash = 6;
 }
+
+// Additional details attached to a GRPC status
+message StatusDetails {
+  StatusDetailsCode code = 1;
+}
+
+enum StatusDetailsCode {
+  STATUS_DETAILS_CODE_UNKNOWN = 0;
+  STATUS_DETAILS_CODE_VERSION_UNSUPPORTED = 1;
+}
