@@ -19,6 +19,8 @@ import 'user.dart';
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UiUser>>
 abstract class UiUser implements RustOpaqueInterface {
+  bool get unsupportedVersion;
+
   List<UiUserHandle> get userHandles;
 
   UiUserId get userId;

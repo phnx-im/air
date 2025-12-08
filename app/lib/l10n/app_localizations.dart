@@ -1374,6 +1374,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Something went wrong on our end. Wait a moment, then try again.'**
   String get deleteAccountScreen_deleteAccountError;
+
+  /// No description provided for @appOutdatedScreen_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Sofware update required'**
+  String get appOutdatedScreen_title;
+
+  /// No description provided for @appOutdatedScreen_message.
+  ///
+  /// In en, this message translates to:
+  /// **'Update to keep using Air'**
+  String get appOutdatedScreen_message;
+
+  /// No description provided for @appOutdatedScreen_description.
+  ///
+  /// In en, this message translates to:
+  /// **'Open TestFlight on iOS or Google Play on Android, then update Air.'**
+  String get appOutdatedScreen_description;
+
+  /// No description provided for @appOutdatedScreen_action.
+  ///
+  /// In en, this message translates to:
+  /// **'Update'**
+  String get appOutdatedScreen_action;
 }
 
 class _AppLocalizationsDelegate

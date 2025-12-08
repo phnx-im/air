@@ -279,6 +279,10 @@
   "deleteAccountScreen_confirmationInputLabel": "Type 'delete' to confirm.",
   "deleteAccountScreen_confirmButtonText": "Delete",
   "deleteAccountScreen_cancelButtonText": "Cancel",
-  "deleteAccountScreen_deleteAccountError": "Something went wrong on our end. Wait a moment, then try again."
+  "deleteAccountScreen_deleteAccountError": "Something went wrong on our end. Wait a moment, then try again.",
 
+  "appOutdatedScreen_title": "Sofware update required",
+  "appOutdatedScreen_message": "Update to keep using Air",
+  "appOutdatedScreen_description": "Open TestFlight on iOS or Google Play on Android, then update Air.",
+  "appOutdatedScreen_action": "Update"
 }
