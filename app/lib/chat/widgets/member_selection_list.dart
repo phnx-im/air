@@ -31,6 +31,12 @@ class MemberSelectionList extends StatelessWidget {
     final usersState = context.select((UsersCubit cubit) => cubit.state);
     final normalizedQuery = query.trim().toLowerCase();
 
+    int comparator(UiContact a, UiContact b) {
+      final nameA = usersState.displayName(userId: a.userId).toLowerCase();
+      final nameB = usersState.displayName(userId: b.userId).toLowerCase();
+      return nameA.compareTo(nameB);
+    }
+
     final filteredContacts = normalizedQuery.isEmpty
         ? contacts
         : contacts.where((contact) {
@@ -40,20 +46,21 @@ class MemberSelectionList extends StatelessWidget {
                 .toLowerCase();
             return name.contains(normalizedQuery);
           }).toList();
+    final sortedContacts = [...filteredContacts]..sort(comparator);
 
     return ListView.separated(
       padding: const EdgeInsets.symmetric(
         horizontal: Spacings.m,
         vertical: Spacings.xs,
       ),
-      itemCount: filteredContacts.length,
+      itemCount: sortedContacts.length,
       separatorBuilder: (context, index) => Divider(
         height: 1,
         thickness: 1,
         color: CustomColorScheme.of(context).backgroundBase.primary,
       ),
       itemBuilder: (context, index) {
-        final contact = filteredContacts[index];
+        final contact = sortedContacts[index];
         final profile = usersState.profile(userId: contact.userId);
         final isSelected = selectedContacts.contains(contact.userId);
 

@@ -201,7 +201,14 @@ class _PeoplePreview extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
     final textTheme = Theme.of(context).textTheme;
     final loc = AppLocalizations.of(context);
-    final previewIds = memberIds.take(3).toList();
+    final usersState = context.select((UsersCubit cubit) => cubit.state);
+    final sortedMemberIds = [...memberIds]
+      ..sort((a, b) {
+        final nameA = usersState.displayName(userId: a).toLowerCase();
+        final nameB = usersState.displayName(userId: b).toLowerCase();
+        return nameA.compareTo(nameB);
+      });
+    final previewIds = sortedMemberIds.take(3).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

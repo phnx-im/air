@@ -230,6 +230,12 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
     final colors = CustomColorScheme.of(context);
 
     final selectedIds = addMembersState.selectedContacts.toList();
+    final sortedSelectedIds = [...selectedIds]
+      ..sort((a, b) {
+        final nameA = usersState.displayName(userId: a).toLowerCase();
+        final nameB = usersState.displayName(userId: b).toLowerCase();
+        return nameA.compareTo(nameB);
+      });
     final contactsById = {
       for (final contact in addMembersState.contacts) contact.userId: contact,
     };
@@ -328,7 +334,7 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
                         alignment: WrapAlignment.start,
                         spacing: Spacings.s,
                         runSpacing: Spacings.s,
-                        children: selectedIds.map((userId) {
+                        children: sortedSelectedIds.map((userId) {
                           final profile = usersState.profile(userId: userId);
                           final contact = contactsById[userId];
                           if (contact == null) {
