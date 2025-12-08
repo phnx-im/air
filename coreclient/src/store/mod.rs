@@ -198,9 +198,17 @@ pub trait Store {
 
     async fn message(&self, message_id: MessageId) -> StoreResult<Option<ChatMessage>>;
 
-    async fn prev_message(&self, message_id: MessageId) -> StoreResult<Option<ChatMessage>>;
+    async fn prev_message(
+        &self,
+        chat_id: ChatId,
+        message_id: MessageId,
+    ) -> StoreResult<Option<ChatMessage>>;
 
-    async fn next_message(&self, message_id: MessageId) -> StoreResult<Option<ChatMessage>>;
+    async fn next_message(
+        &self,
+        chat_id: ChatId,
+        message_id: MessageId,
+    ) -> StoreResult<Option<ChatMessage>>;
 
     async fn last_message(&self, chat_id: ChatId) -> StoreResult<Option<ChatMessage>>;
 

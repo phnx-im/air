@@ -221,12 +221,20 @@ impl Store for CoreUser {
         Ok(self.message(message_id).await?)
     }
 
-    async fn prev_message(&self, message_id: MessageId) -> StoreResult<Option<ChatMessage>> {
-        self.prev_message(message_id).await
+    async fn prev_message(
+        &self,
+        chat_id: ChatId,
+        message_id: MessageId,
+    ) -> StoreResult<Option<ChatMessage>> {
+        self.prev_message(chat_id, message_id).await
     }
 
-    async fn next_message(&self, message_id: MessageId) -> StoreResult<Option<ChatMessage>> {
-        self.next_message(message_id).await
+    async fn next_message(
+        &self,
+        chat_id: ChatId,
+        message_id: MessageId,
+    ) -> StoreResult<Option<ChatMessage>> {
+        self.next_message(chat_id, message_id).await
     }
 
     async fn last_message(&self, chat_id: ChatId) -> StoreResult<Option<ChatMessage>> {
