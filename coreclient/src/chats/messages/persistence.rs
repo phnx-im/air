@@ -491,6 +491,7 @@ impl ChatMessage {
 
     pub(crate) async fn prev_message(
         executor: impl SqliteExecutor<'_>,
+        chat_id: ChatId,
         message_id: MessageId,
     ) -> sqlx::Result<Option<ChatMessage>> {
         query_as!(
@@ -510,12 +511,13 @@ impl ChatMessage {
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
-            WHERE chat_id = (SELECT chat_id FROM message WHERE message_id = ?1)
+            WHERE chat_id = ?2
                 AND message_id != ?1
                 AND timestamp <= (SELECT timestamp FROM message WHERE message_id = ?1)
             ORDER BY timestamp DESC
             LIMIT 1"#,
             message_id,
+            chat_id,
         )
         .fetch_optional(executor)
         .await
@@ -529,6 +531,7 @@ impl ChatMessage {
 
     pub(crate) async fn next_message(
         executor: impl SqliteExecutor<'_>,
+        chat_id: ChatId,
         message_id: MessageId,
     ) -> sqlx::Result<Option<ChatMessage>> {
         query_as!(
@@ -548,12 +551,13 @@ impl ChatMessage {
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
-            WHERE chat_id = (SELECT chat_id FROM message WHERE message_id = ?1)
+            WHERE chat_id = ?2
                 AND message_id != ?1
                 AND timestamp >= (SELECT timestamp FROM message WHERE message_id = ?1)
             ORDER BY timestamp ASC
             LIMIT 1"#,
             message_id,
+            chat_id,
         )
         .fetch_optional(executor)
         .await
@@ -667,13 +671,13 @@ pub(crate) mod tests {
         );
         message_b.store(&pool, &mut store_notifier).await?;
 
-        let prev = ChatMessage::prev_message(&pool, message_b.id()).await?;
+        let prev = ChatMessage::prev_message(&pool, chat_b.id(), message_b.id()).await?;
         assert!(
             prev.is_none(),
             "prev_message should ignore messages from other chats"
         );
 
-        let next = ChatMessage::next_message(&pool, message_a.id()).await?;
+        let next = ChatMessage::next_message(&pool, chat_a.id(), message_a.id()).await?;
         assert!(
             next.is_none(),
             "next_message should ignore messages from other chats"
@@ -779,7 +783,7 @@ pub(crate) mod tests {
         message_a.store(&pool, &mut store_notifier).await?;
         message_b.store(&pool, &mut store_notifier).await?;
 
-        let loaded = ChatMessage::prev_message(&pool, message_b.id()).await?;
+        let loaded = ChatMessage::prev_message(&pool, chat.id(), message_b.id()).await?;
         assert_eq!(loaded, Some(message_a));
 
         Ok(())
@@ -799,7 +803,7 @@ pub(crate) mod tests {
         message_a.store(&pool, &mut store_notifier).await?;
         message_b.store(&pool, &mut store_notifier).await?;
 
-        let loaded = ChatMessage::next_message(&pool, message_a.id()).await?;
+        let loaded = ChatMessage::next_message(&pool, chat.id(), message_a.id()).await?;
         assert_eq!(loaded, Some(message_b));
 
         Ok(())
