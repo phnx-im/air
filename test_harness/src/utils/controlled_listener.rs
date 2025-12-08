@@ -64,8 +64,8 @@ impl ControlHandle {
 /// - In Normal mode: behaves like a regular TcpStream (AsyncRead/AsyncWrite).
 /// - In DropAll mode:
 ///     * `poll_read` drains the socket into an internal buffer and discards it
-///       (so the kernel buffer doesn't fill),
-///       but does NOT deliver any bytes to the caller.
+///       (so the kernel buffer doesn't fill), but does NOT deliver any bytes to
+///       the caller.
 ///     * `poll_write` still forwards writes as normal.
 pub struct ControlledStream {
     inner: TcpStream,
