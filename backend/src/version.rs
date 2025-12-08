@@ -116,6 +116,26 @@ mod tests {
     }
 
     #[test]
+    fn test_prerelease_version_match() {
+        let req = Some(&VersionReq::parse(">=1.4.0, <2.0.0, 1.5.0-dev").unwrap());
+        let metadata = ClientMetadata {
+            version: Some(Version {
+                major: 1,
+                minor: 5,
+                patch: 0,
+                pre: "dev".to_owned(),
+                build_number: 69,
+                commit_hash: vec![0xf3, 0x22, 0x68, 0x79],
+            }),
+        };
+        let result = verify_client_version(req, Some(&metadata));
+        assert!(
+            result.is_ok(),
+            "Should succeed when version matches requirement"
+        );
+    }
+
+    #[test]
     fn test_version_mismatch() {
         let req = Some(&VersionReq::parse("=1.x.x").unwrap());
         let metadata = mock_client_metadata(2, 0, 0);
