@@ -451,6 +451,44 @@ class _MessageView extends HookWidget {
   }
 }
 
+class RotatingSendIcon extends StatefulWidget {
+  const RotatingSendIcon({super.key});
+
+  @override
+  State<RotatingSendIcon> createState() => _RotatingSendIconState();
+}
+
+class _RotatingSendIconState extends State<RotatingSendIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RotationTransition(
+      turns: _controller,
+      child: iconoir.RefreshDouble(
+        height: LabelFontSize.small2.size,
+        width: LabelFontSize.small2.size,
+      ),
+    );
+  }
+}
+
 class _MessageStatus extends StatelessWidget {
   const _MessageStatus({required this.status});
 
@@ -462,10 +500,7 @@ class _MessageStatus extends StatelessWidget {
       (UserSettingsCubit cubit) => cubit.state.readReceipts,
     );
     if (status == UiMessageStatus.sending) {
-      return iconoir.RefreshDouble(
-        height: LabelFontSize.small2.size,
-        width: LabelFontSize.small2.size,
-      );
+      return const RotatingSendIcon();
     }
     if (status == UiMessageStatus.error) {
       return iconoir.WarningCircle(
