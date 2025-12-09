@@ -156,7 +156,6 @@ dependencies = [
  "aws-sigv4",
  "base64",
  "chrono",
- "clap",
  "dashmap 6.1.0",
  "displaydoc",
  "futures-util",
