@@ -761,7 +761,7 @@ pub(crate) mod tests {
         .store(&pool, &mut store_notifier)
         .await?;
 
-        let loaded = ChatMessage::last_content_message(&pool, chat.id()).await?;
+        let loaded = ChatMessage::last_message(&pool, chat.id()).await?;
         assert_eq!(loaded, Some(message_b));
 
         Ok(())
