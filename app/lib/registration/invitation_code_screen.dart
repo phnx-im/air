@@ -53,22 +53,13 @@ class InvitationCodeScreen extends HookWidget {
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       return SingleChildScrollView(
-                        keyboardDismissBehavior:
-                            ScrollViewKeyboardDismissBehavior.onDrag,
                         padding: const EdgeInsets.symmetric(
                           horizontal: Spacings.s,
+                          vertical: Spacings.xs,
                         ),
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minHeight: constraints.maxHeight,
-                          ),
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            child: _Form(
-                              formKey: formKey,
-                              showErrors: showErrors.value,
-                            ),
-                          ),
+                        child: _Form(
+                          formKey: formKey,
+                          showErrors: showErrors.value,
                         ),
                       );
                     },
@@ -113,8 +104,6 @@ class _Form extends HookWidget {
       child: Column(
         crossAxisAlignment: .center,
         children: [
-          const SizedBox(height: Spacings.xs),
-
           GestureDetector(
             onLongPress: () => serverFieldVisible.value = true,
             child: Text(

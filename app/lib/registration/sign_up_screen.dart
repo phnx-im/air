@@ -58,21 +58,13 @@ class SignUpScreen extends HookWidget {
                       return SingleChildScrollView(
                         keyboardDismissBehavior:
                             ScrollViewKeyboardDismissBehavior.onDrag,
-                        padding: const EdgeInsets.only(
-                          left: Spacings.s,
-                          right: Spacings.s,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: Spacings.s,
+                          vertical: Spacings.xs,
                         ),
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minHeight: constraints.maxHeight,
-                          ),
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            child: _Form(
-                              formKey: formKey,
-                              showErrors: showErrors.value,
-                            ),
-                          ),
+                        child: _Form(
+                          formKey: formKey,
+                          showErrors: showErrors.value,
                         ),
                       );
                     },
@@ -122,7 +114,6 @@ class _Form extends HookWidget {
       child: Center(
         child: Column(
           children: [
-            const SizedBox(height: Spacings.xs),
             Text(
               loc.signUpScreen_subheader,
               style: Theme.of(context).textTheme.bodyMedium,

@@ -98,7 +98,7 @@ class UsernameOnboardingScreen extends HookWidget {
                     builder: (context, constraints) {
                       return SingleChildScrollView(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: Spacings.m,
+                          horizontal: Spacings.s,
                           vertical: Spacings.xs,
                         ),
                         child: Form(
