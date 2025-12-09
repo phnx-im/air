@@ -14035,7 +14035,7 @@ class UserImpl extends RustOpaque implements User {
   Future<int> get globalUnreadMessagesCount => RustLib.instance.api
       .crateApiUserUserGlobalUnreadMessagesCount(that: this);
 
-  /// Stop background work so the app can suspend without holding shared locks.
+  /// Stop background work gracefully and wait for completion.
   Future<void> prepareForBackground() =>
       RustLib.instance.api.crateApiUserUserPrepareForBackground(that: this);
 

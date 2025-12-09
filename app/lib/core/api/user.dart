@@ -60,7 +60,7 @@ abstract class User implements RustOpaqueInterface {
     profilePicture: profilePicture,
   );
 
-  /// Stop background work so the app can suspend without holding shared locks.
+  /// Stop background work gracefully and wait for completion.
   Future<void> prepareForBackground();
 
   /// Update the push token.
