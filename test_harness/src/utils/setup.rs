@@ -9,12 +9,13 @@ use std::{
     time::Duration,
 };
 
+use airbackend::settings::RateLimitsSettings;
 use aircommon::{
     OpenMlsRand, RustCrypto,
     identifiers::{Fqdn, UserHandle, UserId},
 };
 use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, store::Store, *};
-use airserver::{RateLimitsConfig, network_provider::MockNetworkProvider};
+use airserver::network_provider::MockNetworkProvider;
 use anyhow::Context;
 use mimi_content::{
     ByteBuf, Disposition, MimiContent, NestedPart,
@@ -22,6 +23,7 @@ use mimi_content::{
 };
 use rand::{Rng, RngCore, distributions::Alphanumeric, seq::IteratorRandom};
 use rand_chacha::rand_core::OsRng;
+use semver::VersionReq;
 use tempfile::TempDir;
 use tokio::{
     task::{LocalEnterGuard, LocalSet},
@@ -29,8 +31,10 @@ use tokio::{
 };
 use tokio_stream::StreamExt;
 use tracing::info;
+use url::Url;
+use uuid::Uuid;
 
-use crate::utils::spawn_app_with_rate_limits;
+use crate::utils::spawn_app;
 
 use super::TEST_RATE_LIMITS;
 
@@ -56,16 +60,14 @@ impl AsMut<CoreUser> for TestUser {
 }
 
 impl TestUser {
-    pub async fn new(user_id: &UserId, listen: SocketAddr) -> Self {
-        let user = Self::try_new(user_id, listen).await.unwrap();
+    pub async fn new(user_id: &UserId, server_url: Url) -> Self {
+        let user = Self::try_new(user_id, server_url).await.unwrap();
         // Run outbound service to upload KeyPackages
         user.user.outbound_service().run_once().await;
         user
     }
 
-    pub async fn try_new(user_id: &UserId, listen: SocketAddr) -> anyhow::Result<Self> {
-        let server_url = format!("http://{listen}").parse().unwrap();
-
+    pub async fn try_new(user_id: &UserId, server_url: Url) -> anyhow::Result<Self> {
         let user = CoreUser::new_ephemeral(user_id.clone(), server_url, None).await?;
 
         Ok(Self {
@@ -75,8 +77,7 @@ impl TestUser {
         })
     }
 
-    pub async fn new_persisted(user_id: &UserId, listen_addr: SocketAddr, db_dir: &str) -> Self {
-        let server_url = format!("http://{listen_addr}").parse().unwrap();
+    pub async fn new_persisted(user_id: &UserId, server_url: Url, db_dir: &str) -> Self {
         let user = CoreUser::new(user_id.clone(), server_url, db_dir, None)
             .await
             .unwrap();
@@ -131,52 +132,95 @@ pub struct TestBackend {
     pub users: HashMap<UserId, TestUser>,
     pub groups: HashMap<ChatId, HashSet<UserId>>,
     // This is what we feed to the test clients.
-    listen_addr: SocketAddr,
+    server_url: ServerUrl,
+    domain: Fqdn,
     temp_dir: TempDir,
     _guard: Option<LocalEnterGuard>,
 }
 
+enum ServerUrl {
+    External(Url),
+    Local(SocketAddr),
+}
+
 impl TestBackend {
     pub async fn single() -> Self {
-        Self::single_with_rate_limits(TEST_RATE_LIMITS).await
+        Self::single_with_params(None, None).await
     }
 
-    pub async fn single_with_rate_limits(rate_limits: RateLimitsConfig) -> Self {
-        let network_provider = MockNetworkProvider::new();
-        let domain: Fqdn = "example.com".parse().unwrap();
+    pub async fn single_with_params(
+        rate_limits: Option<RateLimitsSettings>,
+        client_version_req: Option<VersionReq>,
+    ) -> Self {
         let local = LocalSet::new();
         let _guard = local.enter();
-        let listen_addr =
-            spawn_app_with_rate_limits(domain.clone(), network_provider, rate_limits).await;
-        info!(%listen_addr, "spawned server");
+
+        let (server_url, domain) = if let Ok(value) = std::env::var("TEST_SERVER_URL") {
+            let url: Url = value.parse().unwrap();
+            info!(%url, "using external test server");
+            let domain: Fqdn = url.host().unwrap().to_owned().into();
+            (ServerUrl::External(url), domain)
+        } else {
+            let network_provider = MockNetworkProvider::new();
+            let domain: Fqdn = "example.com".parse().unwrap();
+            let listen_addr = spawn_app(
+                domain.clone(),
+                network_provider,
+                rate_limits.unwrap_or(TEST_RATE_LIMITS),
+                client_version_req,
+            )
+            .await;
+            info!(%listen_addr, "using spawned test server");
+            (ServerUrl::Local(listen_addr), domain)
+        };
         Self {
             users: HashMap::new(),
             groups: HashMap::new(),
-            listen_addr,
+            server_url,
+            domain,
             temp_dir: tempfile::tempdir().unwrap(),
             _guard: Some(_guard),
         }
     }
 
-    pub fn listen_addr(&self) -> SocketAddr {
-        self.listen_addr
+    pub fn server_url(&self) -> Url {
+        match &self.server_url {
+            ServerUrl::External(url) => url.clone(),
+            ServerUrl::Local(addr) => format!("http://{addr}").parse().unwrap(),
+        }
+    }
+
+    pub fn domain(&self) -> &Fqdn {
+        &self.domain
+    }
+
+    pub fn random_user_id(&self) -> UserId {
+        UserId::new(Uuid::new_v4(), self.domain().clone())
+    }
+
+    pub fn is_external(&self) -> bool {
+        matches!(self.server_url, ServerUrl::External(_))
     }
 
     pub fn temp_dir(&self) -> &Path {
         self.temp_dir.path()
     }
 
-    pub async fn add_persisted_user(&mut self, user_id: &UserId) {
+    pub async fn add_persisted_user(&mut self) -> UserId {
+        let user_id = self.random_user_id();
         let path = self.temp_dir.path().to_str().unwrap();
         info!(%path, ?user_id, "Creating persisted user");
-        let user = TestUser::new_persisted(user_id, self.listen_addr, path).await;
+        let user = TestUser::new_persisted(&user_id, self.server_url(), path).await;
         self.users.insert(user_id.clone(), user);
+        user_id
     }
 
-    pub async fn add_user(&mut self, user_id: &UserId) {
+    pub async fn add_user(&mut self) -> UserId {
+        let user_id = self.random_user_id();
         info!(?user_id, "Creating user");
-        let user = TestUser::new(user_id, self.listen_addr).await;
+        let user = TestUser::new(&user_id, self.server_url()).await;
         self.users.insert(user_id.clone(), user);
+        user_id
     }
 
     pub fn get_user(&self, user_id: &UserId) -> &TestUser {

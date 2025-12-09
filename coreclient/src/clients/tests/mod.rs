@@ -16,7 +16,7 @@ use super::api_clients::ApiClients;
 async fn user_stages() -> anyhow::Result<()> {
     // Set up backend
     let setup = TestBackend::single().await;
-    let server_url = format!("http://{}", setup.listen_addr());
+    let server_url = setup.server_url();
 
     let user_id = UserId::random("example.com".parse().unwrap());
 

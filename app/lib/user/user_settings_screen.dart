@@ -59,7 +59,6 @@ class UserSettingsScreen extends StatelessWidget {
       ),
       backgroundColor: colors.backgroundBase.secondary,
       body: SafeArea(
-        minimum: const EdgeInsets.only(bottom: Spacings.l + Spacings.xxs),
         child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
@@ -101,6 +100,8 @@ class UserSettingsScreen extends StatelessWidget {
 
                     const SizedBox(height: Spacings.m),
                     const _AccountSection(),
+
+                    const SizedBox(height: Spacings.l + Spacings.xxs),
                   ],
                 ),
               ),

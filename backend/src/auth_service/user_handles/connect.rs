@@ -19,6 +19,7 @@ use airprotos::{
 };
 use displaydoc::Display;
 use futures_util::Stream;
+use semver::VersionReq;
 use sqlx::PgPool;
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -59,6 +60,9 @@ pub(crate) trait ConnectHandleProtocol {
         hash: &UserHandleHash,
         connection_offer: ConnectionOfferMessage,
     ) -> Result<(), HandleQueueError>;
+
+    #[expect(clippy::needless_lifetimes)]
+    fn client_version_req<'a>(&'a self) -> Option<&'a VersionReq>;
 }
 
 async fn run_protocol(
@@ -93,6 +97,12 @@ async fn run_protocol_impl(
         }
         None => return Ok(()),
     };
+
+    crate::version::verify_client_version(
+        protocol.client_version_req(),
+        fetch_connection_package.client_metadata.as_ref(),
+    )
+    .map_err(ConnectProtocolError::UnsupportedVersion)?;
 
     let hash = fetch_connection_package
         .hash
@@ -181,6 +191,8 @@ pub(crate) enum ConnectProtocolError {
     MissingField(#[from] MissingFieldError<&'static str>),
     /// Enqueue failed
     Enqueue(#[from] HandleQueueError),
+    /// Unsupported version
+    UnsupportedVersion(Status),
 }
 
 impl From<ConnectProtocolError> for Status {
@@ -200,6 +212,7 @@ impl From<ConnectProtocolError> for Status {
                 error!(%error, "enqueue failed");
                 Status::internal(msg)
             }
+            ConnectProtocolError::UnsupportedVersion(status) => status,
         }
     }
 }
@@ -228,6 +241,10 @@ impl ConnectHandleProtocol for AuthService {
         self.handle_queues.enqueue(hash, payload).await?;
         Ok(())
     }
+
+    fn client_version_req(&self) -> Option<&VersionReq> {
+        self.client_version_req.as_ref()
+    }
 }
 
 impl AuthService {
@@ -252,15 +269,18 @@ impl AuthService {
 
 #[cfg(test)]
 mod tests {
-    use std::time;
+    use std::{sync::LazyLock, time};
 
     use aircommon::{
         credentials::keys::{HandleSigningKey, HandleVerifyingKey},
         time::Duration,
     };
-    use airprotos::auth_service::v1::{
-        self, ConnectionOfferMessage, EnqueueConnectionOfferResponse, EnqueueConnectionOfferStep,
-        FetchConnectionPackageStep,
+    use airprotos::{
+        auth_service::v1::{
+            self, ConnectionOfferMessage, EnqueueConnectionOfferResponse,
+            EnqueueConnectionOfferStep, FetchConnectionPackageStep,
+        },
+        common::{self, v1::ClientMetadata},
     };
     use mockall::predicate::*;
     use tokio::{sync::mpsc, task::JoinHandle, time::timeout};
@@ -280,6 +300,17 @@ mod tests {
     }
 
     const PROTOCOL_TIMEOUT: time::Duration = time::Duration::from_secs(1);
+
+    static CLIENT_METADATA: LazyLock<ClientMetadata> = LazyLock::new(|| ClientMetadata {
+        version: Some(common::v1::Version {
+            major: 0,
+            minor: 1,
+            patch: 0,
+            pre: "dev".to_owned(),
+            build_number: 1,
+            commit_hash: vec![0xa1, 0xb1, 0xc1, 0xd1],
+        }),
+    });
 
     #[expect(clippy::type_complexity, reason = "usage in tests is straightforward")]
     fn run_test_protocol(
@@ -343,10 +374,13 @@ mod tests {
             .with(eq(hash), eq(connection_offer.clone()))
             .returning(|_, _| Ok(()));
 
+        mock_protocol.expect_client_version_req().returning(|| None);
+
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
 
         let request_fetch = ConnectRequest {
             step: Some(connect_request::Step::Fetch(FetchConnectionPackageStep {
+                client_metadata: Some(CLIENT_METADATA.clone()),
                 hash: Some(hash.into()),
             })),
         };
@@ -399,10 +433,13 @@ mod tests {
             .with(eq(hash))
             .returning(|_| Ok(None));
 
+        mock_protocol.expect_client_version_req().returning(|| None);
+
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
 
         let request_fetch = ConnectRequest {
             step: Some(connect_request::Step::Fetch(FetchConnectionPackageStep {
+                client_metadata: Some(CLIENT_METADATA.clone()),
                 hash: Some(hash.into()),
             })),
         };
@@ -430,10 +467,13 @@ mod tests {
             .with(eq(hash))
             .returning(|_| Ok(Some(ExpirationData::new(Duration::milliseconds(1)))));
 
+        mock_protocol.expect_client_version_req().returning(|| None);
+
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
 
         let request_fetch = ConnectRequest {
             step: Some(connect_request::Step::Fetch(FetchConnectionPackageStep {
+                client_metadata: Some(CLIENT_METADATA.clone()),
                 hash: Some(hash.into()),
             })),
         };
@@ -516,11 +556,14 @@ mod tests {
             .with(eq(hash))
             .returning(move |_| Ok(inner_connection_package.clone()));
 
+        mock_protocol.expect_client_version_req().returning(|| None);
+
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
 
         requests
             .send(Ok(ConnectRequest {
                 step: Some(connect_request::Step::Fetch(FetchConnectionPackageStep {
+                    client_metadata: Some(CLIENT_METADATA.clone()),
                     hash: Some(hash.into()),
                 })),
             }))
@@ -532,6 +575,7 @@ mod tests {
         requests
             .send(Ok(ConnectRequest {
                 step: Some(connect_request::Step::Fetch(FetchConnectionPackageStep {
+                    client_metadata: Some(CLIENT_METADATA.clone()),
                     hash: Some(hash.into()),
                 })),
             }))

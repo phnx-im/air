@@ -7,6 +7,7 @@ use credentials::{
     CredentialGenerationError, intermediate_signing_key::IntermediateSigningKey,
     signing_key::StorableSigningKey,
 };
+use semver::VersionReq;
 use sqlx::PgPool;
 use thiserror::Error;
 use user_handles::UserHandleQueues;
@@ -29,6 +30,7 @@ pub mod user_record;
 pub struct AuthService {
     db_pool: PgPool,
     pub(crate) handle_queues: UserHandleQueues,
+    client_version_req: Option<VersionReq>,
 }
 
 #[derive(Debug, Error)]
@@ -46,11 +48,16 @@ impl<T: Into<sqlx::Error>> From<T> for AuthServiceCreationError {
 }
 
 impl BackendService for AuthService {
-    async fn initialize(db_pool: PgPool, domain: Fqdn) -> Result<Self, ServiceCreationError> {
+    async fn initialize(
+        db_pool: PgPool,
+        domain: Fqdn,
+        client_version_req: Option<VersionReq>,
+    ) -> Result<Self, ServiceCreationError> {
         let handle_queues = UserHandleQueues::new(db_pool.clone()).await?;
         let auth_service = Self {
             db_pool,
             handle_queues,
+            client_version_req,
         };
 
         // Check if there is an active AS signing key

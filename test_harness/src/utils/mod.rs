@@ -13,13 +13,15 @@ use airbackend::{
     auth_service::AuthService,
     ds::{Ds, storage::Storage},
     qs::Qs,
+    settings::RateLimitsSettings,
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
-    RateLimitsConfig, ServerRunParams, configurations::get_configuration_from_str,
+    ServerRunParams, configurations::get_configuration_from_str,
     enqueue_provider::SimpleEnqueueProvider, network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
 };
+use semver::VersionReq;
 use tokio::net::TcpListener;
 use uuid::Uuid;
 
@@ -28,24 +30,16 @@ use crate::init_test_tracing;
 const BASE_CONFIG: &str = include_str!("../../../server/configuration/base.yaml");
 const LOCAL_CONFIG: &str = include_str!("../../../server/configuration/local.yaml");
 
-const TEST_RATE_LIMITS: RateLimitsConfig = RateLimitsConfig {
+const TEST_RATE_LIMITS: RateLimitsSettings = RateLimitsSettings {
     period: Duration::from_millis(1),
-    burst_size: 1000,
+    burst: 1000,
 };
 
-/// Start the server and initialize the database connection.
-///
-/// Returns the HTTP and gRPC addresses, and a `DispatchWebsocketNotifier` to dispatch
-/// notifications.
-pub async fn spawn_app(domain: Fqdn, network_provider: MockNetworkProvider) -> SocketAddr {
-    spawn_app_with_rate_limits(domain, network_provider, TEST_RATE_LIMITS).await
-}
-
-/// Same as [`spawn_app`], but allows to configure rate limits.
-pub async fn spawn_app_with_rate_limits(
+pub(crate) async fn spawn_app(
     domain: Fqdn,
     network_provider: MockNetworkProvider,
-    rate_limits: RateLimitsConfig,
+    rate_limits: RateLimitsSettings,
+    client_version_req: Option<VersionReq>,
 ) -> SocketAddr {
     init_test_tracing();
 
@@ -64,9 +58,13 @@ pub async fn spawn_app_with_rate_limits(
     let address = listener.local_addr().unwrap();
 
     // DS storage provider
-    let mut ds = Ds::new(&configuration.database, domain.clone())
-        .await
-        .expect("Failed to connect to database.");
+    let mut ds = Ds::new(
+        &configuration.database,
+        domain.clone(),
+        client_version_req.clone(),
+    )
+    .await
+    .expect("Failed to connect to database.");
     ds.set_storage(Storage::new(
         configuration
             .storage
@@ -77,16 +75,24 @@ pub async fn spawn_app_with_rate_limits(
     // New database name for the AS provider
     configuration.database.name = Uuid::new_v4().to_string();
 
-    let auth_service = AuthService::new(&configuration.database, domain.clone())
-        .await
-        .expect("Failed to connect to database.");
+    let auth_service = AuthService::new(
+        &configuration.database,
+        domain.clone(),
+        client_version_req.clone(),
+    )
+    .await
+    .expect("Failed to connect to database.");
 
     // New database name for the QS provider
     configuration.database.name = Uuid::new_v4().to_string();
 
-    let qs = Qs::new(&configuration.database, domain.clone())
-        .await
-        .expect("Failed to connect to database.");
+    let qs = Qs::new(
+        &configuration.database,
+        domain.clone(),
+        client_version_req.clone(),
+    )
+    .await
+    .expect("Failed to connect to database.");
 
     let push_notification_provider = ProductionPushNotificationProvider::new(None, None).unwrap();
 

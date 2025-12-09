@@ -7,8 +7,8 @@
 use std::sync::Arc;
 
 use aircommon::identifiers::{UserHandle, UserId};
-use aircoreclient::Asset;
-use aircoreclient::{ChatId, clients::CoreUser, store::Store};
+use aircoreclient::{Asset, PartialContact};
+use aircoreclient::{ChatId, ContactType, clients::CoreUser, store::Store};
 use anyhow::ensure;
 use flutter_rust_bridge::frb;
 use qs::QueueContext;
@@ -268,6 +268,19 @@ impl UserCubitBase {
         Ok(contacts.into_iter().map(From::from).collect())
     }
 
+    pub async fn contact(&self, user_id: UiUserId) -> anyhow::Result<Option<UiContact>> {
+        let Some(contact) = Store::contact(&self.context.core_user, &user_id.into()).await? else {
+            return Ok(None);
+        };
+        match contact {
+            ContactType::Full(contact) => Ok(Some(contact.into())),
+            ContactType::Partial(PartialContact::TargetedMessage(contact)) => {
+                Ok(Some(contact.into()))
+            }
+            ContactType::Partial(PartialContact::Handle(_)) => Ok(None),
+        }
+    }
+
     pub async fn addable_contacts(&self, chat_id: ChatId) -> anyhow::Result<Vec<UiContact>> {
         let Some(members) = self.context.core_user.chat_participants(chat_id).await else {
             return Ok(vec![]);
@@ -366,6 +379,17 @@ impl UserCubitBase {
             "unexpected confirmation text"
         );
         self.context.core_user.delete_account(Some(db_path)).await
+    }
+
+    pub async fn add_contact_from_group(
+        &self,
+        chat_id: ChatId,
+        user_id: UiUserId,
+    ) -> anyhow::Result<ChatId> {
+        self.context
+            .core_user
+            .add_contact_from_group(chat_id, user_id.into())
+            .await
     }
 }
 

@@ -208,12 +208,20 @@ impl CoreUser {
         ChatMessage::load(self.pool(), message_id).await
     }
 
-    pub(crate) async fn prev_message(&self, message_id: MessageId) -> Result<Option<ChatMessage>> {
-        Ok(ChatMessage::prev_message(self.pool(), message_id).await?)
+    pub(crate) async fn prev_message(
+        &self,
+        chat_id: ChatId,
+        message_id: MessageId,
+    ) -> Result<Option<ChatMessage>> {
+        Ok(ChatMessage::prev_message(self.pool(), chat_id, message_id).await?)
     }
 
-    pub(crate) async fn next_message(&self, message_id: MessageId) -> Result<Option<ChatMessage>> {
-        Ok(ChatMessage::next_message(self.pool(), message_id).await?)
+    pub(crate) async fn next_message(
+        &self,
+        chat_id: ChatId,
+        message_id: MessageId,
+    ) -> Result<Option<ChatMessage>> {
+        Ok(ChatMessage::next_message(self.pool(), chat_id, message_id).await?)
     }
 
     pub async fn chat(&self, chat: &ChatId) -> Option<Chat> {

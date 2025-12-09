@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::time::Duration;
-
 use airbackend::{
     air_service::BackendService,
     auth_service::AuthService,
@@ -12,7 +10,7 @@ use airbackend::{
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
-    RateLimitsConfig, ServerRunParams, configurations::*, enqueue_provider::SimpleEnqueueProvider,
+    ServerRunParams, configurations::*, enqueue_provider::SimpleEnqueueProvider,
     logging::init_logging, network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
 };
@@ -43,7 +41,12 @@ async fn main() -> anyhow::Result<()> {
         .domain
         .parse()
         .expect("Invalid domain");
-    info!(%domain, "Starting server");
+    let version_req = configuration.application.versionreq.as_ref();
+    info!(
+        %domain,
+        version_req =? version_req.map(|v| v.to_string()),
+        "Starting server"
+    );
     let network_provider = MockNetworkProvider::new();
 
     let base_db_name = configuration.database.name.clone();
@@ -54,7 +57,12 @@ async fn main() -> anyhow::Result<()> {
         "Connecting to postgres server",
     );
     let mut counter = 0;
-    let mut ds_result = Ds::new(&configuration.database, domain.clone()).await;
+    let mut ds_result = Ds::new(
+        &configuration.database,
+        domain.clone(),
+        version_req.cloned(),
+    )
+    .await;
 
     // Try again for 10 times each second in case the postgres server is coming up.
     while let Err(e) = ds_result {
@@ -64,7 +72,12 @@ async fn main() -> anyhow::Result<()> {
         if counter > 10 {
             panic!("Database not ready after 10 seconds.");
         }
-        ds_result = Ds::new(&configuration.database, domain.clone()).await;
+        ds_result = Ds::new(
+            &configuration.database,
+            domain.clone(),
+            version_req.cloned(),
+        )
+        .await;
     }
     let mut ds = ds_result.unwrap();
     if let Some(storage_settings) = &configuration.storage {
@@ -75,15 +88,23 @@ async fn main() -> anyhow::Result<()> {
     // New database name for the QS provider
     configuration.database.name = format!("{base_db_name}_qs");
     // QS storage provider
-    let qs = Qs::new(&configuration.database, domain.clone())
-        .await
-        .expect("Failed to connect to database.");
+    let qs = Qs::new(
+        &configuration.database,
+        domain.clone(),
+        version_req.cloned(),
+    )
+    .await
+    .expect("Failed to connect to database.");
 
     // New database name for the AS provider
     configuration.database.name = format!("{base_db_name}_as");
-    let auth_service = AuthService::new(&configuration.database, domain.clone())
-        .await
-        .expect("Failed to connect to database.");
+    let auth_service = AuthService::new(
+        &configuration.database,
+        domain.clone(),
+        version_req.cloned(),
+    )
+    .await
+    .expect("Failed to connect to database.");
 
     let push_notification_provider =
         ProductionPushNotificationProvider::new(configuration.fcm, configuration.apns)?;
@@ -101,10 +122,7 @@ async fn main() -> anyhow::Result<()> {
         auth_service,
         qs,
         qs_connector,
-        rate_limits: RateLimitsConfig {
-            period: Duration::from_millis(500),
-            burst_size: 100,
-        },
+        rate_limits: configuration.ratelimits,
     })
     .await;
 

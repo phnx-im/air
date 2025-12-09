@@ -160,14 +160,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get unblockContactDialog_unblock => 'Unblock';
 
   @override
-  String get deleteContactButton_text => 'Delete Air contact';
+  String get deleteContactButton_text => 'Delete';
 
   @override
-  String get deleteContactDialog_title => 'Delete Air contact';
+  String get deleteContactDialog_title => 'Delete Air Contact';
 
   @override
   String deleteContactDialog_content(Object displayName) {
-    return 'Are you sure you want to delete your Air contact $displayName? If you do, the chat and its message history will be deleted.';
+    return 'Are you sure you want to delete your Air Contact $displayName? If you do, the chat and its message history will be deleted.';
   }
 
   @override
@@ -175,6 +175,37 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deleteContactDialog_delete => 'Delete';
+
+  @override
+  String get addContactDialog_title => 'Add Air contact';
+
+  @override
+  String addContactDialog_content(Object displayName, Object groupTitle) {
+    return '$displayName from the group chat \"$groupTitle\" isn\'t an Air contact. To chat with them, send a contact request.';
+  }
+
+  @override
+  String get addContactDialog_cancel => 'Cancel';
+
+  @override
+  String get addContactDialog_confirm => 'Send';
+
+  @override
+  String addContactDialog_error(Object username) {
+    return 'Failed to send $username a contact request. Try again.';
+  }
+
+  @override
+  String get changeGroupTitleDialog_title => 'Change group title';
+
+  @override
+  String get changeGroupTitleDialog_content => 'Choose a title for the group.';
+
+  @override
+  String get changeGroupTitleDialog_cancel => 'Cancel';
+
+  @override
+  String get changeGroupTitleDialog_confirm => 'Save';
 
   @override
   String get introScreen_signUp => 'Start';
@@ -509,6 +540,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get messageContextMenu_save => 'Save';
+
+  @override
+  String get messageContextMenu_share => 'Share';
 
   @override
   String get messageContextMenu_saveError => 'Failed to save attachment';

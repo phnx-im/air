@@ -41,8 +41,6 @@ use crate::{
     util::{CancellableStream, CancellingStream},
 };
 
-pub mod grpc;
-
 #[derive(Error, Debug)]
 pub enum QsRequestError {
     #[error(transparent)]
@@ -66,6 +64,7 @@ impl ApiClient {
         signing_key: &QsUserSigningKey,
     ) -> Result<CreateUserRecordResponse, QsRequestError> {
         let request = CreateUserRequest {
+            client_metadata: Some(self.metadata().clone()),
             user_record_auth_key: Some(signing_key.verifying_key().clone().into()),
             friendship_token: Some(friendship_token.into()),
             client_record_auth_key: Some(client_record_auth_key.into()),
@@ -74,8 +73,7 @@ impl ApiClient {
             initial_ratched_secret: Some(initial_ratchet_key.into()),
         };
         let response = self
-            .qs_grpc_client
-            .client()
+            .qs_grpc_client()
             .create_user(request)
             .await?
             .into_inner();
@@ -106,11 +104,12 @@ impl ApiClient {
         signing_key: &QsUserSigningKey,
     ) -> Result<(), QsRequestError> {
         let request = UpdateUserRequest {
+            client_metadata: Some(self.metadata().clone()),
             sender: Some(sender.into()),
             user_record_auth_key: Some(signing_key.verifying_key().clone().into()),
             friendship_token: Some(friendship_token.into()),
         };
-        self.qs_grpc_client.client().update_user(request).await?;
+        self.qs_grpc_client().update_user(request).await?;
         Ok(())
     }
 
@@ -120,9 +119,10 @@ impl ApiClient {
         _signing_key: &QsUserSigningKey,
     ) -> Result<(), QsRequestError> {
         let request = DeleteUserRequest {
+            client_metadata: Some(self.metadata().clone()),
             sender: Some(sender.into()),
         };
-        self.qs_grpc_client.client().delete_user(request).await?;
+        self.qs_grpc_client().delete_user(request).await?;
         Ok(())
     }
 
@@ -136,6 +136,7 @@ impl ApiClient {
         _signing_key: &QsUserSigningKey,
     ) -> Result<CreateClientRecordResponse, QsRequestError> {
         let request = CreateClientRequest {
+            client_metadata: Some(self.metadata().clone()),
             sender: Some(sender.into()),
             client_record_auth_key: Some(client_record_auth_key.into()),
             queue_encryption_key: Some(queue_encryption_key.into()),
@@ -143,8 +144,7 @@ impl ApiClient {
             initial_ratched_secret: Some(initial_ratchet_key.into()),
         };
         let response = self
-            .qs_grpc_client
-            .client()
+            .qs_grpc_client()
             .create_client(request)
             .await?
             .into_inner();
@@ -168,12 +168,13 @@ impl ApiClient {
         signing_key: &QsClientSigningKey,
     ) -> Result<(), QsRequestError> {
         let request = UpdateClientRequest {
+            client_metadata: Some(self.metadata().clone()),
             sender: Some(sender.into()),
             client_record_auth_key: Some(signing_key.verifying_key().clone().into()),
             queue_encryption_key: Some(queue_encryption_key.into()),
             encrypted_push_token: encrypted_push_token.map(|token| token.into()),
         };
-        self.qs_grpc_client.client().update_client(request).await?;
+        self.qs_grpc_client().update_client(request).await?;
         Ok(())
     }
 
@@ -183,9 +184,10 @@ impl ApiClient {
         _signing_key: &QsClientSigningKey,
     ) -> Result<(), QsRequestError> {
         let request = DeleteClientRequest {
+            client_metadata: Some(self.metadata().clone()),
             sender: Some(sender.into()),
         };
-        self.qs_grpc_client.client().delete_client(request).await?;
+        self.qs_grpc_client().delete_client(request).await?;
         Ok(())
     }
 
@@ -196,16 +198,14 @@ impl ApiClient {
         _signing_key: &QsClientSigningKey,
     ) -> Result<(), QsRequestError> {
         let request = PublishKeyPackagesRequest {
+            client_metadata: Some(self.metadata().clone()),
             client_id: Some(sender.into()),
             key_packages: key_packages
                 .into_iter()
                 .map(|key_package| key_package.try_into())
                 .collect::<Result<Vec<_>, _>>()?,
         };
-        self.qs_grpc_client
-            .client()
-            .publish_key_packages(request)
-            .await?;
+        self.qs_grpc_client().publish_key_packages(request).await?;
         Ok(())
     }
 
@@ -214,11 +214,11 @@ impl ApiClient {
         sender: FriendshipToken,
     ) -> Result<KeyPackageResponseIn, QsRequestError> {
         let request = KeyPackageRequest {
+            client_metadata: Some(self.metadata().clone()),
             sender: Some(sender.into()),
         };
         let response = self
-            .qs_grpc_client
-            .client()
+            .qs_grpc_client()
             .key_package(request)
             .await?
             .into_inner();
@@ -234,10 +234,11 @@ impl ApiClient {
     }
 
     pub async fn qs_encryption_key(&self) -> Result<EncryptionKeyResponse, QsRequestError> {
-        let request = QsEncryptionKeyRequest {};
+        let request = QsEncryptionKeyRequest {
+            client_metadata: Some(self.metadata().clone()),
+        };
         let response = self
-            .qs_grpc_client
-            .client()
+            .qs_grpc_client()
             .qs_encryption_key(request)
             .await?
             .into_inner();
@@ -260,6 +261,7 @@ impl ApiClient {
         sequence_number_start: u64,
     ) -> Result<(impl Stream<Item = QueueEvent> + use<>, ListenResponder), QsRequestError> {
         let init_request = InitListenRequest {
+            client_metadata: Some(self.metadata().clone()),
             client_id: Some(queue_id.into()),
             sequence_number_start,
         };
@@ -278,7 +280,7 @@ impl ApiClient {
             cancel.clone(),
         );
 
-        let response = self.qs_grpc_client.client().listen(requests).await?;
+        let response = self.qs_grpc_client().listen(requests).await?;
         let responses = response.into_inner().map_while(|response| {
             response
                 .inspect_err(|status| error!(?status, "terminating listen stream due to an error"))

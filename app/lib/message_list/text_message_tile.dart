@@ -5,19 +5,14 @@
 import 'dart:async' show unawaited;
 import 'dart:io';
 
-import 'package:air/core/api/markdown.dart';
-import 'package:air/main.dart';
-import 'package:air/util/platform.dart';
-import 'package:file_selector/file_selector.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/attachments/attachments.dart';
 import 'package:air/chat/chat_details.dart';
+import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/message_list/timestamp.dart';
+import 'package:air/main.dart';
 import 'package:air/message_list/mobile_message_actions.dart';
+import 'package:air/message_list/timestamp.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
@@ -25,11 +20,16 @@ import 'package:air/ui/components/context_menu/context_menu.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/platform.dart';
 import 'package:air/widgets/widgets.dart';
+import 'package:file_selector/file_selector.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
-import 'package:path/path.dart' as p;
+import 'package:share_plus/share_plus.dart';
 
 import 'image_viewer.dart';
 import 'message_renderer.dart';
@@ -213,6 +213,12 @@ class _MessageView extends HookWidget {
           leading: iconoir.Download(width: 24, color: colors.text.primary),
           onSelected: () => _handleFileSave(context, attachments.first),
         ),
+      if (attachments.isNotEmpty && Platform.isIOS)
+        MessageAction(
+          label: loc.messageContextMenu_share,
+          leading: iconoir.ShareIos(width: 24, color: colors.text.primary),
+          onSelected: () => _handleFileShare(context, attachments),
+        ),
     ];
 
     final menuItems = actions
@@ -368,44 +374,48 @@ class _MessageView extends HookWidget {
   }
 
   void _handleFileSave(BuildContext context, UiAttachment attachment) async {
-    String fileName = attachment.filename;
-    String saveDir;
-
     if (Platform.isAndroid) {
-      const appDirName = 'Air';
-      final baseDir = attachment.isImage
-          ? await getPicturesDirectoryAndroid()
-          : await getDownloadsDirectoryAndroid();
-      saveDir = "$baseDir/$appDirName";
+      // Android uses platform-specific code to write data directly into a provided URI
+      final attachmentsRepository = context.read<AttachmentsRepository>();
+      final data = await attachmentsRepository.loadAttachment(
+        attachmentId: attachment.attachmentId,
+      );
+      if (data == null) {
+        _log.severe("Missing attachment data");
+        return;
+      }
+      await saveFileAndroid(
+        fileName: attachment.filename,
+        mimeType: attachment.contentType,
+        data: data,
+      );
+    } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      // On Desktop, we save the attachment in Rust after getting a path from the platform-specific
+      // dialog
+      final attachmentsRepository = context.read<AttachmentsRepository>();
+      final location = await getSaveLocation(
+        suggestedName: attachment.filename,
+      );
+      if (location == null) return;
+      final path = location.path;
+
+      try {
+        await attachmentsRepository.saveAttachment(
+          attachmentId: attachment.attachmentId,
+          path: path,
+        );
+      } catch (e, stackTrace) {
+        _log.severe("Failed to save attachment: $e", e, stackTrace);
+        if (context.mounted) {
+          final loc = AppLocalizations.of(context);
+          showErrorBanner(context, loc.messageContextMenu_saveError);
+        }
+        return;
+      }
     } else if (Platform.isIOS) {
       throw UnsupportedError("iOS does not support storing files");
-    } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      final location = await getSaveLocation(suggestedName: fileName);
-      if (location == null) return;
-      String dir = p.dirname(location.path);
-      fileName = p.basename(location.path);
-      saveDir = dir;
     } else {
       throw UnsupportedError("Unsupported platform");
-    }
-
-    if (!context.mounted) return;
-
-    final attachmentsRepository = context.read<AttachmentsRepository>();
-    try {
-      await attachmentsRepository.saveAttachment(
-        destinationDir: saveDir,
-        filename: fileName,
-        attachmentId: attachment.attachmentId,
-        overwrite: Platform.isWindows || Platform.isLinux || Platform.isMacOS,
-      );
-    } catch (e, stackTrace) {
-      _log.severe("Failed to save attachment: $e", e, stackTrace);
-      if (context.mounted) {
-        final loc = AppLocalizations.of(context);
-        showErrorBanner(context, loc.messageContextMenu_saveError);
-      }
-      return;
     }
 
     // TODO: Snackbar overlaps with the composer, so we need a better solution
@@ -418,6 +428,29 @@ class _MessageView extends HookWidget {
         ),
       );
     }
+  }
+
+  void _handleFileShare(
+    BuildContext context,
+    List<UiAttachment> attachments,
+  ) async {
+    final attachmentsRepository = context.read<AttachmentsRepository>();
+
+    final futures = attachments.map((attachment) async {
+      final data = await attachmentsRepository.loadAttachment(
+        attachmentId: attachment.attachmentId,
+      );
+      if (data == null) return null;
+      return XFile.fromData(data);
+    });
+
+    final files = (await Future.wait(futures)).whereType<XFile>().toList();
+
+    final params = ShareParams(
+      files: files,
+      fileNameOverrides: attachments.map((e) => e.filename).toList(),
+    );
+    SharePlus.instance.share(params);
   }
 }
 
@@ -673,6 +706,7 @@ class _FileAttachmentContent extends StatelessWidget {
       padding: _messagePadding,
       child: AttachmentFile(
         attachment: attachment,
+        isSender: isSender,
         color: isSender
             ? CustomColorScheme.of(context).message.selfText
             : CustomColorScheme.of(context).message.otherText,
@@ -718,6 +752,7 @@ class _ImageAttachmentContent extends StatelessWidget {
             child: AttachmentImage(
               attachment: attachment,
               imageMetadata: imageMetadata,
+              isSender: isSender,
               fit: BoxFit.cover,
             ),
           ),

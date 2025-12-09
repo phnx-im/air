@@ -593,6 +593,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UuidValue dco_decode_Uuid(dynamic raw);
 
   @protected
+  AddHandleContactError dco_decode_add_handle_contact_error(dynamic raw);
+
+  @protected
+  AddHandleContactResult dco_decode_add_handle_contact_result(dynamic raw);
+
+  @protected
   AppState dco_decode_app_state(dynamic raw);
 
   @protected
@@ -661,6 +667,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiChatMessage dco_decode_box_autoadd_ui_chat_message(dynamic raw);
+
+  @protected
+  UiContact dco_decode_box_autoadd_ui_contact(dynamic raw);
 
   @protected
   UiErrorMessage dco_decode_box_autoadd_ui_error_message(dynamic raw);
@@ -864,6 +873,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiChatMessage? dco_decode_opt_box_autoadd_ui_chat_message(dynamic raw);
+
+  @protected
+  UiContact? dco_decode_opt_box_autoadd_ui_contact(dynamic raw);
 
   @protected
   UiImageMetadata? dco_decode_opt_box_autoadd_ui_image_metadata(dynamic raw);
@@ -1432,6 +1444,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UuidValue sse_decode_Uuid(SseDeserializer deserializer);
 
   @protected
+  AddHandleContactError sse_decode_add_handle_contact_error(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  AddHandleContactResult sse_decode_add_handle_contact_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   AppState sse_decode_app_state(SseDeserializer deserializer);
 
   @protected
@@ -1520,6 +1542,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiChatMessage sse_decode_box_autoadd_ui_chat_message(
     SseDeserializer deserializer,
   );
+
+  @protected
+  UiContact sse_decode_box_autoadd_ui_contact(SseDeserializer deserializer);
 
   @protected
   UiErrorMessage sse_decode_box_autoadd_ui_error_message(
@@ -1777,6 +1802,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiChatMessage? sse_decode_opt_box_autoadd_ui_chat_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiContact? sse_decode_opt_box_autoadd_ui_contact(
     SseDeserializer deserializer,
   );
 
@@ -2465,6 +2495,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_Uuid(UuidValue self, SseSerializer serializer);
 
   @protected
+  void sse_encode_add_handle_contact_error(
+    AddHandleContactError self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_add_handle_contact_result(
+    AddHandleContactResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_app_state(AppState self, SseSerializer serializer);
 
   @protected
@@ -2568,6 +2610,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_ui_chat_message(
     UiChatMessage self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_ui_contact(
+    UiContact self,
     SseSerializer serializer,
   );
 
@@ -2894,6 +2942,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_ui_chat_message(
     UiChatMessage? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_ui_contact(
+    UiContact? self,
     SseSerializer serializer,
   );
 

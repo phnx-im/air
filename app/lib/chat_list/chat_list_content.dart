@@ -52,9 +52,6 @@ class ChatListContent extends StatelessWidget {
     return ListView.builder(
       padding: const EdgeInsets.all(0),
       itemCount: chatIds.length,
-      physics: const BouncingScrollPhysics().applyTo(
-        const AlwaysScrollableScrollPhysics(),
-      ),
       itemBuilder: (BuildContext context, int index) {
         return BlocProvider(
           key: ValueKey(chatIds[index]),

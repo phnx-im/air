@@ -19,6 +19,7 @@ mimi-room-policy.workspace = true
 mls-assist.workspace = true
 openmls.workspace = true
 prost.workspace = true
+semver.workspace = true
 thiserror.workspace = true
 tls_codec.workspace = true
 tonic.workspace = true

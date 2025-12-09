@@ -12,6 +12,169 @@ part of 'types.dart';
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
+mixin _$AddHandleContactResult {
+
+ Object get field0;
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AddHandleContactResult&&const DeepCollectionEquality().equals(other.field0, field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(field0));
+
+@override
+String toString() {
+  return 'AddHandleContactResult(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+class $AddHandleContactResultCopyWith<$Res>  {
+$AddHandleContactResultCopyWith(AddHandleContactResult _, $Res Function(AddHandleContactResult) __);
+}
+
+
+
+/// @nodoc
+
+
+class AddHandleContactResult_Ok extends AddHandleContactResult {
+  const AddHandleContactResult_Ok(this.field0): super._();
+  
+
+@override final  ChatId field0;
+
+/// Create a copy of AddHandleContactResult
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$AddHandleContactResult_OkCopyWith<AddHandleContactResult_Ok> get copyWith => _$AddHandleContactResult_OkCopyWithImpl<AddHandleContactResult_Ok>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AddHandleContactResult_Ok&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'AddHandleContactResult.ok(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $AddHandleContactResult_OkCopyWith<$Res> implements $AddHandleContactResultCopyWith<$Res> {
+  factory $AddHandleContactResult_OkCopyWith(AddHandleContactResult_Ok value, $Res Function(AddHandleContactResult_Ok) _then) = _$AddHandleContactResult_OkCopyWithImpl;
+@useResult
+$Res call({
+ ChatId field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$AddHandleContactResult_OkCopyWithImpl<$Res>
+    implements $AddHandleContactResult_OkCopyWith<$Res> {
+  _$AddHandleContactResult_OkCopyWithImpl(this._self, this._then);
+
+  final AddHandleContactResult_Ok _self;
+  final $Res Function(AddHandleContactResult_Ok) _then;
+
+/// Create a copy of AddHandleContactResult
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(AddHandleContactResult_Ok(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ChatId,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class AddHandleContactResult_Err extends AddHandleContactResult {
+  const AddHandleContactResult_Err(this.field0): super._();
+  
+
+@override final  AddHandleContactError field0;
+
+/// Create a copy of AddHandleContactResult
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$AddHandleContactResult_ErrCopyWith<AddHandleContactResult_Err> get copyWith => _$AddHandleContactResult_ErrCopyWithImpl<AddHandleContactResult_Err>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AddHandleContactResult_Err&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'AddHandleContactResult.err(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $AddHandleContactResult_ErrCopyWith<$Res> implements $AddHandleContactResultCopyWith<$Res> {
+  factory $AddHandleContactResult_ErrCopyWith(AddHandleContactResult_Err value, $Res Function(AddHandleContactResult_Err) _then) = _$AddHandleContactResult_ErrCopyWithImpl;
+@useResult
+$Res call({
+ AddHandleContactError field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$AddHandleContactResult_ErrCopyWithImpl<$Res>
+    implements $AddHandleContactResult_ErrCopyWith<$Res> {
+  _$AddHandleContactResult_ErrCopyWithImpl(this._self, this._then);
+
+  final AddHandleContactResult_Err _self;
+  final $Res Function(AddHandleContactResult_Err) _then;
+
+/// Create a copy of AddHandleContactResult
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(AddHandleContactResult_Err(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as AddHandleContactError,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$MessageDraft {
 
  String get message; MessageId? get editingId; DateTime get updatedAt; bool get isCommitted;
@@ -634,6 +797,72 @@ class _$UiChatType_ConnectionCopyWithImpl<$Res>
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
   return _then(UiChatType_Connection(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as UiUserProfile,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class UiChatType_TargetedMessageConnection extends UiChatType {
+  const UiChatType_TargetedMessageConnection(this.field0): super._();
+  
+
+ final  UiUserProfile field0;
+
+/// Create a copy of UiChatType
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiChatType_TargetedMessageConnectionCopyWith<UiChatType_TargetedMessageConnection> get copyWith => _$UiChatType_TargetedMessageConnectionCopyWithImpl<UiChatType_TargetedMessageConnection>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatType_TargetedMessageConnection&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'UiChatType.targetedMessageConnection(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiChatType_TargetedMessageConnectionCopyWith<$Res> implements $UiChatTypeCopyWith<$Res> {
+  factory $UiChatType_TargetedMessageConnectionCopyWith(UiChatType_TargetedMessageConnection value, $Res Function(UiChatType_TargetedMessageConnection) _then) = _$UiChatType_TargetedMessageConnectionCopyWithImpl;
+@useResult
+$Res call({
+ UiUserProfile field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiChatType_TargetedMessageConnectionCopyWithImpl<$Res>
+    implements $UiChatType_TargetedMessageConnectionCopyWith<$Res> {
+  _$UiChatType_TargetedMessageConnectionCopyWithImpl(this._self, this._then);
+
+  final UiChatType_TargetedMessageConnection _self;
+  final $Res Function(UiChatType_TargetedMessageConnection) _then;
+
+/// Create a copy of UiChatType
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(UiChatType_TargetedMessageConnection(
 null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
 as UiUserProfile,
   ));

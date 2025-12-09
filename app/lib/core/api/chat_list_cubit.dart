@@ -25,7 +25,9 @@ abstract class ChatListCubitBase implements RustOpaqueInterface {
   /// Creates a new 1:1 connection with the given user via a user handle.
   ///
   /// Returns `None` if the provided handle does not exist.
-  Future<ChatId?> createContactChat({required UiUserHandle handle});
+  Future<AddHandleContactResult> createContactChat({
+    required UiUserHandle handle,
+  });
 
   /// Creates a new group chat with the given name.
   ///
