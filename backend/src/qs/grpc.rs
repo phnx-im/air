@@ -5,6 +5,7 @@
 use std::{io, pin::Pin};
 
 use airprotos::{
+    common::v1::ClientMetadata,
     queue_service::v1::{queue_service_server::QueueService, *},
     validation::{InvalidTlsExt, MissingFieldExt},
 };
@@ -98,6 +99,14 @@ impl GrpcQs {
         UserRecord::metrics(&mut *connection).await?.report();
         Ok(())
     }
+
+    fn verify_client_version(
+        &self,
+        client_metadata: Option<&ClientMetadata>,
+    ) -> Result<(), Status> {
+        let client_version_req = self.qs.client_version_req.as_ref();
+        crate::version::verify_client_version(client_version_req, client_metadata)
+    }
 }
 
 #[derive(Debug, thiserror::Error, Display)]
@@ -120,6 +129,8 @@ impl QueueService for GrpcQs {
         request: Request<CreateUserRequest>,
     ) -> Result<Response<CreateUserResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
+
         let params = CreateUserRecordParams {
             user_record_auth_key: request
                 .user_record_auth_key
@@ -166,6 +177,7 @@ impl QueueService for GrpcQs {
         request: Request<UpdateUserRequest>,
     ) -> Result<Response<UpdateUserResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let params = UpdateUserRecordParams {
             sender: request.sender.ok_or_missing_field("sender")?.try_into()?,
             user_record_auth_key: request
@@ -192,6 +204,7 @@ impl QueueService for GrpcQs {
         request: Request<DeleteUserRequest>,
     ) -> Result<Response<DeleteUserResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let params = DeleteUserRecordParams {
             sender: request.sender.ok_or_missing_field("sender")?.try_into()?,
         };
@@ -210,6 +223,7 @@ impl QueueService for GrpcQs {
         request: Request<CreateClientRequest>,
     ) -> Result<Response<CreateClientResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let params = CreateClientRecordParams {
             sender: request.sender.ok_or_missing_field("sender")?.try_into()?,
             client_record_auth_key: request
@@ -240,6 +254,7 @@ impl QueueService for GrpcQs {
         request: Request<UpdateClientRequest>,
     ) -> Result<Response<UpdateClientResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let params = UpdateClientRecordParams {
             sender: request.sender.ok_or_missing_field("sender")?.try_into()?,
             client_record_auth_key: request
@@ -264,6 +279,7 @@ impl QueueService for GrpcQs {
         request: Request<DeleteClientRequest>,
     ) -> Result<Response<DeleteClientResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let params = DeleteClientRecordParams {
             sender: request.sender.ok_or_missing_field("sender")?.try_into()?,
         };
@@ -276,6 +292,7 @@ impl QueueService for GrpcQs {
         request: Request<PublishKeyPackagesRequest>,
     ) -> Result<Response<PublishKeyPackagesResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let params = PublishKeyPackagesParams {
             sender: request
                 .client_id
@@ -297,6 +314,7 @@ impl QueueService for GrpcQs {
         request: Request<KeyPackageRequest>,
     ) -> Result<Response<KeyPackageResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let params = KeyPackageParams {
             sender: request.sender.ok_or_missing_field("sender")?.into(),
         };
@@ -308,8 +326,10 @@ impl QueueService for GrpcQs {
 
     async fn qs_encryption_key(
         &self,
-        _request: Request<QsEncryptionKeyRequest>,
+        request: Request<QsEncryptionKeyRequest>,
     ) -> Result<Response<QsEncryptionKeyResponse>, Status> {
+        let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let response = self.qs.qs_encryption_key().await?;
         Ok(Response::new(QsEncryptionKeyResponse {
             encryption_key: Some(response.encryption_key.into()),
@@ -329,13 +349,15 @@ impl QueueService for GrpcQs {
             .await
             .ok_or(ListenQueueProtocolViolation::MissingInitRequest)??;
         let Some(listen_request::Request::Init(InitListenRequest {
-            client_metadata: _,
+            client_metadata,
             client_id,
             sequence_number_start,
         })) = request.request
         else {
             return Err(ListenQueueProtocolViolation::MissingInitRequest.into());
         };
+
+        self.verify_client_version(client_metadata.as_ref())?;
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
 

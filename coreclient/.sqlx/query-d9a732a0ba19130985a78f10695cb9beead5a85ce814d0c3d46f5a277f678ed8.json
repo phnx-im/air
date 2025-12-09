@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                message_id AS \"message_id: _\",\n                mimi_id AS \"mimi_id: _\",\n                chat_id AS \"chat_id: _\",\n                timestamp AS \"timestamp: _\",\n                sender_user_uuid AS \"sender_user_uuid: _\",\n                sender_user_domain AS \"sender_user_domain: _\",\n                content AS \"content: _\",\n                sent,\n                status,\n                edited_at AS \"edited_at: _\",\n                b.user_uuid IS NOT NULL AS \"is_blocked!: _\"\n            FROM message\n            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid\n                AND b.user_domain = sender_user_domain\n            WHERE message_id != ?1\n                AND timestamp >= (SELECT timestamp FROM message\n                WHERE message_id = ?1)\n            ORDER BY timestamp ASC\n            LIMIT 1",
+  "query": "SELECT\n                message_id AS \"message_id: _\",\n                mimi_id AS \"mimi_id: _\",\n                chat_id AS \"chat_id: _\",\n                timestamp AS \"timestamp: _\",\n                sender_user_uuid AS \"sender_user_uuid: _\",\n                sender_user_domain AS \"sender_user_domain: _\",\n                content AS \"content: _\",\n                sent,\n                status,\n                edited_at AS \"edited_at: _\",\n                b.user_uuid IS NOT NULL AS \"is_blocked!: _\"\n            FROM message\n            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid\n                AND b.user_domain = sender_user_domain\n            WHERE chat_id = ?2\n                AND message_id != ?1\n                AND timestamp <= (SELECT timestamp FROM message WHERE message_id = ?1)\n            ORDER BY timestamp DESC\n            LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -60,7 +60,7 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 2
     },
     "nullable": [
       false,
@@ -76,5 +76,5 @@
       null
     ]
   },
-  "hash": "5ae55945498937f06fa6b2bb7354ef0a39c6b326653c33ec5c0263057ed2bc6e"
+  "hash": "d9a732a0ba19130985a78f10695cb9beead5a85ce814d0c3d46f5a277f678ed8"
 }
