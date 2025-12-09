@@ -64,16 +64,13 @@ class UpdateRequiredView extends StatelessWidget {
                 children: [
                   const Spacer(),
 
-                  Align(
-                    alignment: Alignment.center,
-                    child: SizedBox(
-                      width: 104,
-                      child: SvgPicture.asset(
-                        'assets/images/logo.svg',
-                        colorFilter: ColorFilter.mode(
-                          colors.text.primary,
-                          BlendMode.srcIn,
-                        ),
+                  SizedBox(
+                    width: 104,
+                    child: SvgPicture.asset(
+                      'assets/images/logo.svg',
+                      colorFilter: ColorFilter.mode(
+                        colors.text.primary,
+                        BlendMode.srcIn,
                       ),
                     ),
                   ),
@@ -86,6 +83,7 @@ class UpdateRequiredView extends StatelessWidget {
                         fontSize: HeaderFontSize.h2.size,
                         fontWeight: FontWeight.bold,
                       ),
+                      textAlign: .center,
                     ),
                   ),
 
@@ -99,6 +97,7 @@ class UpdateRequiredView extends StatelessWidget {
                         fontSize: BodyFontSize.base.size,
                         color: colors.text.secondary,
                       ),
+                      textAlign: .center,
                     ),
                   ),
 
