@@ -41,17 +41,39 @@ class RemoveMemberButton extends StatelessWidget {
     return OutlinedButton(
       onPressed: () => _confirmRemoval(context),
       style: ButtonStyle(
-        minimumSize: WidgetStatePropertyAll(
-          Size(isDesktop ? 320 : double.infinity, 0),
+        padding: WidgetStatePropertyAll(
+          compact
+              ? const EdgeInsets.symmetric(
+                  horizontal: Spacings.s,
+                  vertical: Spacings.xxxs,
+                )
+              : null,
         ),
-        backgroundColor: WidgetStatePropertyAll(colors.function.danger),
-        overlayColor: WidgetStatePropertyAll(colors.function.danger),
+        shape: compact
+            ? WidgetStatePropertyAll(
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              )
+            : null,
+        minimumSize: compact
+            ? null
+            : WidgetStatePropertyAll(
+                Size(isDesktop ? 320 : double.infinity, 0),
+              ),
+        visualDensity: compact ? VisualDensity.compact : null,
+        backgroundColor: WidgetStatePropertyAll(
+          compact ? colors.backgroundBase.secondary : colors.function.danger,
+        ),
+        overlayColor: WidgetStatePropertyAll(
+          compact ? colors.backgroundBase.secondary : colors.function.danger,
+        ),
       ),
       child: Text(
         loc.removeUserButton_text,
         style: TextStyle(
-          fontSize: LabelFontSize.base.size,
-          color: colors.function.white,
+          fontSize: compact
+              ? LabelFontSize.small1.size
+              : LabelFontSize.base.size,
+          color: compact ? colors.text.primary : colors.function.white,
         ),
       ),
     );
