@@ -466,7 +466,7 @@ class _RotatingSendIconState extends State<RotatingSendIcon>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(seconds: 2),
+      duration: const Duration(seconds: 1),
       vsync: this,
     )..repeat();
   }
@@ -482,6 +482,7 @@ class _RotatingSendIconState extends State<RotatingSendIcon>
     return RotationTransition(
       turns: _controller,
       child: iconoir.RefreshDouble(
+        color: CustomColorScheme.of(context).text.tertiary,
         height: LabelFontSize.small2.size,
         width: LabelFontSize.small2.size,
       ),
