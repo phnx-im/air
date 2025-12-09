@@ -578,10 +578,7 @@ pub(crate) mod tests {
     use openmls::group::GroupId;
     use sqlx::SqlitePool;
 
-    use crate::{
-        ContentMessage, EventMessage, Message, MessageId, SystemMessage,
-        chats::persistence::tests::test_chat,
-    };
+    use crate::{ContentMessage, Message, MessageId, chats::persistence::tests::test_chat};
 
     use super::*;
 
