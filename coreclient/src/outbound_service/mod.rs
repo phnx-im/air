@@ -4,7 +4,6 @@
 
 use std::{
     pin::Pin,
-    sync::{Arc, Mutex},
     task::{Context, Poll},
 };
 
@@ -15,7 +14,7 @@ use aircommon::{
 use pin_project::pin_project;
 use sqlx::SqlitePool;
 use tokio::sync::watch;
-use tokio_util::sync::{CancellationToken, DropGuard, WaitForCancellationFutureOwned};
+use tokio_util::sync::{CancellationToken, WaitForCancellationFutureOwned};
 use tracing::{debug, error};
 
 use crate::{
@@ -45,9 +44,7 @@ pub(crate) mod timed_tasks_queue;
 #[derive(Debug)]
 pub struct OutboundService<C: OutboundServiceWork = OutboundServiceContext> {
     context: C,
-    run_token_tx: watch::Sender<Option<RunToken>>,
-    // Tracks the most recent stop's done token so multiple callers can await the same stop.
-    last_stop_done: Arc<Mutex<Option<CancellationToken>>>,
+    run_token_tx: watch::Sender<RunToken>,
 }
 
 pub trait OutboundServiceWork: Clone + Send + 'static {
@@ -82,7 +79,7 @@ impl OutboundService<OutboundServiceContext> {
 
 impl<C: OutboundServiceWork> OutboundService<C> {
     fn with_context(context: C, global_lock: GlobalLock) -> Self {
-        let (run_token_tx, run_token_rx) = watch::channel(None);
+        let (run_token_tx, run_token_rx) = watch::channel(RunToken::new_cancelled());
         let task = OutboundServiceTask {
             context: context.clone(),
         };
@@ -90,7 +87,6 @@ impl<C: OutboundServiceWork> OutboundService<C> {
         Self {
             context,
             run_token_tx,
-            last_stop_done: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -98,24 +94,15 @@ impl<C: OutboundServiceWork> OutboundService<C> {
     ///
     /// Returns a future which finishes when the background task is done.
     pub(crate) fn start(&self) -> WaitForDoneFuture {
-        // Clear any previous stop token when starting fresh.
-        if let Ok(mut last) = self.last_stop_done.lock() {
-            *last = None;
-        }
         let mut done_token = None;
-        self.run_token_tx.send_if_modified(|token| match token {
-            Some(run_token) => {
-                done_token = Some(run_token.done_token());
-                true // already running
+        self.run_token_tx.send_if_modified(|run_token| {
+            if !run_token.rotate() {
+                run_token.rotate_done();
             }
-            None => {
-                debug!("starting background task");
-                let run_token = RunToken::new();
-                done_token = Some(run_token.done_token());
-                token.replace(run_token);
-                true // start running
-            }
+            done_token = Some(run_token.done.clone());
+            true // notify the background task
         });
+        debug!("starting background task");
         WaitForDoneFuture::new(done_token)
     }
 
@@ -124,25 +111,12 @@ impl<C: OutboundServiceWork> OutboundService<C> {
     /// Returns a futures which resolves when the background task fully stops.
     pub(crate) fn stop(&self) -> WaitForDoneFuture {
         let mut done_token = None;
-        let stopped = self.run_token_tx.send_if_modified(|token| {
-            if let Some(run_token) = token.take() {
-                run_token.cancel();
-                done_token = Some(run_token.done_token());
-                false // no more work => no need to wake up the background task
-            } else {
-                false // already stopped
-            }
+        self.run_token_tx.send_if_modified(|run_token| {
+            run_token.cancel();
+            done_token = Some(run_token.done.clone());
+            false // no more work => no need to wake up the background task
         });
-        debug!(stopped, "stopping background task");
-        // If we are already stopped, reuse the previous stop token so late callers still await it.
-        if done_token.is_none() {
-            if let Ok(last) = self.last_stop_done.lock() {
-                done_token = last.clone();
-            }
-        } else if let (Some(token), Ok(mut last)) = (done_token.clone(), self.last_stop_done.lock())
-        {
-            *last = Some(token);
-        }
+        debug!("stopping background task");
         WaitForDoneFuture::new(done_token)
     }
 
@@ -150,11 +124,12 @@ impl<C: OutboundServiceWork> OutboundService<C> {
     fn notify_work(&self) -> WaitForDoneFuture {
         let mut done_token = None;
         let notified = self.run_token_tx.send_if_modified(|run_token| {
-            if let Some(run_token) = run_token {
-                done_token = Some(run_token.done_token());
-                true
-            } else {
+            if run_token.is_cancelled() {
                 false
+            } else {
+                run_token.rotate_done();
+                done_token = Some(run_token.done.clone());
+                true
             }
         });
         debug!(?notified, "notifying background task about new work");
@@ -177,25 +152,22 @@ struct OutboundServiceTask<C> {
 }
 
 impl<C: OutboundServiceWork> OutboundServiceTask<C> {
-    async fn run(
-        self,
-        mut run_token_rx: watch::Receiver<Option<RunToken>>,
-        mut global_lock: GlobalLock,
-    ) {
+    async fn run(self, mut run_token_rx: watch::Receiver<RunToken>, mut global_lock: GlobalLock) {
         loop {
             if run_token_rx.changed().await.is_err() {
                 break;
             }
 
-            let (cancel, done_cell) = {
-                let run_token = run_token_rx.borrow_and_update();
+            let run_token = {
+                let run_token = run_token_rx.borrow_and_update().clone();
                 debug!(?run_token, "incoming work notification");
 
-                let Some(run_token) = run_token.as_ref() else {
+                if run_token.is_cancelled() {
+                    run_token.mark_as_done();
                     continue;
-                };
+                }
 
-                (run_token.cancel.clone(), run_token.done_cell.clone())
+                run_token
             };
 
             {
@@ -204,12 +176,11 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
                     .await
                     .expect("fatal: failed to acquire global lock");
                 debug!("starting doing work in background task");
-                self.context.work(cancel).await;
+                self.context.work(run_token.cancel.clone()).await;
                 debug!("finished work in background task");
             }
 
-            // Rotate done token
-            *done_cell.lock().expect("poisoned") = DoneToken::new();
+            run_token.mark_as_done();
         }
     }
 }
@@ -262,22 +233,17 @@ impl StoreExt for OutboundServiceContext {
 ///
 /// The token is stored in a [`tokio::sync::watch`] cell. Whenever, the token is updated, the
 /// background task is woken up and uses the token to start work (if it is not running yet). When
-/// the token is removed, the the background work (if any) is cancelled. There is no need to wake
+/// the token is cancelled, the the background work (if any) is cancelled. There is no need to wake
 /// up the background task in this case.
 ///
-/// The token also contains a `done_cell` which is *shared* between the callers and the background
+/// The token also contains a `done` token which is *shared* between the callers and the background
 /// task. The background task uses it to mark the work as done. In case the run token is created
 /// but the work is immediately cancelled such that the background task never receives the token,
-/// the done cell is dropped (it has only a single reference), which marks the work as done.
-///
-/// Note: Even though is is possible to make this type `Clone`, it is not implemented, because it
-/// makes it easier to argue about how many references of `done_cell` exist. Indeed, at any point
-/// in time, there are at most two `done_cell` references: one as part of the `RunToken` in a
-/// `watch` cell, and another in the background task.
-#[derive(Debug, Default)]
+/// the done token is cancelled too.
+#[derive(Debug, Default, Clone)]
 struct RunToken {
     cancel: CancellationToken,
-    done_cell: Arc<Mutex<DoneToken>>,
+    done: CancellationToken,
 }
 
 impl RunToken {
@@ -285,38 +251,41 @@ impl RunToken {
         Default::default()
     }
 
+    fn new_cancelled() -> Self {
+        let run_token = RunToken::new();
+        run_token.cancel();
+        run_token.mark_as_done();
+        run_token
+    }
+
+    fn is_cancelled(&self) -> bool {
+        self.cancel.is_cancelled()
+    }
+
+    fn rotate(&mut self) -> bool {
+        if self.is_cancelled() {
+            *self = RunToken::new();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn rotate_done(&mut self) -> bool {
+        if self.done.is_cancelled() {
+            self.done = CancellationToken::new();
+            true
+        } else {
+            false
+        }
+    }
+
     fn cancel(&self) {
         self.cancel.cancel();
     }
 
-    fn done_token(&self) -> CancellationToken {
-        self.done_cell.lock().expect("poisoned").token.clone()
-    }
-}
-
-/// A token for notifying or observing that the work in the background task is done.
-///
-/// It is important that this token also contains the drop guard, so the work is marked as done,
-/// even though it never arrived at the background task.
-#[derive(Debug)]
-struct DoneToken {
-    token: CancellationToken,
-    _guard: Option<DropGuard>,
-}
-
-impl DoneToken {
-    fn new() -> Self {
-        let token = CancellationToken::new();
-        Self {
-            token: token.clone(),
-            _guard: Some(token.drop_guard()),
-        }
-    }
-}
-
-impl Default for DoneToken {
-    fn default() -> Self {
-        Self::new()
+    fn mark_as_done(&self) {
+        self.done.cancel();
     }
 }
 
@@ -468,10 +437,12 @@ mod test {
         service.start();
         service.start();
         service.start().await;
+        debug!("done waiting for the last start to finish");
         service.start();
         service.start();
         service.start();
         service.start().await;
+        debug!("done waiting for the last start to finish");
 
         assert_eq!(2, context.counter.load(Ordering::SeqCst));
     }
@@ -514,7 +485,7 @@ mod test {
         service.run_once().await;
         assert_eq!(9, context.counter.load(Ordering::SeqCst));
 
-        assert!(service.run_token_tx.subscribe().borrow().is_none());
+        assert!(service.run_token_tx.subscribe().borrow().is_cancelled());
     }
 
     #[derive(Clone)]
