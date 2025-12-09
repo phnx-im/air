@@ -733,7 +733,7 @@ pub(crate) mod tests {
     }
 
     #[sqlx::test]
-    async fn last_content_message(pool: SqlitePool) -> anyhow::Result<()> {
+    async fn last_message(pool: SqlitePool) -> anyhow::Result<()> {
         let mut store_notifier = StoreNotifier::noop();
 
         let chat = test_chat();
@@ -745,21 +745,6 @@ pub(crate) mod tests {
 
         message_a.store(&pool, &mut store_notifier).await?;
         message_b.store(&pool, &mut store_notifier).await?;
-
-        ChatMessage {
-            chat_id: chat.id(),
-            message_id: MessageId::random(),
-            timestamped_message: TimestampedMessage {
-                timestamp: Utc::now().into(),
-                message: Message::Event(EventMessage::System(SystemMessage::Add(
-                    UserId::random("localhost".parse()?),
-                    UserId::random("localhost".parse()?),
-                ))),
-            },
-            status: MessageStatus::Unread,
-        }
-        .store(&pool, &mut store_notifier)
-        .await?;
 
         let loaded = ChatMessage::last_message(&pool, chat.id()).await?;
         assert_eq!(loaded, Some(message_b));
