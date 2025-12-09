@@ -505,6 +505,7 @@ class _MessageStatus extends StatelessWidget {
     }
     if (status == UiMessageStatus.error) {
       return iconoir.WarningCircle(
+        color: CustomColorScheme.of(context).text.tertiary,
         height: LabelFontSize.small2.size,
         width: LabelFontSize.small2.size,
       );
