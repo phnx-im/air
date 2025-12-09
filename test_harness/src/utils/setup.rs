@@ -34,7 +34,7 @@ use tracing::info;
 use url::Url;
 use uuid::Uuid;
 
-use crate::utils::spawn_app;
+use crate::utils::{controlled_listener::ControlHandle, spawn_app};
 
 use super::TEST_RATE_LIMITS;
 
@@ -154,6 +154,8 @@ pub struct TestBackend {
     domain: Fqdn,
     invitation_codes: Vec<String>,
     temp_dir: TempDir,
+    // Present only if we spawned a local server.
+    listener_control_handle: Option<ControlHandle>,
     _guard: Option<LocalEnterGuard>,
 }
 
@@ -184,16 +186,16 @@ impl TestBackend {
         let local = LocalSet::new();
         let _guard = local.enter();
 
-        let (server_url, domain, invitation_codes) =
+        let (server_url, domain, listener_control_handle, invitation_codes) =
             if let Ok(value) = std::env::var("TEST_SERVER_URL") {
                 let url: Url = value.parse().unwrap();
                 info!(%url, "using external test server");
                 let domain: Fqdn = url.host().unwrap().to_owned().into();
-                (ServerUrl::External(url), domain, Vec::new())
+                (ServerUrl::External(url), domain, None, Vec::new())
             } else {
                 let network_provider = MockNetworkProvider::new();
                 let domain: Fqdn = "example.com".parse().unwrap();
-                let (listen_addr, invitation_codes) = spawn_app(
+                let (listen_addr, control_handle, codes) = spawn_app(
                     domain.clone(),
                     network_provider,
                     rate_limits.unwrap_or(TEST_RATE_LIMITS),
@@ -202,7 +204,12 @@ impl TestBackend {
                 )
                 .await;
                 info!(%listen_addr, "using spawned test server");
-                (ServerUrl::Local(listen_addr), domain, invitation_codes)
+                (
+                    ServerUrl::Local(listen_addr),
+                    domain,
+                    Some(control_handle),
+                    codes,
+                )
             };
         Self {
             users: HashMap::new(),
@@ -210,9 +217,14 @@ impl TestBackend {
             server_url,
             domain,
             temp_dir: tempfile::tempdir().unwrap(),
+            listener_control_handle,
             invitation_codes,
             _guard: Some(_guard),
         }
+    }
+
+    pub fn listener_control_handle(&self) -> Option<&ControlHandle> {
+        self.listener_control_handle.as_ref()
     }
 
     pub fn server_url(&self) -> Url {

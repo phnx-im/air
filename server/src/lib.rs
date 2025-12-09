@@ -23,10 +23,13 @@ use airprotos::{
 };
 use axum::extract::State;
 use connect_info::ConnectInfoInterceptor;
+use futures_core::Stream;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
-use tokio::net::TcpListener;
-use tokio_stream::wrappers::TcpListenerStream;
-use tonic::service::InterceptorLayer;
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    net::TcpListener,
+};
+use tonic::{service::InterceptorLayer, transport::server::Connected};
 use tonic_health::pb::health_server::{Health, HealthServer};
 use tower_governor::{
     GovernorLayer, governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor,
@@ -46,8 +49,8 @@ pub mod logging;
 pub mod network_provider;
 pub mod push_notification_provider;
 
-pub struct ServerRunParams<Qc> {
-    pub listener: TcpListener,
+pub struct ServerRunParams<Qc, Listener> {
+    pub listener: Listener,
     pub metrics_listener: Option<TcpListener>,
     pub ds: Ds,
     pub auth_service: AuthService,
@@ -56,10 +59,39 @@ pub struct ServerRunParams<Qc> {
     pub rate_limits: RateLimitsSettings,
 }
 
+pub trait Addressed {
+    fn local_addr(&self) -> std::io::Result<std::net::SocketAddr>;
+}
+
+impl Addressed for TcpListener {
+    fn local_addr(&self) -> std::io::Result<std::net::SocketAddr> {
+        self.local_addr()
+    }
+}
+
+pub trait IntoStream {
+    type Item: AsyncRead + AsyncWrite + Connected + Unpin + Send + 'static;
+    type Error: Into<Box<dyn std::error::Error + Send + Sync>>;
+    type Stream: Stream<Item = Result<Self::Item, Self::Error>>;
+
+    fn into_stream(self) -> Self::Stream;
+}
+
+impl IntoStream for TcpListener {
+    type Item = tokio::net::TcpStream;
+    type Error = std::io::Error;
+    type Stream = tokio_stream::wrappers::TcpListenerStream;
+
+    fn into_stream(self) -> Self::Stream {
+        tokio_stream::wrappers::TcpListenerStream::new(self)
+    }
+}
+
 /// Configure and run the server application.
 pub async fn run<
     Qc: QsConnector<EnqueueError = QsEnqueueError<Np>> + Clone,
     Np: NetworkProvider,
+    L: Addressed + IntoStream,
 >(
     ServerRunParams {
         listener,
@@ -69,7 +101,7 @@ pub async fn run<
         qs,
         qs_connector,
         rate_limits,
-    }: ServerRunParams<Qc>,
+    }: ServerRunParams<Qc, L>,
 ) -> impl Future<Output = Result<(), tonic::transport::Error>> {
     let grpc_addr = listener.local_addr().expect("Could not get local address");
 
@@ -126,7 +158,7 @@ pub async fn run<
         .add_service(AuthServiceServer::new(grpc_as))
         .add_service(DeliveryServiceServer::new(grpc_ds))
         .add_service(QueueServiceServer::new(grpc_qs))
-        .serve_with_incoming(TcpListenerStream::new(listener))
+        .serve_with_incoming(listener.into_stream())
 }
 
 fn serve_metrics(metrics_listener: Option<TcpListener>) {

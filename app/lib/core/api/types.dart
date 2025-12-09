@@ -369,6 +369,9 @@ enum UiMessageStatus {
 
   /// The message was hidden because it is from a blocked contact.
   hidden,
+
+  /// Sending the message failed.
+  error,
 }
 
 @freezed
