@@ -9,6 +9,8 @@ package auth_service.v1;
 import "common/v1/common.proto";
 
 service AuthService {
+  rpc CheckInvitationCode(CheckInvitationCodeRequest) returns (CheckInvitationCodeResponse);
+
   rpc RegisterUser(RegisterUserRequest) returns (RegisterUserResponse);
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
 
@@ -148,12 +150,28 @@ message Hash {
   bytes bytes = 1;
 }
 
+// check invitation code
+
+message CheckInvitationCodeRequest {
+  common.v1.ClientMetadata client_metadata = 1;
+  InvitationCode invitation_code = 2;
+}
+
+message InvitationCode {
+  string code = 1;
+}
+
+message CheckInvitationCodeResponse {
+  bool is_valid = 1;
+}
+
 // register user
 
 message RegisterUserRequest {
   common.v1.ClientMetadata client_metadata = 5;
   ClientCredentialPayload client_credential_payload = 1;
   EncryptedUserProfile encrypted_user_profile = 4;
+  InvitationCode invitation_code = 6;
 }
 
 message RegisterUserResponse {

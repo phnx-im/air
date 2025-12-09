@@ -17,11 +17,13 @@ use crate::{
     errors::StorageError,
 };
 
+pub mod cli;
 pub mod client_api;
 mod client_record;
 mod connection_package;
 mod credentials;
 pub mod grpc;
+mod invitation_code_record;
 mod privacy_pass;
 mod user_handles;
 pub mod user_record;
@@ -31,6 +33,13 @@ pub struct AuthService {
     db_pool: PgPool,
     pub(crate) handle_queues: UserHandleQueues,
     client_version_req: Option<VersionReq>,
+    invitation_only: bool,
+}
+
+impl AuthService {
+    pub fn disable_invitation_only(&mut self) {
+        self.invitation_only = false;
+    }
 }
 
 #[derive(Debug, Error)]
@@ -58,6 +67,7 @@ impl BackendService for AuthService {
             db_pool,
             handle_queues,
             client_version_req,
+            invitation_only: true,
         };
 
         // Check if there is an active AS signing key

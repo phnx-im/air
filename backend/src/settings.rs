@@ -48,6 +48,12 @@ pub struct ApplicationSettings {
     /// Only clients satisfying this requirement will be able to connect to the server. When empty,
     /// no version requirement is enforced.
     pub versionreq: Option<semver::VersionReq>,
+    /// Whether the server is invitation-only
+    ///
+    /// If this is true, the server will not accept any registration requests without an invitation
+    /// code.
+    #[serde(default = "default_invitationonly")]
+    pub invitationonly: bool,
 }
 
 fn default_listen() -> SocketAddr {
@@ -211,6 +217,10 @@ fn default_20mib() -> u64 {
 
 fn default_burst() -> u32 {
     100
+}
+
+fn default_invitationonly() -> bool {
+    true
 }
 
 mod duration_seconds {

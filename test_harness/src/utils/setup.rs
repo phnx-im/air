@@ -61,14 +61,26 @@ impl AsMut<CoreUser> for TestUser {
 
 impl TestUser {
     pub async fn new(user_id: &UserId, server_url: Url) -> Self {
-        let user = Self::try_new(user_id, server_url).await.unwrap();
+        let user = Self::try_new(user_id, server_url, "DUMMY007")
+            .await
+            .unwrap();
         // Run outbound service to upload KeyPackages
         user.user.outbound_service().run_once().await;
         user
     }
 
-    pub async fn try_new(user_id: &UserId, server_url: Url) -> anyhow::Result<Self> {
-        let user = CoreUser::new_ephemeral(user_id.clone(), server_url, None).await?;
+    pub async fn try_new(
+        user_id: &UserId,
+        server_url: Url,
+        invitation_code: &str,
+    ) -> anyhow::Result<Self> {
+        let user = CoreUser::new_ephemeral(
+            user_id.clone(),
+            server_url,
+            None,
+            invitation_code.to_owned(),
+        )
+        .await?;
 
         Ok(Self {
             user,
@@ -78,9 +90,15 @@ impl TestUser {
     }
 
     pub async fn new_persisted(user_id: &UserId, server_url: Url, db_dir: &str) -> Self {
-        let user = CoreUser::new(user_id.clone(), server_url, db_dir, None)
-            .await
-            .unwrap();
+        let user = CoreUser::new(
+            user_id.clone(),
+            server_url,
+            db_dir,
+            None,
+            "DUMMY007".to_owned(),
+        )
+        .await
+        .unwrap();
         Self {
             user,
             db_dir: Some(db_dir.to_owned()),
@@ -134,6 +152,7 @@ pub struct TestBackend {
     // This is what we feed to the test clients.
     server_url: ServerUrl,
     domain: Fqdn,
+    invitation_codes: Vec<String>,
     temp_dir: TempDir,
     _guard: Option<LocalEnterGuard>,
 }
@@ -143,42 +162,55 @@ enum ServerUrl {
     Local(SocketAddr),
 }
 
+#[derive(Debug, Default)]
+pub struct TestBackendParams {
+    pub rate_limits: Option<RateLimitsSettings>,
+    pub client_version_req: Option<VersionReq>,
+    pub invitation_only: Option<bool>,
+}
+
 impl TestBackend {
     pub async fn single() -> Self {
-        Self::single_with_params(None, None).await
+        Self::single_with_params(Default::default()).await
     }
 
     pub async fn single_with_params(
-        rate_limits: Option<RateLimitsSettings>,
-        client_version_req: Option<VersionReq>,
+        TestBackendParams {
+            rate_limits,
+            client_version_req,
+            invitation_only,
+        }: TestBackendParams,
     ) -> Self {
         let local = LocalSet::new();
         let _guard = local.enter();
 
-        let (server_url, domain) = if let Ok(value) = std::env::var("TEST_SERVER_URL") {
-            let url: Url = value.parse().unwrap();
-            info!(%url, "using external test server");
-            let domain: Fqdn = url.host().unwrap().to_owned().into();
-            (ServerUrl::External(url), domain)
-        } else {
-            let network_provider = MockNetworkProvider::new();
-            let domain: Fqdn = "example.com".parse().unwrap();
-            let listen_addr = spawn_app(
-                domain.clone(),
-                network_provider,
-                rate_limits.unwrap_or(TEST_RATE_LIMITS),
-                client_version_req,
-            )
-            .await;
-            info!(%listen_addr, "using spawned test server");
-            (ServerUrl::Local(listen_addr), domain)
-        };
+        let (server_url, domain, invitation_codes) =
+            if let Ok(value) = std::env::var("TEST_SERVER_URL") {
+                let url: Url = value.parse().unwrap();
+                info!(%url, "using external test server");
+                let domain: Fqdn = url.host().unwrap().to_owned().into();
+                (ServerUrl::External(url), domain, Vec::new())
+            } else {
+                let network_provider = MockNetworkProvider::new();
+                let domain: Fqdn = "example.com".parse().unwrap();
+                let (listen_addr, invitation_codes) = spawn_app(
+                    domain.clone(),
+                    network_provider,
+                    rate_limits.unwrap_or(TEST_RATE_LIMITS),
+                    client_version_req,
+                    invitation_only.unwrap_or(false),
+                )
+                .await;
+                info!(%listen_addr, "using spawned test server");
+                (ServerUrl::Local(listen_addr), domain, invitation_codes)
+            };
         Self {
             users: HashMap::new(),
             groups: HashMap::new(),
             server_url,
             domain,
             temp_dir: tempfile::tempdir().unwrap(),
+            invitation_codes,
             _guard: Some(_guard),
         }
     }
@@ -204,6 +236,10 @@ impl TestBackend {
 
     pub fn temp_dir(&self) -> &Path {
         self.temp_dir.path()
+    }
+
+    pub fn invitation_codes(&self) -> &[String] {
+        &self.invitation_codes
     }
 
     pub async fn add_persisted_user(&mut self) -> UserId {

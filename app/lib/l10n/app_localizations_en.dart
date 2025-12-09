@@ -219,34 +219,43 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get invitationCodeScreen_header => 'Enter invitation code';
+
+  @override
+  String get invitationCodeScreen_subheader =>
+      'Air is currently invitation-only. Enter your code to join. If you don\'t have a code, ask a friend who has extra or talk to a member of the Air team.';
+
+  @override
+  String get invitationCodeScreen_inputLabel => 'Invitation code (required)';
+
+  @override
+  String get invitationCodeScreen_inputHint => 'Enter your invitation code...';
+
+  @override
+  String get invitationCodeScreen_error_invalidLength =>
+      'Code must be 8 characters';
+
+  @override
+  String get invitationCodeScreen_actionButton => 'Join Air';
+
+  @override
+  String invitationCodeScreen_error_internal(Object error) {
+    return 'Failed to check invitation code: $error';
+  }
+
+  @override
+  String get invitationCodeScreen_error_missing => 'Invitation code is missing';
+
+  @override
+  String get invitationCodeScreen_error_invalid =>
+      'Invalid invitation code. Check your code, then try again.';
+
+  @override
   String get signUpScreen_header => 'Create your profile';
 
   @override
   String get signUpScreen_subheader =>
       'Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.';
-
-  @override
-  String get usernameOnboarding_header => 'Add a username';
-
-  @override
-  String get usernameOnboarding_body =>
-      'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.';
-
-  @override
-  String get usernameOnboarding_syntax =>
-      'Use letters, numbers, or dashes. Minimum 5 characters.';
-
-  @override
-  String get usernameOnboarding_addButton => 'Add';
-
-  @override
-  String get usernameOnboarding_skip => 'Skip';
-
-  @override
-  String get usernameOnboarding_userameInputName => 'Username (optional)';
-
-  @override
-  String get usernameOnboarding_userameInputHint => 'Add a username...';
 
   @override
   String get signUpScreen_actionButton => 'Create';
@@ -275,6 +284,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String signUpScreen_error_register(Object error) {
     return 'Error when registering user: $error';
   }
+
+  @override
+  String get usernameOnboarding_header => 'Add a username';
+
+  @override
+  String get usernameOnboarding_body =>
+      'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.';
+
+  @override
+  String get usernameOnboarding_syntax =>
+      'Use letters, numbers, or dashes. Minimum 5 characters.';
+
+  @override
+  String get usernameOnboarding_addButton => 'Add';
+
+  @override
+  String get usernameOnboarding_skip => 'Skip';
+
+  @override
+  String get usernameOnboarding_userameInputName => 'Username (optional)';
+
+  @override
+  String get usernameOnboarding_userameInputHint => 'Add a username...';
 
   @override
   String get userHandleScreen_title => 'Add username';

@@ -220,35 +220,43 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
+  String get invitationCodeScreen_header => 'Enter invitation code';
+
+  @override
+  String get invitationCodeScreen_subheader =>
+      'Air is currently invitation-only. Enter your code to join. If you don\'t have a code, ask a friend who has extra or talk to a member of the Air team.';
+
+  @override
+  String get invitationCodeScreen_inputLabel => 'Invitation code (required)';
+
+  @override
+  String get invitationCodeScreen_inputHint => 'Enter your invitation code...';
+
+  @override
+  String get invitationCodeScreen_error_invalidLength =>
+      'Code must be 8 characters';
+
+  @override
+  String get invitationCodeScreen_actionButton => 'Join Air';
+
+  @override
+  String invitationCodeScreen_error_internal(Object error) {
+    return 'Failed to check invitation code: $error';
+  }
+
+  @override
+  String get invitationCodeScreen_error_missing => 'Invitation code is missing';
+
+  @override
+  String get invitationCodeScreen_error_invalid =>
+      'Invalid invitation code. Check your code, then try again.';
+
+  @override
   String get signUpScreen_header => 'Créez votre profil';
 
   @override
   String get signUpScreen_subheader =>
       'Votre profil est visible pour les personnes avec lesquelles vous vous connectez et les membres de vos groupes. Air exige un nom d\'affichage, mais la photo est facultative.';
-
-  @override
-  String get usernameOnboarding_header => 'Ajoutez un nom d\'utilisateur';
-
-  @override
-  String get usernameOnboarding_body =>
-      'On peut se connecter à d\'autres grace aux noms d\'utilisateur sur Air. Ils ne seront plus visibles pour les autres une fois la connexion établie.\n\nAjoutez, modifiez ou supprimez des noms d\'utilisateur à tout moment dans votre profil.';
-
-  @override
-  String get usernameOnboarding_syntax =>
-      'Utilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.';
-
-  @override
-  String get usernameOnboarding_addButton => 'Ajouter';
-
-  @override
-  String get usernameOnboarding_skip => 'Ignorer';
-
-  @override
-  String get usernameOnboarding_userameInputName =>
-      'Nom d\'utilisateur (facultatif)';
-
-  @override
-  String get usernameOnboarding_userameInputHint => 'Ajoutez un nom...';
 
   @override
   String get signUpScreen_actionButton => 'S\'inscrire';
@@ -278,6 +286,30 @@ class AppLocalizationsFr extends AppLocalizations {
   String signUpScreen_error_register(Object error) {
     return 'Erreur lors de l\'enregistrement de l\'utilisateur : $error';
   }
+
+  @override
+  String get usernameOnboarding_header => 'Ajoutez un nom d\'utilisateur';
+
+  @override
+  String get usernameOnboarding_body =>
+      'On peut se connecter à d\'autres grace aux noms d\'utilisateur sur Air. Ils ne seront plus visibles pour les autres une fois la connexion établie.\n\nAjoutez, modifiez ou supprimez des noms d\'utilisateur à tout moment dans votre profil.';
+
+  @override
+  String get usernameOnboarding_syntax =>
+      'Utilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.';
+
+  @override
+  String get usernameOnboarding_addButton => 'Ajouter';
+
+  @override
+  String get usernameOnboarding_skip => 'Ignorer';
+
+  @override
+  String get usernameOnboarding_userameInputName =>
+      'Nom d\'utilisateur (facultatif)';
+
+  @override
+  String get usernameOnboarding_userameInputHint => 'Ajoutez un nom...';
 
   @override
   String get userHandleScreen_title => 'Nom d\'utilisateur';

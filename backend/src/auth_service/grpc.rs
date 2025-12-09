@@ -37,7 +37,7 @@ use tokio_stream::StreamExt;
 use tonic::{Code, Request, Response, Status, Streaming, async_trait};
 use tracing::error;
 
-use crate::util::find_cause;
+use crate::{auth_service::invitation_code_record::InvitationCodeRecord, util::find_cause};
 
 use super::{
     AuthService,
@@ -171,12 +171,61 @@ impl GrpcAs {
 
 #[async_trait]
 impl auth_service_server::AuthService for GrpcAs {
+    async fn check_invitation_code(
+        &self,
+        request: Request<CheckInvitationCodeRequest>,
+    ) -> Result<Response<CheckInvitationCodeResponse>, Status> {
+        let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
+
+        let code = request
+            .invitation_code
+            .ok_or_missing_field("invitation_code")?;
+        if !InvitationCodeRecord::check_code(&code.code) {
+            return Err(Status::invalid_argument("invalid invitation code"));
+        }
+
+        let record = InvitationCodeRecord::load(&self.inner.db_pool, &code.code)
+            .await
+            .map_err(|error| {
+                error!(%error, "failed to load invitation code");
+                Status::internal("database error")
+            })?;
+
+        Ok(Response::new(CheckInvitationCodeResponse {
+            is_valid: record.filter(|r| !r.redeemed).is_some(),
+        }))
+    }
+
     async fn register_user(
         &self,
         request: Request<RegisterUserRequest>,
     ) -> Result<Response<RegisterUserResponse>, Status> {
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
+
+        let code_record = if self.inner.invitation_only {
+            let code = request
+                .invitation_code
+                .ok_or_missing_field("invitation_code")?;
+            if !InvitationCodeRecord::check_code(&code.code) {
+                return Err(Status::invalid_argument("invalid invitation code"));
+            }
+            let code_record = InvitationCodeRecord::load(&self.inner.db_pool, &code.code)
+                .await
+                .map_err(|error| {
+                    error!(%error, "failed to load invitation code");
+                    Status::internal("database error")
+                })?
+                .filter(|r| !r.redeemed);
+            let Some(code_record) = code_record else {
+                return Err(Status::invalid_argument("invalid invitation code"));
+            };
+            Some(code_record)
+        } else {
+            None
+        };
+
         let params = RegisterUserParamsIn {
             client_payload: request
                 .client_credential_payload
@@ -187,7 +236,10 @@ impl auth_service_server::AuthService for GrpcAs {
                 .ok_or_missing_field("encrypted_user_profile")?
                 .try_into()?,
         };
-        let response = self.inner.as_init_user_registration(params).await?;
+        let response = self
+            .inner
+            .as_init_user_registration(params, code_record)
+            .await?;
         Ok(Response::new(RegisterUserResponse {
             client_credential: Some(response.client_credential.into()),
         }))

@@ -89,50 +89,52 @@ class UsernameOnboardingScreen extends HookWidget {
         ],
       ),
       body: SafeArea(
-        child: ConstrainedWidth(
-          child: Column(
-            children: [
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: Spacings.m,
-                        vertical: Spacings.xs,
-                      ),
-                      child: Form(
-                        key: formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              loc.usernameOnboarding_body,
-                              textAlign: TextAlign.left,
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                            const SizedBox(height: Spacings.m),
-                            _UsernameTextField(
-                              controller: controller,
-                              focusNode: focusNode,
-                              handleExists: handleExists,
-                              formKey: formKey,
-                              validator: (value) => _validateHandle(
-                                loc,
-                                handleExists.value,
-                                value,
-                              ),
-                            ),
-                          ],
+        child: Center(
+          child: ConstrainedWidth(
+            child: Column(
+              children: [
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: Spacings.m,
+                          vertical: Spacings.xs,
                         ),
-                      ),
-                    );
-                  },
+                        child: Form(
+                          key: formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                loc.usernameOnboarding_body,
+                                textAlign: TextAlign.left,
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: Spacings.m),
+                              _UsernameTextField(
+                                controller: controller,
+                                focusNode: focusNode,
+                                handleExists: handleExists,
+                                formKey: formKey,
+                                validator: (value) => _validateHandle(
+                                  loc,
+                                  handleExists.value,
+                                  value,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
-              _AddButton(isSubmitting: isSubmitting.value, onPressed: submit),
-              const SizedBox(height: Spacings.s),
-            ],
+                _AddButton(isSubmitting: isSubmitting.value, onPressed: submit),
+                const SizedBox(height: Spacings.s),
+              ],
+            ),
           ),
         ),
       ),

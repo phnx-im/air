@@ -40,7 +40,8 @@ pub(crate) async fn spawn_app(
     network_provider: MockNetworkProvider,
     rate_limits: RateLimitsSettings,
     client_version_req: Option<VersionReq>,
-) -> SocketAddr {
+    invitation_only: bool,
+) -> (SocketAddr, Vec<String>) {
     init_test_tracing();
 
     // Load configuration
@@ -75,13 +76,27 @@ pub(crate) async fn spawn_app(
     // New database name for the AS provider
     configuration.database.name = Uuid::new_v4().to_string();
 
-    let auth_service = AuthService::new(
+    let mut auth_service = AuthService::new(
         &configuration.database,
         domain.clone(),
         client_version_req.clone(),
     )
     .await
     .expect("Failed to connect to database.");
+    let codes = if !invitation_only {
+        auth_service.disable_invitation_only();
+        Vec::new()
+    } else {
+        const N: usize = 10;
+        auth_service.invitation_codes_generate(N).await.unwrap();
+        let redeemed = false;
+        auth_service
+            .invitation_codes_list(N, redeemed)
+            .await
+            .unwrap()
+            .map(|(code, _)| code)
+            .collect::<Vec<_>>()
+    };
 
     // New database name for the QS provider
     configuration.database.name = Uuid::new_v4().to_string();
@@ -118,5 +133,5 @@ pub(crate) async fn spawn_app(
     tokio::spawn(server);
 
     // Return the address
-    address
+    (address, codes)
 }

@@ -52,12 +52,14 @@ abstract class User implements RustOpaqueInterface {
     PlatformPushToken? pushToken,
     required String displayName,
     Uint8List? profilePicture,
+    required String invitationCode,
   }) => RustLib.instance.api.crateApiUserUserNew(
     address: address,
     path: path,
     pushToken: pushToken,
     displayName: displayName,
     profilePicture: profilePicture,
+    invitationCode: invitationCode,
   );
 
   /// Update the push token.

@@ -41,6 +41,7 @@ pub(crate) struct BasicUserData {
     pub(super) user_id: UserId,
     pub(super) server_url: String,
     pub(super) push_token: Option<PushToken>,
+    pub(super) invitation_code: String,
 }
 
 impl BasicUserData {
@@ -137,6 +138,7 @@ impl BasicUserData {
             encrypted_user_profile,
             key_store,
             qs_initial_ratchet_secret,
+            invitation_code: self.invitation_code,
         };
 
         Ok(initial_user_state)
@@ -155,6 +157,7 @@ pub(crate) struct InitialUserState {
     encrypted_user_profile: EncryptedUserProfile,
     key_store: MemoryUserKeyStoreBase<PreliminaryClientSigningKey>,
     qs_initial_ratchet_secret: RatchetSecret,
+    invitation_code: String,
 }
 
 impl InitialUserState {
@@ -169,6 +172,7 @@ impl InitialUserState {
             .as_register_user(
                 self.client_credential_payload.clone(),
                 self.encrypted_user_profile.clone(),
+                self.invitation_code.clone(),
             )
             .await?;
 
@@ -212,6 +216,7 @@ impl PostAsRegistrationState {
             encrypted_user_profile: _,
             key_store,
             qs_initial_ratchet_secret,
+            invitation_code: _,
         } = self.initial_user_state;
 
         let client_credential: ClientCredential = self

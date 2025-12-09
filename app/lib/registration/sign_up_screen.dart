@@ -48,42 +48,47 @@ class SignUpScreen extends HookWidget {
       ),
       backgroundColor: backgroundColor,
       body: SafeArea(
-        child: ConstrainedWidth(
-          child: Column(
-            children: [
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return SingleChildScrollView(
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.only(
-                        left: Spacings.s,
-                        right: Spacings.s,
-                      ),
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: constraints.maxHeight,
+        child: Center(
+          child: ConstrainedWidth(
+            child: Column(
+              children: [
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        padding: const EdgeInsets.only(
+                          left: Spacings.s,
+                          right: Spacings.s,
                         ),
-                        child: Align(
-                          alignment: Alignment.topCenter,
-                          child: _Form(
-                            formKey: formKey,
-                            showErrors: showErrors.value,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight,
+                          ),
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: _Form(
+                              formKey: formKey,
+                              showErrors: showErrors.value,
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: Spacings.m),
-                width: isSmallScreen(context) ? double.infinity : null,
-                child: _SignUpButton(formKey: formKey, showErrors: showErrors),
-              ),
-              const SizedBox(height: Spacings.s),
-            ],
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: Spacings.m),
+                  width: isSmallScreen(context) ? double.infinity : null,
+                  child: _SignUpButton(
+                    formKey: formKey,
+                    showErrors: showErrors,
+                  ),
+                ),
+                const SizedBox(height: Spacings.s),
+              ],
+            ),
           ),
         ),
       ),
@@ -388,7 +393,8 @@ void _submit(BuildContext context, GlobalKey<FormState> formKey) async {
       return;
     }
     registrationCubit.startUsernameOnboarding(suggestion);
-    navigationCubit.pop();
+    navigationCubit.pop(); // Invitation code screen
+    navigationCubit.pop(); // Sign up screen
     navigationCubit.openIntroScreen(const IntroScreenType.usernameOnboarding());
   } else if (context.mounted) {
     final loc = AppLocalizations.of(context);
