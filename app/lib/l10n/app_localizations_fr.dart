@@ -538,6 +538,19 @@ class AppLocalizationsFr extends AppLocalizations {
   String get textMessage_deleted => 'Message supprimé';
 
   @override
+  String get linkConfirmation_title => 'Ouvrir le lien ?';
+
+  @override
+  String get linkConfirmation_description =>
+      'Vérifiez l’URL pour vous assurer de vouloir l’ouvrir :';
+
+  @override
+  String get linkConfirmation_openLink => 'Ouvrir';
+
+  @override
+  String get linkConfirmation_cancel => 'Annuler';
+
+  @override
   String get messageContextMenu_copy => 'Copier';
 
   @override

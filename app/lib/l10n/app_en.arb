@@ -189,6 +189,12 @@
   "textMessage_edited": "edited",
   "textMessage_hiddenPlaceholder": "Blocked user, tap to reveal message",
   "textMessage_deleted": "Deleted message",
+
+  "linkConfirmation_title": "Open link?",
+  "linkConfirmation_description": "Check the URL to make sure you want to open it:",
+  "linkConfirmation_openLink": "Open",
+  "linkConfirmation_cancel": "Cancel",
+
   "messageContextMenu_copy": "Copy",
   "messageContextMenu_edit": "Edit",
   "messageContextMenu_save": "Save",

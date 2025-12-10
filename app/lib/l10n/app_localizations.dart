@@ -949,6 +949,30 @@ abstract class AppLocalizations {
   /// **'Deleted message'**
   String get textMessage_deleted;
 
+  /// No description provided for @linkConfirmation_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Open link?'**
+  String get linkConfirmation_title;
+
+  /// No description provided for @linkConfirmation_description.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the URL to make sure you want to open it:'**
+  String get linkConfirmation_description;
+
+  /// No description provided for @linkConfirmation_openLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get linkConfirmation_openLink;
+
+  /// No description provided for @linkConfirmation_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get linkConfirmation_cancel;
+
   /// No description provided for @messageContextMenu_copy.
   ///
   /// In en, this message translates to:
