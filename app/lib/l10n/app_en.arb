@@ -163,6 +163,8 @@
   "newConnectionDialog_error": "Failed to send {username} a contact request. Try again.",
   "newConnectionDialog_error_emptyHandle": "Type the username",
   "newConnectionDialog_error_handleNotFound": "Username {username} doesn't exist",
+  "newConnectionDialog_error_duplicateRequest": "You already have a pending contact request to this username.",
+  "newConnectionDialog_error_ownHandle": "You can't send a contact request to yourself.",
 
   "composer_inputHint": "Message {chatTitle}",
   "composer_editMessage": "Edit message",

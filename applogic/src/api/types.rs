@@ -543,7 +543,7 @@ impl From<TargetedMessageContact> for UiContact {
     }
 }
 
-/// Mirror of the [`ChatId`] type
+/// Mirror of the [`AddHandleContactResult`] type
 #[doc(hidden)]
 #[frb(mirror(AddHandleContactResult))]
 pub enum _AddHandleContactResult {
