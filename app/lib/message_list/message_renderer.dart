@@ -373,10 +373,10 @@ TapGestureRecognizer openLinkRecognizer(BuildContext context, Uri uri) =>
       };
 
 Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
-  final loc = AppLocalizations.of(context);
   final result = await showDialog<bool>(
     context: context,
     builder: (dialogContext) {
+      final loc = AppLocalizations.of(context);
       final colors = CustomColorScheme.of(dialogContext);
 
       return AppDialog(
