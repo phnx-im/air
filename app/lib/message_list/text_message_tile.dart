@@ -172,7 +172,24 @@ class _MessageView extends HookWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const SizedBox(width: Spacings.s),
-                Timestamp(timestamp),
+                if (status != UiMessageStatus.error &&
+                    status != UiMessageStatus.sending)
+                  Timestamp(timestamp),
+                if (showMessageStatus) const SizedBox(width: Spacings.xxxs),
+                if (showMessageStatus && status == UiMessageStatus.error)
+                  Text(
+                    style: TextStyle(
+                      color: CustomColorScheme.of(context).function.warning,
+                    ),
+                    loc.messageBubble_failedToSend,
+                  ),
+                if (showMessageStatus && status == UiMessageStatus.sending)
+                  Text(
+                    style: TextStyle(
+                      color: CustomColorScheme.of(context).text.tertiary,
+                    ),
+                    loc.messageBubble_sending,
+                  ),
                 if (showMessageStatus) const SizedBox(width: Spacings.xxxs),
                 if (showMessageStatus) _MessageStatus(status: status),
                 const SizedBox(width: Spacings.xs),
@@ -505,7 +522,7 @@ class _MessageStatus extends StatelessWidget {
     }
     if (status == UiMessageStatus.error) {
       return iconoir.WarningCircle(
-        color: CustomColorScheme.of(context).text.tertiary,
+        color: CustomColorScheme.of(context).function.warning,
         height: LabelFontSize.small2.size,
         width: LabelFontSize.small2.size,
       );

@@ -431,6 +431,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get timestamp_yesterday => 'Yesterday';
 
   @override
+  String get messageBubble_sending => 'Sending';
+
+  @override
+  String get messageBubble_failedToSend => 'Failed to send';
+
+  @override
   String get chatList_newContact => 'New Air contact';
 
   @override

@@ -433,6 +433,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get timestamp_yesterday => 'Gestern';
 
   @override
+  String get messageBubble_sending => 'Sending';
+
+  @override
+  String get messageBubble_failedToSend => 'Failed to send';
+
+  @override
   String get chatList_newContact => 'Neuer Kontakt';
 
   @override

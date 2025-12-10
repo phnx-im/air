@@ -787,6 +787,18 @@ abstract class AppLocalizations {
   /// **'Yesterday'**
   String get timestamp_yesterday;
 
+  /// No description provided for @messageBubble_sending.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending'**
+  String get messageBubble_sending;
+
+  /// No description provided for @messageBubble_failedToSend.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send'**
+  String get messageBubble_failedToSend;
+
   /// No description provided for @chatList_newContact.
   ///
   /// In en, this message translates to:
