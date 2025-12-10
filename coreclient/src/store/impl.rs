@@ -238,7 +238,7 @@ impl Store for CoreUser {
     }
 
     async fn last_message(&self, chat_id: ChatId) -> StoreResult<Option<ChatMessage>> {
-        Ok(ChatMessage::last_content_message(self.pool(), chat_id).await?)
+        Ok(ChatMessage::last_message(self.pool(), chat_id).await?)
     }
 
     async fn last_message_by_user(

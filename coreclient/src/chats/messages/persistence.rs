@@ -408,8 +408,8 @@ impl ChatMessage {
         Ok(())
     }
 
-    /// Get the last content message in the chat.
-    pub(crate) async fn last_content_message(
+    /// Get the last message in the chat.
+    pub(crate) async fn last_message(
         executor: impl SqliteExecutor<'_>,
         chat_id: ChatId,
     ) -> sqlx::Result<Option<Self>> {
@@ -431,8 +431,6 @@ impl ChatMessage {
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
             WHERE chat_id = ?
-                AND sender_user_uuid IS NOT NULL
-                AND sender_user_domain IS NOT NULL
             ORDER BY timestamp DESC LIMIT 1"#,
             chat_id,
         )
@@ -580,10 +578,7 @@ pub(crate) mod tests {
     use openmls::group::GroupId;
     use sqlx::SqlitePool;
 
-    use crate::{
-        ContentMessage, EventMessage, Message, MessageId, SystemMessage,
-        chats::persistence::tests::test_chat,
-    };
+    use crate::{ContentMessage, Message, MessageId, chats::persistence::tests::test_chat};
 
     use super::*;
 
@@ -735,7 +730,7 @@ pub(crate) mod tests {
     }
 
     #[sqlx::test]
-    async fn last_content_message(pool: SqlitePool) -> anyhow::Result<()> {
+    async fn last_message(pool: SqlitePool) -> anyhow::Result<()> {
         let mut store_notifier = StoreNotifier::noop();
 
         let chat = test_chat();
@@ -748,22 +743,7 @@ pub(crate) mod tests {
         message_a.store(&pool, &mut store_notifier).await?;
         message_b.store(&pool, &mut store_notifier).await?;
 
-        ChatMessage {
-            chat_id: chat.id(),
-            message_id: MessageId::random(),
-            timestamped_message: TimestampedMessage {
-                timestamp: Utc::now().into(),
-                message: Message::Event(EventMessage::System(SystemMessage::Add(
-                    UserId::random("localhost".parse()?),
-                    UserId::random("localhost".parse()?),
-                ))),
-            },
-            status: MessageStatus::Unread,
-        }
-        .store(&pool, &mut store_notifier)
-        .await?;
-
-        let loaded = ChatMessage::last_content_message(&pool, chat.id()).await?;
+        let loaded = ChatMessage::last_message(&pool, chat.id()).await?;
         assert_eq!(loaded, Some(message_b));
 
         Ok(())
