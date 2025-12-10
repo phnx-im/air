@@ -155,6 +155,9 @@ class _MessageView extends HookWidget {
     final showMessageStatus =
         isSender && flightPosition.isLast && status != UiMessageStatus.hidden;
 
+    final isSendingOrError =
+        status == UiMessageStatus.error || status == UiMessageStatus.sending;
+
     Widget buildTimestampRow() {
       if (!flightPosition.isLast) {
         return const SizedBox.shrink();
@@ -172,9 +175,7 @@ class _MessageView extends HookWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const SizedBox(width: Spacings.s),
-                if (status != UiMessageStatus.error &&
-                    status != UiMessageStatus.sending)
-                  Timestamp(timestamp),
+                if (!isSendingOrError) Timestamp(timestamp),
                 if (showMessageStatus) const SizedBox(width: Spacings.xxxs),
                 if (showMessageStatus && status == UiMessageStatus.error)
                   Text(
@@ -190,7 +191,8 @@ class _MessageView extends HookWidget {
                     ),
                     loc.messageBubble_sending,
                   ),
-                if (showMessageStatus) const SizedBox(width: Spacings.xxxs),
+                if (showMessageStatus && isSendingOrError)
+                  const SizedBox(width: Spacings.xxxs),
                 if (showMessageStatus) _MessageStatus(status: status),
                 const SizedBox(width: Spacings.xs),
               ],
