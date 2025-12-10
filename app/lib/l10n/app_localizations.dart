@@ -883,6 +883,18 @@ abstract class AppLocalizations {
   /// **'Username {username} doesn\'t exist'**
   String newConnectionDialog_error_handleNotFound(Object username);
 
+  /// No description provided for @newConnectionDialog_error_duplicateRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'You already have a pending contact request to this username.'**
+  String get newConnectionDialog_error_duplicateRequest;
+
+  /// No description provided for @newConnectionDialog_error_ownHandle.
+  ///
+  /// In en, this message translates to:
+  /// **'You can\'t send a contact request to yourself.'**
+  String get newConnectionDialog_error_ownHandle;
+
   /// No description provided for @composer_inputHint.
   ///
   /// In en, this message translates to:
