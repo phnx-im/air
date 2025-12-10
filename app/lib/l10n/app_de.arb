@@ -153,7 +153,7 @@
   "textMessage_deleted": "Nachricht gelöscht",
 
   "linkConfirmation_title": "Link öffnen?",
-  "linkConfirmation_description": "Du bist dabei, folgenden Link zu öffnen:",
+  "linkConfirmation_description": "Prüfe die URL, um sicherzugehen, dass du sie öffnen möchtest:",
   "linkConfirmation_openLink": "Öffnen",
   "linkConfirmation_cancel": "Abbrechen",
 

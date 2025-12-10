@@ -139,7 +139,7 @@
   "textMessage_deleted": "Message supprimé",
 
   "linkConfirmation_title": "Ouvrir le lien ?",
-  "linkConfirmation_description": "Vous êtes sur le point d'ouvrir le lien suivant:",
+  "linkConfirmation_description": "Vérifiez l’URL pour vous assurer de vouloir l’ouvrir :",
   "linkConfirmation_openLink": "Ouvrir",
   "linkConfirmation_cancel": "Annuler",
 

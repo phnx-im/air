@@ -381,34 +381,40 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
 
       return AppDialog(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: .min,
+          crossAxisAlignment: .center,
           children: [
             Center(
-              child: Text(
-                loc.linkConfirmation_title,
-                style: TextStyle(
-                  fontSize: HeaderFontSize.h4.size,
-                  fontWeight: FontWeight.bold,
-                ),
+              child: Column(
+                spacing: Spacings.xxs,
+                children: [
+                  Text(
+                    loc.linkConfirmation_title,
+                    style: TextStyle(
+                      fontSize: HeaderFontSize.h4.size,
+                      fontWeight: .bold,
+                    ),
+                  ),
+                  Text(
+                    loc.linkConfirmation_description,
+                    textAlign: .center,
+                    style: TextStyle(
+                      color: colors.text.secondary,
+                      fontSize: BodyFontSize.base.size,
+                    ),
+                  ),
+                  Text(
+                    uri.toString(),
+                    textAlign: .center,
+                    style: TextStyle(
+                      color: colors.text.primary,
+                      fontSize: BodyFontSize.small2.size,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: Spacings.xxs),
-            Text(
-              loc.linkConfirmation_description,
-              style: TextStyle(
-                color: colors.text.tertiary,
-                fontSize: BodyFontSize.base.size,
-              ),
-            ),
-            const SizedBox(height: Spacings.xxs),
-            SelectableText(
-              uri.toString(),
-              style: TextStyle(
-                color: colors.text.primary,
-                fontSize: BodyFontSize.base.size,
-              ),
-            ),
+
             const SizedBox(height: Spacings.m),
             Row(
               children: [

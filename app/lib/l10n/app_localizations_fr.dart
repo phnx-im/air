@@ -542,7 +542,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get linkConfirmation_description =>
-      'Vous êtes sur le point d\'ouvrir le lien suivant:';
+      'Vérifiez l’URL pour vous assurer de vouloir l’ouvrir :';
 
   @override
   String get linkConfirmation_openLink => 'Ouvrir';

@@ -958,7 +958,7 @@ abstract class AppLocalizations {
   /// No description provided for @linkConfirmation_description.
   ///
   /// In en, this message translates to:
-  /// **'You are about to open the following link:'**
+  /// **'Check the URL to make sure you want to open it:'**
   String get linkConfirmation_description;
 
   /// No description provided for @linkConfirmation_openLink.

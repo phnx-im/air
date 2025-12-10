@@ -537,7 +537,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get linkConfirmation_description =>
-      'You are about to open the following link:';
+      'Check the URL to make sure you want to open it:';
 
   @override
   String get linkConfirmation_openLink => 'Open';
