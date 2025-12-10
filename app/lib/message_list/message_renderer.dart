@@ -434,7 +434,7 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
                         colors.accent.primary,
                       ),
                       foregroundColor: WidgetStatePropertyAll(
-                        colors.function.white,
+                        colors.function.toggleWhite,
                       ),
                     ),
                     child: Text(loc.linkConfirmation_openLink),
