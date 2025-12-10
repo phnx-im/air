@@ -260,6 +260,11 @@ impl CoreUser {
         &self.inner.outbound_service
     }
 
+    /// Stop the outbound service and wait until it is fully stopped.
+    pub async fn stop_outbound_service(&self) {
+        self.inner.outbound_service.stop().await;
+    }
+
     pub(crate) fn send_store_notification(&self, notification: StoreNotification) {
         if !notification.is_empty() {
             self.inner.store_notifications_tx.notify(notification);
