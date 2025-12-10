@@ -536,6 +536,19 @@ class AppLocalizationsDe extends AppLocalizations {
   String get textMessage_deleted => 'Nachricht gelöscht';
 
   @override
+  String get linkConfirmation_title => 'Link öffnen?';
+
+  @override
+  String get linkConfirmation_description =>
+      'Du bist dabei, folgenden Link zu öffnen:';
+
+  @override
+  String get linkConfirmation_openLink => 'Öffnen';
+
+  @override
+  String get linkConfirmation_cancel => 'Abbrechen';
+
+  @override
   String get messageContextMenu_copy => 'Kopieren';
 
   @override
