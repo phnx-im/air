@@ -224,7 +224,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get invitationCodeScreen_subheader =>
-      'Air is currently invitation-only. Enter your code to join. If you don\'t have a code, ask a friend who has extra or talk to a member of the Air team.';
+      'Air is currently invitation-only. Enter your code to join. If you don\'t have one, ask someone who’s already on Air.';
 
   @override
   String get invitationCodeScreen_inputLabel => 'Invitation code (required)';

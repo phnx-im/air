@@ -469,7 +469,7 @@ abstract class AppLocalizations {
   /// No description provided for @invitationCodeScreen_subheader.
   ///
   /// In en, this message translates to:
-  /// **'Air is currently invitation-only. Enter your code to join. If you don\'t have a code, ask a friend who has extra or talk to a member of the Air team.'**
+  /// **'Air is currently invitation-only. Enter your code to join. If you don\'t have one, ask someone who’s already on Air.'**
   String get invitationCodeScreen_subheader;
 
   /// No description provided for @invitationCodeScreen_inputLabel.

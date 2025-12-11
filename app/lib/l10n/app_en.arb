@@ -82,7 +82,7 @@
   },
 
   "invitationCodeScreen_header": "Enter invitation code",
-  "invitationCodeScreen_subheader": "Air is currently invitation-only. Enter your code to join. If you don't have a code, ask a friend who has extra or talk to a member of the Air team.",
+  "invitationCodeScreen_subheader": "Air is currently invitation-only. Enter your code to join. If you don't have one, ask someone who’s already on Air.",
   "invitationCodeScreen_inputLabel": "Invitation code (required)",
   "invitationCodeScreen_inputHint": "Enter your invitation code...",
   "invitationCodeScreen_error_invalidLength": "Code must be 8 characters",
