@@ -48,19 +48,19 @@ class GroupMembersScreen extends StatelessWidget {
           ),
         ),
       ],
-      child: const _GroupMembersView(),
+      child: const GroupMembersView(),
     );
   }
 }
 
-class _GroupMembersView extends StatefulWidget {
-  const _GroupMembersView();
+class GroupMembersView extends StatefulWidget {
+  const GroupMembersView({super.key});
 
   @override
-  State<_GroupMembersView> createState() => _GroupMembersViewState();
+  State<GroupMembersView> createState() => _GroupMembersViewState();
 }
 
-class _GroupMembersViewState extends State<_GroupMembersView> {
+class _GroupMembersViewState extends State<GroupMembersView> {
   final TextEditingController _controller = TextEditingController();
   String _query = '';
 
@@ -72,11 +72,9 @@ class _GroupMembersViewState extends State<_GroupMembersView> {
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
     final members = context.select(
       (ChatDetailsCubit cubit) => cubit.state.members,
     );
-    final colorScheme = CustomColorScheme.of(context);
     final chatId = context.select(
       (NavigationCubit cubit) => cubit.state.chatId,
     );
@@ -89,6 +87,9 @@ class _GroupMembersViewState extends State<_GroupMembersView> {
     if (chatId == null) {
       return const SizedBox.shrink();
     }
+
+    final loc = AppLocalizations.of(context);
+    final colorScheme = CustomColorScheme.of(context);
 
     final query = _query.trim().toLowerCase();
     final filteredMembers = members.where((memberId) {

@@ -137,3 +137,6 @@ class MockUserSettingsCubit extends MockCubit<UserSettings>
     implements UserSettingsCubit {}
 
 class MockChatsRepository extends Mock implements ChatsRepository {}
+
+class MockMemberDetailsCubit extends MockCubit<MemberDetailsState>
+    implements MemberDetailsCubit {}

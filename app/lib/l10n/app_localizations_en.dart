@@ -463,6 +463,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get timestamp_yesterday => 'Yesterday';
 
   @override
+  String get messageBubble_sending => 'Sending';
+
+  @override
+  String get messageBubble_failedToSend => 'Failed to send';
+
+  @override
   String get chatList_newContact => 'New Air contact';
 
   @override
@@ -519,6 +525,14 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get newConnectionDialog_error_duplicateRequest =>
+      'You already have a pending contact request to this username.';
+
+  @override
+  String get newConnectionDialog_error_ownHandle =>
+      'You can\'t send a contact request to yourself.';
+
+  @override
   String composer_inputHint(Object chatTitle) {
     return 'Message $chatTitle';
   }
@@ -563,6 +577,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get textMessage_deleted => 'Deleted message';
+
+  @override
+  String get linkConfirmation_title => 'Open link?';
+
+  @override
+  String get linkConfirmation_description =>
+      'Check the URL to make sure you want to open it:';
+
+  @override
+  String get linkConfirmation_openLink => 'Open';
+
+  @override
+  String get linkConfirmation_cancel => 'Cancel';
 
   @override
   String get messageContextMenu_copy => 'Copy';
