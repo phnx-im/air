@@ -2097,8 +2097,10 @@ async fn message_sending_failures() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Invitation code", skip_all)]
 async fn invitation_code() {
+    const UNREDEEMABLE_CODE: &str = "E111E000";
     let setup = TestBackend::single_with_params(TestBackendParams {
-        invitation_only: Some(true),
+        invitation_only: true,
+        unredeemable_code: Some(UNREDEEMABLE_CODE.to_owned()),
         ..Default::default()
     })
     .await;
@@ -2132,5 +2134,21 @@ async fn invitation_code() {
     let error = error.downcast::<AsRequestError>().unwrap();
     assert_matches!(error, AsRequestError::Tonic(status)
         if status.code() == tonic::Code::InvalidArgument
+    );
+
+    // unredeemable code (first use)
+    let user_id = UserId::random(setup.domain().clone());
+    assert!(
+        TestUser::try_new(&user_id, setup.server_url().clone(), UNREDEEMABLE_CODE)
+            .await
+            .is_ok()
+    );
+
+    // unredeemable code (second use)
+    let user_id = UserId::random(setup.domain().clone());
+    assert!(
+        TestUser::try_new(&user_id, setup.server_url().clone(), UNREDEEMABLE_CODE)
+            .await
+            .is_ok()
     );
 }

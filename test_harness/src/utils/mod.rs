@@ -22,12 +22,14 @@ use airserver::{
     enqueue_provider::SimpleEnqueueProvider, network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
 };
-use semver::VersionReq;
 use uuid::Uuid;
 
 use crate::{
     init_test_tracing,
-    utils::controlled_listener::{ControlHandle, ControlledIncoming},
+    utils::{
+        controlled_listener::{ControlHandle, ControlledIncoming},
+        setup::TestBackendParams,
+    },
 };
 
 const BASE_CONFIG: &str = include_str!("../../../server/configuration/base.yaml");
@@ -41,11 +43,16 @@ const TEST_RATE_LIMITS: RateLimitsSettings = RateLimitsSettings {
 pub(crate) async fn spawn_app(
     domain: Fqdn,
     network_provider: MockNetworkProvider,
-    rate_limits: RateLimitsSettings,
-    client_version_req: Option<VersionReq>,
-    invitation_only: bool,
+    params: TestBackendParams,
 ) -> (SocketAddr, ControlHandle, Vec<String>) {
     init_test_tracing();
+
+    let TestBackendParams {
+        rate_limits,
+        client_version_req,
+        invitation_only,
+        unredeemable_code,
+    } = params;
 
     // Load configuration
     let mut configuration = get_configuration_from_str(BASE_CONFIG, LOCAL_CONFIG)
@@ -102,6 +109,9 @@ pub(crate) async fn spawn_app(
             .map(|(code, _)| code)
             .collect::<Vec<_>>()
     };
+    if let Some(code) = unredeemable_code {
+        auth_service.set_unredeemable_code(code);
+    }
 
     // New database name for the QS provider
     configuration.database.name = Uuid::new_v4().to_string();
@@ -130,7 +140,7 @@ pub(crate) async fn spawn_app(
         auth_service,
         qs,
         qs_connector,
-        rate_limits,
+        rate_limits: rate_limits.unwrap_or(TEST_RATE_LIMITS),
     })
     .await;
 

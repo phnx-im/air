@@ -36,8 +36,6 @@ use uuid::Uuid;
 
 use crate::utils::{controlled_listener::ControlHandle, spawn_app};
 
-use super::TEST_RATE_LIMITS;
-
 #[derive(Debug)]
 pub struct TestUser {
     pub user: CoreUser,
@@ -168,7 +166,8 @@ enum ServerUrl {
 pub struct TestBackendParams {
     pub rate_limits: Option<RateLimitsSettings>,
     pub client_version_req: Option<VersionReq>,
-    pub invitation_only: Option<bool>,
+    pub invitation_only: bool,
+    pub unredeemable_code: Option<String>,
 }
 
 impl TestBackend {
@@ -176,13 +175,7 @@ impl TestBackend {
         Self::single_with_params(Default::default()).await
     }
 
-    pub async fn single_with_params(
-        TestBackendParams {
-            rate_limits,
-            client_version_req,
-            invitation_only,
-        }: TestBackendParams,
-    ) -> Self {
+    pub async fn single_with_params(params: TestBackendParams) -> Self {
         let local = LocalSet::new();
         let _guard = local.enter();
 
@@ -195,14 +188,8 @@ impl TestBackend {
             } else {
                 let network_provider = MockNetworkProvider::new();
                 let domain: Fqdn = "example.com".parse().unwrap();
-                let (listen_addr, control_handle, codes) = spawn_app(
-                    domain.clone(),
-                    network_provider,
-                    rate_limits.unwrap_or(TEST_RATE_LIMITS),
-                    client_version_req,
-                    invitation_only.unwrap_or(false),
-                )
-                .await;
+                let (listen_addr, control_handle, codes) =
+                    spawn_app(domain.clone(), network_provider, params).await;
                 info!(%listen_addr, "using spawned test server");
                 (
                     ServerUrl::Local(listen_addr),

@@ -181,8 +181,15 @@ impl auth_service_server::AuthService for GrpcAs {
         let code = request
             .invitation_code
             .ok_or_missing_field("invitation_code")?;
-        if !InvitationCodeRecord::check_code(&code.code) {
+
+        if !InvitationCodeRecord::validate_code(&code.code) {
             return Err(Status::invalid_argument("invalid invitation code"));
+        }
+
+        if self.inner.unredeemable_code.as_deref() == Some(&code.code) {
+            return Ok(Response::new(CheckInvitationCodeResponse {
+                is_valid: true,
+            }));
         }
 
         let record = InvitationCodeRecord::load(&self.inner.db_pool, &code.code)
@@ -208,16 +215,24 @@ impl auth_service_server::AuthService for GrpcAs {
             let code = request
                 .invitation_code
                 .ok_or_missing_field("invitation_code")?;
-            if !InvitationCodeRecord::check_code(&code.code) {
+
+            if !InvitationCodeRecord::validate_code(&code.code) {
                 return Err(Status::invalid_argument("invalid invitation code"));
             }
-            let code_record = InvitationCodeRecord::load(&self.inner.db_pool, &code.code)
-                .await
-                .map_err(|error| {
-                    error!(%error, "failed to load invitation code");
-                    Status::internal("database error")
-                })?
-                .filter(|r| !r.redeemed);
+            let code_record = if self.inner.is_unredeemable_code(&code.code) {
+                Some(InvitationCodeRecord {
+                    code: code.code,
+                    redeemed: false,
+                })
+            } else {
+                InvitationCodeRecord::load(&self.inner.db_pool, &code.code)
+                    .await
+                    .map_err(|error| {
+                        error!(%error, "failed to load invitation code");
+                        Status::internal("database error")
+                    })?
+                    .filter(|r| !r.redeemed)
+            };
             let Some(code_record) = code_record else {
                 return Err(Status::invalid_argument("invalid invitation code"));
             };

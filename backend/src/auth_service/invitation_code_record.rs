@@ -36,7 +36,7 @@ impl InvitationCodeRecord {
         }
     }
 
-    pub(crate) fn check_code(code: &str) -> bool {
+    pub(crate) fn validate_code(code: &str) -> bool {
         code.len() == CODE_LEN && code.bytes().all(|c| ALPHABET.contains(&c))
     }
 }
