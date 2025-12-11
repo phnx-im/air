@@ -144,6 +144,9 @@
   "timestamp_now": "Now",
   "timestamp_yesterday": "Yesterday",
 
+  "messageBubble_sending": "Sending",
+  "messageBubble_failedToSend": "Failed to send",
+
   "chatList_newContact": "New Air contact",
   "chatList_newGroup": "New group chat",
   "chatList_emptyMessage": "Add your first Air contact to get started",
