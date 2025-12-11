@@ -6,6 +6,7 @@
 
 use std::{net::SocketAddr, time::Duration};
 
+pub mod controlled_listener;
 pub mod setup;
 
 use airbackend::{
@@ -17,15 +18,17 @@ use airbackend::{
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
-    ServerRunParams, configurations::get_configuration_from_str,
+    Addressed as _, ServerRunParams, configurations::get_configuration_from_str,
     enqueue_provider::SimpleEnqueueProvider, network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
 };
 use semver::VersionReq;
-use tokio::net::TcpListener;
 use uuid::Uuid;
 
-use crate::init_test_tracing;
+use crate::{
+    init_test_tracing,
+    utils::controlled_listener::{ControlHandle, ControlledIncoming},
+};
 
 const BASE_CONFIG: &str = include_str!("../../../server/configuration/base.yaml");
 const LOCAL_CONFIG: &str = include_str!("../../../server/configuration/local.yaml");
@@ -40,7 +43,7 @@ pub(crate) async fn spawn_app(
     network_provider: MockNetworkProvider,
     rate_limits: RateLimitsSettings,
     client_version_req: Option<VersionReq>,
-) -> SocketAddr {
+) -> (SocketAddr, ControlHandle) {
     init_test_tracing();
 
     // Load configuration
@@ -52,9 +55,11 @@ pub(crate) async fn spawn_app(
     let mut listen = configuration.application.listen;
     listen.set_port(0); // Bind to a random port
 
-    let listener = TcpListener::bind(listen)
+    // Controlled listener
+    let (listener, control_handle) = ControlledIncoming::bind(listen)
         .await
-        .expect("Failed to bind to random port.");
+        .expect("Failed to bind controlled listener.");
+
     let address = listener.local_addr().unwrap();
 
     // DS storage provider
@@ -118,5 +123,5 @@ pub(crate) async fn spawn_app(
     tokio::spawn(server);
 
     // Return the address
-    address
+    (address, control_handle)
 }

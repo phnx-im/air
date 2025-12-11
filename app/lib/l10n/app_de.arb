@@ -151,6 +151,12 @@
   "textMessage_edited": "bearbeitet",
   "textMessage_hiddenPlaceholder": "Blockierter Benutzer, tippe, um die Nachricht anzuzeigen",
   "textMessage_deleted": "Nachricht gelöscht",
+
+  "linkConfirmation_title": "Link öffnen?",
+  "linkConfirmation_description": "Prüfe die URL, um sicherzugehen, dass du sie öffnen möchtest:",
+  "linkConfirmation_openLink": "Öffnen",
+  "linkConfirmation_cancel": "Abbrechen",
+
   "messageContextMenu_copy": "Kopieren",
   "messageContextMenu_edit": "Bearbeiten",
   "messageContextMenu_save": "Speichern",

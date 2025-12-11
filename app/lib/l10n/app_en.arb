@@ -144,6 +144,9 @@
   "timestamp_now": "Now",
   "timestamp_yesterday": "Yesterday",
 
+  "messageBubble_sending": "Sending",
+  "messageBubble_failedToSend": "Failed to send",
+
   "chatList_newContact": "New Air contact",
   "chatList_newGroup": "New group chat",
   "chatList_emptyMessage": "Add your first Air contact to get started",
@@ -163,6 +166,8 @@
   "newConnectionDialog_error": "Failed to send {username} a contact request. Try again.",
   "newConnectionDialog_error_emptyHandle": "Type the username",
   "newConnectionDialog_error_handleNotFound": "Username {username} doesn't exist",
+  "newConnectionDialog_error_duplicateRequest": "You already have a pending contact request to this username.",
+  "newConnectionDialog_error_ownHandle": "You can't send a contact request to yourself.",
 
   "composer_inputHint": "Message {chatTitle}",
   "composer_editMessage": "Edit message",
@@ -189,6 +194,12 @@
   "textMessage_edited": "edited",
   "textMessage_hiddenPlaceholder": "Blocked user, tap to reveal message",
   "textMessage_deleted": "Deleted message",
+
+  "linkConfirmation_title": "Open link?",
+  "linkConfirmation_description": "Check the URL to make sure you want to open it:",
+  "linkConfirmation_openLink": "Open",
+  "linkConfirmation_cancel": "Cancel",
+
   "messageContextMenu_copy": "Copy",
   "messageContextMenu_edit": "Edit",
   "messageContextMenu_save": "Save",

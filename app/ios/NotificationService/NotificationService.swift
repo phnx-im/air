@@ -8,8 +8,43 @@ import UserNotifications
 import os
 
 private let kProtectedBlockedCategory = "protected-blocked"
-private let log = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "NotificationService", category: "NSE")
+private let reentryQueue = DispatchQueue(label: "ms.air.NotificationService.reentry")
+private var isHandlingNotification = false
+private let swiftLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "NotificationService",
+    category: "NSE"
+)
+
+private enum RustLogLevel: UInt8 {
+    case trace = 0
+    case debug
+    case info
+    case warn
+    case error
+}
+
+private func initRustLogging(_ logFilePath: String) {
+    logFilePath.withCString { cString in
+        init_background_logger(cString)
+    }
+}
+
+private func rustLog(_ level: RustLogLevel, _ message: String) {
+    switch level {
+    case .trace, .debug:
+        swiftLogger.debug("\(message, privacy: .public)")
+    case .info:
+        swiftLogger.info("\(message, privacy: .public)")
+    case .warn:
+        swiftLogger.notice("\(message, privacy: .public)")
+    case .error:
+        swiftLogger.error("\(message, privacy: .public)")
+    }
+    
+    message.withCString { cString in
+        rust_log(level.rawValue, cString)
+    }
+}
 
 struct IncomingNotificationContent: Codable {
     let title: String
@@ -39,41 +74,63 @@ struct ChatId: Codable {
 class NotificationService: UNNotificationServiceExtension {
     
     var contentHandler: ((UNNotificationContent) -> Void)?
+    private var hasHandlingToken = false
     
     override func didReceive(
         _ request: UNNotificationRequest,
         withContentHandler contentHandler: @escaping (UNNotificationContent) -> Void
     ) {
+        let acquired = NotificationService.beginHandling()
+        if !acquired {
+            rustLog(.warn, "Re-entry detected")
+            completeNotification(releaseHandling: false, handler: contentHandler)
+            return
+        }
         
-        log.info("Received notification")
+        self.hasHandlingToken = true
         self.contentHandler = contentHandler
+        
+        guard
+            let sharedContainer = FileManager.default.containerURL(
+                forSecurityApplicationGroupIdentifier: "group.ms.air")
+        else {
+            rustLog(.error, "Could not find app group container")
+            self.completeNotification()
+            return
+        }
+        
+        let sharedCaches = sharedContainer.appendingPathComponent("Caches")
+        let logFilePath = sharedCaches.appendingPathComponent("background.log").path
+        initRustLogging(logFilePath)
+        rustLog(.info, "Received notification")
         
         guard
             let incomingNotification =
                 (request.content.mutableCopy() as? UNMutableNotificationContent)
         else {
-            self.suppressNotifications()
+            rustLog(.error, "Failed to copy incoming notification content")
+            self.completeNotification()
             return
         }
         
         // Extract the "data" field from the push notification payload
         let userInfo = request.content.userInfo
         guard let data = userInfo["data"] as? String else {
-            log.info("Data field not set")
-            self.suppressNotifications()
+            rustLog(.warn, "Data field not set")
+            self.completeNotification()
             return
         }
         
         guard let dbUrl = getDatabasesDirectoryPath() else {
-            log.error("Could not find databases directory")
-            self.suppressNotifications()
+            rustLog(.error, "Could not find databases directory")
+            self.completeNotification()
             return
         }
         
         // If protected data is not yet available (e.g. device never unlocked after reboot),
         // show a minimal notification and skip DB access.
         if !protectedDataAvailable(at: dbUrl) {
-            log.notice("Protected data unavailable; sending fallback notification")
+            rustLog(.warn, "Protected data unavailable; sending fallback notification")
             // Always remove any previously delivered "blocked" notifications to avoid duplicates
             clearProtectedBlockedNotifications()
             let fallback = UNMutableNotificationContent()
@@ -82,24 +139,14 @@ class NotificationService: UNNotificationServiceExtension {
             fallback.title = "Unlock your device"
             fallback.body = "You may have new messages, unlock your device to see them."
             fallback.sound = UNNotificationSound.default
-            contentHandler(fallback)
+            completeNotification(fallback)
             return
         }
         
         // Ensure any previously shown "blocked" notification is removed now that data is accessible
         clearProtectedBlockedNotifications()
         
-        guard
-            let sharedContainer = FileManager.default.containerURL(
-                forSecurityApplicationGroupIdentifier: "group.ms.air")
-        else {
-            log.error("Could not find cache directory")
-            self.suppressNotifications()
-            return
-        }
-        let sharedCaches = sharedContainer.appendingPathComponent("Caches")
-        let logFilePath = sharedCaches.appendingPathComponent("background.log").path
-        log.info("Log file path: \(logFilePath, privacy: .public)")
+        rustLog(.info, "Log file path: \(logFilePath)")
         
         // Create IncomingNotificationContent object
         let incomingContent = IncomingNotificationContent(
@@ -113,11 +160,10 @@ class NotificationService: UNNotificationServiceExtension {
         if let jsonData = try? JSONEncoder().encode(incomingContent),
            let jsonString = String(data: jsonData, encoding: .utf8)
         {
-            
             jsonString.withCString { cString in
                 guard let responsePointer = process_new_messages(cString) else {
-                    log.error("process_new_messages returned nil")
-                    self.suppressNotifications()
+                    rustLog(.error, "process_new_messages returned nil")
+                    self.completeNotification()
                     return
                 }
                 
@@ -129,25 +175,26 @@ class NotificationService: UNNotificationServiceExtension {
                     let notificationBatch = try? JSONDecoder().decode(
                         NotificationBatch.self, from: responseData)
                 else {
-                    log.error(
-                        "Could not decode response from Rust: \(responseString, privacy: .public)")
-                    self.suppressNotifications()
+                    rustLog(.error, "Could not decode response from Rust: \(responseString)")
+                    self.completeNotification()
                     return
                 }
                 
                 self.handleNotificationBatch(notificationBatch, contentHandler: contentHandler)
-                log.info(
+                rustLog(
+                    .info,
                     "Number of successfully processed messages: \(notificationBatch.additions.count)"
                 )
             }
         } else {
-            contentHandler(request.content)
+            rustLog(.warn, "Failed to encode incoming notification content; sending original")
+            completeNotification(request.content)
         }
     }
     
     override func serviceExtensionTimeWillExpire() {
-        log.notice("Expiration handler invoked")
-        self.suppressNotifications()
+        rustLog(.warn, "Expiration handler invoked")
+        self.completeNotification()
     }
     
     func handleNotificationBatch(
@@ -161,7 +208,7 @@ class NotificationService: UNNotificationServiceExtension {
         
         // When Rust does not return any notifications, we don't want to show anything
         if batch.additions.isEmpty {
-            suppressNotifications(badge: batch.badgeCount)
+            completeNotification(nil, badge: batch.badgeCount)
             return
         }
         
@@ -186,8 +233,9 @@ class NotificationService: UNNotificationServiceExtension {
                     trigger: nil)
                 center.add(request) { error in
                     if let error = error {
-                        log.error(
-                            "Error adding notification: \(error.localizedDescription, privacy: .public)"
+                        rustLog(
+                            .error,
+                            "Error adding notification: \(error.localizedDescription)"
                         )
                     }
                     dispatchGroup.leave()
@@ -210,18 +258,69 @@ class NotificationService: UNNotificationServiceExtension {
             content.badge = NSNumber(value: batch.badgeCount)
             // Delay the callback by 100 ms so that the notifications can be removed
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                contentHandler(content)
+                self.completeNotification(content)
             }
         }
     }
     
-    private func suppressNotifications(badge: UInt32? = nil) {
-        guard let contentHandler = self.contentHandler else { return }
-        let content = UNMutableNotificationContent()
-        if let badge = badge {
-            content.badge = NSNumber(value: badge)
+    private static func beginHandling() -> Bool {
+        var acquired = false
+        reentryQueue.sync {
+            if !isHandlingNotification {
+                isHandlingNotification = true
+                acquired = true
+            }
         }
-        contentHandler(content)
+        return acquired
+    }
+    
+    private func finishHandlingIfNeeded(releaseHandling: Bool? = nil) {
+        let shouldRelease = releaseHandling ?? hasHandlingToken
+        guard shouldRelease else { return }
+        reentryQueue.sync {
+            isHandlingNotification = false
+        }
+        hasHandlingToken = false
+    }
+    
+    private func completeNotification(
+        _ content: UNNotificationContent? = nil,
+        badge: UInt32? = nil,
+        releaseHandling: Bool? = nil,
+        handler: ((UNNotificationContent) -> Void)? = nil
+    ) {
+        let handler = handler ?? self.contentHandler
+        guard let handler else {
+            finishHandlingIfNeeded(releaseHandling: releaseHandling)
+            return
+        }
+        
+        let outgoing: UNNotificationContent
+        if let content {
+            if let badge = badge {
+                rustLog(.info, "Setting badge count to \(badge)")
+                if let mutableContent = content.mutableCopy() as? UNMutableNotificationContent {
+                    mutableContent.badge = NSNumber(value: badge)
+                    outgoing = mutableContent
+                } else {
+                    let fallback = UNMutableNotificationContent()
+                    fallback.badge = NSNumber(value: badge)
+                    outgoing = fallback
+                }
+            } else {
+                outgoing = content
+            }
+        } else {
+            let fallback = UNMutableNotificationContent()
+            if let badge = badge {
+                rustLog(.info, "Setting badge count to \(badge) while suppressing notifications")
+                fallback.badge = NSNumber(value: badge)
+            }
+            outgoing = fallback
+        }
+        
+        finishHandlingIfNeeded(releaseHandling: releaseHandling)
+        handler(outgoing)
     }
     
     // Apply file protection

@@ -2,12 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/core/api/types.dart';
-import 'package:flutter/material.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
-import 'package:logging/logging.dart';
 import 'package:air/chat_list/chat_list_cubit.dart';
 import 'package:air/chat_list/create_chat_view.dart';
+import 'package:air/core/api/types.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/main.dart';
 import 'package:air/navigation/navigation.dart';
@@ -16,6 +13,9 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/context_menu/context_menu.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/widgets/widgets.dart';
+import 'package:flutter/material.dart';
+import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
+import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
 final _log = Logger("ChatListHeader");
@@ -160,17 +160,26 @@ class _PlusButtonState extends State<_PlusButton> {
       }
       final handle = UiUserHandle(plaintext: normalized);
       try {
-        final chatId = await chatListCubit.createContactChat(handle: handle);
+        final res = await chatListCubit.createContactChat(handle: handle);
         if (context.mounted) {
-          if (chatId == null) {
-            return loc.newConnectionDialog_error_handleNotFound(
-              handle.plaintext,
-            );
+          switch (res) {
+            case AddHandleContactResult_Err(field0: final err):
+              switch (err) {
+                case AddHandleContactError.handleNotFound:
+                  return loc.newConnectionDialog_error_handleNotFound(
+                    handle.plaintext,
+                  );
+                case AddHandleContactError.duplicateRequest:
+                  return loc.newConnectionDialog_error_duplicateRequest;
+                case AddHandleContactError.ownHandle:
+                  return loc.newConnectionDialog_error_ownHandle;
+              }
+            case AddHandleContactResult_Ok(field0: final chatId):
+              _log.info(
+                "A new 1:1 connection with user '${handle.plaintext}' was created: "
+                "chatId = $chatId",
+              );
           }
-          _log.info(
-            "A new 1:1 connection with user '${handle.plaintext}' was created: "
-            "chatId = $chatId",
-          );
           Navigator.of(context).pop();
         }
       } catch (e) {

@@ -2049,3 +2049,39 @@ async fn unsupported_client_version() {
     let details = StatusDetails::from_status(&status).unwrap();
     assert_matches!(details.code(), StatusDetailsCode::VersionUnsupported);
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn message_sending_failures() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+
+    let content = MimiContent::simple_markdown_message("Hello".to_string(), [0; 16]);
+
+    // Make server drop messages
+    setup.listener_control_handle().unwrap().set_drop_all();
+
+    // Send three messages
+    for _ in 0..3 {
+        alice_user
+            .send_message(chat_id, content.clone(), None)
+            .await
+            .unwrap();
+    }
+    alice_user.outbound_service().run_once().await;
+    // Check that messages are marked as failed
+    let messages = alice_user.messages(chat_id, 3).await.unwrap();
+    for message in messages {
+        let status = message.status();
+        if status != MessageStatus::Error {
+            panic!(
+                "Message should be marked as error. Actual status: {:?}",
+                status
+            );
+        }
+    }
+}

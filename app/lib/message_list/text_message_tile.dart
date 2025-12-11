@@ -153,10 +153,10 @@ class _MessageView extends HookWidget {
     }
 
     final showMessageStatus =
-        isSender &&
-        flightPosition.isLast &&
-        status != UiMessageStatus.sending &&
-        status != UiMessageStatus.hidden;
+        isSender && flightPosition.isLast && status != UiMessageStatus.hidden;
+
+    final isSendingOrError =
+        status == UiMessageStatus.error || status == UiMessageStatus.sending;
 
     Widget buildTimestampRow() {
       if (!flightPosition.isLast) {
@@ -175,8 +175,24 @@ class _MessageView extends HookWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const SizedBox(width: Spacings.s),
-                Timestamp(timestamp),
+                if (!isSendingOrError) Timestamp(timestamp),
                 if (showMessageStatus) const SizedBox(width: Spacings.xxxs),
+                if (showMessageStatus && status == UiMessageStatus.error)
+                  Text(
+                    style: TextStyle(
+                      color: CustomColorScheme.of(context).function.warning,
+                    ),
+                    loc.messageBubble_failedToSend,
+                  ),
+                if (showMessageStatus && status == UiMessageStatus.sending)
+                  Text(
+                    style: TextStyle(
+                      color: CustomColorScheme.of(context).text.tertiary,
+                    ),
+                    loc.messageBubble_sending,
+                  ),
+                if (showMessageStatus && isSendingOrError)
+                  const SizedBox(width: Spacings.xxxs),
                 if (showMessageStatus) _MessageStatus(status: status),
                 const SizedBox(width: Spacings.xs),
               ],
@@ -454,6 +470,45 @@ class _MessageView extends HookWidget {
   }
 }
 
+class RotatingSendIcon extends StatefulWidget {
+  const RotatingSendIcon({super.key});
+
+  @override
+  State<RotatingSendIcon> createState() => _RotatingSendIconState();
+}
+
+class _RotatingSendIconState extends State<RotatingSendIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RotationTransition(
+      turns: _controller,
+      child: iconoir.RefreshDouble(
+        color: CustomColorScheme.of(context).text.tertiary,
+        height: LabelFontSize.small2.size,
+        width: LabelFontSize.small2.size,
+      ),
+    );
+  }
+}
+
 class _MessageStatus extends StatelessWidget {
   const _MessageStatus({required this.status});
 
@@ -464,6 +519,16 @@ class _MessageStatus extends StatelessWidget {
     final readReceiptsEnabled = context.select(
       (UserSettingsCubit cubit) => cubit.state.readReceipts,
     );
+    if (status == UiMessageStatus.sending) {
+      return const RotatingSendIcon();
+    }
+    if (status == UiMessageStatus.error) {
+      return iconoir.WarningCircle(
+        color: CustomColorScheme.of(context).function.warning,
+        height: LabelFontSize.small2.size,
+        width: LabelFontSize.small2.size,
+      );
+    }
     return DoubleCheckIcon(
       size: LabelFontSize.small2.size,
       singleCheckIcon: status == UiMessageStatus.sent,

@@ -60,6 +60,9 @@ abstract class User implements RustOpaqueInterface {
     profilePicture: profilePicture,
   );
 
+  /// Stop background work gracefully and wait for completion.
+  Future<void> prepareForBackground();
+
   /// Update the push token.
   Future<void> updatePushToken(PlatformPushToken? pushToken);
 

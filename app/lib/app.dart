@@ -16,6 +16,7 @@ import 'package:air/util/interface_scale.dart';
 import 'package:air/util/platform.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
 import 'user/update_required_screen.dart';
@@ -34,6 +35,8 @@ class App extends StatefulWidget {
 class _AppState extends State<App> with WidgetsBindingObserver {
   final CoreClient _coreClient = CoreClient();
   final _backgroundService = BackgroundService();
+  int? _backgroundTaskId;
+  final _log = Logger('AppLifecycle');
 
   final StreamController<ChatId> _openedNotificationController =
       StreamController<ChatId>();
@@ -89,6 +92,9 @@ class _AppState extends State<App> with WidgetsBindingObserver {
 
       // iOS only
       if (Platform.isIOS) {
+        // Request additional background time until the outbound service is
+        // stopped
+        await _prepareForBackground();
         // only set the badge count if the user is logged in
         if (_coreClient.maybeUser case final user?) {
           final count = await user.globalUnreadMessagesCount;
@@ -102,6 +108,37 @@ class _AppState extends State<App> with WidgetsBindingObserver {
 
     if (state == AppLifecycleState.resumed) {
       _appStateController.sink.add(AppState.foreground);
+    }
+  }
+
+  Future<void> _prepareForBackground() async {
+    if (!Platform.isIOS) return;
+
+    final startedAt = DateTime.now();
+    _log.info('prepareForBackground: requesting background task');
+    _backgroundTaskId = await beginBackgroundTask();
+    _log.info(
+      'prepareForBackground: background task started id=$_backgroundTaskId',
+    );
+
+    // Ask the coreclient to stop the outbound service gracefully
+    final user = _coreClient.maybeUser;
+    if (user == null) {
+      _log.info('prepareForBackground: no user, ending background task');
+      await endBackgroundTask(_backgroundTaskId);
+      _backgroundTaskId = null;
+      return;
+    }
+
+    try {
+      await user.prepareForBackground();
+    } finally {
+      final elapsed = DateTime.now().difference(startedAt);
+      await endBackgroundTask(_backgroundTaskId);
+      _log.info(
+        'prepareForBackground: ended background task after ${elapsed.inMilliseconds}ms',
+      );
+      _backgroundTaskId = null;
     }
   }
 

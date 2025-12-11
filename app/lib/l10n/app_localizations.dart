@@ -787,6 +787,18 @@ abstract class AppLocalizations {
   /// **'Yesterday'**
   String get timestamp_yesterday;
 
+  /// No description provided for @messageBubble_sending.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending'**
+  String get messageBubble_sending;
+
+  /// No description provided for @messageBubble_failedToSend.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send'**
+  String get messageBubble_failedToSend;
+
   /// No description provided for @chatList_newContact.
   ///
   /// In en, this message translates to:
@@ -883,6 +895,18 @@ abstract class AppLocalizations {
   /// **'Username {username} doesn\'t exist'**
   String newConnectionDialog_error_handleNotFound(Object username);
 
+  /// No description provided for @newConnectionDialog_error_duplicateRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'You already have a pending contact request to this username.'**
+  String get newConnectionDialog_error_duplicateRequest;
+
+  /// No description provided for @newConnectionDialog_error_ownHandle.
+  ///
+  /// In en, this message translates to:
+  /// **'You can\'t send a contact request to yourself.'**
+  String get newConnectionDialog_error_ownHandle;
+
   /// No description provided for @composer_inputHint.
   ///
   /// In en, this message translates to:
@@ -948,6 +972,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Deleted message'**
   String get textMessage_deleted;
+
+  /// No description provided for @linkConfirmation_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Open link?'**
+  String get linkConfirmation_title;
+
+  /// No description provided for @linkConfirmation_description.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the URL to make sure you want to open it:'**
+  String get linkConfirmation_description;
+
+  /// No description provided for @linkConfirmation_openLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get linkConfirmation_openLink;
+
+  /// No description provided for @linkConfirmation_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get linkConfirmation_cancel;
 
   /// No description provided for @messageContextMenu_copy.
   ///
