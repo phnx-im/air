@@ -238,6 +238,10 @@ impl CoreUser {
         &self.inner.key_store.signing_key
     }
 
+    pub(crate) fn api_clients(&self) -> &ApiClients {
+        &self.inner.api_clients
+    }
+
     pub(crate) fn api_client(&self) -> anyhow::Result<ApiClient> {
         Ok(self.inner.api_clients.default_client()?)
     }
@@ -253,6 +257,10 @@ impl CoreUser {
     /// Stop the outbound service and wait until it is fully stopped.
     pub async fn stop_outbound_service(&self) {
         self.inner.outbound_service.stop().await;
+    }
+
+    pub(crate) fn key_store(&self) -> &MemoryUserKeyStore {
+        &self.inner.key_store
     }
 
     pub(crate) fn send_store_notification(&self, notification: StoreNotification) {
@@ -454,7 +462,7 @@ impl CoreUser {
         TargetedMessageContact::load_all(self.pool()).await
     }
 
-    fn create_own_client_reference(&self) -> QsReference {
+    pub(crate) fn create_own_client_reference(&self) -> QsReference {
         let sealed_reference = ClientConfig {
             client_id: self.inner.qs_client_id,
             push_token_ear_key: Some(self.inner.key_store.push_token_ear_key.clone()),
@@ -643,7 +651,7 @@ impl CoreUser {
         self.inner.key_store.signing_key.credential().identity()
     }
 
-    async fn store_new_messages(
+    pub(crate) async fn store_new_messages(
         connection: &mut sqlx::SqliteConnection,
         notifier: &mut StoreNotifier,
         chat_id: ChatId,

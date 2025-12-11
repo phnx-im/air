@@ -76,7 +76,9 @@ class ChatDetailsScreenView extends StatelessWidget {
           },
         ),
         UiChatType_Group() => const GroupDetails(),
-        UiChatType_HandleConnection() || null => Builder(
+        UiChatType_HandleConnection() ||
+        UiChatType_PendingConnection() ||
+        null => Builder(
           builder: (context) {
             final loc = AppLocalizations.of(context);
             return Center(child: Text(loc.chatDetailsScreen_unknownChat));

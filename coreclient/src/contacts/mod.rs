@@ -5,7 +5,6 @@
 use std::iter;
 
 use aircommon::{
-    LibraryError,
     crypto::{
         ear::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
         indexed_aead::keys::UserProfileKey,
@@ -19,7 +18,7 @@ use sqlx::SqliteConnection;
 
 use crate::{
     ChatId,
-    clients::{api_clients::ApiClients, connection_offer::FriendshipPackage},
+    clients::api_clients::ApiClients,
     groups::client_auth_info::StorableClientCredential,
     key_stores::{as_credentials::AsCredentials, indexed_keys::StorableIndexedKey},
     user_profiles::IndexedUserProfile,
@@ -45,20 +44,6 @@ pub(crate) struct ContactAddInfos {
 }
 
 impl Contact {
-    pub(crate) fn from_friendship_package(
-        user_id: UserId,
-        chat_id: ChatId,
-        friendship_package: FriendshipPackage,
-    ) -> Result<Self, LibraryError> {
-        let contact = Self {
-            user_id,
-            wai_ear_key: friendship_package.wai_ear_key,
-            friendship_token: friendship_package.friendship_token,
-            chat_id,
-        };
-        Ok(contact)
-    }
-
     pub(crate) async fn fetch_add_infos(
         &self,
         connection: &mut SqliteConnection,

@@ -417,7 +417,8 @@ impl TestBackend {
             responder.ack(message_id.into()).await;
         }
 
-        // User 2 should have auto-accepted (for now at least) the connection request.
+        // Users accepts the connection request
+        user2.accept_contact_request(chat.id()).await.unwrap();
         let mut user2_contacts_after = user2.contacts().await.unwrap();
         info!("User 2 contacts after: {:?}", user2_contacts_after);
         let user2_handle_contacts_before = user2.handle_contacts().await.unwrap();
@@ -999,7 +1000,7 @@ impl TestBackend {
         let user = &mut test_user.user;
         let user_chats_before = user.chats().await;
 
-        let group_name = format!("{:?}", OsRng.r#gen::<[u8; 32]>());
+        let group_name = Uuid::new_v4().to_string();
         let group_picture_bytes_option = Some(OsRng.r#gen::<[u8; 32]>().to_vec());
         let chat_id = user
             .create_chat(group_name.clone(), group_picture_bytes_option.clone())

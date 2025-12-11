@@ -183,6 +183,10 @@ impl Store for CoreUser {
         self.unblock_contact(user_id).await
     }
 
+    async fn accept_contact_request(&self, chat_id: ChatId) -> StoreResult<()> {
+        self.accept_contact_request(chat_id).await
+    }
+
     async fn contacts(&self) -> StoreResult<Vec<Contact>> {
         Ok(self.contacts().await?)
     }

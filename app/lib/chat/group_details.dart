@@ -50,7 +50,7 @@ class GroupDetails extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    GroupAvatar(
+                    ChatAvatar(
                       chatId: chat.id,
                       size: 192,
                       onPressed: () => _selectAvatar(context, chat.id),

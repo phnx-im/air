@@ -796,4 +796,20 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get deleteAccountScreen_deleteAccountError =>
       'Bei uns ist ein Fehler aufgetreten. Warte einen Moment und versuche es dann erneut.';
+
+  @override
+  String get contactRequestDialog_title => 'Contact request';
+
+  @override
+  String get contactRequestDialog_avatarHint => 'Tap to reveal their picture';
+
+  @override
+  String get contactRequestDialog_cancel => 'Later';
+
+  @override
+  String get contactRequestDialog_confirm => 'Accept';
+
+  @override
+  String get contactRequestDialog_error_fatal =>
+      'Failed to accept contact request';
 }

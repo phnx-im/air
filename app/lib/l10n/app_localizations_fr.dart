@@ -800,4 +800,20 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get deleteAccountScreen_deleteAccountError =>
       'Un problème est survenu de notre côté. Veuillez patienter un instant puis réessayer.';
+
+  @override
+  String get contactRequestDialog_title => 'Contact request';
+
+  @override
+  String get contactRequestDialog_avatarHint => 'Tap to reveal their picture';
+
+  @override
+  String get contactRequestDialog_cancel => 'Later';
+
+  @override
+  String get contactRequestDialog_confirm => 'Accept';
+
+  @override
+  String get contactRequestDialog_error_fatal =>
+      'Failed to accept contact request';
 }

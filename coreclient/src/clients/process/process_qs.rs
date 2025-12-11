@@ -40,7 +40,7 @@ use crate::{
     clients::{
         QsListenResponder,
         block_contact::{BlockedContact, BlockedContactError},
-        process::process_as::ConnectionInfoSource,
+        process::process_as::{ConnectionInfoSource, TargetedMessageSource},
         targeted_message::TargetedMessageContent,
         update_key::update_chat_attributes,
     },
@@ -297,12 +297,13 @@ impl CoreUser {
                         &application_message.into_bytes(),
                     )?;
 
-                // Auto-accept the connection request
-                // TODO: This should be entered into the DB instead.
-                let connection_info_source = ConnectionInfoSource::TargetedMessage {
-                    connection_info,
-                    sender_user_id: sender_client_credential.identity().clone().clone(),
-                };
+                // Extract connection info source from the targeted message
+                let connection_info_source =
+                    ConnectionInfoSource::TargetedMessage(Box::new(TargetedMessageSource {
+                        connection_info,
+                        sender_client_credential,
+                        origin_chat_id: chat.id(),
+                    }));
 
                 // MLSMessage Phase 3: Store the updated group.
                 group.store_update(txn.as_mut()).await?;

@@ -790,4 +790,20 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get deleteAccountScreen_deleteAccountError =>
       'Something went wrong on our end. Wait a moment, then try again.';
+
+  @override
+  String get contactRequestDialog_title => 'Contact request';
+
+  @override
+  String get contactRequestDialog_avatarHint => 'Tap to reveal their picture';
+
+  @override
+  String get contactRequestDialog_cancel => 'Later';
+
+  @override
+  String get contactRequestDialog_confirm => 'Accept';
+
+  @override
+  String get contactRequestDialog_error_fatal =>
+      'Failed to accept contact request';
 }

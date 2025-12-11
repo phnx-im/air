@@ -1422,6 +1422,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Something went wrong on our end. Wait a moment, then try again.'**
   String get deleteAccountScreen_deleteAccountError;
+
+  /// No description provided for @contactRequestDialog_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact request'**
+  String get contactRequestDialog_title;
+
+  /// No description provided for @contactRequestDialog_avatarHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to reveal their picture'**
+  String get contactRequestDialog_avatarHint;
+
+  /// No description provided for @contactRequestDialog_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Later'**
+  String get contactRequestDialog_cancel;
+
+  /// No description provided for @contactRequestDialog_confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Accept'**
+  String get contactRequestDialog_confirm;
+
+  /// No description provided for @contactRequestDialog_error_fatal.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to accept contact request'**
+  String get contactRequestDialog_error_fatal;
 }
 
 class _AppLocalizationsDelegate
