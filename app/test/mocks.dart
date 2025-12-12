@@ -44,6 +44,9 @@ class MockUiUser implements UiUser {
 
   @override
   List<UiUserHandle> get userHandles => _userHandles;
+
+  @override
+  bool get unsupportedVersion => false;
 }
 
 class MockUsersState implements UsersState {

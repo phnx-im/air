@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use airapiclient::as_api::AsRequestError;
+use airapiclient::{ApiClientInitError, as_api::AsRequestError};
 use aircommon::{
     credentials::{
         AsCredential, AsCredentialBody, AsIntermediateCredential, AsIntermediateCredentialBody,
@@ -22,8 +22,6 @@ use sqlx::{
 };
 use thiserror::Error;
 use tracing::info;
-
-use crate::clients::api_clients::ApiClientsError;
 
 use super::*;
 
@@ -256,7 +254,7 @@ pub(crate) enum AsCredentialStoreError {
     #[error(transparent)]
     PersistenceError(#[from] sqlx::Error),
     #[error(transparent)]
-    ApiClientsError(#[from] ApiClientsError),
+    ApiClientsError(#[from] ApiClientInitError),
     #[error(transparent)]
     AsRequestError(#[from] AsRequestError),
 }

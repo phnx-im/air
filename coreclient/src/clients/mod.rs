@@ -7,7 +7,8 @@ use std::{collections::HashSet, sync::Arc};
 pub use airapiclient::as_api::ListenHandleResponder;
 use airapiclient::{
     ApiClient, ApiClientInitError,
-    qs_api::{ListenResponder, ListenResponderClosedError},
+    as_api::AsRequestError,
+    qs_api::{ListenResponder, ListenResponderClosedError, QsRequestError},
 };
 use aircommon::{
     credentials::{
@@ -36,7 +37,6 @@ use own_client_info::OwnClientInfo;
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqliteConnection, SqlitePool, query};
 use store::ClientRecord;
-use thiserror::Error;
 use tls_codec::DeserializeBytes;
 use tokio_stream::{Stream, StreamExt};
 use tracing::{error, info, warn};
@@ -532,7 +532,10 @@ impl CoreUser {
 
     pub async fn listen_queue(
         &self,
-    ) -> Result<(impl Stream<Item = QueueEvent> + use<>, QsListenResponder)> {
+    ) -> std::result::Result<
+        (impl Stream<Item = QueueEvent> + use<>, QsListenResponder),
+        ListenQueueError,
+    > {
         let queue_ratchet = StorableQsQueueRatchet::load(self.pool()).await?;
         let sequence_number_start = queue_ratchet.sequence_number();
         let api_client = self.inner.api_clients.default_client()?;
@@ -546,10 +549,13 @@ impl CoreUser {
     pub async fn listen_handle(
         &self,
         handle_record: &UserHandleRecord,
-    ) -> Result<(
-        impl Stream<Item = Option<HandleQueueMessage>> + Send + 'static,
-        ListenHandleResponder,
-    )> {
+    ) -> std::result::Result<
+        (
+            impl Stream<Item = Option<HandleQueueMessage>> + Send + 'static,
+            ListenHandleResponder,
+        ),
+        ListenHandleError,
+    > {
         let api_client = self.inner.api_clients.default_client()?;
         match api_client
             .as_listen_handle(handle_record.hash, &handle_record.signing_key)
@@ -777,5 +783,43 @@ impl QsListenResponder {
     pub async fn fetch(&self) -> Result<(), QsListenResponderError> {
         self.responder.fetch().await?;
         Ok(())
+    }
+}
+
+/// Error which can occur when listening to the queue.
+#[derive(Debug, thiserror::Error)]
+pub enum ListenQueueError {
+    #[error(transparent)]
+    Sqlx(#[from] sqlx::Error),
+    #[error(transparent)]
+    ApiClient(#[from] ApiClientInitError),
+    #[error(transparent)]
+    Qs(#[from] QsRequestError),
+}
+
+impl ListenQueueError {
+    pub fn is_unsupported_version(&self) -> bool {
+        match self {
+            Self::Qs(error) => error.is_unsupported_version(),
+            _ => false,
+        }
+    }
+}
+
+/// Error which can occur when listening to a handle.
+#[derive(Debug, thiserror::Error)]
+pub enum ListenHandleError {
+    #[error(transparent)]
+    ApiClient(#[from] ApiClientInitError),
+    #[error(transparent)]
+    As(#[from] AsRequestError),
+}
+
+impl ListenHandleError {
+    pub fn is_unsupported_version(&self) -> bool {
+        match self {
+            Self::As(error) => error.is_unsupported_version(),
+            _ => false,
+        }
     }
 }

@@ -22,14 +22,17 @@ use aircommon::{
         connection_package::VersionedConnectionPackageIn,
     },
 };
-use airprotos::auth_service::v1::{
-    AckListenHandleRequest, AsCredentialsRequest, CheckHandleExistsRequest,
-    CheckInvitationCodeRequest, ConnectRequest, ConnectResponse, CreateHandlePayload,
-    DeleteHandlePayload, DeleteUserPayload, EnqueueConnectionOfferStep, FetchConnectionPackageStep,
-    GetUserProfileRequest, HandleQueueMessage, InitListenHandlePayload, InvitationCode,
-    ListenHandleRequest, MergeUserProfilePayload, PublishConnectionPackagesPayload,
-    RegisterUserRequest, ReportSpamPayload, StageUserProfilePayload, connect_request,
-    connect_response, listen_handle_request,
+use airprotos::{
+    auth_service::v1::{
+        AckListenHandleRequest, AsCredentialsRequest, CheckHandleExistsRequest,
+        CheckInvitationCodeRequest, ConnectRequest, ConnectResponse, CreateHandlePayload,
+        DeleteHandlePayload, DeleteUserPayload, EnqueueConnectionOfferStep,
+        FetchConnectionPackageStep, GetUserProfileRequest, HandleQueueMessage,
+        InitListenHandlePayload, InvitationCode, ListenHandleRequest, MergeUserProfilePayload,
+        PublishConnectionPackagesPayload, RegisterUserRequest, ReportSpamPayload,
+        StageUserProfilePayload, connect_request, connect_response, listen_handle_request,
+    },
+    common::v1::{StatusDetails, StatusDetailsCode},
 };
 use futures_util::{FutureExt, future::BoxFuture};
 use thiserror::Error;
@@ -58,6 +61,18 @@ impl AsRequestError {
     pub fn is_not_found(&self) -> bool {
         match self {
             AsRequestError::Tonic(status) => status.code() == tonic::Code::NotFound,
+            _ => false,
+        }
+    }
+
+    pub fn is_unsupported_version(&self) -> bool {
+        match self {
+            AsRequestError::Tonic(status) => {
+                status.code() == tonic::Code::FailedPrecondition
+                    && StatusDetails::from_status(status)
+                        .map(|details| details.code() == StatusDetailsCode::VersionUnsupported)
+                        .unwrap_or(false)
+            }
             _ => false,
         }
     }
