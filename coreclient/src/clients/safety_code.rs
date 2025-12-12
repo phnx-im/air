@@ -15,8 +15,8 @@ enum SafetyCodeVersion {
     V1,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct UserSafetyCode([u8; 32]);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SafetyCode(pub [u8; 32]);
 
 #[derive(Debug, TlsSize, TlsSerialize)]
 struct HashInput<'a> {
@@ -41,7 +41,7 @@ impl<'a> HashInput<'a> {
     }
 }
 
-impl UserSafetyCode {
+impl SafetyCode {
     /// Computes the safety code of the given version by hashing over the
     /// version, the client credential and the static string "AIR SAFETY CODE".
     pub fn new(client_credential: &ClientCredential) -> anyhow::Result<Self> {
@@ -70,10 +70,10 @@ impl UserSafetyCode {
 }
 
 impl CoreUser {
-    pub async fn safety_code(&self, user_id: &UserId) -> anyhow::Result<UserSafetyCode> {
+    pub async fn safety_code(&self, user_id: &UserId) -> anyhow::Result<SafetyCode> {
         let client_credential = StorableClientCredential::load_by_user_id(self.pool(), user_id)
             .await?
             .context("Can't find client credential of given user")?;
-        UserSafetyCode::new(&*client_credential)
+        SafetyCode::new(&*client_credential)
     }
 }

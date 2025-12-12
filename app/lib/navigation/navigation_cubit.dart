@@ -50,9 +50,6 @@ class NavigationCubit implements StateStreamableSource<NavigationState> {
   Future<void> openMemberDetails(UiUserId member) =>
       _impl.openMemberDetails(member: member);
 
-  Future<void> openSafetyCode(UiUserId userId, List<int> safetyCode) =>
-      _impl.openSafetyCode(userId: userId, safetyCode: safetyCode);
-
   Future<void> openDeveloperSettings({
     DeveloperSettingsScreenType screen = DeveloperSettingsScreenType.root,
   }) => _impl.openDeveloperSettings(screen: screen);

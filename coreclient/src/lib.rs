@@ -33,6 +33,7 @@ pub use crate::{
             progress::{AttachmentProgress, AttachmentProgressEvent},
         },
         block_contact::BlockedContactError,
+        safety_code::SafetyCode,
     },
     contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},
     user_handles::UserHandleRecord,

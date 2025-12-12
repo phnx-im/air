@@ -239,23 +239,6 @@ impl NavigationCubitBase {
         });
     }
 
-    pub fn open_safety_code(&self, user_id: UiUserId) {
-        self.core.state_tx().send_if_modified(|state| match state {
-            NavigationState::Intro { .. } => false,
-            NavigationState::Home { home } => match home.safety_code_user_id.as_mut() {
-                Some(value) if *value != user_id => {
-                    *value = user_id;
-                    true
-                }
-                None => {
-                    home.safety_code_user_id.replace(user_id);
-                    true
-                }
-                _ => false,
-            },
-        });
-    }
-
     pub fn open_chat_details(&self) {
         self.core.state_tx().send_if_modified(|state| match state {
             NavigationState::Intro { .. } => false,

@@ -100,4 +100,7 @@ class UserCubit implements StateStreamableSource<UiUser> {
     required ChatId chatId,
     required UiUserId userId,
   }) => _impl.addContactFromGroup(chatId: chatId, userId: userId);
+
+  Future<StringArray12> safetyCodes(UiUserId userId) =>
+      _impl.safetyCodes(otherUserId: userId);
 }

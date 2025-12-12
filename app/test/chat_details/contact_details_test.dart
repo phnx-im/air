@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/chat/contact_details.dart';
+import 'package:air/l10n/l10n.dart';
+import 'package:air/theme/theme.dart';
 import 'package:air/ui/components/app_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
 
 import '../chat_list/chat_list_content_test.dart';
 

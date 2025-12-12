@@ -20,7 +20,7 @@ use crate::{
         CoreUser,
         add_contact::AddHandleContactResult,
         attachment::{AttachmentRecord, progress::AttachmentProgress},
-        safety_code::UserSafetyCode,
+        safety_code::SafetyCode,
         user_settings::UserSettingRecord,
     },
     contacts::{ContactType, HandleContact, PartialContact, TargetedMessageContact},
@@ -391,7 +391,7 @@ impl Store for CoreUser {
         self.dequeue_store_notification().await
     }
 
-    async fn safety_code(&self, user_id: &UserId) -> StoreResult<UserSafetyCode> {
+    async fn safety_code(&self, user_id: &UserId) -> StoreResult<SafetyCode> {
         self.safety_code(user_id).await
     }
 }

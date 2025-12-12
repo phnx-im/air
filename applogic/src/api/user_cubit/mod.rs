@@ -400,6 +400,42 @@ impl UserCubitBase {
             .add_contact_from_group(chat_id, user_id.into())
             .await
     }
+
+    pub async fn safety_codes(&self, other_user_id: UiUserId) -> anyhow::Result<[String; 12]> {
+        let own_safety_code = self
+            .context
+            .core_user
+            .safety_code(&self.context.core_user.user_id())
+            .await?;
+        let other_safety_code = self
+            .context
+            .core_user
+            .safety_code(&other_user_id.into())
+            .await?;
+        let (first, second) = if own_safety_code <= other_safety_code {
+            (own_safety_code.to_chunks(), other_safety_code.to_chunks())
+        } else {
+            (other_safety_code.to_chunks(), own_safety_code.to_chunks())
+        };
+        let safety_codes = chunks_to_strings(first)
+            .into_iter()
+            .chain(chunks_to_strings(second))
+            .collect::<Vec<String>>()
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("failed to collect safety code strings"))?;
+        Ok(safety_codes)
+    }
+}
+
+fn chunks_to_strings(chunks: [u64; 6]) -> [String; 6] {
+    [
+        format!("{:05}", chunks[0]),
+        format!("{:05}", chunks[1]),
+        format!("{:05}", chunks[2]),
+        format!("{:05}", chunks[3]),
+        format!("{:05}", chunks[4]),
+        format!("{:05}", chunks[5]),
+    ]
 }
 
 impl Drop for UserCubitBase {

@@ -12,7 +12,7 @@ use std::fmt;
 // Re-export for FRB-reasons
 pub(crate) use aircommon::identifiers::UserHandle;
 pub(crate) use aircoreclient::{
-    AddHandleContactError, AddHandleContactResult, ChatId, MessageDraft, MessageId,
+    AddHandleContactError, AddHandleContactResult, ChatId, MessageDraft, MessageId, SafetyCode,
 };
 
 use aircommon::identifiers::UserId;
@@ -113,6 +113,13 @@ pub struct _MessageDraft {
     pub updated_at: DateTime<Utc>,
     pub is_committed: bool,
 }
+
+/// UI representation of a [`SafetyCode`]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[doc(hidden)]
+#[frb(mirror(SafetyCode))]
+#[frb(dart_metadata = ("freezed"))]
+pub struct _SafetyCode(pub [u8; 32]);
 
 /// Status of a chat
 ///

@@ -26,8 +26,4 @@ class UsersCubit implements StateStreamableSource<UsersState> {
 
   @override
   Stream<UsersState> get stream => _impl.stream();
-
-  // TODO
-  @override
-  Future<String> safetyCode(UiUserId userId) => throw UnimplementedError();
 }
