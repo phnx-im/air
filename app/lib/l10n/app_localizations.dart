@@ -460,6 +460,60 @@ abstract class AppLocalizations {
   /// **'By signing up, you agree to our {termsOfUseLink}.'**
   String introScreen_termsText(Object termsOfUseLink);
 
+  /// No description provided for @invitationCodeScreen_header.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter invitation code'**
+  String get invitationCodeScreen_header;
+
+  /// No description provided for @invitationCodeScreen_subheader.
+  ///
+  /// In en, this message translates to:
+  /// **'Air is currently invitation-only. Enter your code to join. If you don\'t have one, ask someone who’s already on Air.'**
+  String get invitationCodeScreen_subheader;
+
+  /// No description provided for @invitationCodeScreen_inputLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Invitation code (required)'**
+  String get invitationCodeScreen_inputLabel;
+
+  /// No description provided for @invitationCodeScreen_inputHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your invitation code...'**
+  String get invitationCodeScreen_inputHint;
+
+  /// No description provided for @invitationCodeScreen_error_invalidLength.
+  ///
+  /// In en, this message translates to:
+  /// **'Code must be 8 characters'**
+  String get invitationCodeScreen_error_invalidLength;
+
+  /// No description provided for @invitationCodeScreen_actionButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Join Air'**
+  String get invitationCodeScreen_actionButton;
+
+  /// No description provided for @invitationCodeScreen_error_internal.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to check invitation code: {error}'**
+  String invitationCodeScreen_error_internal(Object error);
+
+  /// No description provided for @invitationCodeScreen_error_missing.
+  ///
+  /// In en, this message translates to:
+  /// **'Invitation code is missing'**
+  String get invitationCodeScreen_error_missing;
+
+  /// No description provided for @invitationCodeScreen_error_invalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid invitation code. Check your code, then try again.'**
+  String get invitationCodeScreen_error_invalid;
+
   /// No description provided for @signUpScreen_header.
   ///
   /// In en, this message translates to:
@@ -471,48 +525,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.'**
   String get signUpScreen_subheader;
-
-  /// No description provided for @usernameOnboarding_header.
-  ///
-  /// In en, this message translates to:
-  /// **'Add a username'**
-  String get usernameOnboarding_header;
-
-  /// No description provided for @usernameOnboarding_body.
-  ///
-  /// In en, this message translates to:
-  /// **'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.'**
-  String get usernameOnboarding_body;
-
-  /// No description provided for @usernameOnboarding_syntax.
-  ///
-  /// In en, this message translates to:
-  /// **'Use letters, numbers, or dashes. Minimum 5 characters.'**
-  String get usernameOnboarding_syntax;
-
-  /// No description provided for @usernameOnboarding_addButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Add'**
-  String get usernameOnboarding_addButton;
-
-  /// No description provided for @usernameOnboarding_skip.
-  ///
-  /// In en, this message translates to:
-  /// **'Skip'**
-  String get usernameOnboarding_skip;
-
-  /// No description provided for @usernameOnboarding_userameInputName.
-  ///
-  /// In en, this message translates to:
-  /// **'Username (optional)'**
-  String get usernameOnboarding_userameInputName;
-
-  /// No description provided for @usernameOnboarding_userameInputHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Add a username...'**
-  String get usernameOnboarding_userameInputHint;
 
   /// No description provided for @signUpScreen_actionButton.
   ///
@@ -561,6 +573,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Error when registering user: {error}'**
   String signUpScreen_error_register(Object error);
+
+  /// No description provided for @usernameOnboarding_header.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a username'**
+  String get usernameOnboarding_header;
+
+  /// No description provided for @usernameOnboarding_body.
+  ///
+  /// In en, this message translates to:
+  /// **'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.'**
+  String get usernameOnboarding_body;
+
+  /// No description provided for @usernameOnboarding_syntax.
+  ///
+  /// In en, this message translates to:
+  /// **'Use letters, numbers, or dashes. Minimum 5 characters.'**
+  String get usernameOnboarding_syntax;
+
+  /// No description provided for @usernameOnboarding_addButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get usernameOnboarding_addButton;
+
+  /// No description provided for @usernameOnboarding_skip.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get usernameOnboarding_skip;
+
+  /// No description provided for @usernameOnboarding_userameInputName.
+  ///
+  /// In en, this message translates to:
+  /// **'Username (optional)'**
+  String get usernameOnboarding_userameInputName;
+
+  /// No description provided for @usernameOnboarding_userameInputHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a username...'**
+  String get usernameOnboarding_userameInputHint;
 
   /// No description provided for @userHandleScreen_title.
   ///
@@ -786,6 +840,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Yesterday'**
   String get timestamp_yesterday;
+
+  /// No description provided for @messageBubble_sending.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending'**
+  String get messageBubble_sending;
+
+  /// No description provided for @messageBubble_failedToSend.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send'**
+  String get messageBubble_failedToSend;
 
   /// No description provided for @chatList_newContact.
   ///
@@ -1410,6 +1476,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Something went wrong on our end. Wait a moment, then try again.'**
   String get deleteAccountScreen_deleteAccountError;
+
+  /// No description provided for @appOutdatedScreen_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Sofware update required'**
+  String get appOutdatedScreen_title;
+
+  /// No description provided for @appOutdatedScreen_message.
+  ///
+  /// In en, this message translates to:
+  /// **'Update to keep using Air'**
+  String get appOutdatedScreen_message;
+
+  /// No description provided for @appOutdatedScreen_description.
+  ///
+  /// In en, this message translates to:
+  /// **'Open TestFlight on iOS or Google Play on Android, then update Air.'**
+  String get appOutdatedScreen_description;
+
+  /// No description provided for @appOutdatedScreen_action.
+  ///
+  /// In en, this message translates to:
+  /// **'Update'**
+  String get appOutdatedScreen_action;
+
+  /// No description provided for @contactRequestDialog_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact request'**
+  String get contactRequestDialog_title;
+
+  /// No description provided for @contactRequestDialog_avatarHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to reveal their picture'**
+  String get contactRequestDialog_avatarHint;
+
+  /// No description provided for @contactRequestDialog_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Later'**
+  String get contactRequestDialog_cancel;
+
+  /// No description provided for @contactRequestDialog_confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Accept'**
+  String get contactRequestDialog_confirm;
+
+  /// No description provided for @contactRequestDialog_error_fatal.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to accept contact request'**
+  String get contactRequestDialog_error_fatal;
 }
 
 class _AppLocalizationsDelegate

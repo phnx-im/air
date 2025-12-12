@@ -297,7 +297,7 @@ impl Message {
                     ChatType::HandleConnection(handle) => {
                         format!("{handle}: {content}", handle = handle.plaintext())
                     }
-                    ChatType::Connection(_) => content,
+                    ChatType::Connection(_) | ChatType::PendingConnection(_) => content,
                 };
                 Some(repr)
             }

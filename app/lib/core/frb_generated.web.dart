@@ -13,6 +13,7 @@ import 'api/attachments_repository.dart';
 import 'api/chat_details_cubit.dart';
 import 'api/chat_list_cubit.dart';
 import 'api/chats_repository.dart';
+import 'api/invitation_code.dart';
 import 'api/logging.dart';
 import 'api/markdown.dart';
 import 'api/member_details_cubit.dart';

@@ -22,13 +22,17 @@ use aircommon::{
         connection_package::VersionedConnectionPackageIn,
     },
 };
-use airprotos::auth_service::v1::{
-    AckListenHandleRequest, AsCredentialsRequest, CheckHandleExistsRequest, ConnectRequest,
-    ConnectResponse, CreateHandlePayload, DeleteHandlePayload, DeleteUserPayload,
-    EnqueueConnectionOfferStep, FetchConnectionPackageStep, GetUserProfileRequest,
-    HandleQueueMessage, InitListenHandlePayload, ListenHandleRequest, MergeUserProfilePayload,
-    PublishConnectionPackagesPayload, RegisterUserRequest, ReportSpamPayload,
-    StageUserProfilePayload, connect_request, connect_response, listen_handle_request,
+use airprotos::{
+    auth_service::v1::{
+        AckListenHandleRequest, AsCredentialsRequest, CheckHandleExistsRequest,
+        CheckInvitationCodeRequest, ConnectRequest, ConnectResponse, CreateHandlePayload,
+        DeleteHandlePayload, DeleteUserPayload, EnqueueConnectionOfferStep,
+        FetchConnectionPackageStep, GetUserProfileRequest, HandleQueueMessage,
+        InitListenHandlePayload, InvitationCode, ListenHandleRequest, MergeUserProfilePayload,
+        PublishConnectionPackagesPayload, RegisterUserRequest, ReportSpamPayload,
+        StageUserProfilePayload, connect_request, connect_response, listen_handle_request,
+    },
+    common::v1::{StatusDetails, StatusDetailsCode},
 };
 use futures_util::{FutureExt, future::BoxFuture};
 use thiserror::Error;
@@ -60,6 +64,18 @@ impl AsRequestError {
             _ => false,
         }
     }
+
+    pub fn is_unsupported_version(&self) -> bool {
+        match self {
+            AsRequestError::Tonic(status) => {
+                status.code() == tonic::Code::FailedPrecondition
+                    && StatusDetails::from_status(status)
+                        .map(|details| details.code() == StatusDetailsCode::VersionUnsupported)
+                        .unwrap_or(false)
+            }
+            _ => false,
+        }
+    }
 }
 
 impl From<LibraryError> for AsRequestError {
@@ -69,15 +85,32 @@ impl From<LibraryError> for AsRequestError {
 }
 
 impl ApiClient {
+    pub async fn as_check_invitation_code(&self, code: String) -> Result<bool, AsRequestError> {
+        let request = CheckInvitationCodeRequest {
+            client_metadata: Some(self.metadata().clone()),
+            invitation_code: Some(InvitationCode { code }),
+        };
+        let response = self
+            .as_grpc_client()
+            .check_invitation_code(request)
+            .await?
+            .into_inner();
+        Ok(response.is_valid)
+    }
+
     pub async fn as_register_user(
         &self,
         client_payload: ClientCredentialPayload,
         encrypted_user_profile: EncryptedUserProfile,
+        invitation_code: String,
     ) -> Result<RegisterUserResponseIn, AsRequestError> {
         let request = RegisterUserRequest {
             client_metadata: Some(self.metadata().clone()),
             client_credential_payload: Some(client_payload.into()),
             encrypted_user_profile: Some(encrypted_user_profile.into()),
+            invitation_code: Some(InvitationCode {
+                code: invitation_code,
+            }),
         };
         let response = self
             .as_grpc_client()

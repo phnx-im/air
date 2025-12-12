@@ -197,6 +197,38 @@ $IntroScreenTypeCopyWith(IntroScreenType _, $Res Function(IntroScreenType) __);
 /// @nodoc
 
 
+class IntroScreenType_InvitationCode extends IntroScreenType {
+  const IntroScreenType_InvitationCode(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is IntroScreenType_InvitationCode);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'IntroScreenType.invitationCode()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
 class IntroScreenType_SignUp extends IntroScreenType {
   const IntroScreenType_SignUp(): super._();
   

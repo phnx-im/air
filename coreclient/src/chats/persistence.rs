@@ -36,6 +36,7 @@ struct SqlChat {
     is_confirmed_connection: bool,
     is_active: bool,
     is_blocked: bool,
+    is_incoming: bool,
 }
 
 impl SqlChat {
@@ -53,6 +54,7 @@ impl SqlChat {
             is_confirmed_connection,
             is_active,
             is_blocked,
+            is_incoming,
         } = self;
 
         let chat_type = match (
@@ -64,11 +66,12 @@ impl SqlChat {
                 let connection_user_id = UserId::new(user_uuid, domain);
                 if is_confirmed_connection {
                     ChatType::Connection(connection_user_id)
+                } else if is_incoming {
+                    ChatType::PendingConnection(connection_user_id)
                 } else {
                     ChatType::TargetedMessageConnection(connection_user_id)
                 }
             }
-
             (None, None, Some(handle)) => ChatType::HandleConnection(handle),
             _ => ChatType::Group,
         };
@@ -143,20 +146,30 @@ impl Chat {
         };
         let (
             is_confirmed_connection,
+            is_incoming,
             connection_user_uuid,
             connection_user_domain,
             connection_user_handle,
         ) = match self.chat_type() {
-            ChatType::HandleConnection(handle) => (false, None, None, Some(handle)),
+            ChatType::HandleConnection(handle) => (false, false, None, None, Some(handle)),
             ChatType::Connection(user_id) => (
                 true,
+                false,
                 Some(user_id.uuid()),
                 Some(user_id.domain().clone()),
                 None,
             ),
-            ChatType::Group => (true, None, None, None),
+            ChatType::Group => (true, false, None, None, None),
             ChatType::TargetedMessageConnection(user_id) => (
                 false,
+                false,
+                Some(user_id.uuid()),
+                Some(user_id.domain().clone()),
+                None,
+            ),
+            ChatType::PendingConnection(user_id) => (
+                false,
+                true,
                 Some(user_id.uuid()),
                 Some(user_id.domain().clone()),
                 None,
@@ -173,9 +186,10 @@ impl Chat {
                 connection_user_domain,
                 connection_user_handle,
                 is_confirmed_connection,
-                is_active
+                is_active,
+                is_incoming
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             self.id,
             title,
             picture,
@@ -186,6 +200,7 @@ impl Chat {
             connection_user_handle,
             is_confirmed_connection,
             is_active,
+            is_incoming,
         )
         .execute(&mut *connection)
         .await?;
@@ -234,6 +249,7 @@ impl Chat {
                 connection_user_handle AS "connection_user_handle: _",
                 is_confirmed_connection,
                 is_active,
+                is_incoming,
                 blocked_contact.user_uuid IS NOT NULL AS "is_blocked!: _"
             FROM chat
             LEFT JOIN blocked_contact ON blocked_contact.user_uuid = chat.connection_user_uuid
@@ -303,6 +319,7 @@ impl Chat {
                 connection_user_handle AS "connection_user_handle: _",
                 is_confirmed_connection,
                 is_active,
+                is_incoming,
                 blocked_contact.user_uuid IS NOT NULL AS "is_blocked!: _"
             FROM chat
                 LEFT JOIN blocked_contact
@@ -668,7 +685,8 @@ impl Chat {
                         connection_user_uuid = NULL,
                         connection_user_domain = NULL,
                         connection_user_handle = ?,
-                        is_confirmed_connection = false
+                        is_confirmed_connection = false,
+                        is_incoming = false
                     WHERE chat_id = ?",
                     handle,
                     self.id,
@@ -710,7 +728,25 @@ impl Chat {
                     "UPDATE chat SET
                         connection_user_uuid = ?,
                         connection_user_domain = ?,
-                        is_confirmed_connection = false
+                        is_confirmed_connection = false,
+                        is_incoming = false
+                    WHERE chat_id = ?",
+                    uuid,
+                    domain,
+                    self.id,
+                )
+                .execute(executor)
+                .await?;
+            }
+            ChatType::PendingConnection(user_id) => {
+                let uuid = user_id.uuid();
+                let domain = user_id.domain();
+                query!(
+                    "UPDATE chat SET
+                        connection_user_uuid = ?,
+                        connection_user_domain = ?,
+                        is_confirmed_connection = false,
+                        is_incoming = true
                     WHERE chat_id = ?",
                     uuid,
                     domain,

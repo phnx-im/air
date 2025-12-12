@@ -448,11 +448,13 @@ class _AddContactDialog extends HookWidget {
     } catch (error) {
       _log.severe("Failed to send contact request: ${error.toString()}");
 
-      if (!context.mounted) return;
-      Navigator.of(context).pop();
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
 
-      final loc = AppLocalizations.of(context);
-      showErrorBannerStandalone(loc.newConnectionDialog_error(displayName));
+      showErrorBannerStandalone(
+        (loc) => loc.newConnectionDialog_error(displayName),
+      );
     } finally {
       inProgress.value = false;
     }

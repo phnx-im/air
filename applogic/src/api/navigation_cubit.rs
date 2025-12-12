@@ -37,6 +37,7 @@ pub enum NavigationState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[frb(dart_metadata = ("freezed"))]
 pub enum IntroScreenType {
+    InvitationCode,
     SignUp,
     UsernameOnboarding,
     DeveloperSettings(DeveloperSettingsScreenType),

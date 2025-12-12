@@ -17,10 +17,11 @@ use uuid::Uuid;
 use crate::{contacts::PartialContactType, store::StoreNotifier};
 
 pub use draft::MessageDraft;
-pub(crate) use status::StatusRecord;
+pub(crate) use {pending::PendingConnectionInfo, status::StatusRecord};
 
 mod draft;
 pub(crate) mod messages;
+mod pending;
 pub(crate) mod persistence;
 mod sqlx_support;
 pub(crate) mod status;
@@ -88,24 +89,6 @@ pub struct Chat {
 }
 
 impl Chat {
-    pub(crate) fn new_connection_chat(
-        group_id: GroupId,
-        user_id: UserId,
-        attributes: ChatAttributes,
-    ) -> Result<Self, tls_codec::Error> {
-        // To keep things simple and to make sure that chat ids are the same across users, we
-        // derive the chat id from the group id.
-        Ok(Chat {
-            id: ChatId::try_from(&group_id)?,
-            group_id,
-            last_read: Utc::now(),
-            last_message_at: None,
-            status: ChatStatus::Active,
-            chat_type: ChatType::Connection(user_id),
-            attributes,
-        })
-    }
-
     pub(crate) fn new_handle_chat(
         group_id: GroupId,
         attributes: ChatAttributes,
@@ -149,6 +132,22 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::Group,
+            attributes,
+        }
+    }
+
+    pub(crate) fn new_pending_connection_chat(
+        group_id: GroupId,
+        user_id: UserId,
+        attributes: ChatAttributes,
+    ) -> Self {
+        Self {
+            id: ChatId::try_from(&group_id).unwrap(),
+            group_id,
+            last_read: Utc::now(),
+            last_message_at: None,
+            status: ChatStatus::Active,
+            chat_type: ChatType::PendingConnection(user_id),
             attributes,
         }
     }
@@ -276,15 +275,18 @@ impl InactiveChat {
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum ChatType {
     /// A connection chat which was established via a handle and is not yet confirmed by the other
-    /// party.
+    /// party. (outgoing)
     HandleConnection(UserHandle),
     /// A connection chat that is confirmed by the other party and for which we have received the
     /// necessary secrets.
     Connection(UserId),
     Group,
     /// A connection chat which was established via a targeted message and is not yet confirmed by the other
-    /// party.
+    /// party. (outgoing)
     TargetedMessageConnection(UserId),
+    /// An incoming pending connection chat from a handle or a targeted message which is not yet
+    /// confirmed by the user. (incoming)
+    PendingConnection(UserId),
 }
 
 impl ChatType {

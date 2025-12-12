@@ -228,6 +228,10 @@ sealed class UiChatType with _$UiChatType {
 
   /// A group chat, that is, it can contains multiple participants.
   const factory UiChatType.group() = UiChatType_Group;
+
+  /// Incoming connection chat request that is not yet confirmed by us.
+  const factory UiChatType.pendingConnection(UiUserProfile field0) =
+      UiChatType_PendingConnection;
 }
 
 /// Client record of a user
