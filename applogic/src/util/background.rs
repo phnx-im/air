@@ -262,7 +262,6 @@ impl<Event: fmt::Debug> fmt::Debug for State<Event> {
     }
 }
 
-
 /// Context for a background stream task.
 ///
 /// Responsible for creating the stream and handling events.

@@ -83,7 +83,6 @@ pub enum AirProtocolVersion {
     Alpha,
 }
 
-
 // === Queue ===
 
 #[derive(
