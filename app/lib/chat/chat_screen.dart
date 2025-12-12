@@ -196,7 +196,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
             mainAxisSize: MainAxisSize.min,
             spacing: Spacings.xs,
             children: [
-              GroupAvatar(chatId: chatId, size: Spacings.l),
+              ChatAvatar(chatId: chatId, size: Spacings.l),
               Flexible(
                 child: Text(
                   title ?? "",

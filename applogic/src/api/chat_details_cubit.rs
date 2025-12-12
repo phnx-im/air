@@ -427,6 +427,12 @@ impl ChatDetailsCubitBase {
             .await?;
         Ok(())
     }
+
+    pub async fn accept_contact_request(&self) -> anyhow::Result<()> {
+        let chat_id = self.context.chat_id;
+        self.context.store.accept_contact_request(chat_id).await?;
+        Ok(())
+    }
 }
 
 /// Loads the initial state and listen to the changes

@@ -126,10 +126,12 @@ class _MessageComposerState extends State<MessageComposer>
 
   @override
   Widget build(BuildContext context) {
-    final (chatTitle, editingId) = context.select(
-      (ChatDetailsCubit cubit) =>
-          (cubit.state.chat?.title, cubit.state.chat?.draft?.editingId),
-    );
+    final (chatTitle, editingId, isConfirmedChat) = context.select((
+      ChatDetailsCubit cubit,
+    ) {
+      final chat = cubit.state.chat;
+      return (chat?.title, chat?.draft?.editingId, chat?.isConfirmed ?? false);
+    });
 
     if (chatTitle == null) {
       return const SizedBox.shrink();
@@ -209,13 +211,15 @@ class _MessageComposerState extends State<MessageComposer>
                       ),
                 color: CustomColorScheme.of(context).text.primary,
                 hoverColor: const Color(0x00FFFFFF),
-                onPressed: () {
-                  if (_inputIsEmpty) {
-                    _uploadAttachment(context, chatTitle: chatTitle);
-                  } else {
-                    _submitMessage(context.read());
-                  }
-                },
+                onPressed: isConfirmedChat
+                    ? () {
+                        if (_inputIsEmpty) {
+                          _uploadAttachment(context, chatTitle: chatTitle);
+                        } else {
+                          _submitMessage(context.read());
+                        }
+                      }
+                    : null,
               ),
             ),
           ],
@@ -375,6 +379,10 @@ class _MessageInput extends StatelessWidget {
       (UserSettingsCubit cubit) => cubit.state.sendOnEnter,
     );
 
+    final isConfirmedChat = context.select(
+      (ChatDetailsCubit cubit) => cubit.state.chat?.isConfirmed ?? false,
+    );
+
     final loc = AppLocalizations.of(context);
 
     return Column(
@@ -409,6 +417,7 @@ class _MessageInput extends StatelessWidget {
             controller: _controller,
             minLines: 1,
             maxLines: 10,
+            enabled: isConfirmedChat,
             decoration: InputDecoration(
               hintText: loc.composer_inputHint(chatTitle ?? ""),
               hintMaxLines: 1,

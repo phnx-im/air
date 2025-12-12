@@ -268,7 +268,7 @@ mod persistence {
                 r#"UPDATE resync_queue
                     SET locked_by = ?1
                     WHERE group_id = (
-                      SELECT group_id 
+                      SELECT group_id
                       FROM resync_queue
                       WHERE locked_by IS NULL OR locked_by != ?1
                       LIMIT 1
