@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:bloc_test/bloc_test.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:air/chat/chat_details.dart';
 import 'package:air/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
@@ -12,6 +10,8 @@ import 'package:air/message_list/message_list_cubit.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/registration/registration.dart';
 import 'package:air/user/user.dart';
+import 'package:bloc_test/bloc_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 import 'helpers.dart';
 

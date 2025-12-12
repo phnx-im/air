@@ -250,6 +250,36 @@ abstract class AppLocalizations {
   /// **'an active chat is obligatory'**
   String get addMembersScreen_error_noActiveChat;
 
+  /// No description provided for @contactDetailsScreen_viewSafetyCode.
+  ///
+  /// In en, this message translates to:
+  /// **'View Safety Code'**
+  String get contactDetailsScreen_viewSafetyCode;
+
+  /// No description provided for @safetyCodeScreen_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Safety Code'**
+  String get safetyCodeScreen_title;
+
+  /// No description provided for @safetyCodeScreen_tapToCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to copy'**
+  String get safetyCodeScreen_tapToCopy;
+
+  /// No description provided for @safetyCodeScreen_copiedToClipboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard'**
+  String get safetyCodeScreen_copiedToClipboard;
+
+  /// No description provided for @safetyCodeScreen_safetyCodeExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Compare what you see as the safety code with what {displayName} sees. If the codes match, you know that you\'re sending and receiving end-to-end encrypted messages with the correct person.'**
+  String safetyCodeScreen_safetyCodeExplanation(Object displayName);
+
   /// No description provided for @chatDetailsScreen_unknownChat.
   ///
   /// In en, this message translates to:
