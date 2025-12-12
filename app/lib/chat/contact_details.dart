@@ -14,6 +14,7 @@ import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
@@ -61,6 +62,114 @@ class MemberRelationship extends Relationship {
       'MemberRelationship(groupChatId: $groupChatId, groupTitle: $groupTitle, canKick: $canKick)';
 }
 
+class SafetyCodeScreen extends HookWidget {
+  const SafetyCodeScreen({
+    super.key,
+    required this.userId,
+  });
+
+  final UiUserId userId;
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = context.select((UsersCubit cubit) => cubit.state.profile(userId: userId));
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("Safety Number"), // TODO: localize
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(Spacings.m),
+        child: SafetyCodeView(
+          profile: profile,
+          safetyCode: safetyCode,
+        ),
+      ),
+    );
+  }
+}
+
+class SafetyCodeView extends StatelessWidget {
+  const SafetyCodeView({
+    super.key,
+    required this.profile,
+    required this.safetyCode,
+  });
+
+  final UiUserProfile profile;
+  final String safetyCode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Column(
+        children: [
+          const SizedBox(height: Spacings.s),
+
+          UserAvatar(size: 192, userId: profile.userId, profile: profile),
+
+          const SizedBox(height: Spacings.s),
+
+          Text(
+            profile.displayName,
+            style: TextStyle(
+              fontSize: HeaderFontSize.h1.size,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: Spacings.s),
+
+
+          _SafetyCodeButton(),
+
+          const SizedBox(height: Spacings.s),
+
+          const Text(
+            // Insert loc text for safety code display
+            "",
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SafetyCodeButton extends HookWidget {
+  const _SafetyCodeButton({
+    required this.userId,
+  });
+
+  final UiUserId userId;
+
+  @override
+  Widget build(BuildContext context) {
+    final safetyCodeFut = useMemoized(() => context.read<UsersCubit>().safetyCode(userId), [userId]);
+    final safetyCode = useFuture(safetyCodeFut);
+
+    final loc = AppLocalizations.of(context);
+
+    return OutlinedButton(
+      onPressed: safetyCode.hasData ? () {
+            // copy to clipboard
+            Clipboard.setData(ClipboardData(text: safetyCode.data!));
+            ScaffoldMessenger.of(context).showSnackBar(
+              // TODO: Add localization here
+              SnackBar(content: Text(loc.settingsScreen_copiedToClipboard)),
+            );
+          } : null,
+      style: const ButtonStyle(
+        visualDensity: VisualDensity.compact,
+        minimumSize: WidgetStatePropertyAll(Size(82, 32)),
+      ),
+      child: Text(
+        safetyCode.data != null ? safetyCode.data! : "Loading...",
+        style: TextStyle(fontSize: LabelFontSize.base.size),
+      ),
+    );
+  }
+}
+
 class ContactDetailsView extends StatelessWidget {
   const ContactDetailsView({
     super.key,
@@ -88,6 +197,30 @@ class ContactDetailsView extends StatelessWidget {
             style: TextStyle(
               fontSize: HeaderFontSize.h1.size,
               fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: Spacings.s),
+
+          OutlinedButton(
+            onPressed: () => _handleViewSafetyNumber(context),
+            style: const ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              minimumSize: WidgetStatePropertyAll(Size(82, 32)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                iconoir.ChatBubbleEmpty(
+                  color: CustomColorScheme.of(context).text.primary,
+                  width: 16,
+                ),
+                const SizedBox(width: Spacings.xxs),
+                Text(
+                  "View Safety Number", // TODO: localize
+                  style: TextStyle(fontSize: LabelFontSize.base.size),
+                ),
+              ],
             ),
           ),
 
@@ -193,6 +326,18 @@ class ContactDetailsView extends StatelessWidget {
           ),
         );
     }
+  }
+
+  void _handleViewSafetyNumber(BuildContext context) async {
+    // Switch to safety code screen
+    final navigationCubit = context.read<NavigationCubit>();
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => SafetyCodeView(profile: profile, safetyCode: safetyCode)))
+    // TODO: Fetch safety code from UserCubit
+    //final safetyCode = await context.read<UserCubit>().safetyCode(
+    //  otherUserId: profile.userId,
+    //);
+    final safetyCode = <int>[];
+    navigationCubit.openSafetyCode(profile.userId, safetyCode);
   }
 }
 

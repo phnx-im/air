@@ -4,9 +4,9 @@
 
 import 'dart:async';
 
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/core/core.dart';
 import 'package:air/user/user.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// Repository of all user profiles including the logged-in user.
 class UsersCubit implements StateStreamableSource<UsersState> {
@@ -26,4 +26,8 @@ class UsersCubit implements StateStreamableSource<UsersState> {
 
   @override
   Stream<UsersState> get stream => _impl.stream();
+
+  // TODO
+  @override
+  Future<String> safetyCode(UiUserId userId) => throw UnimplementedError();
 }

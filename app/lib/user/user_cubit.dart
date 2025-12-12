@@ -5,9 +5,9 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/core/core.dart';
 import 'package:air/navigation/navigation.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// Wrapper of the [UserCubitBase] that implements a [StateStreamableSource]
 ///

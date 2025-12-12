@@ -4,8 +4,8 @@
 
 import 'dart:async';
 
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/core/core.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 export 'package:air/core/core.dart'
     show NavigationState, IntroScreenType, DeveloperSettingsScreenType;
@@ -49,6 +49,9 @@ class NavigationCubit implements StateStreamableSource<NavigationState> {
 
   Future<void> openMemberDetails(UiUserId member) =>
       _impl.openMemberDetails(member: member);
+
+  Future<void> openSafetyCode(UiUserId userId, List<int> safetyCode) =>
+      _impl.openSafetyCode(userId: userId, safetyCode: safetyCode);
 
   Future<void> openDeveloperSettings({
     DeveloperSettingsScreenType screen = DeveloperSettingsScreenType.root,
