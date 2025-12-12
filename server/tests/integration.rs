@@ -16,7 +16,6 @@ use base64::{Engine, prelude::BASE64_STANDARD};
 use chrono::Utc;
 use image::{ImageBuffer, Rgba};
 use mimi_content::{MessageStatus, MimiContent, content_container::NestedPartContent};
-use prost::Message as _;
 use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
 
 use aircommon::{
@@ -2037,7 +2036,7 @@ async fn unsupported_client_version() {
     };
     assert_eq!(status.code(), tonic::Code::FailedPrecondition);
 
-    let details = StatusDetails::decode(status.details()).unwrap();
+    let details = StatusDetails::from_status(&status).unwrap();
     assert_matches!(details.code(), StatusDetailsCode::VersionUnsupported);
 
     let client_id = QsClientId::random(&mut OsRng);
@@ -2049,7 +2048,7 @@ async fn unsupported_client_version() {
     };
     assert_eq!(status.code(), tonic::Code::FailedPrecondition);
 
-    let details = StatusDetails::decode(status.details()).unwrap();
+    let details = StatusDetails::from_status(&status).unwrap();
     assert_matches!(details.code(), StatusDetailsCode::VersionUnsupported);
 }
 

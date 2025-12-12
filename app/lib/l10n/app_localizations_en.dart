@@ -792,6 +792,19 @@ class AppLocalizationsEn extends AppLocalizations {
       'Something went wrong on our end. Wait a moment, then try again.';
 
   @override
+  String get appOutdatedScreen_title => 'Sofware update required';
+
+  @override
+  String get appOutdatedScreen_message => 'Update to keep using Air';
+
+  @override
+  String get appOutdatedScreen_description =>
+      'Open TestFlight on iOS or Google Play on Android, then update Air.';
+
+  @override
+  String get appOutdatedScreen_action => 'Update';
+
+  @override
   String get contactRequestDialog_title => 'Contact request';
 
   @override
