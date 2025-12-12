@@ -88,6 +88,7 @@ pub(crate) mod own_client_info;
 mod persistence;
 pub mod process;
 mod remove_users;
+pub(crate) mod safety_code;
 pub mod store;
 pub mod targeted_message;
 #[cfg(feature = "test_utils")]
