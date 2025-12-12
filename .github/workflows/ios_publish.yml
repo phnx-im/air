@@ -54,10 +54,7 @@ jobs:
         run: just setup-ios-ci
 
       - name: Setup Xcode
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: latest-stable
-
+        run: xcodes install --latest --select
       - name: Build and upload to TestFlight
         env:
           APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
