@@ -1267,6 +1267,7 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_create_group_chat_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>,
             >>::sse_decode(&mut deserializer);
             let api_group_name = <String>::sse_decode(&mut deserializer);
+            let api_picture = <Option<Vec<u8>>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -1292,6 +1293,7 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_create_group_chat_impl(
                             crate::api::chat_list_cubit::ChatListCubitBase::create_group_chat(
                                 &*api_that_guard,
                                 api_group_name,
+                                api_picture,
                             )
                             .await?;
                         Ok(output_ok)

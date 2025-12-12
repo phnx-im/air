@@ -392,7 +392,10 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
     setState(() => _isCreating = true);
 
     try {
-      final chatId = await chatListCubit.createGroupChat(groupName: groupName);
+      final chatId = await chatListCubit.createGroupChat(
+        groupName: groupName,
+        picture: _picture,
+      );
       for (final userId in selectedContacts) {
         await userCubit.addUserToChat(chatId, userId);
       }

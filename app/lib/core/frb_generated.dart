@@ -222,6 +222,7 @@ abstract class RustLibApi extends BaseApi {
   Future<ChatId> crateApiChatListCubitChatListCubitBaseCreateGroupChat({
     required ChatListCubitBase that,
     required String groupName,
+    Uint8List? picture,
   });
 
   bool crateApiChatListCubitChatListCubitBaseIsClosed({
@@ -1811,6 +1812,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<ChatId> crateApiChatListCubitChatListCubitBaseCreateGroupChat({
     required ChatListCubitBase that,
     required String groupName,
+    Uint8List? picture,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -1821,6 +1823,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             serializer,
           );
           sse_encode_String(groupName, serializer);
+          sse_encode_opt_list_prim_u_8_strict(picture, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -1834,7 +1837,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kCrateApiChatListCubitChatListCubitBaseCreateGroupChatConstMeta,
-        argValues: [that, groupName],
+        argValues: [that, groupName, picture],
         apiImpl: this,
       ),
     );
@@ -1844,7 +1847,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiChatListCubitChatListCubitBaseCreateGroupChatConstMeta =>
       const TaskConstMeta(
         debugName: "ChatListCubitBase_create_group_chat",
-        argNames: ["that", "groupName"],
+        argNames: ["that", "groupName", "picture"],
       );
 
   @override
@@ -13478,15 +13481,17 @@ class ChatListCubitBaseImpl extends RustOpaque implements ChatListCubitBase {
         handle: handle,
       );
 
-  /// Creates a new group chat with the given name.
+  /// Creates a new group chat with the given name and optional picture.
   ///
   /// After the chat is created, the current user is the only member of the group.
-  Future<ChatId> createGroupChat({required String groupName}) => RustLib
-      .instance
-      .api
+  Future<ChatId> createGroupChat({
+    required String groupName,
+    Uint8List? picture,
+  }) => RustLib.instance.api
       .crateApiChatListCubitChatListCubitBaseCreateGroupChat(
         that: this,
         groupName: groupName,
+        picture: picture,
       );
 
   bool get isClosed => RustLib.instance.api

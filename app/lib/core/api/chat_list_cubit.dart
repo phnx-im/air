@@ -29,10 +29,13 @@ abstract class ChatListCubitBase implements RustOpaqueInterface {
     required UiUserHandle handle,
   });
 
-  /// Creates a new group chat with the given name.
+  /// Creates a new group chat with the given name and optional picture.
   ///
   /// After the chat is created, the current user is the only member of the group.
-  Future<ChatId> createGroupChat({required String groupName});
+  Future<ChatId> createGroupChat({
+    required String groupName,
+    Uint8List? picture,
+  });
 
   bool get isClosed;
 
