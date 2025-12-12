@@ -232,7 +232,7 @@ pub(super) enum ProvisionAttachmentError {
     Sdk(#[from] Box<SdkError<put_object::PutObjectError, http::HttpResponse>>),
     /// Content length is required
     ContentLengthRequired,
-    /// Attachment is too large
+    /// Attachment is too large: {actual_size} bytes > {max_size} bytes
     AttachmentTooLarge { max_size: u64, actual_size: u64 },
 }
 
