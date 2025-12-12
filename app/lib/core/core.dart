@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+export 'api/invitation_code.dart';
 export 'api/attachments_repository.dart';
 export 'api/chat_details_cubit.dart';
 export 'api/chat_list_cubit.dart';

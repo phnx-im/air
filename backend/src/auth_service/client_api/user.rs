@@ -14,7 +14,8 @@ use tracing::error;
 use crate::{
     auth_service::{
         AuthService, client_record::ClientRecord,
-        credentials::intermediate_signing_key::IntermediateSigningKey, user_record::UserRecord,
+        credentials::intermediate_signing_key::IntermediateSigningKey,
+        invitation_code_record::InvitationCodeRecord, user_record::UserRecord,
     },
     errors::auth_service::{DeleteUserError, RegisterUserError},
 };
@@ -23,7 +24,13 @@ impl AuthService {
     pub(crate) async fn as_init_user_registration(
         &self,
         params: RegisterUserParamsIn,
+        mut code_record: Option<InvitationCodeRecord>,
     ) -> Result<RegisterUserResponse, RegisterUserError> {
+        assert!(
+            !self.invitation_only || code_record.is_some(),
+            "invitation_only => code_record is Some"
+        );
+
         let RegisterUserParamsIn {
             client_payload,
             encrypted_user_profile,
@@ -84,6 +91,15 @@ impl AuthService {
                 error!(%error, "Storage provider error");
                 RegisterUserError::StorageError
             })?;
+
+        if let Some(code_record) = code_record.as_mut() {
+            code_record.redeemed = true;
+            code_record.save(&self.db_pool).await.map_err(|error| {
+                error!(%error, "Failed to save invitation code");
+                RegisterUserError::StorageError
+            })?;
+        }
+
         txn.commit().await.map_err(|error| {
             error!(%error, "Failed to commit transaction");
             RegisterUserError::StorageError

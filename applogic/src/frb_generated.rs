@@ -51,7 +51,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1506381733;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1892937724;
 
 // Section: executor
 
@@ -5856,6 +5856,7 @@ fn wire__crate__api__user__User_new_impl(
                 <Option<crate::api::user::PlatformPushToken>>::sse_decode(&mut deserializer);
             let api_display_name = <String>::sse_decode(&mut deserializer);
             let api_profile_picture = <Option<Vec<u8>>>::sse_decode(&mut deserializer);
+            let api_invitation_code = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -5866,6 +5867,7 @@ fn wire__crate__api__user__User_new_impl(
                             api_push_token,
                             api_display_name,
                             api_profile_picture,
+                            api_invitation_code,
                         )
                         .await?;
                         Ok(output_ok)
@@ -6518,6 +6520,47 @@ fn wire__crate__api__chat_list_cubit__chat_list_state_default_impl(
                         Result::<_, ()>::Ok(crate::api::chat_list_cubit::ChatListState::default())?;
                     Ok(output_ok)
                 })())
+            }
+        },
+    )
+}
+fn wire__crate__api__invitation_code__check_invitation_code_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "check_invitation_code",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_server_url = <String>::sse_decode(&mut deserializer);
+            let api_invitation_code = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::invitation_code::check_invitation_code(
+                            api_server_url,
+                            api_invitation_code,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
             }
         },
     )
@@ -8262,12 +8305,15 @@ impl SseDecode for crate::api::navigation_cubit::IntroScreenType {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
-                return crate::api::navigation_cubit::IntroScreenType::SignUp;
+                return crate::api::navigation_cubit::IntroScreenType::InvitationCode;
             }
             1 => {
-                return crate::api::navigation_cubit::IntroScreenType::UsernameOnboarding;
+                return crate::api::navigation_cubit::IntroScreenType::SignUp;
             }
             2 => {
+                return crate::api::navigation_cubit::IntroScreenType::UsernameOnboarding;
+            }
+            3 => {
                 let mut var_field0 =
                     <crate::api::navigation_cubit::DeveloperSettingsScreenType>::sse_decode(
                         deserializer,
@@ -9513,20 +9559,21 @@ fn pde_ffi_dispatcher_primary_impl(
 119 => wire__crate__api__users_cubit__UsersCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
 123 => wire__crate__api__chat_details_cubit__chat_details_state_default_impl(port, ptr, rust_vec_len, data_len),
 124 => wire__crate__api__chat_list_cubit__chat_list_state_default_impl(port, ptr, rust_vec_len, data_len),
-125 => wire__crate__api__logging__clear_app_logs_impl(port, ptr, rust_vec_len, data_len),
-126 => wire__crate__api__logging__clear_background_logs_impl(port, ptr, rust_vec_len, data_len),
-127 => wire__crate__api__logging__create_log_stream_impl(port, ptr, rust_vec_len, data_len),
-128 => wire__crate__api__utils__delete_client_database_impl(port, ptr, rust_vec_len, data_len),
-129 => wire__crate__api__utils__delete_databases_impl(port, ptr, rust_vec_len, data_len),
-130 => wire__crate__api__utils__export_client_database_impl(port, ptr, rust_vec_len, data_len),
-131 => wire__crate__api__navigation_cubit__home_navigation_state_default_impl(port, ptr, rust_vec_len, data_len),
-133 => wire__crate__api__utils__import_client_database_impl(port, ptr, rust_vec_len, data_len),
-135 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
-136 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
-137 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
-139 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
-140 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
-141 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
+125 => wire__crate__api__invitation_code__check_invitation_code_impl(port, ptr, rust_vec_len, data_len),
+126 => wire__crate__api__logging__clear_app_logs_impl(port, ptr, rust_vec_len, data_len),
+127 => wire__crate__api__logging__clear_background_logs_impl(port, ptr, rust_vec_len, data_len),
+128 => wire__crate__api__logging__create_log_stream_impl(port, ptr, rust_vec_len, data_len),
+129 => wire__crate__api__utils__delete_client_database_impl(port, ptr, rust_vec_len, data_len),
+130 => wire__crate__api__utils__delete_databases_impl(port, ptr, rust_vec_len, data_len),
+131 => wire__crate__api__utils__export_client_database_impl(port, ptr, rust_vec_len, data_len),
+132 => wire__crate__api__navigation_cubit__home_navigation_state_default_impl(port, ptr, rust_vec_len, data_len),
+134 => wire__crate__api__utils__import_client_database_impl(port, ptr, rust_vec_len, data_len),
+136 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
+137 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
+138 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
+140 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
+141 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
+142 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
                         _ => unreachable!(),
                     }
 }
@@ -9723,19 +9770,19 @@ fn pde_ffi_dispatcher_sync_impl(
             rust_vec_len,
             data_len,
         ),
-        132 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
-        134 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
-        138 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
+        133 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
+        135 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
+        139 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        142 => wire__crate__api__types__ui_user_handle_validation_error_impl(
+        143 => wire__crate__api__types__ui_user_handle_validation_error_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        143 => wire__crate__api__username_suggestions__username_from_display_impl(
+        144 => wire__crate__api__username_suggestions__username_from_display_impl(
             ptr,
             rust_vec_len,
             data_len,
@@ -10363,12 +10410,15 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::markdown::InlineElement>
 impl flutter_rust_bridge::IntoDart for crate::api::navigation_cubit::IntroScreenType {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
-            crate::api::navigation_cubit::IntroScreenType::SignUp => [0.into_dart()].into_dart(),
+            crate::api::navigation_cubit::IntroScreenType::InvitationCode => {
+                [0.into_dart()].into_dart()
+            }
+            crate::api::navigation_cubit::IntroScreenType::SignUp => [1.into_dart()].into_dart(),
             crate::api::navigation_cubit::IntroScreenType::UsernameOnboarding => {
-                [1.into_dart()].into_dart()
+                [2.into_dart()].into_dart()
             }
             crate::api::navigation_cubit::IntroScreenType::DeveloperSettings(field0) => {
-                [2.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+                [3.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
             _ => {
                 unimplemented!("");
@@ -12085,14 +12135,17 @@ impl SseEncode for crate::api::navigation_cubit::IntroScreenType {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
-            crate::api::navigation_cubit::IntroScreenType::SignUp => {
+            crate::api::navigation_cubit::IntroScreenType::InvitationCode => {
                 <i32>::sse_encode(0, serializer);
             }
-            crate::api::navigation_cubit::IntroScreenType::UsernameOnboarding => {
+            crate::api::navigation_cubit::IntroScreenType::SignUp => {
                 <i32>::sse_encode(1, serializer);
             }
-            crate::api::navigation_cubit::IntroScreenType::DeveloperSettings(field0) => {
+            crate::api::navigation_cubit::IntroScreenType::UsernameOnboarding => {
                 <i32>::sse_encode(2, serializer);
+            }
+            crate::api::navigation_cubit::IntroScreenType::DeveloperSettings(field0) => {
+                <i32>::sse_encode(3, serializer);
                 <crate::api::navigation_cubit::DeveloperSettingsScreenType>::sse_encode(
                     field0, serializer,
                 );

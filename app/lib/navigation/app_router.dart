@@ -158,6 +158,9 @@ class AppBackButtonDispatcher extends RootBackButtonDispatcher {}
 /// Convert an [IntroScreenType] into a [ValueKey] and a screen [Widget].
 extension on IntroScreenType {
   ValueKey<String> get key => switch (this) {
+    IntroScreenType_InvitationCode() => const ValueKey(
+      "invitation-code-screen",
+    ),
     IntroScreenType_SignUp() => const ValueKey("sign-up-screen"),
     IntroScreenType_UsernameOnboarding() => const ValueKey(
       "username-onboarding-screen",
@@ -168,6 +171,7 @@ extension on IntroScreenType {
   };
 
   Widget get screen => switch (this) {
+    IntroScreenType_InvitationCode() => const InvitationCodeScreen(),
     IntroScreenType_SignUp() => const SignUpScreen(),
     IntroScreenType_UsernameOnboarding() => const UsernameOnboardingScreen(),
     IntroScreenType_DeveloperSettings(field0: final screen) => switch (screen) {
