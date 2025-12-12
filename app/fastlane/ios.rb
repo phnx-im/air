@@ -26,8 +26,6 @@ platform :ios do
       @app_store_api_key = nil
       UI.message("App Store Connect credentials not available, skipping API key setup")
     end
-
-    ensure_latest_stable_xcode
   end
 
   desc "Build iOS app for TestFlight"
@@ -153,11 +151,5 @@ platform :ios do
       skip_archive: skip_signing,
       export_method: "app-store",
     )
-  end
-
-  private_lane :ensure_latest_stable_xcode do
-    return unless is_ci
-
-    xcodes(xcodes_args: "install --latest --select")
   end
 end

@@ -52,6 +52,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: just setup-ios-ci
+
+      - name: Setup Xcode
+        run: xcodes install --latest --select
       - name: Build and upload to TestFlight
         env:
           APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}

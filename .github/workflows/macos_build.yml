@@ -59,6 +59,9 @@ jobs:
           name: golden-failures
           path: app/test/**/failures/*
 
+      - name: Setup Xcode
+        run: xcodes install --latest --select
+
       - name: Detect if PR is from a fork
         id: detect_fork
         shell: bash
