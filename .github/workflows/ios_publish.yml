@@ -53,20 +53,33 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: just setup-ios-ci
 
+      - name: Determine latest stable Xcode
+        id: xcode_version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(
+            curl -fsSL "https://developer.apple.com/news/releases/rss/releases.rss" |
+              xmllint --xpath '//item/title/text()' - 2>/dev/null |
+              tr '\r' '\n' |
+              grep -i '^Xcode ' |
+              grep -viE 'beta|rc|release candidate' |
+              head -n 1 |
+              awk '{print $2}'
+          )"
+
+          if [ -z "$version" ]; then
+            echo "No stable Xcode version found in RSS; falling back to latest-stable."
+            echo "version=latest-stable" >> "$GITHUB_OUTPUT"
+          else
+            echo "Using Xcode ${version} from RSS."
+            echo "version=${version}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
-
-      - name: Ensure iOS platform is installed
-        run: |
-          if xcrun --sdk iphoneos --show-sdk-platform-path >/dev/null 2>&1; then
-            echo "iOS platform already available."
-          else
-            echo "iOS platform missing; downloading..."
-            sudo xcodebuild -downloadPlatform iOS
-          fi
-
+          xcode-version: ${{ steps.xcode_version.outputs.version || 'latest-stable' }}
       - name: Build and upload to TestFlight
         env:
           APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
