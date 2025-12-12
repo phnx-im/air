@@ -2123,7 +2123,7 @@ async fn safety_codes() {
     for computing_user in &users {
         for user in users {
             let user_code = setup
-                .get_user(*computing_user)
+                .get_user(computing_user)
                 .user
                 .safety_code(user)
                 .await
@@ -2132,7 +2132,7 @@ async fn safety_codes() {
             // If this is the first time we see a code for this user, store it
             // and continue.
             let Some(expected_code) = codes.get(user) else {
-                codes.insert(user.clone(), user_code.clone());
+                codes.insert(user.clone(), user_code);
                 continue;
             };
 
