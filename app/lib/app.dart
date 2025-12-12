@@ -19,6 +19,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
+import 'user/update_required_screen.dart';
+
 final _appRouter = AppRouter();
 
 final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -251,7 +253,7 @@ class LoadableUserCubitProvider extends StatelessWidget {
                     lazy: false,
                   ),
                 ],
-                child: child,
+                child: UpdateRequiredScreen(child: child),
               ),
             ),
     );

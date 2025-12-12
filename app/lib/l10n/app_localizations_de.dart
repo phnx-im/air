@@ -796,4 +796,17 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get deleteAccountScreen_deleteAccountError =>
       'Bei uns ist ein Fehler aufgetreten. Warte einen Moment und versuche es dann erneut.';
+
+  @override
+  String get appOutdatedScreen_title => 'Sofware update required';
+
+  @override
+  String get appOutdatedScreen_message => 'Update to keep using Air';
+
+  @override
+  String get appOutdatedScreen_description =>
+      'Open TestFlight on iOS or Google Play on Android, then update Air.';
+
+  @override
+  String get appOutdatedScreen_action => 'Update';
 }
