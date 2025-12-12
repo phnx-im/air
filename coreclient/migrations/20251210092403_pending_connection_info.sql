@@ -11,6 +11,6 @@ CREATE TABLE pending_connection_info (
     connection_info BLOB NOT NULL,
     handle TEXT, -- User handle invitation
     connection_offer_hash BLOB, -- Only present for user handle invitation
-    connection_package_hash BLOB, -- Only present for targeted message invitation
+    connection_package_hash BLOB, -- Only present for user handle invitation
     FOREIGN KEY (chat_id) REFERENCES chat (chat_id) ON DELETE CASCADE
 );
