@@ -12,7 +12,7 @@ use std::fmt;
 // Re-export for FRB-reasons
 pub(crate) use aircommon::identifiers::UserHandle;
 pub(crate) use aircoreclient::{
-    AddHandleContactError, AddHandleContactResult, ChatId, MessageDraft, MessageId, SafetyCode,
+    AddHandleContactError, AddHandleContactResult, ChatId, MessageDraft, MessageId,
 };
 
 use aircommon::identifiers::UserId;

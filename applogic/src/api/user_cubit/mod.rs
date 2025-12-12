@@ -405,7 +405,7 @@ impl UserCubitBase {
         let own_safety_code = self
             .context
             .core_user
-            .safety_code(&self.context.core_user.user_id())
+            .safety_code(self.context.core_user.user_id())
             .await?;
         let other_safety_code = self
             .context
