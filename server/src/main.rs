@@ -112,13 +112,16 @@ async fn main() -> anyhow::Result<()> {
 
     // New database name for the AS provider
     configuration.database.name = format!("{base_db_name}_as");
-    let auth_service = AuthService::new(
+    let mut auth_service = AuthService::new(
         &configuration.database,
         domain.clone(),
         version_req.cloned(),
     )
     .await
     .expect("Failed to connect to database.");
+    if let Some(code) = configuration.application.unredeemablecode {
+        auth_service.set_unredeemable_code(code);
+    }
 
     let push_notification_provider =
         ProductionPushNotificationProvider::new(configuration.fcm, configuration.apns)?;

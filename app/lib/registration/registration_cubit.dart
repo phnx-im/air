@@ -40,8 +40,12 @@ sealed class RegistrationState with _$RegistrationState {
   bool get isDomainValid => _domainRegex.hasMatch(domain);
   bool get isValid =>
       isDomainValid && displayName.trim().isNotEmpty && invitationCode != null;
-  String get serverUrl =>
-      domain == "localhost" ? "http://$domain:8080" : "https://$domain";
+  String get serverUrl => domain == "localhost"
+      ? "http://$domain:8080"
+      : domain == "air.ms"
+      // For now, we redirect to the production server manually.
+      ? "https://prod.air.ms"
+      : "https://$domain";
 }
 
 class RegistrationCubit extends Cubit<RegistrationState> {
@@ -114,14 +118,10 @@ class RegistrationCubit extends Cubit<RegistrationState> {
 
     emit(state.copyWith(isSigningUp: true));
 
-    final url = state.domain == "localhost"
-        ? "http://${state.domain}:8080"
-        : "https://${state.domain}";
-
     try {
       _log.info("Registering user...");
       await _coreClient.createUser(
-        url,
+        state.serverUrl,
         state.displayName,
         state.avatar?.data,
         state.invitationCode!,
