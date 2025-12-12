@@ -64,6 +64,15 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Ensure iOS platform is installed
+        run: |
+          if xcrun --sdk iphoneos --show-sdk-platform-path >/dev/null 2>&1; then
+            echo "iOS platform already available."
+          else
+            echo "iOS platform missing; downloading..."
+            sudo xcodebuild -downloadPlatform iOS
+          fi
+
       - name: Detect if PR is from a fork
         id: detect_fork
         shell: bash
