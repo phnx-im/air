@@ -51,7 +51,9 @@ jobs:
         run: just setup-macos-ci
 
       - name: Setup Xcode
-        run: xcodes install --latest --select
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: 26.1.1
 
       - name: Build and upload to TestFlight
         env:

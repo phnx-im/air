@@ -60,7 +60,9 @@ jobs:
           path: app/test/**/failures/*
 
       - name: Setup Xcode
-        run: xcodes install --latest --select
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: 26.1.1
 
       - name: Detect if PR is from a fork
         id: detect_fork
