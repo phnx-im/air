@@ -102,6 +102,12 @@ class _GroupMembersViewState extends State<GroupMembersView> {
       }
       return false;
     }).toList();
+    final sortedMembers = [...filteredMembers]
+      ..sort((a, b) {
+        final nameA = usersState.displayName(userId: a).toLowerCase();
+        final nameB = usersState.displayName(userId: b).toLowerCase();
+        return nameA.compareTo(nameB);
+      });
 
     return Scaffold(
       appBar: AppBar(
@@ -135,7 +141,7 @@ class _GroupMembersViewState extends State<GroupMembersView> {
                       horizontal: Spacings.m,
                       vertical: Spacings.xs,
                     ),
-                    itemCount: filteredMembers.length,
+                    itemCount: sortedMembers.length,
                     separatorBuilder: (context, index) => Divider(
                       height: 1,
                       thickness: 1,
@@ -143,7 +149,7 @@ class _GroupMembersViewState extends State<GroupMembersView> {
                     ),
                     itemBuilder: (context, index) => _GroupMemberTile(
                       chatId: chatId,
-                      memberId: filteredMembers[index],
+                      memberId: sortedMembers[index],
                       ownUserId: ownUserId,
                       roomState: roomState,
                     ),
