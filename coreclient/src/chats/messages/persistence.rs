@@ -12,7 +12,7 @@ use mimi_content::{MessageStatus, MimiContent};
 use serde::{Deserialize, Serialize};
 use sqlx::{SqliteExecutor, query, query_as};
 use tokio_stream::StreamExt;
-use tracing::{error, warn};
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::{ChatId, ChatMessage, ContentMessage, Message, store::StoreNotifier};

@@ -213,6 +213,7 @@ where
 
 type EventStream<Event> = Pin<Box<dyn Stream<Item = Event> + Send + 'static>>;
 
+#[derive(Default)]
 enum State<Event> {
     /// Initial state
     ///
@@ -232,6 +233,7 @@ enum State<Event> {
         timeout: Duration,
     },
     /// The task has been cancelled and is finished.
+    #[default]
     Finished,
 }
 
@@ -260,11 +262,6 @@ impl<Event: fmt::Debug> fmt::Debug for State<Event> {
     }
 }
 
-impl<Event> Default for State<Event> {
-    fn default() -> Self {
-        Self::Finished
-    }
-}
 
 /// Context for a background stream task.
 ///

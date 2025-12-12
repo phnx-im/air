@@ -77,15 +77,12 @@ impl FriendshipToken {
     Deserialize,
 )]
 #[repr(u8)]
+#[derive(Default)]
 pub enum AirProtocolVersion {
+    #[default]
     Alpha,
 }
 
-impl Default for AirProtocolVersion {
-    fn default() -> Self {
-        Self::Alpha
-    }
-}
 
 // === Queue ===
 
