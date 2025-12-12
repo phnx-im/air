@@ -82,6 +82,7 @@ pub mod chats;
 pub(crate) mod connection_offer;
 mod create_user;
 mod delete_account;
+mod invitation_code;
 mod invite_users;
 mod message;
 pub(crate) mod own_client_info;
@@ -129,6 +130,7 @@ impl CoreUser {
         server_url: Url,
         db_path: &str,
         push_token: Option<PushToken>,
+        invitation_code: String,
     ) -> Result<Self> {
         info!(?user_id, "creating new user");
 
@@ -147,6 +149,7 @@ impl CoreUser {
             air_db,
             client_db,
             global_lock,
+            invitation_code,
         )
         .await
     }
@@ -158,13 +161,20 @@ impl CoreUser {
         air_db: SqlitePool,
         client_db: SqlitePool,
         global_lock: GlobalLock,
+        invitation_code: String,
     ) -> Result<Self> {
         let server_url = server_url.to_string();
         let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone());
 
-        let user_creation_state =
-            UserCreationState::new(&client_db, &air_db, user_id, server_url.clone(), push_token)
-                .await?;
+        let user_creation_state = UserCreationState::new(
+            &client_db,
+            &air_db,
+            user_id,
+            server_url.clone(),
+            push_token,
+            invitation_code,
+        )
+        .await?;
 
         let final_state = user_creation_state
             .complete_user_creation(&air_db, &client_db, &api_clients)

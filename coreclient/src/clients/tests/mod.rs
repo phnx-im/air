@@ -25,8 +25,15 @@ async fn user_stages() -> anyhow::Result<()> {
 
     let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone());
 
-    let computed_state =
-        UserCreationState::new(&client_db, &air_db, user_id.clone(), server_url, None).await?;
+    let computed_state = UserCreationState::new(
+        &client_db,
+        &air_db,
+        user_id.clone(),
+        server_url,
+        None,
+        "DUMMY007".to_owned(),
+    )
+    .await?;
 
     // There should now be a client record state in the air db.
     let client_records = ClientRecord::load_all(&air_db).await?;

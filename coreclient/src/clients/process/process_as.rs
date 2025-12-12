@@ -308,20 +308,21 @@ impl CoreUser {
             ChatAttributes::new(display_name.to_string(), None),
         );
 
+        // FIXME(901): For incoming contacts, there is no EAR key but it is required.
+        let random_ear_key = FriendshipPackageEarKey::random()?;
+
         let partial_contact = if let Some(handle_connection_info) = handle_connection_info {
             PartialContact::Handle(HandleContact::new(
                 handle_connection_info.handle.clone(),
                 chat.id(),
-                // TODO
-                FriendshipPackageEarKey::random()?,
+                random_ear_key,
                 handle_connection_info.connection_offer_hash,
             ))
         } else {
             PartialContact::TargetedMessage(TargetedMessageContact::new(
                 sender_user_id.clone(),
                 chat.id(),
-                // TODO
-                FriendshipPackageEarKey::random()?,
+                random_ear_key,
             ))
         };
 

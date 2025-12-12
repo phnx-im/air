@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    INSERT INTO invitation_code (code, redeemed)\n                    VALUES ($1, $2)\n                    ON CONFLICT (code) DO UPDATE SET redeemed = $2\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0b64332496800e9bc457fbde8cd3fa80a0665f90649968686878438c90a70fc9"
+}

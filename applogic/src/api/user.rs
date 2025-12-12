@@ -63,6 +63,7 @@ impl User {
         push_token: Option<PlatformPushToken>,
         display_name: String,
         profile_picture: Option<Vec<u8>>,
+        invitation_code: String,
     ) -> Result<User> {
         let mut server_url: Url = address.parse()?;
         let domain = server_url.host().context("missing host in server url")?;
@@ -74,7 +75,14 @@ impl User {
             server_url.set_host(Some("prod.air.ms"))?;
         }
 
-        let user = CoreUser::new(user_id, server_url, &path, push_token.map(|p| p.into())).await?;
+        let user = CoreUser::new(
+            user_id,
+            server_url,
+            &path,
+            push_token.map(|p| p.into()),
+            invitation_code,
+        )
+        .await?;
 
         let user_profile = UserProfile {
             user_id: user.user_id().clone(),

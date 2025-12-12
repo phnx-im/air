@@ -35,7 +35,7 @@ use aircoreclient::{
     outbound_service::KEY_PACKAGES,
     store::Store,
 };
-use airserver_test_harness::utils::setup::{TestBackend, TestUser};
+use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams, TestUser};
 use png::Encoder;
 use semver::VersionReq;
 use sha2::{Digest, Sha256};
@@ -75,13 +75,13 @@ async fn send_message() {
 async fn rate_limit() {
     init_test_tracing();
 
-    let mut setup = TestBackend::single_with_params(
-        Some(RateLimitsSettings {
+    let mut setup = TestBackend::single_with_params(TestBackendParams {
+        rate_limits: Some(RateLimitsSettings {
             period: Duration::from_secs(1), // replenish one token every 500ms
             burst: 30,                      // allow total 30 request
         }),
-        None,
-    )
+        ..Default::default()
+    })
     .await;
 
     if setup.is_external() {
@@ -739,7 +739,7 @@ async fn delete_user() {
 
     let alice = setup.add_user().await;
     // Adding another user with the same id should fail.
-    match TestUser::try_new(&alice, setup.server_url()).await {
+    match TestUser::try_new(&alice, setup.server_url(), "DUMMY007").await {
         Ok(_) => panic!("Should not be able to create a user with the same id"),
         Err(e) => match e.downcast_ref::<AsRequestError>().unwrap() {
             AsRequestError::Tonic(status) => {
@@ -752,7 +752,9 @@ async fn delete_user() {
     setup.delete_user(&alice).await;
     // After deletion, adding the user again should work.
     // Note: Since the user is ephemeral, there is nothing to test on the client side.
-    TestUser::try_new(&alice, setup.server_url()).await.unwrap();
+    TestUser::try_new(&alice, setup.server_url(), "DUMMY007")
+        .await
+        .unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -1275,7 +1277,9 @@ async fn delete_account() {
 
     // After deletion, adding the user again should work.
     // Note: Since the user is ephemeral, there is nothing to test on the client side.
-    let mut new_alice = TestUser::try_new(&alice, setup.server_url()).await.unwrap();
+    let mut new_alice = TestUser::try_new(&alice, setup.server_url(), "DUMMY007")
+        .await
+        .unwrap();
     // Adding a user handle to the new user should work, because the previous user handle was
     // deleted.
     new_alice.add_user_handle().await.unwrap();
@@ -2019,8 +2023,11 @@ async fn check_handle_exists() {
     skip_all
 )]
 async fn unsupported_client_version() {
-    let setup =
-        TestBackend::single_with_params(None, Some(VersionReq::parse("^0.1.0").unwrap())).await;
+    let setup = TestBackend::single_with_params(TestBackendParams {
+        client_version_req: Some(VersionReq::parse("^0.1.0").unwrap()),
+        ..Default::default()
+    })
+    .await;
 
     let client = ApiClient::new(setup.server_url().as_str()).unwrap();
 
@@ -2086,4 +2093,63 @@ async fn message_sending_failures() {
             );
         }
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Invitation code", skip_all)]
+async fn invitation_code() {
+    const UNREDEEMABLE_CODE: &str = "E111E000";
+    let setup = TestBackend::single_with_params(TestBackendParams {
+        invitation_only: true,
+        unredeemable_code: Some(UNREDEEMABLE_CODE.to_owned()),
+        ..Default::default()
+    })
+    .await;
+
+    // working code
+    let user_id = UserId::random(setup.domain().clone());
+    let code = setup.invitation_codes().first().unwrap();
+    assert!(
+        TestUser::try_new(&user_id, setup.server_url().clone(), code)
+            .await
+            .is_ok()
+    );
+
+    // code used twice
+    let user_id = UserId::random(setup.domain().clone());
+    let code = setup.invitation_codes().first().unwrap();
+    let error = TestUser::try_new(&user_id, setup.server_url().clone(), code)
+        .await
+        .unwrap_err();
+    let error = error.downcast::<AsRequestError>().unwrap();
+    assert_matches!(error, AsRequestError::Tonic(status)
+        if status.code() == tonic::Code::InvalidArgument
+    );
+
+    // not working code
+    let user_id = UserId::random(setup.domain().clone());
+    let code = "DUMMY007";
+    let error = TestUser::try_new(&user_id, setup.server_url().clone(), code)
+        .await
+        .unwrap_err();
+    let error = error.downcast::<AsRequestError>().unwrap();
+    assert_matches!(error, AsRequestError::Tonic(status)
+        if status.code() == tonic::Code::InvalidArgument
+    );
+
+    // unredeemable code (first use)
+    let user_id = UserId::random(setup.domain().clone());
+    assert!(
+        TestUser::try_new(&user_id, setup.server_url().clone(), UNREDEEMABLE_CODE)
+            .await
+            .is_ok()
+    );
+
+    // unredeemable code (second use)
+    let user_id = UserId::random(setup.domain().clone());
+    assert!(
+        TestUser::try_new(&user_id, setup.server_url().clone(), UNREDEEMABLE_CODE)
+            .await
+            .is_ok()
+    );
 }

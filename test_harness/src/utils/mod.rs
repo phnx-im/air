@@ -22,12 +22,14 @@ use airserver::{
     enqueue_provider::SimpleEnqueueProvider, network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
 };
-use semver::VersionReq;
 use uuid::Uuid;
 
 use crate::{
     init_test_tracing,
-    utils::controlled_listener::{ControlHandle, ControlledIncoming},
+    utils::{
+        controlled_listener::{ControlHandle, ControlledIncoming},
+        setup::TestBackendParams,
+    },
 };
 
 const BASE_CONFIG: &str = include_str!("../../../server/configuration/base.yaml");
@@ -41,10 +43,16 @@ const TEST_RATE_LIMITS: RateLimitsSettings = RateLimitsSettings {
 pub(crate) async fn spawn_app(
     domain: Fqdn,
     network_provider: MockNetworkProvider,
-    rate_limits: RateLimitsSettings,
-    client_version_req: Option<VersionReq>,
-) -> (SocketAddr, ControlHandle) {
+    params: TestBackendParams,
+) -> (SocketAddr, ControlHandle, Vec<String>) {
     init_test_tracing();
+
+    let TestBackendParams {
+        rate_limits,
+        client_version_req,
+        invitation_only,
+        unredeemable_code,
+    } = params;
 
     // Load configuration
     let mut configuration = get_configuration_from_str(BASE_CONFIG, LOCAL_CONFIG)
@@ -80,13 +88,30 @@ pub(crate) async fn spawn_app(
     // New database name for the AS provider
     configuration.database.name = Uuid::new_v4().to_string();
 
-    let auth_service = AuthService::new(
+    let mut auth_service = AuthService::new(
         &configuration.database,
         domain.clone(),
         client_version_req.clone(),
     )
     .await
     .expect("Failed to connect to database.");
+    let codes = if !invitation_only {
+        auth_service.disable_invitation_only();
+        Vec::new()
+    } else {
+        const N: usize = 10;
+        auth_service.invitation_codes_generate(N).await.unwrap();
+        let redeemed = false;
+        auth_service
+            .invitation_codes_list(N, redeemed)
+            .await
+            .unwrap()
+            .map(|(code, _)| code)
+            .collect::<Vec<_>>()
+    };
+    if let Some(code) = unredeemable_code {
+        auth_service.set_unredeemable_code(code);
+    }
 
     // New database name for the QS provider
     configuration.database.name = Uuid::new_v4().to_string();
@@ -115,7 +140,7 @@ pub(crate) async fn spawn_app(
         auth_service,
         qs,
         qs_connector,
-        rate_limits,
+        rate_limits: rate_limits.unwrap_or(TEST_RATE_LIMITS),
     })
     .await;
 
@@ -123,5 +148,5 @@ pub(crate) async fn spawn_app(
     tokio::spawn(server);
 
     // Return the address
-    (address, control_handle)
+    (address, control_handle, codes)
 }

@@ -30,6 +30,7 @@ aircommon.workspace = true
 airprotos.workspace = true
 anyhow.workspace = true
 axum.workspace = true
+clap = { workspace = true, features = ["derive"] }
 config.workspace = true
 futures-core.workspace = true
 jsonwebtoken.workspace = true

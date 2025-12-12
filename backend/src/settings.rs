@@ -48,6 +48,10 @@ pub struct ApplicationSettings {
     /// Only clients satisfying this requirement will be able to connect to the server. When empty,
     /// no version requirement is enforced.
     pub versionreq: Option<semver::VersionReq>,
+    /// Special invitation code that is never redeemed.
+    ///
+    /// This code can be used to register as many users as desired. Useful for testing.
+    pub unredeemablecode: Option<String>,
 }
 
 fn default_listen() -> SocketAddr {
