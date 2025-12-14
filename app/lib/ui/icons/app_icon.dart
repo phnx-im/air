@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:flutter/material.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 /// Centralized icon catalog for the app.
 ///
@@ -66,155 +66,163 @@ class AppIcon extends StatelessWidget {
     final iconSize = size;
 
     return switch (type) {
-      AppIconType.plus => iconoir.Plus(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.plus => Icon(
+        LucideIcons.plus300,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.close => iconoir.Xmark(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.close => Icon(LucideIcons.x, size: iconSize, color: color),
+      AppIconType.arrowLeft => Icon(
+        LucideIcons.arrowLeft,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.arrowLeft => iconoir.ArrowLeft(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.send => Icon(
+        LucideIcons.arrowUp300,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.send => iconoir.Send(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.warningCircle => Icon(
+        LucideIcons.circleAlert,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.warningCircle => iconoir.WarningCircle(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.upload => Icon(
+        LucideIcons.upload,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.upload => iconoir.Upload(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.mediaImage => Icon(
+        LucideIcons.image,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.mediaImage => iconoir.MediaImage(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.camera => Icon(
+        LucideIcons.camera,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.camera => iconoir.Camera(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.attachment => Icon(
+        LucideIcons.paperclip,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.attachment => iconoir.Attachment(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.prohibition => Icon(
+        LucideIcons.ban,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.prohibition => iconoir.Prohibition(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.mediaImagePlus => Icon(
+        LucideIcons.imagePlus,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.mediaImagePlus => iconoir.MediaImagePlus(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.checkSquare => Icon(
+        LucideIcons.squareCheck,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.checkSquare => iconoir.CheckSquare(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.square => Icon(
+        LucideIcons.square,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.square => iconoir.Square(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.search => Icon(
+        LucideIcons.search,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.search => iconoir.Search(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.copy => Icon(LucideIcons.copy, size: iconSize, color: color),
+      AppIconType.editPencil => Icon(
+        LucideIcons.pencil,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.copy => iconoir.Copy(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.download => Icon(
+        LucideIcons.download,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.editPencil => iconoir.EditPencil(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.shareIos => Icon(
+        LucideIcons.share,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.download => iconoir.Download(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.refreshDouble => Icon(
+        LucideIcons.refreshCw,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.shareIos => iconoir.ShareIos(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.trash => Icon(
+        LucideIcons.trash,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.refreshDouble => iconoir.RefreshDouble(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.arrowRight => Icon(
+        LucideIcons.arrowRight,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.trash => iconoir.Trash(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.chatBubbleEmpty => Icon(
+        LucideIcons.messageCircle,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.arrowRight => iconoir.ArrowRight(
-        width: iconSize,
-        height: iconSize,
+      AppIconType.check => Icon(
+        LucideIcons.check,
+        size: iconSize,
         color: color,
       ),
-      AppIconType.chatBubbleEmpty => iconoir.ChatBubbleEmpty(
-        width: iconSize,
-        height: iconSize,
-        color: color,
-      ),
-      AppIconType.check => Icon(Icons.check, color: color, size: iconSize),
       AppIconType.brokenImage => Icon(
         Icons.broken_image_outlined,
         color: color,
         size: iconSize,
       ),
       AppIconType.personOutline => Icon(
-        Icons.person_outline_rounded,
-        color: color,
+        LucideIcons.user,
         size: iconSize,
+        color: color,
       ),
       AppIconType.settingsOutline => Icon(
-        Icons.settings_outlined,
-        color: color,
+        LucideIcons.settings,
         size: iconSize,
+        color: color,
       ),
-      AppIconType.refresh => Icon(Icons.refresh, color: color, size: iconSize),
+      AppIconType.refresh => Icon(
+        LucideIcons.refreshCcw,
+        size: iconSize,
+        color: color,
+      ),
       AppIconType.changeCircle => Icon(
-        Icons.change_circle,
-        color: color,
+        LucideIcons.repeat,
         size: iconSize,
+        color: color,
       ),
-      AppIconType.logout => Icon(Icons.logout, color: color, size: iconSize),
-      AppIconType.textSnippet => Icon(
-        Icons.text_snippet,
-        color: color,
+      AppIconType.logout => Icon(
+        LucideIcons.logOut,
         size: iconSize,
+        color: color,
+      ),
+      AppIconType.textSnippet => Icon(
+        LucideIcons.fileText,
+        size: iconSize,
+        color: color,
       ),
       AppIconType.fileDownload => Icon(
-        Icons.file_download,
-        color: color,
+        LucideIcons.fileDown,
         size: iconSize,
+        color: color,
       ),
       AppIconType.fileUpload => Icon(
-        Icons.file_upload,
-        color: color,
+        LucideIcons.fileUp,
         size: iconSize,
+        color: color,
       ),
-      AppIconType.delete => Icon(Icons.delete, color: color, size: iconSize),
+      AppIconType.delete => Icon(
+        LucideIcons.trash2,
+        size: iconSize,
+        color: color,
+      ),
     };
   }
 }
