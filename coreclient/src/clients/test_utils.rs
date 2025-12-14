@@ -26,7 +26,11 @@ impl CoreUser {
         // Open client specific db
         let client_db = open_db_in_memory().await?;
 
-        let global_lock = GlobalLock::from_file(tempfile::tempfile()?);
+        let lock_path = std::env::temp_dir().join(format!(
+            "air_lock_ephemeral_{}.sqlite",
+            uuid::Uuid::new_v4()
+        ));
+        let global_lock = GlobalLock::from_path(lock_path)?;
 
         Self::new_with_connections(
             user_id,
