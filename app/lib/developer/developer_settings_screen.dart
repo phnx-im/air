@@ -15,6 +15,7 @@ import 'package:air/user/user.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/util/platform.dart';
 import 'package:air/widgets/widgets.dart';
+import 'package:air/ui/icons/app_icon.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -125,7 +126,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.copy),
+                            icon: const AppIcon(type: AppIconType.copy),
                             tooltip: 'Copy',
                             onPressed: deviceToken == null
                                 ? null
@@ -141,7 +142,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                                   },
                           ),
                           IconButton(
-                            icon: const Icon(Icons.refresh),
+                            icon: const AppIcon(type: AppIconType.refresh),
                             tooltip: 'Refresh',
                             onPressed: onRefreshPushToken,
                           ),
@@ -152,7 +153,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                   const _SectionHeader("User"),
                   ListTile(
                     title: const Text("Change User"),
-                    trailing: const Icon(Icons.change_circle),
+                    trailing: const AppIcon(type: AppIconType.changeCircle),
                     onTap: () =>
                         context.read<NavigationCubit>().openDeveloperSettings(
                           screen: DeveloperSettingsScreenType.changeUser,
@@ -161,14 +162,14 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                   if (user != null) ...[
                     ListTile(
                       title: const Text("Log Out"),
-                      trailing: const Icon(Icons.logout),
+                      trailing: const AppIcon(type: AppIconType.logout),
                       onTap: () => context.read<CoreClient>().logout(),
                     ),
                   ],
                   const _SectionHeader("App Data"),
                   ListTile(
                     title: const Text("Logs"),
-                    trailing: const Icon(Icons.text_snippet),
+                    trailing: const AppIcon(type: AppIconType.textSnippet),
                     onTap: () =>
                         context.read<NavigationCubit>().openDeveloperSettings(
                           screen: DeveloperSettingsScreenType.logs,
@@ -177,12 +178,12 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                   if (user != null)
                     ListTile(
                       title: const Text("Export Database"),
-                      trailing: const Icon(Icons.file_download),
+                      trailing: const AppIcon(type: AppIconType.fileDownload),
                       onTap: () => _exportDatabase(context, user),
                     ),
                   ListTile(
                     title: const Text("Import Database"),
-                    trailing: const Icon(Icons.file_upload),
+                    trailing: const AppIcon(type: AppIconType.fileUpload),
                     onTap: () => _importDatabase(context),
                   ),
                   if (user != null)
@@ -194,7 +195,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                         ).textTheme.bodyLarge?.copyWith(color: AppColors.red),
                       ),
                       subtitle: Text("${user.userId}"),
-                      trailing: const Icon(Icons.delete),
+                      trailing: const AppIcon(type: AppIconType.delete),
                       onTap: () => _confirmDialog(
                         context: context,
                         onConfirm: () =>
@@ -211,7 +212,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    trailing: const Icon(Icons.delete),
+                    trailing: const AppIcon(type: AppIconType.delete),
                     onTap: () => _confirmDialog(
                       context: context,
                       onConfirm: () {

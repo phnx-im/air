@@ -18,6 +18,7 @@ import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/context_menu/context_menu.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
+import 'package:air/ui/icons/app_icon.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/platform.dart';
@@ -27,7 +28,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -210,7 +210,11 @@ class _MessageView extends HookWidget {
       if (plainBody != null && plainBody.isNotEmpty)
         MessageAction(
           label: loc.messageContextMenu_copy,
-          leading: iconoir.Copy(width: 24, color: colors.text.primary),
+          leading: AppIcon(
+            type: AppIconType.copy,
+            size: 24,
+            color: colors.text.primary,
+          ),
           onSelected: () {
             Clipboard.setData(ClipboardData(text: plainBody));
           },
@@ -218,7 +222,11 @@ class _MessageView extends HookWidget {
       if (isSender && attachments.isEmpty)
         MessageAction(
           label: loc.messageContextMenu_edit,
-          leading: iconoir.EditPencil(width: 24, color: colors.text.primary),
+          leading: AppIcon(
+            type: AppIconType.editPencil,
+            size: 24,
+            color: colors.text.primary,
+          ),
           onSelected: () {
             context.read<ChatDetailsCubit>().editMessage(messageId: messageId);
           },
@@ -226,13 +234,21 @@ class _MessageView extends HookWidget {
       if (attachments.isNotEmpty && !Platform.isIOS)
         MessageAction(
           label: loc.messageContextMenu_save,
-          leading: iconoir.Download(width: 24, color: colors.text.primary),
+          leading: AppIcon(
+            type: AppIconType.download,
+            size: 24,
+            color: colors.text.primary,
+          ),
           onSelected: () => _handleFileSave(context, attachments.first),
         ),
       if (attachments.isNotEmpty && Platform.isIOS)
         MessageAction(
           label: loc.messageContextMenu_share,
-          leading: iconoir.ShareIos(width: 24, color: colors.text.primary),
+          leading: AppIcon(
+            type: AppIconType.shareIos,
+            size: 24,
+            color: colors.text.primary,
+          ),
           onSelected: () => _handleFileShare(context, attachments),
         ),
     ];
@@ -500,10 +516,10 @@ class _RotatingSendIconState extends State<RotatingSendIcon>
   Widget build(BuildContext context) {
     return RotationTransition(
       turns: _controller,
-      child: iconoir.RefreshDouble(
+      child: AppIcon(
+        type: AppIconType.refreshDouble,
+        size: LabelFontSize.small2.size,
         color: CustomColorScheme.of(context).text.tertiary,
-        height: LabelFontSize.small2.size,
-        width: LabelFontSize.small2.size,
       ),
     );
   }
@@ -523,10 +539,10 @@ class _MessageStatus extends StatelessWidget {
       return const RotatingSendIcon();
     }
     if (status == UiMessageStatus.error) {
-      return iconoir.WarningCircle(
+      return AppIcon(
+        type: AppIconType.warningCircle,
+        size: LabelFontSize.small2.size,
         color: CustomColorScheme.of(context).function.warning,
-        height: LabelFontSize.small2.size,
-        width: LabelFontSize.small2.size,
       );
     }
     return DoubleCheckIcon(

@@ -6,12 +6,12 @@ import 'dart:io';
 
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/icons/app_icon.dart';
 import 'package:air/widgets/app_bar_x_button.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:photo_view/photo_view.dart';
 
 class AttachmentUploadView extends HookWidget {
@@ -61,9 +61,9 @@ class AttachmentUploadView extends HookWidget {
                         colors.backgroundBase.secondary,
                       ),
                     ),
-                    icon: iconoir.Send(
-                      width: 32,
-                      height: 32,
+                    icon: AppIcon(
+                      type: AppIconType.send,
+                      size: 32,
                       color: colors.text.primary,
                     ),
                     onPressed: () {

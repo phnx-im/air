@@ -11,11 +11,11 @@ import 'package:air/theme/spacings.dart';
 import 'package:air/ui/colors/palette.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/modal/app_dialog.dart';
+import 'package:air/ui/icons/app_icon.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/ui/typography/monospace.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:url_launcher/url_launcher.dart';
 
 Widget buildBlockElement(
@@ -331,7 +331,9 @@ InlineSpan buildInlineElement(
         ]),
       ),
     ),
-    InlineElement_Image() => const WidgetSpan(child: iconoir.MediaImage()),
+    InlineElement_Image() => const WidgetSpan(
+        child: AppIcon(type: AppIconType.mediaImage),
+      ),
     InlineElement_TaskListMarker(:final field0) => WidgetSpan(
       alignment: PlaceholderAlignment.middle,
       child: Padding(
@@ -340,16 +342,16 @@ InlineSpan buildInlineElement(
           right: Spacings.xxs,
         ),
         child: field0
-            ? iconoir.CheckSquare(
-                width: 20,
-                height: 20,
+            ? AppIcon(
+                type: AppIconType.checkSquare,
+                size: 20,
                 color: isSender
                     ? CustomColorScheme.of(context).message.selfCheckboxCheck
                     : CustomColorScheme.of(context).message.otherCheckboxCheck,
               )
-            : iconoir.Square(
-                width: 20,
-                height: 20,
+            : AppIcon(
+                type: AppIconType.square,
+                size: 20,
                 color: isSender
                     ? CustomColorScheme.of(context).message.selfCheckboxCheck
                     : CustomColorScheme.of(context).message.otherCheckboxCheck,
@@ -720,9 +722,9 @@ class CustomTextEditingController extends TextEditingController {
         ),
       ),
       InlineElement_Image() => buildCorrectWidget(
-        iconoir.MediaImage(
-          width: 32,
-          height: 14,
+        AppIcon(
+          type: AppIconType.mediaImage,
+          size: 32,
           color: CustomColorScheme.of(context).text.primary,
         ),
         inline.start,

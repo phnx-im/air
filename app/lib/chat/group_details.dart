@@ -14,8 +14,8 @@ import 'package:air/util/dialog.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:image_picker/image_picker.dart';
+import 'package:air/ui/icons/app_icon.dart';
 
 import 'change_group_title_dialog.dart';
 import 'chat_details_cubit.dart';
@@ -344,7 +344,11 @@ class _SeeAllRow extends StatelessWidget {
               ),
               const Spacer(),
               if (onPressed != null)
-                iconoir.ArrowRight(width: 16, color: colors.text.primary),
+                AppIcon(
+                  type: AppIconType.arrowRight,
+                  size: 16,
+                  color: colors.text.primary,
+                ),
             ],
           ),
         ),

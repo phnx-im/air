@@ -4,8 +4,8 @@
 
 import 'package:air/theme/spacings.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/icons/app_icon.dart';
 import 'package:flutter/material.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 
 class AppBarPlusButton extends StatelessWidget {
   const AppBarPlusButton({super.key, this.onPressed});
@@ -32,7 +32,11 @@ class AppBarPlusButton extends StatelessWidget {
             child: SizedBox.square(
               dimension: 24,
               child: Center(
-                child: iconoir.Plus(width: 16, color: colors.text.primary),
+                child: AppIcon(
+                  type: AppIconType.plus,
+                  size: 16,
+                  color: colors.text.primary,
+                ),
               ),
             ),
           ),

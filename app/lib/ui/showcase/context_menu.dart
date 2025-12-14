@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/ui/components/context_menu/context_menu_ui.dart';
+import 'package:air/ui/icons/app_icon.dart';
 
 class ContextMenuShowcase extends StatelessWidget {
   const ContextMenuShowcase({super.key});
@@ -18,12 +19,12 @@ class ContextMenuShowcase extends StatelessWidget {
         menuItems: [
           ContextMenuItem(
             onPressed: () {},
-            leadingIcon: Icons.person_outline_rounded,
+            leading: const AppIcon(type: AppIconType.personOutline),
             label: 'Action 1',
           ),
           ContextMenuItem(
             onPressed: () {},
-            leadingIcon: Icons.settings_outlined,
+            leading: const AppIcon(type: AppIconType.settingsOutline),
             label: 'Action 2',
           ),
         ],

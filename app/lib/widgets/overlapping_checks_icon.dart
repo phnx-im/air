@@ -5,6 +5,7 @@
 // ignore_for_file: prefer_const_constructors
 
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/icons/app_icon.dart';
 import 'package:flutter/material.dart';
 
 class DoubleCheckIcon extends StatelessWidget {
@@ -51,10 +52,10 @@ class DoubleCheckIcon extends StatelessWidget {
                 color: backgroundColor,
               ),
               child: Center(
-                child: Icon(
-                  Icons.check,
-                  color: color,
+                child: AppIcon(
+                  type: AppIconType.check,
                   size: size * iconSizeRatio,
+                  color: color,
                 ),
               ),
             ),
@@ -73,10 +74,10 @@ class DoubleCheckIcon extends StatelessWidget {
                   color: backgroundColor,
                 ),
                 child: Center(
-                  child: Icon(
-                    Icons.check,
-                    color: color,
+                  child: AppIcon(
+                    type: AppIconType.check,
                     size: size * iconSizeRatio,
+                    color: color,
                   ),
                 ),
               ),

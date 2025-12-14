@@ -14,12 +14,12 @@ import 'package:air/main.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/icons/app_icon.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 
 import 'add_members_cubit.dart';
 
@@ -434,8 +434,9 @@ class _GroupPicturePicker extends StatelessWidget {
             ? Center(
                 child: IconTheme(
                   data: const IconThemeData(),
-                  child: iconoir.MediaImagePlus(
-                    width: 24,
+                  child: AppIcon(
+                    type: AppIconType.mediaImagePlus,
+                    size: 24,
                     color: colors.text.primary,
                   ),
                 ),
@@ -539,8 +540,9 @@ class _SelectedParticipant extends StatelessWidget {
                       ),
                     ),
                     child: Center(
-                      child: iconoir.Xmark(
-                        width: 10,
+                      child: AppIcon(
+                        type: AppIconType.close,
+                        size: 10,
                         color: colors.backgroundBase.primary,
                       ),
                     ),
@@ -586,7 +588,11 @@ class _CircularBackButton extends StatelessWidget {
             color: colors.backgroundBase.secondary,
           ),
           child: Center(
-            child: iconoir.ArrowLeft(width: 16, color: colors.text.primary),
+            child: AppIcon(
+              type: AppIconType.arrowLeft,
+              size: 16,
+              color: colors.text.primary,
+            ),
           ),
         ),
       ),

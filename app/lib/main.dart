@@ -6,10 +6,10 @@ import 'package:air/app.dart';
 import 'package:air/core/frb_generated.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/icons/app_icon.dart';
 import 'package:air/util/logging.dart';
 import 'package:air/util/platform.dart';
 import 'package:flutter/material.dart';
-import 'package:iconoir_flutter/regular/warning_circle.dart';
 import 'package:path/path.dart' as p;
 
 void main() async {
@@ -30,8 +30,9 @@ void showErrorBanner(BuildContext context, String errorDescription) {
   ScaffoldMessenger.of(context).showMaterialBanner(
     MaterialBanner(
       backgroundColor: CustomColorScheme.of(context).function.danger,
-      leading: WarningCircle(
-        width: 32,
+      leading: AppIcon(
+        type: AppIconType.warningCircle,
+        size: 32,
         color: CustomColorScheme.of(context).function.white,
       ),
       padding: const EdgeInsets.all(20),
@@ -68,7 +69,11 @@ void showErrorBannerStandalone(
       backgroundColor: colors.function.danger,
       elevation: 0,
       dividerColor: Colors.transparent,
-      leading: WarningCircle(width: 32, color: colors.function.white),
+      leading: AppIcon(
+        type: AppIconType.warningCircle,
+        size: 32,
+        color: colors.function.white,
+      ),
       padding: const EdgeInsets.all(20),
       content: Text(
         errorDescription(loc),

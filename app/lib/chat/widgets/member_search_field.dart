@@ -4,8 +4,8 @@
 
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/icons/app_icon.dart';
 import 'package:flutter/material.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 
 class MemberSearchField extends StatelessWidget {
   const MemberSearchField({
@@ -37,9 +37,9 @@ class MemberSearchField extends StatelessWidget {
           visualDensity: VisualDensity.compact,
           prefixIcon: Padding(
             padding: const EdgeInsets.all(8.0),
-            child: iconoir.Search(
-              width: 16,
-              height: 16,
+            child: AppIcon(
+              type: AppIconType.search,
+              size: 16,
               color: customColorScheme.text.primary,
             ),
           ),

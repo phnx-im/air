@@ -10,11 +10,11 @@ import 'package:air/main.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/icons/app_icon.dart';
 import 'package:air/ui/components/context_menu/context_menu.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
@@ -108,17 +108,18 @@ class _PlusButtonState extends State<_PlusButton> {
           onPressed: () {
             contextMenuController.show();
           },
-          child: Container(
-            width: 32,
-            height: 32,
+            child: Container(
+              width: 32,
+              height: 32,
             decoration: BoxDecoration(
               color: CustomColorScheme.of(context).backgroundBase.quaternary,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
-              child: iconoir.Plus(
+              child: AppIcon(
+                type: AppIconType.plus,
+                size: 22,
                 color: CustomColorScheme.of(context).text.primary,
-                width: 22,
               ),
             ),
           ),

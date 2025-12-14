@@ -8,11 +8,11 @@ import 'package:air/chat/chat_details_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ui/icons/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ui/colors/themes.dart';
@@ -57,9 +57,9 @@ class AttachmentImage extends StatelessWidget {
             errorBuilder: (context, error, stackTrace) {
               _log.severe('Failed to load attachment: $error');
               return Align(
-                child: iconoir.WarningCircle(
-                  width: 32,
-                  height: 32,
+                child: AppIcon(
+                  type: AppIconType.warningCircle,
+                  size: 32,
                   color: CustomColorScheme.of(context).text.primary,
                 ),
               );
@@ -131,9 +131,9 @@ class _UploadStatus extends HookWidget {
             mainAxisAlignment: .center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              iconoir.Upload(
-                width: 32,
-                height: 32,
+              AppIcon(
+                type: AppIconType.upload,
+                size: 32,
                 color: CustomColorScheme.of(context).text.primary,
               ),
               const SizedBox(width: Spacings.xxxs),
@@ -170,7 +170,9 @@ class _UploadStatus extends HookWidget {
                         attachmentId: attachmentId,
                       );
                     },
-                    icon: iconoir.Xmark(
+                    icon: AppIcon(
+                      type: AppIconType.close,
+                      size: 24,
                       color: CustomColorScheme.of(context).text.primary,
                     ),
                   ),

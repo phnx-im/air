@@ -11,12 +11,12 @@ import 'package:air/message_list/display_message_tile.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/icons/app_icon.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:iconoir_flutter/regular/prohibition.dart';
 import 'package:intl/intl.dart';
 
 import 'chat_list_cubit.dart';
@@ -224,7 +224,7 @@ class _BlockedBadge extends StatelessWidget {
     final color = CustomColorScheme.of(context).text.tertiary;
     return Row(
       children: [
-        Prohibition(color: color),
+        AppIcon(type: AppIconType.prohibition, color: color),
         const SizedBox(width: Spacings.xxxs),
         Text(
           loc.chatList_blocked,

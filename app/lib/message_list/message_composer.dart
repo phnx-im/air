@@ -9,16 +9,13 @@ import 'package:air/main.dart';
 import 'package:air/message_list/emoji_repository.dart';
 import 'package:air/message_list/emoji_autocomplete.dart';
 import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
+import 'package:air/ui/icons/app_icon.dart';
 import 'package:air/user/user_settings_cubit.dart';
 import 'package:air/util/debouncer.dart';
 import 'package:air/message_list/widgets/text_autocomplete.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:iconoir_flutter/regular/edit_pencil.dart';
-import 'package:iconoir_flutter/regular/plus.dart';
-import 'package:iconoir_flutter/regular/send.dart';
-import 'package:iconoir_flutter/regular/xmark.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
 import 'package:air/chat/chat_details.dart';
@@ -179,9 +176,10 @@ class _MessageComposerState extends State<MessageComposer>
                   borderRadius: BorderRadius.circular(Spacings.m),
                 ),
                 child: IconButton(
-                  icon: Xmark(
+                  icon: AppIcon(
+                    type: AppIconType.close,
+                    size: 32,
                     color: CustomColorScheme.of(context).text.primary,
-                    width: 32,
                   ),
                   color: CustomColorScheme.of(context).text.primary,
                   hoverColor: const Color(0x00FFFFFF),
@@ -201,13 +199,15 @@ class _MessageComposerState extends State<MessageComposer>
               ),
               child: IconButton(
                 icon: _inputIsEmpty
-                    ? Plus(
+                    ? AppIcon(
+                        type: AppIconType.plus,
+                        size: 32,
                         color: CustomColorScheme.of(context).text.primary,
-                        width: 32,
                       )
-                    : Send(
+                    : AppIcon(
+                        type: AppIconType.send,
+                        size: 32,
                         color: CustomColorScheme.of(context).text.primary,
-                        width: 32,
                       ),
                 color: CustomColorScheme.of(context).text.primary,
                 hoverColor: const Color(0x00FFFFFF),
@@ -397,7 +397,11 @@ class _MessageInput extends StatelessWidget {
             ),
             child: Row(
               children: [
-                EditPencil(color: CustomColorScheme.of(context).text.tertiary),
+                AppIcon(
+                  type: AppIconType.editPencil,
+                  size: 20,
+                  color: CustomColorScheme.of(context).text.tertiary,
+                ),
                 const SizedBox(width: Spacings.xxs),
                 Text(
                   loc.composer_editMessage,
