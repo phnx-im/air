@@ -4,7 +4,7 @@
 
 //! Logged-in user feature
 
-use std::{array, sync::Arc};
+use std::sync::Arc;
 
 use aircommon::identifiers::{UserHandle, UserId};
 use aircoreclient::{Asset, PartialContact};
