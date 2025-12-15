@@ -28,6 +28,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
+import 'package:intl/intl.dart';
 import 'package:logging/logging.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -385,7 +386,7 @@ class _MessageView extends HookWidget {
         return;
       }
       await saveFileAndroid(
-        fileName: attachment.filename,
+        fileName: createFilenameFromDatetime(timestamp),
         mimeType: attachment.contentType,
         data: data,
       );
@@ -394,7 +395,7 @@ class _MessageView extends HookWidget {
       // dialog
       final attachmentsRepository = context.read<AttachmentsRepository>();
       final location = await getSaveLocation(
-        suggestedName: attachment.filename,
+        suggestedName: createFilenameFromDatetime(timestamp),
       );
       if (location == null) return;
       final path = location.path;
@@ -446,6 +447,7 @@ class _MessageView extends HookWidget {
 
     final files = (await Future.wait(futures)).whereType<XFile>().toList();
 
+    // TODO: How to set filenames here?
     final params = ShareParams(
       files: files,
       fileNameOverrides: attachments.map((e) => e.filename).toList(),
@@ -779,4 +781,11 @@ BorderRadius _messageBorderRadius(
         ? r(!isSender || flightPosition.isLast)
         : Radius.zero,
   );
+}
+
+
+final format = DateFormat("'Air'--yyyy-MM-dd--HH-mm-ss");
+
+String createFilenameFromDatetime(DateTime timestamp) {
+  return format.format(timestamp);
 }
