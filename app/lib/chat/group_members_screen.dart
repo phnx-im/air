@@ -72,8 +72,6 @@ class GroupMembersView extends HookWidget {
       (ChatDetailsCubit cubit) => cubit.state.members,
     );
 
-    debugPrint("members: $members");
-
     final profiles = context.select(
       (UsersCubit cubit) => {
         for (final userId in members)
