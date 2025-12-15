@@ -2,17 +2,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-
 import 'package:air/core/core.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
+import 'package:collection/collection.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'member_list_item.dart';
 
-class MemberSelectionList extends StatelessWidget {
+class MemberSelectionList extends HookWidget {
   const MemberSelectionList({
     super.key,
     required this.contacts,
@@ -28,25 +29,26 @@ class MemberSelectionList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final usersState = context.select((UsersCubit cubit) => cubit.state);
+    final profiles = context.select(
+      (UsersCubit cubit) => {
+        for (final contact in contacts)
+          contact.userId: cubit.state.profile(userId: contact.userId),
+      },
+    );
+
     final normalizedQuery = query.trim().toLowerCase();
 
-    int comparator(UiContact a, UiContact b) {
-      final nameA = usersState.displayName(userId: a.userId).toLowerCase();
-      final nameB = usersState.displayName(userId: b.userId).toLowerCase();
-      return nameA.compareTo(nameB);
-    }
-
-    final filteredContacts = normalizedQuery.isEmpty
-        ? contacts
-        : contacts.where((contact) {
-            final name = usersState
-                .profile(userId: contact.userId)
-                .displayName
-                .toLowerCase();
-            return name.contains(normalizedQuery);
-          }).toList();
-    final sortedContacts = [...filteredContacts]..sort(comparator);
+    final sortedContacts = useMemoized(() {
+      final filteredContacts = normalizedQuery.isEmpty
+          ? contacts
+          : contacts.where((contact) {
+              final name = profiles[contact.userId]!.displayName.toLowerCase();
+              return name.contains(normalizedQuery);
+            });
+      return filteredContacts.sortedBy(
+        (contact) => profiles[contact.userId]!.displayName.toLowerCase(),
+      );
+    }, [contacts, profiles, normalizedQuery]);
 
     return ListView.separated(
       padding: const EdgeInsets.symmetric(
@@ -61,7 +63,7 @@ class MemberSelectionList extends StatelessWidget {
       ),
       itemBuilder: (context, index) {
         final contact = sortedContacts[index];
-        final profile = usersState.profile(userId: contact.userId);
+        final profile = profiles[contact.userId]!;
         final isSelected = selectedContacts.contains(contact.userId);
 
         return MemberListItem(
