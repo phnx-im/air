@@ -112,11 +112,7 @@ Future<void> main() async {
 
   File(_outputFile).writeAsStringSync(buffer.toString());
   // Keep generated file tidy.
-  Process.runSync(
-    'dart',
-    ['format', _outputFile],
-    runInShell: true,
-  );
+  Process.runSync('dart', ['format', _outputFile], runInShell: true);
   stdout.writeln('Generated $_outputFile with ${svgFiles.length} icons.');
 }
 
