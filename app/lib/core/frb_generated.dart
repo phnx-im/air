@@ -516,7 +516,7 @@ abstract class RustLibApi extends BaseApi {
     required UiUserId spammerId,
   });
 
-  Future<StringArray12> crateApiUserCubitUserCubitBaseSafetyCodes({
+  Future<intArray12> crateApiUserCubitUserCubitBaseSafetyCodes({
     required UserCubitBase that,
     required UiUserId otherUserId,
   });
@@ -4273,7 +4273,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<StringArray12> crateApiUserCubitUserCubitBaseSafetyCodes({
+  Future<intArray12> crateApiUserCubitUserCubitBaseSafetyCodes({
     required UserCubitBase that,
     required UiUserId otherUserId,
   }) {
@@ -4294,7 +4294,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_String_array_12,
+          decodeSuccessData: sse_decode_CastedPrimitive_u_64_array_12,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiUserCubitUserCubitBaseSafetyCodesConstMeta,
@@ -6926,6 +6926,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  intArray12 dco_decode_CastedPrimitive_u_64_array_12(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return intArray12(
+      (raw as List<dynamic>).map(dco_decode_CastedPrimitive_u_64).toList(),
+    );
+  }
+
+  @protected
   int dco_decode_CastedPrimitive_usize(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     throw UnimplementedError(
@@ -7242,14 +7250,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   String dco_decode_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as String;
-  }
-
-  @protected
-  StringArray12 dco_decode_String_array_12(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return StringArray12(
-      (raw as List<dynamic>).map(dco_decode_String).toList(),
-    );
   }
 
   @protected
@@ -7670,9 +7670,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<String> dco_decode_list_String(dynamic raw) {
+  List<int> dco_decode_list_CastedPrimitive_u_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>).map(dco_decode_String).toList();
+    return (raw as List<dynamic>).map(dco_decode_CastedPrimitive_u_64).toList();
   }
 
   @protected
@@ -9049,6 +9049,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  intArray12 sse_decode_CastedPrimitive_u_64_array_12(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_list_CastedPrimitive_u_64(deserializer);
+    return intArray12(inner);
+  }
+
+  @protected
   int sse_decode_CastedPrimitive_usize(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_usize(deserializer);
@@ -9386,13 +9395,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_list_prim_u_8_strict(deserializer);
     return utf8.decoder.convert(inner);
-  }
-
-  @protected
-  StringArray12 sse_decode_String_array_12(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var inner = sse_decode_list_String(deserializer);
-    return StringArray12(inner);
   }
 
   @protected
@@ -9857,13 +9859,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<String> sse_decode_list_String(SseDeserializer deserializer) {
+  List<int> sse_decode_list_CastedPrimitive_u_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <String>[];
+    var ans_ = <int>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_String(deserializer));
+      ans_.add(sse_decode_CastedPrimitive_u_64(deserializer));
     }
     return ans_;
   }
@@ -11526,6 +11528,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_CastedPrimitive_u_64_array_12(
+    intArray12 self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_CastedPrimitive_u_64(self.inner, serializer);
+  }
+
+  @protected
   void sse_encode_CastedPrimitive_usize(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(sseEncodeCastedPrimitiveU64(self), serializer);
@@ -12055,15 +12066,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_String_array_12(
-    StringArray12 self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_list_String(self.inner, serializer);
-  }
-
-  @protected
   void sse_encode_Uuid(UuidValue self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_prim_u_8_strict(self.toBytes(), serializer);
@@ -12529,11 +12531,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_list_String(List<String> self, SseSerializer serializer) {
+  void sse_encode_list_CastedPrimitive_u_64(
+    List<int> self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
-      sse_encode_String(item, serializer);
+      sse_encode_CastedPrimitive_u_64(item, serializer);
     }
   }
 
@@ -14241,7 +14246,10 @@ class UserCubitBaseImpl extends RustOpaque implements UserCubitBase {
         spammerId: spammerId,
       );
 
-  Future<StringArray12> safetyCodes({required UiUserId otherUserId}) =>
+  /// Returns the pair of safety codes of the logged-in user and the given user.
+  ///
+  /// The order of the codes is stable and is determined by their lexicographical order.
+  Future<intArray12> safetyCodes({required UiUserId otherUserId}) =>
       RustLib.instance.api.crateApiUserCubitUserCubitBaseSafetyCodes(
         that: this,
         otherUserId: otherUserId,

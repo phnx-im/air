@@ -390,6 +390,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int dco_decode_CastedPrimitive_u_64(dynamic raw);
 
   @protected
+  intArray12 dco_decode_CastedPrimitive_u_64_array_12(dynamic raw);
+
+  @protected
   int dco_decode_CastedPrimitive_usize(dynamic raw);
 
   @protected
@@ -589,9 +592,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String dco_decode_String(dynamic raw);
 
   @protected
-  StringArray12 dco_decode_String_array_12(dynamic raw);
-
-  @protected
   UuidValue dco_decode_Uuid(dynamic raw);
 
   @protected
@@ -739,7 +739,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 dco_decode_isize(dynamic raw);
 
   @protected
-  List<String> dco_decode_list_String(dynamic raw);
+  List<int> dco_decode_list_CastedPrimitive_u_64(dynamic raw);
 
   @protected
   List<ChatId> dco_decode_list_chat_id(dynamic raw);
@@ -1267,6 +1267,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int sse_decode_CastedPrimitive_u_64(SseDeserializer deserializer);
 
   @protected
+  intArray12 sse_decode_CastedPrimitive_u_64_array_12(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   int sse_decode_CastedPrimitive_usize(SseDeserializer deserializer);
 
   @protected
@@ -1444,9 +1449,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   String sse_decode_String(SseDeserializer deserializer);
-
-  @protected
-  StringArray12 sse_decode_String_array_12(SseDeserializer deserializer);
 
   @protected
   UuidValue sse_decode_Uuid(SseDeserializer deserializer);
@@ -1638,7 +1640,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 sse_decode_isize(SseDeserializer deserializer);
 
   @protected
-  List<String> sse_decode_list_String(SseDeserializer deserializer);
+  List<int> sse_decode_list_CastedPrimitive_u_64(SseDeserializer deserializer);
 
   @protected
   List<ChatId> sse_decode_list_chat_id(SseDeserializer deserializer);
@@ -2266,6 +2268,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_CastedPrimitive_u_64(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_CastedPrimitive_u_64_array_12(
+    intArray12 self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_CastedPrimitive_usize(int self, SseSerializer serializer);
 
   @protected
@@ -2503,9 +2511,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
-  void sse_encode_String_array_12(StringArray12 self, SseSerializer serializer);
-
-  @protected
   void sse_encode_Uuid(UuidValue self, SseSerializer serializer);
 
   @protected
@@ -2736,7 +2741,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_isize(PlatformInt64 self, SseSerializer serializer);
 
   @protected
-  void sse_encode_list_String(List<String> self, SseSerializer serializer);
+  void sse_encode_list_CastedPrimitive_u_64(
+    List<int> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_chat_id(List<ChatId> self, SseSerializer serializer);

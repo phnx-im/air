@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use aircommon::identifiers::{UserHandle, UserId};
-use aircoreclient::{Asset, PartialContact};
+use aircoreclient::{Asset, PartialContact, SafetyCode};
 use aircoreclient::{ChatId, ContactType, clients::CoreUser, store::Store};
 use anyhow::ensure;
 use flutter_rust_bridge::frb;
@@ -401,7 +401,11 @@ impl UserCubitBase {
             .await
     }
 
-    pub async fn safety_codes(&self, other_user_id: UiUserId) -> anyhow::Result<[String; 12]> {
+    /// Returns the pair of safety codes of the logged-in user and the given user.
+    ///
+    /// The order of the codes is stable and is determined by their lexicographical order.
+    #[frb(type_64bit_int)]
+    pub async fn safety_codes(&self, other_user_id: UiUserId) -> anyhow::Result<[u64; 12]> {
         let own_safety_code = self
             .context
             .core_user
@@ -412,18 +416,15 @@ impl UserCubitBase {
             .core_user
             .safety_code(&other_user_id.into())
             .await?;
-        let (first, second) = if own_safety_code <= other_safety_code {
-            (own_safety_code.to_chunks(), other_safety_code.to_chunks())
+        let mut code = [0u64; 12];
+        if own_safety_code <= other_safety_code {
+            code[0..6].copy_from_slice(&own_safety_code.to_chunks());
+            code[6..12].copy_from_slice(&other_safety_code.to_chunks());
         } else {
-            (other_safety_code.to_chunks(), own_safety_code.to_chunks())
+            code[0..12].copy_from_slice(&other_safety_code.to_chunks());
+            code[6..12].copy_from_slice(&own_safety_code.to_chunks());
         };
-        let safety_codes = chunks_to_strings(first)
-            .into_iter()
-            .chain(chunks_to_strings(second))
-            .collect::<Vec<String>>()
-            .try_into()
-            .map_err(|_| anyhow::anyhow!("failed to collect safety code strings"))?;
-        Ok(safety_codes)
+        Ok(code)
     }
 }
 

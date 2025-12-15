@@ -79,7 +79,7 @@ class ContactDetailsView extends StatelessWidget {
       alignment: Alignment.topCenter,
       child: Column(
         children: [
-          const SizedBox(height: Spacings.s),
+          const SizedBox(height: Spacings.xs),
 
           UserAvatar(size: 192, userId: profile.userId, profile: profile),
 

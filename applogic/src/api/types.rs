@@ -114,13 +114,6 @@ pub struct _MessageDraft {
     pub is_committed: bool,
 }
 
-/// UI representation of a [`SafetyCode`]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[doc(hidden)]
-#[frb(mirror(SafetyCode))]
-#[frb(dart_metadata = ("freezed"))]
-pub struct _SafetyCode(pub [u8; 32]);
-
 /// Status of a chat
 ///
 /// A chat can be inactive or active, or blocked in case this is a 1:1 chat and the contact is
