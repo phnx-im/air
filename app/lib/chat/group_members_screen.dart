@@ -9,8 +9,10 @@ import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'chat_details_cubit.dart';
 import 'member_details_cubit.dart';
 import 'widgets/member_list_item.dart';
@@ -53,55 +55,54 @@ class GroupMembersScreen extends StatelessWidget {
   }
 }
 
-class GroupMembersView extends StatefulWidget {
+class GroupMembersView extends HookWidget {
   const GroupMembersView({super.key});
 
   @override
-  State<GroupMembersView> createState() => _GroupMembersViewState();
-}
-
-class _GroupMembersViewState extends State<GroupMembersView> {
-  final TextEditingController _controller = TextEditingController();
-  String _query = '';
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final members = context.select(
-      (ChatDetailsCubit cubit) => cubit.state.members,
-    );
     final chatId = context.select(
       (NavigationCubit cubit) => cubit.state.chatId,
     );
-    final roomState = context.select(
-      (MemberDetailsCubit cubit) => cubit.state.roomState,
-    );
-    final ownUserId = context.select((UserCubit cubit) => cubit.state.userId);
-    final usersState = context.select((UsersCubit cubit) => cubit.state);
 
     if (chatId == null) {
       return const SizedBox.shrink();
     }
 
+    final members = context.select(
+      (ChatDetailsCubit cubit) => cubit.state.members,
+    );
+
+    debugPrint("members: $members");
+
+    final profiles = context.select(
+      (UsersCubit cubit) => {
+        for (final userId in members)
+          userId: cubit.state.profile(userId: userId),
+      },
+    );
+    final roomState = context.select(
+      (MemberDetailsCubit cubit) => cubit.state.roomState,
+    );
+    final ownUserId = context.select((UserCubit cubit) => cubit.state.userId);
+
+    final controller = useTextEditingController();
+    final query = useState("");
+
     final loc = AppLocalizations.of(context);
     final colorScheme = CustomColorScheme.of(context);
 
-    final query = _query.trim().toLowerCase();
-    final filteredMembers = members.where((memberId) {
-      if (query.isEmpty) return true;
-      final name = usersState.displayName(userId: memberId).toLowerCase();
-      if (name.contains(query)) return true;
-      if (memberId == ownUserId &&
-          loc.chatList_you.toLowerCase().contains(query)) {
-        return true;
-      }
-      return false;
-    }).toList();
+    final sortedMembers = useMemoized(() {
+      final youValue = loc.chatList_you.toLowerCase();
+      final filteredMembers = members.where((memberId) {
+        if (query.value.isEmpty) return true;
+        final name = profiles[memberId]!.displayName.toLowerCase();
+        if (name.contains(query.value)) return true;
+        return memberId == ownUserId && youValue.contains(query.value);
+      });
+      return filteredMembers.sortedBy(
+        (userId) => profiles[userId]!.displayName.toLowerCase(),
+      );
+    }, [members, profiles, query, ownUserId]);
 
     return Scaffold(
       appBar: AppBar(
@@ -125,9 +126,10 @@ class _GroupMembersViewState extends State<GroupMembersView> {
             child: Column(
               children: [
                 MemberSearchField(
-                  controller: _controller,
+                  controller: controller,
                   hintText: loc.groupMembersScreen_searchHint,
-                  onChanged: (value) => setState(() => _query = value),
+                  onChanged: (value) =>
+                      query.value = value.toLowerCase().trim(),
                 ),
                 Expanded(
                   child: ListView.separated(
@@ -135,7 +137,7 @@ class _GroupMembersViewState extends State<GroupMembersView> {
                       horizontal: Spacings.m,
                       vertical: Spacings.xs,
                     ),
-                    itemCount: filteredMembers.length,
+                    itemCount: sortedMembers.length,
                     separatorBuilder: (context, index) => Divider(
                       height: 1,
                       thickness: 1,
@@ -143,7 +145,7 @@ class _GroupMembersViewState extends State<GroupMembersView> {
                     ),
                     itemBuilder: (context, index) => _GroupMemberTile(
                       chatId: chatId,
-                      memberId: filteredMembers[index],
+                      memberId: sortedMembers[index],
                       ownUserId: ownUserId,
                       roomState: roomState,
                     ),

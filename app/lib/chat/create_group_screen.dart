@@ -16,8 +16,10 @@ import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/avatar.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 
@@ -181,7 +183,7 @@ class _MemberSelectionStepState extends State<_MemberSelectionStep> {
   }
 }
 
-class _CreateGroupDetailsStep extends StatefulWidget {
+class _CreateGroupDetailsStep extends HookWidget {
   const _CreateGroupDetailsStep({
     required this.onBack,
     required this.chatListCubit,
@@ -191,48 +193,35 @@ class _CreateGroupDetailsStep extends StatefulWidget {
   final ChatListCubit chatListCubit;
 
   @override
-  State<_CreateGroupDetailsStep> createState() =>
-      _CreateGroupDetailsStepState();
-}
-
-class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
-  final TextEditingController _nameController = TextEditingController();
-  final FocusNode _nameFocusNode = FocusNode();
-  Uint8List? _picture;
-  bool _isCreating = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _nameFocusNode.addListener(_handleFocusChange);
-    _nameController.addListener(() => setState(() {}));
-  }
-
-  @override
-  void dispose() {
-    _nameFocusNode.removeListener(_handleFocusChange);
-    _nameFocusNode.dispose();
-    _nameController.dispose();
-    super.dispose();
-  }
-
-  void _handleFocusChange() => setState(() {});
-
-  bool get _isGroupNameValid => _nameController.text.trim().isNotEmpty;
-
-  bool get _showHelperText => _nameFocusNode.hasFocus && !_isGroupNameValid;
-
-  @override
   Widget build(BuildContext context) {
-    final addMembersState = context.watch<AddMembersCubit>().state;
-    final usersState = context.watch<UsersCubit>().state;
+    final selectedIds = context.select(
+      (AddMembersCubit cubit) => cubit.state.selectedContacts,
+    );
+
+    final selectedProfiles = context.select(
+      (UsersCubit cubit) => {
+        for (final userId in selectedIds)
+          userId: cubit.state.profile(userId: userId),
+      },
+    );
+
+    final sortedSelectedIds = useMemoized(
+      () => selectedIds.sortedBy(
+        (userId) => selectedProfiles[userId]!.displayName.toLowerCase(),
+      ),
+      [selectedIds, selectedProfiles],
+    );
+
+    final picture = useState<Uint8List?>(null);
+    final isCreating = useState(false);
+    final nameController = useTextEditingController();
+    final nameFocusNode = useFocusNode();
+
+    final isGroupNameValid = nameController.value.text.trim().isNotEmpty;
+    final showHelperText = nameFocusNode.hasFocus && !isGroupNameValid;
+
     final loc = AppLocalizations.of(context);
     final colors = CustomColorScheme.of(context);
-
-    final selectedIds = addMembersState.selectedContacts.toList();
-    final contactsById = {
-      for (final contact in addMembersState.contacts) contact.userId: contact,
-    };
 
     return Scaffold(
       appBar: AppBar(
@@ -242,12 +231,18 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
         titleSpacing: 0,
         title: _GroupCreationAppBarTitle(
           title: loc.groupCreationDetails_title,
-          leading: _CircularBackButton(onPressed: _handleBack),
+          leading: _CircularBackButton(
+            onPressed: () => _handleBack(context, isCreating.value),
+          ),
           trailing: AppBarButton(
-            onPressed: _isGroupNameValid && !_isCreating
-                ? _createGroupChat
+            onPressed: isGroupNameValid && !isCreating.value
+                ? () => _createGroupChat(
+                    context,
+                    nameController.text.trim(),
+                    isCreating,
+                  )
                 : null,
-            child: _isCreating
+            child: isCreating.value
                 ? SizedBox(
                     width: 16,
                     height: 16,
@@ -282,22 +277,22 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
                   children: [
                     Center(
                       child: _GroupPicturePicker(
-                        picture: _picture,
-                        onPick: _pickImage,
+                        picture: picture.value,
+                        onPick: () => _pickImage(picture),
                       ),
                     ),
                     const SizedBox(height: Spacings.l),
                     SizedBox(
                       width: double.infinity,
                       child: TextField(
-                        controller: _nameController,
-                        focusNode: _nameFocusNode,
+                        controller: nameController,
+                        focusNode: nameFocusNode,
                         textInputAction: TextInputAction.next,
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.displayLarge
                             ?.copyWith(fontWeight: FontWeight.bold),
                         decoration: InputDecoration(
-                          hintText: _nameFocusNode.hasFocus
+                          hintText: nameFocusNode.hasFocus
                               ? loc.groupCreationDetails_groupNameHintFocused
                               : loc.groupCreationDetails_groupNameHint,
                           hintStyle: Theme.of(context).textTheme.displayLarge
@@ -311,7 +306,7 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
                         ),
                       ),
                     ),
-                    if (_showHelperText) ...[
+                    if (showHelperText) ...[
                       const SizedBox(height: Spacings.xxs),
                       Center(
                         child: Text(
@@ -328,15 +323,14 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
                         alignment: WrapAlignment.start,
                         spacing: Spacings.s,
                         runSpacing: Spacings.s,
-                        children: selectedIds.map((userId) {
-                          final profile = usersState.profile(userId: userId);
-                          final contact = contactsById[userId];
-                          if (contact == null) {
+                        children: sortedSelectedIds.map((userId) {
+                          final profile = selectedProfiles[userId];
+                          if (profile == null) {
                             return const SizedBox.shrink();
                           }
                           return _SelectedParticipant(
                             profile: profile,
-                            onRemove: () => _removeContact(contact),
+                            onRemove: () => _removeContact(context, userId),
                           );
                         }).toList(),
                       )
@@ -359,51 +353,58 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
     );
   }
 
-  void _handleBack() {
-    if (_isCreating) return;
+  void _handleBack(BuildContext context, bool isCreating) {
+    if (isCreating) return;
     FocusScope.of(context).unfocus();
-    widget.onBack();
+    onBack();
   }
 
-  Future<void> _pickImage() async {
+  void _pickImage(ValueNotifier<Uint8List?> picture) async {
     final picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     if (image == null) {
       return;
     }
     final bytes = await image.readAsBytes();
-    if (!mounted) return;
-    setState(() => _picture = bytes);
+    picture.value = bytes;
   }
 
-  void _removeContact(UiContact contact) {
-    context.read<AddMembersCubit>().toggleContact(contact);
+  void _removeContact(BuildContext context, UiUserId userId) {
+    final addMemberCubit = context.read<AddMembersCubit>();
+    final contact = addMemberCubit.state.contacts.firstWhereOrNull(
+      (contact) => contact.userId == contact.userId,
+    );
+    if (contact == null) {
+      throw StateError('Contact not found');
+    }
+    addMemberCubit.toggleContact(contact);
   }
 
-  Future<void> _createGroupChat() async {
-    final groupName = _nameController.text.trim();
+  Future<void> _createGroupChat(
+    BuildContext context,
+    String groupName,
+    ValueNotifier<bool> isCreating,
+  ) async {
     if (groupName.isEmpty) return;
     final navigationCubit = context.read<NavigationCubit>();
-    final chatListCubit = widget.chatListCubit;
     final userCubit = context.read<UserCubit>();
     final addMembersCubit = context.read<AddMembersCubit>();
     final selectedContacts = addMembersCubit.state.selectedContacts;
 
-    setState(() => _isCreating = true);
+    isCreating.value = true;
 
     try {
       final chatId = await chatListCubit.createGroupChat(groupName: groupName);
       for (final userId in selectedContacts) {
         await userCubit.addUserToChat(chatId, userId);
       }
-      if (!mounted) return;
+      if (!context.mounted) return;
       navigationCubit.pop();
       await navigationCubit.openChat(chatId);
     } catch (error) {
-      if (!mounted) return;
-      setState(() => _isCreating = false);
-      final loc = AppLocalizations.of(context);
-      showErrorBanner(context, loc.newChatDialog_error(groupName));
+      showErrorBannerStandalone((loc) => loc.newChatDialog_error(groupName));
+    } finally {
+      isCreating.value = false;
     }
   }
 }
