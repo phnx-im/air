@@ -332,8 +332,8 @@ InlineSpan buildInlineElement(
       ),
     ),
     InlineElement_Image() => const WidgetSpan(
-        child: AppIcon(type: AppIconType.mediaImage),
-      ),
+      child: AppIcon(type: AppIconType.mediaImage),
+    ),
     InlineElement_TaskListMarker(:final field0) => WidgetSpan(
       alignment: PlaceholderAlignment.middle,
       child: Padding(

@@ -108,9 +108,9 @@ class _PlusButtonState extends State<_PlusButton> {
           onPressed: () {
             contextMenuController.show();
           },
-            child: Container(
-              width: 32,
-              height: 32,
+          child: Container(
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
               color: CustomColorScheme.of(context).backgroundBase.quaternary,
               borderRadius: BorderRadius.circular(16),

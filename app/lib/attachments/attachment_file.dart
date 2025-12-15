@@ -39,11 +39,7 @@ class AttachmentFile extends HookWidget {
                 size: attachment.size,
                 color: color,
               )
-            : AppIcon(
-                type: AppIconType.attachment,
-                size: 32,
-                color: color,
-              ),
+            : AppIcon(type: AppIconType.attachment, size: 32, color: color),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -89,10 +85,10 @@ class _UploadStatus extends HookWidget {
     return Center(
       child: switch (uploadStatus.data) {
         null || UiAttachmentStatus_Completed() => AppIcon(
-            type: AppIconType.attachment,
-            size: 32,
-            color: color,
-          ),
+          type: AppIconType.attachment,
+          size: 32,
+          color: color,
+        ),
         UiAttachmentStatus_Pending() ||
         UiAttachmentStatus_Failed() => IconButton(
           onPressed: () {
@@ -106,10 +102,10 @@ class _UploadStatus extends HookWidget {
             ).backgroundBase.tertiary,
           ),
           icon: AppIcon(
-              type: AppIconType.upload,
-              size: 32,
-              color: CustomColorScheme.of(context).text.secondary,
-            ),
+            type: AppIconType.upload,
+            size: 32,
+            color: CustomColorScheme.of(context).text.secondary,
+          ),
         ),
         UiAttachmentStatus_Progress(field0: final loaded) => Stack(
           alignment: Alignment.center,
@@ -126,11 +122,7 @@ class _UploadStatus extends HookWidget {
                   attachmentId: attachmentId,
                 );
               },
-              icon: AppIcon(
-                  type: AppIconType.close,
-                  size: 32,
-                  color: color,
-                ),
+              icon: AppIcon(type: AppIconType.close, size: 32, color: color),
             ),
           ],
         ),

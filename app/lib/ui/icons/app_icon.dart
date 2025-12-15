@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
+
+import 'generated_svg_icons.dart';
 
 /// Centralized icon catalog for the app.
 ///
@@ -66,160 +67,168 @@ class AppIcon extends StatelessWidget {
     final iconSize = size;
 
     return switch (type) {
-      AppIconType.plus => Icon(
-        LucideIcons.plus300,
+      AppIconType.plus => compiledSvgWidget(
+        CompiledSvgIcon.plus,
         size: iconSize,
         color: color,
       ),
-      AppIconType.close => Icon(LucideIcons.x, size: iconSize, color: color),
-      AppIconType.arrowLeft => Icon(
-        LucideIcons.arrowLeft,
+      AppIconType.close => compiledSvgWidget(
+        CompiledSvgIcon.x,
         size: iconSize,
         color: color,
       ),
-      AppIconType.send => Icon(
-        LucideIcons.arrowUp300,
+      AppIconType.arrowLeft => compiledSvgWidget(
+        CompiledSvgIcon.arrowLeft,
         size: iconSize,
         color: color,
       ),
-      AppIconType.warningCircle => Icon(
-        LucideIcons.circleAlert,
+      AppIconType.send => compiledSvgWidget(
+        CompiledSvgIcon.send,
         size: iconSize,
         color: color,
       ),
-      AppIconType.upload => Icon(
-        LucideIcons.upload,
+      AppIconType.warningCircle => compiledSvgWidget(
+        CompiledSvgIcon.circleAlert,
         size: iconSize,
         color: color,
       ),
-      AppIconType.mediaImage => Icon(
-        LucideIcons.image,
+      AppIconType.upload => compiledSvgWidget(
+        CompiledSvgIcon.upload,
         size: iconSize,
         color: color,
       ),
-      AppIconType.camera => Icon(
-        LucideIcons.camera,
+      AppIconType.mediaImage => compiledSvgWidget(
+        CompiledSvgIcon.image,
         size: iconSize,
         color: color,
       ),
-      AppIconType.attachment => Icon(
-        LucideIcons.paperclip,
+      AppIconType.camera => compiledSvgWidget(
+        CompiledSvgIcon.camera,
         size: iconSize,
         color: color,
       ),
-      AppIconType.prohibition => Icon(
-        LucideIcons.ban,
+      AppIconType.attachment => compiledSvgWidget(
+        CompiledSvgIcon.paperclip,
         size: iconSize,
         color: color,
       ),
-      AppIconType.mediaImagePlus => Icon(
-        LucideIcons.imagePlus,
+      AppIconType.prohibition => compiledSvgWidget(
+        CompiledSvgIcon.ban,
         size: iconSize,
         color: color,
       ),
-      AppIconType.checkSquare => Icon(
-        LucideIcons.squareCheck,
+      AppIconType.mediaImagePlus => compiledSvgWidget(
+        CompiledSvgIcon.imagePlus,
         size: iconSize,
         color: color,
       ),
-      AppIconType.square => Icon(
-        LucideIcons.square,
+      AppIconType.checkSquare => compiledSvgWidget(
+        CompiledSvgIcon.squareCheck,
         size: iconSize,
         color: color,
       ),
-      AppIconType.search => Icon(
-        LucideIcons.search,
+      AppIconType.square => compiledSvgWidget(
+        CompiledSvgIcon.square,
         size: iconSize,
         color: color,
       ),
-      AppIconType.copy => Icon(LucideIcons.copy, size: iconSize, color: color),
-      AppIconType.editPencil => Icon(
-        LucideIcons.pencil,
+      AppIconType.search => compiledSvgWidget(
+        CompiledSvgIcon.search,
         size: iconSize,
         color: color,
       ),
-      AppIconType.download => Icon(
-        LucideIcons.download,
+      AppIconType.copy => compiledSvgWidget(
+        CompiledSvgIcon.copy,
         size: iconSize,
         color: color,
       ),
-      AppIconType.shareIos => Icon(
-        LucideIcons.share,
+      AppIconType.editPencil => compiledSvgWidget(
+        CompiledSvgIcon.pencil,
         size: iconSize,
         color: color,
       ),
-      AppIconType.refreshDouble => Icon(
-        LucideIcons.refreshCw,
+      AppIconType.download => compiledSvgWidget(
+        CompiledSvgIcon.download,
         size: iconSize,
         color: color,
       ),
-      AppIconType.trash => Icon(
-        LucideIcons.trash,
+      AppIconType.shareIos => compiledSvgWidget(
+        CompiledSvgIcon.share,
         size: iconSize,
         color: color,
       ),
-      AppIconType.arrowRight => Icon(
-        LucideIcons.arrowRight,
+      AppIconType.refreshDouble => compiledSvgWidget(
+        CompiledSvgIcon.refreshCw,
         size: iconSize,
         color: color,
       ),
-      AppIconType.chatBubbleEmpty => Icon(
-        LucideIcons.messageCircle,
+      AppIconType.trash => compiledSvgWidget(
+        CompiledSvgIcon.trash,
         size: iconSize,
         color: color,
       ),
-      AppIconType.check => Icon(
-        LucideIcons.check,
+      AppIconType.arrowRight => compiledSvgWidget(
+        CompiledSvgIcon.arrowRight,
         size: iconSize,
         color: color,
       ),
-      AppIconType.brokenImage => Icon(
-        Icons.broken_image_outlined,
-        color: color,
-        size: iconSize,
-      ),
-      AppIconType.personOutline => Icon(
-        LucideIcons.user,
+      AppIconType.chatBubbleEmpty => compiledSvgWidget(
+        CompiledSvgIcon.messageCircle,
         size: iconSize,
         color: color,
       ),
-      AppIconType.settingsOutline => Icon(
-        LucideIcons.settings,
+      AppIconType.check => compiledSvgWidget(
+        CompiledSvgIcon.check,
         size: iconSize,
         color: color,
       ),
-      AppIconType.refresh => Icon(
-        LucideIcons.refreshCcw,
+      AppIconType.brokenImage => compiledSvgWidget(
+        CompiledSvgIcon.imageOff,
         size: iconSize,
         color: color,
       ),
-      AppIconType.changeCircle => Icon(
-        LucideIcons.repeat,
+      AppIconType.personOutline => compiledSvgWidget(
+        CompiledSvgIcon.user,
         size: iconSize,
         color: color,
       ),
-      AppIconType.logout => Icon(
-        LucideIcons.logOut,
+      AppIconType.settingsOutline => compiledSvgWidget(
+        CompiledSvgIcon.settings,
         size: iconSize,
         color: color,
       ),
-      AppIconType.textSnippet => Icon(
-        LucideIcons.fileText,
+      AppIconType.refresh => compiledSvgWidget(
+        CompiledSvgIcon.refreshCcw,
         size: iconSize,
         color: color,
       ),
-      AppIconType.fileDownload => Icon(
-        LucideIcons.fileDown,
+      AppIconType.changeCircle => compiledSvgWidget(
+        CompiledSvgIcon.repeat,
         size: iconSize,
         color: color,
       ),
-      AppIconType.fileUpload => Icon(
-        LucideIcons.fileUp,
+      AppIconType.logout => compiledSvgWidget(
+        CompiledSvgIcon.logOut,
         size: iconSize,
         color: color,
       ),
-      AppIconType.delete => Icon(
-        LucideIcons.trash2,
+      AppIconType.textSnippet => compiledSvgWidget(
+        CompiledSvgIcon.fileText,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.fileDownload => compiledSvgWidget(
+        CompiledSvgIcon.fileDown,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.fileUpload => compiledSvgWidget(
+        CompiledSvgIcon.fileUp,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.delete => compiledSvgWidget(
+        CompiledSvgIcon.trash2,
         size: iconSize,
         color: color,
       ),
