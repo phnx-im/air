@@ -40,12 +40,8 @@ sealed class RegistrationState with _$RegistrationState {
   bool get isDomainValid => _domainRegex.hasMatch(domain);
   bool get isValid =>
       isDomainValid && displayName.trim().isNotEmpty && invitationCode != null;
-  String get serverUrl => domain == "localhost"
-      ? "http://$domain:8080"
-      : domain == "air.ms"
-      // For now, we redirect to the production server manually.
-      ? "https://prod.air.ms"
-      : "https://$domain";
+  String get serverUrl =>
+      domain == "localhost" ? "http://$domain:8080" : "https://$domain";
 }
 
 class RegistrationCubit extends Cubit<RegistrationState> {

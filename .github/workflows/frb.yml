@@ -35,7 +35,7 @@ jobs:
           cache: false
 
       - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@1.90.0
+        uses: dtolnay/rust-toolchain@1.92.0
         with:
           components: rustfmt
 
