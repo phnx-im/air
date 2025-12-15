@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use aircommon::identifiers::{UserHandle, UserId};
-use aircoreclient::{Asset, PartialContact, SafetyCode};
+use aircoreclient::{Asset, PartialContact};
 use aircoreclient::{ChatId, ContactType, clients::CoreUser, store::Store};
 use anyhow::ensure;
 use flutter_rust_bridge::frb;
@@ -426,17 +426,6 @@ impl UserCubitBase {
         };
         Ok(code)
     }
-}
-
-fn chunks_to_strings(chunks: [u64; 6]) -> [String; 6] {
-    [
-        format!("{:05}", chunks[0]),
-        format!("{:05}", chunks[1]),
-        format!("{:05}", chunks[2]),
-        format!("{:05}", chunks[3]),
-        format!("{:05}", chunks[4]),
-        format!("{:05}", chunks[5]),
-    ]
 }
 
 impl Drop for UserCubitBase {
