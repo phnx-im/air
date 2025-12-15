@@ -4,7 +4,7 @@
 
 //! Logged-in user feature
 
-use std::sync::Arc;
+use std::{array, sync::Arc};
 
 use aircommon::identifiers::{UserHandle, UserId};
 use aircoreclient::{Asset, PartialContact};
@@ -406,24 +406,23 @@ impl UserCubitBase {
     /// The order of the codes is stable and is determined by their lexicographical order.
     #[frb(type_64bit_int)]
     pub async fn safety_codes(&self, other_user_id: UiUserId) -> anyhow::Result<[u64; 12]> {
-        let own_safety_code = self
+        let mut first = self
             .context
             .core_user
             .safety_code(self.context.core_user.user_id())
             .await?;
-        let other_safety_code = self
+        let mut second = self
             .context
             .core_user
             .safety_code(&other_user_id.into())
             .await?;
-        let mut code = [0u64; 12];
-        if own_safety_code <= other_safety_code {
-            code[0..6].copy_from_slice(&own_safety_code.to_chunks());
-            code[6..12].copy_from_slice(&other_safety_code.to_chunks());
-        } else {
-            code[0..6].copy_from_slice(&other_safety_code.to_chunks());
-            code[6..12].copy_from_slice(&own_safety_code.to_chunks());
-        };
+        if first > second {
+            std::mem::swap(&mut first, &mut second);
+        }
+        let mut code = [0; 12];
+        let (prefix, suffix) = code.split_at_mut(6);
+        prefix.copy_from_slice(&first.to_chunks());
+        suffix.copy_from_slice(&second.to_chunks());
         Ok(code)
     }
 }
