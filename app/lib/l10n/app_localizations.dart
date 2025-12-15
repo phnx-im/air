@@ -910,20 +910,32 @@ abstract class AppLocalizations {
   /// No description provided for @newConnectionDialog_newConnectionTitle.
   ///
   /// In en, this message translates to:
-  /// **'New Air contact'**
+  /// **'Add Air contact'**
   String get newConnectionDialog_newConnectionTitle;
 
   /// No description provided for @newConnectionDialog_newConnectionDescription.
   ///
   /// In en, this message translates to:
-  /// **'Type the username of the person you want to connect to'**
+  /// **'Enter the username of the person you want to message.'**
   String get newConnectionDialog_newConnectionDescription;
+
+  /// No description provided for @newConnectionDialog_inputLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Username (required)'**
+  String get newConnectionDialog_inputLabel;
 
   /// No description provided for @newConnectionDialog_usernamePlaceholder.
   ///
   /// In en, this message translates to:
-  /// **'Username'**
+  /// **'Type a username...'**
   String get newConnectionDialog_usernamePlaceholder;
+
+  /// No description provided for @newConnectionDialog_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get newConnectionDialog_cancel;
 
   /// No description provided for @newConnectionDialog_actionButton.
   ///
@@ -946,7 +958,7 @@ abstract class AppLocalizations {
   /// No description provided for @newConnectionDialog_error_handleNotFound.
   ///
   /// In en, this message translates to:
-  /// **'Username {username} doesn\'t exist'**
+  /// **'Username {username} doesn\'t exist. Get the correct username and try again.'**
   String newConnectionDialog_error_handleNotFound(Object username);
 
   /// No description provided for @newConnectionDialog_error_duplicateRequest.

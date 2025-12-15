@@ -508,7 +508,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'Gib den Benutzernamen des Benutzers ein, mit dem du dich verbinden möchtest';
 
   @override
+  String get newConnectionDialog_inputLabel => 'Username (required)';
+
+  @override
   String get newConnectionDialog_usernamePlaceholder => 'Benutzername';
+
+  @override
+  String get newConnectionDialog_cancel => 'Cancel';
 
   @override
   String get newConnectionDialog_actionButton => 'Verbinden';

@@ -170,13 +170,15 @@
 
   "newChatDialog_error": "Failed to create new group chat with name {chatName}",
 
-  "newConnectionDialog_newConnectionTitle": "New Air contact",
-  "newConnectionDialog_newConnectionDescription": "Type the username of the person you want to connect to",
-  "newConnectionDialog_usernamePlaceholder": "Username",
+  "newConnectionDialog_newConnectionTitle": "Add Air contact",
+  "newConnectionDialog_newConnectionDescription": "Enter the username of the person you want to message.",
+  "newConnectionDialog_inputLabel": "Username (required)",
+  "newConnectionDialog_usernamePlaceholder": "Type a username...",
+  "newConnectionDialog_cancel": "Cancel",
   "newConnectionDialog_actionButton": "Connect",
   "newConnectionDialog_error": "Failed to send {username} a contact request. Try again.",
   "newConnectionDialog_error_emptyHandle": "Type the username",
-  "newConnectionDialog_error_handleNotFound": "Username {username} doesn't exist",
+  "newConnectionDialog_error_handleNotFound": "Username {username} doesn't exist. Get the correct username and try again.",
   "newConnectionDialog_error_duplicateRequest": "You already have a pending contact request to this username.",
   "newConnectionDialog_error_ownHandle": "You can't send a contact request to yourself.",
 

@@ -499,14 +499,20 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get newConnectionDialog_newConnectionTitle => 'New Air contact';
+  String get newConnectionDialog_newConnectionTitle => 'Add Air contact';
 
   @override
   String get newConnectionDialog_newConnectionDescription =>
-      'Type the username of the person you want to connect to';
+      'Enter the username of the person you want to message.';
 
   @override
-  String get newConnectionDialog_usernamePlaceholder => 'Username';
+  String get newConnectionDialog_inputLabel => 'Username (required)';
+
+  @override
+  String get newConnectionDialog_usernamePlaceholder => 'Type a username...';
+
+  @override
+  String get newConnectionDialog_cancel => 'Cancel';
 
   @override
   String get newConnectionDialog_actionButton => 'Connect';
@@ -521,7 +527,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String newConnectionDialog_error_handleNotFound(Object username) {
-    return 'Username $username doesn\'t exist';
+    return 'Username $username doesn\'t exist. Get the correct username and try again.';
   }
 
   @override

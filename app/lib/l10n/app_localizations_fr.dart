@@ -510,7 +510,13 @@ class AppLocalizationsFr extends AppLocalizations {
       'Saisissez le nom d\'utilisateur de la personne avec laquelle vous souhaitez vous connecter';
 
   @override
+  String get newConnectionDialog_inputLabel => 'Username (required)';
+
+  @override
   String get newConnectionDialog_usernamePlaceholder => 'Nom d\'utilisateur';
+
+  @override
+  String get newConnectionDialog_cancel => 'Cancel';
 
   @override
   String get newConnectionDialog_actionButton => 'Se connecter';
