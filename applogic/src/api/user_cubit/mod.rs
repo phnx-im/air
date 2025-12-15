@@ -421,7 +421,7 @@ impl UserCubitBase {
             code[0..6].copy_from_slice(&own_safety_code.to_chunks());
             code[6..12].copy_from_slice(&other_safety_code.to_chunks());
         } else {
-            code[0..12].copy_from_slice(&other_safety_code.to_chunks());
+            code[0..6].copy_from_slice(&other_safety_code.to_chunks());
             code[6..12].copy_from_slice(&own_safety_code.to_chunks());
         };
         Ok(code)
