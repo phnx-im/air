@@ -12,7 +12,7 @@ use crate::{clients::CoreUser, groups::client_auth_info::StorableClientCredentia
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TlsSize, TlsSerialize)]
 #[repr(u8)]
 enum SafetyCodeVersion {
-    V1,
+    V1 = 1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
