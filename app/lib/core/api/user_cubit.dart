@@ -14,7 +14,7 @@ import 'package:uuid/uuid.dart';
 import 'types.dart';
 import 'user.dart';
 
-// These functions are ignored because they are not marked as `pub`: `chunks_to_strings`, `core_user`, `emit_stored_notifications`, `new`, `show_notifications`, `spawn_emit_stored_notifications`, `spawn_load`
+// These functions are ignored because they are not marked as `pub`: `core_user`, `emit_stored_notifications`, `new`, `show_notifications`, `spawn_emit_stored_notifications`, `spawn_load`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CubitContext`, `NotificationContext`, `UiUserInner`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `drop`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
