@@ -8,6 +8,7 @@ app/lib/core/frb_**.dart linguist-generated=true
 app/lib/core/notifications.dart linguist-generated=true
 app/lib/l10n/app_localizations.dart linguist-generated=true
 app/lib/l10n/app_localizations_*.dart linguist-generated=true
+app/lib/ui/icons/generated_svg_icons.dart linguist-generated=true
 app/assets/fonts/**.ttf filter=lfs diff=lfs merge=lfs -text
 app/android/app/src/main/res/**/*.webp filter=lfs diff=lfs merge=lfs -text
 app/android/app/src/main/ic_launcher-playstore.png filter=lfs diff=lfs merge=lfs -text
