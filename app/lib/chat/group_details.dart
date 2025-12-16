@@ -14,6 +14,7 @@ import 'package:air/util/dialog.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:image_picker/image_picker.dart';
 
@@ -190,7 +191,7 @@ class GroupDetails extends StatelessWidget {
   }
 }
 
-class _PeoplePreview extends StatelessWidget {
+class _PeoplePreview extends HookWidget {
   const _PeoplePreview({required this.memberIds, this.onOpenPressed});
 
   final List<UiUserId> memberIds;
@@ -198,10 +199,24 @@ class _PeoplePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final profiles = context.select(
+      (UsersCubit cubit) => {
+        for (final userId in memberIds)
+          userId: cubit.state.profile(userId: userId),
+      },
+    );
+
+    final previewIds = useMemoized(
+      () => top3(
+        memberIds,
+        (userId) => profiles[userId]!.displayName.toLowerCase(),
+      ),
+      [memberIds, profiles],
+    );
+
     final colors = CustomColorScheme.of(context);
     final textTheme = Theme.of(context).textTheme;
     final loc = AppLocalizations.of(context);
-    final previewIds = memberIds.take(3).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -351,4 +366,23 @@ class _SeeAllRow extends StatelessWidget {
       ),
     );
   }
+}
+
+List<UiUserId> top3(List<UiUserId> list, String Function(UiUserId) keyOf) {
+  UiUserId? a, b, c;
+
+  for (var userId in list) {
+    if (a == null || keyOf(userId).compareTo(keyOf(a)) < 0) {
+      c = b;
+      b = a;
+      a = userId;
+    } else if (b == null || keyOf(userId).compareTo(keyOf(b)) < 0) {
+      c = b;
+      b = userId;
+    } else if (c == null || keyOf(userId).compareTo(keyOf(c)) < 0) {
+      c = userId;
+    }
+  }
+
+  return [a, b, c].whereType<UiUserId>().toList();
 }
