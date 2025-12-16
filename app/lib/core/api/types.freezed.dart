@@ -904,6 +904,72 @@ String toString() {
 
 
 /// @nodoc
+
+
+class UiChatType_PendingConnection extends UiChatType {
+  const UiChatType_PendingConnection(this.field0): super._();
+  
+
+ final  UiUserProfile field0;
+
+/// Create a copy of UiChatType
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiChatType_PendingConnectionCopyWith<UiChatType_PendingConnection> get copyWith => _$UiChatType_PendingConnectionCopyWithImpl<UiChatType_PendingConnection>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatType_PendingConnection&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'UiChatType.pendingConnection(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiChatType_PendingConnectionCopyWith<$Res> implements $UiChatTypeCopyWith<$Res> {
+  factory $UiChatType_PendingConnectionCopyWith(UiChatType_PendingConnection value, $Res Function(UiChatType_PendingConnection) _then) = _$UiChatType_PendingConnectionCopyWithImpl;
+@useResult
+$Res call({
+ UiUserProfile field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiChatType_PendingConnectionCopyWithImpl<$Res>
+    implements $UiChatType_PendingConnectionCopyWith<$Res> {
+  _$UiChatType_PendingConnectionCopyWithImpl(this._self, this._then);
+
+  final UiChatType_PendingConnection _self;
+  final $Res Function(UiChatType_PendingConnection) _then;
+
+/// Create a copy of UiChatType
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(UiChatType_PendingConnection(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as UiUserProfile,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$UiContentMessage {
 
  UiUserId get sender; bool get sent; UiMimiContent get content; bool get edited;

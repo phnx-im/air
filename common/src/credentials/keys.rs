@@ -11,7 +11,6 @@ use mls_assist::{
 use serde::{Deserialize, Serialize};
 use sqlx::{Database, Decode, Encode, Sqlite, Type, encode::IsNull, error::BoxDynError};
 use tls_codec::{Serialize as _, TlsDeserializeBytes, TlsSerialize, TlsSize};
-use tracing::error;
 
 use crate::{
     codec::PersistenceCodec,

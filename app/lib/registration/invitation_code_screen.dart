@@ -309,13 +309,15 @@ void _submit(BuildContext context, GlobalKey<FormState> formKey) async {
 
   if (error == null) {
     navigationCubit.openIntroScreen(const IntroScreenType.signUp());
-  } else if (context.mounted) {
-    final loc = AppLocalizations.of(context);
-    final message = switch (error.code) {
-      .missing => loc.invitationCodeScreen_error_missing,
-      .invalid => loc.invitationCodeScreen_error_invalid,
-      .internal => loc.invitationCodeScreen_error_internal(error.message ?? ""),
-    };
-    showErrorBannerStandalone(message);
+  } else {
+    showErrorBannerStandalone(
+      (loc) => switch (error.code) {
+        .missing => loc.invitationCodeScreen_error_missing,
+        .invalid => loc.invitationCodeScreen_error_invalid,
+        .internal => loc.invitationCodeScreen_error_internal(
+          error.message ?? "",
+        ),
+      },
+    );
   }
 }

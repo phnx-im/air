@@ -149,6 +149,39 @@ pub(crate) mod payload {
     }
 }
 
+mod persistence {
+    use sqlx::{
+        Database, Decode, Encode, Sqlite, Type, encode::IsNull, error::BoxDynError,
+        sqlite::SqliteTypeInfo,
+    };
+    use tls_codec::{DeserializeBytes, Serialize};
+
+    use super::payload::ConnectionInfo;
+
+    impl Type<Sqlite> for ConnectionInfo {
+        fn type_info() -> SqliteTypeInfo {
+            <Vec<u8> as Type<Sqlite>>::type_info()
+        }
+    }
+
+    impl Encode<'_, Sqlite> for ConnectionInfo {
+        fn encode_by_ref(
+            &self,
+            buf: &mut <Sqlite as Database>::ArgumentBuffer<'_>,
+        ) -> Result<IsNull, BoxDynError> {
+            let bytes = self.tls_serialize_detached()?;
+            <Vec<u8> as Encode<'_, Sqlite>>::encode(bytes, buf)
+        }
+    }
+
+    impl Decode<'_, Sqlite> for ConnectionInfo {
+        fn decode(value: <Sqlite as Database>::ValueRef<'_>) -> Result<Self, BoxDynError> {
+            let bytes: Vec<u8> = Decode::<Sqlite>::decode(value)?;
+            ConnectionInfo::tls_deserialize_exact_bytes(&bytes).map_err(From::from)
+        }
+    }
+}
+
 mod tbs {
     use super::*;
     use aircommon::{
@@ -324,6 +357,7 @@ impl EarDecryptable<FriendshipPackageEarKey, EncryptedFriendshipPackageCtype>
 
 #[cfg(test)]
 mod tests {
+
     use aircommon::{
         credentials::test_utils::create_test_credentials,
         crypto::signatures::private_keys::SignatureVerificationError,
@@ -332,7 +366,7 @@ mod tests {
     };
     use tls_codec::{DeserializeBytes as _, Serialize};
 
-    use super::{ConnectionOfferIn, payload::ConnectionOfferPayload};
+    use super::*;
 
     #[test]
     fn signing_and_verifying() {

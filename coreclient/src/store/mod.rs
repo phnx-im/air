@@ -182,6 +182,8 @@ pub trait Store {
 
     async fn unblock_contact(&self, user_id: UserId) -> StoreResult<()>;
 
+    async fn accept_contact_request(&self, chat_id: ChatId) -> StoreResult<()>;
+
     async fn contacts(&self) -> StoreResult<Vec<Contact>>;
 
     async fn contact(&self, user_id: &UserId) -> StoreResult<Option<ContactType>>;

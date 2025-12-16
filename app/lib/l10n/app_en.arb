@@ -306,5 +306,11 @@
   "appOutdatedScreen_title": "Sofware update required",
   "appOutdatedScreen_message": "Update to keep using Air",
   "appOutdatedScreen_description": "Open TestFlight on iOS or Google Play on Android, then update Air.",
-  "appOutdatedScreen_action": "Update"
+  "appOutdatedScreen_action": "Update",
+
+  "contactRequestDialog_title": "Contact request",
+  "contactRequestDialog_avatarHint": "Tap to reveal their picture",
+  "contactRequestDialog_cancel": "Later",
+  "contactRequestDialog_confirm": "Accept",
+  "contactRequestDialog_error_fatal": "Failed to accept contact request"
 }

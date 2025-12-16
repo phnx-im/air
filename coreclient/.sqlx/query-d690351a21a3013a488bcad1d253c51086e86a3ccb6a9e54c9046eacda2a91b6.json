@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                    chat_id AS \"chat_id: ChatId\",\n                    created_at AS \"created_at: TimeStamp\",\n                    connection_info AS \"connection_info: ConnectionInfo\",\n                    handle AS \"handle: _\",\n                    connection_offer_hash AS \"connection_offer_hash: _\",\n                    connection_package_hash AS \"connection_package_hash: _\"\n                FROM pending_connection_info\n                WHERE chat_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "chat_id: ChatId",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "created_at: TimeStamp",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "connection_info: ConnectionInfo",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "handle: _",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "connection_offer_hash: _",
+        "ordinal": 4,
+        "type_info": "Blob"
+      },
+      {
+        "name": "connection_package_hash: _",
+        "ordinal": 5,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "d690351a21a3013a488bcad1d253c51086e86a3ccb6a9e54c9046eacda2a91b6"
+}

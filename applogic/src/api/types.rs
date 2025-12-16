@@ -170,6 +170,8 @@ pub enum UiChatType {
     TargetedMessageConnection(UiUserProfile),
     /// A group chat, that is, it can contains multiple participants.
     Group,
+    /// Incoming connection chat request that is not yet confirmed by us.
+    PendingConnection(UiUserProfile),
 }
 
 impl UiChatType {
@@ -195,6 +197,11 @@ impl UiChatType {
                 Self::TargetedMessageConnection(profile)
             }
             ChatType::Group => Self::Group,
+            ChatType::PendingConnection(user_id) => {
+                let user_profile = store.user_profile(&user_id).await;
+                let profile = UiUserProfile::from_profile(user_profile);
+                Self::PendingConnection(profile)
+            }
         }
     }
 }

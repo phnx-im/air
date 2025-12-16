@@ -117,7 +117,7 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
     final fixedStartHeight = switch (widget.position) {
       UiFlightPosition.start || UiFlightPosition.middle => 0.0,
       // FIXME: magic number
-      // Technically, this is the height of the timestampt and checkmark for the read message,
+      // Technically, this is the height of the timestamp and checkmark for the read message,
       // however the value is exactly the height + spacing.
       UiFlightPosition.single || UiFlightPosition.end => 27.0,
     };

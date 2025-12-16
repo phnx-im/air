@@ -50,7 +50,7 @@ use tracing_subscriber::EnvFilter;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Connect users test", skip_all)]
-async fn connect_users() {
+async fn connect_users_via_user_handle() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
@@ -1792,6 +1792,8 @@ async fn connect_users_via_targeted_message() {
     setup
         .invite_to_group(group_chat_id, &alice, vec![&bob, &charlie])
         .await;
+    let alice_user = &setup.get_user(&alice).user;
+    let group_chat = alice_user.chat(&group_chat_id).await.unwrap();
 
     // Bob now connects to Charlie via a targeted message sent through the
     // shared group.
@@ -1827,15 +1829,14 @@ async fn connect_users_via_targeted_message() {
         "Charlie should process Bob's targeted message without errors"
     );
 
-    // Due to auto-accept, Charlie should have two messages in the new chat.
-    let charlie_chat_id = result.new_connections.pop().unwrap();
-    let charlie_chat_title = charlie_user
-        .chat(&charlie_chat_id)
+    // Charlie accepts the connection request
+    charlie_user
+        .accept_contact_request(bob_chat_id)
         .await
-        .unwrap()
-        .attributes
-        .title
-        .clone();
+        .unwrap();
+
+    // Charlie should have two messages in the new chat
+    let charlie_chat_id = result.new_connections.pop().unwrap();
     let messages = charlie_user.messages(charlie_chat_id, 2).await.unwrap();
     let Message::Event(EventMessage::System(SystemMessage::ReceivedDirectConnectionRequest {
         sender,
@@ -1844,12 +1845,13 @@ async fn connect_users_via_targeted_message() {
     else {
         panic!("Expected NewDirectConnectionChat system message");
     };
-    assert!(
-        *sender == bob,
+    assert_eq!(
+        *sender, bob,
         "System message should indicate connection from Bob"
     );
-    assert!(
-        *chat_name == charlie_chat_title,
+    assert_eq!(
+        *chat_name,
+        group_chat.attributes().title,
         "System message should have the correct chat title"
     );
     let Message::Event(EventMessage::System(SystemMessage::AcceptedConnectionRequest {
@@ -1859,8 +1861,8 @@ async fn connect_users_via_targeted_message() {
     else {
         panic!("Expected AcceptedConnectionRequest system message");
     };
-    assert!(
-        *contact == bob,
+    assert_eq!(
+        *contact, bob,
         "System message should indicate acceptance of connection from Bob"
     );
 

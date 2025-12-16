@@ -7,18 +7,60 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 class AppDialog extends StatelessWidget {
-  const AppDialog({super.key, required this.child});
+  const AppDialog({
+    super.key,
+    this.backgroundColor,
+    this.maxWidth,
+    required this.child,
+  });
 
   final Widget child;
+  final Color? backgroundColor;
+  final double? maxWidth;
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      backgroundColor: backgroundColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(Spacings.m),
       ),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 340),
+        constraints: BoxConstraints(maxWidth: maxWidth ?? 340),
+        padding: const EdgeInsets.only(
+          left: Spacings.s,
+          right: Spacings.s,
+          top: Spacings.m,
+          bottom: Spacings.s,
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
+/// Same as [AppDialog] but can be used outside of a [Dialog] context.
+class AppDialogContainer extends StatelessWidget {
+  const AppDialogContainer({
+    super.key,
+    this.backgroundColor,
+    this.maxWidth,
+    required this.child,
+  });
+
+  final Widget child;
+  final Color? backgroundColor;
+  final double? maxWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 360),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(Spacings.m),
+        ),
         padding: const EdgeInsets.only(
           left: Spacings.s,
           right: Spacings.s,

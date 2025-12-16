@@ -29,6 +29,8 @@ init-backend-db $DATABASE_URL=(POSTGRES_DATABASE_URL):
 
 [working-directory: 'backend']
 prepare-db-statements $DATABASE_URL=(POSTGRES_DATABASE_URL):
+    cargo sqlx database create
+    cargo sqlx database setup
     cargo sqlx prepare --database-url $DATABASE_URL -- --tests
 
 # generate postgres TLS certificates

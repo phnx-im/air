@@ -46,7 +46,7 @@ jobs:
           cache: false
 
       - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@1.90.0
+        uses: dtolnay/rust-toolchain@1.92.0
 
       - name: Set up iOS CI
         env:
@@ -56,7 +56,7 @@ jobs:
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: 26.1.1
 
       - name: Build and upload to TestFlight
         env:

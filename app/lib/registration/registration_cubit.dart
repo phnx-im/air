@@ -114,14 +114,10 @@ class RegistrationCubit extends Cubit<RegistrationState> {
 
     emit(state.copyWith(isSigningUp: true));
 
-    final url = state.domain == "localhost"
-        ? "http://${state.domain}:8080"
-        : "https://${state.domain}";
-
     try {
       _log.info("Registering user...");
       await _coreClient.createUser(
-        url,
+        state.serverUrl,
         state.displayName,
         state.avatar?.data,
         state.invitationCode!,

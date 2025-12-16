@@ -135,7 +135,7 @@ class _ListTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               spacing: Spacings.s,
               children: [
-                GroupAvatar(chatId: chat.id, size: 50),
+                ChatAvatar(chatId: chat.id, size: 50),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
