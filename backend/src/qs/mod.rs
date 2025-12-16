@@ -68,6 +68,7 @@ use aircommon::{
 use client_id_decryption_key::StorableClientIdDecryptionKey;
 
 use metrics::describe_gauge;
+use semver::VersionReq;
 use sqlx::PgPool;
 
 use crate::{
@@ -93,6 +94,7 @@ pub struct Qs {
     domain: Fqdn,
     db_pool: PgPool,
     queues: Queues,
+    client_version_req: Option<VersionReq>,
 }
 
 pub(crate) const METRIC_AIR_QS_TOTAL_USERS: &str = "air_qs_total_users";
@@ -101,7 +103,11 @@ pub(crate) const METRIC_AIR_QS_DAU_USERS: &str = "air_qs_dau_users";
 pub(crate) const METRIC_AIR_ACTIVE_USERS: &str = "air_qs_active_users";
 
 impl BackendService for Qs {
-    async fn initialize(db_pool: PgPool, domain: Fqdn) -> Result<Self, ServiceCreationError> {
+    async fn initialize(
+        db_pool: PgPool,
+        domain: Fqdn,
+        client_version_req: Option<VersionReq>,
+    ) -> Result<Self, ServiceCreationError> {
         // Check if the requisite key material exists and if it doesn't, generate it.
 
         let decryption_key_exists = StorableClientIdDecryptionKey::load(&db_pool)
@@ -119,6 +125,7 @@ impl BackendService for Qs {
             domain,
             db_pool,
             queues,
+            client_version_req,
         })
     }
 

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    INSERT INTO invitation_code (code, redeemed)\n                    VALUES ($1, $2)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c37c04a5e30d92f5e5e94cb33ed517c98cd033f2cd7e5793eb6385d4dc272769"
+}

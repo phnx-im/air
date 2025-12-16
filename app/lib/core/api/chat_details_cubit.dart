@@ -25,6 +25,8 @@ part 'chat_details_cubit.freezed.dart';
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>>
 abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
+  Future<void> acceptContactRequest();
+
   Future<void> close();
 
   Future<void> deleteMessage();

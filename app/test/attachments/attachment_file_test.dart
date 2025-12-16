@@ -63,6 +63,7 @@ class _FileTestBubble extends StatelessWidget {
       ),
       child: AttachmentFile(
         attachment: file.copyWith(attachmentId: attachmentId),
+        isSender: true,
         color: color,
       ),
     );

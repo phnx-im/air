@@ -17,10 +17,12 @@ class AttachmentFile extends HookWidget {
   const AttachmentFile({
     super.key,
     required this.attachment,
+    required this.isSender,
     required this.color,
   });
 
   final UiAttachment attachment;
+  final bool isSender;
   final Color color;
 
   @override
@@ -31,11 +33,13 @@ class AttachmentFile extends HookWidget {
       mainAxisSize: MainAxisSize.min,
       spacing: Spacings.s,
       children: [
-        _UploadStatus(
-          attachmentId: attachment.attachmentId,
-          size: attachment.size,
-          color: color,
-        ),
+        isSender
+            ? _UploadStatus(
+                attachmentId: attachment.attachmentId,
+                size: attachment.size,
+                color: color,
+              )
+            : iconoir.Attachment(width: 32, color: color),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

@@ -5,7 +5,9 @@
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
+import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
+import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -30,25 +32,51 @@ class RemoveMemberButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!enabled) return const SizedBox.shrink();
+    final loc = AppLocalizations.of(context);
 
-    final button = OutlinedButton(
-      style: OutlinedButton.styleFrom(
-        padding: EdgeInsets.symmetric(
-          horizontal: compact ? Spacings.s : Spacings.m,
-          vertical: compact ? Spacings.xxxs : Spacings.s,
-        ),
-        visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
-        textStyle: compact ? Theme.of(context).textTheme.labelSmall! : null,
-        shape: compact
-            ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
-            : null,
-      ),
+    final colors = CustomColorScheme.of(context);
+
+    final isDesktop = ResponsiveScreen.isDesktop(context);
+
+    return OutlinedButton(
       onPressed: () => _confirmRemoval(context),
-      child: Text(AppLocalizations.of(context).removeUserButton_text),
+      style: ButtonStyle(
+        padding: WidgetStatePropertyAll(
+          compact
+              ? const EdgeInsets.symmetric(
+                  horizontal: Spacings.s,
+                  vertical: Spacings.xxxs,
+                )
+              : null,
+        ),
+        shape: compact
+            ? WidgetStatePropertyAll(
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              )
+            : null,
+        minimumSize: compact
+            ? null
+            : WidgetStatePropertyAll(
+                Size(isDesktop ? 320 : double.infinity, 0),
+              ),
+        visualDensity: compact ? VisualDensity.compact : null,
+        backgroundColor: WidgetStatePropertyAll(
+          compact ? colors.backgroundBase.secondary : colors.function.danger,
+        ),
+        overlayColor: WidgetStatePropertyAll(
+          compact ? colors.backgroundBase.secondary : colors.function.danger,
+        ),
+      ),
+      child: Text(
+        loc.removeUserButton_text,
+        style: TextStyle(
+          fontSize: compact
+              ? LabelFontSize.small1.size
+              : LabelFontSize.base.size,
+          color: compact ? colors.text.primary : colors.function.white,
+        ),
+      ),
     );
-
-    return button;
   }
 
   Future<void> _confirmRemoval(BuildContext context) async {

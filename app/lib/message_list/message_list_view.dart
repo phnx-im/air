@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/chat/chat_details.dart';
@@ -45,7 +43,6 @@ class _MessageListViewState extends State<MessageListView> {
   Widget build(BuildContext context) {
     final state = context.select((MessageListCubit cubit) => cubit.state);
     return ListView.custom(
-      physics: _scrollPhysics,
       reverse: true,
       padding: EdgeInsets.only(
         top: kToolbarHeight + MediaQuery.of(context).padding.top,
@@ -140,10 +137,3 @@ class VisibilityKeyValue {
             other.id == id);
   }
 }
-
-final ScrollPhysics _scrollPhysics =
-    (Platform.isAndroid || Platform.isWindows || Platform.isLinux)
-    ? const ClampingScrollPhysics()
-    : const BouncingScrollPhysics().applyTo(
-        const AlwaysScrollableScrollPhysics(),
-      );

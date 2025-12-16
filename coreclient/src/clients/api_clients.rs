@@ -4,12 +4,11 @@
 
 use std::{
     collections::{HashMap, hash_map::Entry},
-    sync::Mutex,
+    sync::{Arc, Mutex},
 };
 
+use airapiclient::{ApiClient, ApiClientInitError};
 use aircommon::identifiers::Fqdn;
-
-use super::*;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ApiClients {
@@ -31,7 +30,7 @@ impl ApiClients {
         }
     }
 
-    pub(crate) fn get(&self, domain: &Fqdn) -> Result<ApiClient, ApiClientsError> {
+    pub(crate) fn get(&self, domain: &Fqdn) -> Result<ApiClient, ApiClientInitError> {
         let domain = if domain == &self.own_domain {
             self.own_endpoint.clone()
         } else {
@@ -48,14 +47,8 @@ impl ApiClients {
         Ok(client)
     }
 
-    pub(crate) fn default_client(&self) -> Result<ApiClient, ApiClientsError> {
+    pub(crate) fn default_client(&self) -> Result<ApiClient, ApiClientInitError> {
         let own_domain = self.own_domain.clone();
         self.get(&own_domain)
     }
-}
-
-#[derive(Debug, Error)]
-pub(crate) enum ApiClientsError {
-    #[error(transparent)]
-    ApiClientError(#[from] ApiClientInitError),
 }

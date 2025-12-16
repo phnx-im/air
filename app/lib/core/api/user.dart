@@ -52,13 +52,18 @@ abstract class User implements RustOpaqueInterface {
     PlatformPushToken? pushToken,
     required String displayName,
     Uint8List? profilePicture,
+    required String invitationCode,
   }) => RustLib.instance.api.crateApiUserUserNew(
     address: address,
     path: path,
     pushToken: pushToken,
     displayName: displayName,
     profilePicture: profilePicture,
+    invitationCode: invitationCode,
   );
+
+  /// Stop background work gracefully and wait for completion.
+  Future<void> prepareForBackground();
 
   /// Update the push token.
   Future<void> updatePushToken(PlatformPushToken? pushToken);

@@ -3,5 +3,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 [toolchain]
-channel = "1.90.0"
+channel = "1.92.0"
 components = ["rustfmt", "clippy"]

@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::fmt::{self, Write};
+
 use aircommon::{
     credentials::keys::{AsIntermediateSignature, AsSignature, ClientSignature, HandleSignature},
     crypto::{
@@ -15,10 +17,11 @@ use aircommon::{
     identifiers, time,
 };
 use chrono::DateTime;
+use semver::BuildMetadata;
 use tonic::Status;
 
 use crate::{
-    common::v1::ExpirationData,
+    common::v1::{ExpirationData, Version},
     convert::{FromRef, TryFromRef, TryRefInto},
     validation::{MissingFieldError, MissingFieldExt},
 };
@@ -394,6 +397,69 @@ impl From<time::ExpirationData> for ExpirationData {
     }
 }
 
+impl fmt::Display for Version {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)?;
+        if !self.pre.is_empty() {
+            write!(f, "-{}", self.pre)?;
+        }
+        if self.build_number > 0 {
+            write!(f, "+{}.", self.build_number)?;
+        }
+        for byte in self.commit_hash.iter() {
+            write!(f, "{:02x}", byte)?;
+        }
+        Ok(())
+    }
+}
+
+/// Note: Conversion is lossy, i.e. the build metadata is omitted.
+impl From<semver::Version> for Version {
+    fn from(value: semver::Version) -> Self {
+        Self {
+            major: value.major,
+            minor: value.minor,
+            patch: value.patch,
+            pre: value.pre.as_str().to_owned(),
+            build_number: Default::default(),
+            commit_hash: Default::default(),
+        }
+    }
+}
+
+impl TryFrom<Version> for semver::Version {
+    type Error = semver::Error;
+
+    fn try_from(value: Version) -> Result<Self, Self::Error> {
+        let mut version = semver::Version::new(value.major, value.minor, value.patch);
+        if !value.pre.is_empty() {
+            version.pre = semver::Prerelease::new(&value.pre)?;
+        }
+
+        let mut build = String::new();
+        if write_build(&value, &mut build).is_ok() {
+            version.build = BuildMetadata::new(&build)?;
+        }
+
+        Ok(version)
+    }
+}
+
+fn write_build(value: &Version, buf: &mut String) -> fmt::Result {
+    if value.build_number > 0 {
+        write!(buf, "{}", value.build_number)?;
+    }
+    if !value.commit_hash.is_empty() {
+        if !buf.is_empty() {
+            buf.push('.');
+        }
+        for byte in value.commit_hash.iter() {
+            write!(buf, "{:02x}", byte)?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod test {
     use uuid::uuid;
@@ -406,5 +472,38 @@ mod test {
         let proto_uuid = Uuid::from(uuid);
         assert_eq!(uuid, uuid::Uuid::from(proto_uuid));
         assert_eq!(proto_uuid, Uuid::from(uuid));
+    }
+
+    #[test]
+    fn version_conversion() {
+        let version: semver::Version = "1.2.3-alpha.1+12345678".parse().unwrap();
+        let mut proto_version = Version::from(version.clone());
+        assert_eq!(proto_version.major, version.major);
+        assert_eq!(proto_version.minor, version.minor);
+        assert_eq!(proto_version.patch, version.patch);
+        assert_eq!(proto_version.pre, version.pre.as_str());
+        assert_eq!(proto_version.build_number, 0);
+        assert!(proto_version.commit_hash.is_empty());
+
+        proto_version.build_number = 100;
+        proto_version.commit_hash = vec![0xa1, 0xb1, 0xc1, 0xd1];
+        let version = semver::Version::try_from(proto_version)
+            .unwrap()
+            .to_string();
+        assert_eq!(version, "1.2.3-alpha.1+100.a1b1c1d1");
+    }
+
+    #[test]
+    fn convert_version_empty_build() {
+        let version = Version {
+            major: 1,
+            minor: 2,
+            patch: 3,
+            pre: Default::default(),
+            build_number: 0,
+            commit_hash: Default::default(),
+        };
+        let version = semver::Version::try_from(version).unwrap().to_string();
+        assert_eq!(version, "1.2.3");
     }
 }

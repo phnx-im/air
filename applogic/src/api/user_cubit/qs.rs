@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::sync::Arc;
+
 use aircoreclient::clients::{
     QueueEvent,
     process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
@@ -50,7 +52,31 @@ impl QsNotificationProcessor for CubitContext {
 
 impl BackgroundStreamContext<QueueEvent> for QueueContext {
     async fn create_stream(&mut self) -> anyhow::Result<impl Stream<Item = QueueEvent> + 'static> {
-        let (stream, responder) = self.cubit_context.core_user.listen_queue().await?;
+        let (stream, responder) = match self.cubit_context.core_user.listen_queue().await {
+            Ok(stream) => {
+                self.cubit_context.state_tx.send_if_modified(|state| {
+                    if !state.inner.unsupported_version {
+                        return false;
+                    }
+                    let inner = Arc::make_mut(&mut state.inner);
+                    inner.unsupported_version = false;
+                    true
+                });
+                stream
+            }
+            Err(error) if error.is_unsupported_version() => {
+                self.cubit_context.state_tx.send_if_modified(|state| {
+                    if state.inner.unsupported_version {
+                        return false;
+                    }
+                    let inner = Arc::make_mut(&mut state.inner);
+                    inner.unsupported_version = true;
+                    true
+                });
+                return Err(error.into());
+            }
+            Err(error) => return Err(error.into()),
+        };
         self.handler.replace_responder(responder);
         Ok(stream)
     }

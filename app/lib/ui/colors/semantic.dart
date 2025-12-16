@@ -74,7 +74,6 @@ class FunctionColors {
   final Color warning;
   final Color danger;
   final Color link;
-  final Color selfLink;
 
   FunctionColors({
     required this.white,
@@ -85,7 +84,6 @@ class FunctionColors {
     required this.warning,
     required this.danger,
     required this.link,
-    required this.selfLink,
   });
 }
 

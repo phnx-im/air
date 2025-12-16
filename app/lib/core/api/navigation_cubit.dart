@@ -92,6 +92,8 @@ sealed class HomeNavigationState with _$HomeNavigationState {
 sealed class IntroScreenType with _$IntroScreenType {
   const IntroScreenType._();
 
+  const factory IntroScreenType.invitationCode() =
+      IntroScreenType_InvitationCode;
   const factory IntroScreenType.signUp() = IntroScreenType_SignUp;
   const factory IntroScreenType.usernameOnboarding() =
       IntroScreenType_UsernameOnboarding;

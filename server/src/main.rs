@@ -18,10 +18,13 @@ use airbackend::{
 
 use aircommon::identifiers::Fqdn;
 use airserver::{
-    ServerRunParams, configurations::*, enqueue_provider::SimpleEnqueueProvider,
-    logging::init_logging, network_provider::MockNetworkProvider,
+    ServerRunParams, code_command::run_code_command, configurations::*,
+    enqueue_provider::SimpleEnqueueProvider, logging::init_logging,
+    network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
 };
+use anyhow::{Context, bail};
+use clap::Parser;
 use tikv_jemalloc_ctl::{epoch, stats};
 use tokio::{net::TcpListener, time};
 use tracing::info;
@@ -41,6 +44,7 @@ fn print_allocated() -> Result<(), tikv_jemalloc_ctl::Error> {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     init_logging();
+    let args = airserver::args::Args::parse();
 
     tokio::spawn(async {
         loop {
@@ -49,12 +53,28 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    // Load configuration
-    let mut configuration = get_configuration("server/").expect("Could not load configuration.");
+    let mut configuration = get_configuration("server/").context("Could not load configuration")?;
 
     if configuration.application.domain.is_empty() {
-        panic!("No domain name configured.");
+        bail!("No domain name configured");
     }
+    let base_db_name = configuration.database.name.clone();
+
+    let domain: Fqdn = configuration
+        .application
+        .domain
+        .parse()
+        .expect("Invalid domain");
+
+    match args.cmd.unwrap_or_default() {
+        airserver::args::Command::Run => (),
+        airserver::args::Command::Code(code_args) => {
+            configuration.database.name = format!("{base_db_name}_as");
+            return run_code_command(code_args, configuration, domain).await;
+        }
+    }
+
+    info!(%domain, "Starting server");
 
     // Port binding
     let listener = TcpListener::bind(configuration.application.listen)
@@ -64,15 +84,14 @@ async fn main() -> anyhow::Result<()> {
         .await
         .expect("Failed to bind");
 
-    let domain: Fqdn = configuration
-        .application
-        .domain
-        .parse()
-        .expect("Invalid domain");
-    info!(%domain, "Starting server");
+    let version_req = configuration.application.versionreq.as_ref();
+    info!(
+        %domain,
+        version_req =? version_req.map(|v| v.to_string()),
+        "Starting server"
+    );
     let network_provider = MockNetworkProvider::new();
 
-    let base_db_name = configuration.database.name.clone();
     // DS storage provider
     configuration.database.name = format!("{base_db_name}_ds");
     info!(
@@ -80,7 +99,12 @@ async fn main() -> anyhow::Result<()> {
         "Connecting to postgres server",
     );
     let mut counter = 0;
-    let mut ds_result = Ds::new(&configuration.database, domain.clone()).await;
+    let mut ds_result = Ds::new(
+        &configuration.database,
+        domain.clone(),
+        version_req.cloned(),
+    )
+    .await;
 
     // Try again for 10 times each second in case the postgres server is coming up.
     while let Err(e) = ds_result {
@@ -90,7 +114,12 @@ async fn main() -> anyhow::Result<()> {
         if counter > 10 {
             panic!("Database not ready after 10 seconds.");
         }
-        ds_result = Ds::new(&configuration.database, domain.clone()).await;
+        ds_result = Ds::new(
+            &configuration.database,
+            domain.clone(),
+            version_req.cloned(),
+        )
+        .await;
     }
     let mut ds = ds_result.unwrap();
     if let Some(storage_settings) = &configuration.storage {
@@ -101,15 +130,26 @@ async fn main() -> anyhow::Result<()> {
     // New database name for the QS provider
     configuration.database.name = format!("{base_db_name}_qs");
     // QS storage provider
-    let qs = Qs::new(&configuration.database, domain.clone())
-        .await
-        .expect("Failed to connect to database.");
+    let qs = Qs::new(
+        &configuration.database,
+        domain.clone(),
+        version_req.cloned(),
+    )
+    .await
+    .expect("Failed to connect to database.");
 
     // New database name for the AS provider
     configuration.database.name = format!("{base_db_name}_as");
-    let auth_service = AuthService::new(&configuration.database, domain.clone())
-        .await
-        .expect("Failed to connect to database.");
+    let mut auth_service = AuthService::new(
+        &configuration.database,
+        domain.clone(),
+        version_req.cloned(),
+    )
+    .await
+    .expect("Failed to connect to database.");
+    if let Some(code) = configuration.application.unredeemablecode {
+        auth_service.set_unredeemable_code(code);
+    }
 
     let push_notification_provider =
         ProductionPushNotificationProvider::new(configuration.fcm, configuration.apns)?;

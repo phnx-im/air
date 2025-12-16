@@ -4,7 +4,7 @@
 
 [package]
 name = "airserver"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2024"
 publish = false
 description = "Server that makes the logic implemented in the backend available to clients via a REST API"
@@ -30,20 +30,20 @@ aircommon.workspace = true
 airprotos.workspace = true
 anyhow.workspace = true
 axum.workspace = true
+clap = { workspace = true, features = ["derive"] }
 config.workspace = true
-# jemalloc-ctl = "0.5.4"
+futures-core.workspace = true
 jsonwebtoken.workspace = true
 metrics.workspace = true
 metrics-exporter-prometheus.workspace = true
 pin-project.workspace = true
 reqwest.workspace = true
+semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-# tikv-jemalloc-sys = "0.5"
 tikv-jemalloc-ctl = { version = "0.6", features = ["stats", "profiling"] }
 tikv-jemallocator = { version = "0.6", features = ["stats", "profiling"] }
-# jemallocator = { version = "0.5", features = ["profiling", "stats"] }
 tls_codec.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tokio-stream.workspace = true
@@ -69,6 +69,7 @@ hex.workspace = true
 image.workspace = true
 mimi_content.workspace = true
 png.workspace = true
+prost.workspace = true
 rand.workspace = true
 sha2.workspace = true
 uuid.workspace = true

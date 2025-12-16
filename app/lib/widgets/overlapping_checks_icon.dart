@@ -4,8 +4,8 @@
 
 // ignore_for_file: prefer_const_constructors
 
-import 'package:flutter/material.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:flutter/material.dart';
 
 class DoubleCheckIcon extends StatelessWidget {
   const DoubleCheckIcon({
@@ -24,12 +24,10 @@ class DoubleCheckIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final systemForegroundColor = CustomColorScheme.of(
-      context,
-    ).message.selfBackground;
+    final systemForegroundColor = CustomColorScheme.of(context).text.tertiary;
     final systemBackgroundColor = CustomColorScheme.of(
       context,
-    ).message.selfText;
+    ).backgroundBase.primary;
     final color = inverted ? systemBackgroundColor : systemForegroundColor;
     final backgroundColor = inverted
         ? systemForegroundColor

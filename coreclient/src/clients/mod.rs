@@ -7,7 +7,8 @@ use std::{collections::HashSet, sync::Arc};
 pub use airapiclient::as_api::ListenHandleResponder;
 use airapiclient::{
     ApiClient, ApiClientInitError,
-    qs_api::{ListenResponder, ListenResponderClosedError},
+    as_api::AsRequestError,
+    qs_api::{ListenResponder, ListenResponderClosedError, QsRequestError},
 };
 use aircommon::{
     credentials::{
@@ -27,9 +28,7 @@ use aircommon::{
     messages::{FriendshipToken, QueueMessage, push_token::PushToken},
 };
 pub use airprotos::auth_service::v1::{HandleQueueMessage, handle_queue_message};
-pub use airprotos::queue_service::v1::{
-    QueueEvent, QueueEventPayload, QueueEventUpdate, queue_event,
-};
+pub use airprotos::queue_service::v1::{QueueEvent, QueueEventPayload, queue_event};
 use anyhow::{Context, Result, anyhow, ensure};
 use chrono::{DateTime, Utc};
 use openmls::prelude::Ciphersuite;
@@ -38,7 +37,6 @@ use own_client_info::OwnClientInfo;
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqliteConnection, SqlitePool, query};
 use store::ClientRecord;
-use thiserror::Error;
 use tls_codec::DeserializeBytes;
 use tokio_stream::{Stream, StreamExt};
 use tracing::{error, info, warn};
@@ -76,7 +74,7 @@ use crate::{store::StoreNotificationsSender, user_profiles::UserProfile};
 
 use self::{api_clients::ApiClients, create_user::InitialUserState, store::UserCreationState};
 
-mod add_contact;
+pub(crate) mod add_contact;
 pub(crate) mod api_clients;
 pub(crate) mod attachment;
 pub(crate) mod block_contact;
@@ -84,6 +82,7 @@ pub mod chats;
 pub(crate) mod connection_offer;
 mod create_user;
 mod delete_account;
+mod invitation_code;
 mod invite_users;
 mod message;
 pub(crate) mod own_client_info;
@@ -131,6 +130,7 @@ impl CoreUser {
         server_url: Url,
         db_path: &str,
         push_token: Option<PushToken>,
+        invitation_code: String,
     ) -> Result<Self> {
         info!(?user_id, "creating new user");
 
@@ -149,6 +149,7 @@ impl CoreUser {
             air_db,
             client_db,
             global_lock,
+            invitation_code,
         )
         .await
     }
@@ -160,13 +161,20 @@ impl CoreUser {
         air_db: SqlitePool,
         client_db: SqlitePool,
         global_lock: GlobalLock,
+        invitation_code: String,
     ) -> Result<Self> {
         let server_url = server_url.to_string();
         let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone());
 
-        let user_creation_state =
-            UserCreationState::new(&client_db, &air_db, user_id, server_url.clone(), push_token)
-                .await?;
+        let user_creation_state = UserCreationState::new(
+            &client_db,
+            &air_db,
+            user_id,
+            server_url.clone(),
+            push_token,
+            invitation_code,
+        )
+        .await?;
 
         let final_state = user_creation_state
             .complete_user_creation(&air_db, &client_db, &api_clients)
@@ -240,6 +248,10 @@ impl CoreUser {
         &self.inner.key_store.signing_key
     }
 
+    pub(crate) fn api_clients(&self) -> &ApiClients {
+        &self.inner.api_clients
+    }
+
     pub(crate) fn api_client(&self) -> anyhow::Result<ApiClient> {
         Ok(self.inner.api_clients.default_client()?)
     }
@@ -250,6 +262,15 @@ impl CoreUser {
 
     pub fn outbound_service(&self) -> &OutboundService {
         &self.inner.outbound_service
+    }
+
+    /// Stop the outbound service and wait until it is fully stopped.
+    pub async fn stop_outbound_service(&self) {
+        self.inner.outbound_service.stop().await;
+    }
+
+    pub(crate) fn key_store(&self) -> &MemoryUserKeyStore {
+        &self.inner.key_store
     }
 
     pub(crate) fn send_store_notification(&self, notification: StoreNotification) {
@@ -451,7 +472,7 @@ impl CoreUser {
         TargetedMessageContact::load_all(self.pool()).await
     }
 
-    fn create_own_client_reference(&self) -> QsReference {
+    pub(crate) fn create_own_client_reference(&self) -> QsReference {
         let sealed_reference = ClientConfig {
             client_id: self.inner.qs_client_id,
             push_token_ear_key: Some(self.inner.key_store.push_token_ear_key.clone()),
@@ -519,7 +540,10 @@ impl CoreUser {
 
     pub async fn listen_queue(
         &self,
-    ) -> Result<(impl Stream<Item = QueueEvent> + use<>, QsListenResponder)> {
+    ) -> std::result::Result<
+        (impl Stream<Item = QueueEvent> + use<>, QsListenResponder),
+        ListenQueueError,
+    > {
         let queue_ratchet = StorableQsQueueRatchet::load(self.pool()).await?;
         let sequence_number_start = queue_ratchet.sequence_number();
         let api_client = self.inner.api_clients.default_client()?;
@@ -533,10 +557,13 @@ impl CoreUser {
     pub async fn listen_handle(
         &self,
         handle_record: &UserHandleRecord,
-    ) -> Result<(
-        impl Stream<Item = Option<HandleQueueMessage>> + Send + 'static,
-        ListenHandleResponder,
-    )> {
+    ) -> std::result::Result<
+        (
+            impl Stream<Item = Option<HandleQueueMessage>> + Send + 'static,
+            ListenHandleResponder,
+        ),
+        ListenHandleError,
+    > {
         let api_client = self.inner.api_clients.default_client()?;
         match api_client
             .as_listen_handle(handle_record.hash, &handle_record.signing_key)
@@ -640,7 +667,7 @@ impl CoreUser {
         self.inner.key_store.signing_key.credential().identity()
     }
 
-    async fn store_new_messages(
+    pub(crate) async fn store_new_messages(
         connection: &mut sqlx::SqliteConnection,
         notifier: &mut StoreNotifier,
         chat_id: ChatId,
@@ -764,5 +791,43 @@ impl QsListenResponder {
     pub async fn fetch(&self) -> Result<(), QsListenResponderError> {
         self.responder.fetch().await?;
         Ok(())
+    }
+}
+
+/// Error which can occur when listening to the queue.
+#[derive(Debug, thiserror::Error)]
+pub enum ListenQueueError {
+    #[error(transparent)]
+    Sqlx(#[from] sqlx::Error),
+    #[error(transparent)]
+    ApiClient(#[from] ApiClientInitError),
+    #[error(transparent)]
+    Qs(#[from] QsRequestError),
+}
+
+impl ListenQueueError {
+    pub fn is_unsupported_version(&self) -> bool {
+        match self {
+            Self::Qs(error) => error.is_unsupported_version(),
+            _ => false,
+        }
+    }
+}
+
+/// Error which can occur when listening to a handle.
+#[derive(Debug, thiserror::Error)]
+pub enum ListenHandleError {
+    #[error(transparent)]
+    ApiClient(#[from] ApiClientInitError),
+    #[error(transparent)]
+    As(#[from] AsRequestError),
+}
+
+impl ListenHandleError {
+    pub fn is_unsupported_version(&self) -> bool {
+        match self {
+            Self::As(error) => error.is_unsupported_version(),
+            _ => false,
+        }
     }
 }

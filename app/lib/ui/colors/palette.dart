@@ -8,25 +8,21 @@ class AppColors {
   // ── Neutral ────────────────────────────────────────────────────────────────
   static const Map<int, Color> _neutralShades = {
     0: Color(0xFFFFFFFF),
-    25: Color(0xFFFCFBF5),
-    50: Color(0xFFF2F0E5),
-    100: Color(0xFFE6E4D9),
-    150: Color(0xFFDAD8CE),
-    200: Color(0xFFCECDC3),
-    300: Color(0xFFB7B5AC),
-    400: Color(0xFF9F9D96),
-    500: Color(0xFF878580),
-    600: Color(0xFF6F6E69),
-    700: Color(0xFF575653),
-    800: Color(0xFF403E3C),
-    850: Color(0xFF343331),
-    900: Color(0xFF282726),
-    950: Color(0xFF1C1B1A),
-    975: Color(0xFF100F0F),
+    50: Color(0xFFF3F3F3),
+    100: Color(0xFFE7E7E6),
+    200: Color(0xFFDADADA),
+    300: Color(0xFFCECECD),
+    400: Color(0xFFC1C1C0),
+    500: Color(0xFFB0B0AE),
+    600: Color(0xFF949391),
+    700: Color(0xFF777674),
+    800: Color(0xFF5A5857),
+    900: Color(0xFF3C3B3B),
+    950: Color(0xFF1F1E1E),
     1000: Color(0xFF000000),
   };
   static const MaterialColor neutral = MaterialColor(
-    0xFF878580, // Base color [500]
+    0xFFB0B0AE, // Base color [500]
     _neutralShades,
   );
 

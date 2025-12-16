@@ -12,8 +12,12 @@ extension UiChatDetailsExtension on UiChatDetails {
   /// ClientId of the chat (for group it is null)
   UiUserId? get userId => switch (chatType) {
     UiChatType_HandleConnection() => null,
-    UiChatType_Connection(field0: final profile) => profile.userId,
+    UiChatType_Connection(field0: final profile) ||
+    UiChatType_TargetedMessageConnection(
+      field0: final profile,
+    ) => profile.userId,
     UiChatType_Group() => null,
+    UiChatType_PendingConnection(field0: final profile) => profile.userId,
   };
 
   /// Title of the chat
@@ -21,11 +25,17 @@ extension UiChatDetailsExtension on UiChatDetails {
     UiChatType_HandleConnection(field0: final handle) =>
       "⏳ ${handle.plaintext}",
     UiChatType_Connection(field0: final profile) => profile.displayName,
+    UiChatType_TargetedMessageConnection(field0: final profile) =>
+      "⏳${profile.displayName}",
     UiChatType_Group() => attributes.title,
+    UiChatType_PendingConnection(field0: final profile) =>
+      "⏳${profile.displayName}",
   };
 
   /// Display name of the user if this is a 1:1 chat
   String? get displayName => switch (chatType) {
+    UiChatType_PendingConnection(field0: final profile) ||
+    UiChatType_TargetedMessageConnection(field0: final profile) ||
     UiChatType_Connection(field0: final profile) => profile.displayName,
     _ => null,
   };
@@ -35,16 +45,30 @@ extension UiChatDetailsExtension on UiChatDetails {
   /// The picture is either the one from the chat attributes (when this is a group
   /// chat) or the one from the user profile (when this is a 1:1 chat).
   ImageData? get picture => switch (chatType) {
-    UiChatType_Connection(field0: final profile) => profile.profilePicture,
+    UiChatType_Connection(field0: final profile) ||
+    UiChatType_TargetedMessageConnection(
+      field0: final profile,
+    ) => profile.profilePicture,
     UiChatType_HandleConnection() => null,
     UiChatType_Group() => attributes.picture,
+    UiChatType_PendingConnection(field0: final profile) =>
+      profile.profilePicture,
+  };
+
+  bool get isConfirmed => switch (chatType) {
+    UiChatType_Connection() || UiChatType_Group() => true,
+    UiChatType_TargetedMessageConnection() ||
+    UiChatType_HandleConnection() ||
+    UiChatType_PendingConnection() => false,
   };
 }
 
 extension UiChatTypeExtension on UiChatType {
   /// Description of the chat type which can show in the UI
   String get description => switch (this) {
-    UiChatType_HandleConnection() => "Pending connection request",
+    UiChatType_HandleConnection() ||
+    UiChatType_TargetedMessageConnection() ||
+    UiChatType_PendingConnection() => "Pending connection request",
     UiChatType_Connection() => "1:1 chat",
     UiChatType_Group() => 'Group chat',
   };

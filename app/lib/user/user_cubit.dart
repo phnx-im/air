@@ -92,4 +92,12 @@ class UserCubit implements StateStreamableSource<UiUser> {
         dbPath: await dbPath(),
         confirmationText: confirmationText,
       );
+
+  Future<UiContact?> contact({required UiUserId userId}) =>
+      _impl.contact(userId: userId);
+
+  Future<ChatId> addContactFromGroup({
+    required ChatId chatId,
+    required UiUserId userId,
+  }) => _impl.addContactFromGroup(chatId: chatId, userId: userId);
 }

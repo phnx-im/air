@@ -65,9 +65,7 @@ void main() {
     });
 
     testWidgets('renders correctly with members overflowing', (tester) async {
-      final members = (userProfiles + userProfiles + userProfiles)
-          .map((e) => e.userId)
-          .toList();
+      final members = userProfiles.map((e) => e.userId).toList();
       await tester.pumpWidget(buildSubject(members: members));
 
       await expectLater(

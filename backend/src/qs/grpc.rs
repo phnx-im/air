@@ -5,6 +5,7 @@
 use std::{io, pin::Pin};
 
 use airprotos::{
+    common::v1::ClientMetadata,
     queue_service::v1::{queue_service_server::QueueService, *},
     validation::{InvalidTlsExt, MissingFieldExt},
 };
@@ -19,7 +20,6 @@ use aircommon::{
     time::TimeStamp,
 };
 use displaydoc::Display;
-use tokio::stream;
 use tokio_stream::{Stream, StreamExt};
 use tonic::{Code, Request, Response, Status, Streaming, async_trait};
 use tracing::error;
@@ -46,24 +46,24 @@ impl GrpcQs {
         queue_id: identifiers::QsClientId,
         mut requests: Streaming<ListenRequest>,
     ) {
-        // while let Some(request) = requests.next().await {
-        //     if let Err(error) = Self::process_listen_queue_request(&queues, queue_id, request).await
-        //     {
-        //         if let ProcessListenQueueRequestError::Status(error) = &error
-        //             && let Code::Unknown = error.code()
-        //             && let Some(h2_error) = find_cause::<h2::Error>(&error)
-        //             && let Some(io_error) = h2_error.get_io()
-        //             && io_error.kind() == io::ErrorKind::BrokenPipe
-        //         {
-        //             // Client closed connection => not an error
-        //             continue;
-        //         } else {
-        //             // We report the error, but don't stop processing requests.
-        //             // TODO(#466): Send this to the client.
-        //             error!(%error, "error processing listen queue request");
-        //         }
-        //     }
-        // }
+        while let Some(request) = requests.next().await {
+            if let Err(error) = Self::process_listen_queue_request(&queues, queue_id, request).await
+            {
+                if let ProcessListenQueueRequestError::Status(error) = &error
+                    && let Code::Unknown = error.code()
+                    && let Some(h2_error) = find_cause::<h2::Error>(&error)
+                    && let Some(io_error) = h2_error.get_io()
+                    && io_error.kind() == io::ErrorKind::BrokenPipe
+                {
+                    // Client closed connection => not an error
+                    continue;
+                } else {
+                    // We report the error, but don't stop processing requests.
+                    // TODO(#466): Send this to the client.
+                    error!(%error, "error processing listen queue request");
+                }
+            }
+        }
     }
 
     async fn process_listen_queue_request(
@@ -99,6 +99,14 @@ impl GrpcQs {
         UserRecord::metrics(&mut *connection).await?.report();
         Ok(())
     }
+
+    fn verify_client_version(
+        &self,
+        client_metadata: Option<&ClientMetadata>,
+    ) -> Result<(), Status> {
+        let client_version_req = self.qs.client_version_req.as_ref();
+        crate::version::verify_client_version(client_version_req, client_metadata)
+    }
 }
 
 #[derive(Debug, thiserror::Error, Display)]
@@ -121,6 +129,8 @@ impl QueueService for GrpcQs {
         request: Request<CreateUserRequest>,
     ) -> Result<Response<CreateUserResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
+
         let params = CreateUserRecordParams {
             user_record_auth_key: request
                 .user_record_auth_key
@@ -167,6 +177,7 @@ impl QueueService for GrpcQs {
         request: Request<UpdateUserRequest>,
     ) -> Result<Response<UpdateUserResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let params = UpdateUserRecordParams {
             sender: request.sender.ok_or_missing_field("sender")?.try_into()?,
             user_record_auth_key: request
@@ -193,6 +204,7 @@ impl QueueService for GrpcQs {
         request: Request<DeleteUserRequest>,
     ) -> Result<Response<DeleteUserResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let params = DeleteUserRecordParams {
             sender: request.sender.ok_or_missing_field("sender")?.try_into()?,
         };
@@ -211,6 +223,7 @@ impl QueueService for GrpcQs {
         request: Request<CreateClientRequest>,
     ) -> Result<Response<CreateClientResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let params = CreateClientRecordParams {
             sender: request.sender.ok_or_missing_field("sender")?.try_into()?,
             client_record_auth_key: request
@@ -241,6 +254,7 @@ impl QueueService for GrpcQs {
         request: Request<UpdateClientRequest>,
     ) -> Result<Response<UpdateClientResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let params = UpdateClientRecordParams {
             sender: request.sender.ok_or_missing_field("sender")?.try_into()?,
             client_record_auth_key: request
@@ -265,6 +279,7 @@ impl QueueService for GrpcQs {
         request: Request<DeleteClientRequest>,
     ) -> Result<Response<DeleteClientResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let params = DeleteClientRecordParams {
             sender: request.sender.ok_or_missing_field("sender")?.try_into()?,
         };
@@ -277,6 +292,7 @@ impl QueueService for GrpcQs {
         request: Request<PublishKeyPackagesRequest>,
     ) -> Result<Response<PublishKeyPackagesResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let params = PublishKeyPackagesParams {
             sender: request
                 .client_id
@@ -298,6 +314,7 @@ impl QueueService for GrpcQs {
         request: Request<KeyPackageRequest>,
     ) -> Result<Response<KeyPackageResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let params = KeyPackageParams {
             sender: request.sender.ok_or_missing_field("sender")?.into(),
         };
@@ -309,8 +326,10 @@ impl QueueService for GrpcQs {
 
     async fn qs_encryption_key(
         &self,
-        _request: Request<QsEncryptionKeyRequest>,
+        request: Request<QsEncryptionKeyRequest>,
     ) -> Result<Response<QsEncryptionKeyResponse>, Status> {
+        let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let response = self.qs.qs_encryption_key().await?;
         Ok(Response::new(QsEncryptionKeyResponse {
             encryption_key: Some(response.encryption_key.into()),
@@ -330,6 +349,7 @@ impl QueueService for GrpcQs {
             .await
             .ok_or(ListenQueueProtocolViolation::MissingInitRequest)??;
         let Some(listen_request::Request::Init(InitListenRequest {
+            client_metadata,
             client_id,
             sequence_number_start,
         })) = request.request
@@ -337,39 +357,34 @@ impl QueueService for GrpcQs {
             return Err(ListenQueueProtocolViolation::MissingInitRequest.into());
         };
 
-        // 1809056
-        // 6469200
-        // 10029688
-        // 10843520
+        self.verify_client_version(client_metadata.as_ref())?;
 
-        // let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
+        let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
 
-        // let queue_messages = self
-        //     .qs
-        //     .queues
-        //     .listen(client_id, sequence_number_start)
-        //     .await?;
-        // let responses = queue_messages.map(|message| match message {
-        //     Some(event) => event,
-        //     None => QueueEvent {
-        //         event: Some(queue_event::Event::Empty(QueueEmpty {})),
-        //     },
-        // });
+        let queue_messages = self
+            .qs
+            .queues
+            .listen(client_id, sequence_number_start)
+            .await?;
+        let responses = queue_messages.map(|message| match message {
+            Some(event) => event,
+            None => QueueEvent {
+                event: Some(queue_event::Event::Empty(QueueEmpty {})),
+            },
+        });
 
-        let responses = futures_util::stream::empty();
+        self.update_client_activity_and_report_metrics(client_id)
+            .await
+            .inspect_err(|error| {
+                error!(%error, "Error updating client activity and reporting metrics");
+            })
+            .ok();
 
-        // self.update_client_activity_and_report_metrics(client_id)
-        //     .await
-        //     .inspect_err(|error| {
-        //         error!(%error, "Error updating client activity and reporting metrics");
-        //     })
-        //     .ok();
-
-        // tokio::spawn(Self::process_listen_queue_requests_task(
-        //     self.qs.queues.clone(),
-        //     client_id,
-        //     requests,
-        // ));
+        tokio::spawn(Self::process_listen_queue_requests_task(
+            self.qs.queues.clone(),
+            client_id,
+            requests,
+        ));
 
         Ok(Response::new(Box::pin(responses.map(Ok))))
     }

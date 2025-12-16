@@ -11,7 +11,6 @@ use aircommon::identifiers::QsClientId;
 use airprotos::queue_service::v1::{
     QueueEmpty, QueueEvent, QueueEventPayload, QueueMessage, queue_event,
 };
-use dashmap::DashMap;
 use futures_util::{Stream, stream};
 use metrics::gauge;
 use sqlx::{PgExecutor, PgPool, PgTransaction};

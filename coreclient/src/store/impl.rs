@@ -18,6 +18,7 @@ use crate::{
     MessageId,
     clients::{
         CoreUser,
+        add_contact::AddHandleContactResult,
         attachment::{AttachmentRecord, progress::AttachmentProgress},
         user_settings::UserSettingRecord,
     },
@@ -161,7 +162,7 @@ impl Store for CoreUser {
         self.load_room_state(&chat_id).await
     }
 
-    async fn add_contact(&self, handle: UserHandle) -> StoreResult<Option<ChatId>> {
+    async fn add_contact(&self, handle: UserHandle) -> StoreResult<AddHandleContactResult> {
         self.add_contact_via_handle(handle).await
     }
 
@@ -180,6 +181,10 @@ impl Store for CoreUser {
 
     async fn unblock_contact(&self, user_id: UserId) -> StoreResult<()> {
         self.unblock_contact(user_id).await
+    }
+
+    async fn accept_contact_request(&self, chat_id: ChatId) -> StoreResult<()> {
+        self.accept_contact_request(chat_id).await
     }
 
     async fn contacts(&self) -> StoreResult<Vec<Contact>> {
@@ -220,16 +225,24 @@ impl Store for CoreUser {
         Ok(self.message(message_id).await?)
     }
 
-    async fn prev_message(&self, message_id: MessageId) -> StoreResult<Option<ChatMessage>> {
-        self.prev_message(message_id).await
+    async fn prev_message(
+        &self,
+        chat_id: ChatId,
+        message_id: MessageId,
+    ) -> StoreResult<Option<ChatMessage>> {
+        self.prev_message(chat_id, message_id).await
     }
 
-    async fn next_message(&self, message_id: MessageId) -> StoreResult<Option<ChatMessage>> {
-        self.next_message(message_id).await
+    async fn next_message(
+        &self,
+        chat_id: ChatId,
+        message_id: MessageId,
+    ) -> StoreResult<Option<ChatMessage>> {
+        self.next_message(chat_id, message_id).await
     }
 
     async fn last_message(&self, chat_id: ChatId) -> StoreResult<Option<ChatMessage>> {
-        Ok(ChatMessage::last_content_message(self.pool(), chat_id).await?)
+        Ok(ChatMessage::last_message(self.pool(), chat_id).await?)
     }
 
     async fn last_message_by_user(

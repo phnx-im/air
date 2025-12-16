@@ -5,6 +5,7 @@
 use std::ffi::{CStr, CString, c_char};
 
 use crate::background_execution::processing::init_environment;
+use tracing::Level;
 
 /// This method gets called from the iOS NSE
 ///
@@ -41,6 +42,57 @@ pub unsafe extern "C" fn process_new_messages(content: *const c_char) -> *mut c_
     {
         Some(cstr) => cstr.into_raw(),
         None => std::ptr::null_mut(),
+    }
+}
+
+/// Initialize the Rust logger from the iOS NSE.
+///
+/// # Safety
+///
+/// The caller must ensure that the path is a pointer to a valid, NUL-terminated C string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn init_background_logger(path: *const c_char) {
+    if path.is_null() {
+        return;
+    }
+
+    let Ok(path) = unsafe { CStr::from_ptr(path) }.to_str() else {
+        return;
+    };
+
+    let _ = crate::logging::init_logger(path);
+}
+
+/// Write a log line into the Rust logger from the iOS NSE.
+///
+/// # Safety
+///
+/// The caller must ensure that the message is a pointer to a valid, NUL-terminated C string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rust_log(level: u8, message: *const c_char) {
+    if message.is_null() {
+        return;
+    }
+
+    let Ok(message) = unsafe { CStr::from_ptr(message) }.to_str() else {
+        return;
+    };
+
+    let level = match level {
+        0 => Level::TRACE,
+        1 => Level::DEBUG,
+        2 => Level::INFO,
+        3 => Level::WARN,
+        4 => Level::ERROR,
+        _ => Level::INFO,
+    };
+
+    match level {
+        Level::TRACE => tracing::trace!(target: "nse.swift", "{message}"),
+        Level::DEBUG => tracing::debug!(target: "nse.swift", "{message}"),
+        Level::INFO => tracing::info!(target: "nse.swift", "{message}"),
+        Level::WARN => tracing::warn!(target: "nse.swift", "{message}"),
+        Level::ERROR => tracing::error!(target: "nse.swift", "{message}"),
     }
 }
 

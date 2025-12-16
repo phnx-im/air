@@ -56,6 +56,7 @@ class _ImageTestBubble extends StatelessWidget {
         child: AttachmentImage(
           attachment: file.copyWith(attachmentId: attachmentId),
           imageMetadata: file.imageMetadata!,
+          isSender: true,
           fit: BoxFit.cover,
         ),
       ),

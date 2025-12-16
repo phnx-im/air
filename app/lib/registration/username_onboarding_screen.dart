@@ -72,6 +72,7 @@ class UsernameOnboardingScreen extends HookWidget {
     }
 
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: Text(
@@ -87,9 +88,8 @@ class UsernameOnboardingScreen extends HookWidget {
           ),
         ],
       ),
-      body: Container(
-        color: backgroundColor,
-        child: SafeArea(
+      body: SafeArea(
+        child: Center(
           child: ConstrainedWidth(
             child: Column(
               children: [
@@ -98,7 +98,7 @@ class UsernameOnboardingScreen extends HookWidget {
                     builder: (context, constraints) {
                       return SingleChildScrollView(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: Spacings.m,
+                          horizontal: Spacings.s,
                           vertical: Spacings.xs,
                         ),
                         child: Form(
@@ -132,6 +132,7 @@ class UsernameOnboardingScreen extends HookWidget {
                   ),
                 ),
                 _AddButton(isSubmitting: isSubmitting.value, onPressed: submit),
+                const SizedBox(height: Spacings.s),
               ],
             ),
           ),
@@ -187,11 +188,17 @@ class _AddButton extends StatelessWidget {
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    colors.text.primary,
+                    colors.function.toggleWhite,
                   ),
                 ),
               )
-            : Text(loc.usernameOnboarding_addButton),
+            : Text(
+                loc.usernameOnboarding_addButton,
+                style: TextStyle(
+                  color: colors.function.toggleWhite,
+                  fontSize: LabelFontSize.base.size,
+                ),
+              ),
       ),
     );
   }

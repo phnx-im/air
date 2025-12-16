@@ -4,10 +4,12 @@
 
 use std::{collections::HashSet, fs, io::Cursor, slice, time::Duration};
 
-use airapiclient::as_api::AsRequestError;
+use airapiclient::{ApiClient, as_api::AsRequestError, qs_api::QsRequestError};
 use airbackend::settings::RateLimitsSettings;
 use airprotos::{
-    auth_service::v1::auth_service_server, delivery_service::v1::delivery_service_server,
+    auth_service::v1::auth_service_server,
+    common::v1::{StatusDetails, StatusDetailsCode},
+    delivery_service::v1::delivery_service_server,
     queue_service::v1::queue_service_server,
 };
 use base64::{Engine, prelude::BASE64_STANDARD};
@@ -18,12 +20,14 @@ use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
 
 use aircommon::{
     assert_matches,
-    identifiers::{UserHandle, UserId},
+    credentials::keys::HandleSigningKey,
+    identifiers::{QsClientId, UserHandle, UserId},
     mls_group_config::MAX_PAST_EPOCHS,
 };
 use aircoreclient::{
-    Asset, AttachmentProgressEvent, BlockedContactError, ChatId, ChatMessage, DisplayName,
-    EventMessage, Message, SystemMessage, UserProfile,
+    AddHandleContactError, AddHandleContactResult, Asset, AttachmentProgressEvent,
+    BlockedContactError, ChatId, ChatMessage, DisplayName, EventMessage, Message, SystemMessage,
+    UserProfile,
     clients::{
         CoreUser,
         process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
@@ -31,8 +35,9 @@ use aircoreclient::{
     outbound_service::KEY_PACKAGES,
     store::Store,
 };
-use airserver_test_harness::utils::setup::{TestBackend, TestUser};
+use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams, TestUser};
 use png::Encoder;
+use semver::VersionReq;
 use sha2::{Digest, Sha256};
 use tokio::{task::JoinSet, time::sleep};
 use tokio_stream::StreamExt;
@@ -46,7 +51,7 @@ use uuid::Uuid;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Connect users test", skip_all)]
-async fn connect_users() {
+async fn connect_users_via_user_handle() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
@@ -71,9 +76,12 @@ async fn send_message() {
 async fn rate_limit() {
     init_test_tracing();
 
-    let mut setup = TestBackend::single_with_rate_limits(RateLimitsSettings {
-        period: Duration::from_secs(1), // replenish one token every 500ms
-        burst: 30,                      // allow total 30 request
+    let mut setup = TestBackend::single_with_params(TestBackendParams {
+        rate_limits: Some(RateLimitsSettings {
+            period: Duration::from_secs(1), // replenish one token every 500ms
+            burst: 30,                      // allow total 30 request
+        }),
+        ..Default::default()
     })
     .await;
 
@@ -716,9 +724,13 @@ async fn error_if_user_doesnt_exist() {
 
     let res = alice_user
         .add_contact(UserHandle::new("non_existent".to_owned()).unwrap())
-        .await;
+        .await
+        .unwrap();
 
-    assert!(matches!(res, Ok(None)));
+    assert!(matches!(
+        res,
+        AddHandleContactResult::Err(AddHandleContactError::HandleNotFound)
+    ));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -728,7 +740,7 @@ async fn delete_user() {
 
     let alice = setup.add_user().await;
     // Adding another user with the same id should fail.
-    match TestUser::try_new(&alice, setup.server_url()).await {
+    match TestUser::try_new(&alice, setup.server_url(), "DUMMY007").await {
         Ok(_) => panic!("Should not be able to create a user with the same id"),
         Err(e) => match e.downcast_ref::<AsRequestError>().unwrap() {
             AsRequestError::Tonic(status) => {
@@ -741,7 +753,9 @@ async fn delete_user() {
     setup.delete_user(&alice).await;
     // After deletion, adding the user again should work.
     // Note: Since the user is ephemeral, there is nothing to test on the client side.
-    TestUser::try_new(&alice, setup.server_url()).await.unwrap();
+    TestUser::try_new(&alice, setup.server_url(), "DUMMY007")
+        .await
+        .unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -1264,7 +1278,9 @@ async fn delete_account() {
 
     // After deletion, adding the user again should work.
     // Note: Since the user is ephemeral, there is nothing to test on the client side.
-    let mut new_alice = TestUser::try_new(&alice, setup.server_url()).await.unwrap();
+    let mut new_alice = TestUser::try_new(&alice, setup.server_url(), "DUMMY007")
+        .await
+        .unwrap();
     // Adding a user handle to the new user should work, because the previous user handle was
     // deleted.
     new_alice.add_user_handle().await.unwrap();
@@ -1777,6 +1793,8 @@ async fn connect_users_via_targeted_message() {
     setup
         .invite_to_group(group_chat_id, &alice, vec![&bob, &charlie])
         .await;
+    let alice_user = &setup.get_user(&alice).user;
+    let group_chat = alice_user.chat(&group_chat_id).await.unwrap();
 
     // Bob now connects to Charlie via a targeted message sent through the
     // shared group.
@@ -1812,15 +1830,14 @@ async fn connect_users_via_targeted_message() {
         "Charlie should process Bob's targeted message without errors"
     );
 
-    // Due to auto-accept, Charlie should have two messages in the new chat.
-    let charlie_chat_id = result.new_connections.pop().unwrap();
-    let charlie_chat_title = charlie_user
-        .chat(&charlie_chat_id)
+    // Charlie accepts the connection request
+    charlie_user
+        .accept_contact_request(bob_chat_id)
         .await
-        .unwrap()
-        .attributes
-        .title
-        .clone();
+        .unwrap();
+
+    // Charlie should have two messages in the new chat
+    let charlie_chat_id = result.new_connections.pop().unwrap();
     let messages = charlie_user.messages(charlie_chat_id, 2).await.unwrap();
     let Message::Event(EventMessage::System(SystemMessage::ReceivedDirectConnectionRequest {
         sender,
@@ -1829,12 +1846,13 @@ async fn connect_users_via_targeted_message() {
     else {
         panic!("Expected NewDirectConnectionChat system message");
     };
-    assert!(
-        *sender == bob,
+    assert_eq!(
+        *sender, bob,
         "System message should indicate connection from Bob"
     );
-    assert!(
-        *chat_name == charlie_chat_title,
+    assert_eq!(
+        *chat_name,
+        group_chat.attributes().title,
         "System message should have the correct chat title"
     );
     let Message::Event(EventMessage::System(SystemMessage::AcceptedConnectionRequest {
@@ -1844,8 +1862,8 @@ async fn connect_users_via_targeted_message() {
     else {
         panic!("Expected AcceptedConnectionRequest system message");
     };
-    assert!(
-        *contact == bob,
+    assert_eq!(
+        *contact, bob,
         "System message should indicate acceptance of connection from Bob"
     );
 
@@ -1949,17 +1967,29 @@ async fn handle_sanity_checks() {
     let handle_record = alice.add_user_handle().await.unwrap();
     let alice_handle = handle_record.handle.clone();
     let alice_user = &alice.user;
-    let res = alice_user.add_contact(alice_handle.clone()).await;
+    let res = alice_user.add_contact(alice_handle.clone()).await.unwrap();
     assert!(
-        res.is_err(),
+        matches!(
+            res,
+            AddHandleContactResult::Err(AddHandleContactError::OwnHandle)
+        ),
         "Should not be able to add own handle as contact"
     );
 
     // Try to add Bob twice
-    let res = alice_user.add_contact(bob_handle.clone()).await;
-    assert!(res.is_ok(), "Should be able to add Bob as contact");
-    let res = alice_user.add_contact(bob_handle.clone()).await;
-    assert!(res.is_err(), "Should not be able to add Bob twice");
+    let res = alice_user.add_contact(bob_handle.clone()).await.unwrap();
+    assert!(
+        matches!(res, AddHandleContactResult::Ok(_)),
+        "Should be able to add Bob as contact"
+    );
+    let res = alice_user.add_contact(bob_handle.clone()).await.unwrap();
+    assert!(
+        matches!(
+            res,
+            AddHandleContactResult::Err(AddHandleContactError::DuplicateRequest)
+        ),
+        "Should not be able to add Bob twice"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -1989,19 +2019,156 @@ async fn check_handle_exists() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Check handle exists", skip_all)]
-async fn create_users() {
-    init_test_tracing();
-    let mut setup = TestBackend::single().await;
-    std::fs::create_dir("test_users").unwrap();
-    for i in 0..100 {
-        info!(i, "Adding user");
-        setup
-            .add_persisted_user_with_id(Uuid::from_u128(i as u128), "test_users")
-            .await;
-    }
-    info!("All users created");
+#[tracing::instrument(
+    name = "Unsupported client version on listen handle and queue",
+    skip_all
+)]
+async fn unsupported_client_version() {
+    let setup = TestBackend::single_with_params(TestBackendParams {
+        client_version_req: Some(VersionReq::parse("^0.1.0").unwrap()),
+        ..Default::default()
+    })
+    .await;
+
+    let client = ApiClient::new(setup.server_url().as_str()).unwrap();
+
+    let handle = UserHandle::new("test_handle".to_string()).unwrap();
+    let signing_key = HandleSigningKey::generate().unwrap();
+    let hash = handle.calculate_hash().unwrap();
+
+    let res = client.as_listen_handle(hash, &signing_key).await;
+    let status = match res {
+        Err(AsRequestError::Tonic(status)) => status,
+        Err(error) => panic!("Unexpected error type: {error:?}"),
+        Ok(_) => panic!("Expected error"),
+    };
+    assert_eq!(status.code(), tonic::Code::FailedPrecondition);
+
+    let details = StatusDetails::from_status(&status).unwrap();
+    assert_matches!(details.code(), StatusDetailsCode::VersionUnsupported);
+
+    let client_id = QsClientId::random(&mut OsRng);
+    let res = client.listen_queue(client_id, 0).await;
+    match res {
+        Err(QsRequestError::Tonic(status)) => status,
+        Err(error) => panic!("Unexpected error type: {error:?}"),
+        Ok(_) => panic!("Expected error"),
+    };
+    assert_eq!(status.code(), tonic::Code::FailedPrecondition);
+
+    let details = StatusDetails::from_status(&status).unwrap();
+    assert_matches!(details.code(), StatusDetailsCode::VersionUnsupported);
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn message_sending_failures() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+
+    let content = MimiContent::simple_markdown_message("Hello".to_string(), [0; 16]);
+
+    // Make server drop messages
+    setup.listener_control_handle().unwrap().set_drop_all();
+
+    // Send three messages
+    for _ in 0..3 {
+        alice_user
+            .send_message(chat_id, content.clone(), None)
+            .await
+            .unwrap();
+    }
+    alice_user.outbound_service().run_once().await;
+    // Check that messages are marked as failed
+    let messages = alice_user.messages(chat_id, 3).await.unwrap();
+    for message in messages {
+        let status = message.status();
+        if status != MessageStatus::Error {
+            panic!(
+                "Message should be marked as error. Actual status: {:?}",
+                status
+            );
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Invitation code", skip_all)]
+async fn invitation_code() {
+    const UNREDEEMABLE_CODE: &str = "E111E000";
+    let setup = TestBackend::single_with_params(TestBackendParams {
+        invitation_only: true,
+        unredeemable_code: Some(UNREDEEMABLE_CODE.to_owned()),
+        ..Default::default()
+    })
+    .await;
+
+    // working code
+    let user_id = UserId::random(setup.domain().clone());
+    let code = setup.invitation_codes().first().unwrap();
+    assert!(
+        TestUser::try_new(&user_id, setup.server_url().clone(), code)
+            .await
+            .is_ok()
+    );
+
+    // code used twice
+    let user_id = UserId::random(setup.domain().clone());
+    let code = setup.invitation_codes().first().unwrap();
+    let error = TestUser::try_new(&user_id, setup.server_url().clone(), code)
+        .await
+        .unwrap_err();
+    let error = error.downcast::<AsRequestError>().unwrap();
+    assert_matches!(error, AsRequestError::Tonic(status)
+        if status.code() == tonic::Code::InvalidArgument
+    );
+
+    // not working code
+    let user_id = UserId::random(setup.domain().clone());
+    let code = "DUMMY007";
+    let error = TestUser::try_new(&user_id, setup.server_url().clone(), code)
+        .await
+        .unwrap_err();
+    let error = error.downcast::<AsRequestError>().unwrap();
+    assert_matches!(error, AsRequestError::Tonic(status)
+        if status.code() == tonic::Code::InvalidArgument
+    );
+
+    // unredeemable code (first use)
+    let user_id = UserId::random(setup.domain().clone());
+    assert!(
+        TestUser::try_new(&user_id, setup.server_url().clone(), UNREDEEMABLE_CODE)
+            .await
+            .is_ok()
+    );
+
+    // unredeemable code (second use)
+    let user_id = UserId::random(setup.domain().clone());
+    assert!(
+        TestUser::try_new(&user_id, setup.server_url().clone(), UNREDEEMABLE_CODE)
+            .await
+            .is_ok()
+    );
+}
+
+// #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+// #[tracing::instrument(name = "Check handle exists", skip_all)]
+// async fn create_users() {
+//     init_test_tracing();
+//     let mut setup = TestBackend::single().await;
+//     std::fs::create_dir("test_users").unwrap();
+//     for i in 0..100 {
+//         info!(i, "Adding user");
+//         setup
+//             .add_persisted_user_with_id(Uuid::from_u128(i as u128), "test_users")
+//             .await;
+//     }
+//     info!("All users created");
+// }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Check handle exists", skip_all)]

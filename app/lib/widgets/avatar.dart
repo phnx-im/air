@@ -14,25 +14,38 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
 class UserAvatar extends StatelessWidget {
-  const UserAvatar({super.key, this.userId, this.size = 24.0, this.onPressed});
+  const UserAvatar({
+    super.key,
+    this.userId,
+    this.profile,
+    this.size = 24.0,
+    this.onPressed,
+    this.showInitials = true,
+    this.showImage = true,
+  });
 
   final UiUserId? userId;
+  final UiUserProfile? profile;
   final double size;
   final VoidCallback? onPressed;
+  final bool showInitials;
+  final bool showImage;
 
   @override
   Widget build(BuildContext context) {
-    final profile = context.select(
-      (UsersCubit cubit) => cubit.state.profile(userId: userId),
-    );
+    final profile = this.profile != null
+        ? this.profile!
+        : context.select(
+            (UsersCubit cubit) => cubit.state.profile(userId: userId),
+          );
 
     final displayName = profile.displayName;
     final image = profile.profilePicture;
     final gradientKey = userId?.uuid ?? profile.userId.uuid;
 
     return _Avatar(
-      displayName: displayName,
-      image: image,
+      displayName: showInitials ? displayName : "",
+      image: showImage ? image : null,
       size: size,
       onPressed: onPressed,
       gradientKey: gradientKey,
@@ -40,8 +53,8 @@ class UserAvatar extends StatelessWidget {
   }
 }
 
-class GroupAvatar extends StatelessWidget {
-  const GroupAvatar({super.key, this.chatId, this.size = 24.0, this.onPressed});
+class ChatAvatar extends StatelessWidget {
+  const ChatAvatar({super.key, this.chatId, this.size = 24.0, this.onPressed});
 
   final ChatId? chatId;
   final double size;
@@ -49,18 +62,18 @@ class GroupAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    UiChatDetails? chat;
-    try {
-      chat = context.select((ChatDetailsCubit cubit) {
-        final details = cubit.state.chat;
-        if (chatId != null && details?.id != chatId) {
-          return null;
-        }
-        return details;
-      });
-    } on ProviderNotFoundException {
-      chat = null;
-    }
+    final chat = context.select((ChatDetailsCubit cubit) {
+      final details = cubit.state.chat;
+      if (chatId != null && details?.id != chatId) {
+        return null;
+      }
+      return details;
+    });
+
+    final showImage = switch (chat?.chatType) {
+      UiChatType_Connection() || UiChatType_Group() => true,
+      _ => false,
+    };
 
     final displayName = chat?.title ?? chat?.displayName ?? "";
     final image = chat?.picture;
@@ -68,7 +81,7 @@ class GroupAvatar extends StatelessWidget {
 
     return _Avatar(
       displayName: displayName,
-      image: image,
+      image: showImage ? image : null,
       size: size,
       onPressed: onPressed,
       gradientKey: gradientKey,

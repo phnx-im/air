@@ -30,11 +30,13 @@ class AttachmentImage extends StatelessWidget {
     required this.attachment,
     required this.imageMetadata,
     required this.fit,
+    required this.isSender,
   });
 
   final UiAttachment attachment;
   final UiImageMetadata imageMetadata;
   final BoxFit fit;
+  final bool isSender;
 
   @override
   Widget build(BuildContext context) {
@@ -63,10 +65,11 @@ class AttachmentImage extends StatelessWidget {
               );
             },
           ),
-          _UploadStatus(
-            attachmentId: attachment.attachmentId,
-            size: attachment.size,
-          ),
+          if (isSender)
+            _UploadStatus(
+              attachmentId: attachment.attachmentId,
+              size: attachment.size,
+            ),
         ],
       ),
     );

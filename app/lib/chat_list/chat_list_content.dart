@@ -5,18 +5,19 @@
 import 'dart:async';
 
 import 'package:air/chat/chat_details.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:iconoir_flutter/regular/prohibition.dart';
-import 'package:intl/intl.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
+import 'package:air/message_list/display_message_tile.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:iconoir_flutter/regular/prohibition.dart';
+import 'package:intl/intl.dart';
 
 import 'chat_list_cubit.dart';
 
@@ -51,9 +52,6 @@ class ChatListContent extends StatelessWidget {
     return ListView.builder(
       padding: const EdgeInsets.all(0),
       itemCount: chatIds.length,
-      physics: const BouncingScrollPhysics().applyTo(
-        const AlwaysScrollableScrollPhysics(),
-      ),
       itemBuilder: (BuildContext context, int index) {
         return BlocProvider(
           key: ValueKey(chatIds[index]),
@@ -137,7 +135,7 @@ class _ListTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               spacing: Spacings.s,
               children: [
-                GroupAvatar(chatId: chat.id, size: 50),
+                ChatAvatar(chatId: chat.id, size: 50),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -359,6 +357,17 @@ class _LastMessage extends StatelessWidget {
                         ? loc.chatList_imageEmoji
                         : loc.chatList_fileEmoji
                   : '',
+            UiMessage_Display(field0: final eventMessage) =>
+              switch (eventMessage) {
+                UiEventMessage_System(field0: final systemMessage) => () {
+                  final richText = buildSystemMessageText(
+                    context,
+                    systemMessage,
+                  );
+                  return richText.text.toPlainText();
+                }(),
+                _ => null,
+              },
             _ => null,
           };
 

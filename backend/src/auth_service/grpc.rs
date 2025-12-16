@@ -6,6 +6,7 @@ use std::io;
 
 use airprotos::{
     auth_service::v1::{auth_service_server, *},
+    common::v1::ClientMetadata,
     validation::MissingFieldExt,
 };
 use displaydoc::Display;
@@ -36,7 +37,7 @@ use tokio_stream::StreamExt;
 use tonic::{Code, Request, Response, Status, Streaming, async_trait};
 use tracing::error;
 
-use crate::util::find_cause;
+use crate::{auth_service::invitation_code_record::InvitationCodeRecord, util::find_cause};
 
 use super::{
     AuthService,
@@ -158,15 +159,88 @@ impl GrpcAs {
         queues.ack(message_id.into()).await?;
         Ok(())
     }
+
+    fn verify_client_version(
+        &self,
+        client_metadata: Option<&ClientMetadata>,
+    ) -> Result<(), Status> {
+        let client_version_req = self.inner.client_version_req.as_ref();
+        crate::version::verify_client_version(client_version_req, client_metadata)
+    }
 }
 
 #[async_trait]
 impl auth_service_server::AuthService for GrpcAs {
+    async fn check_invitation_code(
+        &self,
+        request: Request<CheckInvitationCodeRequest>,
+    ) -> Result<Response<CheckInvitationCodeResponse>, Status> {
+        let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
+
+        let code = request
+            .invitation_code
+            .ok_or_missing_field("invitation_code")?;
+
+        if !InvitationCodeRecord::validate_code(&code.code) {
+            return Err(Status::invalid_argument("invalid invitation code"));
+        }
+
+        if self.inner.unredeemable_code.as_deref() == Some(&code.code) {
+            return Ok(Response::new(CheckInvitationCodeResponse {
+                is_valid: true,
+            }));
+        }
+
+        let record = InvitationCodeRecord::load(&self.inner.db_pool, &code.code)
+            .await
+            .map_err(|error| {
+                error!(%error, "failed to load invitation code");
+                Status::internal("database error")
+            })?;
+
+        Ok(Response::new(CheckInvitationCodeResponse {
+            is_valid: record.filter(|r| !r.redeemed).is_some(),
+        }))
+    }
+
     async fn register_user(
         &self,
         request: Request<RegisterUserRequest>,
     ) -> Result<Response<RegisterUserResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
+
+        let code_record = if self.inner.invitation_only {
+            let code = request
+                .invitation_code
+                .ok_or_missing_field("invitation_code")?;
+
+            if !InvitationCodeRecord::validate_code(&code.code) {
+                return Err(Status::invalid_argument("invalid invitation code"));
+            }
+            let code_record = if self.inner.is_unredeemable_code(&code.code) {
+                Some(InvitationCodeRecord {
+                    code: code.code,
+                    redeemed: false,
+                })
+            } else {
+                InvitationCodeRecord::load(&self.inner.db_pool, &code.code)
+                    .await
+                    .map_err(|error| {
+                        error!(%error, "failed to load invitation code");
+                        Status::internal("database error")
+                    })?
+                    .filter(|r| !r.redeemed)
+            };
+            let Some(code_record) = code_record else {
+                return Err(Status::invalid_argument("invalid invitation code"));
+            };
+            Some(code_record)
+        } else {
+            None
+        };
+
         let params = RegisterUserParamsIn {
             client_payload: request
                 .client_credential_payload
@@ -177,7 +251,10 @@ impl auth_service_server::AuthService for GrpcAs {
                 .ok_or_missing_field("encrypted_user_profile")?
                 .try_into()?,
         };
-        let response = self.inner.as_init_user_registration(params).await?;
+        let response = self
+            .inner
+            .as_init_user_registration(params, code_record)
+            .await?;
         Ok(Response::new(RegisterUserResponse {
             client_credential: Some(response.client_credential.into()),
         }))
@@ -191,6 +268,7 @@ impl auth_service_server::AuthService for GrpcAs {
         let (user_id, payload) = self
             .verify_user_auth::<_, DeleteUserPayload>(request)
             .await?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
         let payload_user_id: identifiers::UserId =
             payload.user_id.ok_or_missing_field("user_id")?.try_into()?;
         if payload_user_id != user_id {
@@ -220,6 +298,7 @@ impl auth_service_server::AuthService for GrpcAs {
             request,
             &handle_verifying_key,
         )?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
         let connection_packages = payload
             .connection_packages
             .into_iter()
@@ -234,8 +313,9 @@ impl auth_service_server::AuthService for GrpcAs {
 
     async fn as_credentials(
         &self,
-        _request: Request<AsCredentialsRequest>,
+        request: Request<AsCredentialsRequest>,
     ) -> Result<Response<AsCredentialsResponse>, Status> {
+        self.verify_client_version(request.into_inner().client_metadata.as_ref())?;
         let response = self.inner.as_credentials(AsCredentialsParams {}).await?;
         Ok(Response::new(AsCredentialsResponse {
             as_credentials: response
@@ -264,6 +344,7 @@ impl auth_service_server::AuthService for GrpcAs {
         let (user_id, payload) = self
             .verify_user_auth::<_, StageUserProfilePayload>(request)
             .await?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
         let params = StageUserProfileParamsTbs {
             user_id,
             user_profile: payload
@@ -280,9 +361,10 @@ impl auth_service_server::AuthService for GrpcAs {
         request: Request<MergeUserProfileRequest>,
     ) -> Result<Response<MergeUserProfileResponse>, Status> {
         let request = request.into_inner();
-        let (user_id, _payload) = self
+        let (user_id, payload) = self
             .verify_user_auth::<_, MergeUserProfilePayload>(request)
             .await?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
         let params = MergeUserProfileParamsTbs { user_id };
         self.inner.as_merge_user_profile(params).await?;
         Ok(Response::new(MergeUserProfileResponse {}))
@@ -293,6 +375,7 @@ impl auth_service_server::AuthService for GrpcAs {
         request: Request<GetUserProfileRequest>,
     ) -> Result<Response<GetUserProfileResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let user_id = request.user_id.ok_or_missing_field("user_id")?.try_into()?;
         let key_index = UserProfileKeyIndex::from_bytes(request.key_index.try_into().map_err(
             |bytes: Vec<u8>| {
@@ -314,6 +397,7 @@ impl auth_service_server::AuthService for GrpcAs {
         let (user_id, payload) = self
             .verify_user_auth::<_, IssueTokensPayload>(request)
             .await?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let token_request: AmortizedBatchTokenRequest<Ristretto255> =
             AmortizedBatchTokenRequest::tls_deserialize_exact(payload.token_request.as_slice())
@@ -334,9 +418,10 @@ impl auth_service_server::AuthService for GrpcAs {
         request: Request<ReportSpamRequest>,
     ) -> Result<Response<ReportSpamResponse>, Status> {
         let request = request.into_inner();
-        let (_user_id, _payload) = self
+        let (_user_id, payload) = self
             .verify_user_auth::<_, ReportSpamPayload>(request)
             .await?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
 
         // TODO: forward to the spam reporting service
 
@@ -348,6 +433,7 @@ impl auth_service_server::AuthService for GrpcAs {
         request: Request<CheckHandleExistsRequest>,
     ) -> Result<Response<CheckHandleExistsResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let hash = request.hash.ok_or_missing_field("hash")?.try_into()?;
 
         let exists = self.inner.as_check_handle_exists(&hash).await?;
@@ -370,6 +456,7 @@ impl auth_service_server::AuthService for GrpcAs {
             .ok_or_missing_field("verifying_key")?
             .into();
         let payload = self.verify_request::<_, CreateHandlePayload>(request, &verifying_key)?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let hash = payload.hash.ok_or_missing_field("hash")?.try_into()?;
 
@@ -386,9 +473,10 @@ impl auth_service_server::AuthService for GrpcAs {
     ) -> Result<Response<DeleteHandleResponse>, Status> {
         let request = request.into_inner();
 
-        let (hash, _payload) = self
+        let (hash, payload) = self
             .verify_handle_auth::<_, DeleteHandlePayload>(request)
             .await?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
 
         self.inner.as_delete_handle(hash).await?;
 
@@ -401,9 +489,10 @@ impl auth_service_server::AuthService for GrpcAs {
     ) -> Result<Response<RefreshHandleResponse>, Status> {
         let request = request.into_inner();
 
-        let (hash, _payload) = self
+        let (hash, payload) = self
             .verify_handle_auth::<_, RefreshHandlePayload>(request)
             .await?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
 
         self.inner.as_refresh_handle(hash).await?;
 
@@ -445,6 +534,12 @@ impl auth_service_server::AuthService for GrpcAs {
         let Some(listen_handle_request::Request::Init(init_request)) = request.request else {
             return Err(ListenHandleProtocolViolation::MissingInitRequest.into());
         };
+
+        let payload = init_request
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let (hash, _payload) = self
             .verify_handle_auth::<_, InitListenHandlePayload>(init_request)

@@ -7,8 +7,8 @@
 use std::sync::Arc;
 
 use aircommon::identifiers::{UserHandle, UserId};
-use aircoreclient::Asset;
-use aircoreclient::{ChatId, clients::CoreUser, store::Store};
+use aircoreclient::{Asset, PartialContact};
+use aircoreclient::{ChatId, ContactType, clients::CoreUser, store::Store};
 use anyhow::ensure;
 use flutter_rust_bridge::frb;
 use qs::QueueContext;
@@ -60,6 +60,7 @@ pub struct UiUser {
 struct UiUserInner {
     user_id: UserId,
     user_handles: Vec<UserHandle>,
+    unsupported_version: bool,
 }
 
 impl UiUser {
@@ -98,6 +99,11 @@ impl UiUser {
             .map(From::from)
             .collect()
     }
+
+    #[frb(getter, sync)]
+    pub fn unsupported_version(&self) -> bool {
+        self.inner.unsupported_version
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -130,9 +136,11 @@ impl UserCubitBase {
     #[frb(sync)]
     pub fn new(user: &User, navigation: &NavigationCubitBase) -> Self {
         let core_user = user.user.clone();
+
         let core = CubitCore::with_initial_state(UiUser::new(Arc::new(UiUserInner {
             user_id: user.user.user_id().clone(),
             user_handles: Vec::new(),
+            unsupported_version: false,
         })));
 
         UiUser::spawn_load(core.state_tx().clone(), core_user.clone());
@@ -145,6 +153,7 @@ impl UserCubitBase {
         let cancel = CancellationToken::new();
 
         let context = CubitContext {
+            state_tx: core.state_tx().clone(),
             core_user,
             app_state,
             navigation_state,
@@ -268,6 +277,19 @@ impl UserCubitBase {
         Ok(contacts.into_iter().map(From::from).collect())
     }
 
+    pub async fn contact(&self, user_id: UiUserId) -> anyhow::Result<Option<UiContact>> {
+        let Some(contact) = Store::contact(&self.context.core_user, &user_id.into()).await? else {
+            return Ok(None);
+        };
+        match contact {
+            ContactType::Full(contact) => Ok(Some(contact.into())),
+            ContactType::Partial(PartialContact::TargetedMessage(contact)) => {
+                Ok(Some(contact.into()))
+            }
+            ContactType::Partial(PartialContact::Handle(_)) => Ok(None),
+        }
+    }
+
     pub async fn addable_contacts(&self, chat_id: ChatId) -> anyhow::Result<Vec<UiContact>> {
         let Some(members) = self.context.core_user.chat_participants(chat_id).await else {
             return Ok(vec![]);
@@ -367,6 +389,17 @@ impl UserCubitBase {
         );
         self.context.core_user.delete_account(Some(db_path)).await
     }
+
+    pub async fn add_contact_from_group(
+        &self,
+        chat_id: ChatId,
+        user_id: UiUserId,
+    ) -> anyhow::Result<ChatId> {
+        self.context
+            .core_user
+            .add_contact_from_group(chat_id, user_id.into())
+            .await
+    }
 }
 
 impl Drop for UserCubitBase {
@@ -379,6 +412,7 @@ impl Drop for UserCubitBase {
 #[frb(ignore)]
 #[derive(Debug, Clone)]
 struct CubitContext {
+    state_tx: watch::Sender<UiUser>,
     core_user: CoreUser,
     app_state: watch::Receiver<AppState>,
     navigation_state: watch::Receiver<NavigationState>,

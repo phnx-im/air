@@ -317,6 +317,7 @@ mod tests {
                 PushTokenOperator::Google,
                 "token".to_owned(),
             )),
+            invitation_code: "DUMMY007".to_owned(),
         })
     });
 

@@ -20,6 +20,7 @@ use aircommon::{
     time::TimeStamp,
 };
 use airprotos::{
+    common::v1::ClientMetadata,
     convert::{RefInto, TryFromRef as _, TryRefInto},
     delivery_service::v1::{
         self, delivery_service_server::DeliveryService,
@@ -317,6 +318,14 @@ impl<Qep: QsConnector> GrpcDs<Qep> {
         })?;
         Ok(value)
     }
+
+    fn verify_client_version(
+        &self,
+        client_metadata: Option<&ClientMetadata>,
+    ) -> Result<(), Status> {
+        let client_version_req = self.ds.client_version_req.as_ref();
+        crate::version::verify_client_version(client_version_req, client_metadata)
+    }
 }
 
 fn verify_message<R, P>(
@@ -362,8 +371,10 @@ struct LeafVerificationData<'a, P, const LOADED_FOR_UPDATE: bool> {
 impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
     async fn request_group_id(
         &self,
-        _request: Request<RequestGroupIdRequest>,
+        request: Request<RequestGroupIdRequest>,
     ) -> Result<Response<RequestGroupIdResponse>, Status> {
+        let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
         let qgid = self.ds.request_group_id().await;
         Ok(Response::new(RequestGroupIdResponse {
             group_id: Some(qgid.ref_into()),
@@ -378,6 +389,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
         // TODO: signature verification?
         let payload = request.payload.ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
         let qgid = payload.validated_qgid(&self.ds.own_domain)?;
         let ear_key = payload.ear_key()?;
 
@@ -508,6 +520,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .ok_or_missing_field("payload")?
             .into();
         let payload: WelcomeInfoPayload = request.verify(&sender).map_err(InvalidSignature)?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let qgid = payload.validated_qgid(&self.ds.own_domain)?;
         let ear_key = payload.ear_key()?;
@@ -546,6 +559,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         request: Request<ExternalCommitInfoRequest>,
     ) -> Result<Response<ExternalCommitInfoResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
 
         let qgid = request.qgid.ok_or_missing_field("qgid")?.try_ref_into()?;
         let ear_key = request
@@ -594,6 +608,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         request: Request<ConnectionGroupInfoRequest>,
     ) -> Result<Response<ConnectionGroupInfoResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
 
         let qgid: QualifiedGroupId = request
             .group_id
@@ -642,6 +657,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         request: Request<JoinConnectionGroupRequest>,
     ) -> Result<Response<JoinConnectionGroupResponse>, Status> {
         let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
 
         let external_commit: AssistedMessageIn = request
             .external_commit
@@ -696,13 +712,10 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .as_ref()
             .ok_or_missing_field("signature")?;
 
-        let sender_index: LeafNodeIndex = request
-            .payload
-            .as_ref()
-            .ok_or_missing_field("payload")?
-            .sender
-            .ok_or_missing_field("sender")?
-            .into();
+        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
+
+        let sender_index: LeafNodeIndex = payload.sender.ok_or_missing_field("sender")?.into();
 
         let timestamp = self
             .update_group_state(request, Some(sender_index), async |verified_data| {
@@ -744,6 +757,9 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .as_ref()
             .ok_or_missing_field("signature")?;
 
+        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
+
         let timestamp = self
             .update_group_state(request, None, async |verification_data| {
                 let LeafVerificationData::<'_, SelfRemovePayload, true> {
@@ -783,6 +799,8 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .ok_or_missing_field("signature")?;
 
         let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
+
         let sender_index = payload.sender.ok_or_missing_field("sender")?.into();
 
         let ear_key = request.ear_key()?;
@@ -835,6 +853,9 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .as_ref()
             .ok_or_missing_field("signature")?;
 
+        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
+
         let timestamp = self
             .update_group_state(request, None, async |verification_data| {
                 let LeafVerificationData::<'_, DeleteGroupPayload, true> {
@@ -874,6 +895,9 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .signature
             .as_ref()
             .ok_or_missing_field("signature")?;
+
+        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let timestamp = self
             .update_group_state(request, None, async |verification_data| {
@@ -940,6 +964,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .ok_or_missing_field("signature")?;
 
         let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let ear_key = request.ear_key()?;
         let qgid = payload.validated_qgid(self.ds.own_domain())?;
@@ -1000,6 +1025,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .ok_or_missing_field("signature")?;
 
         let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let ear_key = request.ear_key()?;
         let qgid = payload.validated_qgid(self.ds.own_domain())?;
@@ -1034,6 +1060,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .ok_or_missing_field("signature")?;
 
         let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let ear_key = request.ear_key()?;
         let qgid = payload.validated_qgid(self.ds.own_domain())?;
@@ -1075,6 +1102,8 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .ok_or_missing_field("signature")?;
 
         let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
+
         let sender_index: LeafNodeIndex = payload.sender.ok_or_missing_field("sender")?.into();
 
         let ear_key = request.ear_key()?;

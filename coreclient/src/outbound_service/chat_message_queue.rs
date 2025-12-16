@@ -28,11 +28,12 @@ impl ChatMessageQueue {
 
 mod persistence {
     use aircommon::time::TimeStamp;
+    use mimi_content::MessageStatus;
     use sqlx::{SqliteExecutor, SqliteTransaction, query, query_as, query_scalar};
     use tracing::debug;
     use uuid::Uuid;
 
-    use crate::clients::attachment::persistence::PendingAttachmentRecord;
+    use crate::{clients::attachment::persistence::PendingAttachmentRecord, store::StoreNotifier};
 
     use super::*;
 
@@ -101,6 +102,43 @@ mod persistence {
 
             if let Some(attachment_id) = attachment_id {
                 PendingAttachmentRecord::delete(txn.as_mut(), attachment_id).await?;
+            }
+
+            Ok(())
+        }
+
+        /// This function does the following:
+        ///
+        /// - Remove all queued messages
+        /// - Mark all messages as failed in the message table
+        /// - Delete all pending attachments associated with the queued messages
+        /// - Notify about all marked messages
+        pub(crate) async fn remove_all_and_and_mark_as_failed(
+            txn: &mut SqliteTransaction<'_>,
+            notifier: &mut StoreNotifier,
+        ) -> sqlx::Result<()> {
+            let failed_status = MessageStatus::Error.repr();
+            let marked_messages: Vec<MessageId> = query_scalar!(
+                r#"UPDATE message
+                SET status = ?1
+                WHERE message_id IN (
+                    SELECT message_id FROM chat_message_queue
+                );
+                DELETE FROM pending_attachment
+                WHERE attachment_id IN (
+                    SELECT attachment_id FROM chat_message_queue
+                );
+
+                DELETE FROM chat_message_queue
+                RETURNING message_id as "message_id: _"
+                "#,
+                failed_status
+            )
+            .fetch_all(txn.as_mut())
+            .await?;
+
+            for message_id in marked_messages {
+                notifier.update(message_id);
             }
 
             Ok(())

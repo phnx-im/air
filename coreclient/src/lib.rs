@@ -25,13 +25,16 @@ pub use crate::{
             SystemMessage,
         },
     },
-    clients::attachment::{
-        AttachmentContent, AttachmentStatus, AttachmentUrl, AttachmentUrlParseError,
-        MimiContentExt,
-        progress::{AttachmentProgress, AttachmentProgressEvent},
+    clients::{
+        add_contact::{AddHandleContactError, AddHandleContactResult},
+        attachment::{
+            AttachmentContent, AttachmentStatus, AttachmentUrl, AttachmentUrlParseError,
+            MimiContentExt,
+            progress::{AttachmentProgress, AttachmentProgressEvent},
+        },
+        block_contact::BlockedContactError,
     },
-    clients::block_contact::BlockedContactError,
-    contacts::Contact,
+    contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},
     user_handles::UserHandleRecord,
     user_profiles::{Asset, DisplayName, DisplayNameError, UserProfile},
     utils::persistence::{
