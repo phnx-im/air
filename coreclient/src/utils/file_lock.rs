@@ -32,8 +32,9 @@ impl FileLock {
     }
 
     async fn open_and_lock(path: &Path) -> io::Result<SqliteConnection> {
-        // Use a dedicated SQLite file with classic locking (no WAL) and an exclusive
-        // transaction to emulate a global mutex.
+        // Use a dedicated SQLite file with classic locking (no WAL) and an
+        // exclusive transaction to emulate a global mutex. This might spawn a
+        // new thread internally.
         let mut connection: SqliteConnection = SqliteConnectOptions::new()
             .filename(path)
             .create_if_missing(true)
@@ -62,8 +63,9 @@ impl FileLock {
         Ok(connection)
     }
 
-    /// Note: `&mut self` makes sure that the file cannot be locked twice which is unspecified
-    /// behavior and platform dependent.
+    /// Note: `&mut self` makes sure that we don't have multiple locks in the
+    /// same task at compile time. Runtime attempts to re-lock will return an
+    /// error.
     pub(crate) async fn lock(&mut self) -> io::Result<FileLockGuard<'_>> {
         if self.connection.is_some() {
             return Err(io::Error::other("lock already held"));
@@ -91,7 +93,7 @@ impl Drop for FileLockGuard<'_> {
 
 #[cfg(test)]
 mod tests {
-    use std::{future::Future, pin::Pin};
+    use std::future::Future;
 
     use tempfile::tempdir;
     use tokio::time::{Duration, timeout};
@@ -102,9 +104,7 @@ mod tests {
         type Guard<'a>: Send + 'a;
 
         fn new(path: &Path) -> io::Result<Self>;
-        fn lock<'a>(
-            &'a mut self,
-        ) -> Pin<Box<dyn Future<Output = io::Result<Self::Guard<'a>>> + Send + 'a>>;
+        fn lock<'a>(&'a mut self) -> impl Future<Output = io::Result<Self::Guard<'a>>> + Send + 'a;
     }
 
     impl TestLock for FileLock {
@@ -114,9 +114,7 @@ mod tests {
             FileLock::new(path)
         }
 
-        fn lock<'a>(
-            &'a mut self,
-        ) -> Pin<Box<dyn Future<Output = io::Result<Self::Guard<'a>>> + Send + 'a>> {
+        fn lock<'a>(&'a mut self) -> impl Future<Output = io::Result<Self::Guard<'a>>> + Send + 'a {
             Box::pin(FileLock::lock(self))
         }
     }
@@ -133,9 +131,7 @@ mod tests {
             Ok(FakeLock)
         }
 
-        fn lock<'a>(
-            &'a mut self,
-        ) -> Pin<Box<dyn Future<Output = io::Result<Self::Guard<'a>>> + Send + 'a>> {
+        fn lock<'a>(&'a mut self) -> impl Future<Output = io::Result<Self::Guard<'a>>> + Send + 'a {
             Box::pin(async { Ok(FakeLockGuard) })
         }
     }

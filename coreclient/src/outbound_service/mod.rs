@@ -338,11 +338,8 @@ mod test {
     use super::*;
 
     fn global_lock() -> GlobalLock {
-        let lock_path = std::env::temp_dir().join(format!(
-            "air_lock_outbound_test_{}.sqlite",
-            uuid::Uuid::new_v4()
-        ));
-        GlobalLock::from_path(lock_path).unwrap()
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        GlobalLock::from_path(temp_file.path()).unwrap()
     }
 
     #[derive(Default, Clone)]
