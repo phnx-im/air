@@ -512,10 +512,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get newConnectionDialog_usernamePlaceholder => 'Type a username...';
 
   @override
+  String newConnectionDialog_handleExists(Object username) {
+    return 'The username $username exists.';
+  }
+
+  @override
   String get newConnectionDialog_cancel => 'Cancel';
 
   @override
-  String get newConnectionDialog_actionButton => 'Connect';
+  String get newConnectionDialog_confirm1 => 'Check';
+
+  @override
+  String get newConnectionDialog_confirm2 => 'Send';
 
   @override
   String newConnectionDialog_error(Object username) {

@@ -12,7 +12,7 @@ use aircommon::{
         hpke::HpkeEncryptable,
         indexed_aead::keys::UserProfileKey,
     },
-    identifiers::{QsReference, UserHandle, UserId},
+    identifiers::{QsReference, UserHandle, UserHandleHash, UserId},
     messages::{
         client_as::{ConnectionOfferMessage, EncryptedConnectionOffer},
         client_ds_out::{CreateGroupParamsOut, TargetedMessageParamsOut},
@@ -58,9 +58,12 @@ pub enum AddHandleContactError {
 
 impl CoreUser {
     /// Create a connection via a user handle.
+    ///
+    /// The hash of the user handle must be pre-computed before calling this function.
     pub(crate) async fn add_contact_via_handle(
         &self,
         handle: UserHandle,
+        hash: UserHandleHash,
     ) -> anyhow::Result<AddHandleContactResult> {
         let client = self.api_client()?;
 
@@ -80,7 +83,7 @@ impl CoreUser {
 
         // Phase 1: Fetch a connection package from the AS
         let (connection_package, connection_offer_responder) =
-            match client.as_connect_handle(handle.clone()).await {
+            match client.as_connect_handle(hash).await {
                 Ok(res) => res,
                 Err(error) if error.is_not_found() => {
                     return Ok(AddHandleContactResult::Err(

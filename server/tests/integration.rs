@@ -721,10 +721,10 @@ async fn error_if_user_doesnt_exist() {
     let alice = setup.add_user().await;
     let alice_user = &setup.get_user(&alice).user;
 
-    let res = alice_user
-        .add_contact(UserHandle::new("non_existent".to_owned()).unwrap())
-        .await
-        .unwrap();
+    let handle = UserHandle::new("non-existent".to_owned()).unwrap();
+    let hash = handle.calculate_hash().unwrap();
+
+    let res = alice_user.add_contact(handle, hash).await.unwrap();
 
     assert!(matches!(
         res,
@@ -1161,9 +1161,10 @@ async fn blocked_contact() {
         .unwrap()
         .handle
         .clone();
+    let alice_handle_hash = alice_handle.calculate_hash().unwrap();
     bob_test_user
         .user
-        .add_contact(alice_handle.clone())
+        .add_contact(alice_handle.clone(), alice_handle_hash)
         .await
         .unwrap();
     let mut messages = alice_test_user.user.fetch_handle_messages().await.unwrap();
@@ -1961,12 +1962,17 @@ async fn handle_sanity_checks() {
     let bob = setup.get_user_mut(&bob);
     let handle_record = bob.add_user_handle().await.unwrap();
     let bob_handle = handle_record.handle.clone();
+    let bob_handle_hash = bob_handle.calculate_hash().unwrap();
 
     let alice = setup.get_user_mut(&alice);
     let handle_record = alice.add_user_handle().await.unwrap();
     let alice_handle = handle_record.handle.clone();
+    let alice_handle_hash = alice_handle.calculate_hash().unwrap();
     let alice_user = &alice.user;
-    let res = alice_user.add_contact(alice_handle.clone()).await.unwrap();
+    let res = alice_user
+        .add_contact(alice_handle.clone(), alice_handle_hash)
+        .await
+        .unwrap();
     assert!(
         matches!(
             res,
@@ -1976,12 +1982,18 @@ async fn handle_sanity_checks() {
     );
 
     // Try to add Bob twice
-    let res = alice_user.add_contact(bob_handle.clone()).await.unwrap();
+    let res = alice_user
+        .add_contact(bob_handle.clone(), bob_handle_hash)
+        .await
+        .unwrap();
     assert!(
         matches!(res, AddHandleContactResult::Ok(_)),
         "Should be able to add Bob as contact"
     );
-    let res = alice_user.add_contact(bob_handle.clone()).await.unwrap();
+    let res = alice_user
+        .add_contact(bob_handle.clone(), bob_handle_hash)
+        .await
+        .unwrap();
     assert!(
         matches!(
             res,
@@ -2001,20 +2013,32 @@ async fn check_handle_exists() {
     let random_number = rand::thread_rng().gen_range(100_000..1_000_000);
     let alice_handle = UserHandle::new(format!("alice-{}", random_number)).unwrap();
 
-    let handle_exists = alice_user.check_handle_exists(&alice_handle).await.unwrap();
-    assert!(!handle_exists, "Alice's handle should not exist yet");
+    let hash = alice_user
+        .check_handle_exists(alice_handle.clone())
+        .await
+        .unwrap();
+    assert!(hash.is_none(), "Alice's handle should not exist yet");
 
     alice_user
         .add_user_handle(alice_handle.clone())
         .await
         .unwrap();
 
-    let exists = alice_user.check_handle_exists(&alice_handle).await.unwrap();
-    assert!(exists, "Alice's handle should exist");
+    let hash = alice_user
+        .check_handle_exists(alice_handle.clone())
+        .await
+        .unwrap();
+    assert!(hash.is_some(), "Alice's handle should exist");
 
     alice_user.remove_user_handle(&alice_handle).await.unwrap();
-    let exists = alice_user.check_handle_exists(&alice_handle).await.unwrap();
-    assert!(!exists, "Alice's handle should not exist after removal");
+    let hash = alice_user
+        .check_handle_exists(alice_handle.clone())
+        .await
+        .unwrap();
+    assert!(
+        hash.is_none(),
+        "Alice's handle should not exist after removal"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

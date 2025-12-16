@@ -6,6 +6,7 @@
 
 use std::sync::Arc;
 
+pub(crate) use aircommon::identifiers::UserHandleHash;
 use aircommon::identifiers::{UserHandle, UserId};
 use aircoreclient::{Asset, PartialContact};
 use aircoreclient::{ChatId, ContactType, clients::CoreUser, store::Store};
@@ -399,6 +400,14 @@ impl UserCubitBase {
             .core_user
             .add_contact_from_group(chat_id, user_id.into())
             .await
+    }
+
+    pub async fn check_handle_exists(
+        &self,
+        handle: UiUserHandle,
+    ) -> anyhow::Result<Option<UserHandleHash>> {
+        let handle = UserHandle::new(handle.plaintext)?;
+        self.context.core_user.check_handle_exists(handle).await
     }
 }
 
