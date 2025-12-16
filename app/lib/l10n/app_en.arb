@@ -31,6 +31,13 @@
   "addMembersScreen_addMembers": "Add member(s)",
   "addMembersScreen_error_noActiveChat": "an active chat is obligatory",
 
+  "contactDetailsScreen_viewSafetyCode": "View Safety Code",
+
+  "safetyCodeScreen_title": "Safety Code",
+  "safetyCodeScreen_tapToCopy": "Tap to copy",
+  "safetyCodeScreen_copiedToClipboard": "Copied to clipboard",
+  "safetyCodeScreen_safetyCodeExplanation": "Compare what you see as the safety code with what {displayName} sees. If the codes match, you know that you're sending and receiving end-to-end encrypted messages with the correct person.",
+
   "chatDetailsScreen_unknownChat": "Unknown chat",
 
   "blockedChatFooter_message": "You won’t receive messages from {displayName} unless you unblock them.",

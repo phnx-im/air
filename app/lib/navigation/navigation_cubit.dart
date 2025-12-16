@@ -4,8 +4,8 @@
 
 import 'dart:async';
 
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/core/core.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 export 'package:air/core/core.dart'
     show NavigationState, IntroScreenType, DeveloperSettingsScreenType;

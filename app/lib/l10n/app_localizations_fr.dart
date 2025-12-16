@@ -93,6 +93,23 @@ class AppLocalizationsFr extends AppLocalizations {
       'un chat actif est obligatoire';
 
   @override
+  String get contactDetailsScreen_viewSafetyCode => 'View Safety Code';
+
+  @override
+  String get safetyCodeScreen_title => 'Safety Code';
+
+  @override
+  String get safetyCodeScreen_tapToCopy => 'Tap to copy';
+
+  @override
+  String get safetyCodeScreen_copiedToClipboard => 'Copied to clipboard';
+
+  @override
+  String safetyCodeScreen_safetyCodeExplanation(Object displayName) {
+    return 'Compare what you see as the safety code with what $displayName sees. If the codes match, you know that you\'re sending and receiving end-to-end encrypted messages with the correct person.';
+  }
+
+  @override
   String get chatDetailsScreen_unknownChat => 'Chat inconnu';
 
   @override

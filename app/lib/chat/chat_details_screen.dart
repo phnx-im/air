@@ -55,36 +55,39 @@ class ChatDetailsScreenView extends StatelessWidget {
       (ChatDetailsCubit cubit) => cubit.state.chat?.chatType,
     );
 
-    return AppScaffold(
-      child: switch (chatType) {
-        UiChatType_Connection(field0: final profile) ||
-        UiChatType_TargetedMessageConnection(field0: final profile) => Builder(
-          builder: (context) {
-            final chat = context.select(
-              (ChatDetailsCubit cubit) => cubit.state.chat,
-            );
-            if (chat == null) {
-              return const SizedBox.shrink();
-            }
-            return ContactDetailsView(
+    return switch (chatType) {
+      UiChatType_Connection(field0: final profile) ||
+      UiChatType_TargetedMessageConnection(field0: final profile) => Builder(
+        builder: (context) {
+          final chat = context.select(
+            (ChatDetailsCubit cubit) => cubit.state.chat,
+          );
+          if (chat == null) {
+            return const SizedBox.shrink();
+          }
+          return AppScaffold(
+            title: chat.title,
+            child: ContactDetailsView(
               profile: profile,
               relationship: ContactRelationship(
                 contactChatId: chat.id,
                 isBlocked: chat.status == const UiChatStatus.blocked(),
               ),
-            );
-          },
-        ),
-        UiChatType_Group() => const GroupDetails(),
-        UiChatType_HandleConnection() ||
-        UiChatType_PendingConnection() ||
-        null => Builder(
-          builder: (context) {
-            final loc = AppLocalizations.of(context);
-            return Center(child: Text(loc.chatDetailsScreen_unknownChat));
-          },
-        ),
-      },
-    );
+            ),
+          );
+        },
+      ),
+      UiChatType_Group() => const GroupDetails(),
+      UiChatType_HandleConnection() ||
+      UiChatType_PendingConnection() ||
+      null => Builder(
+        builder: (context) {
+          final loc = AppLocalizations.of(context);
+          return AppScaffold(
+            child: Center(child: Text(loc.chatDetailsScreen_unknownChat)),
+          );
+        },
+      ),
+    };
   }
 }
