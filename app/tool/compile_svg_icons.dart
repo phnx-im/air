@@ -64,6 +64,7 @@ Future<void> main() async {
   buffer.writeln("// Generated via app/tool/compile_svg_icons.dart");
   buffer.writeln();
   buffer.writeln("import 'dart:convert';");
+  buffer.writeln("import 'package:flutter/foundation.dart';");
   buffer.writeln("import 'package:flutter/services.dart';");
   buffer.writeln("import 'package:flutter/widgets.dart';");
   buffer.writeln("import 'package:vector_graphics/vector_graphics.dart';");
@@ -103,9 +104,10 @@ Future<void> main() async {
   buffer.writeln('  const _InlineBytesLoader(this.base64Data);');
   buffer.writeln('  final String base64Data;');
   buffer.writeln('  @override');
-  buffer.writeln(
-    '  Future<ByteData> loadBytes(BuildContext? context) async => ByteData.sublistView(base64Decode(base64Data));',
-  );
+  buffer.writeln('  Future<ByteData> loadBytes(BuildContext? context) {');
+  buffer.writeln('    final bytes = base64Decode(base64Data);');
+  buffer.writeln('    return SynchronousFuture(ByteData.sublistView(bytes));');
+  buffer.writeln('  }');
   buffer.writeln('  @override');
   buffer.writeln('  Object cacheKey(BuildContext? context) => this;');
   buffer.writeln('}');

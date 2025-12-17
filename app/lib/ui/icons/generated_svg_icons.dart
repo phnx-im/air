@@ -2,6 +2,7 @@
 // Generated via app/tool/compile_svg_icons.dart
 
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:vector_graphics/vector_graphics.dart';
@@ -170,8 +171,11 @@ class _InlineBytesLoader extends BytesLoader {
   const _InlineBytesLoader(this.base64Data);
   final String base64Data;
   @override
-  Future<ByteData> loadBytes(BuildContext? context) async =>
-      ByteData.sublistView(base64Decode(base64Data));
+  Future<ByteData> loadBytes(BuildContext? context) {
+    final bytes = base64Decode(base64Data);
+    return SynchronousFuture(ByteData.sublistView(bytes));
+  }
+
   @override
   Object cacheKey(BuildContext? context) => this;
 }
