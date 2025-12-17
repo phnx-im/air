@@ -961,17 +961,29 @@ abstract class AppLocalizations {
   /// **'Type a username...'**
   String get newConnectionDialog_usernamePlaceholder;
 
+  /// No description provided for @newConnectionDialog_handleExists.
+  ///
+  /// In en, this message translates to:
+  /// **'{username} exists. Tap “Send” to send a contact request.'**
+  String newConnectionDialog_handleExists(Object username);
+
   /// No description provided for @newConnectionDialog_cancel.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get newConnectionDialog_cancel;
 
-  /// No description provided for @newConnectionDialog_actionButton.
+  /// No description provided for @newConnectionDialog_confirm1.
   ///
   /// In en, this message translates to:
-  /// **'Connect'**
-  String get newConnectionDialog_actionButton;
+  /// **'Check'**
+  String get newConnectionDialog_confirm1;
+
+  /// No description provided for @newConnectionDialog_confirm2.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get newConnectionDialog_confirm2;
 
   /// No description provided for @newConnectionDialog_error.
   ///
@@ -988,7 +1000,7 @@ abstract class AppLocalizations {
   /// No description provided for @newConnectionDialog_error_handleNotFound.
   ///
   /// In en, this message translates to:
-  /// **'Username {username} doesn\'t exist. Get the correct username and try again.'**
+  /// **'{username} wasn\'t found. Check it and try again.'**
   String newConnectionDialog_error_handleNotFound(Object username);
 
   /// No description provided for @newConnectionDialog_error_duplicateRequest.

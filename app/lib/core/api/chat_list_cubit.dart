@@ -27,6 +27,7 @@ abstract class ChatListCubitBase implements RustOpaqueInterface {
   /// Returns `None` if the provided handle does not exist.
   Future<AddHandleContactResult> createContactChat({
     required UiUserHandle handle,
+    required UserHandleHash hash,
   });
 
   /// Creates a new group chat with the given name.
@@ -49,6 +50,9 @@ abstract class ChatListCubitBase implements RustOpaqueInterface {
 
   Stream<ChatListState> stream();
 }
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserHandleHash>>
+abstract class UserHandleHash implements RustOpaqueInterface {}
 
 /// Represents the state of the list of chat.
 @freezed

@@ -30,7 +30,8 @@ class ChatListCubit implements StateStreamableSource<ChatListState> {
 
   Future<AddHandleContactResult> createContactChat({
     required UiUserHandle handle,
-  }) => _impl.createContactChat(handle: handle);
+    required UserHandleHash hash,
+  }) => _impl.createContactChat(handle: handle, hash: hash);
 
   Future<ChatId> createGroupChat({required String groupName}) =>
       _impl.createGroupChat(groupName: groupName);

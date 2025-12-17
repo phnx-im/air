@@ -9,6 +9,7 @@ import 'package:air/theme/theme.dart';
 import 'package:air/ui/components/button/button.dart';
 import 'package:air/ui/components/modal/app_dialog.dart';
 import 'package:air/ui/typography/font_size.dart';
+import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/widgets/user_handle_input_formatter.dart';
@@ -25,9 +26,10 @@ class AddContactDialog extends HookWidget {
   Widget build(context) {
     final formKey = useMemoized(() => GlobalKey<FormState>());
 
+    final handleHash = useState<UserHandleHash?>(null);
     final isSubmitting = useState(false);
     final isInputValid = useState(false);
-    final customValidationError = useState<String?>(null);
+    final errorMessage = useState<String?>(null);
 
     final controller = useTextEditingController();
 
@@ -80,46 +82,33 @@ class AddContactDialog extends HookWidget {
                 fillColor: colors.backgroundBase.secondary,
               ),
               onChanged: (value) {
-                customValidationError.value = null;
+                errorMessage.value = null;
+                handleHash.value = null;
                 isInputValid.value = _validate(value);
               },
               onFieldSubmitted: (value) {
                 focusNode.requestFocus();
-                _submit(
-                  context: context,
+                _SubmitHandler(
                   formKey: formKey,
                   isSubmitting: isSubmitting,
-                  customValidationError: customValidationError,
+                  errorMessage: errorMessage,
+                  handleHash: handleHash,
                   value: value,
-                );
+                )._submit(context);
               },
             ),
 
             const SizedBox(height: Spacings.xs),
 
-            if (customValidationError.value == null)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
-                child: Text(
-                  loc.newConnectionDialog_newConnectionDescription,
-                  style: TextStyle(
-                    color: colors.text.tertiary,
-                    fontSize: BodyFontSize.small2.size,
-                  ),
-                ),
+            Container(
+              constraints: const BoxConstraints(minHeight: 38),
+              padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
+              child: _Description(
+                hasHandleHash: handleHash.value != null,
+                errorMessage: errorMessage.value,
+                handle: controller.text,
               ),
-
-            if (customValidationError.value case final errorMessage?)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
-                child: Text(
-                  errorMessage,
-                  style: TextStyle(
-                    color: colors.function.danger,
-                    fontSize: BodyFontSize.small2.size,
-                  ),
-                ),
-              ),
+            ),
 
             const SizedBox(height: Spacings.m),
 
@@ -137,22 +126,21 @@ class AddContactDialog extends HookWidget {
                 const SizedBox(width: Spacings.xs),
                 Expanded(
                   child: AppButton(
-                    onPressed: () {
-                      _submit(
-                        context: context,
-                        formKey: formKey,
-                        isSubmitting: isSubmitting,
-                        customValidationError: customValidationError,
-                        value: controller.text,
-                      );
-                    },
+                    onPressed: () => _SubmitHandler(
+                      formKey: formKey,
+                      isSubmitting: isSubmitting,
+                      errorMessage: errorMessage,
+                      handleHash: handleHash,
+                      value: controller.text,
+                    )._submit(context),
                     state: isSubmitting.value
                         ? .pending
-                        : isInputValid.value &&
-                              customValidationError.value == null
+                        : isInputValid.value && errorMessage.value == null
                         ? .active
                         : .inactive,
-                    label: loc.newConnectionDialog_actionButton,
+                    label: handleHash.value == null
+                        ? loc.newConnectionDialog_confirm1
+                        : loc.newConnectionDialog_confirm2,
                   ),
                 ),
               ],
@@ -163,13 +151,70 @@ class AddContactDialog extends HookWidget {
     );
   }
 
-  void _submit({
-    required BuildContext context,
-    required GlobalKey<FormState> formKey,
-    required ValueNotifier<bool> isSubmitting,
-    required ValueNotifier<String?> customValidationError,
-    required String value,
-  }) async {
+  bool _validate(String value) {
+    final normalized = UserHandleInputFormatter.normalize(
+      value,
+      allowUnderscore: false,
+    );
+    if (normalized.isEmpty) {
+      return false;
+    }
+    UiUserHandle handle = UiUserHandle(plaintext: normalized);
+    return handle.validationError() == null;
+  }
+}
+
+class _Description extends StatelessWidget {
+  const _Description({
+    required this.hasHandleHash,
+    required this.errorMessage,
+    required this.handle,
+  });
+
+  final bool hasHandleHash;
+  final String? errorMessage;
+  final String handle;
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final colors = CustomColorScheme.of(context);
+
+    final (text, color) = switch ((errorMessage, hasHandleHash)) {
+      (final errorMessage?, _) => (errorMessage, colors.function.danger),
+      (null, true) => (
+        loc.newConnectionDialog_handleExists(handle),
+        colors.function.success,
+      ),
+      (null, false) => (
+        loc.newConnectionDialog_newConnectionDescription,
+        colors.text.tertiary,
+      ),
+    };
+
+    return Text(
+      text,
+      style: TextStyle(color: color, fontSize: BodyFontSize.small2.size),
+    );
+  }
+}
+
+class _SubmitHandler {
+  const _SubmitHandler({
+    required this.formKey,
+    required this.isSubmitting,
+    required this.errorMessage,
+    required this.handleHash,
+    required this.value,
+  });
+
+  final GlobalKey<FormState> formKey;
+  final ValueNotifier<bool> isSubmitting;
+  final ValueNotifier<String?> errorMessage;
+  final ValueNotifier<UserHandleHash?> handleHash;
+  final String value;
+
+  void _submit(BuildContext context) {
     if (!formKey.currentState!.validate()) {
       return;
     }
@@ -180,15 +225,53 @@ class AddContactDialog extends HookWidget {
 
     final loc = AppLocalizations.of(context);
     if (normalized.isEmpty) {
-      customValidationError.value = loc.newConnectionDialog_error_emptyHandle;
+      errorMessage.value = loc.newConnectionDialog_error_emptyHandle;
+      isSubmitting.value = false;
+      return;
+    }
+    final handle = UiUserHandle(plaintext: normalized);
+
+    if (handleHash.value == null) {
+      _checkHandle(context, handle);
+    } else {
+      _connectHandle(context, handle, handleHash.value!);
+    }
+  }
+
+  void _checkHandle(BuildContext context, UiUserHandle handle) async {
+    isSubmitting.value = true;
+    final userCubit = context.read<UserCubit>();
+    final hash = await userCubit.checkHandleExists(handle: handle);
+
+    if (!context.mounted) return;
+    final loc = AppLocalizations.of(context);
+
+    if (hash == null) {
+      errorMessage.value = loc.newConnectionDialog_error_handleNotFound(
+        handle.plaintext,
+      );
       isSubmitting.value = false;
       return;
     }
 
+    handleHash.value = hash;
+    isSubmitting.value = false;
+  }
+
+  void _connectHandle(
+    BuildContext context,
+    UiUserHandle handle,
+    UserHandleHash hash,
+  ) async {
+    isSubmitting.value = true;
+
+    final loc = AppLocalizations.of(context);
     final chatListCubit = context.read<ChatListCubit>();
-    final handle = UiUserHandle(plaintext: normalized);
     try {
-      final result = await chatListCubit.createContactChat(handle: handle);
+      final result = await chatListCubit.createContactChat(
+        handle: handle,
+        hash: hash,
+      );
       switch (result) {
         case AddHandleContactResult_Ok():
           // success
@@ -205,7 +288,7 @@ class AddContactDialog extends HookWidget {
             AddHandleContactError.ownHandle =>
               loc.newConnectionDialog_error_ownHandle,
           };
-          customValidationError.value = errorMessage;
+          this.errorMessage.value = errorMessage;
       }
     } catch (e) {
       // fatal error
@@ -218,17 +301,5 @@ class AddContactDialog extends HookWidget {
     } finally {
       isSubmitting.value = false;
     }
-  }
-
-  bool _validate(String value) {
-    final normalized = UserHandleInputFormatter.normalize(
-      value,
-      allowUnderscore: false,
-    );
-    if (normalized.isEmpty) {
-      return false;
-    }
-    UiUserHandle handle = UiUserHandle(plaintext: normalized);
-    return handle.validationError() == null;
   }
 }

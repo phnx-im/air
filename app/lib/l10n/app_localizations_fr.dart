@@ -533,10 +533,18 @@ class AppLocalizationsFr extends AppLocalizations {
   String get newConnectionDialog_usernamePlaceholder => 'Nom d\'utilisateur';
 
   @override
+  String newConnectionDialog_handleExists(Object username) {
+    return '$username exists. Tap “Send” to send a contact request.';
+  }
+
+  @override
   String get newConnectionDialog_cancel => 'Cancel';
 
   @override
-  String get newConnectionDialog_actionButton => 'Se connecter';
+  String get newConnectionDialog_confirm1 => 'Check';
+
+  @override
+  String get newConnectionDialog_confirm2 => 'Send';
 
   @override
   String newConnectionDialog_error(Object username) {
