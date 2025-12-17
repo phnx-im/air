@@ -148,23 +148,35 @@ final Map<CompiledSvgIcon, _InlineBytesLoader> _compiledSvgLoaders = {
 BytesLoader compiledSvgLoader(CompiledSvgIcon icon) =>
     _compiledSvgLoaders[icon]!;
 
-Widget compiledSvgWidget(
-  CompiledSvgIcon icon, {
-  double? size,
-  Color? color,
-  BoxFit fit = BoxFit.contain,
-  Alignment alignment = Alignment.center,
-}) {
-  return VectorGraphic(
-    loader: compiledSvgLoader(icon),
-    width: size,
-    height: size,
-    fit: fit,
-    alignment: alignment,
-    colorFilter: color != null
-        ? ColorFilter.mode(color, BlendMode.srcIn)
-        : null,
-  );
+class CompiledSvgIconWidget extends StatelessWidget {
+  const CompiledSvgIconWidget({
+    super.key,
+    required this.icon,
+    this.size,
+    this.color,
+    this.fit = BoxFit.contain,
+    this.alignment = Alignment.center,
+  });
+
+  final CompiledSvgIcon icon;
+  final double? size;
+  final Color? color;
+  final BoxFit fit;
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return VectorGraphic(
+      loader: compiledSvgLoader(icon),
+      width: size,
+      height: size,
+      fit: fit,
+      alignment: alignment,
+      colorFilter: color != null
+          ? ColorFilter.mode(color!, BlendMode.srcIn)
+          : null,
+    );
+  }
 }
 
 class _InlineBytesLoader extends BytesLoader {
