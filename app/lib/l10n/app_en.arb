@@ -174,7 +174,7 @@
   "newConnectionDialog_newConnectionDescription": "Enter the username of the person you want to message.",
   "newConnectionDialog_inputLabel": "Username (required)",
   "newConnectionDialog_usernamePlaceholder": "Type a username...",
-  "newConnectionDialog_handleExists": "The username {username} exists.",
+  "newConnectionDialog_handleExists": "{username} exists. Tap “Send” to send a contact request.",
 
   "newConnectionDialog_cancel": "Cancel",
   "newConnectionDialog_confirm1": "Check",
