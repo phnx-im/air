@@ -18,7 +18,7 @@ use aircommon::{
 use airprotos::delivery_service::v1::SignedPostPolicy;
 use anyhow::{Context, bail, ensure};
 use base64::{Engine, prelude::BASE64_STANDARD};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use infer::MatcherType;
 use mimi_content::{
     MimiContent,
@@ -319,13 +319,14 @@ impl ProcessedAttachment {
 
         let content_hash = Sha256::digest(&content).to_vec();
 
-        let mut filename = PathBuf::from(
-            path.file_name()
-                .unwrap_or_else(|| OsStr::new("attachment.bin")),
-        );
-        if image_data.is_some() {
-            filename.set_extension("webp");
-        }
+        let filename = if image_data.is_some() {
+            PathBuf::from(Self::image_filename()).with_extension("webp")
+        } else {
+            PathBuf::from(
+                path.file_name()
+                    .unwrap_or_else(|| OsStr::new("attachment.bin")),
+            )
+        };
 
         let size = content
             .as_ref()
@@ -341,6 +342,11 @@ impl ProcessedAttachment {
             image_data,
             size,
         })
+    }
+
+    fn image_filename() -> String {
+        let timestamp = Local::now().format("%Y-%m-%d--%H-%M-%S");
+        format!("Air--{timestamp}")
     }
 
     fn into_nested_parts(self, metadata: AttachmentMetadata) -> anyhow::Result<Vec<NestedPart>> {
