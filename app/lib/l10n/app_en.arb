@@ -181,7 +181,7 @@
   "newConnectionDialog_confirm2": "Send",
   "newConnectionDialog_error": "Failed to send {username} a contact request. Try again.",
   "newConnectionDialog_error_emptyHandle": "Type the username",
-  "newConnectionDialog_error_handleNotFound": "Username {username} doesn't exist. Get the correct username and try again.",
+  "newConnectionDialog_error_handleNotFound": "{username} wasn’t found. Check it and try again.",
   "newConnectionDialog_error_duplicateRequest": "You already have a pending contact request to this username.",
   "newConnectionDialog_error_ownHandle": "You can't send a contact request to yourself.",
 
