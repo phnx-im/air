@@ -166,6 +166,8 @@ class _MessageComposerState extends State<MessageComposer>
                   isEditing: editingId != null,
                   layerLink: _inputFieldLink,
                   inputKey: _inputFieldKey,
+                  onSubmitMessage: () =>
+                      _submitMessage(context.read<ChatDetailsCubit>()),
                 ),
               ),
             ),
@@ -363,6 +365,7 @@ class _MessageInput extends StatelessWidget {
     required this.isEditing,
     required this.layerLink,
     required this.inputKey,
+    required this.onSubmitMessage,
   }) : _focusNode = focusNode,
        _controller = controller;
 
@@ -372,6 +375,7 @@ class _MessageInput extends StatelessWidget {
   final bool isEditing;
   final LayerLink layerLink;
   final GlobalKey inputKey;
+  final VoidCallback onSubmitMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -429,7 +433,9 @@ class _MessageInput extends StatelessWidget {
             textInputAction: sendOnEnter
                 ? TextInputAction.send
                 : TextInputAction.newline,
-            onEditingComplete: () => _focusNode.requestFocus(),
+            onEditingComplete: sendOnEnter
+                ? onSubmitMessage
+                : () => _focusNode.requestFocus(),
             keyboardType: TextInputType.multiline,
             textCapitalization: TextCapitalization.sentences,
           ),
