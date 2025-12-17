@@ -93,6 +93,23 @@ class AppLocalizationsEn extends AppLocalizations {
       'an active chat is obligatory';
 
   @override
+  String get contactDetailsScreen_viewSafetyCode => 'View Safety Code';
+
+  @override
+  String get safetyCodeScreen_title => 'Safety Code';
+
+  @override
+  String get safetyCodeScreen_tapToCopy => 'Tap to copy';
+
+  @override
+  String get safetyCodeScreen_copiedToClipboard => 'Copied to clipboard';
+
+  @override
+  String safetyCodeScreen_safetyCodeExplanation(Object displayName) {
+    return 'Compare what you see as the safety code with what $displayName sees. If the codes match, you know that you\'re sending and receiving end-to-end encrypted messages with the correct person.';
+  }
+
+  @override
   String get chatDetailsScreen_unknownChat => 'Unknown chat';
 
   @override
@@ -219,34 +236,43 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get invitationCodeScreen_header => 'Enter invitation code';
+
+  @override
+  String get invitationCodeScreen_subheader =>
+      'Air is currently invitation-only. Enter your code to join. If you don\'t have one, ask someone who’s already on Air.';
+
+  @override
+  String get invitationCodeScreen_inputLabel => 'Invitation code (required)';
+
+  @override
+  String get invitationCodeScreen_inputHint => 'Enter your invitation code...';
+
+  @override
+  String get invitationCodeScreen_error_invalidLength =>
+      'Code must be 8 characters';
+
+  @override
+  String get invitationCodeScreen_actionButton => 'Join Air';
+
+  @override
+  String invitationCodeScreen_error_internal(Object error) {
+    return 'Failed to check invitation code: $error';
+  }
+
+  @override
+  String get invitationCodeScreen_error_missing => 'Invitation code is missing';
+
+  @override
+  String get invitationCodeScreen_error_invalid =>
+      'Invalid invitation code. Check your code, then try again.';
+
+  @override
   String get signUpScreen_header => 'Create your profile';
 
   @override
   String get signUpScreen_subheader =>
       'Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.';
-
-  @override
-  String get usernameOnboarding_header => 'Add a username';
-
-  @override
-  String get usernameOnboarding_body =>
-      'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.';
-
-  @override
-  String get usernameOnboarding_syntax =>
-      'Use letters, numbers, or dashes. Minimum 5 characters.';
-
-  @override
-  String get usernameOnboarding_addButton => 'Add';
-
-  @override
-  String get usernameOnboarding_skip => 'Skip';
-
-  @override
-  String get usernameOnboarding_userameInputName => 'Username (optional)';
-
-  @override
-  String get usernameOnboarding_userameInputHint => 'Add a username...';
 
   @override
   String get signUpScreen_actionButton => 'Create';
@@ -275,6 +301,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String signUpScreen_error_register(Object error) {
     return 'Error when registering user: $error';
   }
+
+  @override
+  String get usernameOnboarding_header => 'Add a username';
+
+  @override
+  String get usernameOnboarding_body =>
+      'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.';
+
+  @override
+  String get usernameOnboarding_syntax =>
+      'Use letters, numbers, or dashes. Minimum 5 characters.';
+
+  @override
+  String get usernameOnboarding_addButton => 'Add';
+
+  @override
+  String get usernameOnboarding_skip => 'Skip';
+
+  @override
+  String get usernameOnboarding_userameInputName => 'Username (optional)';
+
+  @override
+  String get usernameOnboarding_userameInputHint => 'Add a username...';
 
   @override
   String get userHandleScreen_title => 'Add username';
@@ -467,14 +516,20 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get newConnectionDialog_newConnectionTitle => 'New Air contact';
+  String get newConnectionDialog_newConnectionTitle => 'Add Air contact';
 
   @override
   String get newConnectionDialog_newConnectionDescription =>
-      'Type the username of the person you want to connect to';
+      'Enter the username of the person you want to message.';
 
   @override
-  String get newConnectionDialog_usernamePlaceholder => 'Username';
+  String get newConnectionDialog_inputLabel => 'Username (required)';
+
+  @override
+  String get newConnectionDialog_usernamePlaceholder => 'Type a username...';
+
+  @override
+  String get newConnectionDialog_cancel => 'Cancel';
 
   @override
   String get newConnectionDialog_actionButton => 'Connect';
@@ -489,7 +544,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String newConnectionDialog_error_handleNotFound(Object username) {
-    return 'Username $username doesn\'t exist';
+    return 'Username $username doesn\'t exist. Get the correct username and try again.';
   }
 
   @override
@@ -790,4 +845,33 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get deleteAccountScreen_deleteAccountError =>
       'Something went wrong on our end. Wait a moment, then try again.';
+
+  @override
+  String get appOutdatedScreen_title => 'Sofware update required';
+
+  @override
+  String get appOutdatedScreen_message => 'Update to keep using Air';
+
+  @override
+  String get appOutdatedScreen_description =>
+      'Open TestFlight on iOS or Google Play on Android, then update Air.';
+
+  @override
+  String get appOutdatedScreen_action => 'Update';
+
+  @override
+  String get contactRequestDialog_title => 'Contact request';
+
+  @override
+  String get contactRequestDialog_avatarHint => 'Tap to reveal their picture';
+
+  @override
+  String get contactRequestDialog_cancel => 'Later';
+
+  @override
+  String get contactRequestDialog_confirm => 'Accept';
+
+  @override
+  String get contactRequestDialog_error_fatal =>
+      'Failed to accept contact request';
 }

@@ -124,11 +124,36 @@ impl BackgroundStreamContext<HandleQueueMessage> for HandleContext {
     async fn create_stream(
         &mut self,
     ) -> anyhow::Result<impl Stream<Item = HandleQueueMessage> + 'static> {
-        let (stream, responder) = self
+        let (stream, responder) = match self
             .cubit_context
             .core_user
             .listen_handle(&self.handle_record)
-            .await?;
+            .await
+        {
+            Ok(stream) => {
+                self.cubit_context.state_tx.send_if_modified(|state| {
+                    if !state.inner.unsupported_version {
+                        return false;
+                    }
+                    let inner = Arc::make_mut(&mut state.inner);
+                    inner.unsupported_version = false;
+                    true
+                });
+                stream
+            }
+            Err(error) if error.is_unsupported_version() => {
+                self.cubit_context.state_tx.send_if_modified(|state| {
+                    if state.inner.unsupported_version {
+                        return false;
+                    }
+                    let inner = Arc::make_mut(&mut state.inner);
+                    inner.unsupported_version = true;
+                    true
+                });
+                return Err(error.into());
+            }
+            Err(error) => return Err(error.into()),
+        };
         self.responder.write().await.replace(responder);
         Ok(stream.filter_map(identity))
     }

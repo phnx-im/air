@@ -16,6 +16,7 @@ expression: "&*USER_CREATION_STATE_BASIC"
     "push_token": {
       "operator": "Google",
       "token": "token"
-    }
+    },
+    "invitation_code": "DUMMY007"
   }
 }

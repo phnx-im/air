@@ -93,6 +93,23 @@ class AppLocalizationsFr extends AppLocalizations {
       'un chat actif est obligatoire';
 
   @override
+  String get contactDetailsScreen_viewSafetyCode => 'View Safety Code';
+
+  @override
+  String get safetyCodeScreen_title => 'Safety Code';
+
+  @override
+  String get safetyCodeScreen_tapToCopy => 'Tap to copy';
+
+  @override
+  String get safetyCodeScreen_copiedToClipboard => 'Copied to clipboard';
+
+  @override
+  String safetyCodeScreen_safetyCodeExplanation(Object displayName) {
+    return 'Compare what you see as the safety code with what $displayName sees. If the codes match, you know that you\'re sending and receiving end-to-end encrypted messages with the correct person.';
+  }
+
+  @override
   String get chatDetailsScreen_unknownChat => 'Chat inconnu';
 
   @override
@@ -220,35 +237,43 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
+  String get invitationCodeScreen_header => 'Enter invitation code';
+
+  @override
+  String get invitationCodeScreen_subheader =>
+      'Air is currently invitation-only. Enter your code to join. If you don\'t have one, ask someone who’s already on Air.';
+
+  @override
+  String get invitationCodeScreen_inputLabel => 'Invitation code (required)';
+
+  @override
+  String get invitationCodeScreen_inputHint => 'Enter your invitation code...';
+
+  @override
+  String get invitationCodeScreen_error_invalidLength =>
+      'Code must be 8 characters';
+
+  @override
+  String get invitationCodeScreen_actionButton => 'Join Air';
+
+  @override
+  String invitationCodeScreen_error_internal(Object error) {
+    return 'Failed to check invitation code: $error';
+  }
+
+  @override
+  String get invitationCodeScreen_error_missing => 'Invitation code is missing';
+
+  @override
+  String get invitationCodeScreen_error_invalid =>
+      'Invalid invitation code. Check your code, then try again.';
+
+  @override
   String get signUpScreen_header => 'Créez votre profil';
 
   @override
   String get signUpScreen_subheader =>
       'Votre profil est visible pour les personnes avec lesquelles vous vous connectez et les membres de vos groupes. Air exige un nom d\'affichage, mais la photo est facultative.';
-
-  @override
-  String get usernameOnboarding_header => 'Ajoutez un nom d\'utilisateur';
-
-  @override
-  String get usernameOnboarding_body =>
-      'On peut se connecter à d\'autres grace aux noms d\'utilisateur sur Air. Ils ne seront plus visibles pour les autres une fois la connexion établie.\n\nAjoutez, modifiez ou supprimez des noms d\'utilisateur à tout moment dans votre profil.';
-
-  @override
-  String get usernameOnboarding_syntax =>
-      'Utilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.';
-
-  @override
-  String get usernameOnboarding_addButton => 'Ajouter';
-
-  @override
-  String get usernameOnboarding_skip => 'Ignorer';
-
-  @override
-  String get usernameOnboarding_userameInputName =>
-      'Nom d\'utilisateur (facultatif)';
-
-  @override
-  String get usernameOnboarding_userameInputHint => 'Ajoutez un nom...';
 
   @override
   String get signUpScreen_actionButton => 'S\'inscrire';
@@ -278,6 +303,30 @@ class AppLocalizationsFr extends AppLocalizations {
   String signUpScreen_error_register(Object error) {
     return 'Erreur lors de l\'enregistrement de l\'utilisateur : $error';
   }
+
+  @override
+  String get usernameOnboarding_header => 'Ajoutez un nom d\'utilisateur';
+
+  @override
+  String get usernameOnboarding_body =>
+      'On peut se connecter à d\'autres grace aux noms d\'utilisateur sur Air. Ils ne seront plus visibles pour les autres une fois la connexion établie.\n\nAjoutez, modifiez ou supprimez des noms d\'utilisateur à tout moment dans votre profil.';
+
+  @override
+  String get usernameOnboarding_syntax =>
+      'Utilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.';
+
+  @override
+  String get usernameOnboarding_addButton => 'Ajouter';
+
+  @override
+  String get usernameOnboarding_skip => 'Ignorer';
+
+  @override
+  String get usernameOnboarding_userameInputName =>
+      'Nom d\'utilisateur (facultatif)';
+
+  @override
+  String get usernameOnboarding_userameInputHint => 'Ajoutez un nom...';
 
   @override
   String get userHandleScreen_title => 'Nom d\'utilisateur';
@@ -478,7 +527,13 @@ class AppLocalizationsFr extends AppLocalizations {
       'Saisissez le nom d\'utilisateur de la personne avec laquelle vous souhaitez vous connecter';
 
   @override
+  String get newConnectionDialog_inputLabel => 'Username (required)';
+
+  @override
   String get newConnectionDialog_usernamePlaceholder => 'Nom d\'utilisateur';
+
+  @override
+  String get newConnectionDialog_cancel => 'Cancel';
 
   @override
   String get newConnectionDialog_actionButton => 'Se connecter';
@@ -800,4 +855,33 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get deleteAccountScreen_deleteAccountError =>
       'Un problème est survenu de notre côté. Veuillez patienter un instant puis réessayer.';
+
+  @override
+  String get appOutdatedScreen_title => 'Sofware update required';
+
+  @override
+  String get appOutdatedScreen_message => 'Update to keep using Air';
+
+  @override
+  String get appOutdatedScreen_description =>
+      'Open TestFlight on iOS or Google Play on Android, then update Air.';
+
+  @override
+  String get appOutdatedScreen_action => 'Update';
+
+  @override
+  String get contactRequestDialog_title => 'Contact request';
+
+  @override
+  String get contactRequestDialog_avatarHint => 'Tap to reveal their picture';
+
+  @override
+  String get contactRequestDialog_cancel => 'Later';
+
+  @override
+  String get contactRequestDialog_confirm => 'Accept';
+
+  @override
+  String get contactRequestDialog_error_fatal =>
+      'Failed to accept contact request';
 }

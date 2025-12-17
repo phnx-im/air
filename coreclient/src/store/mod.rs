@@ -13,6 +13,7 @@ use tokio_stream::Stream;
 use uuid::Uuid;
 
 use crate::clients::add_contact::AddHandleContactResult;
+use crate::clients::safety_code::SafetyCode;
 use crate::contacts::{ContactType, TargetedMessageContact};
 use crate::{
     AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact, MessageDraft,
@@ -182,6 +183,8 @@ pub trait Store {
 
     async fn unblock_contact(&self, user_id: UserId) -> StoreResult<()>;
 
+    async fn accept_contact_request(&self, chat_id: ChatId) -> StoreResult<()>;
+
     async fn contacts(&self) -> StoreResult<Vec<Contact>>;
 
     async fn contact(&self, user_id: &UserId) -> StoreResult<Option<ContactType>>;
@@ -298,6 +301,8 @@ pub trait Store {
     async fn enqueue_notification(&self, notification: &StoreNotification) -> StoreResult<()>;
 
     async fn dequeue_notification(&self) -> StoreResult<StoreNotification>;
+
+    async fn safety_code(&self, user_id: &UserId) -> anyhow::Result<SafetyCode>;
 }
 
 pub trait UserSetting: Send + Sync {

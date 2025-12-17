@@ -39,6 +39,8 @@ use tracing::{Level, enabled, error, info};
 
 use crate::grpc_metrics::GrpcMetricsLayer;
 
+pub mod args;
+pub mod code_command;
 pub mod configurations;
 mod connect_info;
 pub mod enqueue_provider;

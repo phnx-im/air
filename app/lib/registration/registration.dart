@@ -5,6 +5,7 @@
 /// Registration features
 library;
 
-export 'sign_up_screen.dart';
+export 'invitation_code_screen.dart';
 export 'registration_cubit.dart';
+export 'sign_up_screen.dart';
 export 'username_onboarding_screen.dart';

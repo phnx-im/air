@@ -20,6 +20,7 @@ use crate::{
         CoreUser,
         add_contact::AddHandleContactResult,
         attachment::{AttachmentRecord, progress::AttachmentProgress},
+        safety_code::SafetyCode,
         user_settings::UserSettingRecord,
     },
     contacts::{ContactType, HandleContact, PartialContact, TargetedMessageContact},
@@ -181,6 +182,10 @@ impl Store for CoreUser {
 
     async fn unblock_contact(&self, user_id: UserId) -> StoreResult<()> {
         self.unblock_contact(user_id).await
+    }
+
+    async fn accept_contact_request(&self, chat_id: ChatId) -> StoreResult<()> {
+        self.accept_contact_request(chat_id).await
     }
 
     async fn contacts(&self) -> StoreResult<Vec<Contact>> {
@@ -384,5 +389,9 @@ impl Store for CoreUser {
 
     async fn dequeue_notification(&self) -> StoreResult<StoreNotification> {
         self.dequeue_store_notification().await
+    }
+
+    async fn safety_code(&self, user_id: &UserId) -> StoreResult<SafetyCode> {
+        self.safety_code(user_id).await
     }
 }

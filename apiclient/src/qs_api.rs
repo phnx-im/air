@@ -18,8 +18,11 @@ use aircommon::{
         push_token::EncryptedPushToken,
     },
 };
-use airprotos::queue_service::v1::{
-    AckListenRequest, FetchListenRequest, InitListenRequest, QueueEvent, listen_request,
+use airprotos::{
+    common::v1::{StatusDetails, StatusDetailsCode},
+    queue_service::v1::{
+        AckListenRequest, FetchListenRequest, InitListenRequest, QueueEvent, listen_request,
+    },
 };
 use airprotos::{
     queue_service::v1::{
@@ -51,6 +54,20 @@ pub enum QsRequestError {
     Tonic(#[from] tonic::Status),
     #[error("missing field in response: {0}")]
     MissingField(#[from] MissingFieldError<&'static str>),
+}
+
+impl QsRequestError {
+    pub fn is_unsupported_version(&self) -> bool {
+        match self {
+            Self::Tonic(status) => {
+                status.code() == tonic::Code::FailedPrecondition
+                    && StatusDetails::from_status(status)
+                        .map(|details| details.code() == StatusDetailsCode::VersionUnsupported)
+                        .unwrap_or(false)
+            }
+            _ => false,
+        }
+    }
 }
 
 impl ApiClient {

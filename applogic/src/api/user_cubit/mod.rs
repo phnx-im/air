@@ -60,6 +60,7 @@ pub struct UiUser {
 struct UiUserInner {
     user_id: UserId,
     user_handles: Vec<UserHandle>,
+    unsupported_version: bool,
 }
 
 impl UiUser {
@@ -98,6 +99,11 @@ impl UiUser {
             .map(From::from)
             .collect()
     }
+
+    #[frb(getter, sync)]
+    pub fn unsupported_version(&self) -> bool {
+        self.inner.unsupported_version
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -130,9 +136,11 @@ impl UserCubitBase {
     #[frb(sync)]
     pub fn new(user: &User, navigation: &NavigationCubitBase) -> Self {
         let core_user = user.user.clone();
+
         let core = CubitCore::with_initial_state(UiUser::new(Arc::new(UiUserInner {
             user_id: user.user.user_id().clone(),
             user_handles: Vec::new(),
+            unsupported_version: false,
         })));
 
         UiUser::spawn_load(core.state_tx().clone(), core_user.clone());
@@ -145,6 +153,7 @@ impl UserCubitBase {
         let cancel = CancellationToken::new();
 
         let context = CubitContext {
+            state_tx: core.state_tx().clone(),
             core_user,
             app_state,
             navigation_state,
@@ -391,6 +400,31 @@ impl UserCubitBase {
             .add_contact_from_group(chat_id, user_id.into())
             .await
     }
+
+    /// Returns the pair of safety codes of the logged-in user and the given user.
+    ///
+    /// The order of the codes is stable and is determined by their lexicographical order.
+    #[frb(type_64bit_int)]
+    pub async fn safety_codes(&self, other_user_id: UiUserId) -> anyhow::Result<[u64; 12]> {
+        let mut first = self
+            .context
+            .core_user
+            .safety_code(self.context.core_user.user_id())
+            .await?;
+        let mut second = self
+            .context
+            .core_user
+            .safety_code(&other_user_id.into())
+            .await?;
+        if first > second {
+            std::mem::swap(&mut first, &mut second);
+        }
+        let mut code = [0; 12];
+        let (prefix, suffix) = code.split_at_mut(6);
+        prefix.copy_from_slice(&first.to_chunks());
+        suffix.copy_from_slice(&second.to_chunks());
+        Ok(code)
+    }
 }
 
 impl Drop for UserCubitBase {
@@ -403,6 +437,7 @@ impl Drop for UserCubitBase {
 #[frb(ignore)]
 #[derive(Debug, Clone)]
 struct CubitContext {
+    state_tx: watch::Sender<UiUser>,
     core_user: CoreUser,
     app_state: watch::Receiver<AppState>,
     navigation_state: watch::Receiver<NavigationState>,

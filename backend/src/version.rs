@@ -86,14 +86,9 @@ mod tests {
         if status.code() != Code::FailedPrecondition {
             return false;
         }
-        let details = status.details();
-        if details.is_empty() {
-            return false;
-        }
-        match StatusDetails::decode(details) {
-            Ok(StatusDetails { code }) => code == i32::from(StatusDetailsCode::VersionUnsupported),
-            _ => false,
-        }
+        StatusDetails::from_status(status)
+            .map(|details| details.code() == StatusDetailsCode::VersionUnsupported)
+            .unwrap_or(false)
     }
 
     #[test]
