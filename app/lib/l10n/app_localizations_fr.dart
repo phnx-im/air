@@ -722,6 +722,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get groupDetails_deleteChat => 'Supprimer';
 
   @override
+  String get groupDetails_addPeople => 'Add people';
+
+  @override
   String get groupDetails_seeAll => 'Voir tout';
 
   @override

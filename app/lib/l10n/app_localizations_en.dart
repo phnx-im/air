@@ -714,6 +714,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get groupDetails_deleteChat => 'Delete';
 
   @override
+  String get groupDetails_addPeople => 'Add people';
+
+  @override
   String get groupDetails_seeAll => 'See all';
 
   @override

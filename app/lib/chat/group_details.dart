@@ -347,7 +347,7 @@ class _ActionsRow extends StatelessWidget {
                       ),
                       const SizedBox(width: Spacings.s),
                       Text(
-                        "Add people",
+                        loc.groupDetails_addPeople,
                         style: TextStyle(fontSize: BodyFontSize.base.size),
                       ),
                     ],

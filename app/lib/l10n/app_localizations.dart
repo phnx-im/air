@@ -1285,6 +1285,12 @@ abstract class AppLocalizations {
   /// **'Delete'**
   String get groupDetails_deleteChat;
 
+  /// No description provided for @groupDetails_addPeople.
+  ///
+  /// In en, this message translates to:
+  /// **'Add people'**
+  String get groupDetails_addPeople;
+
   /// No description provided for @groupDetails_seeAll.
   ///
   /// In en, this message translates to:
