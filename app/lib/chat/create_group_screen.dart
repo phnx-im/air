@@ -20,8 +20,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
+import 'package:logging/logging.dart';
 
 import 'add_members_cubit.dart';
+
+final _log = Logger('CreateGroupScreen');
 
 class CreateGroupScreen extends StatelessWidget {
   const CreateGroupScreen({super.key});
@@ -402,7 +405,8 @@ class _CreateGroupDetailsStepState extends State<_CreateGroupDetailsStep> {
       if (!mounted) return;
       navigationCubit.pop();
       await navigationCubit.openChat(chatId);
-    } catch (error) {
+    } catch (error, stackTrace) {
+      _log.severe('Failed to create group "$groupName"', error, stackTrace);
       if (!mounted) return;
       setState(() => _isCreating = false);
       final loc = AppLocalizations.of(context);
