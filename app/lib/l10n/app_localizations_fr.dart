@@ -730,6 +730,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get groupDetails_deleteChat => 'Supprimer';
 
   @override
+  String get groupDetails_addPeople => 'Add people';
+
+  @override
   String get groupDetails_seeAll => 'Voir tout';
 
   @override
@@ -742,6 +745,9 @@ class AppLocalizationsFr extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get groupDetails_groupDescription => 'Group';
 
   @override
   String get groupMembersScreen_title => 'Membres du groupe';

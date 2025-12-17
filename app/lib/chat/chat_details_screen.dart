@@ -77,7 +77,7 @@ class ChatDetailsScreenView extends StatelessWidget {
           );
         },
       ),
-      UiChatType_Group() => const GroupDetails(),
+      UiChatType_Group() => const GroupDetailsScreen(),
       UiChatType_HandleConnection() ||
       UiChatType_PendingConnection() ||
       null => Builder(
