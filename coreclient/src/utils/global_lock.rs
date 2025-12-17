@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#[cfg(any(test, feature = "test_utils"))]
-use std::fs::File;
 use std::{io, path::Path};
 
 #[derive(Debug)]
@@ -30,22 +28,6 @@ impl GlobalLock {
         }
     }
 
-    #[cfg(any(test, feature = "test_utils"))]
-    pub(crate) fn from_file(_file: File) -> Self {
-        #[cfg(not(target_os = "android"))]
-        {
-            Self {
-                file: super::file_lock::FileLock::from_file(_file),
-            }
-        }
-        #[cfg(target_os = "android")]
-        {
-            Self {
-                lock: tokio::sync::Mutex::new(()),
-            }
-        }
-    }
-
     /// Note: `&mut self` makes sure that the file cannot be locked twice which is unspecified
     /// behavior and platform dependent.
     pub(crate) async fn lock<'a>(&'a mut self) -> io::Result<impl Drop + 'a> {
@@ -57,5 +39,10 @@ impl GlobalLock {
         {
             Ok(self.lock.lock().await)
         }
+    }
+
+    #[cfg(any(test, feature = "test_utils"))]
+    pub(crate) fn from_path(path: impl AsRef<Path>) -> io::Result<Self> {
+        Self::new(path)
     }
 }

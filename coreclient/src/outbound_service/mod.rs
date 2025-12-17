@@ -338,7 +338,8 @@ mod test {
     use super::*;
 
     fn global_lock() -> GlobalLock {
-        GlobalLock::from_file(tempfile::tempfile().unwrap())
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        GlobalLock::from_path(temp_file.path()).unwrap()
     }
 
     #[derive(Default, Clone)]

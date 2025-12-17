@@ -219,6 +219,8 @@ class _SubmitHandler {
       return;
     }
 
+    isSubmitting.value = true;
+
     final normalized = UserHandleInputFormatter.normalize(value);
 
     final loc = AppLocalizations.of(context);
