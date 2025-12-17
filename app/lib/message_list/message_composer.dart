@@ -166,7 +166,8 @@ class _MessageComposerState extends State<MessageComposer>
                   isEditing: editingId != null,
                   layerLink: _inputFieldLink,
                   inputKey: _inputFieldKey,
-                  onSubmitMessage: () => _submitMessage(context.read<ChatDetailsCubit>()),
+                  onSubmitMessage: () =>
+                      _submitMessage(context.read<ChatDetailsCubit>()),
                 ),
               ),
             ),
