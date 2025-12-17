@@ -8,7 +8,11 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/components/app_scaffold.dart';
+import 'package:air/ui/components/button/button.dart';
+import 'package:air/ui/components/desktop/width_constraints.dart';
 import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
+import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/dialog.dart';
 import 'package:air/widgets/widgets.dart';
@@ -22,8 +26,8 @@ import 'change_group_title_dialog.dart';
 import 'chat_details_cubit.dart';
 
 /// Details of a group chat
-class GroupDetails extends StatelessWidget {
-  const GroupDetails({super.key});
+class GroupDetailsScreen extends StatelessWidget {
+  const GroupDetailsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -37,92 +41,74 @@ class GroupDetails extends StatelessWidget {
     }
 
     final loc = AppLocalizations.of(context);
+    final colors = CustomColorScheme.of(context);
 
-    return Align(
-      alignment: Alignment.topCenter,
-      child: Container(
-        constraints: isPointer() ? const BoxConstraints(maxWidth: 800) : null,
-        padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(vertical: Spacings.m),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    ChatAvatar(
-                      chatId: chat.id,
-                      size: 192,
-                      onPressed: () => _selectAvatar(context, chat.id),
-                    ),
-                    const SizedBox(height: Spacings.m),
-                    InkWell(
-                      onTap: () => _changeGroupTitle(context, chat.title),
-                      child: Text(
-                        chat.title,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.displayLarge!
-                            .copyWith(fontWeight: FontWeight.bold),
+    return AppScaffold(
+      title: chat.title,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedWidth(
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const SizedBox(height: Spacings.s),
+                      ChatAvatar(
+                        chatId: chat.id,
+                        size: 192,
+                        onPressed: () => _selectAvatar(context, chat.id),
                       ),
-                    ),
-                    const SizedBox(height: Spacings.m),
-                    Text(
-                      chat.chatType.description,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: Spacings.m),
-                    _PeoplePreview(
-                      memberIds: members,
-                      onOpenPressed: () {
-                        context.read<NavigationCubit>().openGroupMembers();
-                      },
-                    ),
-                  ],
+                      const SizedBox(height: Spacings.s),
+                      InkWell(
+                        onTap: () => _changeGroupTitle(context, chat.title),
+                        child: Text(
+                          chat.title,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: HeaderFontSize.h1.size,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: Spacings.xxs),
+                      Text(
+                        loc.groupDetails_groupDescription,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: BodyFontSize.base.size,
+                          color: colors.text.secondary,
+                        ),
+                      ),
+                      const SizedBox(height: Spacings.l),
+                      _PeoplePreview(memberIds: members),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: Spacings.s,
-                vertical: isPointer() ? Spacings.s : Spacings.xxxs,
-              ),
-              child: Row(
+              Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton(
+                    child: AppButton(
                       onPressed: () => _leave(context, chat),
-                      child: Text(
-                        loc.groupDetails_leaveChat,
-                        style: Theme.of(context).textTheme.bodyMedium!,
-                      ),
+                      type: .secondary,
+                      label: loc.groupDetails_leaveChat,
                     ),
                   ),
                   const SizedBox(width: Spacings.xs),
                   Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: CustomColorScheme.of(
-                          context,
-                        ).function.danger,
-                        foregroundColor: CustomColorScheme.of(
-                          context,
-                        ).function.white,
-                      ),
+                    child: AppButton(
                       onPressed: () => _delete(context, chat),
-                      child: Text(
-                        loc.groupDetails_deleteChat,
-                        style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                          color: CustomColorScheme.of(context).function.white,
-                        ),
-                      ),
+                      state: .danger,
+                      label: loc.groupDetails_deleteChat,
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -192,10 +178,9 @@ class GroupDetails extends StatelessWidget {
 }
 
 class _PeoplePreview extends HookWidget {
-  const _PeoplePreview({required this.memberIds, this.onOpenPressed});
+  const _PeoplePreview({required this.memberIds});
 
   final List<UiUserId> memberIds;
-  final VoidCallback? onOpenPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -215,22 +200,18 @@ class _PeoplePreview extends HookWidget {
     );
 
     final colors = CustomColorScheme.of(context);
-    final textTheme = Theme.of(context).textTheme;
     final loc = AppLocalizations.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.only(
-            left: Spacings.xs,
-            bottom: Spacings.xs,
-          ),
+          padding: const EdgeInsets.all(Spacings.xs),
           child: Text(
             loc.groupDetails_memberCount(memberIds.length),
-            style: textTheme.labelLarge!.copyWith(
+            style: TextStyle(
+              fontSize: LabelFontSize.base.size,
               fontWeight: FontWeight.bold,
-              color: colors.text.primary,
             ),
           ),
         ),
@@ -251,8 +232,7 @@ class _PeoplePreview extends HookWidget {
                   color: colors.backgroundBase.primary,
                 ),
             ],
-            _SeeAllRow(
-              onPressed: onOpenPressed,
+            _ActionsRow(
               position: previewIds.isEmpty
                   ? _PeopleEntryPosition.single
                   : _PeopleEntryPosition.last,
@@ -312,16 +292,14 @@ class _PeoplePreviewEntry extends StatelessWidget {
   }
 }
 
-class _SeeAllRow extends StatelessWidget {
-  const _SeeAllRow({required this.onPressed, required this.position});
+class _ActionsRow extends StatelessWidget {
+  const _ActionsRow({required this.position});
 
-  final VoidCallback? onPressed;
   final _PeopleEntryPosition position;
 
   @override
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
-    final textTheme = Theme.of(context).textTheme;
     final loc = AppLocalizations.of(context);
     final borderRadius = switch (position) {
       _PeopleEntryPosition.single => BorderRadius.circular(16),
@@ -336,32 +314,83 @@ class _SeeAllRow extends StatelessWidget {
 
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: borderRadius,
-        child: Container(
-          decoration: BoxDecoration(
-            color: colors.backgroundBase.secondary,
-            borderRadius: borderRadius,
-          ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: Spacings.s,
-            vertical: Spacings.xs,
-          ),
-          child: Row(
-            children: [
-              Text(
-                loc.groupDetails_seeAll,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: colors.text.primary,
-                  fontWeight: FontWeight.w600,
+      child: Container(
+        decoration: BoxDecoration(
+          color: colors.backgroundBase.secondary,
+          borderRadius: borderRadius,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: InkWell(
+                onTap: () {
+                  context.read<NavigationCubit>().openAddMembers();
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Spacings.s,
+                    vertical: Spacings.xs,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        height: 32,
+                        width: 32,
+                        decoration: BoxDecoration(
+                          color: colors.backgroundElevated.primary,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Padding(
+                          padding: EdgeInsets.all(Spacings.xxs),
+                          child: iconoir.Plus(),
+                        ),
+                      ),
+                      const SizedBox(width: Spacings.s),
+                      Text(
+                        "Add people",
+                        style: TextStyle(fontSize: BodyFontSize.base.size),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const Spacer(),
-              if (onPressed != null)
-                iconoir.ArrowRight(width: 16, color: colors.text.primary),
-            ],
-          ),
+            ),
+            Expanded(
+              child: InkWell(
+                onTap: () {
+                  context.read<NavigationCubit>().openGroupMembers();
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Spacings.s,
+                    vertical: Spacings.xs,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: .end,
+                    children: [
+                      Text(
+                        loc.groupDetails_seeAll,
+                        style: TextStyle(fontSize: BodyFontSize.base.size),
+                      ),
+                      const SizedBox(width: Spacings.xs),
+                      Container(
+                        height: 32,
+                        width: 32,
+                        decoration: BoxDecoration(
+                          color: colors.backgroundElevated.primary,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Padding(
+                          padding: EdgeInsets.all(Spacings.xxs),
+                          child: iconoir.ArrowRight(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

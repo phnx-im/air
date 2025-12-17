@@ -1294,8 +1294,14 @@ abstract class AppLocalizations {
   /// No description provided for @groupDetails_memberCount.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, one {{count} member} other {{count} members}}'**
+  /// **'{count, plural, one {{count} person} other {{count} people}}'**
   String groupDetails_memberCount(int count);
+
+  /// No description provided for @groupDetails_groupDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Group'**
+  String get groupDetails_groupDescription;
 
   /// No description provided for @groupMembersScreen_title.
   ///

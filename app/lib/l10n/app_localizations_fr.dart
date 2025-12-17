@@ -736,6 +736,9 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
+  String get groupDetails_groupDescription => 'Group';
+
+  @override
   String get groupMembersScreen_title => 'Membres du groupe';
 
   @override

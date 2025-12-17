@@ -261,7 +261,7 @@
   "groupDetails_leaveChat": "Leave",
   "groupDetails_deleteChat": "Delete",
   "groupDetails_seeAll": "See all",
-  "groupDetails_memberCount": "{count, plural, one {{count} member} other {{count} members}}",
+  "groupDetails_memberCount": "{count, plural, one {{count} person} other {{count} people}}",
   "@groupDetails_memberCount": {
     "placeholders": {
       "count": {
@@ -269,6 +269,7 @@
       }
     }
   },
+  "groupDetails_groupDescription": "Group",
   "groupMembersScreen_title": "Group members",
   "groupMembersScreen_searchHint": "Search",
   "groupCreationScreen_title": "Add members",
