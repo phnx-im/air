@@ -992,7 +992,10 @@ async fn send_image_attachment() {
             ..
         } => {
             assert_eq!(content_type, "image/webp");
-            assert_eq!(filename, "test.webp");
+            assert!(
+                filename.starts_with("Air--") && filename.ends_with(".webp"),
+                "unexpected filename: {filename}"
+            );
             assert_eq!(*size, 100);
             assert_eq!(
                 content_hash.as_slice(),
