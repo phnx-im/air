@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:air/core/core.dart';
 import 'package:air/user/user.dart';
@@ -33,6 +34,8 @@ class ChatListCubit implements StateStreamableSource<ChatListState> {
     required UserHandleHash hash,
   }) => _impl.createContactChat(handle: handle, hash: hash);
 
-  Future<ChatId> createGroupChat({required String groupName}) =>
-      _impl.createGroupChat(groupName: groupName);
+  Future<ChatId> createGroupChat({
+    required String groupName,
+    Uint8List? picture,
+  }) => _impl.createGroupChat(groupName: groupName, picture: picture);
 }

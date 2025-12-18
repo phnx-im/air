@@ -22,8 +22,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
+import 'package:logging/logging.dart';
 
 import 'add_members_cubit.dart';
+
+final _log = Logger('CreateGroupScreen');
 
 class CreateGroupScreen extends StatelessWidget {
   const CreateGroupScreen({super.key});
@@ -240,6 +243,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                     context,
                     nameController.text.trim(),
                     isCreating,
+                    picture.value,
                   )
                 : null,
             child: isCreating.value
@@ -384,6 +388,7 @@ class _CreateGroupDetailsStep extends HookWidget {
     BuildContext context,
     String groupName,
     ValueNotifier<bool> isCreating,
+    Uint8List? picture,
   ) async {
     if (groupName.isEmpty) return;
     final navigationCubit = context.read<NavigationCubit>();
@@ -394,14 +399,18 @@ class _CreateGroupDetailsStep extends HookWidget {
     isCreating.value = true;
 
     try {
-      final chatId = await chatListCubit.createGroupChat(groupName: groupName);
+      final chatId = await chatListCubit.createGroupChat(
+        groupName: groupName,
+        picture: picture,
+      );
       for (final userId in selectedContacts) {
         await userCubit.addUserToChat(chatId, userId);
       }
       if (!context.mounted) return;
       navigationCubit.pop();
       await navigationCubit.openChat(chatId);
-    } catch (error) {
+    } catch (error, stackTrace) {
+      _log.severe('Failed to create group "$groupName"', error, stackTrace);
       showErrorBannerStandalone((loc) => loc.newChatDialog_error(groupName));
     } finally {
       isCreating.value = false;
