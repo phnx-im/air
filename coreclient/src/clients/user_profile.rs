@@ -8,9 +8,10 @@ use aircommon::{
 };
 use anyhow::Context;
 use sqlx::SqliteConnection;
+use tracing::{error, warn};
 
 use crate::{
-    ChatId,
+    Chat, ChatId,
     clients::block_contact::BlockedContact,
     groups::{Group, ProfileInfo},
     key_stores::indexed_keys::StorableIndexedKey,
@@ -67,13 +68,23 @@ impl CoreUser {
         // Phase 4: Send a notification to all groups
         let own_user_id = self.user_id();
         let mut connection = self.pool().acquire().await?;
+
         let groups_ids = Group::load_all_group_ids(&mut connection).await?;
+        let mut chat_ids = Chat::load_ordered_ids(connection.as_mut()).await?;
+        chat_ids.sort_unstable();
+
         for group_id in groups_ids {
             let group = Group::load(&mut connection, &group_id)
                 .await?
                 .context("Failed to load group")?;
 
             let chat_id = ChatId::try_from(&group_id).context("invalid group id")?;
+
+            if chat_ids.binary_search(&chat_id).is_err() {
+                warn!(%chat_id, "Group has no chat");
+                continue; // Skip groups without a chat
+            }
+
             if BlockedContact::check_blocked_chat(&mut *connection, chat_id).await? {
                 continue; // Skip blocked chats
             }
@@ -86,6 +97,7 @@ impl CoreUser {
                 sender_index: own_index,
                 user_profile_key: user_profile_key.clone(),
             };
+
             api_client
                 .ds_user_profile_key_update(params, self.signing_key(), group.group_state_ear_key())
                 .await?;
