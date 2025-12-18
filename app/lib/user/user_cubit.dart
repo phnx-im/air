@@ -101,6 +101,9 @@ class UserCubit implements StateStreamableSource<UiUser> {
     required UiUserId userId,
   }) => _impl.addContactFromGroup(chatId: chatId, userId: userId);
 
+  Future<UserHandleHash?> checkHandleExists({required UiUserHandle handle}) =>
+      _impl.checkHandleExists(handle: handle);
+
   Future<intArray12> safetyCodes(UiUserId userId) =>
       _impl.safetyCodes(otherUserId: userId);
 }

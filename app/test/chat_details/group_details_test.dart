@@ -17,7 +17,7 @@ import '../chat_list/chat_list_content_test.dart';
 import '../mocks.dart';
 
 void main() {
-  group('GroupDetails', () {
+  group('GroupDetailsScreen', () {
     late MockChatDetailsCubit chatDetailsCubit;
     late MockUsersCubit usersCubit;
     late MockUserCubit userCubit;
@@ -50,7 +50,7 @@ void main() {
           debugShowCheckedModeBanner: false,
           theme: lightTheme,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: const Scaffold(body: GroupDetails()),
+          home: const GroupDetailsScreen(),
         ),
       );
     }

@@ -961,17 +961,29 @@ abstract class AppLocalizations {
   /// **'Type a username...'**
   String get newConnectionDialog_usernamePlaceholder;
 
+  /// No description provided for @newConnectionDialog_handleExists.
+  ///
+  /// In en, this message translates to:
+  /// **'{username} exists. Tap “Send” to send a contact request.'**
+  String newConnectionDialog_handleExists(Object username);
+
   /// No description provided for @newConnectionDialog_cancel.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get newConnectionDialog_cancel;
 
-  /// No description provided for @newConnectionDialog_actionButton.
+  /// No description provided for @newConnectionDialog_confirm1.
   ///
   /// In en, this message translates to:
-  /// **'Connect'**
-  String get newConnectionDialog_actionButton;
+  /// **'Check'**
+  String get newConnectionDialog_confirm1;
+
+  /// No description provided for @newConnectionDialog_confirm2.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get newConnectionDialog_confirm2;
 
   /// No description provided for @newConnectionDialog_error.
   ///
@@ -988,7 +1000,7 @@ abstract class AppLocalizations {
   /// No description provided for @newConnectionDialog_error_handleNotFound.
   ///
   /// In en, this message translates to:
-  /// **'Username {username} doesn\'t exist. Get the correct username and try again.'**
+  /// **'{username} wasn\'t found. Check it and try again.'**
   String newConnectionDialog_error_handleNotFound(Object username);
 
   /// No description provided for @newConnectionDialog_error_duplicateRequest.
@@ -1285,6 +1297,12 @@ abstract class AppLocalizations {
   /// **'Delete'**
   String get groupDetails_deleteChat;
 
+  /// No description provided for @groupDetails_addPeople.
+  ///
+  /// In en, this message translates to:
+  /// **'Add people'**
+  String get groupDetails_addPeople;
+
   /// No description provided for @groupDetails_seeAll.
   ///
   /// In en, this message translates to:
@@ -1294,8 +1312,14 @@ abstract class AppLocalizations {
   /// No description provided for @groupDetails_memberCount.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, one {{count} member} other {{count} members}}'**
+  /// **'{count, plural, one {{count} person} other {{count} people}}'**
   String groupDetails_memberCount(int count);
+
+  /// No description provided for @groupDetails_groupDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Group'**
+  String get groupDetails_groupDescription;
 
   /// No description provided for @groupMembersScreen_title.
   ///

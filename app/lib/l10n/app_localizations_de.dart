@@ -531,10 +531,18 @@ class AppLocalizationsDe extends AppLocalizations {
   String get newConnectionDialog_usernamePlaceholder => 'Benutzername';
 
   @override
+  String newConnectionDialog_handleExists(Object username) {
+    return '$username exists. Tap “Send” to send a contact request.';
+  }
+
+  @override
   String get newConnectionDialog_cancel => 'Cancel';
 
   @override
-  String get newConnectionDialog_actionButton => 'Verbinden';
+  String get newConnectionDialog_confirm1 => 'Check';
+
+  @override
+  String get newConnectionDialog_confirm2 => 'Send';
 
   @override
   String newConnectionDialog_error(Object username) {
@@ -719,6 +727,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get groupDetails_deleteChat => 'Löschen';
 
   @override
+  String get groupDetails_addPeople => 'Add people';
+
+  @override
   String get groupDetails_seeAll => 'Alle anzeigen';
 
   @override
@@ -731,6 +742,9 @@ class AppLocalizationsDe extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get groupDetails_groupDescription => 'Group';
 
   @override
   String get groupMembersScreen_title => 'Gruppenmitglieder';
