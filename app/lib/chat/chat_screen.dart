@@ -166,13 +166,17 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (chatId, title, image) = context.select(
-      (ChatDetailsCubit cubit) => (
-        cubit.state.chat?.id,
-        cubit.state.chat?.title,
-        cubit.state.chat?.picture,
-      ),
-    );
+    final (chatId, title, hasDetails, image) = context.select((
+      ChatDetailsCubit cubit,
+    ) {
+      final chat = cubit.state.chat;
+      // Currently, only confirmed chats have a chat details page.
+      final hasDetails = switch (chat?.chatType) {
+        UiChatType_Group() || UiChatType_Connection() => true,
+        _ => false,
+      };
+      return (chat?.id, chat?.title, hasDetails, chat?.picture);
+    });
 
     return AppBar(
       key: _key,
@@ -186,12 +190,14 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
           : const SizedBox.shrink(),
       centerTitle: true,
       title: MouseRegion(
-        cursor: SystemMouseCursors.click,
+        cursor: hasDetails ? SystemMouseCursors.click : .defer,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: () {
-            context.read<NavigationCubit>().openChatDetails();
-          },
+          onTap: hasDetails
+              ? () {
+                  context.read<NavigationCubit>().openChatDetails();
+                }
+              : null,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             spacing: Spacings.xs,
