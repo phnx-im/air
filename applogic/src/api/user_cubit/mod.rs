@@ -6,6 +6,7 @@
 
 use std::sync::Arc;
 
+pub(crate) use aircommon::identifiers::UserHandleHash;
 use aircommon::identifiers::{UserHandle, UserId};
 use aircoreclient::{Asset, PartialContact};
 use aircoreclient::{ChatId, ContactType, clients::CoreUser, store::Store};
@@ -399,6 +400,39 @@ impl UserCubitBase {
             .core_user
             .add_contact_from_group(chat_id, user_id.into())
             .await
+    }
+
+    pub async fn check_handle_exists(
+        &self,
+        handle: UiUserHandle,
+    ) -> anyhow::Result<Option<UserHandleHash>> {
+        let handle = UserHandle::new(handle.plaintext)?;
+        self.context.core_user.check_handle_exists(handle).await
+    }
+
+    /// Returns the pair of safety codes of the logged-in user and the given user.
+    ///
+    /// The order of the codes is stable and is determined by their lexicographical order.
+    #[frb(type_64bit_int)]
+    pub async fn safety_codes(&self, other_user_id: UiUserId) -> anyhow::Result<[u64; 12]> {
+        let mut first = self
+            .context
+            .core_user
+            .safety_code(self.context.core_user.user_id())
+            .await?;
+        let mut second = self
+            .context
+            .core_user
+            .safety_code(&other_user_id.into())
+            .await?;
+        if first > second {
+            std::mem::swap(&mut first, &mut second);
+        }
+        let mut code = [0; 12];
+        let (prefix, suffix) = code.split_at_mut(6);
+        prefix.copy_from_slice(&first.to_chunks());
+        suffix.copy_from_slice(&second.to_chunks());
+        Ok(code)
     }
 }
 

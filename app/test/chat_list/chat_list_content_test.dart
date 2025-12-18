@@ -4,21 +4,21 @@
 
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:air/chat_list/chat_list_content.dart';
 import 'package:air/chat_list/chat_list_cubit.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/user/user.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
-import '../mocks.dart';
 import '../helpers.dart';
+import '../mocks.dart';
 
 final userProfiles = [
   UiUserProfile(userId: 1.userId(), displayName: 'Alice'),

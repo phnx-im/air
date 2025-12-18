@@ -2,7 +2,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::HashSet, fs, io::Cursor, slice, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    io::Cursor,
+    slice,
+    time::Duration,
+};
 
 use airapiclient::{ApiClient, as_api::AsRequestError, qs_api::QsRequestError};
 use airbackend::settings::RateLimitsSettings;
@@ -721,10 +727,10 @@ async fn error_if_user_doesnt_exist() {
     let alice = setup.add_user().await;
     let alice_user = &setup.get_user(&alice).user;
 
-    let res = alice_user
-        .add_contact(UserHandle::new("non_existent".to_owned()).unwrap())
-        .await
-        .unwrap();
+    let handle = UserHandle::new("non-existent".to_owned()).unwrap();
+    let hash = handle.calculate_hash().unwrap();
+
+    let res = alice_user.add_contact(handle, hash).await.unwrap();
 
     assert!(matches!(
         res,
@@ -986,7 +992,10 @@ async fn send_image_attachment() {
             ..
         } => {
             assert_eq!(content_type, "image/webp");
-            assert_eq!(filename, "test.webp");
+            assert!(
+                filename.starts_with("Air--") && filename.ends_with(".webp"),
+                "unexpected filename: {filename}"
+            );
             assert_eq!(*size, 100);
             assert_eq!(
                 content_hash.as_slice(),
@@ -1161,9 +1170,10 @@ async fn blocked_contact() {
         .unwrap()
         .handle
         .clone();
+    let alice_handle_hash = alice_handle.calculate_hash().unwrap();
     bob_test_user
         .user
-        .add_contact(alice_handle.clone())
+        .add_contact(alice_handle.clone(), alice_handle_hash)
         .await
         .unwrap();
     let mut messages = alice_test_user.user.fetch_handle_messages().await.unwrap();
@@ -1961,12 +1971,17 @@ async fn handle_sanity_checks() {
     let bob = setup.get_user_mut(&bob);
     let handle_record = bob.add_user_handle().await.unwrap();
     let bob_handle = handle_record.handle.clone();
+    let bob_handle_hash = bob_handle.calculate_hash().unwrap();
 
     let alice = setup.get_user_mut(&alice);
     let handle_record = alice.add_user_handle().await.unwrap();
     let alice_handle = handle_record.handle.clone();
+    let alice_handle_hash = alice_handle.calculate_hash().unwrap();
     let alice_user = &alice.user;
-    let res = alice_user.add_contact(alice_handle.clone()).await.unwrap();
+    let res = alice_user
+        .add_contact(alice_handle.clone(), alice_handle_hash)
+        .await
+        .unwrap();
     assert!(
         matches!(
             res,
@@ -1976,12 +1991,18 @@ async fn handle_sanity_checks() {
     );
 
     // Try to add Bob twice
-    let res = alice_user.add_contact(bob_handle.clone()).await.unwrap();
+    let res = alice_user
+        .add_contact(bob_handle.clone(), bob_handle_hash)
+        .await
+        .unwrap();
     assert!(
         matches!(res, AddHandleContactResult::Ok(_)),
         "Should be able to add Bob as contact"
     );
-    let res = alice_user.add_contact(bob_handle.clone()).await.unwrap();
+    let res = alice_user
+        .add_contact(bob_handle.clone(), bob_handle_hash)
+        .await
+        .unwrap();
     assert!(
         matches!(
             res,
@@ -2001,20 +2022,32 @@ async fn check_handle_exists() {
     let random_number = rand::thread_rng().gen_range(100_000..1_000_000);
     let alice_handle = UserHandle::new(format!("alice-{}", random_number)).unwrap();
 
-    let handle_exists = alice_user.check_handle_exists(&alice_handle).await.unwrap();
-    assert!(!handle_exists, "Alice's handle should not exist yet");
+    let hash = alice_user
+        .check_handle_exists(alice_handle.clone())
+        .await
+        .unwrap();
+    assert!(hash.is_none(), "Alice's handle should not exist yet");
 
     alice_user
         .add_user_handle(alice_handle.clone())
         .await
         .unwrap();
 
-    let exists = alice_user.check_handle_exists(&alice_handle).await.unwrap();
-    assert!(exists, "Alice's handle should exist");
+    let hash = alice_user
+        .check_handle_exists(alice_handle.clone())
+        .await
+        .unwrap();
+    assert!(hash.is_some(), "Alice's handle should exist");
 
     alice_user.remove_user_handle(&alice_handle).await.unwrap();
-    let exists = alice_user.check_handle_exists(&alice_handle).await.unwrap();
-    assert!(!exists, "Alice's handle should not exist after removal");
+    let hash = alice_user
+        .check_handle_exists(alice_handle.clone())
+        .await
+        .unwrap();
+    assert!(
+        hash.is_none(),
+        "Alice's handle should not exist after removal"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -2090,6 +2123,63 @@ async fn message_sending_failures() {
             panic!(
                 "Message should be marked as error. Actual status: {:?}",
                 status
+            );
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Safety codes", skip_all)]
+async fn safety_codes() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+
+    let _alice_bob_id = setup.connect_users(&alice, &bob).await;
+    let _alice_charlie_id = setup.connect_users(&alice, &charlie).await;
+
+    let group_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(group_id, &alice, vec![&bob, &charlie])
+        .await;
+
+    // Have everyone compute everyones safety code and verify that they match
+    let users = [&alice, &bob, &charlie];
+    let mut codes = HashMap::new();
+    for computing_user in &users {
+        for user in users {
+            let user_code = setup
+                .get_user(computing_user)
+                .user
+                .safety_code(user)
+                .await
+                .unwrap();
+
+            // If this is the first time we see a code for this user, store it
+            // and continue.
+            let Some(expected_code) = codes.get(user) else {
+                codes.insert(user.clone(), user_code);
+                continue;
+            };
+
+            assert_eq!(
+                &user_code, expected_code,
+                "Safety code for {:?} computed by {:?} does not match",
+                user, computing_user
+            );
+            let expected_code_chunks = expected_code.to_chunks();
+            let user_code_chunks = user_code.to_chunks();
+            for chunk in &user_code_chunks {
+                assert!(
+                    *chunk < 100_000,
+                    "Safety code chunk should be less than 100,000"
+                );
+            }
+            assert_eq!(
+                expected_code_chunks, user_code_chunks,
+                "Safety code chunks for {:?} computed by {:?} do not match",
+                user, computing_user
             );
         }
     }

@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/chat/safety_code_screen.dart';
 import 'package:air/chat/widgets/remove_member_button.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
@@ -73,11 +74,12 @@ class ContactDetailsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return Align(
       alignment: Alignment.topCenter,
       child: Column(
         children: [
-          const SizedBox(height: Spacings.s),
+          const SizedBox(height: Spacings.xs),
 
           UserAvatar(size: 192, userId: profile.userId, profile: profile),
 
@@ -110,6 +112,30 @@ class ContactDetailsView extends StatelessWidget {
                 const SizedBox(width: Spacings.xxs),
                 Text(
                   "Chat",
+                  style: TextStyle(fontSize: LabelFontSize.base.size),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: Spacings.s),
+
+          OutlinedButton(
+            onPressed: () => _handleViewSafetyNumber(context, profile.userId),
+            style: const ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              minimumSize: WidgetStatePropertyAll(Size(82, 32)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                iconoir.Shield(
+                  color: CustomColorScheme.of(context).text.primary,
+                  width: 16,
+                ),
+                const SizedBox(width: Spacings.xxs),
+                Text(
+                  loc.contactDetailsScreen_viewSafetyCode,
                   style: TextStyle(fontSize: LabelFontSize.base.size),
                 ),
               ],
@@ -194,6 +220,12 @@ class ContactDetailsView extends StatelessWidget {
           ),
         );
     }
+  }
+
+  void _handleViewSafetyNumber(BuildContext context, UiUserId userId) async {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => SafetyCodeScreen(userId: userId)));
   }
 }
 

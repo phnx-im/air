@@ -5,10 +5,11 @@
 use std::{collections::HashSet, path::Path, sync::Arc};
 
 use aircommon::{
-    identifiers::{AttachmentId, MimiId, UserHandle, UserId},
+    identifiers::{AttachmentId, MimiId, UserHandle, UserHandleHash, UserId},
     messages::client_as_out::UserHandleDeleteResponse,
 };
 use mimi_room_policy::VerifiedRoomState;
+use tokio::task::spawn_blocking;
 use tokio_stream::Stream;
 use tracing::error;
 use uuid::Uuid;
@@ -20,6 +21,7 @@ use crate::{
         CoreUser,
         add_contact::AddHandleContactResult,
         attachment::{AttachmentRecord, progress::AttachmentProgress},
+        safety_code::SafetyCode,
         user_settings::UserSettingRecord,
     },
     contacts::{ContactType, HandleContact, PartialContact, TargetedMessageContact},
@@ -74,10 +76,13 @@ impl Store for CoreUser {
         Ok(())
     }
 
-    async fn check_handle_exists(&self, user_handle: &UserHandle) -> StoreResult<bool> {
-        let hash = user_handle.calculate_hash()?;
+    async fn check_handle_exists(
+        &self,
+        user_handle: UserHandle,
+    ) -> StoreResult<Option<UserHandleHash>> {
+        let hash = spawn_blocking(move || user_handle.calculate_hash()).await??;
         let handle_exists = self.api_client()?.as_check_handle_exists(hash).await?;
-        Ok(handle_exists)
+        Ok(handle_exists.then_some(hash))
     }
 
     async fn user_handles(&self) -> StoreResult<Vec<UserHandle>> {
@@ -162,8 +167,12 @@ impl Store for CoreUser {
         self.load_room_state(&chat_id).await
     }
 
-    async fn add_contact(&self, handle: UserHandle) -> StoreResult<AddHandleContactResult> {
-        self.add_contact_via_handle(handle).await
+    async fn add_contact(
+        &self,
+        handle: UserHandle,
+        hash: UserHandleHash,
+    ) -> StoreResult<AddHandleContactResult> {
+        self.add_contact_via_handle(handle, hash).await
     }
 
     async fn add_contact_from_group(
@@ -388,5 +397,9 @@ impl Store for CoreUser {
 
     async fn dequeue_notification(&self) -> StoreResult<StoreNotification> {
         self.dequeue_store_notification().await
+    }
+
+    async fn safety_code(&self, user_id: &UserId) -> StoreResult<SafetyCode> {
+        self.safety_code(user_id).await
     }
 }

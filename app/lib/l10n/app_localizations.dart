@@ -250,6 +250,36 @@ abstract class AppLocalizations {
   /// **'an active chat is obligatory'**
   String get addMembersScreen_error_noActiveChat;
 
+  /// No description provided for @contactDetailsScreen_viewSafetyCode.
+  ///
+  /// In en, this message translates to:
+  /// **'View Safety Code'**
+  String get contactDetailsScreen_viewSafetyCode;
+
+  /// No description provided for @safetyCodeScreen_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Safety Code'**
+  String get safetyCodeScreen_title;
+
+  /// No description provided for @safetyCodeScreen_tapToCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to copy'**
+  String get safetyCodeScreen_tapToCopy;
+
+  /// No description provided for @safetyCodeScreen_copiedToClipboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard'**
+  String get safetyCodeScreen_copiedToClipboard;
+
+  /// No description provided for @safetyCodeScreen_safetyCodeExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Compare what you see as the safety code with what {displayName} sees. If the codes match, you know that you\'re sending and receiving end-to-end encrypted messages with the correct person.'**
+  String safetyCodeScreen_safetyCodeExplanation(Object displayName);
+
   /// No description provided for @chatDetailsScreen_unknownChat.
   ///
   /// In en, this message translates to:
@@ -910,26 +940,50 @@ abstract class AppLocalizations {
   /// No description provided for @newConnectionDialog_newConnectionTitle.
   ///
   /// In en, this message translates to:
-  /// **'New Air contact'**
+  /// **'Add Air contact'**
   String get newConnectionDialog_newConnectionTitle;
 
   /// No description provided for @newConnectionDialog_newConnectionDescription.
   ///
   /// In en, this message translates to:
-  /// **'Type the username of the person you want to connect to'**
+  /// **'Enter the username of the person you want to message.'**
   String get newConnectionDialog_newConnectionDescription;
+
+  /// No description provided for @newConnectionDialog_inputLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Username (required)'**
+  String get newConnectionDialog_inputLabel;
 
   /// No description provided for @newConnectionDialog_usernamePlaceholder.
   ///
   /// In en, this message translates to:
-  /// **'Username'**
+  /// **'Type a username...'**
   String get newConnectionDialog_usernamePlaceholder;
 
-  /// No description provided for @newConnectionDialog_actionButton.
+  /// No description provided for @newConnectionDialog_handleExists.
   ///
   /// In en, this message translates to:
-  /// **'Connect'**
-  String get newConnectionDialog_actionButton;
+  /// **'{username} exists. Tap “Send” to send a contact request.'**
+  String newConnectionDialog_handleExists(Object username);
+
+  /// No description provided for @newConnectionDialog_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get newConnectionDialog_cancel;
+
+  /// No description provided for @newConnectionDialog_confirm1.
+  ///
+  /// In en, this message translates to:
+  /// **'Check'**
+  String get newConnectionDialog_confirm1;
+
+  /// No description provided for @newConnectionDialog_confirm2.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get newConnectionDialog_confirm2;
 
   /// No description provided for @newConnectionDialog_error.
   ///
@@ -946,7 +1000,7 @@ abstract class AppLocalizations {
   /// No description provided for @newConnectionDialog_error_handleNotFound.
   ///
   /// In en, this message translates to:
-  /// **'Username {username} doesn\'t exist'**
+  /// **'{username} wasn\'t found. Check it and try again.'**
   String newConnectionDialog_error_handleNotFound(Object username);
 
   /// No description provided for @newConnectionDialog_error_duplicateRequest.
@@ -1243,6 +1297,12 @@ abstract class AppLocalizations {
   /// **'Delete'**
   String get groupDetails_deleteChat;
 
+  /// No description provided for @groupDetails_addPeople.
+  ///
+  /// In en, this message translates to:
+  /// **'Add people'**
+  String get groupDetails_addPeople;
+
   /// No description provided for @groupDetails_seeAll.
   ///
   /// In en, this message translates to:
@@ -1252,8 +1312,14 @@ abstract class AppLocalizations {
   /// No description provided for @groupDetails_memberCount.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, one {{count} member} other {{count} members}}'**
+  /// **'{count, plural, one {{count} person} other {{count} people}}'**
   String groupDetails_memberCount(int count);
+
+  /// No description provided for @groupDetails_groupDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Group'**
+  String get groupDetails_groupDescription;
 
   /// No description provided for @groupMembersScreen_title.
   ///

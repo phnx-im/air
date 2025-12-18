@@ -93,6 +93,23 @@ class AppLocalizationsEn extends AppLocalizations {
       'an active chat is obligatory';
 
   @override
+  String get contactDetailsScreen_viewSafetyCode => 'View Safety Code';
+
+  @override
+  String get safetyCodeScreen_title => 'Safety Code';
+
+  @override
+  String get safetyCodeScreen_tapToCopy => 'Tap to copy';
+
+  @override
+  String get safetyCodeScreen_copiedToClipboard => 'Copied to clipboard';
+
+  @override
+  String safetyCodeScreen_safetyCodeExplanation(Object displayName) {
+    return 'Compare what you see as the safety code with what $displayName sees. If the codes match, you know that you\'re sending and receiving end-to-end encrypted messages with the correct person.';
+  }
+
+  @override
   String get chatDetailsScreen_unknownChat => 'Unknown chat';
 
   @override
@@ -499,17 +516,31 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get newConnectionDialog_newConnectionTitle => 'New Air contact';
+  String get newConnectionDialog_newConnectionTitle => 'Add Air contact';
 
   @override
   String get newConnectionDialog_newConnectionDescription =>
-      'Type the username of the person you want to connect to';
+      'Enter the username of the person you want to message.';
 
   @override
-  String get newConnectionDialog_usernamePlaceholder => 'Username';
+  String get newConnectionDialog_inputLabel => 'Username (required)';
 
   @override
-  String get newConnectionDialog_actionButton => 'Connect';
+  String get newConnectionDialog_usernamePlaceholder => 'Type a username...';
+
+  @override
+  String newConnectionDialog_handleExists(Object username) {
+    return '$username exists. Tap “Send” to send a contact request.';
+  }
+
+  @override
+  String get newConnectionDialog_cancel => 'Cancel';
+
+  @override
+  String get newConnectionDialog_confirm1 => 'Check';
+
+  @override
+  String get newConnectionDialog_confirm2 => 'Send';
 
   @override
   String newConnectionDialog_error(Object username) {
@@ -521,7 +552,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String newConnectionDialog_error_handleNotFound(Object username) {
-    return 'Username $username doesn\'t exist';
+    return '$username wasn\'t found. Check it and try again.';
   }
 
   @override
@@ -691,6 +722,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get groupDetails_deleteChat => 'Delete';
 
   @override
+  String get groupDetails_addPeople => 'Add people';
+
+  @override
   String get groupDetails_seeAll => 'See all';
 
   @override
@@ -698,11 +732,14 @@ class AppLocalizationsEn extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count members',
-      one: '$count member',
+      other: '$count people',
+      one: '$count person',
     );
     return '$_temp0';
   }
+
+  @override
+  String get groupDetails_groupDescription => 'Group';
 
   @override
   String get groupMembersScreen_title => 'Group members';

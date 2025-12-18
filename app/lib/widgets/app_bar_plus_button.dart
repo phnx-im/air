@@ -30,7 +30,7 @@ class AppBarPlusButton extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             child: SizedBox.square(
-              dimension: 24,
+              dimension: 32,
               child: Center(
                 child: AppIcon(
                   type: AppIconType.plus,

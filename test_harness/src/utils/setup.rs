@@ -26,7 +26,7 @@ use rand_chacha::rand_core::OsRng;
 use semver::VersionReq;
 use tempfile::TempDir;
 use tokio::{
-    task::{LocalEnterGuard, LocalSet},
+    task::{LocalEnterGuard, LocalSet, spawn_blocking},
     time::timeout,
 };
 use tokio_stream::StreamExt;
@@ -383,7 +383,16 @@ impl TestBackend {
         let user1_profile = user1.own_user_profile().await.unwrap();
         let user1_handle_contacts_before = user1.handle_contacts().await.unwrap();
         let user1_chats_before = user1.chats().await;
-        user1.add_contact(user2_handle.clone()).await.unwrap();
+        let user_handle_hash = spawn_blocking({
+            let handle = user2_handle.clone();
+            move || handle.calculate_hash().unwrap()
+        })
+        .await
+        .unwrap();
+        user1
+            .add_contact(user2_handle.clone(), user_handle_hash)
+            .await
+            .unwrap();
         let mut user1_handle_contacts_after = user1.handle_contacts().await.unwrap();
         let error_msg = format!(
             "User 2 should be in the handle contacts list of user 1. List: {user1_handle_contacts_after:?}",

@@ -93,6 +93,23 @@ class AppLocalizationsFr extends AppLocalizations {
       'un chat actif est obligatoire';
 
   @override
+  String get contactDetailsScreen_viewSafetyCode => 'View Safety Code';
+
+  @override
+  String get safetyCodeScreen_title => 'Safety Code';
+
+  @override
+  String get safetyCodeScreen_tapToCopy => 'Tap to copy';
+
+  @override
+  String get safetyCodeScreen_copiedToClipboard => 'Copied to clipboard';
+
+  @override
+  String safetyCodeScreen_safetyCodeExplanation(Object displayName) {
+    return 'Compare what you see as the safety code with what $displayName sees. If the codes match, you know that you\'re sending and receiving end-to-end encrypted messages with the correct person.';
+  }
+
+  @override
   String get chatDetailsScreen_unknownChat => 'Chat inconnu';
 
   @override
@@ -510,10 +527,24 @@ class AppLocalizationsFr extends AppLocalizations {
       'Saisissez le nom d\'utilisateur de la personne avec laquelle vous souhaitez vous connecter';
 
   @override
+  String get newConnectionDialog_inputLabel => 'Username (required)';
+
+  @override
   String get newConnectionDialog_usernamePlaceholder => 'Nom d\'utilisateur';
 
   @override
-  String get newConnectionDialog_actionButton => 'Se connecter';
+  String newConnectionDialog_handleExists(Object username) {
+    return '$username exists. Tap “Send” to send a contact request.';
+  }
+
+  @override
+  String get newConnectionDialog_cancel => 'Cancel';
+
+  @override
+  String get newConnectionDialog_confirm1 => 'Check';
+
+  @override
+  String get newConnectionDialog_confirm2 => 'Send';
 
   @override
   String newConnectionDialog_error(Object username) {
@@ -699,6 +730,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get groupDetails_deleteChat => 'Supprimer';
 
   @override
+  String get groupDetails_addPeople => 'Add people';
+
+  @override
   String get groupDetails_seeAll => 'Voir tout';
 
   @override
@@ -711,6 +745,9 @@ class AppLocalizationsFr extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get groupDetails_groupDescription => 'Group';
 
   @override
   String get groupMembersScreen_title => 'Membres du groupe';

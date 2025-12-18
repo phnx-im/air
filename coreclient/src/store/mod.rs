@@ -5,7 +5,7 @@
 use std::sync::Arc;
 use std::{collections::HashSet, path::Path};
 
-use aircommon::identifiers::{AttachmentId, MimiId, UserHandle, UserId};
+use aircommon::identifiers::{AttachmentId, MimiId, UserHandle, UserHandleHash, UserId};
 use aircommon::messages::client_as_out::UserHandleDeleteResponse;
 use mimi_content::MimiContent;
 use mimi_room_policy::VerifiedRoomState;
@@ -13,6 +13,7 @@ use tokio_stream::Stream;
 use uuid::Uuid;
 
 use crate::clients::add_contact::AddHandleContactResult;
+use crate::clients::safety_code::SafetyCode;
 use crate::contacts::{ContactType, TargetedMessageContact};
 use crate::{
     AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact, MessageDraft,
@@ -62,9 +63,14 @@ pub trait Store {
 
     // user handles
 
-    /// Check whether a user handle exists on the AS. Relatively expensive
-    /// operation, as it requires computation of a handle hash.
-    async fn check_handle_exists(&self, user_handle: &UserHandle) -> StoreResult<bool>;
+    /// Check whether a user handle exists on the AS. Relatively expensive operation, as it
+    /// requires computation of a handle hash.
+    ///
+    /// Returns the computed hash of the user handle if it exists, otherwise `None`.
+    async fn check_handle_exists(
+        &self,
+        user_handle: UserHandle,
+    ) -> StoreResult<Option<UserHandleHash>>;
 
     async fn user_handles(&self) -> StoreResult<Vec<UserHandle>>;
 
@@ -168,7 +174,13 @@ pub trait Store {
     ///
     /// Returns the [`ChatId`] of the newly created connection
     /// chat, or `None` if the user handle does not exist.
-    async fn add_contact(&self, handle: UserHandle) -> StoreResult<AddHandleContactResult>;
+    ///
+    /// The hash must be pre-computed before calling this function.
+    async fn add_contact(
+        &self,
+        handle: UserHandle,
+        hash: UserHandleHash,
+    ) -> StoreResult<AddHandleContactResult>;
 
     /// Create a connection with a new user via an existing group chat.
     ///
@@ -300,6 +312,8 @@ pub trait Store {
     async fn enqueue_notification(&self, notification: &StoreNotification) -> StoreResult<()>;
 
     async fn dequeue_notification(&self) -> StoreResult<StoreNotification>;
+
+    async fn safety_code(&self, user_id: &UserId) -> anyhow::Result<SafetyCode>;
 }
 
 pub trait UserSetting: Send + Sync {
