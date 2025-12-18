@@ -8,7 +8,7 @@ use aircommon::{
 };
 use anyhow::Context;
 use sqlx::SqliteConnection;
-use tracing::{error, warn};
+use tracing::warn;
 
 use crate::{
     Chat, ChatId,
