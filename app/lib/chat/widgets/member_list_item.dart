@@ -5,6 +5,7 @@
 import 'package:air/core/api/types.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/typography/font_size.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 
@@ -37,7 +38,10 @@ class MemberListItem extends StatelessWidget {
       leading: UserAvatar(userId: profile.userId, size: Spacings.l),
       title: Text(
         displayName,
-        style: Theme.of(context).textTheme.bodyMedium,
+        style: TextStyle(
+          fontSize: LabelFontSize.base.size,
+          color: colors.text.primary,
+        ),
         overflow: TextOverflow.ellipsis,
       ),
       trailing: trailing,

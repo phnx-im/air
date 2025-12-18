@@ -722,6 +722,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get groupDetails_deleteChat => 'Delete';
 
   @override
+  String get groupDetails_addPeople => 'Add people';
+
+  @override
   String get groupDetails_seeAll => 'See all';
 
   @override
@@ -729,11 +732,14 @@ class AppLocalizationsEn extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count members',
-      one: '$count member',
+      other: '$count people',
+      one: '$count person',
     );
     return '$_temp0';
   }
+
+  @override
+  String get groupDetails_groupDescription => 'Group';
 
   @override
   String get groupMembersScreen_title => 'Group members';
