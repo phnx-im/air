@@ -74,10 +74,9 @@ impl Queues {
         let notifications = self.pg_listener_task_handle.subscribe(queue_id);
         let (payload_tx, payload_rx) = tokio::sync::mpsc::channel(1024);
 
-        let cancel = self.track_listener(queue_id, payload_tx).await?;
+        let cancel = self.track_listener(queue_id, payload_tx);
         let context = QueueStreamContext {
             pool: self.pool.clone(),
-            pg_listener_task_handle: self.pg_listener_task_handle.clone(),
             notifications,
             queue_id,
             sequence_number: sequence_number_start,
@@ -156,23 +155,30 @@ impl Queues {
         Ok(true)
     }
 
-    async fn track_listener(
+    fn track_listener(
         &self,
         client_id: QsClientId,
         payload_tx: mpsc::Sender<QueueEventPayload>,
-    ) -> sqlx::Result<CancellationToken> {
+    ) -> CancellationToken {
         // Clean up cancelled listeners
-        self.listeners
-            .retain(|_id, context| !context.cancel.is_cancelled());
+        self.listeners.retain(|id, context| {
+            if context.cancel.is_cancelled() {
+                self.pg_listener_task_handle.unlisten(*id);
+                false
+            } else {
+                true
+            }
+        });
 
         let cancel = CancellationToken::new();
         let context = ListenerContext::new(cancel.clone(), payload_tx);
-
-        if self.listeners.insert(client_id, context).is_none() {
+        if let Some(prev_listener) = self.listeners.insert(client_id, context) {
+            prev_listener.cancel.cancel();
+        } else {
             self.pg_listener_task_handle.listen(client_id);
         }
 
-        Ok(cancel)
+        cancel
     }
 }
 
@@ -189,7 +195,6 @@ impl PgChannelName for QsClientId {
 
 struct QueueStreamContext<S> {
     pool: PgPool,
-    pg_listener_task_handle: PgListenerTaskHandle<QsClientId>,
     notifications: S,
     queue_id: QsClientId,
     sequence_number: u64,
@@ -204,7 +209,6 @@ struct QueueStreamContext<S> {
 impl<S> Drop for QueueStreamContext<S> {
     fn drop(&mut self) {
         self.cancel.cancel();
-        self.pg_listener_task_handle.unlisten(self.queue_id);
         gauge!(METRIC_AIR_ACTIVE_USERS).decrement(1);
         debug!(queue_id =? self.queue_id, "QS queue stream stopped");
     }
