@@ -340,9 +340,11 @@ class _ActionsRow extends StatelessWidget {
                           color: colors.backgroundElevated.primary,
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: const Padding(
-                          padding: EdgeInsets.all(Spacings.xxs),
-                          child: iconoir.Plus(),
+                        child: Padding(
+                          padding: const EdgeInsets.all(Spacings.xxs),
+                          child: iconoir.Plus(
+                            color: colors.function.toggleBlack,
+                          ),
                         ),
                       ),
                       const SizedBox(width: Spacings.s),
@@ -380,9 +382,11 @@ class _ActionsRow extends StatelessWidget {
                           color: colors.backgroundElevated.primary,
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: const Padding(
-                          padding: EdgeInsets.all(Spacings.xxs),
-                          child: iconoir.ArrowRight(),
+                        child: Padding(
+                          padding: const EdgeInsets.all(Spacings.xxs),
+                          child: iconoir.ArrowRight(
+                            color: colors.function.toggleBlack,
+                          ),
                         ),
                       ),
                     ],
