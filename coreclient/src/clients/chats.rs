@@ -29,9 +29,9 @@ impl CoreUser {
         picture: Option<Vec<u8>>,
     ) -> Result<ChatId> {
         let resized_picture = match picture {
-            Some(picture) => Some(
-                tokio::task::spawn_blocking(move || resize_profile_image(&picture)).await??,
-            ),
+            Some(picture) => {
+                Some(tokio::task::spawn_blocking(move || resize_profile_image(&picture)).await??)
+            }
             None => None,
         };
 
