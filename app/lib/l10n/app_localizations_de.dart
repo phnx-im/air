@@ -315,7 +315,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get usernameOnboarding_addButton => 'Hinzufügen';
 
   @override
-  String get usernameOnboarding_skip => 'Weiter';
+  String get usernameOnboarding_next => 'Weiter';
 
   @override
   String get usernameOnboarding_userameInputName => 'Benutzername (optional)';
@@ -751,9 +751,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get groupCreationScreen_next => 'Weiter';
-
-  @override
-  String get groupCreationScreen_skip => 'Weiter';
 
   @override
   String get groupCreationDetails_title => 'Gruppendetails';

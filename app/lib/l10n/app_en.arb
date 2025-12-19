@@ -112,7 +112,7 @@
   "usernameOnboarding_body": "Usernames are how people connect on Air. They aren't visible to others once you're connected.\n\nAdd, change, or delete usernames at any time in your profile.",
   "usernameOnboarding_syntax": "Use letters, numbers, or dashes. Minimum 5 characters.",
   "usernameOnboarding_addButton": "Add",
-  "usernameOnboarding_skip": "Next",
+  "usernameOnboarding_next": "Next",
   "usernameOnboarding_userameInputName": "Username (optional)",
   "usernameOnboarding_userameInputHint": "Add a username...",
 
@@ -274,7 +274,6 @@
   "groupMembersScreen_searchHint": "Search",
   "groupCreationScreen_title": "Add members",
   "groupCreationScreen_next": "Next",
-  "groupCreationScreen_skip": "Next",
   "groupCreationDetails_title": "Group details",
   "groupCreationDetails_groupNameHint": "Group name (required)",
   "groupCreationDetails_groupNameHintFocused": "Group name",

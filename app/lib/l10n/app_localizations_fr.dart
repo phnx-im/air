@@ -319,7 +319,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get usernameOnboarding_addButton => 'Ajouter';
 
   @override
-  String get usernameOnboarding_skip => 'Suivant';
+  String get usernameOnboarding_next => 'Suivant';
 
   @override
   String get usernameOnboarding_userameInputName =>
@@ -758,9 +758,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get groupCreationScreen_next => 'Suivant';
-
-  @override
-  String get groupCreationScreen_skip => 'Suivant';
 
   @override
   String get groupCreationDetails_title => 'Détails du groupe';

@@ -312,7 +312,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get usernameOnboarding_addButton => 'Add';
 
   @override
-  String get usernameOnboarding_skip => 'Next';
+  String get usernameOnboarding_next => 'Next';
 
   @override
   String get usernameOnboarding_userameInputName => 'Username (optional)';
@@ -741,9 +741,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get groupCreationScreen_next => 'Next';
-
-  @override
-  String get groupCreationScreen_skip => 'Next';
 
   @override
   String get groupCreationDetails_title => 'Group details';
