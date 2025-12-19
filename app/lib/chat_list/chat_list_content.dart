@@ -49,9 +49,15 @@ class ChatListContent extends StatelessWidget {
       return const _NoChats();
     }
 
-    return ListView.builder(
+    return ListView.separated(
       padding: const EdgeInsets.all(0),
       itemCount: chatIds.length,
+      separatorBuilder: (context, index) => Divider(
+        height: 1,
+        thickness: 1,
+        indent: Spacings.xl + Spacings.l,
+        color: CustomColorScheme.of(context).separator.secondary,
+      ),
       itemBuilder: (BuildContext context, int index) {
         return BlocProvider(
           key: ValueKey(chatIds[index]),
@@ -102,23 +108,16 @@ class _ListTile extends StatelessWidget {
 
     return ListTile(
       horizontalTitleGap: 0,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: Spacings.xxs,
-        vertical: Spacings.xxs,
-      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
       minVerticalPadding: 0,
       title: Container(
-        alignment: AlignmentDirectional.centerStart,
-        height: 70,
-        width: 300,
         padding: const EdgeInsets.symmetric(
-          horizontal: Spacings.xs,
-          vertical: Spacings.xxs,
+          horizontal: Spacings.s,
+          vertical: Spacings.s,
         ),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(Spacings.s),
           color: isSelected
-              ? CustomColorScheme.of(context).backgroundBase.quaternary
+              ? CustomColorScheme.of(context).backgroundElevated.primary
               : null,
         ),
         child: Builder(
@@ -129,21 +128,24 @@ class _ListTile extends StatelessWidget {
             if (chat == null) {
               return const SizedBox.shrink();
             }
-
             return Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              spacing: Spacings.s,
+              crossAxisAlignment: .center,
+              spacing: Spacings.xs,
               children: [
-                ChatAvatar(chatId: chat.id, size: 50),
+                Align(
+                  alignment: .centerLeft,
+                  child: ChatAvatar(chatId: chat.id, size: 48),
+                ),
                 Expanded(
                   child: Column(
+                    mainAxisSize: .min,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     mainAxisAlignment: MainAxisAlignment.start,
                     spacing: Spacings.xxxs,
                     children: [
                       _ListTileTop(chat: chat),
-                      Expanded(child: _ListTileBottom(chat: chat)),
+                      _ListTileBottom(chat: chat),
                     ],
                   ),
                 ),
@@ -193,7 +195,7 @@ class _ListTileBottom extends StatelessWidget {
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .center,
       spacing: Spacings.s,
       children: [
         if (!isBlocked)
@@ -228,7 +230,11 @@ class _BlockedBadge extends StatelessWidget {
         const SizedBox(width: Spacings.xxxs),
         Text(
           loc.chatList_blocked,
-          style: TextStyle(fontStyle: FontStyle.italic, color: color),
+          style: TextStyle(
+            fontSize: BodyFontSize.small2.size,
+            fontStyle: FontStyle.italic,
+            color: color,
+          ),
         ),
       ],
     );
@@ -247,31 +253,22 @@ class _UnreadBadge extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final currentChatId = context.select(
-      (NavigationCubit cubit) => cubit.state.chatId,
-    );
-
-    final backgroundColor = currentChatId == chatId
-        ? CustomColorScheme.of(context).backgroundBase.primary
-        : CustomColorScheme.of(context).backgroundBase.quaternary;
+    final backgroundColor = CustomColorScheme.of(context).function.toggleWhite;
 
     final badgeText = count <= 100 ? "$count" : "100+";
-    const double badgeSize = 26;
     return Container(
       alignment: AlignmentDirectional.center,
-      constraints: const BoxConstraints(minWidth: badgeSize),
-      padding: const EdgeInsets.fromLTRB(7, 0, 7, 2),
-      height: badgeSize,
+      padding: const EdgeInsets.symmetric(horizontal: Spacings.xs, vertical: 6),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(badgeSize / 2),
+        borderRadius: BorderRadius.circular(1000),
       ),
       child: Text(
         badgeText,
         style: TextStyle(
-          color: CustomColorScheme.of(context).text.primary,
+          color: CustomColorScheme.of(context).function.toggleBlack,
           fontSize: LabelFontSize.small2.size,
-          fontWeight: FontWeight.bold,
+          height: 1,
         ),
       ),
     );
@@ -289,6 +286,8 @@ class _LastMessage extends StatelessWidget {
     final isCurrentChat = context.select(
       (NavigationCubit cubit) => cubit.state.chatId == chat.id,
     );
+
+    final color = CustomColorScheme.of(context);
 
     final lastMessage = chat.lastMessage;
     final draftMessage = chat.draft?.message.trim();
@@ -310,28 +309,27 @@ class _LastMessage extends StatelessWidget {
         loc.textMessage_hiddenPlaceholder,
         style: TextStyle(
           fontStyle: FontStyle.italic,
-          color: CustomColorScheme.of(context).text.tertiary,
+          color: color.text.tertiary,
         ),
       );
     }
 
     final readStyle = TextStyle(
-      color: CustomColorScheme.of(context).text.primary,
-      height: 1.2,
+      fontSize: BodyFontSize.small1.size,
+      color: color.text.tertiary,
+      height: 1.28,
     );
-    final unreadStyle = readStyle.copyWith(fontWeight: FontWeight.bold);
+    final unreadStyle = readStyle;
     final draftStyle = readStyle.copyWith(
       fontStyle: FontStyle.italic,
-      color: CustomColorScheme.of(context).text.tertiary,
+      color: color.text.tertiary,
     );
 
     final showDraft = !isCurrentChat && draftMessage?.isNotEmpty == true;
 
     final prefixStyle = showDraft
         ? draftStyle
-        : readStyle.copyWith(
-            color: CustomColorScheme.of(context).text.tertiary,
-          );
+        : readStyle.copyWith(fontWeight: .bold);
 
     final suffixStyle = chat.unreadMessages > 0 ? unreadStyle : readStyle;
 
@@ -371,15 +369,28 @@ class _LastMessage extends StatelessWidget {
             _ => null,
           };
 
-    return Text.rich(
-      maxLines: 1,
-      softWrap: true,
-      overflow: TextOverflow.ellipsis,
-      TextSpan(
-        children: [
-          TextSpan(text: prefix, style: prefixStyle),
-          TextSpan(text: suffix, style: suffixStyle),
-        ],
+    final baseFontSize =
+        readStyle.fontSize ?? DefaultTextStyle.of(context).style.fontSize ?? 14;
+    final lineHeight = baseFontSize * (readStyle.height ?? 1.0);
+    const maxLines = 2;
+
+    return SizedBox(
+      height: lineHeight * maxLines,
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: prefix, style: prefixStyle),
+            TextSpan(text: suffix, style: suffixStyle),
+          ],
+        ),
+        maxLines: maxLines,
+        softWrap: true,
+        overflow: TextOverflow.ellipsis,
+        strutStyle: StrutStyle(
+          forceStrutHeight: true,
+          fontSize: baseFontSize,
+          height: readStyle.height,
+        ),
       ),
     );
   }
@@ -437,8 +448,8 @@ class _LastUpdatedState extends State<_LastUpdated> {
       child: Text(
         _localizedTimestamp(_displayTimestamp, loc),
         style: TextStyle(
-          color: CustomColorScheme.of(context).text.quaternary,
-          fontSize: LabelFontSize.small1.size,
+          color: CustomColorScheme.of(context).text.tertiary,
+          fontSize: LabelFontSize.small2.size,
         ),
       ),
     );
@@ -458,8 +469,11 @@ class _ChatTitle extends StatelessWidget {
       child: Text(
         title,
         overflow: TextOverflow.ellipsis,
-        style: TextTheme.of(context).labelSmall!.copyWith(
-          color: CustomColorScheme.of(context).text.tertiary,
+        style: TextStyle(
+          fontSize: LabelFontSize.small1.size,
+          fontWeight: FontWeight.bold,
+          height: 1,
+          color: CustomColorScheme.of(context).text.primary,
         ),
       ),
     );
