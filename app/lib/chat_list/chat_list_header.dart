@@ -72,10 +72,7 @@ class _PlusButtonState extends State<_PlusButton> {
     final loc = AppLocalizations.of(context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacings.xs,
-        vertical: Spacings.xs,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: Spacings.xs),
       child: ContextMenu(
         direction: ContextMenuDirection.left,
         width: 200,

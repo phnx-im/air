@@ -21,6 +21,7 @@ class ProductShot extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.child,
+    required this.frameColor,
     this.device,
   });
 
@@ -31,13 +32,14 @@ class ProductShot extends StatelessWidget {
   final String title;
   final String subtitle;
   final ProductShotDevice? device;
+  final Color frameColor;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final platform = device?.platform ?? _defaultPlatform();
     final dev = device ?? ProductShotDevices.forPlatform(platform);
-    final frameStyle = _frameStyleFor(dev.platform);
+    final frameStyle = _frameStyleFor(dev.platform, frameColor);
     final statusBarHeight = _statusBarHeightFor(dev);
     final statusBar = _statusBarFor(dev.platform, statusBarHeight);
     final resolvedSafeArea = EdgeInsets.only(
@@ -197,38 +199,40 @@ ProductShotPlatform _defaultPlatform() {
       : ProductShotPlatform.ios;
 }
 
-const _frameGrey = Color.fromARGB(255, 123, 126, 129);
+_FrameStyle _frameStyleFor(
+  ProductShotPlatform platform,
+  Color frameColor,
+) {
 
-_FrameStyle _frameStyleFor(ProductShotPlatform platform) {
   switch (platform) {
     case ProductShotPlatform.android:
-      return const _FrameStyle(
+      return _FrameStyle(
         borderWidth: 20,
         cornerRadius: 48,
-        frameColor: _frameGrey,
+        frameColor: frameColor,
         frameHeightFraction: 0.94,
         verticalOffsetFraction: 0.12,
       );
     case ProductShotPlatform.ios:
-      return const _FrameStyle(
+      return _FrameStyle(
         borderWidth: 18,
         cornerRadius: 64,
-        frameColor: _frameGrey,
+        frameColor: frameColor,
         frameHeightFraction: 0.94,
         verticalOffsetFraction: 0.12,
       );
     case ProductShotPlatform.macos:
-      return const _FrameStyle(
+      return _FrameStyle(
         borderWidth: 28,
         cornerRadius: 48,
-        frameColor: _frameGrey,
+        frameColor: frameColor,
         frameHeightFraction: 0.82,
         verticalOffsetFraction: 0.12,
       );
     case ProductShotPlatform.windows:
     case ProductShotPlatform.linux:
-      return const _FrameStyle(
-        frameColor: _frameGrey,
+      return _FrameStyle(
+        frameColor: frameColor,
         frameHeightFraction: 0.82,
         verticalOffsetFraction: 0.12,
       );
