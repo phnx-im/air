@@ -111,7 +111,7 @@
   "systemMessage_userRemovedUser_infix": " hat ",
   "systemMessage_userRemovedUser_suffix": "{user2} entfernt",
   "systemMessage_userChangedTitle_prefix": "{user}",
-  "systemMessage_userChangedTitle_infix_1": " hat den Gruppennamen von ",
+  "systemMessage_userChangedTitle_infix_1": " hat den Gruppennamen geändert von ",
   "systemMessage_userChangedTitle_infix_2": "{old_name}",
   "systemMessage_userChangedTitle_infix_3": " zu ",
   "systemMessage_userChangedTitle_suffix": "{new_name}",

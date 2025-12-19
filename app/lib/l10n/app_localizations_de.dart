@@ -394,7 +394,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get systemMessage_userChangedTitle_infix_1 =>
-      ' hat den Gruppennamen von ';
+      ' hat den Gruppennamen geändert von ';
 
   @override
   String systemMessage_userChangedTitle_infix_2(Object old_name) {
