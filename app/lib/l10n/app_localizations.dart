@@ -625,7 +625,7 @@ abstract class AppLocalizations {
   /// No description provided for @usernameOnboarding_skip.
   ///
   /// In en, this message translates to:
-  /// **'Skip'**
+  /// **'Next'**
   String get usernameOnboarding_skip;
 
   /// No description provided for @usernameOnboarding_userameInputName.
@@ -1330,7 +1330,7 @@ abstract class AppLocalizations {
   /// No description provided for @groupCreationScreen_skip.
   ///
   /// In en, this message translates to:
-  /// **'Skip'**
+  /// **'Next'**
   String get groupCreationScreen_skip;
 
   /// No description provided for @groupCreationDetails_title.
