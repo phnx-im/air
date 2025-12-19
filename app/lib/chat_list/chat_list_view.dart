@@ -39,7 +39,7 @@ class ChatListView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final widget = Container(
-      color: CustomColorScheme.of(context).backgroundBase.primary,
+      color: CustomColorScheme.of(context).backgroundBase.secondary,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -56,7 +56,7 @@ class ChatListView extends StatelessWidget {
         ? Scaffold(
             backgroundColor: CustomColorScheme.of(
               context,
-            ).backgroundBase.primary,
+            ).backgroundBase.secondary,
             body: Stack(
               children: [
                 SafeArea(bottom: false, child: widget),

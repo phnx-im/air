@@ -28,7 +28,14 @@ impl CoreUser {
         title: String,
         picture: Option<Vec<u8>>,
     ) -> Result<ChatId> {
-        let group_data = IntitialChatData::new(title, picture)
+        let resized_picture = match picture {
+            Some(picture) => {
+                Some(tokio::task::spawn_blocking(move || resize_profile_image(&picture)).await??)
+            }
+            None => None,
+        };
+
+        let group_data = IntitialChatData::new(title, resized_picture)
             .request_group_id(&self.inner.api_clients)
             .await?;
 

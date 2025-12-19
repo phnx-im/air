@@ -1037,7 +1037,7 @@ impl TestBackend {
         let user_chats_before = user.chats().await;
 
         let group_name = Uuid::new_v4().to_string();
-        let group_picture_bytes_option = Some(OsRng.r#gen::<[u8; 32]>().to_vec());
+        let group_picture_bytes_option = Some(test_picture_bytes());
         let chat_id = user
             .create_chat(group_name.clone(), group_picture_bytes_option.clone())
             .await
@@ -1052,9 +1052,10 @@ impl TestBackend {
         assert!(chat.status() == &ChatStatus::Active);
         assert!(chat.chat_type() == &ChatType::Group);
         assert_eq!(chat.attributes().title(), &group_name);
-        assert_eq!(
-            chat.attributes().picture(),
-            group_picture_bytes_option.as_deref()
+        let stored_picture = chat.attributes().picture();
+        assert!(
+            stored_picture.is_some() && !stored_picture.unwrap().is_empty(),
+            "stored chat picture should be present"
         );
         user_chats_before
             .into_iter()
@@ -1743,4 +1744,17 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
             }
         })
         .collect()
+}
+
+fn test_picture_bytes() -> Vec<u8> {
+    // Generate a tiny valid PNG (1x1 RGBA) to satisfy image decoding in create_chat.
+    let mut buf = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut buf, 1, 1);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().unwrap();
+        writer.write_image_data(&[0xff, 0x00, 0x00, 0xff]).unwrap();
+    }
+    buf
 }
