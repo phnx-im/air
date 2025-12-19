@@ -209,11 +209,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get addContactDialog_confirm => 'Send';
 
   @override
-  String addContactDialog_error(Object username) {
-    return 'Failed to send $username a contact request. Try again.';
-  }
-
-  @override
   String get changeGroupTitleDialog_title => 'Change group title';
 
   @override
@@ -351,9 +346,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get userHandleScreen_confirm => 'Add';
-
-  @override
-  String get userHandleScreen_save => 'Enregistrer';
 
   @override
   String get editDisplayNameScreen_title => 'Nom d\'affichage';
@@ -669,9 +661,6 @@ class AppLocalizationsFr extends AppLocalizations {
       'Impossible de signaler le spam. Veuillez réessayer.';
 
   @override
-  String get helpScreen_title => 'Aide';
-
-  @override
   String get helpScreen_contactUs => 'Nous contacter';
 
   @override
@@ -779,14 +768,6 @@ class AppLocalizationsFr extends AppLocalizations {
       'Au moins un caractère, s\'il vous plaît';
 
   @override
-  String get groupCreationDetails_descriptionHint =>
-      'Description du groupe (facultatif)';
-
-  @override
-  String get groupCreationDetails_descriptionHintFocused =>
-      'Description du groupe';
-
-  @override
   String get groupCreationDetails_create => 'Créer';
 
   @override
@@ -862,9 +843,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get deleteAccountScreen_confirmButtonText => 'Supprimer le compte Air';
-
-  @override
-  String get deleteAccountScreen_cancelButtonText => 'Annuler';
 
   @override
   String get deleteAccountScreen_deleteAccountError =>

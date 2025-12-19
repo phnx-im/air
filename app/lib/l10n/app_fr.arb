@@ -80,7 +80,6 @@
   "userHandleScreen_error_emptyHandle": "Le nom d'utilisateur ne peut pas être vide",
   "userHandleScreen_error_alreadyExists": "Ce nom d'utilisateur est déjà utilisé",
   "userHandleScreen_description": "Choisissez un nom d'utilisateur que d'autres peuvent utiliser pour se connecter avec vous.\n\nUtilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.",
-  "userHandleScreen_save": "Enregistrer",
 
   "editDisplayNameScreen_title": "Nom d'affichage",
   "editDisplayNameScreen_description": "Choisissez un nom que les autres verront lorsque vous communiquez avec eux.",
@@ -154,7 +153,6 @@
   "reportSpamDialog_success": "Spam signalé",
   "reportSpamDialog_error": "Impossible de signaler le spam. Veuillez réessayer.",
 
-  "helpScreen_title": "Aide",
   "helpScreen_contactUs": "Nous contacter",
   "helpScreen_versionInfo": "Informations sur la version",
   "helpScreen_licenses": "Licences",
@@ -197,8 +195,6 @@
   "groupCreationDetails_groupNameHint": "Nom du groupe (obligatoire)",
   "groupCreationDetails_groupNameHintFocused": "Nom du groupe",
   "groupCreationDetails_groupNameHelper": "Au moins un caractère, s'il vous plaît",
-  "groupCreationDetails_descriptionHint": "Description du groupe (facultatif)",
-  "groupCreationDetails_descriptionHintFocused": "Description du groupe",
   "groupCreationDetails_create": "Créer",
   "groupCreationDetails_emptySelection": "Aucun membre",
 
@@ -228,6 +224,5 @@
   "deleteAccountScreen_confirmationInputHint": "Confirmation",
   "deleteAccountScreen_confirmationInputLabel": "Tapez 'delete' pour confirmer",
   "deleteAccountScreen_confirmButtonText": "Supprimer le compte Air",
-  "deleteAccountScreen_cancelButtonText": "Annuler",
   "deleteAccountScreen_deleteAccountError": "Un problème est survenu de notre côté. Veuillez patienter un instant puis réessayer."
 }

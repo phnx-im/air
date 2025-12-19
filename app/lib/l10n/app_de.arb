@@ -80,7 +80,6 @@
   "userHandleScreen_error_emptyHandle": "Benutzername darf nicht leer sein",
   "userHandleScreen_error_alreadyExists": "Benutzername wird bereits verwendet",
   "userHandleScreen_description": "Wähle einen Benutzernamen, den andere verwenden können, um sich mit dir zu verbinden.\n\nVerwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.",
-  "userHandleScreen_save": "Speichern",
 
   "editDisplayNameScreen_title": "Anzeigename",
   "editDisplayNameScreen_description": "Wähle einen Namen, den andere sehen werden, wenn du mit ihnen kommunizierst.",
@@ -172,7 +171,6 @@
   "reportSpamDialog_success": "Spam gemeldet",
   "reportSpamDialog_error": "Spam konnte nicht gemeldet werden. Bitte versuche es erneut.",
 
-  "helpScreen_title": "Hilfe",
   "helpScreen_contactUs": "Kontakt",
   "helpScreen_versionInfo": "Versionsinformationen",
   "helpScreen_licenses": "Lizenzen",
@@ -215,8 +213,6 @@
   "groupCreationDetails_groupNameHint": "Gruppenname (erforderlich)",
   "groupCreationDetails_groupNameHintFocused": "Gruppenname",
   "groupCreationDetails_groupNameHelper": "Mindestens ein Zeichen, bitte",
-  "groupCreationDetails_descriptionHint": "Gruppenbeschreibung (optional)",
-  "groupCreationDetails_descriptionHintFocused": "Gruppenbeschreibung",
   "groupCreationDetails_create": "Erstellen",
   "groupCreationDetails_emptySelection": "Keine Mitglieder",
 
@@ -246,6 +242,5 @@
   "deleteAccountScreen_confirmationInputHint": "Bestätigung",
   "deleteAccountScreen_confirmationInputLabel": "Gib 'delete' ein, um zu bestätigen",
   "deleteAccountScreen_confirmButtonText": "Air-Konto löschen",
-  "deleteAccountScreen_cancelButtonText": "Abbrechen",
   "deleteAccountScreen_deleteAccountError": "Bei uns ist ein Fehler aufgetreten. Warte einen Moment und versuche es dann erneut."
 }
