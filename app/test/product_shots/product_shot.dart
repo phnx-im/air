@@ -199,11 +199,7 @@ ProductShotPlatform _defaultPlatform() {
       : ProductShotPlatform.ios;
 }
 
-_FrameStyle _frameStyleFor(
-  ProductShotPlatform platform,
-  Color frameColor,
-) {
-
+_FrameStyle _frameStyleFor(ProductShotPlatform platform, Color frameColor) {
   switch (platform) {
     case ProductShotPlatform.android:
       return _FrameStyle(
