@@ -60,6 +60,7 @@ void main() {
     final backgroundColor = AppColors.neutral[50]!;
     final titleColor = AppColors.neutral[800]!;
     final subtitleColor = AppColors.neutral[600]!;
+    final frameColor = AppColors.neutral[300]!;
     const title = 'Easy private messaging.';
     const subtitle = 'Everything in Air is\nend-to-end encrypted.';
 
@@ -115,6 +116,7 @@ void main() {
               subtitleColor: subtitleColor,
               title: title,
               subtitle: subtitle,
+              frameColor: frameColor,
               device: ProductShotDevices.forPlatform(platform),
               child: ChatListView(
                 scaffold: true,
@@ -182,6 +184,7 @@ void main() {
     final backgroundColor = AppColors.orange[50]!;
     final titleColor = AppColors.orange[800]!;
     final subtitleColor = AppColors.orange[600]!;
+    final frameColor = AppColors.orange[300]!;
     const title = 'Connect with friends.';
     const subtitle = 'Send messages in private chats.';
 
@@ -265,6 +268,7 @@ void main() {
                   subtitleColor: subtitleColor,
                   title: title,
                   subtitle: subtitle,
+                  frameColor: frameColor,
                   device: ProductShotDevices.forPlatform(platform),
                   child: const ChatScreenView(
                     createMessageCubit: createMockMessageCubit,
@@ -334,6 +338,7 @@ void main() {
     final backgroundColor = AppColors.blue[50]!;
     final titleColor = AppColors.blue[800]!;
     final subtitleColor = AppColors.blue[600]!;
+    final frameColor = AppColors.blue[300]!;
     const title = 'Create groups to chat.';
     const subtitle = 'Chat in groups with multiple people.';
 
@@ -406,6 +411,7 @@ void main() {
                   subtitleColor: subtitleColor,
                   title: title,
                   subtitle: subtitle,
+                  frameColor: frameColor,
                   device: ProductShotDevices.forPlatform(platform),
                   child: const ChatScreenView(
                     createMessageCubit: createMockMessageCubit,
