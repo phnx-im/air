@@ -32,6 +32,8 @@ import 'package:provider/provider.dart';
 import 'message_renderer.dart';
 
 final _log = Logger("MessageComposer");
+const double _composerLineHeight = 1.3;
+final double _composerFontSize = BodyFontSize.base.size;
 
 class MessageComposer extends StatefulWidget {
   const MessageComposer({super.key});
@@ -432,6 +434,7 @@ class _MessageInput extends StatelessWidget {
     );
 
     final loc = AppLocalizations.of(context);
+    final color = CustomColorScheme.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -445,13 +448,13 @@ class _MessageInput extends StatelessWidget {
             ),
             child: Row(
               children: [
-                EditPencil(color: CustomColorScheme.of(context).text.tertiary),
+                EditPencil(color: color.text.tertiary),
                 const SizedBox(width: Spacings.xxs),
                 Text(
                   loc.composer_editMessage,
                   style: TextStyle(
                     fontSize: LabelFontSize.small1.size,
-                    color: CustomColorScheme.of(context).text.tertiary,
+                    color: color.text.tertiary,
                   ),
                 ),
               ],
@@ -463,6 +466,11 @@ class _MessageInput extends StatelessWidget {
           child: TextField(
             focusNode: _focusNode,
             controller: _controller,
+            style: TextStyle(
+              fontSize: _composerFontSize,
+              height: _composerLineHeight,
+              color: color.text.primary,
+            ),
             minLines: 1,
             maxLines: 10,
             enabled: isConfirmedChat,
@@ -471,7 +479,7 @@ class _MessageInput extends StatelessWidget {
               hintText: loc.composer_inputHint(chatTitle ?? ""),
               hintMaxLines: 1,
               hintStyle: TextStyle(
-                color: CustomColorScheme.of(context).text.tertiary,
+                color: color.text.tertiary,
                 overflow: TextOverflow.ellipsis,
               ),
             ).copyWith(filled: false),
