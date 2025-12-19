@@ -116,7 +116,6 @@ class _ListTile extends StatelessWidget {
           vertical: Spacings.s,
         ),
         decoration: BoxDecoration(
-          //borderRadius: BorderRadius.circular(Spacings.s),
           color: isSelected
               ? CustomColorScheme.of(context).backgroundElevated.primary
               : null,
@@ -231,7 +230,11 @@ class _BlockedBadge extends StatelessWidget {
         const SizedBox(width: Spacings.xxxs),
         Text(
           loc.chatList_blocked,
-          style: TextStyle(fontStyle: FontStyle.italic, color: color),
+          style: TextStyle(
+            fontSize: BodyFontSize.small2.size,
+            fontStyle: FontStyle.italic,
+            color: color,
+          ),
         ),
       ],
     );

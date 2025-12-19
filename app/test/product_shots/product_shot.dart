@@ -197,13 +197,15 @@ ProductShotPlatform _defaultPlatform() {
       : ProductShotPlatform.ios;
 }
 
+const _frameGrey = Color.fromARGB(255, 123, 126, 129);
+
 _FrameStyle _frameStyleFor(ProductShotPlatform platform) {
   switch (platform) {
     case ProductShotPlatform.android:
       return const _FrameStyle(
         borderWidth: 20,
         cornerRadius: 48,
-        frameColor: Color(0xFFF2F4F6),
+        frameColor: _frameGrey,
         frameHeightFraction: 0.94,
         verticalOffsetFraction: 0.12,
       );
@@ -211,7 +213,7 @@ _FrameStyle _frameStyleFor(ProductShotPlatform platform) {
       return const _FrameStyle(
         borderWidth: 18,
         cornerRadius: 64,
-        frameColor: Color(0xFFF2F4F6),
+        frameColor: _frameGrey,
         frameHeightFraction: 0.94,
         verticalOffsetFraction: 0.12,
       );
@@ -219,13 +221,14 @@ _FrameStyle _frameStyleFor(ProductShotPlatform platform) {
       return const _FrameStyle(
         borderWidth: 28,
         cornerRadius: 48,
-        frameColor: Color(0xFFF2F4F6),
+        frameColor: _frameGrey,
         frameHeightFraction: 0.82,
         verticalOffsetFraction: 0.12,
       );
     case ProductShotPlatform.windows:
     case ProductShotPlatform.linux:
       return const _FrameStyle(
+        frameColor: _frameGrey,
         frameHeightFraction: 0.82,
         verticalOffsetFraction: 0.12,
       );
