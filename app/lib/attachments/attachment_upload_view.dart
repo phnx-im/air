@@ -61,7 +61,7 @@ class AttachmentUploadView extends HookWidget {
                         colors.backgroundBase.secondary,
                       ),
                     ),
-                    icon: iconoir.Send(
+                    icon: iconoir.ArrowUp(
                       width: 32,
                       height: 32,
                       color: colors.text.primary,
