@@ -90,7 +90,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get addMembersScreen_error_noActiveChat =>
-      'un chat actif est obligatoire';
+      'une discussion active est obligatoire';
 
   @override
   String get contactDetailsScreen_viewSafetyCode => 'Voir le code de sécurité';
@@ -111,7 +111,7 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get chatDetailsScreen_unknownChat => 'Chat inconnu';
+  String get chatDetailsScreen_unknownChat => 'Discussion inconnue';
 
   @override
   String blockedChatFooter_message(Object displayName) {
@@ -120,11 +120,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get inactiveChatFooter_message =>
-      'Vous n\'êtes plus membre de ce chat.';
+      'Vous n\'êtes plus membre de cette discussion.';
 
   @override
   String get chatScreen_emptyChat =>
-      'Sélectionnez un chat pour commencer à envoyer des messages';
+      'Sélectionnez une discussion pour commencer à envoyer des messages';
 
   @override
   String get removeUserDialog_title => 'Retirer l\'utilisateur';
@@ -186,7 +186,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String deleteContactDialog_content(Object displayName) {
-    return 'Voulez-vous vraiment supprimer votre contact Air $displayName ? Cela supprimera le chat et son historique.';
+    return 'Voulez-vous vraiment supprimer votre contact Air $displayName ? Cela supprimera la discussion et son historique.';
   }
 
   @override
@@ -200,7 +200,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String addContactDialog_content(Object displayName, Object groupTitle) {
-    return '$displayName du chat de groupe \"$groupTitle\" n\'est pas un contact Air. Pour discuter, envoyez-lui une demande de contact.';
+    return '$displayName de la discussion de groupe \"$groupTitle\" n\'est pas un contact Air. Pour discuter, envoyez-lui une demande de contact.';
   }
 
   @override
@@ -424,7 +424,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String systemMessage_acceptedDirectConnectionRequest(Object displayName) {
-    return 'Vous avez accepté la demande de contact de $displayName envoyée via un chat de groupe commun.';
+    return 'Vous avez accepté la demande de contact de $displayName envoyée via une discussion de groupe commune.';
   }
 
   @override
@@ -455,7 +455,7 @@ class AppLocalizationsFr extends AppLocalizations {
     Object displayName,
     Object groupName,
   ) {
-    return '$displayName vous a envoyé une demande de contact via le chat de groupe $groupName.';
+    return '$displayName vous a envoyé une demande de contact via la discussion de groupe $groupName.';
   }
 
   @override
@@ -514,7 +514,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String newChatDialog_error(Object chatName) {
-    return 'Impossible d\'ajouter un chat avec le nom $chatName';
+    return 'Impossible d\'ajouter une discussion avec le nom $chatName';
   }
 
   @override
@@ -654,7 +654,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get reportSpamDialog_content =>
-      'Air sera averti que cette personne peut envoyer des spams. Air ne peut jamais voir le contenu des chats.';
+      'Air sera averti que cette personne peut envoyer des spams. Air ne peut jamais voir le contenu des discussions.';
 
   @override
   String get reportSpamDialog_cancel => 'Annuler';
@@ -783,7 +783,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get addMembersScreen_done => 'Terminé';
 
   @override
-  String get leaveChatDialog_title => 'Quitter le chat';
+  String get leaveChatDialog_title => 'Quitter la discussion';
 
   @override
   String leaveChatDialog_content(Object chatName) {
@@ -797,11 +797,11 @@ class AppLocalizationsFr extends AppLocalizations {
   String get leaveChatDialog_leave => 'Quitter';
 
   @override
-  String get deleteChatDialog_title => 'Supprimer le chat ?';
+  String get deleteChatDialog_title => 'Supprimer la discussion ?';
 
   @override
   String get deleteChatDialog_content =>
-      'Ce chat sera supprimé. Cette action est irréversible.';
+      'Cette discussion sera supprimée. Cette action est irréversible.';
 
   @override
   String get deleteChatDialog_delete => 'Supprimer';
