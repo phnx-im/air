@@ -21,7 +21,7 @@ class ChatListHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.only(left: Spacings.xxs, right: Spacings.xxs),
+      padding: const EdgeInsets.only(left: Spacings.xxxs, right: Spacings.xxs),
       child: const Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -107,7 +107,7 @@ class _PlusButtonState extends State<_PlusButton> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: CustomColorScheme.of(context).backgroundBase.quaternary,
+              color: CustomColorScheme.of(context).backgroundElevated.primary,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
