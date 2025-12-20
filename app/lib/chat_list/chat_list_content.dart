@@ -5,6 +5,7 @@
 import 'dart:async';
 
 import 'package:air/chat/chat_details.dart';
+import 'package:air/chat_list/chat_list_view.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/message_list/display_message_tile.dart';
@@ -316,14 +317,14 @@ class _LastMessage extends StatelessWidget {
 
     final readStyle = TextStyle(
       fontSize: BodyFontSize.small1.size,
-      color: color.text.tertiary,
+      color: Color.alphaBlend(
+        color.text.tertiary,
+        ChatListContainer.backgroundColor(context),
+      ),
       height: 1.28,
     );
     final unreadStyle = readStyle;
-    final draftStyle = readStyle.copyWith(
-      fontStyle: FontStyle.italic,
-      color: color.text.tertiary,
-    );
+    final draftStyle = readStyle.copyWith(fontStyle: FontStyle.italic);
 
     final showDraft = !isCurrentChat && draftMessage?.isNotEmpty == true;
 
