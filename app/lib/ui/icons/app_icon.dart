@@ -14,6 +14,7 @@ enum AppIconType {
   plus,
   close,
   arrowLeft,
+  arrowUp,
   send,
   warningCircle,
   upload,
@@ -25,6 +26,7 @@ enum AppIconType {
   checkSquare,
   square,
   search,
+  shield,
   copy,
   editPencil,
   download,
@@ -67,72 +69,181 @@ class AppIcon extends StatelessWidget {
     final iconSize = size;
 
     return switch (type) {
-      AppIconType.plus => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.plus, size: iconSize, color: color),
-      AppIconType.close => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.x, size: iconSize, color: color),
-      AppIconType.arrowLeft => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.arrowLeft, size: iconSize, color: color),
-      AppIconType.send => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.send, size: iconSize, color: color),
-      AppIconType.warningCircle => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.circleAlert, size: iconSize, color: color),
-      AppIconType.upload => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.upload, size: iconSize, color: color),
-      AppIconType.mediaImage => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.image, size: iconSize, color: color),
-      AppIconType.camera => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.camera, size: iconSize, color: color),
-      AppIconType.attachment => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.paperclip, size: iconSize, color: color),
-      AppIconType.prohibition => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.ban, size: iconSize, color: color),
-      AppIconType.mediaImagePlus => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.imagePlus, size: iconSize, color: color),
-      AppIconType.checkSquare => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.squareCheck, size: iconSize, color: color),
-      AppIconType.square => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.square, size: iconSize, color: color),
-      AppIconType.search => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.search, size: iconSize, color: color),
-      AppIconType.copy => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.copy, size: iconSize, color: color),
-      AppIconType.editPencil => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.pencil, size: iconSize, color: color),
-      AppIconType.download => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.download, size: iconSize, color: color),
-      AppIconType.shareIos => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.share, size: iconSize, color: color),
-      AppIconType.refreshDouble => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.refreshCw, size: iconSize, color: color),
-      AppIconType.trash => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.trash, size: iconSize, color: color),
-      AppIconType.arrowRight => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.arrowRight, size: iconSize, color: color),
-      AppIconType.chatBubbleEmpty => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.messageCircle, size: iconSize, color: color),
-      AppIconType.check => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.check, size: iconSize, color: color),
-      AppIconType.brokenImage => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.imageOff, size: iconSize, color: color),
-      AppIconType.personOutline => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.user, size: iconSize, color: color),
-      AppIconType.settingsOutline => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.settings, size: iconSize, color: color),
-      AppIconType.refresh => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.refreshCcw, size: iconSize, color: color),
-      AppIconType.changeCircle => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.repeat, size: iconSize, color: color),
-      AppIconType.logout => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.logOut, size: iconSize, color: color),
-      AppIconType.textSnippet => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.fileText, size: iconSize, color: color),
-      AppIconType.fileDownload => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.fileDown, size: iconSize, color: color),
-      AppIconType.fileUpload => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.fileUp, size: iconSize, color: color),
-      AppIconType.delete => CompiledSvgIconWidget(
-          icon: CompiledSvgIcon.trash2, size: iconSize, color: color),
+      AppIconType.plus => CompiledSvgIcon(
+        icon: CompiledSvgAsset.plus,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.close => CompiledSvgIcon(
+        icon: CompiledSvgAsset.x,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.arrowLeft => CompiledSvgIcon(
+        icon: CompiledSvgAsset.arrowLeft,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.arrowUp => CompiledSvgIcon(
+        icon: CompiledSvgAsset.arrowUp,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.send => CompiledSvgIcon(
+        icon: CompiledSvgAsset.send,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.warningCircle => CompiledSvgIcon(
+        icon: CompiledSvgAsset.circleAlert,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.upload => CompiledSvgIcon(
+        icon: CompiledSvgAsset.upload,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.mediaImage => CompiledSvgIcon(
+        icon: CompiledSvgAsset.image,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.camera => CompiledSvgIcon(
+        icon: CompiledSvgAsset.camera,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.attachment => CompiledSvgIcon(
+        icon: CompiledSvgAsset.paperclip,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.prohibition => CompiledSvgIcon(
+        icon: CompiledSvgAsset.ban,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.mediaImagePlus => CompiledSvgIcon(
+        icon: CompiledSvgAsset.imagePlus,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.checkSquare => CompiledSvgIcon(
+        icon: CompiledSvgAsset.squareCheck,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.square => CompiledSvgIcon(
+        icon: CompiledSvgAsset.square,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.search => CompiledSvgIcon(
+        icon: CompiledSvgAsset.search,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.shield => CompiledSvgIcon(
+        icon: CompiledSvgAsset.shield,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.copy => CompiledSvgIcon(
+        icon: CompiledSvgAsset.copy,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.editPencil => CompiledSvgIcon(
+        icon: CompiledSvgAsset.pencil,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.download => CompiledSvgIcon(
+        icon: CompiledSvgAsset.download,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.shareIos => CompiledSvgIcon(
+        icon: CompiledSvgAsset.share,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.refreshDouble => CompiledSvgIcon(
+        icon: CompiledSvgAsset.refreshCw,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.trash => CompiledSvgIcon(
+        icon: CompiledSvgAsset.trash,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.arrowRight => CompiledSvgIcon(
+        icon: CompiledSvgAsset.arrowRight,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.chatBubbleEmpty => CompiledSvgIcon(
+        icon: CompiledSvgAsset.messageCircle,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.check => CompiledSvgIcon(
+        icon: CompiledSvgAsset.check,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.brokenImage => CompiledSvgIcon(
+        icon: CompiledSvgAsset.imageOff,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.personOutline => CompiledSvgIcon(
+        icon: CompiledSvgAsset.user,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.settingsOutline => CompiledSvgIcon(
+        icon: CompiledSvgAsset.settings,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.refresh => CompiledSvgIcon(
+        icon: CompiledSvgAsset.refreshCcw,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.changeCircle => CompiledSvgIcon(
+        icon: CompiledSvgAsset.repeat,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.logout => CompiledSvgIcon(
+        icon: CompiledSvgAsset.logOut,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.textSnippet => CompiledSvgIcon(
+        icon: CompiledSvgAsset.fileText,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.fileDownload => CompiledSvgIcon(
+        icon: CompiledSvgAsset.fileDown,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.fileUpload => CompiledSvgIcon(
+        icon: CompiledSvgAsset.fileUp,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.delete => CompiledSvgIcon(
+        icon: CompiledSvgAsset.trash2,
+        size: iconSize,
+        color: color,
+      ),
     };
   }
 }

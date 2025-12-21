@@ -345,7 +345,7 @@ class _ActionsRow extends StatelessWidget {
                           child: AppIcon(
                             type: AppIconType.plus,
                             size: 16,
-                            color: colors.text.primary,
+                            color: colors.function.toggleBlack,
                           ),
                         ),
                       ),
@@ -389,7 +389,7 @@ class _ActionsRow extends StatelessWidget {
                           child: AppIcon(
                             type: AppIconType.arrowRight,
                             size: 16,
-                            color: colors.text.primary,
+                            color: colors.function.toggleBlack,
                           ),
                         ),
                       ),

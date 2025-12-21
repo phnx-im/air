@@ -55,7 +55,7 @@ Future<void> main() async {
     final base64Data = base64Encode(bytes);
 
     loaderEntries.writeln(
-      "  CompiledSvgIcon.$enumName: const _InlineBytesLoader('$base64Data'),",
+      "  CompiledSvgAsset.$enumName: const _InlineBytesLoader('$base64Data'),",
     );
   }
 
@@ -69,20 +69,20 @@ Future<void> main() async {
   buffer.writeln("import 'package:flutter/widgets.dart';");
   buffer.writeln("import 'package:vector_graphics/vector_graphics.dart';");
   buffer.writeln();
-  buffer.writeln('enum CompiledSvgIcon { ${enumEntries.join(', ')} }');
+  buffer.writeln('enum CompiledSvgAsset { ${enumEntries.join(', ')} }');
   buffer.writeln();
   buffer.writeln(
-    'final Map<CompiledSvgIcon, _InlineBytesLoader> _compiledSvgLoaders = {',
+    'final Map<CompiledSvgAsset, _InlineBytesLoader> _compiledSvgLoaders = {',
   );
   buffer.write(loaderEntries.toString());
   buffer.writeln('};');
   buffer.writeln();
   buffer.writeln(
-    'BytesLoader compiledSvgLoader(CompiledSvgIcon icon) => _compiledSvgLoaders[icon]!;',
+    'BytesLoader compiledSvgLoader(CompiledSvgAsset icon) => _compiledSvgLoaders[icon]!;',
   );
   buffer.writeln();
-  buffer.writeln('class CompiledSvgIconWidget extends StatelessWidget {');
-  buffer.writeln('  const CompiledSvgIconWidget({');
+  buffer.writeln('class CompiledSvgIcon extends StatelessWidget {');
+  buffer.writeln('  const CompiledSvgIcon({');
   buffer.writeln('    super.key,');
   buffer.writeln('    required this.icon,');
   buffer.writeln('    this.size,');
@@ -91,7 +91,7 @@ Future<void> main() async {
   buffer.writeln('    this.alignment = Alignment.center,');
   buffer.writeln('  });');
   buffer.writeln();
-  buffer.writeln('  final CompiledSvgIcon icon;');
+  buffer.writeln('  final CompiledSvgAsset icon;');
   buffer.writeln('  final double? size;');
   buffer.writeln('  final Color? color;');
   buffer.writeln('  final BoxFit fit;');

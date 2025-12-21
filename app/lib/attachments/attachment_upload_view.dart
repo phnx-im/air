@@ -62,7 +62,7 @@ class AttachmentUploadView extends HookWidget {
                       ),
                     ),
                     icon: AppIcon(
-                      type: AppIconType.send,
+                      type: AppIconType.arrowUp,
                       size: 32,
                       color: colors.text.primary,
                     ),

@@ -129,9 +129,10 @@ class ContactDetailsView extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                iconoir.Shield(
+                AppIcon(
+                  type: AppIconType.shield,
+                  size: 16,
                   color: CustomColorScheme.of(context).text.primary,
-                  width: 16,
                 ),
                 const SizedBox(width: Spacings.xxs),
                 Text(
