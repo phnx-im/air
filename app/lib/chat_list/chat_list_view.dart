@@ -17,6 +17,10 @@ class ChatListContainer extends StatelessWidget {
 
   final bool isStandalone;
 
+  static Color backgroundColor(BuildContext context) {
+    return CustomColorScheme.of(context).backgroundBase.secondary;
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
@@ -39,7 +43,7 @@ class ChatListView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final widget = Container(
-      color: CustomColorScheme.of(context).backgroundBase.primary,
+      color: ChatListContainer.backgroundColor(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -54,9 +58,7 @@ class ChatListView extends StatelessWidget {
     );
     return scaffold
         ? Scaffold(
-            backgroundColor: CustomColorScheme.of(
-              context,
-            ).backgroundBase.primary,
+            backgroundColor: ChatListContainer.backgroundColor(context),
             body: Stack(
               children: [
                 SafeArea(bottom: false, child: widget),

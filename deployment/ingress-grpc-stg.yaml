@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: air-ingress-grpc
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - stg.air.ms
+  rules:
+  - host: stg.air.ms
+    http:
+      paths:
+      - path: /delivery_service.v1.DeliveryService
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: air-backend-stg
+            port:
+              number: 80
+      - path: /queue_service.v1.QueueService
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: air-backend-stg
+            port:
+              number: 80
+      - path: /auth_service.v1.AuthService
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: air-backend-stg
+            port:
+              number: 80
