@@ -14,8 +14,8 @@ import 'user_cubit.dart';
 part 'user_settings_cubit.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `f64_decode`, `f64_encode`, `subscribe`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `InterfaceScaleSetting`, `ReadReceiptsSetting`, `SendOnEnterSetting`, `SidebarWidthSetting`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `decode`, `decode`, `decode`, `decode`, `encode`, `encode`, `encode`, `encode`, `fmt`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `InterfaceScaleSetting`, `SendOnEnterSetting`, `SidebarWidthSetting`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `decode`, `decode`, `decode`, `encode`, `encode`, `encode`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `default`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserSettingsCubitBase>>

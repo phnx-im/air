@@ -34,6 +34,7 @@ pub use crate::{
         },
         block_contact::BlockedContactError,
         safety_code::SafetyCode,
+        user_settings::ReadReceiptsSetting,
     },
     contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},
     user_handles::UserHandleRecord,
