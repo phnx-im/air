@@ -2,6 +2,27 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use anyhow::bail;
+
+use crate::store::{StoreResult, UserSetting};
+
+pub struct ReadReceiptsSetting(pub bool);
+
+impl UserSetting for ReadReceiptsSetting {
+    const KEY: &'static str = "read_receipts";
+
+    fn encode(&self) -> StoreResult<Vec<u8>> {
+        Ok(vec![self.0 as u8])
+    }
+
+    fn decode(bytes: Vec<u8>) -> StoreResult<Self> {
+        match bytes.as_slice() {
+            [byte] => Ok(Self(*byte != 0)),
+            _ => bail!("invalid read_receipts bytes"),
+        }
+    }
+}
+
 pub(crate) struct UserSettingRecord {}
 
 mod persistence {
