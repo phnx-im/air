@@ -133,7 +133,7 @@ class _UploadStatus extends HookWidget {
             children: [
               AppIcon(
                 type: AppIconType.upload,
-                size: 32,
+                size: 16,
                 color: CustomColorScheme.of(context).text.primary,
               ),
               const SizedBox(width: Spacings.xxxs),
