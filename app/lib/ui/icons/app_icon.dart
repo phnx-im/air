@@ -36,6 +36,8 @@ enum AppIconType {
   arrowRight,
   chatBubbleEmpty,
   check,
+  checkCheck,
+  checkCheckFill,
   brokenImage,
   user,
   users,
@@ -47,6 +49,7 @@ enum AppIconType {
   fileDownload,
   fileUpload,
   delete,
+  circleDashed,
 }
 
 class AppIcon extends StatelessWidget {
@@ -191,6 +194,16 @@ class AppIcon extends StatelessWidget {
         size: iconSize,
         color: color,
       ),
+      AppIconType.checkCheck => CompiledSvgIcon(
+        icon: CompiledSvgAsset.checkCheck,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.checkCheckFill => CompiledSvgIcon(
+        icon: CompiledSvgAsset.checkCheckFill,
+        size: iconSize,
+        color: color,
+      ),
       AppIconType.brokenImage => CompiledSvgIcon(
         icon: CompiledSvgAsset.imageOff,
         size: iconSize,
@@ -243,6 +256,11 @@ class AppIcon extends StatelessWidget {
       ),
       AppIconType.delete => CompiledSvgIcon(
         icon: CompiledSvgAsset.trash2,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.circleDashed => CompiledSvgIcon(
+        icon: CompiledSvgAsset.circleDashed,
         size: iconSize,
         color: color,
       ),

@@ -518,8 +518,8 @@ class _RotatingSendIconState extends State<RotatingSendIcon>
     return RotationTransition(
       turns: _controller,
       child: AppIcon(
-        type: AppIconType.refreshDouble,
-        size: LabelFontSize.small2.size,
+        type: AppIconType.circleDashed,
+        size: 16,
         color: CustomColorScheme.of(context).text.tertiary,
       ),
     );
@@ -536,20 +536,31 @@ class _MessageStatus extends StatelessWidget {
     final readReceiptsEnabled = context.select(
       (UserSettingsCubit cubit) => cubit.state.readReceipts,
     );
+    if (status == UiMessageStatus.hidden) {
+      return const SizedBox.shrink();
+    }
     if (status == UiMessageStatus.sending) {
       return const RotatingSendIcon();
     }
     if (status == UiMessageStatus.error) {
       return AppIcon(
         type: AppIconType.warningCircle,
-        size: LabelFontSize.small2.size,
+        size: 16,
         color: CustomColorScheme.of(context).function.warning,
       );
     }
-    return DoubleCheckIcon(
+    final statusIconType = switch (status) {
+      UiMessageStatus.sent => MessageStatusIconType.sent,
+      UiMessageStatus.delivered => MessageStatusIconType.delivered,
+      UiMessageStatus.read =>
+        readReceiptsEnabled
+            ? MessageStatusIconType.read
+            : MessageStatusIconType.delivered,
+      _ => null,
+    };
+    return MessageStatusIcon(
       size: LabelFontSize.small2.size,
-      singleCheckIcon: status == UiMessageStatus.sent,
-      inverted: readReceiptsEnabled && status == UiMessageStatus.read,
+      statusIcon: statusIconType!,
     );
   }
 }
