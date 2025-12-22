@@ -23,11 +23,11 @@ class MemberSearchField extends StatelessWidget {
   Widget build(BuildContext context) {
     final customColorScheme = CustomColorScheme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        Spacings.m,
-        Spacings.m,
-        Spacings.m,
-        Spacings.xxs,
+      padding: const EdgeInsets.only(
+        left: Spacings.s,
+        right: Spacings.s,
+        top: Spacings.m,
+        bottom: Spacings.xxs,
       ),
       child: TextField(
         controller: controller,

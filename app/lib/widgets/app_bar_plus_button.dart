@@ -17,7 +17,7 @@ class AppBarPlusButton extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.only(right: Spacings.m),
+      padding: const EdgeInsets.only(right: Spacings.s),
       child: Material(
         color: Colors.transparent,
         child: InkWell(

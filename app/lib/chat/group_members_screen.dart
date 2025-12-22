@@ -132,7 +132,7 @@ class GroupMembersView extends HookWidget {
                 Expanded(
                   child: ListView.separated(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: Spacings.m,
+                      horizontal: Spacings.s,
                       vertical: Spacings.xs,
                     ),
                     itemCount: sortedMembers.length,

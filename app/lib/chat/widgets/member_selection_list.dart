@@ -52,7 +52,7 @@ class MemberSelectionList extends HookWidget {
 
     return ListView.separated(
       padding: const EdgeInsets.symmetric(
-        horizontal: Spacings.m,
+        horizontal: Spacings.s,
         vertical: Spacings.xs,
       ),
       itemCount: sortedContacts.length,

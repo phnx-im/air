@@ -187,7 +187,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
       elevation: 0,
       leading: context.responsiveScreenType == ResponsiveScreenType.mobile
           ? const AppBarBackButton()
-          : const SizedBox.shrink(),
+          : null,
       centerTitle: true,
       title: MouseRegion(
         cursor: hasDetails ? SystemMouseCursors.click : .defer,
