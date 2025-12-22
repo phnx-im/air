@@ -31,6 +31,8 @@ class AppBarBackButton extends StatelessWidget {
       child: Align(
         alignment: Alignment.centerLeft,
         child: Material(
+          type: MaterialType.circle,
+          color: Colors.transparent,
           child: InkWell(
             customBorder: const CircleBorder(),
             overlayColor: WidgetStateProperty.all(Colors.transparent),
