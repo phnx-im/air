@@ -11,11 +11,11 @@ import 'package:air/theme/spacings.dart';
 import 'package:air/ui/colors/palette.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/modal/app_dialog.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/ui/typography/monospace.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:url_launcher/url_launcher.dart';
 
 Widget buildBlockElement(
@@ -269,6 +269,7 @@ InlineSpan buildInlineElement(
   bool isSender, {
   Uri? destUrl,
 }) {
+  final colors = CustomColorScheme.of(context);
   return switch (inline.element) {
     InlineElement_Text(:final field0) => TextSpan(
       text: field0,
@@ -293,8 +294,8 @@ InlineSpan buildInlineElement(
           )
           .toList(),
       style: TextStyle(
-        color: CustomColorScheme.of(context).function.link,
-        decorationColor: CustomColorScheme.of(context).function.link,
+        color: colors.function.link,
+        decorationColor: colors.function.link,
         decoration: TextDecoration.underline,
       ),
     ),
@@ -331,7 +332,7 @@ InlineSpan buildInlineElement(
         ]),
       ),
     ),
-    InlineElement_Image() => const WidgetSpan(child: iconoir.MediaImage()),
+    InlineElement_Image() => const WidgetSpan(child: AppIcon.image()),
     InlineElement_TaskListMarker(:final field0) => WidgetSpan(
       alignment: PlaceholderAlignment.middle,
       child: Padding(
@@ -340,19 +341,17 @@ InlineSpan buildInlineElement(
           right: Spacings.xxs,
         ),
         child: field0
-            ? iconoir.CheckSquare(
-                width: 20,
-                height: 20,
+            ? AppIcon.squareCheck(
+                size: 20,
                 color: isSender
-                    ? CustomColorScheme.of(context).message.selfCheckboxCheck
-                    : CustomColorScheme.of(context).message.otherCheckboxCheck,
+                    ? colors.message.selfCheckboxCheck
+                    : colors.message.otherCheckboxCheck,
               )
-            : iconoir.Square(
-                width: 20,
-                height: 20,
+            : AppIcon.square(
+                size: 20,
                 color: isSender
-                    ? CustomColorScheme.of(context).message.selfCheckboxCheck
-                    : CustomColorScheme.of(context).message.otherCheckboxCheck,
+                    ? colors.message.selfCheckboxCheck
+                    : colors.message.otherCheckboxCheck,
               ),
       ),
     ),
@@ -720,11 +719,7 @@ class CustomTextEditingController extends TextEditingController {
         ),
       ),
       InlineElement_Image() => buildCorrectWidget(
-        iconoir.MediaImage(
-          width: 32,
-          height: 14,
-          color: CustomColorScheme.of(context).text.primary,
-        ),
+        const AppIcon.image(size: 32),
         inline.start,
         inline.end,
       ),

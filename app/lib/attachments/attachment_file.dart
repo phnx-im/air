@@ -8,9 +8,9 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:provider/provider.dart';
 
 class AttachmentFile extends HookWidget {
@@ -39,7 +39,7 @@ class AttachmentFile extends HookWidget {
                 size: attachment.size,
                 color: color,
               )
-            : iconoir.Attachment(width: 32, color: color),
+            : AppIcon.paperclip(size: 32, color: color),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -84,8 +84,8 @@ class _UploadStatus extends HookWidget {
 
     return Center(
       child: switch (uploadStatus.data) {
-        null || UiAttachmentStatus_Completed() => iconoir.Attachment(
-          width: 32,
+        null || UiAttachmentStatus_Completed() => AppIcon.paperclip(
+          size: 32,
           color: color,
         ),
         UiAttachmentStatus_Pending() ||
@@ -100,9 +100,8 @@ class _UploadStatus extends HookWidget {
               context,
             ).backgroundBase.tertiary,
           ),
-          icon: iconoir.Upload(
-            width: 32,
-            height: 32,
+          icon: AppIcon.upload(
+            size: 32,
             color: CustomColorScheme.of(context).text.secondary,
           ),
         ),
@@ -121,7 +120,7 @@ class _UploadStatus extends HookWidget {
                   attachmentId: attachmentId,
                 );
               },
-              icon: iconoir.Xmark(width: 32, height: 32, color: color),
+              icon: AppIcon.x(size: 24, color: color),
             ),
           ],
         ),

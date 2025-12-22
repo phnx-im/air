@@ -7,8 +7,8 @@ import 'dart:io';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 
 typedef AttachmentCategoryCallback = void Function(AttachmentCategory category);
 
@@ -21,14 +21,13 @@ class AttachmentCategoryPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final iconColor = CustomColorScheme.of(context).text.primary;
     final isMobile = Platform.isAndroid || Platform.isIOS;
     final loc = AppLocalizations.of(context);
     return Row(
       mainAxisAlignment: .spaceEvenly,
       children: [
         _AttachmentCategoryButton(
-          icon: iconoir.MediaImage(color: iconColor),
+          icon: const AppIcon.image(),
           label: loc.attachment_gallery,
           onPressed: () {
             onCategorySelected?.call(AttachmentCategory.gallery);
@@ -36,14 +35,14 @@ class AttachmentCategoryPicker extends StatelessWidget {
         ),
         if (isMobile)
           _AttachmentCategoryButton(
-            icon: iconoir.Camera(color: iconColor),
+            icon: const AppIcon.camera(),
             label: loc.attachment_camera,
             onPressed: () {
               onCategorySelected?.call(AttachmentCategory.camera);
             },
           ),
         _AttachmentCategoryButton(
-          icon: iconoir.Attachment(color: iconColor),
+          icon: const AppIcon.paperclip(),
           label: loc.attachment_file,
           onPressed: () {
             onCategorySelected?.call(AttachmentCategory.file);

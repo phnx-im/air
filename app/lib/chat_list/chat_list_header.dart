@@ -8,12 +8,12 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/components/context_menu/context_menu.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 
 class ChatListHeader extends StatelessWidget {
   const ChatListHeader({super.key});
@@ -70,22 +70,25 @@ class _PlusButtonState extends State<_PlusButton> {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
+    final colors = CustomColorScheme.of(context);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: Spacings.xs),
       child: ContextMenu(
         direction: ContextMenuDirection.left,
-        width: 200,
+        width: 250,
         controller: contextMenuController,
         menuItems: [
           ContextMenuItem(
             label: loc.chatList_newContact,
+            leading: const AppIcon.user(size: 16),
             onPressed: () {
               _newContact(context);
             },
           ),
           ContextMenuItem(
             label: loc.chatList_newGroup,
+            leading: const AppIcon.users(size: 16),
             onPressed: () {
               _newGroup(context);
             },
@@ -104,15 +107,10 @@ class _PlusButtonState extends State<_PlusButton> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: CustomColorScheme.of(context).backgroundElevated.primary,
+              color: colors.backgroundElevated.primary,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Center(
-              child: iconoir.Plus(
-                color: CustomColorScheme.of(context).text.primary,
-                width: 22,
-              ),
-            ),
+            child: const Center(child: AppIcon.plus(size: 16)),
           ),
         ),
       ),

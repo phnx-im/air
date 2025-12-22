@@ -9,16 +9,13 @@ import 'package:air/main.dart';
 import 'package:air/message_list/emoji_repository.dart';
 import 'package:air/message_list/emoji_autocomplete.dart';
 import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/user/user_settings_cubit.dart';
 import 'package:air/util/debouncer.dart';
 import 'package:air/message_list/widgets/text_autocomplete.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:iconoir_flutter/regular/arrow_up.dart';
-import 'package:iconoir_flutter/regular/edit_pencil.dart';
-import 'package:iconoir_flutter/regular/plus.dart';
-import 'package:iconoir_flutter/regular/xmark.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
 import 'package:air/chat/chat_details.dart';
@@ -198,10 +195,7 @@ class _MessageComposerState extends State<MessageComposer>
                   borderRadius: BorderRadius.circular(_maxActionButtonSize),
                 ),
                 child: IconButton(
-                  icon: Xmark(
-                    color: CustomColorScheme.of(context).text.primary,
-                    width: _actionButtonSize / 2,
-                  ),
+                  icon: AppIcon.x(size: _actionButtonSize / 2),
                   color: CustomColorScheme.of(context).text.primary,
                   hoverColor: const Color(0x00FFFFFF),
                   onPressed: () {
@@ -220,14 +214,8 @@ class _MessageComposerState extends State<MessageComposer>
               ),
               child: IconButton(
                 icon: _inputIsEmpty
-                    ? Plus(
-                        color: CustomColorScheme.of(context).text.primary,
-                        width: _actionButtonSize / 2,
-                      )
-                    : ArrowUp(
-                        color: CustomColorScheme.of(context).text.primary,
-                        width: _actionButtonSize / 2,
-                      ),
+                    ? AppIcon.plus(size: _actionButtonSize / 2)
+                    : AppIcon.arrowUp(size: _actionButtonSize / 2),
                 color: CustomColorScheme.of(context).text.primary,
                 hoverColor: const Color(0x00FFFFFF),
                 onPressed: isConfirmedChat
@@ -448,7 +436,10 @@ class _MessageInput extends StatelessWidget {
             ),
             child: Row(
               children: [
-                EditPencil(color: color.text.tertiary),
+                AppIcon.pencil(
+                  size: 20,
+                  color: CustomColorScheme.of(context).text.tertiary,
+                ),
                 const SizedBox(width: Spacings.xxs),
                 Text(
                   loc.composer_editMessage,
