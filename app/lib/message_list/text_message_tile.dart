@@ -205,6 +205,7 @@ class _MessageView extends HookWidget {
     final attachments = contentMessage.content.attachments;
 
     final colors = CustomColorScheme.of(context);
+    const iconSize = 16.0;
 
     final actions = <MessageAction>[
       if (plainBody != null && plainBody.isNotEmpty)
@@ -212,7 +213,7 @@ class _MessageView extends HookWidget {
           label: loc.messageContextMenu_copy,
           leading: AppIcon(
             type: AppIconType.copy,
-            size: 24,
+            size: iconSize,
             color: colors.text.primary,
           ),
           onSelected: () {
@@ -224,7 +225,7 @@ class _MessageView extends HookWidget {
           label: loc.messageContextMenu_edit,
           leading: AppIcon(
             type: AppIconType.editPencil,
-            size: 24,
+            size: iconSize,
             color: colors.text.primary,
           ),
           onSelected: () {
@@ -236,7 +237,7 @@ class _MessageView extends HookWidget {
           label: loc.messageContextMenu_save,
           leading: AppIcon(
             type: AppIconType.download,
-            size: 24,
+            size: iconSize,
             color: colors.text.primary,
           ),
           onSelected: () => _handleFileSave(context, attachments.first),
@@ -246,7 +247,7 @@ class _MessageView extends HookWidget {
           label: loc.messageContextMenu_share,
           leading: AppIcon(
             type: AppIconType.shareIos,
-            size: 24,
+            size: iconSize,
             color: colors.text.primary,
           ),
           onSelected: () => _handleFileShare(context, attachments),

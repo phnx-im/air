@@ -70,22 +70,33 @@ class _PlusButtonState extends State<_PlusButton> {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
+    final colors = CustomColorScheme.of(context);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: Spacings.xs),
       child: ContextMenu(
         direction: ContextMenuDirection.left,
-        width: 200,
+        width: 250,
         controller: contextMenuController,
         menuItems: [
           ContextMenuItem(
             label: loc.chatList_newContact,
+            leading: AppIcon(
+              type: AppIconType.user,
+              size: 16,
+              color: colors.text.primary,
+            ),
             onPressed: () {
               _newContact(context);
             },
           ),
           ContextMenuItem(
             label: loc.chatList_newGroup,
+            leading: AppIcon(
+              type: AppIconType.users,
+              size: 16,
+              color: colors.text.primary,
+            ),
             onPressed: () {
               _newGroup(context);
             },
@@ -104,14 +115,14 @@ class _PlusButtonState extends State<_PlusButton> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: CustomColorScheme.of(context).backgroundElevated.primary,
+              color: colors.backgroundElevated.primary,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
               child: AppIcon(
                 type: AppIconType.plus,
-                size: 22,
-                color: CustomColorScheme.of(context).text.primary,
+                size: 16,
+                color: colors.text.primary,
               ),
             ),
           ),

@@ -37,7 +37,8 @@ enum AppIconType {
   chatBubbleEmpty,
   check,
   brokenImage,
-  personOutline,
+  user,
+  users,
   settingsOutline,
   refresh,
   changeCircle,
@@ -45,16 +46,7 @@ enum AppIconType {
   textSnippet,
   fileDownload,
   fileUpload,
-  delete;
-
-  /// Lookup by the enum's `name` (e.g., "plus").
-  static AppIconType? fromName(String name) {
-    try {
-      return AppIconType.values.byName(name);
-    } catch (_) {
-      return null;
-    }
-  }
+  delete,
 }
 
 class AppIcon extends StatelessWidget {
@@ -199,8 +191,13 @@ class AppIcon extends StatelessWidget {
         size: iconSize,
         color: color,
       ),
-      AppIconType.personOutline => CompiledSvgIcon(
+      AppIconType.user => CompiledSvgIcon(
         icon: CompiledSvgAsset.user,
+        size: iconSize,
+        color: color,
+      ),
+      AppIconType.users => CompiledSvgIcon(
+        icon: CompiledSvgAsset.users,
         size: iconSize,
         color: color,
       ),

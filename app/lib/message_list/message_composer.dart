@@ -220,7 +220,7 @@ class _MessageComposerState extends State<MessageComposer>
                 icon: _inputIsEmpty
                     ? AppIcon(
                         type: AppIconType.plus,
-                        size: 32,
+                        size: _actionButtonSize / 2,
                         color: CustomColorScheme.of(context).text.primary,
                       )
                     : AppIcon(
