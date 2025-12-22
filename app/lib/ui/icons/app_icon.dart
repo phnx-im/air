@@ -50,10 +50,15 @@ enum AppIconType {
 }
 
 class AppIcon extends StatelessWidget {
-  const AppIcon({required this.type, super.key, this.color, this.size});
+  const AppIcon({
+    super.key,
+    required this.type,
+    required this.color,
+    this.size,
+  });
 
   final AppIconType type;
-  final Color? color;
+  final Color color;
   final double? size;
 
   @override

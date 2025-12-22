@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ui/colors/themes.dart';
 import 'package:flutter/material.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/ui/components/context_menu/context_menu_ui.dart';
@@ -19,12 +20,18 @@ class ContextMenuShowcase extends StatelessWidget {
         menuItems: [
           ContextMenuItem(
             onPressed: () {},
-            leading: const AppIcon(type: AppIconType.user),
+            leading: AppIcon(
+              type: AppIconType.user,
+              color: CustomColorScheme.of(context).text.primary,
+            ),
             label: 'Action 1',
           ),
           ContextMenuItem(
             onPressed: () {},
-            leading: const AppIcon(type: AppIconType.settingsOutline),
+            leading: AppIcon(
+              type: AppIconType.settingsOutline,
+              color: CustomColorScheme.of(context).text.primary,
+            ),
             label: 'Action 2',
           ),
         ],

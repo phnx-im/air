@@ -269,6 +269,7 @@ InlineSpan buildInlineElement(
   bool isSender, {
   Uri? destUrl,
 }) {
+  final colors = CustomColorScheme.of(context);
   return switch (inline.element) {
     InlineElement_Text(:final field0) => TextSpan(
       text: field0,
@@ -293,8 +294,8 @@ InlineSpan buildInlineElement(
           )
           .toList(),
       style: TextStyle(
-        color: CustomColorScheme.of(context).function.link,
-        decorationColor: CustomColorScheme.of(context).function.link,
+        color: colors.function.link,
+        decorationColor: colors.function.link,
         decoration: TextDecoration.underline,
       ),
     ),
@@ -331,8 +332,8 @@ InlineSpan buildInlineElement(
         ]),
       ),
     ),
-    InlineElement_Image() => const WidgetSpan(
-      child: AppIcon(type: AppIconType.mediaImage),
+    InlineElement_Image() => WidgetSpan(
+      child: AppIcon(type: AppIconType.mediaImage, color: colors.text.primary),
     ),
     InlineElement_TaskListMarker(:final field0) => WidgetSpan(
       alignment: PlaceholderAlignment.middle,
@@ -346,15 +347,15 @@ InlineSpan buildInlineElement(
                 type: AppIconType.checkSquare,
                 size: 20,
                 color: isSender
-                    ? CustomColorScheme.of(context).message.selfCheckboxCheck
-                    : CustomColorScheme.of(context).message.otherCheckboxCheck,
+                    ? colors.message.selfCheckboxCheck
+                    : colors.message.otherCheckboxCheck,
               )
             : AppIcon(
                 type: AppIconType.square,
                 size: 20,
                 color: isSender
-                    ? CustomColorScheme.of(context).message.selfCheckboxCheck
-                    : CustomColorScheme.of(context).message.otherCheckboxCheck,
+                    ? colors.message.selfCheckboxCheck
+                    : colors.message.otherCheckboxCheck,
               ),
       ),
     ),
