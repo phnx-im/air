@@ -4,7 +4,7 @@
 
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/icons/app_icon.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:flutter/material.dart';
 
 class MemberSearchField extends StatelessWidget {

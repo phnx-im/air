@@ -9,7 +9,7 @@ import 'package:air/main.dart';
 import 'package:air/message_list/emoji_repository.dart';
 import 'package:air/message_list/emoji_autocomplete.dart';
 import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
-import 'package:air/ui/icons/app_icon.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/user/user_settings_cubit.dart';
 import 'package:air/util/debouncer.dart';
 import 'package:air/message_list/widgets/text_autocomplete.dart';
@@ -196,7 +196,7 @@ class _MessageComposerState extends State<MessageComposer>
                 ),
                 child: IconButton(
                   icon: AppIcon(
-                    type: AppIconType.close,
+                    type: AppIconType.x,
                     size: _actionButtonSize / 2,
                     color: CustomColorScheme.of(context).text.primary,
                   ),
@@ -449,7 +449,7 @@ class _MessageInput extends StatelessWidget {
             child: Row(
               children: [
                 AppIcon(
-                  type: AppIconType.editPencil,
+                  type: AppIconType.pencil,
                   size: 20,
                   color: CustomColorScheme.of(context).text.tertiary,
                 ),

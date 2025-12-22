@@ -11,7 +11,7 @@ import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/modal/app_dialog.dart';
-import 'package:air/ui/icons/app_icon.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
@@ -105,7 +105,7 @@ class ContactDetailsView extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 AppIcon(
-                  type: AppIconType.chatBubbleEmpty,
+                  type: AppIconType.messageCircle,
                   size: 16,
                   color: CustomColorScheme.of(context).text.primary,
                 ),

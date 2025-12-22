@@ -6,7 +6,7 @@ import 'package:air/app.dart';
 import 'package:air/core/frb_generated.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/icons/app_icon.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/util/logging.dart';
 import 'package:air/util/platform.dart';
 import 'package:flutter/material.dart';
@@ -31,7 +31,7 @@ void showErrorBanner(BuildContext context, String errorDescription) {
     MaterialBanner(
       backgroundColor: CustomColorScheme.of(context).function.danger,
       leading: AppIcon(
-        type: AppIconType.warningCircle,
+        type: AppIconType.circleAlert,
         size: 32,
         color: CustomColorScheme.of(context).function.white,
       ),
@@ -70,7 +70,7 @@ void showErrorBannerStandalone(
       elevation: 0,
       dividerColor: Colors.transparent,
       leading: AppIcon(
-        type: AppIconType.warningCircle,
+        type: AppIconType.circleAlert,
         size: 32,
         color: colors.function.white,
       ),

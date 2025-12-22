@@ -4,7 +4,7 @@
 
 import 'package:air/theme/spacings.dart';
 import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/icons/app_icon.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:flutter/material.dart';
 
 class AppBarPlusButton extends StatelessWidget {

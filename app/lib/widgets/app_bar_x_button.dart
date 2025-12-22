@@ -4,7 +4,7 @@
 
 import 'package:air/theme/spacings.dart';
 import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/icons/app_icon.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:flutter/material.dart';
 
 class AppBarXButton extends StatelessWidget {
@@ -40,7 +40,7 @@ class AppBarXButton extends StatelessWidget {
               dimension: 24,
               child: Center(
                 child: AppIcon(
-                  type: AppIconType.close,
+                  type: AppIconType.x,
                   size: 16,
                   color: foregroundColor ?? colors.text.primary,
                 ),

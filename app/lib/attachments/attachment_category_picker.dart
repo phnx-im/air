@@ -7,7 +7,7 @@ import 'dart:io';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/icons/app_icon.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:flutter/material.dart';
 
 typedef AttachmentCategoryCallback = void Function(AttachmentCategory category);
@@ -28,7 +28,7 @@ class AttachmentCategoryPicker extends StatelessWidget {
       mainAxisAlignment: .spaceEvenly,
       children: [
         _AttachmentCategoryButton(
-          icon: AppIcon(type: AppIconType.mediaImage, color: iconColor),
+          icon: AppIcon(type: AppIconType.image, color: iconColor),
           label: loc.attachment_gallery,
           onPressed: () {
             onCategorySelected?.call(AttachmentCategory.gallery);
@@ -43,7 +43,7 @@ class AttachmentCategoryPicker extends StatelessWidget {
             },
           ),
         _AttachmentCategoryButton(
-          icon: AppIcon(type: AppIconType.attachment, color: iconColor),
+          icon: AppIcon(type: AppIconType.paperclip, color: iconColor),
           label: loc.attachment_file,
           onPressed: () {
             onCategorySelected?.call(AttachmentCategory.file);

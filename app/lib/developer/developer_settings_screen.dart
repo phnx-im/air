@@ -15,7 +15,7 @@ import 'package:air/user/user.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/util/platform.dart';
 import 'package:air/widgets/widgets.dart';
-import 'package:air/ui/icons/app_icon.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -148,7 +148,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                           ),
                           IconButton(
                             icon: AppIcon(
-                              type: AppIconType.refresh,
+                              type: AppIconType.refreshCw,
                               color: iconColors,
                             ),
                             tooltip: 'Refresh',
@@ -162,7 +162,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                   ListTile(
                     title: const Text("Change User"),
                     trailing: AppIcon(
-                      type: AppIconType.changeCircle,
+                      type: AppIconType.repeat,
                       color: iconColors,
                     ),
                     onTap: () =>
@@ -174,7 +174,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                     ListTile(
                       title: const Text("Log Out"),
                       trailing: AppIcon(
-                        type: AppIconType.logout,
+                        type: AppIconType.logOut,
                         color: iconColors,
                       ),
                       onTap: () => context.read<CoreClient>().logout(),
@@ -184,7 +184,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                   ListTile(
                     title: const Text("Logs"),
                     trailing: AppIcon(
-                      type: AppIconType.textSnippet,
+                      type: AppIconType.fileText,
                       color: iconColors,
                     ),
                     onTap: () =>
@@ -196,7 +196,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                     ListTile(
                       title: const Text("Export Database"),
                       trailing: AppIcon(
-                        type: AppIconType.fileDownload,
+                        type: AppIconType.fileDown,
                         color: iconColors,
                       ),
                       onTap: () => _exportDatabase(context, user),
@@ -204,7 +204,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                   ListTile(
                     title: const Text("Import Database"),
                     trailing: AppIcon(
-                      type: AppIconType.fileUpload,
+                      type: AppIconType.fileUp,
                       color: iconColors,
                     ),
                     onTap: () => _importDatabase(context),
@@ -219,7 +219,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                       ),
                       subtitle: Text("${user.userId}"),
                       trailing: AppIcon(
-                        type: AppIconType.delete,
+                        type: AppIconType.trash,
                         color: iconColors,
                       ),
                       onTap: () => _confirmDialog(
@@ -239,7 +239,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                       ),
                     ),
                     trailing: AppIcon(
-                      type: AppIconType.delete,
+                      type: AppIconType.trash,
                       color: iconColors,
                     ),
                     onTap: () => _confirmDialog(

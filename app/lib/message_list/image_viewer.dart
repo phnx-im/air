@@ -9,7 +9,7 @@ import 'package:air/attachments/attachment_image_provider.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/theme/responsive_screen.dart';
-import 'package:air/ui/icons/app_icon.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/widgets/app_bar_x_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
@@ -282,7 +282,7 @@ class _ZoomableImage extends HookWidget {
           },
           errorBuilder: (context, error, stackTrace) => Center(
             child: AppIcon(
-              type: AppIconType.brokenImage,
+              type: AppIconType.imageOff,
               size: 48,
               color: colors.text.primary,
             ),

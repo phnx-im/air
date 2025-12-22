@@ -14,7 +14,7 @@ import 'package:air/main.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/icons/app_icon.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/avatar.dart';
 import 'package:collection/collection.dart';
@@ -445,7 +445,7 @@ class _GroupPicturePicker extends StatelessWidget {
                 child: IconTheme(
                   data: const IconThemeData(),
                   child: AppIcon(
-                    type: AppIconType.mediaImagePlus,
+                    type: AppIconType.imagePlus,
                     size: 24,
                     color: colors.text.primary,
                   ),
@@ -551,7 +551,7 @@ class _SelectedParticipant extends StatelessWidget {
                     ),
                     child: Center(
                       child: AppIcon(
-                        type: AppIconType.close,
+                        type: AppIconType.x,
                         size: 10,
                         color: colors.backgroundBase.primary,
                       ),

@@ -8,7 +8,7 @@ import 'package:air/chat/chat_details_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/typography/font_size.dart';
-import 'package:air/ui/icons/app_icon.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
@@ -58,7 +58,7 @@ class AttachmentImage extends StatelessWidget {
               _log.severe('Failed to load attachment: $error');
               return Align(
                 child: AppIcon(
-                  type: AppIconType.warningCircle,
+                  type: AppIconType.circleAlert,
                   size: 32,
                   color: CustomColorScheme.of(context).text.primary,
                 ),
@@ -171,7 +171,7 @@ class _UploadStatus extends HookWidget {
                       );
                     },
                     icon: AppIcon(
-                      type: AppIconType.close,
+                      type: AppIconType.x,
                       size: 24,
                       color: CustomColorScheme.of(context).text.primary,
                     ),

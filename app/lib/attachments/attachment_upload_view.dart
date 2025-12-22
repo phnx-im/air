@@ -6,7 +6,7 @@ import 'dart:io';
 
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/icons/app_icon.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/widgets/app_bar_x_button.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';

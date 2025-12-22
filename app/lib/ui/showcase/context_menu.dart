@@ -6,7 +6,7 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:flutter/material.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/ui/components/context_menu/context_menu_ui.dart';
-import 'package:air/ui/icons/app_icon.dart';
+import 'package:air/ui/icons/app_icons.dart';
 
 class ContextMenuShowcase extends StatelessWidget {
   const ContextMenuShowcase({super.key});
@@ -29,7 +29,7 @@ class ContextMenuShowcase extends StatelessWidget {
           ContextMenuItem(
             onPressed: () {},
             leading: AppIcon(
-              type: AppIconType.settingsOutline,
+              type: AppIconType.settings,
               color: CustomColorScheme.of(context).text.primary,
             ),
             label: 'Action 2',

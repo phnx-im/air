@@ -11,7 +11,7 @@ import 'package:air/theme/spacings.dart';
 import 'package:air/ui/colors/palette.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/modal/app_dialog.dart';
-import 'package:air/ui/icons/app_icon.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/ui/typography/monospace.dart';
 import 'package:flutter/gestures.dart';
@@ -333,7 +333,7 @@ InlineSpan buildInlineElement(
       ),
     ),
     InlineElement_Image() => WidgetSpan(
-      child: AppIcon(type: AppIconType.mediaImage, color: colors.text.primary),
+      child: AppIcon(type: AppIconType.image, color: colors.text.primary),
     ),
     InlineElement_TaskListMarker(:final field0) => WidgetSpan(
       alignment: PlaceholderAlignment.middle,
@@ -344,7 +344,7 @@ InlineSpan buildInlineElement(
         ),
         child: field0
             ? AppIcon(
-                type: AppIconType.checkSquare,
+                type: AppIconType.squareCheck,
                 size: 20,
                 color: isSender
                     ? colors.message.selfCheckboxCheck
@@ -724,7 +724,7 @@ class CustomTextEditingController extends TextEditingController {
       ),
       InlineElement_Image() => buildCorrectWidget(
         AppIcon(
-          type: AppIconType.mediaImage,
+          type: AppIconType.image,
           size: 32,
           color: CustomColorScheme.of(context).text.primary,
         ),

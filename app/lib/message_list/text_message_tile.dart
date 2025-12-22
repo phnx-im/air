@@ -18,7 +18,7 @@ import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/context_menu/context_menu.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
-import 'package:air/ui/icons/app_icon.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/platform.dart';
@@ -224,7 +224,7 @@ class _MessageView extends HookWidget {
         MessageAction(
           label: loc.messageContextMenu_edit,
           leading: AppIcon(
-            type: AppIconType.editPencil,
+            type: AppIconType.pencil,
             size: iconSize,
             color: colors.text.primary,
           ),
@@ -246,7 +246,7 @@ class _MessageView extends HookWidget {
         MessageAction(
           label: loc.messageContextMenu_share,
           leading: AppIcon(
-            type: AppIconType.shareIos,
+            type: AppIconType.share,
             size: iconSize,
             color: colors.text.primary,
           ),
@@ -544,7 +544,7 @@ class _MessageStatus extends StatelessWidget {
     }
     if (status == UiMessageStatus.error) {
       return AppIcon(
-        type: AppIconType.warningCircle,
+        type: AppIconType.circleAlert,
         size: 16,
         color: CustomColorScheme.of(context).function.warning,
       );

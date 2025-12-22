@@ -11,7 +11,7 @@ import 'package:vector_graphics_compiler/vector_graphics_compiler.dart' as vgc;
 const _svgDir = 'lib/ui/icons/svg';
 
 /// Output generated Dart file (relative to app/).
-const _outputFile = 'lib/ui/icons/generated_svg_icons.dart';
+const _outputFile = 'lib/ui/icons/app_icons.dart';
 
 Future<void> main() async {
   if (!vgc.initializeTessellatorFromFlutterCache()) {
@@ -55,7 +55,7 @@ Future<void> main() async {
     final base64Data = base64Encode(bytes);
 
     loaderEntries.writeln(
-      "  CompiledSvgAsset.$enumName: const _InlineBytesLoader('$base64Data'),",
+      "  AppIconType.$enumName: const _InlineBytesLoader('$base64Data'),",
     );
   }
 
@@ -69,29 +69,29 @@ Future<void> main() async {
   buffer.writeln("import 'package:flutter/widgets.dart';");
   buffer.writeln("import 'package:vector_graphics/vector_graphics.dart';");
   buffer.writeln();
-  buffer.writeln('enum CompiledSvgAsset { ${enumEntries.join(', ')} }');
+  buffer.writeln('enum AppIconType { ${enumEntries.join(', ')} }');
   buffer.writeln();
   buffer.writeln(
-    'final Map<CompiledSvgAsset, _InlineBytesLoader> _compiledSvgLoaders = {',
+    'final Map<AppIconType, _InlineBytesLoader> _compiledSvgLoaders = {',
   );
   buffer.write(loaderEntries.toString());
   buffer.writeln('};');
   buffer.writeln();
   buffer.writeln(
-    'BytesLoader compiledSvgLoader(CompiledSvgAsset icon) => _compiledSvgLoaders[icon]!;',
+    'BytesLoader compiledSvgLoader(AppIconType icon) => _compiledSvgLoaders[icon]!;',
   );
   buffer.writeln();
-  buffer.writeln('class CompiledSvgIcon extends StatelessWidget {');
-  buffer.writeln('  const CompiledSvgIcon({');
+  buffer.writeln('class AppIcon extends StatelessWidget {');
+  buffer.writeln('  const AppIcon({');
   buffer.writeln('    super.key,');
-  buffer.writeln('    required this.icon,');
+  buffer.writeln('    required this.type,');
   buffer.writeln('    this.size,');
   buffer.writeln('    this.color,');
   buffer.writeln('    this.fit = BoxFit.contain,');
   buffer.writeln('    this.alignment = Alignment.center,');
   buffer.writeln('  });');
   buffer.writeln();
-  buffer.writeln('  final CompiledSvgAsset icon;');
+  buffer.writeln('  final AppIconType type;');
   buffer.writeln('  final double? size;');
   buffer.writeln('  final Color? color;');
   buffer.writeln('  final BoxFit fit;');
@@ -100,7 +100,7 @@ Future<void> main() async {
   buffer.writeln('  @override');
   buffer.writeln('  Widget build(BuildContext context) {');
   buffer.writeln('    return VectorGraphic(');
-  buffer.writeln('      loader: compiledSvgLoader(icon),');
+  buffer.writeln('      loader: compiledSvgLoader(type),');
   buffer.writeln('      width: size,');
   buffer.writeln('      height: size,');
   buffer.writeln('      fit: fit,');
