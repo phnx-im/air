@@ -441,14 +441,10 @@ class _GroupPicturePicker extends StatelessWidget {
               : null,
         ),
         child: picture == null
-            ? Center(
+            ? const Center(
                 child: IconTheme(
-                  data: const IconThemeData(),
-                  child: AppIcon(
-                    type: AppIconType.imagePlus,
-                    size: 24,
-                    color: colors.text.primary,
-                  ),
+                  data: IconThemeData(),
+                  child: AppIcon(type: AppIconType.imagePlus, size: 24),
                 ),
               )
             : null,
@@ -597,12 +593,8 @@ class _CircularBackButton extends StatelessWidget {
             shape: BoxShape.circle,
             color: colors.backgroundBase.secondary,
           ),
-          child: Center(
-            child: AppIcon(
-              type: AppIconType.arrowLeft,
-              size: 16,
-              color: colors.text.primary,
-            ),
+          child: const Center(
+            child: AppIcon(type: AppIconType.arrowLeft, size: 16),
           ),
         ),
       ),

@@ -64,6 +64,7 @@ Future<void> main() async {
   buffer.writeln("// Generated via app/tool/compile_svg_icons.dart");
   buffer.writeln();
   buffer.writeln("import 'dart:convert';");
+  buffer.writeln("import 'package:air/ui/colors/themes.dart';");
   buffer.writeln("import 'package:flutter/foundation.dart';");
   buffer.writeln("import 'package:flutter/services.dart';");
   buffer.writeln("import 'package:flutter/widgets.dart';");
@@ -99,15 +100,16 @@ Future<void> main() async {
   buffer.writeln();
   buffer.writeln('  @override');
   buffer.writeln('  Widget build(BuildContext context) {');
+  buffer.writeln(
+    '    final color = this.color ?? CustomColorScheme.of(context).text.primary;',
+  );
   buffer.writeln('    return VectorGraphic(');
   buffer.writeln('      loader: compiledSvgLoader(type),');
   buffer.writeln('      width: size,');
   buffer.writeln('      height: size,');
   buffer.writeln('      fit: fit,');
   buffer.writeln('      alignment: alignment,');
-  buffer.writeln('      colorFilter: color != null');
-  buffer.writeln('          ? ColorFilter.mode(color!, BlendMode.srcIn)');
-  buffer.writeln('          : null,');
+  buffer.writeln('      colorFilter: ColorFilter.mode(color, BlendMode.srcIn)');
   buffer.writeln('    );');
   buffer.writeln('  }');
   buffer.writeln('}');

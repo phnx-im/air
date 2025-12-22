@@ -61,11 +61,7 @@ class AttachmentUploadView extends HookWidget {
                         colors.backgroundBase.secondary,
                       ),
                     ),
-                    icon: AppIcon(
-                      type: AppIconType.arrowUp,
-                      size: 32,
-                      color: colors.text.primary,
-                    ),
+                    icon: const AppIcon(type: AppIconType.arrowUp, size: 24),
                     onPressed: () {
                       onUpload();
                       Navigator.of(context).pop();

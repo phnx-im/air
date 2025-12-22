@@ -99,8 +99,6 @@ class DeveloperSettingsScreenView extends StatelessWidget {
           )
         : null;
 
-    final iconColors = CustomColorScheme.of(context).text.primary;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Developer Settings'),
@@ -128,10 +126,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
-                            icon: AppIcon(
-                              type: AppIconType.copy,
-                              color: iconColors,
-                            ),
+                            icon: const AppIcon(type: AppIconType.copy),
                             tooltip: 'Copy',
                             onPressed: deviceToken == null
                                 ? null
@@ -147,10 +142,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                                   },
                           ),
                           IconButton(
-                            icon: AppIcon(
-                              type: AppIconType.refreshCw,
-                              color: iconColors,
-                            ),
+                            icon: const AppIcon(type: AppIconType.refreshCw),
                             tooltip: 'Refresh',
                             onPressed: onRefreshPushToken,
                           ),
@@ -161,10 +153,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                   const _SectionHeader("User"),
                   ListTile(
                     title: const Text("Change User"),
-                    trailing: AppIcon(
-                      type: AppIconType.repeat,
-                      color: iconColors,
-                    ),
+                    trailing: const AppIcon(type: AppIconType.repeat),
                     onTap: () =>
                         context.read<NavigationCubit>().openDeveloperSettings(
                           screen: DeveloperSettingsScreenType.changeUser,
@@ -173,20 +162,14 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                   if (user != null) ...[
                     ListTile(
                       title: const Text("Log Out"),
-                      trailing: AppIcon(
-                        type: AppIconType.logOut,
-                        color: iconColors,
-                      ),
+                      trailing: const AppIcon(type: AppIconType.logOut),
                       onTap: () => context.read<CoreClient>().logout(),
                     ),
                   ],
                   const _SectionHeader("App Data"),
                   ListTile(
                     title: const Text("Logs"),
-                    trailing: AppIcon(
-                      type: AppIconType.fileText,
-                      color: iconColors,
-                    ),
+                    trailing: const AppIcon(type: AppIconType.fileText),
                     onTap: () =>
                         context.read<NavigationCubit>().openDeveloperSettings(
                           screen: DeveloperSettingsScreenType.logs,
@@ -195,18 +178,12 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                   if (user != null)
                     ListTile(
                       title: const Text("Export Database"),
-                      trailing: AppIcon(
-                        type: AppIconType.fileDown,
-                        color: iconColors,
-                      ),
+                      trailing: const AppIcon(type: AppIconType.fileDown),
                       onTap: () => _exportDatabase(context, user),
                     ),
                   ListTile(
                     title: const Text("Import Database"),
-                    trailing: AppIcon(
-                      type: AppIconType.fileUp,
-                      color: iconColors,
-                    ),
+                    trailing: const AppIcon(type: AppIconType.fileUp),
                     onTap: () => _importDatabase(context),
                   ),
                   if (user != null)
@@ -218,10 +195,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                         ).textTheme.bodyLarge?.copyWith(color: AppColors.red),
                       ),
                       subtitle: Text("${user.userId}"),
-                      trailing: AppIcon(
-                        type: AppIconType.trash,
-                        color: iconColors,
-                      ),
+                      trailing: const AppIcon(type: AppIconType.trash),
                       onTap: () => _confirmDialog(
                         context: context,
                         onConfirm: () =>
@@ -238,10 +212,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    trailing: AppIcon(
-                      type: AppIconType.trash,
-                      color: iconColors,
-                    ),
+                    trailing: const AppIcon(type: AppIconType.trash),
                     onTap: () => _confirmDialog(
                       context: context,
                       onConfirm: () {

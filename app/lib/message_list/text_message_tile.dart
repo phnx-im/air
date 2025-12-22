@@ -204,18 +204,13 @@ class _MessageView extends HookWidget {
 
     final attachments = contentMessage.content.attachments;
 
-    final colors = CustomColorScheme.of(context);
     const iconSize = 16.0;
 
     final actions = <MessageAction>[
       if (plainBody != null && plainBody.isNotEmpty)
         MessageAction(
           label: loc.messageContextMenu_copy,
-          leading: AppIcon(
-            type: AppIconType.copy,
-            size: iconSize,
-            color: colors.text.primary,
-          ),
+          leading: const AppIcon(type: AppIconType.copy, size: iconSize),
           onSelected: () {
             Clipboard.setData(ClipboardData(text: plainBody));
           },
@@ -223,11 +218,7 @@ class _MessageView extends HookWidget {
       if (isSender && attachments.isEmpty)
         MessageAction(
           label: loc.messageContextMenu_edit,
-          leading: AppIcon(
-            type: AppIconType.pencil,
-            size: iconSize,
-            color: colors.text.primary,
-          ),
+          leading: const AppIcon(type: AppIconType.pencil, size: iconSize),
           onSelected: () {
             context.read<ChatDetailsCubit>().editMessage(messageId: messageId);
           },
@@ -235,21 +226,13 @@ class _MessageView extends HookWidget {
       if (attachments.isNotEmpty && !Platform.isIOS)
         MessageAction(
           label: loc.messageContextMenu_save,
-          leading: AppIcon(
-            type: AppIconType.download,
-            size: iconSize,
-            color: colors.text.primary,
-          ),
+          leading: const AppIcon(type: AppIconType.download, size: iconSize),
           onSelected: () => _handleFileSave(context, attachments.first),
         ),
       if (attachments.isNotEmpty && Platform.isIOS)
         MessageAction(
           label: loc.messageContextMenu_share,
-          leading: AppIcon(
-            type: AppIconType.share,
-            size: iconSize,
-            color: colors.text.primary,
-          ),
+          leading: const AppIcon(type: AppIconType.share, size: iconSize),
           onSelected: () => _handleFileShare(context, attachments),
         ),
     ];

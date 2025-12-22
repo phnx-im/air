@@ -21,14 +21,13 @@ class AttachmentCategoryPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final iconColor = CustomColorScheme.of(context).text.primary;
     final isMobile = Platform.isAndroid || Platform.isIOS;
     final loc = AppLocalizations.of(context);
     return Row(
       mainAxisAlignment: .spaceEvenly,
       children: [
         _AttachmentCategoryButton(
-          icon: AppIcon(type: AppIconType.image, color: iconColor),
+          icon: const AppIcon(type: AppIconType.image),
           label: loc.attachment_gallery,
           onPressed: () {
             onCategorySelected?.call(AttachmentCategory.gallery);
@@ -36,14 +35,14 @@ class AttachmentCategoryPicker extends StatelessWidget {
         ),
         if (isMobile)
           _AttachmentCategoryButton(
-            icon: AppIcon(type: AppIconType.camera, color: iconColor),
+            icon: const AppIcon(type: AppIconType.camera),
             label: loc.attachment_camera,
             onPressed: () {
               onCategorySelected?.call(AttachmentCategory.camera);
             },
           ),
         _AttachmentCategoryButton(
-          icon: AppIcon(type: AppIconType.paperclip, color: iconColor),
+          icon: const AppIcon(type: AppIconType.paperclip),
           label: loc.attachment_file,
           onPressed: () {
             onCategorySelected?.call(AttachmentCategory.file);

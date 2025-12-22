@@ -332,8 +332,8 @@ InlineSpan buildInlineElement(
         ]),
       ),
     ),
-    InlineElement_Image() => WidgetSpan(
-      child: AppIcon(type: AppIconType.image, color: colors.text.primary),
+    InlineElement_Image() => const WidgetSpan(
+      child: AppIcon(type: AppIconType.image),
     ),
     InlineElement_TaskListMarker(:final field0) => WidgetSpan(
       alignment: PlaceholderAlignment.middle,
@@ -723,11 +723,7 @@ class CustomTextEditingController extends TextEditingController {
         ),
       ),
       InlineElement_Image() => buildCorrectWidget(
-        AppIcon(
-          type: AppIconType.image,
-          size: 32,
-          color: CustomColorScheme.of(context).text.primary,
-        ),
+        const AppIcon(type: AppIconType.image, size: 32),
         inline.start,
         inline.end,
       ),

@@ -104,11 +104,7 @@ class ContactDetailsView extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                AppIcon(
-                  type: AppIconType.messageCircle,
-                  size: 16,
-                  color: CustomColorScheme.of(context).text.primary,
-                ),
+                const AppIcon(type: AppIconType.messageCircle, size: 16),
                 const SizedBox(width: Spacings.xxs),
                 Text(
                   "Chat",
@@ -129,11 +125,7 @@ class ContactDetailsView extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                AppIcon(
-                  type: AppIconType.shield,
-                  size: 16,
-                  color: CustomColorScheme.of(context).text.primary,
-                ),
+                const AppIcon(type: AppIconType.shield, size: 16),
                 const SizedBox(width: Spacings.xxs),
                 Text(
                   loc.contactDetailsScreen_viewSafetyCode,

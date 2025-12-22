@@ -198,7 +198,6 @@ class _MessageComposerState extends State<MessageComposer>
                   icon: AppIcon(
                     type: AppIconType.x,
                     size: _actionButtonSize / 2,
-                    color: CustomColorScheme.of(context).text.primary,
                   ),
                   color: CustomColorScheme.of(context).text.primary,
                   hoverColor: const Color(0x00FFFFFF),
@@ -221,12 +220,10 @@ class _MessageComposerState extends State<MessageComposer>
                     ? AppIcon(
                         type: AppIconType.plus,
                         size: _actionButtonSize / 2,
-                        color: CustomColorScheme.of(context).text.primary,
                       )
                     : AppIcon(
                         type: AppIconType.arrowUp,
                         size: _actionButtonSize / 2,
-                        color: CustomColorScheme.of(context).text.primary,
                       ),
                 color: CustomColorScheme.of(context).text.primary,
                 hoverColor: const Color(0x00FFFFFF),

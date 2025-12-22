@@ -227,7 +227,7 @@ class _BlockedBadge extends StatelessWidget {
     final color = CustomColorScheme.of(context).text.tertiary;
     return Row(
       children: [
-        AppIcon(type: AppIconType.ban, color: color),
+        AppIcon(type: AppIconType.ban, size: 16, color: color),
         const SizedBox(width: Spacings.xxxs),
         Text(
           loc.chatList_blocked,

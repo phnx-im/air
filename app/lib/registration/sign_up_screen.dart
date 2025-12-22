@@ -206,14 +206,10 @@ class _UserAvatarPicker extends StatelessWidget {
                 color: colors.fill.tertiary,
               ),
               alignment: Alignment.center,
-              child: IgnorePointer(
+              child: const IgnorePointer(
                 child: IconTheme(
-                  data: const IconThemeData(),
-                  child: AppIcon(
-                    type: AppIconType.imagePlus,
-                    size: 24,
-                    color: colors.text.primary,
-                  ),
+                  data: IconThemeData(),
+                  child: AppIcon(type: AppIconType.imagePlus, size: 24),
                 ),
               ),
             ),

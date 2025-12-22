@@ -2,6 +2,7 @@
 // Generated via app/tool/compile_svg_icons.dart
 
 import 'dart:convert';
+import 'package:air/ui/colors/themes.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -185,15 +186,14 @@ class AppIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = this.color ?? CustomColorScheme.of(context).text.primary;
     return VectorGraphic(
       loader: compiledSvgLoader(type),
       width: size,
       height: size,
       fit: fit,
       alignment: alignment,
-      colorFilter: color != null
-          ? ColorFilter.mode(color!, BlendMode.srcIn)
-          : null,
+      colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
     );
   }
 }
