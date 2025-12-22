@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/icons/app_icon.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:flutter/material.dart';
 
 enum MessageStatusIconType { sent, delivered, read }
