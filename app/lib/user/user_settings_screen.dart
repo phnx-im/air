@@ -217,8 +217,7 @@ class _UsernamesSection extends StatelessWidget {
                             RemoveUsernameDialog(username: handle),
                       );
                     },
-                    child: AppIcon(
-                      type: AppIconType.trash,
+                    child: AppIcon.trash(
                       size: 24,
                       color: colors.function.danger,
                     ),

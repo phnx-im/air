@@ -126,7 +126,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
-                            icon: const AppIcon(type: AppIconType.copy),
+                            icon: const AppIcon.copy(),
                             tooltip: 'Copy',
                             onPressed: deviceToken == null
                                 ? null
@@ -142,7 +142,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                                   },
                           ),
                           IconButton(
-                            icon: const AppIcon(type: AppIconType.refreshCw),
+                            icon: const AppIcon.refreshCw(),
                             tooltip: 'Refresh',
                             onPressed: onRefreshPushToken,
                           ),
@@ -153,7 +153,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                   const _SectionHeader("User"),
                   ListTile(
                     title: const Text("Change User"),
-                    trailing: const AppIcon(type: AppIconType.repeat),
+                    trailing: const AppIcon.repeat(),
                     onTap: () =>
                         context.read<NavigationCubit>().openDeveloperSettings(
                           screen: DeveloperSettingsScreenType.changeUser,
@@ -162,14 +162,14 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                   if (user != null) ...[
                     ListTile(
                       title: const Text("Log Out"),
-                      trailing: const AppIcon(type: AppIconType.logOut),
+                      trailing: const AppIcon.logOut(),
                       onTap: () => context.read<CoreClient>().logout(),
                     ),
                   ],
                   const _SectionHeader("App Data"),
                   ListTile(
                     title: const Text("Logs"),
-                    trailing: const AppIcon(type: AppIconType.fileText),
+                    trailing: const AppIcon.fileText(),
                     onTap: () =>
                         context.read<NavigationCubit>().openDeveloperSettings(
                           screen: DeveloperSettingsScreenType.logs,
@@ -178,12 +178,12 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                   if (user != null)
                     ListTile(
                       title: const Text("Export Database"),
-                      trailing: const AppIcon(type: AppIconType.fileDown),
+                      trailing: const AppIcon.fileDown(),
                       onTap: () => _exportDatabase(context, user),
                     ),
                   ListTile(
                     title: const Text("Import Database"),
-                    trailing: const AppIcon(type: AppIconType.fileUp),
+                    trailing: const AppIcon.fileUp(),
                     onTap: () => _importDatabase(context),
                   ),
                   if (user != null)
@@ -195,7 +195,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                         ).textTheme.bodyLarge?.copyWith(color: AppColors.red),
                       ),
                       subtitle: Text("${user.userId}"),
-                      trailing: const AppIcon(type: AppIconType.trash),
+                      trailing: const AppIcon.trash(),
                       onTap: () => _confirmDialog(
                         context: context,
                         onConfirm: () =>
@@ -212,7 +212,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    trailing: const AppIcon(type: AppIconType.trash),
+                    trailing: const AppIcon.trash(),
                     onTap: () => _confirmDialog(
                       context: context,
                       onConfirm: () {

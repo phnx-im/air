@@ -19,12 +19,12 @@ class ContextMenuShowcase extends StatelessWidget {
         menuItems: [
           ContextMenuItem(
             onPressed: () {},
-            leading: const AppIcon(type: AppIconType.user),
+            leading: const AppIcon.user(),
             label: 'Action 1',
           ),
           ContextMenuItem(
             onPressed: () {},
-            leading: const AppIcon(type: AppIconType.settings),
+            leading: const AppIcon.settings(),
             label: 'Action 2',
           ),
         ],

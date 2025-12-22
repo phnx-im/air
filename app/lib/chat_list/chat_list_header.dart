@@ -81,14 +81,14 @@ class _PlusButtonState extends State<_PlusButton> {
         menuItems: [
           ContextMenuItem(
             label: loc.chatList_newContact,
-            leading: const AppIcon(type: AppIconType.user, size: 16),
+            leading: const AppIcon.user(size: 16),
             onPressed: () {
               _newContact(context);
             },
           ),
           ContextMenuItem(
             label: loc.chatList_newGroup,
-            leading: const AppIcon(type: AppIconType.users, size: 16),
+            leading: const AppIcon.users(size: 16),
             onPressed: () {
               _newGroup(context);
             },
@@ -110,9 +110,7 @@ class _PlusButtonState extends State<_PlusButton> {
               color: colors.backgroundElevated.primary,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Center(
-              child: AppIcon(type: AppIconType.plus, size: 16),
-            ),
+            child: const Center(child: AppIcon.plus(size: 16)),
           ),
         ),
       ),

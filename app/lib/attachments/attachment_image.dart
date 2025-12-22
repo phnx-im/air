@@ -56,9 +56,7 @@ class AttachmentImage extends StatelessWidget {
             alignment: Alignment.center,
             errorBuilder: (context, error, stackTrace) {
               _log.severe('Failed to load attachment: $error');
-              return const Align(
-                child: AppIcon(type: AppIconType.circleAlert, size: 32),
-              );
+              return const Align(child: AppIcon.circleAlert(size: 32));
             },
           ),
           if (isSender)
@@ -127,7 +125,7 @@ class _UploadStatus extends HookWidget {
             mainAxisAlignment: .center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const AppIcon(type: AppIconType.upload, size: 16),
+              const AppIcon.upload(size: 16),
               const SizedBox(width: Spacings.xxxs),
               Text(
                 loc.attachment_tryAgain,
@@ -162,7 +160,7 @@ class _UploadStatus extends HookWidget {
                         attachmentId: attachmentId,
                       );
                     },
-                    icon: const AppIcon(type: AppIconType.x, size: 24),
+                    icon: const AppIcon.x(size: 24),
                   ),
                 ],
               ),

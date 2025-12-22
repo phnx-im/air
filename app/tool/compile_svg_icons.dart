@@ -43,12 +43,23 @@ Future<void> main() async {
   }
 
   final enumEntries = <String>[];
+  final constructorEntries = StringBuffer();
   final loaderEntries = StringBuffer();
 
   for (final file in svgFiles) {
     final name = p.basenameWithoutExtension(file.path);
     final enumName = _toEnumName(name);
     enumEntries.add(enumName);
+
+    constructorEntries.writeln('  const AppIcon.$enumName({');
+    constructorEntries.writeln('    super.key,');
+    constructorEntries.writeln('    this.size,');
+    constructorEntries.writeln('    this.color,');
+    constructorEntries.writeln('  })');
+    constructorEntries.writeln('      : type = AppIconType.$enumName,');
+    constructorEntries.writeln('        fit = BoxFit.contain,');
+    constructorEntries.writeln('        alignment = Alignment.center;');
+    constructorEntries.writeln();
 
     final svgString = await file.readAsString();
     final bytes = vgc.encodeSvg(xml: svgString, debugName: name);
@@ -92,6 +103,7 @@ Future<void> main() async {
   buffer.writeln('    this.alignment = Alignment.center,');
   buffer.writeln('  });');
   buffer.writeln();
+  buffer.write(constructorEntries.toString());
   buffer.writeln('  final AppIconType type;');
   buffer.writeln('  final double? size;');
   buffer.writeln('  final Color? color;');

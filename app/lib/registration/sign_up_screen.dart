@@ -209,7 +209,7 @@ class _UserAvatarPicker extends StatelessWidget {
               child: const IgnorePointer(
                 child: IconTheme(
                   data: IconThemeData(),
-                  child: AppIcon(type: AppIconType.imagePlus, size: 24),
+                  child: AppIcon.imagePlus(size: 24),
                 ),
               ),
             ),

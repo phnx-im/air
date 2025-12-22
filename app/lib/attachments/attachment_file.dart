@@ -39,7 +39,7 @@ class AttachmentFile extends HookWidget {
                 size: attachment.size,
                 color: color,
               )
-            : AppIcon(type: AppIconType.paperclip, size: 32, color: color),
+            : AppIcon.paperclip(size: 32, color: color),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -84,8 +84,7 @@ class _UploadStatus extends HookWidget {
 
     return Center(
       child: switch (uploadStatus.data) {
-        null || UiAttachmentStatus_Completed() => AppIcon(
-          type: AppIconType.paperclip,
+        null || UiAttachmentStatus_Completed() => AppIcon.paperclip(
           size: 32,
           color: color,
         ),
@@ -101,8 +100,7 @@ class _UploadStatus extends HookWidget {
               context,
             ).backgroundBase.tertiary,
           ),
-          icon: AppIcon(
-            type: AppIconType.upload,
+          icon: AppIcon.upload(
             size: 32,
             color: CustomColorScheme.of(context).text.secondary,
           ),
@@ -122,7 +120,7 @@ class _UploadStatus extends HookWidget {
                   attachmentId: attachmentId,
                 );
               },
-              icon: AppIcon(type: AppIconType.x, size: 24, color: color),
+              icon: AppIcon.x(size: 24, color: color),
             ),
           ],
         ),

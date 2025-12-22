@@ -139,11 +139,7 @@ class _SafetyCode extends HookWidget {
             Row(
               mainAxisAlignment: .center,
               children: [
-                AppIcon(
-                  type: AppIconType.copy,
-                  color: colors.text.tertiary,
-                  size: 12,
-                ),
+                AppIcon.copy(color: colors.text.tertiary, size: 12),
                 const SizedBox(width: Spacings.xxs),
                 Text(
                   loc.safetyCodeScreen_tapToCopy,

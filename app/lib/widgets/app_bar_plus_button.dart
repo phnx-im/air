@@ -31,7 +31,7 @@ class AppBarPlusButton extends StatelessWidget {
             ),
             child: const SizedBox.square(
               dimension: 32,
-              child: Center(child: AppIcon(type: AppIconType.plus, size: 16)),
+              child: Center(child: AppIcon.plus(size: 16)),
             ),
           ),
         ),

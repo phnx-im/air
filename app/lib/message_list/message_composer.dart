@@ -195,10 +195,7 @@ class _MessageComposerState extends State<MessageComposer>
                   borderRadius: BorderRadius.circular(_maxActionButtonSize),
                 ),
                 child: IconButton(
-                  icon: AppIcon(
-                    type: AppIconType.x,
-                    size: _actionButtonSize / 2,
-                  ),
+                  icon: AppIcon.x(size: _actionButtonSize / 2),
                   color: CustomColorScheme.of(context).text.primary,
                   hoverColor: const Color(0x00FFFFFF),
                   onPressed: () {
@@ -217,14 +214,8 @@ class _MessageComposerState extends State<MessageComposer>
               ),
               child: IconButton(
                 icon: _inputIsEmpty
-                    ? AppIcon(
-                        type: AppIconType.plus,
-                        size: _actionButtonSize / 2,
-                      )
-                    : AppIcon(
-                        type: AppIconType.arrowUp,
-                        size: _actionButtonSize / 2,
-                      ),
+                    ? AppIcon.plus(size: _actionButtonSize / 2)
+                    : AppIcon.arrowUp(size: _actionButtonSize / 2),
                 color: CustomColorScheme.of(context).text.primary,
                 hoverColor: const Color(0x00FFFFFF),
                 onPressed: isConfirmedChat
@@ -445,8 +436,7 @@ class _MessageInput extends StatelessWidget {
             ),
             child: Row(
               children: [
-                AppIcon(
-                  type: AppIconType.pencil,
+                AppIcon.pencil(
                   size: 20,
                   color: CustomColorScheme.of(context).text.tertiary,
                 ),

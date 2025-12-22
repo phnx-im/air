@@ -332,9 +332,7 @@ InlineSpan buildInlineElement(
         ]),
       ),
     ),
-    InlineElement_Image() => const WidgetSpan(
-      child: AppIcon(type: AppIconType.image),
-    ),
+    InlineElement_Image() => const WidgetSpan(child: AppIcon.image()),
     InlineElement_TaskListMarker(:final field0) => WidgetSpan(
       alignment: PlaceholderAlignment.middle,
       child: Padding(
@@ -343,15 +341,13 @@ InlineSpan buildInlineElement(
           right: Spacings.xxs,
         ),
         child: field0
-            ? AppIcon(
-                type: AppIconType.squareCheck,
+            ? AppIcon.squareCheck(
                 size: 20,
                 color: isSender
                     ? colors.message.selfCheckboxCheck
                     : colors.message.otherCheckboxCheck,
               )
-            : AppIcon(
-                type: AppIconType.square,
+            : AppIcon.square(
                 size: 20,
                 color: isSender
                     ? colors.message.selfCheckboxCheck
@@ -723,7 +719,7 @@ class CustomTextEditingController extends TextEditingController {
         ),
       ),
       InlineElement_Image() => buildCorrectWidget(
-        const AppIcon(type: AppIconType.image, size: 32),
+        const AppIcon.image(size: 32),
         inline.start,
         inline.end,
       ),

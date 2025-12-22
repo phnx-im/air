@@ -27,7 +27,7 @@ class AttachmentCategoryPicker extends StatelessWidget {
       mainAxisAlignment: .spaceEvenly,
       children: [
         _AttachmentCategoryButton(
-          icon: const AppIcon(type: AppIconType.image),
+          icon: const AppIcon.image(),
           label: loc.attachment_gallery,
           onPressed: () {
             onCategorySelected?.call(AttachmentCategory.gallery);
@@ -35,14 +35,14 @@ class AttachmentCategoryPicker extends StatelessWidget {
         ),
         if (isMobile)
           _AttachmentCategoryButton(
-            icon: const AppIcon(type: AppIconType.camera),
+            icon: const AppIcon.camera(),
             label: loc.attachment_camera,
             onPressed: () {
               onCategorySelected?.call(AttachmentCategory.camera);
             },
           ),
         _AttachmentCategoryButton(
-          icon: const AppIcon(type: AppIconType.paperclip),
+          icon: const AppIcon.paperclip(),
           label: loc.attachment_file,
           onPressed: () {
             onCategorySelected?.call(AttachmentCategory.file);

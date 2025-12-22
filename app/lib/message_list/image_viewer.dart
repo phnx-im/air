@@ -280,9 +280,8 @@ class _ZoomableImage extends HookWidget {
               ),
             );
           },
-          errorBuilder: (context, error, stackTrace) => const Center(
-            child: AppIcon(type: AppIconType.imageOff, size: 48),
-          ),
+          errorBuilder: (context, error, stackTrace) =>
+              const Center(child: AppIcon.imageOff(size: 48)),
           imageProvider: AttachmentImageProvider(
             attachment: attachment,
             attachmentsRepository: RepositoryProvider.of(context),

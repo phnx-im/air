@@ -22,12 +22,17 @@ class MessageStatusIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
 
-    final iconType = switch (statusIcon) {
-      MessageStatusIconType.sent => AppIconType.check,
-      MessageStatusIconType.delivered => AppIconType.checkCheck,
-      MessageStatusIconType.read => AppIconType.checkCheckFill,
+    final color = colors.text.tertiary;
+    return switch (statusIcon) {
+      MessageStatusIconType.sent => AppIcon.check(size: size, color: color),
+      MessageStatusIconType.delivered => AppIcon.checkCheck(
+        size: size,
+        color: color,
+      ),
+      MessageStatusIconType.read => AppIcon.checkCheckFill(
+        size: size,
+        color: color,
+      ),
     };
-
-    return AppIcon(type: iconType, size: size, color: colors.text.tertiary);
   }
 }

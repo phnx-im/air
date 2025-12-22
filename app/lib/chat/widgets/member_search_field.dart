@@ -37,7 +37,7 @@ class MemberSearchField extends StatelessWidget {
           visualDensity: VisualDensity.compact,
           prefixIcon: const Padding(
             padding: EdgeInsets.all(8.0),
-            child: AppIcon(type: AppIconType.search, size: 16),
+            child: AppIcon.search(size: 16),
           ),
           prefixIconConstraints: const BoxConstraints(
             minWidth: 28,

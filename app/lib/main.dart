@@ -30,8 +30,7 @@ void showErrorBanner(BuildContext context, String errorDescription) {
   ScaffoldMessenger.of(context).showMaterialBanner(
     MaterialBanner(
       backgroundColor: CustomColorScheme.of(context).function.danger,
-      leading: AppIcon(
-        type: AppIconType.circleAlert,
+      leading: AppIcon.circleAlert(
         size: 32,
         color: CustomColorScheme.of(context).function.white,
       ),
@@ -69,11 +68,7 @@ void showErrorBannerStandalone(
       backgroundColor: colors.function.danger,
       elevation: 0,
       dividerColor: Colors.transparent,
-      leading: AppIcon(
-        type: AppIconType.circleAlert,
-        size: 32,
-        color: colors.function.white,
-      ),
+      leading: AppIcon.circleAlert(size: 32, color: colors.function.white),
       padding: const EdgeInsets.all(20),
       content: Text(
         errorDescription(loc),

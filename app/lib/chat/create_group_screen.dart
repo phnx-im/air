@@ -444,7 +444,7 @@ class _GroupPicturePicker extends StatelessWidget {
             ? const Center(
                 child: IconTheme(
                   data: IconThemeData(),
-                  child: AppIcon(type: AppIconType.imagePlus, size: 24),
+                  child: AppIcon.imagePlus(size: 24),
                 ),
               )
             : null,
@@ -546,8 +546,7 @@ class _SelectedParticipant extends StatelessWidget {
                       ),
                     ),
                     child: Center(
-                      child: AppIcon(
-                        type: AppIconType.x,
+                      child: AppIcon.x(
                         size: 10,
                         color: colors.backgroundBase.primary,
                       ),
@@ -593,9 +592,7 @@ class _CircularBackButton extends StatelessWidget {
             shape: BoxShape.circle,
             color: colors.backgroundBase.secondary,
           ),
-          child: const Center(
-            child: AppIcon(type: AppIconType.arrowLeft, size: 16),
-          ),
+          child: const Center(child: AppIcon.arrowLeft(size: 16)),
         ),
       ),
     );

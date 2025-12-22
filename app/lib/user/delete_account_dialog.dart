@@ -53,11 +53,7 @@ class DeleteAccountDialog extends HookWidget {
           const SizedBox(height: Spacings.m),
 
           Center(
-            child: AppIcon(
-              type: AppIconType.circleAlert,
-              size: 40,
-              color: colors.function.danger,
-            ),
+            child: AppIcon.circleAlert(size: 40, color: colors.function.danger),
           ),
 
           const SizedBox(height: Spacings.m),

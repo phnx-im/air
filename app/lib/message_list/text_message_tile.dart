@@ -210,7 +210,7 @@ class _MessageView extends HookWidget {
       if (plainBody != null && plainBody.isNotEmpty)
         MessageAction(
           label: loc.messageContextMenu_copy,
-          leading: const AppIcon(type: AppIconType.copy, size: iconSize),
+          leading: const AppIcon.copy(size: iconSize),
           onSelected: () {
             Clipboard.setData(ClipboardData(text: plainBody));
           },
@@ -218,7 +218,7 @@ class _MessageView extends HookWidget {
       if (isSender && attachments.isEmpty)
         MessageAction(
           label: loc.messageContextMenu_edit,
-          leading: const AppIcon(type: AppIconType.pencil, size: iconSize),
+          leading: const AppIcon.pencil(size: iconSize),
           onSelected: () {
             context.read<ChatDetailsCubit>().editMessage(messageId: messageId);
           },
@@ -226,13 +226,13 @@ class _MessageView extends HookWidget {
       if (attachments.isNotEmpty && !Platform.isIOS)
         MessageAction(
           label: loc.messageContextMenu_save,
-          leading: const AppIcon(type: AppIconType.download, size: iconSize),
+          leading: const AppIcon.download(size: iconSize),
           onSelected: () => _handleFileSave(context, attachments.first),
         ),
       if (attachments.isNotEmpty && Platform.isIOS)
         MessageAction(
           label: loc.messageContextMenu_share,
-          leading: const AppIcon(type: AppIconType.share, size: iconSize),
+          leading: const AppIcon.share(size: iconSize),
           onSelected: () => _handleFileShare(context, attachments),
         ),
     ];
@@ -500,8 +500,7 @@ class _RotatingSendIconState extends State<RotatingSendIcon>
   Widget build(BuildContext context) {
     return RotationTransition(
       turns: _controller,
-      child: AppIcon(
-        type: AppIconType.circleDashed,
+      child: AppIcon.circleDashed(
         size: 16,
         color: CustomColorScheme.of(context).text.tertiary,
       ),
@@ -526,8 +525,7 @@ class _MessageStatus extends StatelessWidget {
       return const RotatingSendIcon();
     }
     if (status == UiMessageStatus.error) {
-      return AppIcon(
-        type: AppIconType.circleAlert,
+      return AppIcon.circleAlert(
         size: 16,
         color: CustomColorScheme.of(context).function.warning,
       );
@@ -541,10 +539,7 @@ class _MessageStatus extends StatelessWidget {
             : MessageStatusIconType.delivered,
       _ => null,
     };
-    return MessageStatusIcon(
-      size: LabelFontSize.small2.size,
-      statusIcon: statusIconType!,
-    );
+    return MessageStatusIcon(size: 16, statusIcon: statusIconType!);
   }
 }
 

@@ -51,11 +51,7 @@ class AppBarBackButton extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
               child: Center(
-                child: AppIcon(
-                  type: AppIconType.arrowLeft,
-                  size: 16,
-                  color: foregroundColor,
-                ),
+                child: AppIcon.arrowLeft(size: 16, color: foregroundColor),
               ),
             ),
           ),
