@@ -72,7 +72,6 @@
   "addContactDialog_content": "{displayName} from the group chat \"{groupTitle}\" isn't an Air contact. To chat with them, send a contact request.",
   "addContactDialog_cancel": "Cancel",
   "addContactDialog_confirm": "Send",
-  "addContactDialog_error": "Failed to send {username} a contact request. Try again.",
 
   "changeGroupTitleDialog_title": "Change group title",
   "changeGroupTitleDialog_content": "Choose a title for the group.",
@@ -113,7 +112,7 @@
   "usernameOnboarding_body": "Usernames are how people connect on Air. They aren't visible to others once you're connected.\n\nAdd, change, or delete usernames at any time in your profile.",
   "usernameOnboarding_syntax": "Use letters, numbers, or dashes. Minimum 5 characters.",
   "usernameOnboarding_addButton": "Add",
-  "usernameOnboarding_skip": "Skip",
+  "usernameOnboarding_next": "Next",
   "usernameOnboarding_userameInputName": "Username (optional)",
   "usernameOnboarding_userameInputHint": "Add a username...",
 
@@ -124,7 +123,6 @@
   "userHandleScreen_description": "Choose a username that others can use to connect with you. Use letters, numbers, or dashes. Minimum 5 characters.",
   "userHandleScreen_cancel": "Cancel",
   "userHandleScreen_confirm": "Add",
-  "userHandleScreen_save": "Save",
 
   "editDisplayNameScreen_title": "Change display name",
   "editDisplayNameScreen_description": "Choose a name that others will see.",
@@ -238,7 +236,6 @@
   "reportSpamDialog_success": "Spam reported",
   "reportSpamDialog_error": "Failed to report spam. Try again.",
 
-  "helpScreen_title": "Help",
   "helpScreen_contactUs": "Contact us",
   "helpScreen_versionInfo": "Version info",
   "helpScreen_licenses": "Licenses",
@@ -277,13 +274,10 @@
   "groupMembersScreen_searchHint": "Search",
   "groupCreationScreen_title": "Add members",
   "groupCreationScreen_next": "Next",
-  "groupCreationScreen_skip": "Skip",
   "groupCreationDetails_title": "Group details",
   "groupCreationDetails_groupNameHint": "Group name (required)",
   "groupCreationDetails_groupNameHintFocused": "Group name",
   "groupCreationDetails_groupNameHelper": "Use at least one character",
-  "groupCreationDetails_descriptionHint": "Group description (optional)",
-  "groupCreationDetails_descriptionHintFocused": "Group description",
   "groupCreationDetails_create": "Create",
   "groupCreationDetails_emptySelection": "No members",
 
@@ -313,7 +307,6 @@
   "deleteAccountScreen_confirmationInputHint": "Confirmation",
   "deleteAccountScreen_confirmationInputLabel": "Type 'delete' to confirm.",
   "deleteAccountScreen_confirmButtonText": "Delete",
-  "deleteAccountScreen_cancelButtonText": "Cancel",
   "deleteAccountScreen_deleteAccountError": "Something went wrong on our end. Wait a moment, then try again.",
 
   "appOutdatedScreen_title": "Sofware update required",

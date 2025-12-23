@@ -146,11 +146,7 @@ class _MemberSelectionStepState extends State<_MemberSelectionStep> {
               FocusScope.of(context).unfocus();
               widget.onNext();
             },
-            child: Text(
-              selectedContacts.isEmpty
-                  ? loc.groupCreationScreen_skip
-                  : loc.groupCreationScreen_next,
-            ),
+            child: Text(loc.groupCreationScreen_next),
           ),
         ),
       ),
