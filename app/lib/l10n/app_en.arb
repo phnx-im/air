@@ -125,6 +125,11 @@
   "userHandleScreen_cancel": "Cancel",
   "userHandleScreen_confirm": "Add",
   "userHandleScreen_save": "Save",
+  "userHandleScreen_error_tooShort": "Username must be at least 5 characters",
+  "userHandleScreen_error_tooLong": "Username must be at most 63 characters",
+  "userHandleScreen_error_invalidCharacter": "Username must only contain letters, numbers, or dashes",
+  "userHandleScreen_error_consecutiveDashes": "Username must not contain consecutive dashes",
+  "userHandleScreen_error_leadingDigit": "Username must not start with a digit",
 
   "editDisplayNameScreen_title": "Change display name",
   "editDisplayNameScreen_description": "Choose a name that others will see.",

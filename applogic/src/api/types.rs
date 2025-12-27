@@ -15,6 +15,7 @@ pub(crate) use aircoreclient::{
     AddHandleContactError, AddHandleContactResult, ChatId, MessageDraft, MessageId,
 };
 
+pub(crate) use aircommon::identifiers::UserHandleValidationError;
 use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact, ContentMessage, DisplayName,
@@ -48,6 +49,16 @@ pub struct _ChatId {
 pub struct UiUserId {
     pub uuid: Uuid,
     pub domain: String,
+}
+
+/// UI representation of an [`UserHandleValidationError`]
+#[frb(mirror(UserHandleValidationError))]
+pub enum _UserHandleValidationError {
+    TooShort,
+    TooLong,
+    InvalidCharacter,
+    ConsecutiveDashes,
+    LeadingDigit,
 }
 
 impl From<UserId> for UiUserId {
@@ -678,9 +689,9 @@ impl UiUserHandle {
     /// Returns `None` if the handle is valid, otherwise returns an error message why it is
     /// invalid.
     #[frb(sync)]
-    pub fn validation_error(&self) -> Option<String> {
+    pub fn validation_error(&self) -> Option<UserHandleValidationError> {
         if let Err(error) = UserHandle::new(self.plaintext.clone()) {
-            Some(error.to_string())
+            Some(error)
         } else {
             None
         }
