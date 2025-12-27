@@ -246,7 +246,6 @@ class _UsernameTextField extends StatelessWidget {
             hintText: loc.usernameOnboarding_userameInputHint,
             fillColor: colors.backgroundBase.tertiary,
           ),
-          // Temporary strict enforcement until legacy underscores are fully removed.
           inputFormatters: const [UserHandleInputFormatter()],
           onChanged: (_) {
             if (handleExists.value) {

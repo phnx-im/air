@@ -2064,7 +2064,7 @@ async fn unsupported_client_version() {
 
     let client = ApiClient::new(setup.server_url().as_str()).unwrap();
 
-    let handle = UserHandle::new("test_handle".to_string()).unwrap();
+    let handle = UserHandle::new("test-handle".to_string()).unwrap();
     let signing_key = HandleSigningKey::generate().unwrap();
     let hash = handle.calculate_hash().unwrap();
 
