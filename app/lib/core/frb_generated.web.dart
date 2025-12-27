@@ -722,6 +722,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiUserProfile dco_decode_box_autoadd_ui_user_profile(dynamic raw);
 
   @protected
+  UserHandleValidationError dco_decode_box_autoadd_user_handle_validation_error(
+    dynamic raw,
+  );
+
+  @protected
   UiContentMessage dco_decode_box_ui_content_message(dynamic raw);
 
   @protected
@@ -922,6 +927,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiUserId? dco_decode_opt_box_autoadd_ui_user_id(dynamic raw);
 
   @protected
+  UserHandleValidationError?
+  dco_decode_opt_box_autoadd_user_handle_validation_error(dynamic raw);
+
+  @protected
   Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
 
   @protected
@@ -1013,6 +1022,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void dco_decode_unit(dynamic raw);
+
+  @protected
+  UserHandleValidationError dco_decode_user_handle_validation_error(
+    dynamic raw,
+  );
 
   @protected
   UserSettings dco_decode_user_settings(dynamic raw);
@@ -1643,6 +1657,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UserHandleValidationError sse_decode_box_autoadd_user_handle_validation_error(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UiContentMessage sse_decode_box_ui_content_message(
     SseDeserializer deserializer,
   );
@@ -1891,6 +1910,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiUserId? sse_decode_opt_box_autoadd_ui_user_id(SseDeserializer deserializer);
 
   @protected
+  UserHandleValidationError?
+  sse_decode_opt_box_autoadd_user_handle_validation_error(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
@@ -1990,6 +2015,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_decode_unit(SseDeserializer deserializer);
+
+  @protected
+  UserHandleValidationError sse_decode_user_handle_validation_error(
+    SseDeserializer deserializer,
+  );
 
   @protected
   UserSettings sse_decode_user_settings(SseDeserializer deserializer);
@@ -2762,6 +2792,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_user_handle_validation_error(
+    UserHandleValidationError self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_ui_content_message(
     UiContentMessage self,
     SseSerializer serializer,
@@ -3077,6 +3113,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_user_handle_validation_error(
+    UserHandleValidationError? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_list_prim_u_8_strict(
     Uint8List? self,
     SseSerializer serializer,
@@ -3216,6 +3258,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_user_handle_validation_error(
+    UserHandleValidationError self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_user_settings(UserSettings self, SseSerializer serializer);

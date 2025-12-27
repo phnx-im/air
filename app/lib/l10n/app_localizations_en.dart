@@ -352,6 +352,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get userHandleScreen_save => 'Save';
 
   @override
+  String get userHandleScreen_error_tooShort =>
+      'Username must be at least 5 characters';
+
+  @override
+  String get userHandleScreen_error_tooLong =>
+      'Username must be at most 63 characters';
+
+  @override
+  String get userHandleScreen_error_invalidCharacter =>
+      'Username must only contain letters, numbers, or dashes';
+
+  @override
+  String get userHandleScreen_error_consecutiveDashes =>
+      'Username must not contain consecutive dashes';
+
+  @override
+  String get userHandleScreen_error_leadingDigit =>
+      'Username must not start with a digit';
+
+  @override
   String get editDisplayNameScreen_title => 'Change display name';
 
   @override

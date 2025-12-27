@@ -725,7 +725,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<Uint8List> crateApiLoggingTarLogs({required String cacheDir});
 
-  String? crateApiTypesUiUserHandleValidationError({
+  UserHandleValidationError? crateApiTypesUiUserHandleValidationError({
     required UiUserHandle that,
   });
 
@@ -6217,7 +6217,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "tar_logs", argNames: ["cacheDir"]);
 
   @override
-  String? crateApiTypesUiUserHandleValidationError({
+  UserHandleValidationError? crateApiTypesUiUserHandleValidationError({
     required UiUserHandle that,
   }) {
     return handler.executeSync(
@@ -6232,7 +6232,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           )!;
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_String,
+          decodeSuccessData:
+              sse_decode_opt_box_autoadd_user_handle_validation_error,
           decodeErrorData: null,
         ),
         constMeta: kCrateApiTypesUiUserHandleValidationErrorConstMeta,
@@ -7616,6 +7617,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UserHandleValidationError dco_decode_box_autoadd_user_handle_validation_error(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_user_handle_validation_error(raw);
+  }
+
+  @protected
   UiContentMessage dco_decode_box_ui_content_message(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_ui_content_message(raw);
@@ -8159,6 +8168,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UserHandleValidationError?
+  dco_decode_opt_box_autoadd_user_handle_validation_error(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_user_handle_validation_error(raw);
+  }
+
+  @protected
   Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_list_prim_u_8_strict(raw);
@@ -8588,6 +8606,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void dco_decode_unit(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return;
+  }
+
+  @protected
+  UserHandleValidationError dco_decode_user_handle_validation_error(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return UserHandleValidationError.values[raw as int];
   }
 
   @protected
@@ -9850,6 +9876,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UserHandleValidationError sse_decode_box_autoadd_user_handle_validation_error(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_user_handle_validation_error(deserializer));
+  }
+
+  @protected
   UiContentMessage sse_decode_box_ui_content_message(
     SseDeserializer deserializer,
   ) {
@@ -10610,6 +10644,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UserHandleValidationError?
+  sse_decode_opt_box_autoadd_user_handle_validation_error(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_user_handle_validation_error(
+        deserializer,
+      ));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -11071,6 +11121,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_decode_unit(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+  }
+
+  @protected
+  UserHandleValidationError sse_decode_user_handle_validation_error(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return UserHandleValidationError.values[inner];
   }
 
   @protected
@@ -12589,6 +12648,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_user_handle_validation_error(
+    UserHandleValidationError self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_user_handle_validation_error(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_ui_content_message(
     UiContentMessage self,
     SseSerializer serializer,
@@ -13306,6 +13374,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_user_handle_validation_error(
+    UserHandleValidationError? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_user_handle_validation_error(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_list_prim_u_8_strict(
     Uint8List? self,
     SseSerializer serializer,
@@ -13709,6 +13790,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_unit(void self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+  }
+
+  @protected
+  void sse_encode_user_handle_validation_error(
+    UserHandleValidationError self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
   }
 
   @protected
