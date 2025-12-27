@@ -443,7 +443,7 @@ mod tests {
         chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
             .await?;
 
-        let handle = UserHandle::new("ellie_".to_owned()).unwrap();
+        let handle = UserHandle::new("ellie-".to_owned()).unwrap();
         let handle_contact = HandleContact {
             handle: handle.clone(),
             chat_id: chat.id(),
@@ -466,7 +466,7 @@ mod tests {
         chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
             .await?;
 
-        let handle = UserHandle::new("ellie_".to_owned()).unwrap();
+        let handle = UserHandle::new("ellie-".to_owned()).unwrap();
         let handle_contact = HandleContact {
             handle: handle.clone(),
             chat_id: chat.id(),
@@ -510,7 +510,7 @@ mod tests {
         chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
             .await?;
 
-        let handle = UserHandle::new("ellie_".to_owned()).unwrap();
+        let handle = UserHandle::new("ellie-".to_owned()).unwrap();
         let handle_contact = HandleContact {
             handle: handle.clone(),
             chat_id: chat.id(),
@@ -537,7 +537,7 @@ mod tests {
         chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
             .await?;
 
-        let handle = UserHandle::new("ellie_".to_owned()).unwrap();
+        let handle = UserHandle::new("ellie-".to_owned()).unwrap();
         let handle_contact = HandleContact {
             handle: handle.clone(),
             chat_id: chat.id(),

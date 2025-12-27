@@ -7,25 +7,21 @@
 
 import 'package:flutter/services.dart';
 
-/// Formatter enforcing the canonical username syntax. Underscores can be allowed
-/// temporarily for flows that still accept legacy usernames.
+/// Formatter enforcing the canonical username syntax.
 class UserHandleInputFormatter extends TextInputFormatter {
-  const UserHandleInputFormatter({this.allowUnderscore = false});
-
-  final bool allowUnderscore;
+  const UserHandleInputFormatter();
 
   static const int _maxLength = 63;
   static const int _dash = 45; // '-'
-  static const int _underscore = 95; // '_'
   static const int _zero = 48;
   static const int _nine = 57;
   static const int _a = 97;
   static const int _z = 122;
 
   /// Normalizes raw input. Returns an empty string if the input violates the syntax.
-  static String normalize(String input, {bool allowUnderscore = false}) {
+  static String normalize(String input) {
     final lower = input.trim().toLowerCase();
-    return _isValid(lower, allowUnderscore: allowUnderscore) ? lower : '';
+    return _isValid(lower) ? lower : '';
   }
 
   @override
@@ -34,7 +30,7 @@ class UserHandleInputFormatter extends TextInputFormatter {
     TextEditingValue newValue,
   ) {
     final lower = newValue.text.toLowerCase();
-    if (!_isValid(lower, allowUnderscore: allowUnderscore)) {
+    if (!_isValid(lower)) {
       return oldValue;
     }
 
@@ -61,7 +57,7 @@ class UserHandleInputFormatter extends TextInputFormatter {
     return offset;
   }
 
-  static bool _isValid(String text, {required bool allowUnderscore}) {
+  static bool _isValid(String text) {
     if (text.length > _maxLength) {
       return false;
     }
@@ -71,7 +67,7 @@ class UserHandleInputFormatter extends TextInputFormatter {
     var previousDash = false;
     for (var i = 0; i < text.length; i++) {
       final codeUnit = text.codeUnitAt(i);
-      if (!_isAllowedChar(codeUnit, allowUnderscore: allowUnderscore)) {
+      if (!_isAllowedChar(codeUnit)) {
         return false;
       }
       if (i == 0) {
@@ -91,11 +87,8 @@ class UserHandleInputFormatter extends TextInputFormatter {
     return true;
   }
 
-  static bool _isAllowedChar(int codeUnit, {required bool allowUnderscore}) {
+  static bool _isAllowedChar(int codeUnit) {
     if (codeUnit == _dash) {
-      return true;
-    }
-    if (allowUnderscore && codeUnit == _underscore) {
       return true;
     }
     if (_isDigit(codeUnit)) {
