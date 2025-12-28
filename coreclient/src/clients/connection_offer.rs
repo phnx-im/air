@@ -373,7 +373,7 @@ mod tests {
         let sender_user_id = UserId::random("localhost".parse().unwrap());
         let (as_sk, client_sk) = create_test_credentials(sender_user_id);
         let cep_payload = ConnectionOfferPayload::dummy(client_sk.credential().clone());
-        let user_handle = UserHandle::new("ellie_01".to_owned()).unwrap();
+        let user_handle = UserHandle::new("ellie-01".to_owned()).unwrap();
         let hash = ConnectionPackageHash::new_for_test(vec![0; 32]);
         let cep = cep_payload
             .clone()
@@ -389,7 +389,7 @@ mod tests {
         assert_eq!(cep_verified, cep_payload);
 
         // Try with a different recipient
-        let user_handle_2 = UserHandle::new("ellie_02".to_owned()).unwrap();
+        let user_handle_2 = UserHandle::new("ellie-02".to_owned()).unwrap();
         let err = cep_in
             .verify(as_sk.verifying_key(), user_handle_2, hash)
             .unwrap_err();

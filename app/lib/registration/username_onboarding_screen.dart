@@ -84,7 +84,7 @@ class UsernameOnboardingScreen extends HookWidget {
         actions: [
           TextButton(
             onPressed: isSubmitting.value ? null : skip,
-            child: Text(loc.usernameOnboarding_skip),
+            child: Text(loc.usernameOnboarding_next),
           ),
         ],
       ),
@@ -256,7 +256,6 @@ class _UsernameTextField extends StatelessWidget {
             hintText: loc.usernameOnboarding_userameInputHint,
             fillColor: colors.backgroundBase.tertiary,
           ),
-          // Temporary strict enforcement until legacy underscores are fully removed.
           inputFormatters: const [UserHandleInputFormatter()],
           onChanged: (_) {
             if (handleExists.value) {

@@ -4,6 +4,7 @@
 
 import 'package:air/main.dart';
 import 'package:air/ui/components/modal/app_dialog.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -14,7 +15,6 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 
 const _confirmationText = 'delete';
 
@@ -53,11 +53,7 @@ class DeleteAccountDialog extends HookWidget {
           const SizedBox(height: Spacings.m),
 
           Center(
-            child: iconoir.WarningCircle(
-              width: 40,
-              height: 40,
-              color: colors.function.danger,
-            ),
+            child: AppIcon.circleAlert(size: 40, color: colors.function.danger),
           ),
 
           const SizedBox(height: Spacings.m),

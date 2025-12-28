@@ -5,8 +5,8 @@
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/spacings.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:provider/provider.dart';
 
 class AppBarBackButton extends StatelessWidget {
@@ -31,6 +31,8 @@ class AppBarBackButton extends StatelessWidget {
       child: Align(
         alignment: Alignment.centerLeft,
         child: Material(
+          type: MaterialType.circle,
+          color: Colors.transparent,
           child: InkWell(
             customBorder: const CircleBorder(),
             overlayColor: WidgetStateProperty.all(Colors.transparent),
@@ -49,11 +51,7 @@ class AppBarBackButton extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
               child: Center(
-                child: iconoir.ArrowLeft(
-                  width: 16,
-                  height: 16,
-                  color: foregroundColor,
-                ),
+                child: AppIcon.arrowLeft(size: 16, color: foregroundColor),
               ),
             ),
           ),

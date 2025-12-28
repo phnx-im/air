@@ -442,12 +442,6 @@ abstract class AppLocalizations {
   /// **'Send'**
   String get addContactDialog_confirm;
 
-  /// No description provided for @addContactDialog_error.
-  ///
-  /// In en, this message translates to:
-  /// **'Failed to send {username} a contact request. Try again.'**
-  String addContactDialog_error(Object username);
-
   /// No description provided for @changeGroupTitleDialog_title.
   ///
   /// In en, this message translates to:
@@ -628,11 +622,11 @@ abstract class AppLocalizations {
   /// **'Add'**
   String get usernameOnboarding_addButton;
 
-  /// No description provided for @usernameOnboarding_skip.
+  /// No description provided for @usernameOnboarding_next.
   ///
   /// In en, this message translates to:
-  /// **'Skip'**
-  String get usernameOnboarding_skip;
+  /// **'Next'**
+  String get usernameOnboarding_next;
 
   /// No description provided for @usernameOnboarding_userameInputName.
   ///
@@ -1213,12 +1207,6 @@ abstract class AppLocalizations {
   /// **'Failed to report spam. Try again.'**
   String get reportSpamDialog_error;
 
-  /// No description provided for @helpScreen_title.
-  ///
-  /// In en, this message translates to:
-  /// **'Help'**
-  String get helpScreen_title;
-
   /// No description provided for @helpScreen_contactUs.
   ///
   /// In en, this message translates to:
@@ -1375,12 +1363,6 @@ abstract class AppLocalizations {
   /// **'Next'**
   String get groupCreationScreen_next;
 
-  /// No description provided for @groupCreationScreen_skip.
-  ///
-  /// In en, this message translates to:
-  /// **'Skip'**
-  String get groupCreationScreen_skip;
-
   /// No description provided for @groupCreationDetails_title.
   ///
   /// In en, this message translates to:
@@ -1404,18 +1386,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Use at least one character'**
   String get groupCreationDetails_groupNameHelper;
-
-  /// No description provided for @groupCreationDetails_descriptionHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Group description (optional)'**
-  String get groupCreationDetails_descriptionHint;
-
-  /// No description provided for @groupCreationDetails_descriptionHintFocused.
-  ///
-  /// In en, this message translates to:
-  /// **'Group description'**
-  String get groupCreationDetails_descriptionHintFocused;
 
   /// No description provided for @groupCreationDetails_create.
   ///
@@ -1560,12 +1530,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete'**
   String get deleteAccountScreen_confirmButtonText;
-
-  /// No description provided for @deleteAccountScreen_cancelButtonText.
-  ///
-  /// In en, this message translates to:
-  /// **'Cancel'**
-  String get deleteAccountScreen_cancelButtonText;
 
   /// No description provided for @deleteAccountScreen_deleteAccountError.
   ///

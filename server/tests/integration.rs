@@ -32,8 +32,8 @@ use aircommon::{
 };
 use aircoreclient::{
     AddHandleContactError, AddHandleContactResult, Asset, AttachmentProgressEvent,
-    BlockedContactError, ChatId, ChatMessage, DisplayName, EventMessage, Message, SystemMessage,
-    UserProfile,
+    BlockedContactError, ChatId, ChatMessage, DisplayName, EventMessage, Message,
+    ReadReceiptsSetting, SystemMessage, UserProfile,
     clients::{
         CoreUser,
         process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
@@ -686,6 +686,119 @@ async fn mark_as_read() {
     // charlie had been read.
     let global_unread_messages_count = bob_user.global_unread_messages_count().await.unwrap();
     assert_eq!(global_unread_messages_count, num_messages + 2);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Read receipts setting test", skip_all)]
+async fn read_receipts_setting() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    // Establish a direct chat between Alice and Bob.
+    let alice_bob_chat = setup.connect_users(&alice, &bob).await;
+    let alice_test_user = setup.get_user(&alice);
+    let alice_user = &alice_test_user.user;
+    let bob_test_user = setup.get_user(&bob);
+    let bob_user = &bob_test_user.user;
+
+    async fn send_and_process_delivery(
+        sender: &TestUser,
+        receiver: &TestUser,
+        chat_id: ChatId,
+        message: &str,
+    ) {
+        // Send a message and process delivery receipts on both ends.
+        sender
+            .user
+            .send_message(
+                chat_id,
+                MimiContent::simple_markdown_message(message.into(), [0; 16]),
+                None,
+            )
+            .await
+            .unwrap();
+        sender.user.outbound_service().run_once().await;
+
+        receiver.fetch_and_process_qs_messages().await;
+        receiver.user.outbound_service().run_once().await;
+        sender.fetch_and_process_qs_messages().await;
+    }
+
+    async fn send_read_receipt(user: &CoreUser, chat_id: ChatId) {
+        // Enqueue a read receipt for the most recent message in the chat.
+        let last_message = user.last_message(chat_id).await.unwrap().unwrap();
+        let last_message_id = last_message.id();
+        let last_message_mimi_id = last_message.message().mimi_id().unwrap();
+        user.outbound_service()
+            .enqueue_receipts(
+                chat_id,
+                [(last_message_id, last_message_mimi_id, MessageStatus::Read)].into_iter(),
+            )
+            .await
+            .unwrap();
+        user.outbound_service().run_once().await;
+    }
+
+    // We enable read receipts
+    alice_user
+        .set_user_setting(&ReadReceiptsSetting(true))
+        .await
+        .unwrap();
+    // Send a message and ensure delivery receipts are processed before read
+    // receipts.
+    send_and_process_delivery(
+        alice_test_user,
+        bob_test_user,
+        alice_bob_chat,
+        "receipts on",
+    )
+    .await;
+    let last_message = alice_user
+        .last_message(alice_bob_chat)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(last_message.status(), MessageStatus::Delivered);
+    // Bob sends a read receipt and Alice should receive it.
+    send_read_receipt(bob_user, alice_bob_chat).await;
+    alice_test_user.fetch_and_process_qs_messages().await;
+    let last_message = alice_user
+        .last_message(alice_bob_chat)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(last_message.status(), MessageStatus::Read);
+
+    // We disable read receipts
+    alice_user
+        .set_user_setting(&ReadReceiptsSetting(false))
+        .await
+        .unwrap();
+    // Send a message and confirm the delivery receipt is still processed.
+    send_and_process_delivery(
+        alice_test_user,
+        bob_test_user,
+        alice_bob_chat,
+        "receipts off",
+    )
+    .await;
+    let last_message = alice_user
+        .last_message(alice_bob_chat)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(last_message.status(), MessageStatus::Delivered);
+    // Bob sends a read receipt but Alice should ignore it, the last message is
+    // therefore still a delivery receipt.
+    send_read_receipt(bob_user, alice_bob_chat).await;
+    alice_test_user.fetch_and_process_qs_messages().await;
+    let last_message = alice_user
+        .last_message(alice_bob_chat)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(last_message.status(), MessageStatus::Delivered);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -2064,7 +2177,7 @@ async fn unsupported_client_version() {
 
     let client = ApiClient::new(setup.server_url().as_str()).unwrap();
 
-    let handle = UserHandle::new("test_handle".to_string()).unwrap();
+    let handle = UserHandle::new("test-handle".to_string()).unwrap();
     let signing_key = HandleSigningKey::generate().unwrap();
     let hash = handle.calculate_hash().unwrap();
 

@@ -44,7 +44,7 @@ class ContextMenuItem extends StatelessWidget {
             leading!,
             const SizedBox(width: Spacings.xxs),
           ] else if (leadingIcon != null) ...[
-            Icon(leadingIcon, size: 24),
+            Icon(leadingIcon, size: 16),
             const SizedBox(width: Spacings.xxs),
           ],
           Expanded(
