@@ -5,8 +5,8 @@
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/spacings.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:provider/provider.dart';
 
 class AppBarBackButton extends StatelessWidget {
@@ -28,27 +28,30 @@ class AppBarBackButton extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(left: Spacings.s),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          overlayColor: WidgetStateProperty.all(Colors.transparent),
-          onTap: () async {
-            final navigator = Navigator.of(context);
-            final popped = await navigator.maybePop();
-            if (!popped && context.mounted) {
-              context.read<NavigationCubit>().pop();
-            }
-          },
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: backgroundColor,
-              shape: BoxShape.circle,
-            ),
-            child: SizedBox.square(
-              dimension: 24,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Material(
+          type: MaterialType.circle,
+          color: Colors.transparent,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            overlayColor: WidgetStateProperty.all(Colors.transparent),
+            onTap: () async {
+              final navigator = Navigator.of(context);
+              final popped = await navigator.maybePop();
+              if (!popped && context.mounted) {
+                context.read<NavigationCubit>().pop();
+              }
+            },
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                shape: BoxShape.circle,
+              ),
               child: Center(
-                child: iconoir.ArrowLeft(width: 16, color: foregroundColor),
+                child: AppIcon.arrowLeft(size: 16, color: foregroundColor),
               ),
             ),
           ),

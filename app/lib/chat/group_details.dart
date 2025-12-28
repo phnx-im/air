@@ -19,8 +19,8 @@ import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:image_picker/image_picker.dart';
+import 'package:air/ui/icons/app_icons.dart';
 
 import 'change_group_title_dialog.dart';
 import 'chat_details_cubit.dart';
@@ -342,7 +342,8 @@ class _ActionsRow extends StatelessWidget {
                         ),
                         child: Padding(
                           padding: const EdgeInsets.all(Spacings.xxs),
-                          child: iconoir.Plus(
+                          child: AppIcon.plus(
+                            size: 16,
                             color: colors.function.toggleBlack,
                           ),
                         ),
@@ -384,7 +385,8 @@ class _ActionsRow extends StatelessWidget {
                         ),
                         child: Padding(
                           padding: const EdgeInsets.all(Spacings.xxs),
-                          child: iconoir.ArrowRight(
+                          child: AppIcon.arrowRight(
+                            size: 16,
                             color: colors.function.toggleBlack,
                           ),
                         ),

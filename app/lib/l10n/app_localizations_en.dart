@@ -208,11 +208,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addContactDialog_confirm => 'Send';
 
   @override
-  String addContactDialog_error(Object username) {
-    return 'Failed to send $username a contact request. Try again.';
-  }
-
-  @override
   String get changeGroupTitleDialog_title => 'Change group title';
 
   @override
@@ -317,7 +312,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get usernameOnboarding_addButton => 'Add';
 
   @override
-  String get usernameOnboarding_skip => 'Skip';
+  String get usernameOnboarding_next => 'Next';
 
   @override
   String get usernameOnboarding_userameInputName => 'Username (optional)';
@@ -347,9 +342,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get userHandleScreen_confirm => 'Add';
-
-  @override
-  String get userHandleScreen_save => 'Save';
 
   @override
   String get editDisplayNameScreen_title => 'Change display name';
@@ -663,9 +655,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reportSpamDialog_error => 'Failed to report spam. Try again.';
 
   @override
-  String get helpScreen_title => 'Help';
-
-  @override
   String get helpScreen_contactUs => 'Contact us';
 
   @override
@@ -754,9 +743,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get groupCreationScreen_next => 'Next';
 
   @override
-  String get groupCreationScreen_skip => 'Skip';
-
-  @override
   String get groupCreationDetails_title => 'Group details';
 
   @override
@@ -768,13 +754,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get groupCreationDetails_groupNameHelper =>
       'Use at least one character';
-
-  @override
-  String get groupCreationDetails_descriptionHint =>
-      'Group description (optional)';
-
-  @override
-  String get groupCreationDetails_descriptionHintFocused => 'Group description';
 
   @override
   String get groupCreationDetails_create => 'Create';
@@ -852,9 +831,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deleteAccountScreen_confirmButtonText => 'Delete';
-
-  @override
-  String get deleteAccountScreen_cancelButtonText => 'Cancel';
 
   @override
   String get deleteAccountScreen_deleteAccountError =>
