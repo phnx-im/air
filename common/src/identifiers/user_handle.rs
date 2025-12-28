@@ -38,9 +38,13 @@ impl fmt::Debug for UserHandle {
 impl UserHandle {
     pub fn new(plaintext: String) -> Result<Self, UserHandleValidationError> {
         Self::validate(&plaintext)?;
-        Ok(Self {
+        Ok(Self::new_from_raw(plaintext))
+    }
+
+    fn new_from_raw(plaintext: String) -> Self {
+        Self {
             plaintext: TlsString(plaintext),
-        })
+        }
     }
 
     fn validate(plaintext: &str) -> Result<(), UserHandleValidationError> {
@@ -153,7 +157,7 @@ mod sqlx_impls {
     impl Decode<'_, Sqlite> for UserHandle {
         fn decode(value: <Sqlite as Database>::ValueRef<'_>) -> Result<Self, BoxDynError> {
             let plaintext: String = Decode::<Sqlite>::decode(value)?;
-            let value = UserHandle::new(plaintext)?;
+            let value = UserHandle::new_from_raw(plaintext);
             Ok(value)
         }
     }
