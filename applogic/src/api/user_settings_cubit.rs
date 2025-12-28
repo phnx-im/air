@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircoreclient::store::{Store, UserSetting};
+use aircoreclient::{
+    ReadReceiptsSetting,
+    store::{Store, UserSetting},
+};
 use anyhow::{anyhow, bail};
 use flutter_rust_bridge::frb;
 use tokio::sync::watch;
@@ -226,23 +229,6 @@ impl UserSetting for SendOnEnterSetting {
         match bytes.as_slice() {
             [byte] => Ok(Self(*byte != 0)),
             _ => bail!("invalid send_on_enter bytes"),
-        }
-    }
-}
-
-struct ReadReceiptsSetting(bool);
-
-impl UserSetting for ReadReceiptsSetting {
-    const KEY: &'static str = "read_receipts";
-
-    fn encode(&self) -> anyhow::Result<Vec<u8>> {
-        Ok(vec![self.0 as u8])
-    }
-
-    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        match bytes.as_slice() {
-            [byte] => Ok(Self(*byte != 0)),
-            _ => bail!("invalid read_receipts bytes"),
         }
     }
 }
