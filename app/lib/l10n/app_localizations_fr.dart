@@ -355,23 +355,23 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get userHandleScreen_error_tooShort =>
-      'Username must be at least 5 characters';
+      'Le nom d\'utilisateur doit contenir au moins 5 caractères';
 
   @override
   String get userHandleScreen_error_tooLong =>
-      'Username must be at most 63 characters';
+      'Le nom d\'utilisateur doit contenir au maximum 63 caractères';
 
   @override
   String get userHandleScreen_error_invalidCharacter =>
-      'Username must only contain letters, numbers, or dashes';
+      'Le nom d\'utilisateur ne peut contenir que des lettres, des chiffres ou des tirets';
 
   @override
   String get userHandleScreen_error_consecutiveDashes =>
-      'Username must not contain consecutive dashes';
+      'Le nom d\'utilisateur ne doit pas contenir de tirets consécutifs';
 
   @override
   String get userHandleScreen_error_leadingDigit =>
-      'Username must not start with a digit';
+      'Le nom d\'utilisateur ne doit pas commencer par un chiffre';
 
   @override
   String get editDisplayNameScreen_title => 'Modifier le nom d\'affichage';
