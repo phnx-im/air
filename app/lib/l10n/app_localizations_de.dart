@@ -18,11 +18,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get appTitle => 'Air';
 
   @override
-  String get userSettingsScreen_title => 'Benutzereinstellungen';
+  String get userSettingsScreen_title => 'Profil und Einstellungen';
 
   @override
   String get userSettingsScreen_profileDescription =>
-      'Andere sehen dein Bild und deinen Namen, wenn du mit ihnen kommunizierst.';
+      'Dein Anzeigename und dein Profilbild sind für deine Air-Kontakte und Mitglieder deiner Gruppen sichtbar.';
 
   @override
   String get userSettingsScreen_userNamesDescription =>
@@ -42,7 +42,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get userSettingsScreen_sendWithEnterDescription =>
-      'If disabled, pressing the Enter key won’t send a message.';
+      'Wenn deaktiviert, wir die Nachricht beim Drücken der Entertaste nicht versendet.';
 
   @override
   String get userSettingsScreen_readReceipts => 'Lesebestätigungen';
@@ -52,25 +52,25 @@ class AppLocalizationsDe extends AppLocalizations {
       'Wenn deaktiviert, sehen andere nicht, wann du ihre Nachrichten gelesen hast, und du siehst nicht, wann sie deine gelesen haben.';
 
   @override
-  String get userSettingsScreen_displayNameLabel => 'Display name';
+  String get userSettingsScreen_displayNameLabel => 'Anzeigename';
 
   @override
-  String get userSettingsScreen_usernamesSection => 'Usernames';
+  String get userSettingsScreen_usernamesSection => 'Benutzernamen';
 
   @override
-  String get userSettingsScreen_settingsSection => 'Settings';
+  String get userSettingsScreen_settingsSection => 'Einstellungen';
 
   @override
-  String get userSettingsScreen_helpSection => 'Help';
+  String get userSettingsScreen_helpSection => 'Hilfe';
 
   @override
-  String get userSettingsScreen_accountSection => 'Account';
+  String get userSettingsScreen_accountSection => 'Konto';
 
   @override
   String get userSettingsScreen_userHandlePlaceholder => 'Benutzername';
 
   @override
-  String get settingsScreen_copiedToClipboard => 'Copied to clipboard';
+  String get settingsScreen_copiedToClipboard => 'In Zwischenablage kopiert';
 
   @override
   String get removeUsernameDialog_title => 'Benutzername entfernen';
@@ -93,20 +93,20 @@ class AppLocalizationsDe extends AppLocalizations {
       'ein aktiver Chat ist erforderlich';
 
   @override
-  String get contactDetailsScreen_viewSafetyCode => 'View Safety Code';
+  String get contactDetailsScreen_viewSafetyCode => 'Sicherheitscode anzeigen';
 
   @override
-  String get safetyCodeScreen_title => 'Safety Code';
+  String get safetyCodeScreen_title => 'Sicherheitscode';
 
   @override
-  String get safetyCodeScreen_tapToCopy => 'Tap to copy';
+  String get safetyCodeScreen_tapToCopy => 'Zum Kopieren tippen';
 
   @override
-  String get safetyCodeScreen_copiedToClipboard => 'Copied to clipboard';
+  String get safetyCodeScreen_copiedToClipboard => 'In Zwischenablage kopiert';
 
   @override
   String safetyCodeScreen_safetyCodeExplanation(Object displayName) {
-    return 'Compare what you see as the safety code with what $displayName sees. If the codes match, you know that you\'re sending and receiving end-to-end encrypted messages with the correct person.';
+    return 'Vergleiche den Sicherheitscode mit dem, den $displayName sieht. Wenn die Codes übereinstimmen, weißt du, dass ihr Ende-zu-Ende-verschlüsselte Nachrichten miteinander austauscht.';
   }
 
   @override
@@ -130,7 +130,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String removeUserDialog_content(Object displayName) {
-    return 'Bist du sicher, dass du diesen Benutzer aus der Gruppe entfernen möchtest?';
+    return 'Bist du sicher, dass du $displayName aus der Gruppe entfernen möchtest?';
   }
 
   @override
@@ -195,38 +195,34 @@ class AppLocalizationsDe extends AppLocalizations {
   String get deleteContactDialog_delete => 'Löschen';
 
   @override
-  String get addContactDialog_title => 'Add Air contact';
+  String get addContactDialog_title => 'Air-Kontakt hinzufügen';
 
   @override
   String addContactDialog_content(Object displayName, Object groupTitle) {
-    return '$displayName from the group chat \"$groupTitle\" isn\'t an Air contact. To chat with them, send a contact request.';
+    return '$displayName aus dem Gruppenchat \"$groupTitle\" ist kein Air-Kontakt. Sende eine Kontaktanfrage, um zu chatten.';
   }
 
   @override
-  String get addContactDialog_cancel => 'Cancel';
+  String get addContactDialog_cancel => 'Abbrechen';
 
   @override
-  String get addContactDialog_confirm => 'Send';
+  String get addContactDialog_confirm => 'Senden';
 
   @override
-  String addContactDialog_error(Object username) {
-    return 'Failed to send $username a contact request. Try again.';
-  }
+  String get changeGroupTitleDialog_title => 'Gruppentitel ändern';
 
   @override
-  String get changeGroupTitleDialog_title => 'Change group title';
+  String get changeGroupTitleDialog_content =>
+      'Wähle einen Titel für die Gruppe.';
 
   @override
-  String get changeGroupTitleDialog_content => 'Choose a title for the group.';
+  String get changeGroupTitleDialog_cancel => 'Abbrechen';
 
   @override
-  String get changeGroupTitleDialog_cancel => 'Cancel';
+  String get changeGroupTitleDialog_confirm => 'Speichern';
 
   @override
-  String get changeGroupTitleDialog_confirm => 'Save';
-
-  @override
-  String get introScreen_signUp => 'Registrieren';
+  String get introScreen_signUp => 'Starten';
 
   @override
   String get introScreen_termsLinkText => 'Nutzungsbedingungen';
@@ -237,36 +233,37 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get invitationCodeScreen_header => 'Enter invitation code';
+  String get invitationCodeScreen_header => 'Einladungscode eingeben';
 
   @override
   String get invitationCodeScreen_subheader =>
-      'Air is currently invitation-only. Enter your code to join. If you don\'t have one, ask someone who’s already on Air.';
+      'Air ist derzeit nur mit Einladung verfügbar. Gib deinen Code ein, um teilzunehmen. Wenn du keinen hast, bitte jemanden, der schon auf Air ist.';
 
   @override
-  String get invitationCodeScreen_inputLabel => 'Invitation code (required)';
+  String get invitationCodeScreen_inputLabel => 'Einladungscode (erforderlich)';
 
   @override
-  String get invitationCodeScreen_inputHint => 'Enter your invitation code...';
+  String get invitationCodeScreen_inputHint =>
+      'Gib deinen Einladungscode ein...';
 
   @override
   String get invitationCodeScreen_error_invalidLength =>
-      'Code must be 8 characters';
+      'Code muss 8 Zeichen lang sein';
 
   @override
-  String get invitationCodeScreen_actionButton => 'Join Air';
+  String get invitationCodeScreen_actionButton => 'Air beitreten';
 
   @override
   String invitationCodeScreen_error_internal(Object error) {
-    return 'Failed to check invitation code: $error';
+    return 'Einladungscode konnte nicht überprüft werden: $error';
   }
 
   @override
-  String get invitationCodeScreen_error_missing => 'Invitation code is missing';
+  String get invitationCodeScreen_error_missing => 'Einladungscode fehlt';
 
   @override
   String get invitationCodeScreen_error_invalid =>
-      'Invalid invitation code. Check your code, then try again.';
+      'Ungültiger Einladungscode. Prüfe den Code und versuche es erneut.';
 
   @override
   String get signUpScreen_header => 'Erstelle dein Profil';
@@ -276,7 +273,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen. Air benötigt einen Anzeigenamen, ein Bild ist optional.';
 
   @override
-  String get signUpScreen_actionButton => 'Registrieren';
+  String get signUpScreen_actionButton => 'Erstellen';
 
   @override
   String get signUpScreen_displayNameInputName => 'Anzeigename (erforderlich)';
@@ -318,19 +315,20 @@ class AppLocalizationsDe extends AppLocalizations {
   String get usernameOnboarding_addButton => 'Hinzufügen';
 
   @override
-  String get usernameOnboarding_skip => 'Überspringen';
+  String get usernameOnboarding_next => 'Weiter';
 
   @override
-  String get usernameOnboarding_userameInputName => 'Username (optional)';
+  String get usernameOnboarding_userameInputName => 'Benutzername (optional)';
 
   @override
-  String get usernameOnboarding_userameInputHint => 'Nutzername hinzufügen...';
+  String get usernameOnboarding_userameInputHint =>
+      'Benutzernamen hinzufügen...';
 
   @override
-  String get userHandleScreen_title => 'Benutzername';
+  String get userHandleScreen_title => 'Benutzername hinzufügen';
 
   @override
-  String get userHandleScreen_inputHint => 'Benutzername';
+  String get userHandleScreen_inputHint => 'Gib einen Benutzernamen ein...';
 
   @override
   String get userHandleScreen_error_emptyHandle =>
@@ -345,23 +343,20 @@ class AppLocalizationsDe extends AppLocalizations {
       'Wähle einen Benutzernamen, den andere verwenden können, um sich mit dir zu verbinden.\n\nVerwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.';
 
   @override
-  String get userHandleScreen_cancel => 'Cancel';
+  String get userHandleScreen_cancel => 'Abbrechen';
 
   @override
-  String get userHandleScreen_confirm => 'Add';
+  String get userHandleScreen_confirm => 'Hinzufügen';
 
   @override
-  String get userHandleScreen_save => 'Speichern';
-
-  @override
-  String get editDisplayNameScreen_title => 'Anzeigename';
+  String get editDisplayNameScreen_title => 'Anzeigenamen ändern';
 
   @override
   String get editDisplayNameScreen_description =>
       'Wähle einen Namen, den andere sehen werden, wenn du mit ihnen kommunizierst.';
 
   @override
-  String get editDisplayNameScreen_cancel => 'Cancel';
+  String get editDisplayNameScreen_cancel => 'Abbrechen';
 
   @override
   String get editDisplayNameScreen_save => 'Speichern';
@@ -399,7 +394,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get systemMessage_userChangedTitle_infix_1 =>
-      ' changed the group name from ';
+      ' hat den Gruppennamen geändert von ';
 
   @override
   String systemMessage_userChangedTitle_infix_2(Object old_name) {
@@ -407,7 +402,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get systemMessage_userChangedTitle_infix_3 => ' to ';
+  String get systemMessage_userChangedTitle_infix_3 => ' zu ';
 
   @override
   String systemMessage_userChangedTitle_suffix(Object new_name) {
@@ -465,7 +460,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get systemMessage_userChangedPicture_infix =>
-      ' changed the group picture';
+      ' hat das Gruppenbild geändert';
 
   @override
   String systemMessage_userCreatedGroup_prefix(Object user) {
@@ -473,7 +468,8 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get systemMessage_userCreatedGroup_suffix => ' created the group';
+  String get systemMessage_userCreatedGroup_suffix =>
+      ' hat die Gruppe erstellt';
 
   @override
   String get timestamp_now => 'Jetzt';
@@ -482,10 +478,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get timestamp_yesterday => 'Gestern';
 
   @override
-  String get messageBubble_sending => 'Sending';
+  String get messageBubble_sending => 'Wird gesendet';
 
   @override
-  String get messageBubble_failedToSend => 'Failed to send';
+  String get messageBubble_failedToSend => 'Senden fehlgeschlagen';
 
   @override
   String get chatList_newContact => 'Neuer Kontakt';
@@ -495,7 +491,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatList_emptyMessage =>
-      'Erstelle eine neue Verbindung, um zu beginnen';
+      'Füge deinen ersten Air-Kontakt hinzu, um loszulegen.';
 
   @override
   String get chatList_draft => 'Entwurf';
@@ -518,35 +514,36 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get newConnectionDialog_newConnectionTitle => 'Neue Verbindung';
+  String get newConnectionDialog_newConnectionTitle => 'Air-Kontakt hinzufügen';
 
   @override
   String get newConnectionDialog_newConnectionDescription =>
-      'Gib den Benutzernamen des Benutzers ein, mit dem du dich verbinden möchtest';
+      'Gib den Benutzernamen der Person ein, der du eine Nachricht senden möchtest.';
 
   @override
-  String get newConnectionDialog_inputLabel => 'Username (required)';
+  String get newConnectionDialog_inputLabel => 'Benutzername (erforderlich)';
 
   @override
-  String get newConnectionDialog_usernamePlaceholder => 'Benutzername';
+  String get newConnectionDialog_usernamePlaceholder =>
+      'Benutzernamen eingeben...';
 
   @override
   String newConnectionDialog_handleExists(Object username) {
-    return '$username exists. Tap “Send” to send a contact request.';
+    return '$username existiert. Tippe auf \"Senden\", um eine Kontaktanfrage zu schicken.';
   }
 
   @override
-  String get newConnectionDialog_cancel => 'Cancel';
+  String get newConnectionDialog_cancel => 'Abbrechen';
 
   @override
-  String get newConnectionDialog_confirm1 => 'Check';
+  String get newConnectionDialog_confirm1 => 'Prüfen';
 
   @override
-  String get newConnectionDialog_confirm2 => 'Send';
+  String get newConnectionDialog_confirm2 => 'Senden';
 
   @override
   String newConnectionDialog_error(Object username) {
-    return 'Benutzer mit Benutzername $username konnte nicht hinzugefügt werden. Bitte versuche es erneut.';
+    return 'Kontaktanfrage an $username konnte nicht gesendet werden. Bitte versuche es erneut.';
   }
 
   @override
@@ -560,11 +557,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get newConnectionDialog_error_duplicateRequest =>
-      'You already have a pending contact request to this username.';
+      'Du hast bereits eine ausstehende Kontaktanfrage an diesen Benutzernamen.';
 
   @override
   String get newConnectionDialog_error_ownHandle =>
-      'You can\'t send a contact request to yourself.';
+      'Du kannst dir selbst keine Kontaktanfrage senden.';
 
   @override
   String composer_inputHint(Object chatTitle) {
@@ -635,7 +632,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get messageContextMenu_save => 'Speichern';
 
   @override
-  String get messageContextMenu_share => 'Share';
+  String get messageContextMenu_share => 'Teilen';
 
   @override
   String get messageContextMenu_saveError =>
@@ -666,9 +663,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get reportSpamDialog_error =>
       'Spam konnte nicht gemeldet werden. Bitte versuche es erneut.';
-
-  @override
-  String get helpScreen_title => 'Hilfe';
 
   @override
   String get helpScreen_contactUs => 'Kontakt';
@@ -727,7 +721,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get groupDetails_deleteChat => 'Löschen';
 
   @override
-  String get groupDetails_addPeople => 'Add people';
+  String get groupDetails_addPeople => 'Personen hinzufügen';
 
   @override
   String get groupDetails_seeAll => 'Alle anzeigen';
@@ -738,13 +732,13 @@ class AppLocalizationsDe extends AppLocalizations {
       count,
       locale: localeName,
       other: '$count Mitglieder',
-      one: '$count Mitgleid',
+      one: '$count Mitglied',
     );
     return '$_temp0';
   }
 
   @override
-  String get groupDetails_groupDescription => 'Group';
+  String get groupDetails_groupDescription => 'Gruppe';
 
   @override
   String get groupMembersScreen_title => 'Gruppenmitglieder';
@@ -759,9 +753,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get groupCreationScreen_next => 'Weiter';
 
   @override
-  String get groupCreationScreen_skip => 'Überspringen';
-
-  @override
   String get groupCreationDetails_title => 'Gruppendetails';
 
   @override
@@ -772,15 +763,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get groupCreationDetails_groupNameHelper =>
-      'Mindestens ein Zeichen, bitte';
-
-  @override
-  String get groupCreationDetails_descriptionHint =>
-      'Gruppenbeschreibung (optional)';
-
-  @override
-  String get groupCreationDetails_descriptionHintFocused =>
-      'Gruppenbeschreibung';
+      'Verwende mindestens ein Zeichen';
 
   @override
   String get groupCreationDetails_create => 'Erstellen';
@@ -860,38 +843,36 @@ class AppLocalizationsDe extends AppLocalizations {
   String get deleteAccountScreen_confirmButtonText => 'Air-Konto löschen';
 
   @override
-  String get deleteAccountScreen_cancelButtonText => 'Abbrechen';
-
-  @override
   String get deleteAccountScreen_deleteAccountError =>
       'Bei uns ist ein Fehler aufgetreten. Warte einen Moment und versuche es dann erneut.';
 
   @override
-  String get appOutdatedScreen_title => 'Sofware update required';
+  String get appOutdatedScreen_title => 'Software-Update erforderlich';
 
   @override
-  String get appOutdatedScreen_message => 'Update to keep using Air';
+  String get appOutdatedScreen_message =>
+      'Aktualisiere, um Air weiter zu nutzen';
 
   @override
   String get appOutdatedScreen_description =>
-      'Open TestFlight on iOS or Google Play on Android, then update Air.';
+      'Öffne TestFlight auf iOS oder Google Play auf Android und aktualisiere Air.';
 
   @override
-  String get appOutdatedScreen_action => 'Update';
+  String get appOutdatedScreen_action => 'Aktualisieren';
 
   @override
-  String get contactRequestDialog_title => 'Contact request';
+  String get contactRequestDialog_title => 'Kontaktanfrage';
 
   @override
-  String get contactRequestDialog_avatarHint => 'Tap to reveal their picture';
+  String get contactRequestDialog_avatarHint => 'Tippe, um das Bild anzuzeigen';
 
   @override
-  String get contactRequestDialog_cancel => 'Later';
+  String get contactRequestDialog_cancel => 'Später';
 
   @override
-  String get contactRequestDialog_confirm => 'Accept';
+  String get contactRequestDialog_confirm => 'Annehmen';
 
   @override
   String get contactRequestDialog_error_fatal =>
-      'Failed to accept contact request';
+      'Kontaktanfrage konnte nicht angenommen werden';
 }

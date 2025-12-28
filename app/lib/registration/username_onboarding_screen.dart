@@ -84,7 +84,7 @@ class UsernameOnboardingScreen extends HookWidget {
         actions: [
           TextButton(
             onPressed: isSubmitting.value ? null : skip,
-            child: Text(loc.usernameOnboarding_skip),
+            child: Text(loc.usernameOnboarding_next),
           ),
         ],
       ),
