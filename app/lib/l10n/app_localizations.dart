@@ -682,12 +682,6 @@ abstract class AppLocalizations {
   /// **'Add'**
   String get userHandleScreen_confirm;
 
-  /// No description provided for @userHandleScreen_save.
-  ///
-  /// In en, this message translates to:
-  /// **'Save'**
-  String get userHandleScreen_save;
-
   /// No description provided for @userHandleScreen_error_tooShort.
   ///
   /// In en, this message translates to:

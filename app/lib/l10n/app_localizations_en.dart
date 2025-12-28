@@ -344,9 +344,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get userHandleScreen_confirm => 'Add';
 
   @override
-  String get userHandleScreen_save => 'Save';
-
-  @override
   String get userHandleScreen_error_tooShort =>
       'Username must be at least 5 characters';
 
