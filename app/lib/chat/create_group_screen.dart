@@ -14,6 +14,7 @@ import 'package:air/main.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/avatar.dart';
 import 'package:collection/collection.dart';
@@ -21,7 +22,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
 
 import 'add_members_cubit.dart';
@@ -437,13 +437,10 @@ class _GroupPicturePicker extends StatelessWidget {
               : null,
         ),
         child: picture == null
-            ? Center(
+            ? const Center(
                 child: IconTheme(
-                  data: const IconThemeData(),
-                  child: iconoir.MediaImagePlus(
-                    width: 24,
-                    color: colors.text.primary,
-                  ),
+                  data: IconThemeData(),
+                  child: AppIcon.imagePlus(size: 24),
                 ),
               )
             : null,
@@ -545,8 +542,8 @@ class _SelectedParticipant extends StatelessWidget {
                       ),
                     ),
                     child: Center(
-                      child: iconoir.Xmark(
-                        width: 10,
+                      child: AppIcon.x(
+                        size: 10,
                         color: colors.backgroundBase.primary,
                       ),
                     ),
@@ -591,9 +588,7 @@ class _CircularBackButton extends StatelessWidget {
             shape: BoxShape.circle,
             color: colors.backgroundBase.secondary,
           ),
-          child: Center(
-            child: iconoir.ArrowLeft(width: 16, color: colors.text.primary),
-          ),
+          child: const Center(child: AppIcon.arrowLeft(size: 16)),
         ),
       ),
     );
