@@ -9,6 +9,7 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/app_scaffold.dart';
 import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ui/typography/monospace.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:collection/collection.dart';
@@ -63,15 +64,11 @@ class SafetyCodeView extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: Spacings.s),
+          const SizedBox(height: Spacings.m),
 
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
-            child: _SafetyCode(userId: profile.userId),
-          ),
+          _SafetyCode(userId: profile.userId),
 
-          const SizedBox(height: Spacings.s),
-
+          const SizedBox(height: Spacings.m),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
             child: Text(
@@ -105,6 +102,13 @@ class _SafetyCode extends HookWidget {
     final loc = AppLocalizations.of(context);
     final colors = CustomColorScheme.of(context);
 
+    final codeStyle = TextStyle(
+      fontSize: BodyFontSize.base.size,
+      fontFamily: getSystemMonospaceFontFamily(),
+      height: 1.5,
+      color: safetyCode.hasData ? colors.text.primary : colors.text.tertiary,
+    );
+
     return InkWell(
       onTap: safetyCode.hasData
           ? () {
@@ -123,23 +127,20 @@ class _SafetyCode extends HookWidget {
           color: colors.backgroundBase.secondary,
         ),
         padding: const EdgeInsets.symmetric(
-          vertical: Spacings.m,
-          horizontal: Spacings.xxs,
+          vertical: Spacings.s,
+          horizontal: Spacings.m,
         ),
         child: Column(
           children: [
-            Text(p1, style: TextStyle(fontSize: HeaderFontSize.h4.size)),
-            const SizedBox(height: Spacings.xs),
-            Text(p2, style: TextStyle(fontSize: HeaderFontSize.h4.size)),
-            const SizedBox(height: Spacings.xs),
-            Text(p3, style: TextStyle(fontSize: HeaderFontSize.h4.size)),
-
-            const SizedBox(height: Spacings.s),
-
+            Text(p1, style: codeStyle),
+            Text(p2, style: codeStyle),
+            Text(p3, style: codeStyle),
+            const SizedBox(height: Spacings.m),
             Row(
+              mainAxisSize: .min,
               mainAxisAlignment: .center,
               children: [
-                AppIcon.copy(color: colors.text.tertiary, size: 12),
+                AppIcon.copy(color: colors.text.tertiary, size: 16),
                 const SizedBox(width: Spacings.xxs),
                 Text(
                   loc.safetyCodeScreen_tapToCopy,
@@ -158,20 +159,17 @@ class _SafetyCode extends HookWidget {
 }
 
 extension on intArray12 {
-  String get textRepresentation => inner
-      .map((i) => i.toString().padLeft(5, '0'))
-      .slices(2)
-      .map((slice) => slice.join(' '))
-      .slices(2)
-      .map((slice) => slice.join('\n'))
-      .join('\n\n');
+  String get textRepresentation {
+    final (p1, p2, p3) = paragraphs;
+    return [p1, p2, p3].join('\n');
+  }
 
   (String, String, String) get paragraphs {
     String sliceToString(List<int> slice) => slice
         .map((i) => i.toString().padLeft(5, '0'))
         .slices(2)
         .map((slice) => slice.join(' '))
-        .join('\n');
+        .join(' ');
     return (
       sliceToString(inner.sublist(0, 4)),
       sliceToString(inner.sublist(4, 8)),
