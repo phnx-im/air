@@ -9103,6 +9103,19 @@ impl SseDecode for Option<crate::api::types::UiUserId> {
     }
 }
 
+impl SseDecode for Option<crate::api::types::UserHandleValidationError> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::types::UserHandleValidationError>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<Vec<u8>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -9651,6 +9664,21 @@ impl SseDecode for crate::api::types::UiUserProfile {
 impl SseDecode for () {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {}
+}
+
+impl SseDecode for crate::api::types::UserHandleValidationError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::UserHandleValidationError::TooShort,
+            1 => crate::api::types::UserHandleValidationError::TooLong,
+            2 => crate::api::types::UserHandleValidationError::InvalidCharacter,
+            3 => crate::api::types::UserHandleValidationError::ConsecutiveDashes,
+            4 => crate::api::types::UserHandleValidationError::LeadingDigit,
+            _ => unreachable!("Invalid variant for UserHandleValidationError: {}", inner),
+        };
+    }
 }
 
 impl SseDecode for crate::api::user_settings_cubit::UserSettings {
@@ -11556,6 +11584,30 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiUserProfile>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::UserHandleValidationError> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self.0 {
+            crate::api::types::UserHandleValidationError::TooShort => 0.into_dart(),
+            crate::api::types::UserHandleValidationError::TooLong => 1.into_dart(),
+            crate::api::types::UserHandleValidationError::InvalidCharacter => 2.into_dart(),
+            crate::api::types::UserHandleValidationError::ConsecutiveDashes => 3.into_dart(),
+            crate::api::types::UserHandleValidationError::LeadingDigit => 4.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::types::UserHandleValidationError>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::UserHandleValidationError>>
+    for crate::api::types::UserHandleValidationError
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::types::UserHandleValidationError> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::user_settings_cubit::UserSettings {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -12900,6 +12952,16 @@ impl SseEncode for Option<crate::api::types::UiUserId> {
     }
 }
 
+impl SseEncode for Option<crate::api::types::UserHandleValidationError> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::types::UserHandleValidationError>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<Vec<u8>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -13343,6 +13405,25 @@ impl SseEncode for crate::api::types::UiUserProfile {
 impl SseEncode for () {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {}
+}
+
+impl SseEncode for crate::api::types::UserHandleValidationError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::UserHandleValidationError::TooShort => 0,
+                crate::api::types::UserHandleValidationError::TooLong => 1,
+                crate::api::types::UserHandleValidationError::InvalidCharacter => 2,
+                crate::api::types::UserHandleValidationError::ConsecutiveDashes => 3,
+                crate::api::types::UserHandleValidationError::LeadingDigit => 4,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
 }
 
 impl SseEncode for crate::api::user_settings_cubit::UserSettings {

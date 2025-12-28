@@ -682,6 +682,36 @@ abstract class AppLocalizations {
   /// **'Add'**
   String get userHandleScreen_confirm;
 
+  /// No description provided for @userHandleScreen_error_tooShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Username must be at least 5 characters'**
+  String get userHandleScreen_error_tooShort;
+
+  /// No description provided for @userHandleScreen_error_tooLong.
+  ///
+  /// In en, this message translates to:
+  /// **'Username must be at most 63 characters'**
+  String get userHandleScreen_error_tooLong;
+
+  /// No description provided for @userHandleScreen_error_invalidCharacter.
+  ///
+  /// In en, this message translates to:
+  /// **'Username must only contain letters, numbers, or dashes'**
+  String get userHandleScreen_error_invalidCharacter;
+
+  /// No description provided for @userHandleScreen_error_consecutiveDashes.
+  ///
+  /// In en, this message translates to:
+  /// **'Username must not contain consecutive dashes'**
+  String get userHandleScreen_error_consecutiveDashes;
+
+  /// No description provided for @userHandleScreen_error_leadingDigit.
+  ///
+  /// In en, this message translates to:
+  /// **'Username must not start with a digit'**
+  String get userHandleScreen_error_leadingDigit;
+
   /// No description provided for @editDisplayNameScreen_title.
   ///
   /// In en, this message translates to:
