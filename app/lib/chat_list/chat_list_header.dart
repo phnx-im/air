@@ -21,7 +21,7 @@ class ChatListHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.only(left: Spacings.xxxs, right: Spacings.xxs),
+      padding: const EdgeInsets.only(left: Spacings.xxxs, right: Spacings.s),
       child: const Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
