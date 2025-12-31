@@ -4,3 +4,4 @@
 
 export 'app_localizations.dart' show AppLocalizations;
 export 'app_localizations_extension.dart' show AppLocalizationsExtension;
+export 'supported_locales.dart';
