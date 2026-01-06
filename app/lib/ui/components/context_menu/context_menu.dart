@@ -318,7 +318,8 @@ class _ContextMenuState extends State<ContextMenu>
         }
 
         final overlayState = Overlay.of(context);
-        final overlayBox = overlayState.context.findRenderObject() as RenderBox?;
+        final overlayBox =
+            overlayState.context.findRenderObject() as RenderBox?;
         final mediaQuery = MediaQuery.of(context);
         final overlaySize = overlayBox?.size ?? mediaQuery.size;
         // Prefer system view data so MediaQuery overrides don't remove insets.
@@ -328,43 +329,57 @@ class _ContextMenuState extends State<ContextMenu>
         final rawSafeArea = EdgeInsets.only(
           left: math.max(viewData.viewPadding.left, viewData.viewInsets.left),
           top: math.max(viewData.viewPadding.top, viewData.viewInsets.top),
-          right: math.max(viewData.viewPadding.right, viewData.viewInsets.right),
-          bottom:
-              math.max(viewData.viewPadding.bottom, viewData.viewInsets.bottom),
+          right: math.max(
+            viewData.viewPadding.right,
+            viewData.viewInsets.right,
+          ),
+          bottom: math.max(
+            viewData.viewPadding.bottom,
+            viewData.viewInsets.bottom,
+          ),
         );
         final safeRect = Rect.fromLTWH(
           rawSafeArea.left,
           rawSafeArea.top,
-          (viewData.size.width - rawSafeArea.horizontal)
-              .clamp(0.0, viewData.size.width),
-          (viewData.size.height - rawSafeArea.vertical)
-              .clamp(0.0, viewData.size.height),
+          (viewData.size.width - rawSafeArea.horizontal).clamp(
+            0.0,
+            viewData.size.width,
+          ),
+          (viewData.size.height - rawSafeArea.vertical).clamp(
+            0.0,
+            viewData.size.height,
+          ),
         );
         // Convert the safe bounds into overlay coordinates, accounting for
         // transforms like interface scaling.
         final safeArea = overlayBox == null
             ? rawSafeArea
             : () {
-                final localTopLeft =
-                    overlayBox.globalToLocal(safeRect.topLeft);
-                final localBottomRight =
-                    overlayBox.globalToLocal(safeRect.bottomRight);
-                final localSafeRect =
-                    Rect.fromPoints(localTopLeft, localBottomRight);
-                final safeIntersection =
-                    localSafeRect.intersect(Offset.zero & overlaySize);
+                final localTopLeft = overlayBox.globalToLocal(safeRect.topLeft);
+                final localBottomRight = overlayBox.globalToLocal(
+                  safeRect.bottomRight,
+                );
+                final localSafeRect = Rect.fromPoints(
+                  localTopLeft,
+                  localBottomRight,
+                );
+                final safeIntersection = localSafeRect.intersect(
+                  Offset.zero & overlaySize,
+                );
                 if (safeIntersection.isEmpty) {
                   return EdgeInsets.zero;
                 }
                 return EdgeInsets.only(
                   left: safeIntersection.left.clamp(0.0, overlaySize.width),
                   top: safeIntersection.top.clamp(0.0, overlaySize.height),
-                  right:
-                      (overlaySize.width - safeIntersection.right)
-                          .clamp(0.0, overlaySize.width),
-                  bottom:
-                      (overlaySize.height - safeIntersection.bottom)
-                          .clamp(0.0, overlaySize.height),
+                  right: (overlaySize.width - safeIntersection.right).clamp(
+                    0.0,
+                    overlaySize.width,
+                  ),
+                  bottom: (overlaySize.height - safeIntersection.bottom).clamp(
+                    0.0,
+                    overlaySize.height,
+                  ),
                 );
               }();
 
@@ -378,8 +393,10 @@ class _ContextMenuState extends State<ContextMenu>
           final targetBox =
               _targetKey.currentContext?.findRenderObject() as RenderBox?;
           if (targetBox != null) {
-            final targetOffset =
-                targetBox.localToGlobal(Offset.zero, ancestor: overlayBox);
+            final targetOffset = targetBox.localToGlobal(
+              Offset.zero,
+              ancestor: overlayBox,
+            );
             targetRect = targetOffset & targetBox.size;
           }
         }
@@ -409,8 +426,10 @@ class _ContextMenuState extends State<ContextMenu>
           maxHeight = maxHeight.clamp(0.0, availableHeight);
         }
 
-        final maxMenuWidth = (overlaySize.width - safeArea.horizontal)
-            .clamp(0.0, overlaySize.width);
+        final maxMenuWidth = (overlaySize.width - safeArea.horizontal).clamp(
+          0.0,
+          overlaySize.width,
+        );
         // Size to the widest item, then clamp so the menu stays inside the viewport.
         final menuWidth = _measureMenuWidth(context, maxMenuWidth);
 
@@ -492,8 +511,9 @@ class _ContextMenuState extends State<ContextMenu>
       return 0.0;
     }
     // Reserve a leading column for all items if any item needs alignment.
-    final hasAnyLeading =
-        items.any((item) => item.hasLeading || item.reserveLeadingSpace);
+    final hasAnyLeading = items.any(
+      (item) => item.hasLeading || item.reserveLeadingSpace,
+    );
     final leadingWidth = hasAnyLeading
         ? ContextMenuItem.defaultLeadingWidth + Spacings.xxs
         : 0.0;
