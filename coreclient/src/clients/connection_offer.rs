@@ -149,6 +149,39 @@ pub(crate) mod payload {
     }
 }
 
+mod persistence {
+    use sqlx::{
+        Database, Decode, Encode, Sqlite, Type, encode::IsNull, error::BoxDynError,
+        sqlite::SqliteTypeInfo,
+    };
+    use tls_codec::{DeserializeBytes, Serialize};
+
+    use super::payload::ConnectionInfo;
+
+    impl Type<Sqlite> for ConnectionInfo {
+        fn type_info() -> SqliteTypeInfo {
+            <Vec<u8> as Type<Sqlite>>::type_info()
+        }
+    }
+
+    impl Encode<'_, Sqlite> for ConnectionInfo {
+        fn encode_by_ref(
+            &self,
+            buf: &mut <Sqlite as Database>::ArgumentBuffer<'_>,
+        ) -> Result<IsNull, BoxDynError> {
+            let bytes = self.tls_serialize_detached()?;
+            <Vec<u8> as Encode<'_, Sqlite>>::encode(bytes, buf)
+        }
+    }
+
+    impl Decode<'_, Sqlite> for ConnectionInfo {
+        fn decode(value: <Sqlite as Database>::ValueRef<'_>) -> Result<Self, BoxDynError> {
+            let bytes: Vec<u8> = Decode::<Sqlite>::decode(value)?;
+            ConnectionInfo::tls_deserialize_exact_bytes(&bytes).map_err(From::from)
+        }
+    }
+}
+
 mod tbs {
     use super::*;
     use aircommon::{
@@ -324,6 +357,7 @@ impl EarDecryptable<FriendshipPackageEarKey, EncryptedFriendshipPackageCtype>
 
 #[cfg(test)]
 mod tests {
+
     use aircommon::{
         credentials::test_utils::create_test_credentials,
         crypto::signatures::private_keys::SignatureVerificationError,
@@ -332,14 +366,14 @@ mod tests {
     };
     use tls_codec::{DeserializeBytes as _, Serialize};
 
-    use super::{ConnectionOfferIn, payload::ConnectionOfferPayload};
+    use super::*;
 
     #[test]
     fn signing_and_verifying() {
         let sender_user_id = UserId::random("localhost".parse().unwrap());
         let (as_sk, client_sk) = create_test_credentials(sender_user_id);
         let cep_payload = ConnectionOfferPayload::dummy(client_sk.credential().clone());
-        let user_handle = UserHandle::new("ellie_01".to_owned()).unwrap();
+        let user_handle = UserHandle::new("ellie-01".to_owned()).unwrap();
         let hash = ConnectionPackageHash::new_for_test(vec![0; 32]);
         let cep = cep_payload
             .clone()
@@ -355,7 +389,7 @@ mod tests {
         assert_eq!(cep_verified, cep_payload);
 
         // Try with a different recipient
-        let user_handle_2 = UserHandle::new("ellie_02".to_owned()).unwrap();
+        let user_handle_2 = UserHandle::new("ellie-02".to_owned()).unwrap();
         let err = cep_in
             .verify(as_sk.verifying_key(), user_handle_2, hash)
             .unwrap_err();

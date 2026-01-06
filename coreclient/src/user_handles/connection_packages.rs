@@ -95,7 +95,7 @@ mod tests {
 
     #[sqlx::test]
     async fn test_store_and_load_connection_package(pool: SqlitePool) {
-        let handle = UserHandle::new("test_handle".to_string()).unwrap();
+        let handle = UserHandle::new("test-handle".to_string()).unwrap();
         let signing_key = HandleSigningKey::generate().unwrap();
         let hash = handle.calculate_hash().unwrap();
         let record = UserHandleRecord::new(handle, hash, signing_key);

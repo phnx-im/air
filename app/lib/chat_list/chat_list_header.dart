@@ -2,23 +2,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/core/api/types.dart';
-import 'package:flutter/material.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
-import 'package:logging/logging.dart';
 import 'package:air/chat_list/chat_list_cubit.dart';
-import 'package:air/chat_list/create_chat_view.dart';
+import 'package:air/chat_list/add_contact_dialog.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/main.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/components/context_menu/context_menu.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/widgets/widgets.dart';
-import 'package:provider/provider.dart';
-
-final _log = Logger("ChatListHeader");
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 class ChatListHeader extends StatelessWidget {
   const ChatListHeader({super.key});
@@ -26,11 +21,7 @@ class ChatListHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.only(
-        left: Spacings.xxs,
-        right: Spacings.s,
-        bottom: Spacings.xs,
-      ),
+      padding: const EdgeInsets.only(left: Spacings.xxxs, right: Spacings.s),
       child: const Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -79,25 +70,25 @@ class _PlusButtonState extends State<_PlusButton> {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
+    final colors = CustomColorScheme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacings.sm,
-        vertical: Spacings.sm,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: Spacings.xs),
       child: ContextMenu(
         direction: ContextMenuDirection.left,
-        width: 200,
+        width: 250,
         controller: contextMenuController,
         menuItems: [
           ContextMenuItem(
             label: loc.chatList_newContact,
+            leading: const AppIcon.user(size: 16),
             onPressed: () {
               _newContact(context);
             },
           ),
           ContextMenuItem(
             label: loc.chatList_newGroup,
+            leading: const AppIcon.users(size: 16),
             onPressed: () {
               _newGroup(context);
             },
@@ -116,15 +107,10 @@ class _PlusButtonState extends State<_PlusButton> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: CustomColorScheme.of(context).backgroundBase.quaternary,
+              color: colors.backgroundElevated.primary,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Center(
-              child: iconoir.Plus(
-                color: CustomColorScheme.of(context).text.primary,
-                width: 22,
-              ),
-            ),
+            child: const Center(child: AppIcon.plus(size: 16)),
           ),
         ),
       ),
@@ -133,73 +119,11 @@ class _PlusButtonState extends State<_PlusButton> {
 
   void _newContact(BuildContext context) {
     final chatListCubit = context.read<ChatListCubit>();
-    final loc = AppLocalizations.of(context);
-
-    String? customError;
-
-    String? validator(String? value) {
-      final normalized = UserHandleInputFormatter.normalize(
-        value ?? '',
-        allowUnderscore: true,
-      );
-      if (normalized.isEmpty) {
-        return loc.newConnectionDialog_error_emptyHandle;
-      }
-      if (customError != null) {
-        final error = customError;
-        customError = null;
-        return error;
-      }
-      UiUserHandle handle = UiUserHandle(plaintext: normalized);
-      return handle.validationError();
-    }
-
-    Future<String?> onAction(String input) async {
-      final normalized = UserHandleInputFormatter.normalize(
-        input,
-        allowUnderscore: true,
-      );
-      if (normalized.isEmpty) {
-        return loc.newConnectionDialog_error_emptyHandle;
-      }
-      final handle = UiUserHandle(plaintext: normalized);
-      try {
-        final chatId = await chatListCubit.createContactChat(handle: handle);
-        if (context.mounted) {
-          if (chatId == null) {
-            return loc.newConnectionDialog_error_handleNotFound(
-              handle.plaintext,
-            );
-          }
-          _log.info(
-            "A new 1:1 connection with user '${handle.plaintext}' was created: "
-            "chatId = $chatId",
-          );
-          Navigator.of(context).pop();
-        }
-      } catch (e) {
-        _log.severe("Failed to create connection: $e");
-        if (context.mounted) {
-          showErrorBanner(
-            context,
-            loc.newConnectionDialog_error(handle.plaintext),
-          );
-        }
-      }
-      return null;
-    }
-
     showDialog(
       context: context,
-      builder: (BuildContext context) => CreateChatView(
-        context,
-        loc.newConnectionDialog_newConnectionTitle,
-        loc.newConnectionDialog_newConnectionDescription,
-        loc.newConnectionDialog_usernamePlaceholder,
-        loc.newConnectionDialog_actionButton,
-        validator: validator,
-        onAction: onAction,
-        allowUnderscore: true,
+      builder: (BuildContext context) => BlocProvider.value(
+        value: chatListCubit,
+        child: const AddContactDialog(),
       ),
     );
   }

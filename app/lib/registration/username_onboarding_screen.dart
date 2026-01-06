@@ -72,6 +72,7 @@ class UsernameOnboardingScreen extends HookWidget {
     }
 
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: Text(
@@ -83,13 +84,12 @@ class UsernameOnboardingScreen extends HookWidget {
         actions: [
           TextButton(
             onPressed: isSubmitting.value ? null : skip,
-            child: Text(loc.usernameOnboarding_skip),
+            child: Text(loc.usernameOnboarding_next),
           ),
         ],
       ),
-      body: Container(
-        color: backgroundColor,
-        child: SafeArea(
+      body: SafeArea(
+        child: Center(
           child: ConstrainedWidth(
             child: Column(
               children: [
@@ -98,7 +98,7 @@ class UsernameOnboardingScreen extends HookWidget {
                     builder: (context, constraints) {
                       return SingleChildScrollView(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: Spacings.m,
+                          horizontal: Spacings.s,
                           vertical: Spacings.xs,
                         ),
                         child: Form(
@@ -132,6 +132,7 @@ class UsernameOnboardingScreen extends HookWidget {
                   ),
                 ),
                 _AddButton(isSubmitting: isSubmitting.value, onPressed: submit),
+                const SizedBox(height: Spacings.s),
               ],
             ),
           ),
@@ -157,7 +158,17 @@ class UsernameOnboardingScreen extends HookWidget {
       return loc.userHandleScreen_error_emptyHandle;
     }
     final handle = UiUserHandle(plaintext: normalized);
-    return handle.validationError();
+    return switch (handle.validationError()) {
+      UserHandleValidationError.tooShort => loc.userHandleScreen_error_tooShort,
+      UserHandleValidationError.tooLong => loc.userHandleScreen_error_tooLong,
+      UserHandleValidationError.invalidCharacter =>
+        loc.userHandleScreen_error_invalidCharacter,
+      UserHandleValidationError.consecutiveDashes =>
+        loc.userHandleScreen_error_consecutiveDashes,
+      UserHandleValidationError.leadingDigit =>
+        loc.userHandleScreen_error_leadingDigit,
+      null => null,
+    };
   }
 }
 
@@ -187,11 +198,17 @@ class _AddButton extends StatelessWidget {
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    colors.text.primary,
+                    colors.function.toggleWhite,
                   ),
                 ),
               )
-            : Text(loc.usernameOnboarding_addButton),
+            : Text(
+                loc.usernameOnboarding_addButton,
+                style: TextStyle(
+                  color: colors.function.toggleWhite,
+                  fontSize: LabelFontSize.base.size,
+                ),
+              ),
       ),
     );
   }
@@ -239,7 +256,6 @@ class _UsernameTextField extends StatelessWidget {
             hintText: loc.usernameOnboarding_userameInputHint,
             fillColor: colors.backgroundBase.tertiary,
           ),
-          // Temporary strict enforcement until legacy underscores are fully removed.
           inputFormatters: const [UserHandleInputFormatter()],
           onChanged: (_) {
             if (handleExists.value) {

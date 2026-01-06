@@ -86,6 +86,7 @@ class CoreClient {
     String address,
     String displayName,
     Uint8List? profilePicture,
+    String invitationCode,
   ) async {
     PlatformPushToken? pushToken;
 
@@ -109,6 +110,7 @@ class CoreClient {
       pushToken: pushToken,
       displayName: displayName,
       profilePicture: profilePicture,
+      invitationCode: invitationCode,
     );
 
     _log.info("User registered: ${user.userId}");

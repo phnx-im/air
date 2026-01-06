@@ -57,6 +57,7 @@ impl UserCreationState {
         user_id: UserId,
         server_url: impl ToString,
         push_token: Option<PushToken>,
+        invitation_code: String,
     ) -> Result<Self> {
         let client_record = ClientRecord::new(user_id.clone());
         client_record.store(air_db).await?;
@@ -65,6 +66,7 @@ impl UserCreationState {
             user_id: user_id.clone(),
             server_url: server_url.to_string(),
             push_token,
+            invitation_code,
         };
 
         let user_creation_state = UserCreationState::BasicUserData(basic_user_data);

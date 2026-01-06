@@ -8,11 +8,11 @@ import 'package:air/chat/chat_details_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ui/colors/themes.dart';
@@ -30,11 +30,13 @@ class AttachmentImage extends StatelessWidget {
     required this.attachment,
     required this.imageMetadata,
     required this.fit,
+    required this.isSender,
   });
 
   final UiAttachment attachment;
   final UiImageMetadata imageMetadata;
   final BoxFit fit;
+  final bool isSender;
 
   @override
   Widget build(BuildContext context) {
@@ -54,19 +56,14 @@ class AttachmentImage extends StatelessWidget {
             alignment: Alignment.center,
             errorBuilder: (context, error, stackTrace) {
               _log.severe('Failed to load attachment: $error');
-              return Align(
-                child: iconoir.WarningCircle(
-                  width: 32,
-                  height: 32,
-                  color: CustomColorScheme.of(context).text.primary,
-                ),
-              );
+              return const Align(child: AppIcon.circleAlert(size: 32));
             },
           ),
-          _UploadStatus(
-            attachmentId: attachment.attachmentId,
-            size: attachment.size,
-          ),
+          if (isSender)
+            _UploadStatus(
+              attachmentId: attachment.attachmentId,
+              size: attachment.size,
+            ),
         ],
       ),
     );
@@ -128,11 +125,7 @@ class _UploadStatus extends HookWidget {
             mainAxisAlignment: .center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              iconoir.Upload(
-                width: 32,
-                height: 32,
-                color: CustomColorScheme.of(context).text.primary,
-              ),
+              const AppIcon.upload(size: 16),
               const SizedBox(width: Spacings.xxxs),
               Text(
                 loc.attachment_tryAgain,
@@ -167,9 +160,7 @@ class _UploadStatus extends HookWidget {
                         attachmentId: attachmentId,
                       );
                     },
-                    icon: iconoir.Xmark(
-                      color: CustomColorScheme.of(context).text.primary,
-                    ),
+                    icon: const AppIcon.x(size: 24),
                   ),
                 ],
               ),

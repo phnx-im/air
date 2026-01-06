@@ -40,6 +40,7 @@ reset-dev:
     just _check-unstaged-changes "cd app && fvm dart format ."
     just _check-status "cd app && fvm flutter analyze --no-pub"
     just _check-unstaged-changes "just regenerate-l10n"
+    just _check-unstaged-changes "just regenerate-icons"
     echo "{{BOLD}}check-flutter done{{NORMAL}}"
 
 # Run Flutter-Rust bridge lint.
@@ -81,7 +82,7 @@ _log-error msg:
 
 
 # Regenerate frb and l10n.
-regenerate: regenerate-frb regenerate-l10n regenerate-sqlx
+regenerate: regenerate-frb regenerate-l10n regenerate-sqlx regenerate-icons
 
 # Regenerate Flutter-Rust bridge files.
 [working-directory: 'app']
@@ -103,6 +104,9 @@ regenerate-l10n:
 regenerate-sqlx:
     cd coreclient && cargo sqlx prepare --database-url sqlite:$PWD/client.db
     cd backend && cargo sqlx prepare
+
+regenerate-icons:
+    fvm dart run tools/compile_svg_icons.dart
 
 # Run cargo build, clippy and test.
 @test-rust: start-docker-compose

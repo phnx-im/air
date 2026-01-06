@@ -4,8 +4,8 @@
 
 import 'dart:async';
 
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/core/core.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 export 'package:air/core/core.dart'
     show NavigationState, IntroScreenType, DeveloperSettingsScreenType;
@@ -66,5 +66,5 @@ class NavigationCubit implements StateStreamableSource<NavigationState> {
   bool pop() => _impl.pop();
 
   Future<void> openSignUp() =>
-      _impl.openIntroScreen(screen: const IntroScreenType.signUp());
+      _impl.openIntroScreen(screen: const IntroScreenType.invitationCode());
 }

@@ -12,7 +12,7 @@ use mimi_content::{MessageStatus, MimiContent};
 use serde::{Deserialize, Serialize};
 use sqlx::{SqliteExecutor, query, query_as};
 use tokio_stream::StreamExt;
-use tracing::{error, warn};
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::{ChatId, ChatMessage, ContentMessage, Message, store::StoreNotifier};
@@ -408,8 +408,8 @@ impl ChatMessage {
         Ok(())
     }
 
-    /// Get the last content message in the chat.
-    pub(crate) async fn last_content_message(
+    /// Get the last message in the chat.
+    pub(crate) async fn last_message(
         executor: impl SqliteExecutor<'_>,
         chat_id: ChatId,
     ) -> sqlx::Result<Option<Self>> {
@@ -431,8 +431,6 @@ impl ChatMessage {
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
             WHERE chat_id = ?
-                AND sender_user_uuid IS NOT NULL
-                AND sender_user_domain IS NOT NULL
             ORDER BY timestamp DESC LIMIT 1"#,
             chat_id,
         )
@@ -491,6 +489,7 @@ impl ChatMessage {
 
     pub(crate) async fn prev_message(
         executor: impl SqliteExecutor<'_>,
+        chat_id: ChatId,
         message_id: MessageId,
     ) -> sqlx::Result<Option<ChatMessage>> {
         query_as!(
@@ -510,12 +509,13 @@ impl ChatMessage {
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
-            WHERE message_id != ?1
-                AND timestamp <= (SELECT timestamp FROM message
-                WHERE message_id = ?1)
+            WHERE chat_id = ?2
+                AND message_id != ?1
+                AND timestamp <= (SELECT timestamp FROM message WHERE message_id = ?1)
             ORDER BY timestamp DESC
             LIMIT 1"#,
             message_id,
+            chat_id,
         )
         .fetch_optional(executor)
         .await
@@ -529,6 +529,7 @@ impl ChatMessage {
 
     pub(crate) async fn next_message(
         executor: impl SqliteExecutor<'_>,
+        chat_id: ChatId,
         message_id: MessageId,
     ) -> sqlx::Result<Option<ChatMessage>> {
         query_as!(
@@ -548,12 +549,13 @@ impl ChatMessage {
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
-            WHERE message_id != ?1
-                AND timestamp >= (SELECT timestamp FROM message
-                WHERE message_id = ?1)
+            WHERE chat_id = ?2
+                AND message_id != ?1
+                AND timestamp >= (SELECT timestamp FROM message WHERE message_id = ?1)
             ORDER BY timestamp ASC
             LIMIT 1"#,
             message_id,
+            chat_id,
         )
         .fetch_optional(executor)
         .await
@@ -570,11 +572,13 @@ impl ChatMessage {
 pub(crate) mod tests {
     use std::sync::LazyLock;
 
+    use aircommon::{identifiers::UserId, time::TimeStamp};
     use chrono::Utc;
+    use mimi_content::MimiContent;
     use openmls::group::GroupId;
     use sqlx::SqlitePool;
 
-    use crate::{EventMessage, SystemMessage, chats::persistence::tests::test_chat};
+    use crate::{ContentMessage, Message, MessageId, chats::persistence::tests::test_chat};
 
     use super::*;
 
@@ -613,6 +617,66 @@ pub(crate) mod tests {
         message.store(&pool, &mut store_notifier).await?;
         let loaded = ChatMessage::load(&pool, message.id()).await?.unwrap();
         assert_eq!(loaded, message);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn prev_next_do_not_cross_chat_boundaries(pool: SqlitePool) -> anyhow::Result<()> {
+        let mut store_notifier = StoreNotifier::noop();
+
+        let mut connection = pool.acquire().await?;
+
+        let chat_a = test_chat();
+        chat_a
+            .store(connection.as_mut(), &mut store_notifier)
+            .await?;
+
+        let chat_b = test_chat();
+        chat_b
+            .store(connection.as_mut(), &mut store_notifier)
+            .await?;
+
+        let group_id = GroupId::from_slice(&[0]);
+        let sender = UserId::random("localhost".parse().unwrap());
+
+        let message_a = ChatMessage::new_for_test(
+            chat_a.id(),
+            MessageId::random(),
+            TimeStamp::from(1_000_000_000_i64),
+            Message::Content(Box::new(ContentMessage::new(
+                sender.clone(),
+                true,
+                MimiContent::simple_markdown_message("a".to_string(), [0; 16]),
+                &group_id,
+            ))),
+        );
+        message_a.store(&pool, &mut store_notifier).await?;
+
+        let message_b = ChatMessage::new_for_test(
+            chat_b.id(),
+            MessageId::random(),
+            TimeStamp::from(2_000_000_000_i64),
+            Message::Content(Box::new(ContentMessage::new(
+                sender,
+                true,
+                MimiContent::simple_markdown_message("b".to_string(), [1; 16]),
+                &group_id,
+            ))),
+        );
+        message_b.store(&pool, &mut store_notifier).await?;
+
+        let prev = ChatMessage::prev_message(&pool, chat_b.id(), message_b.id()).await?;
+        assert!(
+            prev.is_none(),
+            "prev_message should ignore messages from other chats"
+        );
+
+        let next = ChatMessage::next_message(&pool, chat_a.id(), message_a.id()).await?;
+        assert!(
+            next.is_none(),
+            "next_message should ignore messages from other chats"
+        );
 
         Ok(())
     }
@@ -666,7 +730,7 @@ pub(crate) mod tests {
     }
 
     #[sqlx::test]
-    async fn last_content_message(pool: SqlitePool) -> anyhow::Result<()> {
+    async fn last_message(pool: SqlitePool) -> anyhow::Result<()> {
         let mut store_notifier = StoreNotifier::noop();
 
         let chat = test_chat();
@@ -679,22 +743,7 @@ pub(crate) mod tests {
         message_a.store(&pool, &mut store_notifier).await?;
         message_b.store(&pool, &mut store_notifier).await?;
 
-        ChatMessage {
-            chat_id: chat.id(),
-            message_id: MessageId::random(),
-            timestamped_message: TimestampedMessage {
-                timestamp: Utc::now().into(),
-                message: Message::Event(EventMessage::System(SystemMessage::Add(
-                    UserId::random("localhost".parse()?),
-                    UserId::random("localhost".parse()?),
-                ))),
-            },
-            status: MessageStatus::Unread,
-        }
-        .store(&pool, &mut store_notifier)
-        .await?;
-
-        let loaded = ChatMessage::last_content_message(&pool, chat.id()).await?;
+        let loaded = ChatMessage::last_message(&pool, chat.id()).await?;
         assert_eq!(loaded, Some(message_b));
 
         Ok(())
@@ -714,7 +763,7 @@ pub(crate) mod tests {
         message_a.store(&pool, &mut store_notifier).await?;
         message_b.store(&pool, &mut store_notifier).await?;
 
-        let loaded = ChatMessage::prev_message(&pool, message_b.id()).await?;
+        let loaded = ChatMessage::prev_message(&pool, chat.id(), message_b.id()).await?;
         assert_eq!(loaded, Some(message_a));
 
         Ok(())
@@ -734,7 +783,7 @@ pub(crate) mod tests {
         message_a.store(&pool, &mut store_notifier).await?;
         message_b.store(&pool, &mut store_notifier).await?;
 
-        let loaded = ChatMessage::next_message(&pool, message_a.id()).await?;
+        let loaded = ChatMessage::next_message(&pool, chat.id(), message_a.id()).await?;
         assert_eq!(loaded, Some(message_b));
 
         Ok(())

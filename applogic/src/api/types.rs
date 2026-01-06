@@ -15,10 +15,12 @@ pub(crate) use aircoreclient::{
     AddHandleContactError, AddHandleContactResult, ChatId, MessageDraft, MessageId,
 };
 
+pub(crate) use aircommon::identifiers::UserHandleValidationError;
 use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact, ContentMessage, DisplayName,
-    ErrorMessage, EventMessage, InactiveChat, Message, SystemMessage, UserProfile, store::Store,
+    ErrorMessage, EventMessage, InactiveChat, Message, SystemMessage, TargetedMessageContact,
+    UserProfile, store::Store,
 };
 use chrono::{DateTime, Duration, Local, Utc};
 use flutter_rust_bridge::frb;
@@ -47,6 +49,16 @@ pub struct _ChatId {
 pub struct UiUserId {
     pub uuid: Uuid,
     pub domain: String,
+}
+
+/// UI representation of an [`UserHandleValidationError`]
+#[frb(mirror(UserHandleValidationError))]
+pub enum _UserHandleValidationError {
+    TooShort,
+    TooLong,
+    InvalidCharacter,
+    ConsecutiveDashes,
+    LeadingDigit,
 }
 
 impl From<UserId> for UiUserId {
@@ -164,8 +176,13 @@ pub enum UiChatType {
     /// A connection chat that is confirmed by the other party and for which we have
     /// received the necessary secrets.
     Connection(UiUserProfile),
+    /// A connection chat that was established via a targeted message and is not yet confirmed by
+    /// the other party.
+    TargetedMessageConnection(UiUserProfile),
     /// A group chat, that is, it can contains multiple participants.
     Group,
+    /// Incoming connection chat request that is not yet confirmed by us.
+    PendingConnection(UiUserProfile),
 }
 
 impl UiChatType {
@@ -185,9 +202,17 @@ impl UiChatType {
                 let profile = UiUserProfile::from_profile(user_profile);
                 Self::Connection(profile)
             }
+            ChatType::TargetedMessageConnection(user_id) => {
+                let user_profile = store.user_profile(&user_id).await;
+                let profile = UiUserProfile::from_profile(user_profile);
+                Self::TargetedMessageConnection(profile)
+            }
             ChatType::Group => Self::Group,
-            // TODO: UI implementation for targeted message connections
-            ChatType::TargetedMessageConnection(_) => unreachable!(),
+            ChatType::PendingConnection(user_id) => {
+                let user_profile = store.user_profile(&user_id).await;
+                let profile = UiUserProfile::from_profile(user_profile);
+                Self::PendingConnection(profile)
+            }
         }
     }
 }
@@ -246,12 +271,15 @@ pub enum UiMessageStatus {
     Read,
     /// The message was hidden because it is from a blocked contact.
     Hidden,
+    /// Sending the message failed.
+    Error,
 }
 
 impl From<ChatMessage> for UiChatMessage {
     #[frb(ignore)]
     fn from(message: ChatMessage) -> Self {
         let status = match message.status() {
+            MessageStatus::Error => UiMessageStatus::Error,
             _ if !message.is_sent() => UiMessageStatus::Sending,
             MessageStatus::Read => UiMessageStatus::Read,
             MessageStatus::Delivered => UiMessageStatus::Delivered,
@@ -512,17 +540,28 @@ impl UiFlightPosition {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct UiContact {
     pub user_id: UiUserId,
+    pub chat_id: ChatId,
 }
 
 impl From<Contact> for UiContact {
     fn from(contact: Contact) -> Self {
         Self {
             user_id: contact.user_id.into(),
+            chat_id: contact.chat_id,
         }
     }
 }
 
-/// Mirror of the [`ChatId`] type
+impl From<TargetedMessageContact> for UiContact {
+    fn from(contact: TargetedMessageContact) -> Self {
+        Self {
+            user_id: contact.user_id.into(),
+            chat_id: contact.chat_id,
+        }
+    }
+}
+
+/// Mirror of the [`AddHandleContactResult`] type
 #[doc(hidden)]
 #[frb(mirror(AddHandleContactResult))]
 pub enum _AddHandleContactResult {
@@ -650,9 +689,9 @@ impl UiUserHandle {
     /// Returns `None` if the handle is valid, otherwise returns an error message why it is
     /// invalid.
     #[frb(sync)]
-    pub fn validation_error(&self) -> Option<String> {
+    pub fn validation_error(&self) -> Option<UserHandleValidationError> {
         if let Err(error) = UserHandle::new(self.plaintext.clone()) {
-            Some(error.to_string())
+            Some(error)
         } else {
             None
         }

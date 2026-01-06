@@ -337,6 +337,21 @@ impl TargetedMessageContact {
 }
 
 impl PartialContact {
+    pub(crate) async fn upsert(
+        &self,
+        executor: impl SqliteExecutor<'_>,
+        notifier: &mut StoreNotifier,
+    ) -> sqlx::Result<()> {
+        match self {
+            PartialContact::Handle(handle_contact) => {
+                handle_contact.upsert(executor, notifier).await
+            }
+            PartialContact::TargetedMessage(targeted_message_contact) => {
+                targeted_message_contact.upsert(executor, notifier).await
+            }
+        }
+    }
+
     pub(crate) async fn load(
         executor: impl SqliteExecutor<'_>,
         contact_type: &PartialContactType,
@@ -428,7 +443,7 @@ mod tests {
         chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
             .await?;
 
-        let handle = UserHandle::new("ellie_".to_owned()).unwrap();
+        let handle = UserHandle::new("ellie-".to_owned()).unwrap();
         let handle_contact = HandleContact {
             handle: handle.clone(),
             chat_id: chat.id(),
@@ -451,7 +466,7 @@ mod tests {
         chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
             .await?;
 
-        let handle = UserHandle::new("ellie_".to_owned()).unwrap();
+        let handle = UserHandle::new("ellie-".to_owned()).unwrap();
         let handle_contact = HandleContact {
             handle: handle.clone(),
             chat_id: chat.id(),
@@ -495,7 +510,7 @@ mod tests {
         chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
             .await?;
 
-        let handle = UserHandle::new("ellie_".to_owned()).unwrap();
+        let handle = UserHandle::new("ellie-".to_owned()).unwrap();
         let handle_contact = HandleContact {
             handle: handle.clone(),
             chat_id: chat.id(),
@@ -522,7 +537,7 @@ mod tests {
         chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
             .await?;
 
-        let handle = UserHandle::new("ellie_".to_owned()).unwrap();
+        let handle = UserHandle::new("ellie-".to_owned()).unwrap();
         let handle_contact = HandleContact {
             handle: handle.clone(),
             chat_id: chat.id(),

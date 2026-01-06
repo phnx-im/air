@@ -315,6 +315,12 @@ impl Asset {
             Asset::Value(value) => Some(value),
         }
     }
+
+    pub fn into_bytes(self) -> Vec<u8> {
+        match self {
+            Asset::Value(value) => value,
+        }
+    }
 }
 
 #[derive(Debug, TlsSize, TlsSerialize)]

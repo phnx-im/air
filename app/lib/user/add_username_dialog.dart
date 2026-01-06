@@ -120,6 +120,9 @@ class AddUsernameDialog extends HookWidget {
                       backgroundColor: WidgetStatePropertyAll(
                         colors.accent.primary,
                       ),
+                      overlayColor: WidgetStatePropertyAll(
+                        colors.accent.primary,
+                      ),
                       foregroundColor: WidgetStatePropertyAll(
                         colors.function.toggleWhite,
                       ),
@@ -185,6 +188,16 @@ class AddUsernameDialog extends HookWidget {
       return loc.userHandleScreen_error_emptyHandle;
     }
     final handle = UiUserHandle(plaintext: normalized);
-    return handle.validationError();
+    return switch (handle.validationError()) {
+      UserHandleValidationError.tooShort => loc.userHandleScreen_error_tooShort,
+      UserHandleValidationError.tooLong => loc.userHandleScreen_error_tooLong,
+      UserHandleValidationError.invalidCharacter =>
+        loc.userHandleScreen_error_invalidCharacter,
+      UserHandleValidationError.consecutiveDashes =>
+        loc.userHandleScreen_error_consecutiveDashes,
+      UserHandleValidationError.leadingDigit =>
+        loc.userHandleScreen_error_leadingDigit,
+      null => null,
+    };
   }
 }

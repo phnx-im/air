@@ -33,8 +33,10 @@ pub use crate::{
             progress::{AttachmentProgress, AttachmentProgressEvent},
         },
         block_contact::BlockedContactError,
+        safety_code::SafetyCode,
+        user_settings::ReadReceiptsSetting,
     },
-    contacts::Contact,
+    contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},
     user_handles::UserHandleRecord,
     user_profiles::{Asset, DisplayName, DisplayNameError, UserProfile},
     utils::persistence::{

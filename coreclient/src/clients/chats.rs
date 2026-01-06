@@ -28,7 +28,14 @@ impl CoreUser {
         title: String,
         picture: Option<Vec<u8>>,
     ) -> Result<ChatId> {
-        let group_data = IntitialChatData::new(title, picture)
+        let resized_picture = match picture {
+            Some(picture) => {
+                Some(tokio::task::spawn_blocking(move || resize_profile_image(&picture)).await??)
+            }
+            None => None,
+        };
+
+        let group_data = IntitialChatData::new(title, resized_picture)
             .request_group_id(&self.inner.api_clients)
             .await?;
 
@@ -208,12 +215,20 @@ impl CoreUser {
         ChatMessage::load(self.pool(), message_id).await
     }
 
-    pub(crate) async fn prev_message(&self, message_id: MessageId) -> Result<Option<ChatMessage>> {
-        Ok(ChatMessage::prev_message(self.pool(), message_id).await?)
+    pub(crate) async fn prev_message(
+        &self,
+        chat_id: ChatId,
+        message_id: MessageId,
+    ) -> Result<Option<ChatMessage>> {
+        Ok(ChatMessage::prev_message(self.pool(), chat_id, message_id).await?)
     }
 
-    pub(crate) async fn next_message(&self, message_id: MessageId) -> Result<Option<ChatMessage>> {
-        Ok(ChatMessage::next_message(self.pool(), message_id).await?)
+    pub(crate) async fn next_message(
+        &self,
+        chat_id: ChatId,
+        message_id: MessageId,
+    ) -> Result<Option<ChatMessage>> {
+        Ok(ChatMessage::next_message(self.pool(), chat_id, message_id).await?)
     }
 
     pub async fn chat(&self, chat: &ChatId) -> Option<Chat> {

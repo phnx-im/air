@@ -40,15 +40,16 @@ use crate::{
     clients::{
         QsListenResponder,
         block_contact::{BlockedContact, BlockedContactError},
-        process::process_as::ConnectionInfoSource,
+        process::process_as::{ConnectionInfoSource, TargetedMessageSource},
         targeted_message::TargetedMessageContent,
         update_key::update_chat_attributes,
+        user_settings::ReadReceiptsSetting,
     },
     contacts::{PartialContact, PartialContactType},
     groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
-    store::StoreNotifier,
+    store::{Store, StoreNotifier},
     utils::connection_ext::StoreExt,
 };
 
@@ -111,6 +112,7 @@ impl CoreUser {
     async fn process_qs_message(
         &self,
         qs_queue_message: ExtractedQsQueueMessage,
+        read_receipts_enabled: bool,
     ) -> Result<ProcessQsMessageResult> {
         // TODO: We should verify whether the messages are valid messages, i.e.
         // if it doesn't mix requests, etc. I think the DS already does some of this
@@ -124,7 +126,8 @@ impl CoreUser {
                 Box::pin(self.handle_welcome_bundle(welcome_bundle, ds_timestamp)).await
             }
             ExtractedQsQueueMessagePayload::MlsMessage(mls_message) => {
-                self.handle_mls_message(*mls_message, ds_timestamp).await
+                self.handle_mls_message(*mls_message, ds_timestamp, read_receipts_enabled)
+                    .await
             }
             ExtractedQsQueueMessagePayload::UserProfileKeyUpdate(
                 user_profile_key_update_params,
@@ -297,12 +300,13 @@ impl CoreUser {
                         &application_message.into_bytes(),
                     )?;
 
-                // Auto-accept the connection request
-                // TODO: This should be entered into the DB instead.
-                let connection_info_source = ConnectionInfoSource::TargetedMessage {
-                    connection_info,
-                    sender_user_id: sender_client_credential.identity().clone().clone(),
-                };
+                // Extract connection info source from the targeted message
+                let connection_info_source =
+                    ConnectionInfoSource::TargetedMessage(Box::new(TargetedMessageSource {
+                        connection_info,
+                        sender_client_credential,
+                        origin_chat_id: chat.id(),
+                    }));
 
                 // MLSMessage Phase 3: Store the updated group.
                 group.store_update(txn.as_mut()).await?;
@@ -332,6 +336,7 @@ impl CoreUser {
         &self,
         mls_message: MlsMessageIn,
         ds_timestamp: TimeStamp,
+        read_receipts_enabled: bool,
     ) -> Result<ProcessQsMessageResult> {
         let protocol_message: ProtocolMessage = match mls_message.extract() {
             MlsMessageBodyIn::PublicMessage(handshake_message) =>
@@ -412,6 +417,7 @@ impl CoreUser {
                                     application_message,
                                     ds_timestamp,
                                     sender_client_credential.identity(),
+                                    read_receipts_enabled,
                                 )
                                 .await?;
                             (new_messages, updated_messages, chat_changed)
@@ -515,6 +521,7 @@ impl CoreUser {
     /// Returns a message if it should be stored, otherwise an empty vec.
     ///
     /// Also returns whether the chat should be notified as updated.
+    #[allow(clippy::too_many_arguments)]
     async fn handle_application_message(
         &self,
         txn: &mut SqliteTransaction<'_>,
@@ -523,6 +530,7 @@ impl CoreUser {
         application_message: ApplicationMessage,
         ds_timestamp: TimeStamp,
         sender: &UserId,
+        read_receipts_enabled: bool,
     ) -> anyhow::Result<ApplicationMessagesHandlerResult> {
         let mut content = MimiContent::deserialize(&application_message.into_bytes());
 
@@ -534,7 +542,16 @@ impl CoreUser {
             } = &content.nested_part.part
             && content_type == "application/mimi-message-status"
         {
-            let report = MessageStatusReport::deserialize(report_content)?;
+            let mut report = MessageStatusReport::deserialize(report_content)?;
+            if !read_receipts_enabled {
+                report
+                    .statuses
+                    .retain(|status| status.status != MessageStatus::Read);
+                if report.statuses.is_empty() {
+                    debug!("Dropping read receipt because read receipts are disabled");
+                    return Ok(Default::default());
+                }
+            }
             StatusRecord::borrowed(sender, report, ds_timestamp)
                 .store_report(txn, notifier)
                 .await?;
@@ -581,6 +598,13 @@ impl CoreUser {
             chat_changed: true,
             ..Default::default()
         })
+    }
+
+    async fn read_receipts_enabled(&self) -> bool {
+        self.user_setting::<ReadReceiptsSetting>()
+            .await
+            .map(|setting| setting.0)
+            .unwrap_or(true)
     }
 
     async fn handle_proposal_message(
@@ -850,6 +874,7 @@ impl CoreUser {
     ) -> ProcessedQsMessages {
         let mut result = ProcessedQsMessages::default();
         let num_messages = qs_messages.len();
+        let read_receipts_enabled = self.read_receipts_enabled().await;
 
         // Process each qs message individually
         for (idx, qs_message) in qs_messages.into_iter().enumerate() {
@@ -872,7 +897,10 @@ impl CoreUser {
                 }
             };
 
-            let processed = match self.process_qs_message(qs_message_plaintext).await {
+            let processed = match self
+                .process_qs_message(qs_message_plaintext, read_receipts_enabled)
+                .await
+            {
                 Ok(processed) => processed,
                 Err(e) if e.downcast_ref::<BlockedContactError>().is_some() => {
                     info!("Dropping message from blocked contact");

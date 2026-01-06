@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:air/core/core.dart';
 import 'package:air/user/user.dart';
@@ -28,23 +29,13 @@ class ChatListCubit implements StateStreamableSource<ChatListState> {
   @override
   Stream<ChatListState> get stream => _impl.stream();
 
-  Future<ChatId?> createContactChat({required UiUserHandle handle}) async {
-    final res = await _impl.createContactChat(handle: handle);
+  Future<AddHandleContactResult> createContactChat({
+    required UiUserHandle handle,
+    required UserHandleHash hash,
+  }) => _impl.createContactChat(handle: handle, hash: hash);
 
-    switch (res) {
-      case AddHandleContactResult_Ok(field0: final chatId):
-        return chatId;
-      case AddHandleContactResult_Err(field0: final error):
-        switch (error) {
-          case AddHandleContactError.handleNotFound:
-            return null;
-          case AddHandleContactError.duplicateRequest:
-          case AddHandleContactError.ownHandle:
-            throw Exception('Failed to create contact chat: $error');
-        }
-    }
-  }
-
-  Future<ChatId> createGroupChat({required String groupName}) =>
-      _impl.createGroupChat(groupName: groupName);
+  Future<ChatId> createGroupChat({
+    required String groupName,
+    Uint8List? picture,
+  }) => _impl.createGroupChat(groupName: groupName, picture: picture);
 }

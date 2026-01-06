@@ -9,13 +9,13 @@ import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/desktop/width_constraints.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:air/util/cached_memory_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:provider/provider.dart';
 
 import 'registration_cubit.dart';
@@ -27,12 +27,10 @@ class SignUpScreen extends HookWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final colors = CustomColorScheme.of(context);
-    final Color backgroundColor = colors.backgroundBase.secondary;
+    final backgroundColor = colors.backgroundBase.secondary;
 
     final formKey = useMemoized(() => GlobalKey<FormState>());
     final showErrors = useState(false);
-
-    final isKeyboardShown = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -49,12 +47,8 @@ class SignUpScreen extends HookWidget {
         backgroundColor: Colors.transparent,
       ),
       backgroundColor: backgroundColor,
-      body: Container(
-        color: backgroundColor,
-        child: SafeArea(
-          minimum: EdgeInsets.only(
-            bottom: isKeyboardShown ? Spacings.s : Spacings.l + Spacings.xxs,
-          ),
+      body: SafeArea(
+        child: Center(
           child: ConstrainedWidth(
             child: Column(
               children: [
@@ -64,22 +58,13 @@ class SignUpScreen extends HookWidget {
                       return SingleChildScrollView(
                         keyboardDismissBehavior:
                             ScrollViewKeyboardDismissBehavior.onDrag,
-                        padding: const EdgeInsets.only(
-                          left: Spacings.s,
-                          right: Spacings.s,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: Spacings.s,
+                          vertical: Spacings.xs,
                         ),
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minHeight: constraints.maxHeight,
-                          ),
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            child: _Form(
-                              formKey: formKey,
-                              showErrors: showErrors.value,
-                              showAvatar: !isKeyboardShown,
-                            ),
-                          ),
+                        child: _Form(
+                          formKey: formKey,
+                          showErrors: showErrors.value,
                         ),
                       );
                     },
@@ -93,6 +78,7 @@ class SignUpScreen extends HookWidget {
                     showErrors: showErrors,
                   ),
                 ),
+                const SizedBox(height: Spacings.s),
               ],
             ),
           ),
@@ -103,15 +89,10 @@ class SignUpScreen extends HookWidget {
 }
 
 class _Form extends HookWidget {
-  const _Form({
-    required this.formKey,
-    required this.showErrors,
-    required this.showAvatar,
-  });
+  const _Form({required this.formKey, required this.showErrors});
 
   final GlobalKey<FormState> formKey;
   final bool showErrors;
-  final bool showAvatar;
 
   @override
   Widget build(BuildContext context) {
@@ -133,7 +114,6 @@ class _Form extends HookWidget {
       child: Center(
         child: Column(
           children: [
-            const SizedBox(height: Spacings.xs),
             Text(
               loc.signUpScreen_subheader,
               style: Theme.of(context).textTheme.bodyMedium,
@@ -141,14 +121,12 @@ class _Form extends HookWidget {
             ),
             const SizedBox(height: Spacings.l),
 
-            if (showAvatar) ...[
-              GestureDetector(
-                onTap: () => _pickAvatar(context),
-                onLongPress: () => serverFieldVisible.value = true,
-                child: const _UserAvatarPicker(),
-              ),
-              const SizedBox(height: Spacings.l),
-            ],
+            GestureDetector(
+              onTap: () => _pickAvatar(context),
+              onLongPress: () => serverFieldVisible.value = true,
+              child: const _UserAvatarPicker(),
+            ),
+            const SizedBox(height: Spacings.l),
 
             ConstrainedBox(
               constraints: textFormContstraints,
@@ -228,13 +206,10 @@ class _UserAvatarPicker extends StatelessWidget {
                 color: colors.fill.tertiary,
               ),
               alignment: Alignment.center,
-              child: IgnorePointer(
+              child: const IgnorePointer(
                 child: IconTheme(
-                  data: const IconThemeData(),
-                  child: iconoir.MediaImagePlus(
-                    width: 24,
-                    color: colors.text.primary,
-                  ),
+                  data: IconThemeData(),
+                  child: AppIcon.imagePlus(size: 24),
                 ),
               ),
             ),
@@ -359,8 +334,23 @@ class _SignUpButton extends StatelessWidget {
               _submit(context, formKey);
             },
       child: isSigningUp
-          ? CircularProgressIndicator(color: colors.function.toggleWhite)
-          : Text(loc.signUpScreen_actionButton),
+          ? SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  colors.function.toggleWhite,
+                ),
+              ),
+            )
+          : Text(
+              loc.signUpScreen_actionButton,
+              style: TextStyle(
+                color: colors.function.toggleWhite,
+                fontSize: LabelFontSize.base.size,
+              ),
+            ),
     );
   }
 }
@@ -391,7 +381,8 @@ void _submit(BuildContext context, GlobalKey<FormState> formKey) async {
       return;
     }
     registrationCubit.startUsernameOnboarding(suggestion);
-    navigationCubit.pop();
+    navigationCubit.pop(); // Invitation code screen
+    navigationCubit.pop(); // Sign up screen
     navigationCubit.openIntroScreen(const IntroScreenType.usernameOnboarding());
   } else if (context.mounted) {
     final loc = AppLocalizations.of(context);

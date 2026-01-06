@@ -9,16 +9,13 @@ import 'package:air/main.dart';
 import 'package:air/message_list/emoji_repository.dart';
 import 'package:air/message_list/emoji_autocomplete.dart';
 import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/user/user_settings_cubit.dart';
 import 'package:air/util/debouncer.dart';
 import 'package:air/message_list/widgets/text_autocomplete.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:iconoir_flutter/regular/edit_pencil.dart';
-import 'package:iconoir_flutter/regular/plus.dart';
-import 'package:iconoir_flutter/regular/send.dart';
-import 'package:iconoir_flutter/regular/xmark.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
 import 'package:air/chat/chat_details.dart';
@@ -32,6 +29,8 @@ import 'package:provider/provider.dart';
 import 'message_renderer.dart';
 
 final _log = Logger("MessageComposer");
+const double _composerLineHeight = 1.3;
+final double _composerFontSize = BodyFontSize.base.size;
 
 class MessageComposer extends StatefulWidget {
   const MessageComposer({super.key});
@@ -49,11 +48,15 @@ class _MessageComposerState extends State<MessageComposer>
   StreamSubscription<ChatDetailsState>? _draftLoadingSubscription;
   final _focusNode = FocusNode();
   late ChatDetailsCubit _chatDetailsCubit;
-  bool _keyboardVisible = false;
   bool _inputIsEmpty = true;
   final LayerLink _inputFieldLink = LayerLink();
   final GlobalKey _inputFieldKey = GlobalKey();
   late final TextAutocompleteController<EmojiEntry> _emojiAutocomplete;
+  double _actionButtonSize = _defaultActionButtonSize;
+  bool _actionButtonSizeUpdateScheduled = false;
+
+  static const double _defaultActionButtonSize = 48;
+  static const double _maxActionButtonSize = Spacings.xl;
 
   @override
   void initState() {
@@ -105,6 +108,14 @@ class _MessageComposerState extends State<MessageComposer>
         default:
       }
     });
+
+    _scheduleActionButtonSizeUpdate();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _scheduleActionButtonSizeUpdate();
   }
 
   @override
@@ -126,38 +137,26 @@ class _MessageComposerState extends State<MessageComposer>
   }
 
   @override
-  void didChangeMetrics() {
-    final view = View.of(context);
-    final bottomInset = view.viewInsets.bottom;
-    final keyboardVisible = bottomInset > 0.0;
-
-    if (_keyboardVisible != keyboardVisible) {
-      setState(() {
-        _keyboardVisible = keyboardVisible;
-      });
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final (chatTitle, editingId) = context.select(
-      (ChatDetailsCubit cubit) =>
-          (cubit.state.chat?.title, cubit.state.chat?.draft?.editingId),
-    );
+    final (chatTitle, editingId, isConfirmedChat) = context.select((
+      ChatDetailsCubit cubit,
+    ) {
+      final chat = cubit.state.chat;
+      return (chat?.title, chat?.draft?.editingId, chat?.isConfirmed ?? false);
+    });
 
     if (chatTitle == null) {
       return const SizedBox.shrink();
     }
 
+    _scheduleActionButtonSizeUpdate();
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 1000),
       child: Container(
         color: CustomColorScheme.of(context).backgroundBase.primary,
-        padding: EdgeInsets.only(
+        padding: const EdgeInsets.only(
           top: Spacings.xs,
-          bottom: isSmallScreen(context) && !_keyboardVisible
-              ? Spacings.m
-              : Spacings.xs,
           left: Spacings.xs,
           right: Spacings.xs,
         ),
@@ -181,23 +180,22 @@ class _MessageComposerState extends State<MessageComposer>
                   isEditing: editingId != null,
                   layerLink: _inputFieldLink,
                   inputKey: _inputFieldKey,
+                  onSubmitMessage: () =>
+                      _submitMessage(context.read<ChatDetailsCubit>()),
                 ),
               ),
             ),
             if (editingId != null)
               Container(
-                width: 50,
-                height: 50,
+                width: _actionButtonSize,
+                height: _actionButtonSize,
                 margin: const EdgeInsets.only(left: Spacings.xs),
                 decoration: BoxDecoration(
                   color: CustomColorScheme.of(context).backgroundBase.secondary,
-                  borderRadius: BorderRadius.circular(Spacings.m),
+                  borderRadius: BorderRadius.circular(_maxActionButtonSize),
                 ),
                 child: IconButton(
-                  icon: Xmark(
-                    color: CustomColorScheme.of(context).text.primary,
-                    width: 32,
-                  ),
+                  icon: AppIcon.x(size: _actionButtonSize / 2),
                   color: CustomColorScheme.of(context).text.primary,
                   hoverColor: const Color(0x00FFFFFF),
                   onPressed: () {
@@ -207,32 +205,28 @@ class _MessageComposerState extends State<MessageComposer>
                 ),
               ),
             Container(
-              width: 50,
-              height: 50,
+              width: _actionButtonSize,
+              height: _actionButtonSize,
               margin: const EdgeInsets.only(left: Spacings.xs),
               decoration: BoxDecoration(
                 color: CustomColorScheme.of(context).backgroundBase.secondary,
-                borderRadius: BorderRadius.circular(Spacings.m),
+                borderRadius: BorderRadius.circular(_maxActionButtonSize),
               ),
               child: IconButton(
                 icon: _inputIsEmpty
-                    ? Plus(
-                        color: CustomColorScheme.of(context).text.primary,
-                        width: 32,
-                      )
-                    : Send(
-                        color: CustomColorScheme.of(context).text.primary,
-                        width: 32,
-                      ),
+                    ? AppIcon.plus(size: _actionButtonSize / 2)
+                    : AppIcon.arrowUp(size: _actionButtonSize / 2),
                 color: CustomColorScheme.of(context).text.primary,
                 hoverColor: const Color(0x00FFFFFF),
-                onPressed: () {
-                  if (_inputIsEmpty) {
-                    _uploadAttachment(context, chatTitle: chatTitle);
-                  } else {
-                    _submitMessage(context.read());
-                  }
-                },
+                onPressed: isConfirmedChat
+                    ? () {
+                        if (_inputIsEmpty) {
+                          _uploadAttachment(context, chatTitle: chatTitle);
+                        } else {
+                          _submitMessage(context.read());
+                        }
+                      }
+                    : null,
               ),
             ),
           ],
@@ -365,6 +359,35 @@ class _MessageComposerState extends State<MessageComposer>
       );
     });
     _emojiAutocomplete.handleTextChanged();
+    _scheduleActionButtonSizeUpdate();
+  }
+
+  void _scheduleActionButtonSizeUpdate() {
+    if (_actionButtonSizeUpdateScheduled) {
+      return;
+    }
+    _actionButtonSizeUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _actionButtonSizeUpdateScheduled = false;
+      if (!mounted) {
+        return;
+      }
+      _updateActionButtonSize();
+    });
+  }
+
+  void _updateActionButtonSize() {
+    final newHeight = _inputFieldKey.currentContext?.size?.height;
+    if (newHeight == null || newHeight <= 0) {
+      return;
+    }
+    final targetHeight = newHeight.clamp(0.0, _maxActionButtonSize).toDouble();
+    if ((_actionButtonSize - targetHeight).abs() < 0.5) {
+      return;
+    }
+    setState(() {
+      _actionButtonSize = targetHeight;
+    });
   }
 }
 
@@ -376,6 +399,7 @@ class _MessageInput extends StatelessWidget {
     required this.isEditing,
     required this.layerLink,
     required this.inputKey,
+    required this.onSubmitMessage,
   }) : _focusNode = focusNode,
        _controller = controller;
 
@@ -385,6 +409,7 @@ class _MessageInput extends StatelessWidget {
   final bool isEditing;
   final LayerLink layerLink;
   final GlobalKey inputKey;
+  final VoidCallback onSubmitMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -392,7 +417,12 @@ class _MessageInput extends StatelessWidget {
       (UserSettingsCubit cubit) => cubit.state.sendOnEnter,
     );
 
+    final isConfirmedChat = context.select(
+      (ChatDetailsCubit cubit) => cubit.state.chat?.isConfirmed ?? false,
+    );
+
     final loc = AppLocalizations.of(context);
+    final color = CustomColorScheme.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,13 +436,16 @@ class _MessageInput extends StatelessWidget {
             ),
             child: Row(
               children: [
-                EditPencil(color: CustomColorScheme.of(context).text.tertiary),
+                AppIcon.pencil(
+                  size: 20,
+                  color: CustomColorScheme.of(context).text.tertiary,
+                ),
                 const SizedBox(width: Spacings.xxs),
                 Text(
                   loc.composer_editMessage,
                   style: TextStyle(
                     fontSize: LabelFontSize.small1.size,
-                    color: CustomColorScheme.of(context).text.tertiary,
+                    color: color.text.tertiary,
                   ),
                 ),
               ],
@@ -424,20 +457,29 @@ class _MessageInput extends StatelessWidget {
           child: TextField(
             focusNode: _focusNode,
             controller: _controller,
+            style: TextStyle(
+              fontSize: _composerFontSize,
+              height: _composerLineHeight,
+              color: color.text.primary,
+            ),
             minLines: 1,
             maxLines: 10,
+            enabled: isConfirmedChat,
             decoration: InputDecoration(
+              isDense: true,
               hintText: loc.composer_inputHint(chatTitle ?? ""),
               hintMaxLines: 1,
               hintStyle: TextStyle(
-                color: CustomColorScheme.of(context).text.tertiary,
+                color: color.text.tertiary,
                 overflow: TextOverflow.ellipsis,
               ),
             ).copyWith(filled: false),
             textInputAction: sendOnEnter
                 ? TextInputAction.send
                 : TextInputAction.newline,
-            onEditingComplete: () => _focusNode.requestFocus(),
+            onEditingComplete: sendOnEnter
+                ? onSubmitMessage
+                : () => _focusNode.requestFocus(),
             keyboardType: TextInputType.multiline,
             textCapitalization: TextCapitalization.sentences,
           ),

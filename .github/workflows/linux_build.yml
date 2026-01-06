@@ -29,7 +29,7 @@ jobs:
       - run: curl -fsSL https://fvm.app/install.sh | bash
 
       - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@1.90.0
+        uses: dtolnay/rust-toolchain@1.92.0
 
       - uses: Swatinem/rust-cache@v2
         with:

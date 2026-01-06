@@ -16,5 +16,6 @@ pub mod qs;
 pub mod rate_limiter;
 pub mod settings;
 pub(crate) mod util;
+pub(crate) mod version;
 
 pub use mls_assist::messages::{AssistedGroupInfo, AssistedMessageOut};

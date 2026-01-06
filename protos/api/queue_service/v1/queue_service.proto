@@ -39,6 +39,7 @@ message QsClientId {
 // create user
 
 message CreateUserRequest {
+  common.v1.ClientMetadata client_metadata = 7;
   QsUserVerifyingKey user_record_auth_key = 1;
   FriendshipToken friendship_token = 2;
   QsClientVerifyingKey client_record_auth_key = 3;
@@ -71,6 +72,7 @@ message CreateUserResponse {
 // update user
 
 message UpdateUserRequest {
+  common.v1.ClientMetadata client_metadata = 4;
   QsUserId sender = 1;
   QsUserVerifyingKey user_record_auth_key = 2;
   FriendshipToken friendship_token = 3;
@@ -81,6 +83,7 @@ message UpdateUserResponse {}
 // delete user
 
 message DeleteUserRequest {
+  common.v1.ClientMetadata client_metadata = 2;
   QsUserId sender = 1;
   // TODO: don't we need user_record_auth_key here?
 }
@@ -90,6 +93,7 @@ message DeleteUserResponse {}
 // create client
 
 message CreateClientRequest {
+  common.v1.ClientMetadata client_metadata = 6;
   QsUserId sender = 1;
   QsClientVerifyingKey client_record_auth_key = 2;
   common.v1.RatchetEncryptionKey queue_encryption_key = 3;
@@ -104,6 +108,7 @@ message CreateClientResponse {
 // update client
 
 message UpdateClientRequest {
+  common.v1.ClientMetadata client_metadata = 5;
   QsClientId sender = 1;
   QsClientVerifyingKey client_record_auth_key = 2;
   common.v1.RatchetEncryptionKey queue_encryption_key = 3;
@@ -115,6 +120,7 @@ message UpdateClientResponse {}
 // delete client
 
 message DeleteClientRequest {
+  common.v1.ClientMetadata client_metadata = 2;
   QsClientId sender = 1;
 }
 
@@ -123,6 +129,7 @@ message DeleteClientResponse {}
 // publish key packages
 
 message PublishKeyPackagesRequest {
+  common.v1.ClientMetadata client_metadata = 3;
   QsClientId client_id = 1;
   repeated KeyPackage key_packages = 2;
 }
@@ -136,6 +143,7 @@ message PublishKeyPackagesResponse {}
 // key package
 
 message KeyPackageRequest {
+  common.v1.ClientMetadata client_metadata = 2;
   FriendshipToken sender = 1;
 }
 
@@ -143,27 +151,11 @@ message KeyPackageResponse {
   KeyPackage key_package = 1;
 }
 
-// dequeue messages
-
-message DequeueMessagesRequest {
-  QsClientId sender = 1;
-  uint64 sequence_number_start = 2;
-  uint64 max_message_number = 3;
-}
-
-message DequeueMessagesResponse {
-  repeated QueueMessage messages = 1;
-  uint64 remaining_messages_number = 2;
-}
-
-message QueueMessage {
-  uint64 sequence_number = 1;
-  common.v1.Ciphertext ciphertext = 2;
-}
-
 // qs encryption key
 
-message QsEncryptionKeyRequest {}
+message QsEncryptionKeyRequest {
+  common.v1.ClientMetadata client_metadata = 1;
+}
 
 message QsEncryptionKeyResponse {
   ClientIdEncryptionKey encryption_key = 1;
@@ -184,6 +176,7 @@ message ListenRequest {
 }
 
 message InitListenRequest {
+  common.v1.ClientMetadata client_metadata = 3;
   QsClientId client_id = 1;
   // Sequence number to start listening from (inclusive)
   uint64 sequence_number_start = 2;
@@ -207,11 +200,10 @@ message QueueEvent {
 // Event notifying receipients that the queue is empty
 message QueueEmpty {}
 
-// Event notifying receipients that something was added to their queue
-//
-// Delivered either over an active listening stream, or if there is none, over
-// a push notification.
-message QueueEventUpdate {}
+message QueueMessage {
+  uint64 sequence_number = 1;
+  common.v1.Ciphertext ciphertext = 2;
+}
 
 // Payload sent over a listen stream from one client to other clients that are
 // *currently listening*

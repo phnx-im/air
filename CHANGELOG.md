@@ -1,3 +1,100 @@
+## [0.7.0] - 2025-12-28
+
+### 🚀 Features
+
+- *(app)* Sort user lists in alphabetical order (#889)
+- *(app)* Generate and display safety codes (#906)
+- *(app)* Adjust design of add contact dialog (#911)
+- *(app)* Better image names (#915)
+- *(app)* Add contact dialog in 2 steps (#914)
+- *(app)* Design tweaks for the member screen (incl. a fix) (#917)
+- *(app)* Disable chat details for pending chats (#923)
+- *(app)* Chat list design overhaul (#926)
+- *(app)* New icon system (#912)
+- *(app)* Drop read receipts (#931)
+- *(app)* Localize user handle validation error messages (#934)
+
+### 🐛 Bug Fixes
+
+- *(ci)* Exclude RC version of xcode (#907)
+- *(ci)* Fixed xcode version (#908)
+- *(app)* New users have invalid domain (#909)
+- *(app)* Alternative file lock (#910)
+- *(app)* Send on enter (#916)
+- *(app)* Colors in overlapping checks icon and group details buttons (#920)
+- *(app)* Don't fail profile update for groups without a chat (#921)
+- *(server)* Race condition in QS postres listen/unlisten (#919)
+- *(app)* Set a picture during group creation (#922)
+- *(app)* Lower minimum required iOS version for NSE (#925)
+- *(app)* Clean up the composer (#924)
+- *(app)* Solid color for message previews (#929)
+- *(app)* Size of the app back button (#927)
+- *(app)* Allow underscores in legacy names (#935)
+- *(app)* Safety code design (#932)
+
+### ⚙️ Miscellaneous Tasks
+
+- Remove unused dependencies (#913)
+- Add staging deployment configuration (#918)
+- *(app)* No more underscores (#933)
+- *(app)* Missing translations (#928)
+
+## [0.6.0] - 2025-12-12
+
+### 🚀 Features
+
+- *(app)* Design consistency (#850)
+- *(coreclient)* Have contact getter return full or partial contact (#858)
+- *(app)* Add connection event system messages (#852)
+- *(app)* Remove group description in group creation flow (#866)
+- *(app)* Filtered notifications (#870)
+- *(app)* Share attachments on iOS (#863)
+- *(app)* Improve saving of attachments on Android (#864)
+- *(app)* Add group title editing (#865)
+- *(app)* Align contact and member details design (#875)
+- *(backend)* Introduce client metadata in RPCs (#878)
+- *(app)* Add chat button to contact details (#860)
+- *(app)* Adjusted colors (#880)
+- *(app)* More color adjustments (#883)
+- *(server)* Add version requirement setting in the server (#885)
+- *(app, coreclient)* Update message status when sending fails (#886)
+- *(app)* Rotate symbol when message is sending (#894)
+- *(app)* Improve iOS NSE (#891)
+- *(app)* Scale large messages in mobile context menu (#890)
+- *(app)* Graceful suspension on iOS (#888)
+- *(app)* Show system messages in message preview (#893)
+- *(app)* Link confirmation (#896)
+- *(app)* Surface handle contact errors in UI (#897)
+- *(app)* Tweak display of sending and failed to send status (#899)
+- *(app)* Show update required screen for unsupported clients (#887)
+- *(app, server)* Registration via invitation codes (#892)
+- *(app)* Connection requests (#898)
+
+### 🐛 Bug Fixes
+
+- *(app)* Save attachment on Desktop (#862)
+- *(app)* Close all other screens when opening a chat (#868)
+- *(app)* Update message list state on an updated message (#867)
+- *(app)* Sometimes re-upload button is shown for downloads (#869)
+- *(app)* Default scroll physics per platform (#879)
+- *(app)* Various papercuts (#874)
+- *(app)* Message flight calculation (#884)
+- *(app)* Fix remove button in group members screen (#895)
+- *(app)* Redirect to prod server for checking invitation code (#900)
+
+### 💼 Other
+
+- *(server)* Strip debug symbols (#873)
+
+### 🧪 Testing
+
+- *(server)* Allow running integration tests with external server (#872)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(coreclient)* Expose errors when adding contact via handle (#871)
+- *(app, server)* Update rust to 1.92 (#904)
+
 ## [0.5.0] - 2025-11-25
 
 ### 🚀 Features

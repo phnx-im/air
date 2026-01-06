@@ -5,15 +5,17 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:air/core/api/markdown.dart';
+import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/spacings.dart';
+import 'package:air/ui/colors/palette.dart';
+import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/components/modal/app_dialog.dart';
+import 'package:air/ui/icons/app_icons.dart';
+import 'package:air/ui/typography/font_size.dart';
 import 'package:air/ui/typography/monospace.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:air/core/api/markdown.dart';
-import 'package:air/ui/colors/palette.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/typography/font_size.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:url_launcher/url_launcher.dart';
 
 Widget buildBlockElement(
@@ -267,10 +269,11 @@ InlineSpan buildInlineElement(
   bool isSender, {
   Uri? destUrl,
 }) {
+  final colors = CustomColorScheme.of(context);
   return switch (inline.element) {
     InlineElement_Text(:final field0) => TextSpan(
       text: field0,
-      recognizer: destUrl != null ? openLinkRecognizer(destUrl) : null,
+      recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
     ),
     InlineElement_Code(:final field0) => TextSpan(
       text: field0,
@@ -291,12 +294,8 @@ InlineSpan buildInlineElement(
           )
           .toList(),
       style: TextStyle(
-        color: isSender
-            ? CustomColorScheme.of(context).function.selfLink
-            : CustomColorScheme.of(context).function.link,
-        decorationColor: isSender
-            ? CustomColorScheme.of(context).function.selfLink
-            : CustomColorScheme.of(context).function.link,
+        color: colors.function.link,
+        decorationColor: colors.function.link,
         decoration: TextDecoration.underline,
       ),
     ),
@@ -305,21 +304,21 @@ InlineSpan buildInlineElement(
           .map((child) => buildInlineElement(context, child, isSender))
           .toList(),
       style: const TextStyle(fontWeight: FontWeight.bold),
-      recognizer: destUrl != null ? openLinkRecognizer(destUrl) : null,
+      recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
     ),
     InlineElement_Italic(:final field0) => TextSpan(
       children: field0
           .map((child) => buildInlineElement(context, child, isSender))
           .toList(),
       style: const TextStyle(fontStyle: FontStyle.italic),
-      recognizer: destUrl != null ? openLinkRecognizer(destUrl) : null,
+      recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
     ),
     InlineElement_Strikethrough(:final field0) => TextSpan(
       children: field0
           .map((child) => buildInlineElement(context, child, isSender))
           .toList(),
       style: const TextStyle(decoration: TextDecoration.lineThrough),
-      recognizer: destUrl != null ? openLinkRecognizer(destUrl) : null,
+      recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
     ),
     InlineElement_Spoiler(:final field0) => TextSpan(
       children: field0
@@ -333,7 +332,7 @@ InlineSpan buildInlineElement(
         ]),
       ),
     ),
-    InlineElement_Image() => const WidgetSpan(child: iconoir.MediaImage()),
+    InlineElement_Image() => const WidgetSpan(child: AppIcon.image()),
     InlineElement_TaskListMarker(:final field0) => WidgetSpan(
       alignment: PlaceholderAlignment.middle,
       child: Padding(
@@ -342,32 +341,120 @@ InlineSpan buildInlineElement(
           right: Spacings.xxs,
         ),
         child: field0
-            ? iconoir.CheckSquare(
-                width: 20,
-                height: 20,
+            ? AppIcon.squareCheck(
+                size: 20,
                 color: isSender
-                    ? CustomColorScheme.of(context).message.selfCheckboxCheck
-                    : CustomColorScheme.of(context).message.otherCheckboxCheck,
+                    ? colors.message.selfCheckboxCheck
+                    : colors.message.otherCheckboxCheck,
               )
-            : iconoir.Square(
-                width: 20,
-                height: 20,
+            : AppIcon.square(
+                size: 20,
                 color: isSender
-                    ? CustomColorScheme.of(context).message.selfCheckboxCheck
-                    : CustomColorScheme.of(context).message.otherCheckboxCheck,
+                    ? colors.message.selfCheckboxCheck
+                    : colors.message.otherCheckboxCheck,
               ),
       ),
     ),
   };
 }
 
-TapGestureRecognizer openLinkRecognizer(Uri uri) =>
+TapGestureRecognizer openLinkRecognizer(BuildContext context, Uri uri) =>
     TapGestureRecognizer()
       ..onTap = () async {
+        final shouldOpen = await _showLinkConfirmationDialog(context, uri);
+        if (!shouldOpen) {
+          return;
+        }
+
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
         }
       };
+
+Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) {
+      final loc = AppLocalizations.of(context);
+      final colors = CustomColorScheme.of(dialogContext);
+
+      return AppDialog(
+        child: Column(
+          mainAxisSize: .min,
+          crossAxisAlignment: .center,
+          children: [
+            Center(
+              child: Column(
+                spacing: Spacings.xxs,
+                children: [
+                  Text(
+                    loc.linkConfirmation_title,
+                    style: TextStyle(
+                      fontSize: HeaderFontSize.h4.size,
+                      fontWeight: .bold,
+                    ),
+                  ),
+                  Text(
+                    loc.linkConfirmation_description,
+                    textAlign: .center,
+                    style: TextStyle(
+                      color: colors.text.secondary,
+                      fontSize: BodyFontSize.base.size,
+                    ),
+                  ),
+                  Text(
+                    uri.toString(),
+                    textAlign: .center,
+                    style: TextStyle(
+                      color: colors.text.primary,
+                      fontSize: BodyFontSize.small2.size,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: Spacings.m),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop(false);
+                    },
+                    child: Text(loc.linkConfirmation_cancel),
+                  ),
+                ),
+                const SizedBox(width: Spacings.xs),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop(true);
+                    },
+                    style: ButtonStyle(
+                      backgroundColor: WidgetStatePropertyAll(
+                        colors.accent.primary,
+                      ),
+                      overlayColor: WidgetStatePropertyAll(
+                        colors.accent.primary,
+                      ),
+                      foregroundColor: WidgetStatePropertyAll(
+                        colors.function.toggleWhite,
+                      ),
+                    ),
+                    child: Text(loc.linkConfirmation_openLink),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    },
+  );
+
+  return result ?? false;
+}
 
 // The style used for formatting characters like * or >
 TextStyle highlightStyle(BuildContext context) =>
@@ -632,11 +719,7 @@ class CustomTextEditingController extends TextEditingController {
         ),
       ),
       InlineElement_Image() => buildCorrectWidget(
-        iconoir.MediaImage(
-          width: 32,
-          height: 14,
-          color: CustomColorScheme.of(context).text.primary,
-        ),
+        const AppIcon.image(size: 32),
         inline.start,
         inline.end,
       ),

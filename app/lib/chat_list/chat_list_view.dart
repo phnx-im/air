@@ -5,7 +5,6 @@
 import 'package:air/chat/chat_details.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
 
@@ -17,6 +16,10 @@ class ChatListContainer extends StatelessWidget {
   const ChatListContainer({required this.isStandalone, super.key});
 
   final bool isStandalone;
+
+  static Color backgroundColor(BuildContext context) {
+    return CustomColorScheme.of(context).backgroundBase.secondary;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,15 +40,10 @@ class ChatListView extends StatelessWidget {
   final bool scaffold;
   final ChatDetailsCubitCreate createChatDetailsCubit;
 
-  double _topPadding() {
-    return isPointer() ? Spacings.l : kToolbarHeight;
-  }
-
   @override
   Widget build(BuildContext context) {
     final widget = Container(
-      color: CustomColorScheme.of(context).backgroundBase.primary,
-      padding: EdgeInsets.only(top: _topPadding()),
+      color: ChatListContainer.backgroundColor(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -60,11 +58,35 @@ class ChatListView extends StatelessWidget {
     );
     return scaffold
         ? Scaffold(
-            backgroundColor: CustomColorScheme.of(
-              context,
-            ).backgroundBase.primary,
-            body: widget,
+            backgroundColor: ChatListContainer.backgroundColor(context),
+            body: Stack(
+              children: [
+                SafeArea(bottom: false, child: widget),
+                const Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: _ScrollGestureFix(),
+                ),
+              ],
+            ),
           )
         : widget;
+  }
+}
+
+/// This widget fixes the isssue on Android, where the swipe from the bottom
+/// of the screen opens the OS app switcher and the same time scrolls the chat list
+/// view.
+class _ScrollGestureFix extends StatelessWidget {
+  const _ScrollGestureFix();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.paddingOf(context).bottom,
+      // Note: Color is required otherwise the scroll gesture is still handled by the widget below.
+      color: Colors.transparent,
+    );
   }
 }

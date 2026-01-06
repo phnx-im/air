@@ -14,11 +14,9 @@ use super::TlsString;
 
 const MIN_USER_HANDLE_LENGTH: usize = 5;
 const MAX_USER_HANDLE_LENGTH: usize = 63;
-// TODO: Temporarily allow both '-' and '_' so older clients remain compatible while new
-// ones emit dashes. Remove '_' once the transition is complete.
-const USER_HANDLE_CHARSET: &[u8] = b"-_0123456789abcdefghijklmnopqrstuvwxyz";
+const USER_HANDLE_CHARSET: &[u8] = b"-0123456789abcdefghijklmnopqrstuvwxyz";
 
-pub const USER_HANDLE_VALIDITY_PERIOD: Duration = Duration::days(30);
+pub const USER_HANDLE_VALIDITY_PERIOD: Duration = Duration::days(90);
 
 /// Validated plaintext user handle
 #[derive(
@@ -40,9 +38,13 @@ impl fmt::Debug for UserHandle {
 impl UserHandle {
     pub fn new(plaintext: String) -> Result<Self, UserHandleValidationError> {
         Self::validate(&plaintext)?;
-        Ok(Self {
+        Ok(Self::new_from_raw(plaintext))
+    }
+
+    fn new_from_raw(plaintext: String) -> Self {
+        Self {
             plaintext: TlsString(plaintext),
-        })
+        }
     }
 
     fn validate(plaintext: &str) -> Result<(), UserHandleValidationError> {
@@ -155,7 +157,7 @@ mod sqlx_impls {
     impl Decode<'_, Sqlite> for UserHandle {
         fn decode(value: <Sqlite as Database>::ValueRef<'_>) -> Result<Self, BoxDynError> {
             let plaintext: String = Decode::<Sqlite>::decode(value)?;
-            let value = UserHandle::new(plaintext)?;
+            let value = UserHandle::new_from_raw(plaintext);
             Ok(value)
         }
     }
@@ -249,11 +251,13 @@ mod tests {
         ));
     }
 
-    // TODO: Remove this test once underscores are no longer allowed
     #[test]
-    fn test_user_handle_temporarily_allows_underscore() {
+    fn test_user_handle_rejects_underscore() {
         let handle = UserHandle::new("legacy_name".to_string());
-        assert!(handle.is_ok());
+        assert!(matches!(
+            handle.unwrap_err(),
+            UserHandleValidationError::InvalidCharacter
+        ));
     }
 
     #[test]

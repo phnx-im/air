@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use aircommon::identifiers::UserHandle;
+use aircommon::identifiers::{UserHandle, UserHandleHash};
 use aircoreclient::{
     AddHandleContactResult, ChatId,
     clients::CoreUser,
@@ -87,16 +87,21 @@ impl ChatListCubitBase {
     pub async fn create_contact_chat(
         &self,
         handle: UiUserHandle,
+        hash: UserHandleHash,
     ) -> anyhow::Result<AddHandleContactResult> {
         let handle = UserHandle::new(handle.plaintext)?;
-        self.context.store.add_contact(handle).await
+        self.context.store.add_contact(handle, hash).await
     }
 
-    /// Creates a new group chat with the given name.
+    /// Creates a new group chat with the given name and optional picture.
     ///
     /// After the chat is created, the current user is the only member of the group.
-    pub async fn create_group_chat(&self, group_name: String) -> anyhow::Result<ChatId> {
-        let id = self.context.store.create_chat(group_name, None).await?;
+    pub async fn create_group_chat(
+        &self,
+        group_name: String,
+        picture: Option<Vec<u8>>,
+    ) -> anyhow::Result<ChatId> {
+        let id = self.context.store.create_chat(group_name, picture).await?;
         self.context.load_and_emit_state().await;
         Ok(id)
     }

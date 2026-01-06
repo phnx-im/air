@@ -4,7 +4,7 @@
 
 [package]
 name = "airserver_test_harness"
-version = "0.5.0"
+version = "0.7.0"
 edition = "2024"
 publish = false
 license = "AGPL-3.0-or-later"
@@ -16,11 +16,14 @@ aircoreclient = { workspace = true, features = ["test_utils"] }
 airserver.workspace = true
 anyhow.workspace = true
 mimi_content.workspace = true
+png.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
+semver.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["process"] }
 tokio-stream.workspace = true
+tonic.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 url.workspace = true

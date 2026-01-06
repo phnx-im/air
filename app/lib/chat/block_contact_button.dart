@@ -6,10 +6,10 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/dialog.dart';
 import 'package:flutter/material.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:provider/provider.dart';
 
 class BlockContactButton extends StatelessWidget {
@@ -25,15 +25,29 @@ class BlockContactButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final color = CustomColorScheme.of(context).function.danger;
+
+    final colors = CustomColorScheme.of(context);
+
+    final isDesktop = ResponsiveScreen.isDesktop(context);
+
     return OutlinedButton(
       onPressed: () => _block(context),
+      style: ButtonStyle(
+        minimumSize: WidgetStatePropertyAll(
+          Size(isDesktop ? 320 : double.infinity, 0),
+        ),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         spacing: Spacings.xs,
         children: [
-          iconoir.Prohibition(width: 20, color: color),
-          Text(loc.blockContactButton_text, style: TextStyle(color: color)),
+          Text(
+            loc.blockContactButton_text,
+            style: TextStyle(
+              fontSize: LabelFontSize.base.size,
+              color: colors.text.primary,
+            ),
+          ),
         ],
       ),
     );

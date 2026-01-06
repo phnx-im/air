@@ -5,9 +5,9 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/core/core.dart';
 import 'package:air/navigation/navigation.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// Wrapper of the [UserCubitBase] that implements a [StateStreamableSource]
 ///
@@ -92,4 +92,18 @@ class UserCubit implements StateStreamableSource<UiUser> {
         dbPath: await dbPath(),
         confirmationText: confirmationText,
       );
+
+  Future<UiContact?> contact({required UiUserId userId}) =>
+      _impl.contact(userId: userId);
+
+  Future<ChatId> addContactFromGroup({
+    required ChatId chatId,
+    required UiUserId userId,
+  }) => _impl.addContactFromGroup(chatId: chatId, userId: userId);
+
+  Future<UserHandleHash?> checkHandleExists({required UiUserHandle handle}) =>
+      _impl.checkHandleExists(handle: handle);
+
+  Future<intArray12> safetyCodes(UiUserId userId) =>
+      _impl.safetyCodes(otherUserId: userId);
 }

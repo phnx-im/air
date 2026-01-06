@@ -82,6 +82,7 @@ class _MobileMessageActionView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Layout inputs derived from the current overlay and safe areas.
     final mediaQuery = MediaQuery.of(context);
     final size = mediaQuery.size;
     final safeTop = mediaQuery.padding.top + Spacings.m;
@@ -89,71 +90,103 @@ class _MobileMessageActionView extends StatelessWidget {
     const gap = Spacings.l;
     final messageHeight = anchorRect.height;
     final messageWidth = anchorRect.width;
-    final double maxTop = size.height - safeBottom - messageHeight;
 
-    double clampedStartTop = anchorRect.top.clamp(safeTop, maxTop);
-    final double startLeft = anchorRect.left;
-
+    // Height of the action sheet that may appear below the bubble.
     final double sheetHeight = actions.isEmpty
         ? 0.0
         : actions.length * _mobileActionRowHeight;
 
+    // Downscale bubble if it cannot fit into the available viewport space and
+    // reserve space for the action sheet when present.
+    final double availableHeight = size.height - safeTop - safeBottom;
+    double scale = 1.0;
+    if (availableHeight > 0 && messageHeight > availableHeight) {
+      scale = availableHeight / messageHeight;
+    }
+    if (sheetHeight > 0) {
+      final double availableWithSheet = availableHeight - (sheetHeight + gap);
+      if (availableWithSheet > 0 &&
+          messageHeight * scale > availableWithSheet) {
+        scale = availableWithSheet / messageHeight;
+      }
+    }
+    scale = scale.clamp(0.0, 1.0);
+
+    final double scaledMessageHeight = messageHeight * scale;
+
+    // Keep bubble top within visible bounds after scaling.
+    final double unclampedMaxTop =
+        size.height - safeBottom - scaledMessageHeight;
+    final double maxTop = unclampedMaxTop < safeTop ? safeTop : unclampedMaxTop;
+
+    final double startTop = anchorRect.top;
+    double clampedStartTop = anchorRect.top.clamp(safeTop, maxTop);
+
+    // Nudge the bubble up if needed so that the sheet fits below it.
     double targetTop = clampedStartTop;
-    double finalSheetTop = targetTop + messageHeight + gap;
+    double finalSheetTop = targetTop + scaledMessageHeight + gap;
 
     if (sheetHeight > 0) {
       double availableBelow =
-          size.height - safeBottom - (targetTop + messageHeight);
+          size.height - safeBottom - (targetTop + scaledMessageHeight);
       final double required = sheetHeight + gap;
 
+      // If the sheet would overflow below, shift the bubble up.
       if (availableBelow < required) {
         final double deficit = required - availableBelow;
         targetTop = (targetTop - deficit).clamp(safeTop, maxTop);
-        availableBelow = size.height - safeBottom - (targetTop + messageHeight);
+        availableBelow =
+            size.height - safeBottom - (targetTop + scaledMessageHeight);
       }
 
-      finalSheetTop = targetTop + messageHeight + gap;
+      finalSheetTop = targetTop + scaledMessageHeight + gap;
       final double sheetBottom = finalSheetTop + sheetHeight;
 
       if (sheetBottom > size.height - safeBottom) {
         finalSheetTop = size.height - safeBottom - sheetHeight;
-        final double newTargetTop = finalSheetTop - gap - messageHeight;
+        final double newTargetTop = finalSheetTop - gap - scaledMessageHeight;
         targetTop = newTargetTop.clamp(safeTop, maxTop);
-        finalSheetTop = targetTop + messageHeight + gap;
+        finalSheetTop = targetTop + scaledMessageHeight + gap;
         if (finalSheetTop + sheetHeight > size.height - safeBottom) {
           finalSheetTop = size.height - safeBottom - sheetHeight;
         }
       }
     }
 
-    final double targetLeft = startLeft;
+    // Keep horizontal alignment the same as the original bubble.
+    final double startLeft = alignEnd
+        ? anchorRect.right - messageWidth
+        : anchorRect.left;
 
+    // Action sheet starts below the original (unscaled) bubble.
     final double startSheetTop = anchorRect.bottom + gap;
     final double minSheetTop = safeTop;
-    final double maxSheetTop = size.height - safeBottom - sheetHeight;
-    final double clampedStartSheetTop = startSheetTop.clamp(
-      minSheetTop,
-      maxSheetTop,
-    );
+    final double maxSheetTop =
+        size.height - safeBottom - sheetHeight < minSheetTop
+        ? minSheetTop
+        : size.height - safeBottom - sheetHeight;
     final double clampedFinalSheetTop = finalSheetTop.clamp(
       minSheetTop,
       maxSheetTop,
     );
 
+    // Animate bubble position/scale and the sheet placement together.
     return AnimatedBuilder(
       animation: animation,
       child: IgnorePointer(ignoring: true, child: messageContent),
       builder: (context, child) {
+        // Interpolate bubble position while morphing into the scaled state.
         final eased = animation.value;
+        final double animatedScale = lerpDouble(1.0, scale, eased)!;
         final double backgroundOpacity = (eased * 0.65).clamp(0.0, 0.65);
         final double blurSigma = lerpDouble(0.0, 16.0, eased)!;
-
-        final double top = lerpDouble(clampedStartTop, targetTop, eased)!;
-        final double left = targetLeft;
+        final double top = lerpDouble(startTop, targetTop, eased)!;
+        final double left = startLeft;
         final double width = messageWidth;
 
+        // Slide the sheet from beneath the original bubble to its target.
         final double sheetTop = lerpDouble(
-          clampedStartSheetTop,
+          startSheetTop,
           clampedFinalSheetTop,
           eased,
         )!;
@@ -170,7 +203,16 @@ class _MobileMessageActionView extends StatelessWidget {
                 ),
               ),
             ),
-            Positioned(left: left, top: top, width: width, child: child!),
+            Positioned(
+              left: left,
+              top: top,
+              width: width,
+              child: Transform.scale(
+                scale: animatedScale,
+                alignment: alignEnd ? Alignment.topRight : Alignment.topLeft,
+                child: child!,
+              ),
+            ),
             if (sheetHeight > 0)
               Positioned(
                 left: alignEnd ? null : Spacings.m,

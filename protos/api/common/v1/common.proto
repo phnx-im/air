@@ -60,3 +60,29 @@ message ExpirationData {
   Timestamp not_before = 1;
   Timestamp not_after = 2;
 }
+
+message ClientMetadata {
+  // Semver version of the client
+  Version version = 1;
+}
+
+// Semver with additional build metadata
+message Version {
+  uint64 major = 1;
+  uint64 minor = 2;
+  uint64 patch = 3;
+  string pre = 4;
+  uint64 build_number = 5;
+  // Possibly truncated hash of the commit
+  bytes commit_hash = 6;
+}
+
+// Additional details attached to a GRPC status
+message StatusDetails {
+  StatusDetailsCode code = 1;
+}
+
+enum StatusDetailsCode {
+  STATUS_DETAILS_CODE_UNKNOWN = 0;
+  STATUS_DETAILS_CODE_VERSION_UNSUPPORTED = 1;
+}

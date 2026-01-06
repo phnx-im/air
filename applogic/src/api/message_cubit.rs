@@ -165,8 +165,14 @@ async fn calculate_flight_position(
     store: &impl Store,
     message: &UiChatMessage,
 ) -> StoreResult<UiFlightPosition> {
-    let prev_message = store.prev_message(message.id).await?.map(From::from);
-    let next_message = store.next_message(message.id).await?.map(From::from);
+    let prev_message = store
+        .prev_message(message.chat_id, message.id)
+        .await?
+        .map(From::from);
+    let next_message = store
+        .next_message(message.chat_id, message.id)
+        .await?
+        .map(From::from);
     Ok(UiFlightPosition::calculate(
         message,
         prev_message.as_ref(),
