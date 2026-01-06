@@ -70,7 +70,7 @@ jobs:
       - uses: taiki-e/install-action@cargo-machete
       - uses: dtolnay/rust-toolchain@1.90.0
       - uses: cargo-bins/cargo-binstall@main
-      - run: cargo binstall cargo-deny@0.18.5 --no-confirm
+      - run: cargo binstall cargo-deny@0.18.9 --no-confirm
       - uses: Swatinem/rust-cache@v2
       - run: pip3 install --user reuse
       - run: pip3 install --user podman-compose
