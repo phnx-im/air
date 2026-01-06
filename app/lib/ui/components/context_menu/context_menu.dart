@@ -6,7 +6,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:air/theme/spacings.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
@@ -122,80 +122,12 @@ class _CursorMenuLayoutDelegate extends SingleChildLayoutDelegate {
       oldDelegate.safeArea != safeArea;
 }
 
-class _AnchoredMenuLayoutDelegate extends SingleChildLayoutDelegate {
-  const _AnchoredMenuLayoutDelegate({
-    required this.targetRect,
-    required this.direction,
-    required this.offset,
-    required this.safeArea,
-  });
-
-  final Rect targetRect;
-  final ContextMenuDirection direction;
-  final Offset offset;
-  final EdgeInsets safeArea;
-
-  double get _verticalGap {
-    switch (direction) {
-      case ContextMenuDirection.left:
-        return Spacings.xs + offset.dy;
-      case ContextMenuDirection.right:
-        return Spacings.xxs + offset.dy;
-    }
-  }
-
-  @override
-  Offset getPositionForChild(Size size, Size childSize) {
-    final verticalGap = _verticalGap;
-    final bottomBoundary = size.height - safeArea.bottom;
-    final spaceBelow = bottomBoundary - targetRect.bottom - verticalGap;
-    final spaceAbove = targetRect.top - safeArea.top - verticalGap;
-    // Prefer the side with more room; fall back if the preferred side fits.
-    final openBelow =
-        spaceBelow >= childSize.height || spaceBelow >= spaceAbove;
-
-    final anchorX = switch (direction) {
-      ContextMenuDirection.left => targetRect.right,
-      ContextMenuDirection.right => targetRect.left,
-    };
-
-    // Align to the target edge and clamp into viewport bounds.
-    double dx = direction == ContextMenuDirection.left
-        ? anchorX - childSize.width - offset.dx
-        : anchorX + offset.dx;
-    double dy = openBelow
-        ? targetRect.bottom + verticalGap
-        : targetRect.top - childSize.height - verticalGap;
-
-    final minX = safeArea.left;
-    final minY = safeArea.top;
-    final maxX = (size.width - safeArea.right - childSize.width)
-        .clamp(minX, size.width)
-        .toDouble();
-    final maxY = (size.height - safeArea.bottom - childSize.height)
-        .clamp(minY, size.height)
-        .toDouble();
-    dx = dx.clamp(minX, maxX).toDouble();
-    dy = dy.clamp(minY, maxY).toDouble();
-
-    return Offset(dx, dy);
-  }
-
-  @override
-  bool shouldRelayout(_AnchoredMenuLayoutDelegate oldDelegate) =>
-      oldDelegate.targetRect != targetRect ||
-      oldDelegate.direction != direction ||
-      oldDelegate.offset != offset ||
-      oldDelegate.safeArea != safeArea;
-}
-
-class _ContextMenuState extends State<ContextMenu>
-    with SingleTickerProviderStateMixin {
+class _ContextMenuState extends State<ContextMenu> {
   final LayerLink _layerLink = LayerLink();
   final GlobalKey _targetKey = GlobalKey();
   ValueListenable<Offset?>? _attachedCursorPosition;
   VoidCallback? _cursorPositionListener;
-  late final Ticker _repositionTicker;
+  Size? _menuSize;
 
   Alignment get _targetAnchor {
     switch (widget.direction) {
@@ -228,16 +160,6 @@ class _ContextMenuState extends State<ContextMenu>
   void initState() {
     super.initState();
     _attachCursorListener();
-    // Keep the menu synced with a moving anchor (e.g. scrolling lists).
-    _repositionTicker = createTicker((_) {
-      if (!widget.controller.isShowing) {
-        _repositionTicker.stop();
-        return;
-      }
-      if (mounted) {
-        setState(() {});
-      }
-    });
   }
 
   @override
@@ -253,7 +175,6 @@ class _ContextMenuState extends State<ContextMenu>
   void dispose() {
     _detachCursorListener();
     _ContextMenuCoordinator.release(widget.controller);
-    _repositionTicker.dispose();
     super.dispose();
   }
 
@@ -281,6 +202,61 @@ class _ContextMenuState extends State<ContextMenu>
 
     cursorPosition.removeListener(_cursorPositionListener!);
     _attachedCursorPosition = null;
+  }
+
+  void _handleMenuSize(Size size) {
+    if (_menuSize == size) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _menuSize = size;
+    });
+  }
+
+  Offset _anchoredFollowerOffset({
+    required Rect targetRect,
+    required Size overlaySize,
+    required EdgeInsets safeArea,
+    required double menuWidth,
+    required double? maxHeight,
+  }) {
+    final verticalGap = widget.direction == ContextMenuDirection.left
+        ? Spacings.xs + widget.offset.dy
+        : Spacings.xxs + widget.offset.dy;
+    final bottomBoundary = overlaySize.height - safeArea.bottom;
+    final topBoundary = safeArea.top;
+    final spaceBelow = bottomBoundary - targetRect.bottom - verticalGap;
+    final spaceAbove = targetRect.top - topBoundary - verticalGap;
+    final menuHeight = _menuSize?.height ?? maxHeight ?? 0.0;
+    final openBelow = _menuSize == null
+        ? spaceBelow >= spaceAbove
+        : spaceBelow >= menuHeight || spaceBelow >= spaceAbove;
+
+    final anchorX = widget.direction == ContextMenuDirection.left
+        ? targetRect.right
+        : targetRect.left;
+
+    double dx = widget.direction == ContextMenuDirection.left
+        ? anchorX - menuWidth - widget.offset.dx
+        : anchorX + widget.offset.dx;
+    double dy = openBelow
+        ? targetRect.bottom + verticalGap
+        : targetRect.top - menuHeight - verticalGap;
+
+    final minX = safeArea.left;
+    final minY = safeArea.top;
+    final maxX = math.max(minX, overlaySize.width - safeArea.right - menuWidth);
+    final maxY = math.max(
+      minY,
+      overlaySize.height - safeArea.bottom - menuHeight,
+    );
+    dx = dx.clamp(minX, maxX).toDouble();
+    dy = dy.clamp(minY, maxY).toDouble();
+
+    return Offset(dx - targetRect.left, dy - targetRect.top);
   }
 
   @override
@@ -313,9 +289,6 @@ class _ContextMenuState extends State<ContextMenu>
 
       overlayChildBuilder: (BuildContext context) {
         _ContextMenuCoordinator.register(widget.controller);
-        if (!_repositionTicker.isActive) {
-          _repositionTicker.start();
-        }
 
         final overlayState = Overlay.of(context);
         final overlayBox =
@@ -435,13 +408,16 @@ class _ContextMenuState extends State<ContextMenu>
 
         final menuUi = SizedBox(
           width: menuWidth,
-          child: ContextMenuUi(
-            menuItems: updatedMenuItems,
-            maxHeight: maxHeight,
-            onHide: () {
-              widget.controller.hide();
-              _ContextMenuCoordinator.release(widget.controller);
-            },
+          child: _MeasureSize(
+            onChange: _handleMenuSize,
+            child: ContextMenuUi(
+              menuItems: updatedMenuItems,
+              maxHeight: maxHeight,
+              onHide: () {
+                widget.controller.hide();
+                _ContextMenuCoordinator.release(widget.controller);
+              },
+            ),
           ),
         );
 
@@ -468,12 +444,16 @@ class _ContextMenuState extends State<ContextMenu>
                 ),
               ),
               if (cursorPosition == null && targetRect != null)
-                CustomSingleChildLayout(
-                  delegate: _AnchoredMenuLayoutDelegate(
+                CompositedTransformFollower(
+                  link: _layerLink,
+                  targetAnchor: Alignment.topLeft,
+                  followerAnchor: Alignment.topLeft,
+                  offset: _anchoredFollowerOffset(
                     targetRect: targetRect,
-                    direction: widget.direction,
-                    offset: widget.offset,
+                    overlaySize: overlaySize,
                     safeArea: safeArea,
+                    menuWidth: menuWidth,
+                    maxHeight: maxHeight,
                   ),
                   child: menuUi,
                 )
@@ -541,5 +521,44 @@ class _ContextMenuState extends State<ContextMenu>
       return paddedWidth;
     }
     return paddedWidth.clamp(0.0, maxWidth);
+  }
+}
+
+class _MeasureSize extends SingleChildRenderObjectWidget {
+  const _MeasureSize({required this.onChange, super.child});
+
+  final ValueChanged<Size> onChange;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) {
+    return _RenderMeasureSize(onChange);
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant _RenderMeasureSize renderObject,
+  ) {
+    renderObject.onChange = onChange;
+  }
+}
+
+class _RenderMeasureSize extends RenderProxyBox {
+  _RenderMeasureSize(this.onChange);
+
+  ValueChanged<Size> onChange;
+  Size? _lastSize;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    final newSize = child?.size ?? Size.zero;
+    if (newSize == _lastSize) {
+      return;
+    }
+    _lastSize = newSize;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      onChange(newSize);
+    });
   }
 }
