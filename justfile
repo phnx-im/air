@@ -43,7 +43,7 @@ reset-dev:
     just _check-unstaged-changes "just regenerate-icons"
     echo "{{BOLD}}check-flutter done{{NORMAL}}"
 
-# Run Flutter-Rust bridge lint.
+# Run flutter rust bridge lint.
 @check-frb:
     just _check-unstaged-changes "just regenerate-frb"
 
@@ -66,6 +66,7 @@ _check-unstaged-changes command:
     {{command}} >/dev/null
     if ! git diff --quiet; then
         echo -e "{{RED}}Found unstaged changes.{{NORMAL}}"
+        git diff
         just _log-error "{{command}}"
     fi
 
@@ -108,7 +109,7 @@ regenerate-sqlx:
 
 # Recompile svg icons for rendering.
 regenerate-icons:
-    fvm dart run tools/compile_svg_icons.dart
+    cd app && fvm dart run tool/compile_svg_icons.dart
 
 # Run cargo build, clippy and test.
 @test-rust: start-docker-compose

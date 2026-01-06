@@ -25,7 +25,10 @@ jobs:
 
       ## CHECK FRB
       - uses: dtolnay/rust-toolchain@1.90.0
+
       - run: curl -fsSL https://fvm.app/install.sh | bash
+      - run: echo /home/runner/fvm/bin >> $GITHUB_PATH
+
       - run: (cd app && fvm install)
       - uses: actions/cache@v4
         with:
@@ -44,6 +47,8 @@ jobs:
 
       # CHECK FLUTTER
       - run: curl -fsSL https://fvm.app/install.sh | bash
+      - run: echo /home/runner/fvm/bin >> $GITHUB_PATH
+
       - run: (cd app && fvm install)
       - uses: extractions/setup-just@v2
       - run: just check-flutter

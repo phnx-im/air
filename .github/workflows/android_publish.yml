@@ -42,6 +42,7 @@ jobs:
           ruby-version: "3.3"
 
       - run: curl -fsSL https://fvm.app/install.sh | bash
+      - run: echo /home/runner/fvm/bin >> $GITHUB_PATH
 
       - name: Install required Java version
         uses: actions/setup-java@v4
