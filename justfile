@@ -84,7 +84,7 @@ _log-error msg:
 # Regenerate frb and l10n.
 regenerate: regenerate-frb regenerate-l10n regenerate-sqlx regenerate-icons
 
-# Regenerate Flutter-Rust bridge files.
+# Regenerate flutter rust bridge files.
 [working-directory: 'app']
 regenerate-frb:
     rm -f ../applogic/src/frb_*.rs
@@ -101,10 +101,12 @@ regenerate-l10n:
     cd app && cargo xtask prune-unused-l10n # pass --apply and optionally --safe to prevent data loss
     cd app && fvm flutter gen-l10n
 
+# Regenerate database query metadata.
 regenerate-sqlx:
     cd coreclient && cargo sqlx prepare --database-url sqlite:$PWD/client.db
     cd backend && cargo sqlx prepare
 
+# Recompile svg icons for rendering.
 regenerate-icons:
     fvm dart run tools/compile_svg_icons.dart
 
