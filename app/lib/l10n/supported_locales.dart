@@ -4,7 +4,8 @@
 
 import 'package:flutter/widgets.dart';
 
-/// Returns a locale list with en_US forced to the front for fallback selection.
+/// Returns a locale list with fallback forced to the front, if it is contained
+/// in the list.
 List<Locale> supportedLocalesWithFallback(
   List<Locale> locales,
   Locale fallback,
