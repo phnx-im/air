@@ -38,7 +38,7 @@ jobs:
           ruby-version: "3.3"
 
       - run: curl -fsSL https://fvm.app/install.sh | bash
-      - run: echo /home/runner/fvm/bin >> $GITHUB_PATH
+      - run: echo /Users/runner/fvm/bin >> $GITHUB_PATH
 
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@1.92.0
