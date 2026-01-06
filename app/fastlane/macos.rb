@@ -1,3 +1,5 @@
+ENV['PATH'] = "/home/runner/fvm/bin:#{ENV['PATH']}"
+
 require 'xcodeproj'
 require 'plist'
 require 'yaml'

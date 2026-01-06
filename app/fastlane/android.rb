@@ -1,3 +1,5 @@
+ENV['PATH'] = "/home/runner/fvm/bin:#{ENV['PATH']}"
+
 platform :android do
     desc "Build and release the app"
     lane :beta_android do |options|
@@ -59,6 +61,7 @@ platform :android do
         # When not uploading to the Play Store, we just build the app as APK to
         # allow manual installation
         build_target = upload_to_play_store ? "appbundle" : "apk"
+
 
         sh "fvm flutter precache --android"
         sh "fvm flutter pub get"
