@@ -244,18 +244,22 @@ class _MobileContextMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = actions
-        .map(
-          (action) => ContextMenuItem(
-            label: action.label,
-            leading: action.leading,
-            onPressed: () {
-              Navigator.of(context).pop();
-              action.onSelected();
-            },
-          ),
-        )
-        .toList();
+    final items = <ContextMenuEntry>[];
+    for (final (index, action) in actions.indexed) {
+      if (index > 0) {
+        items.add(const ContextMenuSeparator());
+      }
+      items.add(
+        ContextMenuItem(
+          label: action.label,
+          leading: action.leading,
+          onPressed: () {
+            Navigator.of(context).pop();
+            action.onSelected();
+          },
+        ),
+      );
+    }
 
     final slideAnimation = animation.drive(
       Tween<Offset>(begin: const Offset(0, 0.12), end: Offset.zero),
