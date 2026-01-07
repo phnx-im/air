@@ -9,6 +9,7 @@ import 'package:air/background_service.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_locale_cubit.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/l10n/supported_locales.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/registration/registration.dart';
 import 'package:air/theme/theme.dart';
@@ -161,9 +162,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         BlocProvider<UserSettingsCubit>(
           create: (context) => UserSettingsCubit(),
         ),
-        BlocProvider<AppLocaleCubit>(
-          create: (context) => AppLocaleCubit(),
-        ),
+        BlocProvider<AppLocaleCubit>(create: (context) => AppLocaleCubit()),
       ],
       child: InterfaceScale(
         child: Builder(
@@ -171,17 +170,23 @@ class _AppState extends State<App> with WidgetsBindingObserver {
             final userLocaleCode = context.select(
               (UserSettingsCubit cubit) => cubit.state.locale,
             );
-            final appLocale =
-                context.select((AppLocaleCubit cubit) => cubit.state);
+            final appLocale = context.select(
+              (AppLocaleCubit cubit) => cubit.state,
+            );
             // Prefer persisted user locale; fall back to in-memory selection.
-            final locale =
-                userLocaleCode != null ? Locale(userLocaleCode) : appLocale;
+            final locale = userLocaleCode != null
+                ? Locale(userLocaleCode)
+                : appLocale;
 
             return MaterialApp.router(
               scaffoldMessengerKey: scaffoldMessengerKey,
-              onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
+              onGenerateTitle: (context) =>
+                  AppLocalizations.of(context).appTitle,
               localizationsDelegates: AppLocalizations.localizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
+              supportedLocales: supportedLocalesWithFallback(
+                AppLocalizations.supportedLocales,
+                const Locale('en', 'US'),
+              ),
               locale: locale,
               debugShowCheckedModeBanner: false,
               theme: lightTheme,
