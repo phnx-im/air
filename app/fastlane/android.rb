@@ -43,9 +43,11 @@ platform :android do
         # allow manual installation
         build_target = upload_to_play_store ? "appbundle" : "apk"
 
+        current_build_version = sh("git describe").strip()[1..-1]
+
         sh "flutter precache --android"
         sh "flutter pub get"
-        sh "flutter build #{build_target} --release --target-platform android-arm64 --build-number #{current_build_number}"
+        sh "flutter build #{build_target} --release --target-platform android-arm64 --build-name #{current_build_version} --build-number #{current_build_number}"
 
         if upload_to_play_store
           metadata_path = File.expand_path("../stores/android/metadata", __dir__)
