@@ -16,10 +16,7 @@ use aircommon::{
     },
     crypto::{
         RatchetDecryptionKey,
-        ear::{
-            EarEncryptable,
-            keys::{PushTokenEarKey, WelcomeAttributionInfoEarKey},
-        },
+        ear::keys::WelcomeAttributionInfoEarKey,
         hpke::HpkeEncryptable,
         kdf::keys::RatchetSecret,
         signatures::keys::{QsClientSigningKey, QsUserSigningKey},
@@ -88,6 +85,7 @@ mod message;
 pub(crate) mod own_client_info;
 mod persistence;
 pub mod process;
+pub(crate) mod push_token_state;
 mod remove_users;
 pub(crate) mod safety_code;
 pub mod store;
@@ -624,43 +622,14 @@ impl CoreUser {
         Chat::unread_messages_count(self.pool(), chat_id).await
     }
 
-    /// Updates the client's push token on the QS.
+    /// Schedules the client's push token update on the QS.
     pub async fn update_push_token(&self, push_token: Option<PushToken>) -> Result<()> {
-        match &push_token {
-            Some(_) => info!("Updating push token on QS"),
-            None => info!("Clearing push token on QS"),
+        let should_notify =
+            push_token_state::mark_pending_if_changed(self.pool(), push_token).await?;
+        if should_notify {
+            info!("Scheduling push token update");
+            self.outbound_service().notify_push_token_update();
         }
-
-        let client_id = self.inner.qs_client_id;
-        // Ratchet encryption key
-        let queue_encryption_key = self
-            .inner
-            .key_store
-            .qs_queue_decryption_key
-            .encryption_key();
-        // Signung key
-        let signing_key = self.inner.key_store.qs_client_signing_key.clone();
-
-        // Encrypt the push token, if there is one.
-        let encrypted_push_token = match push_token {
-            Some(push_token) => {
-                let encrypted_push_token =
-                    push_token.encrypt(&self.inner.key_store.push_token_ear_key)?;
-                Some(encrypted_push_token)
-            }
-            None => None,
-        };
-
-        self.inner
-            .api_clients
-            .default_client()?
-            .qs_update_client(
-                client_id,
-                queue_encryption_key.clone(),
-                encrypted_push_token,
-                &signing_key,
-            )
-            .await?;
         Ok(())
     }
 
