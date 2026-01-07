@@ -237,15 +237,19 @@ class _MessageView extends HookWidget {
         ),
     ];
 
-    final menuItems = actions
-        .map(
-          (action) => ContextMenuItem(
-            label: action.label,
-            leading: action.leading,
-            onPressed: action.onSelected,
-          ),
-        )
-        .toList();
+    final menuItems = <ContextMenuEntry>[];
+    for (final (index, action) in actions.indexed) {
+      if (index > 0) {
+        menuItems.add(const ContextMenuSeparator());
+      }
+      menuItems.add(
+        ContextMenuItem(
+          label: action.label,
+          leading: action.leading,
+          onPressed: action.onSelected,
+        ),
+      );
+    }
 
     Widget buildMessageShell({
       required VoidCallback? onLongPress,
@@ -363,7 +367,6 @@ class _MessageView extends HookWidget {
         direction: isSender
             ? ContextMenuDirection.left
             : ContextMenuDirection.right,
-        width: 200,
         offset: const Offset(Spacings.xxs, 0),
         controller: contextMenuController,
         menuItems: menuItems,
