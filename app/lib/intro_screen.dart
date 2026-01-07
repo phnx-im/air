@@ -6,6 +6,8 @@ import 'package:air/ui/typography/font_size.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:air/l10n/app_locale_cubit.dart';
+import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/ui/colors/themes.dart';
@@ -63,6 +65,8 @@ class IntroScreen extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
+                    const _LanguagePicker(),
+                    const SizedBox(height: Spacings.s),
                     _TermsOfUseText(loc: loc),
                     if (!isUserLoading) ...[
                       SizedBox(
@@ -109,6 +113,57 @@ class IntroScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _LanguagePicker extends StatelessWidget {
+  const _LanguagePicker();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = CustomColorScheme.of(context);
+
+    return LanguagePickerMenu(
+      onLocaleSelected: (locale) async {
+        context.read<AppLocaleCubit>().setLocale(locale);
+      },
+      childBuilder: (context, option, onTap) {
+        return TextButton(
+          style: TextButton.styleFrom(
+            padding: EdgeInsets.zero,
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          onPressed: onTap,
+          child: Container(
+            decoration: BoxDecoration(
+              color: colors.backgroundBase.tertiary,
+              borderRadius: BorderRadius.circular(Spacings.s),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: Spacings.xs),
+            height: 40,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.translate,
+                  color: colors.text.secondary,
+                  size: 18,
+                ),
+                const SizedBox(width: Spacings.xs),
+                Text(
+                  option.label,
+                  style: TextStyle(
+                    fontSize: LabelFontSize.base.size,
+                    color: colors.text.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
