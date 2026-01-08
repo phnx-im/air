@@ -313,11 +313,7 @@ class _LanguageSetting extends StatelessWidget {
           onTap: onTap,
           child: Row(
             children: [
-              Icon(
-                Icons.translate,
-                color: colors.text.secondary,
-                size: 20,
-              ),
+              AppIcon.globe(color: colors.text.secondary, size: 24),
               const SizedBox(width: Spacings.xs),
               Expanded(child: Text(option.label)),
             ],

@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ui/icons/icons.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -58,6 +59,13 @@ class IntroScreen extends StatelessWidget {
                 ),
               ),
             ),
+            const Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: EdgeInsets.only(left: Spacings.m, top: Spacings.m),
+                child: _LanguagePicker(),
+              ),
+            ),
             Align(
               alignment: Alignment.bottomCenter,
               child: ConstrainedWidth(
@@ -65,8 +73,6 @@ class IntroScreen extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const _LanguagePicker(),
-                    const SizedBox(height: Spacings.s),
                     _TermsOfUseText(loc: loc),
                     if (!isUserLoading) ...[
                       SizedBox(
@@ -136,31 +142,28 @@ class _LanguagePicker extends StatelessWidget {
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
           onPressed: onTap,
-          child: Container(
-            decoration: BoxDecoration(
-              color: colors.backgroundBase.tertiary,
-              borderRadius: BorderRadius.circular(Spacings.s),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: Spacings.xs),
-            height: 40,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.translate,
-                  color: colors.text.secondary,
-                  size: 18,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: colors.backgroundBase.tertiary,
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(width: Spacings.xs),
-                Text(
-                  option.label,
-                  style: TextStyle(
-                    fontSize: LabelFontSize.base.size,
-                    color: colors.text.primary,
-                  ),
+                child: AppIcon.globe(color: colors.text.secondary, size: 18),
+              ),
+              const SizedBox(width: Spacings.xs),
+              Text(
+                option.label,
+                style: TextStyle(
+                  fontSize: LabelFontSize.base.size,
+                  color: colors.text.primary,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
