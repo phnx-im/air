@@ -35,7 +35,7 @@
   "removeUserDialog_title": "Retirer l'utilisateur",
   "removeUserDialog_content": "Êtes-vous sûr de vouloir retirer {displayName} du groupe ?",
   "removeUserDialog_removeUser": "Retirer l'utilisateur",
-  "removeUserButton_text": "Retirer l'utilisateur",
+  "removeUserButton_text": "Retirer",
   "blockContactButton_text": "Bloquer",
   "blockContactDialog_title": "Bloquer {displayName} ?",
   "blockContactDialog_content": "Vous ne recevrez plus de messages de {displayName} et cette personne ne pourra pas voir les mises à jour de votre profil. Elle ne verra pas que vous l'avez bloqué. Vous pourrez le débloquer à tout moment.",
@@ -214,7 +214,7 @@
   "contactUsScreen_errorLaunchingEmail": "Impossible de lancer le client de messagerie",
   "groupDetails_leaveChat": "Quitter",
   "groupDetails_deleteChat": "Supprimer",
-  "groupDetails_addPeople": "Ajouter des personnes",
+  "groupDetails_addPeople": "Ajouter",
   "groupDetails_seeAll": "Voir tout",
   "groupDetails_memberCount": "{count, plural, one {{count} membre} other {{count} membres}}",
   "@groupDetails_memberCount": {
