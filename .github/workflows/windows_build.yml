@@ -16,6 +16,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
+  SQLX_OFFLINE: true
 
 jobs:
   windows-build:
@@ -25,14 +26,8 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v4
 
-      - name: Set up Just
-        uses: extractions/setup-just@v2
-
-      - name: Set up Flutter FVM
-        uses: kuhnroyal/flutter-fvm-config-action/setup@v3
-        with:
-          path: 'app/.fvmrc'
-          cache: false
+      - run: choco install fvm
+      - run: cd app && fvm install
 
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@1.92.0
@@ -42,7 +37,7 @@ jobs:
           cache-directories: app/build/windows/x64/plugins/airapplogic/cargokit_build
 
       - name: Build Windows app
-        run: just build-windows
+        run: cd app && fvm flutter build windows -v
 
       - name: Upload Windows app
         uses: actions/upload-artifact@v4

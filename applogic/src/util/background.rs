@@ -2,15 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{
-    fmt,
-    marker::PhantomData,
-    pin::Pin,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{fmt, marker::PhantomData, pin::Pin, sync::Arc};
 
 use tokio::time;
+use tokio::time::{Duration, Instant};
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
