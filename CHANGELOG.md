@@ -1,3 +1,44 @@
+## [0.7.0] - 2025-12-28
+
+### 🚀 Features
+
+- *(app)* Sort user lists in alphabetical order (#889)
+- *(app)* Generate and display safety codes (#906)
+- *(app)* Adjust design of add contact dialog (#911)
+- *(app)* Better image names (#915)
+- *(app)* Add contact dialog in 2 steps (#914)
+- *(app)* Design tweaks for the member screen (incl. a fix) (#917)
+- *(app)* Disable chat details for pending chats (#923)
+- *(app)* Chat list design overhaul (#926)
+- *(app)* New icon system (#912)
+- *(app)* Drop read receipts (#931)
+- *(app)* Localize user handle validation error messages (#934)
+
+### 🐛 Bug Fixes
+
+- *(ci)* Exclude RC version of xcode (#907)
+- *(ci)* Fixed xcode version (#908)
+- *(app)* New users have invalid domain (#909)
+- *(app)* Alternative file lock (#910)
+- *(app)* Send on enter (#916)
+- *(app)* Colors in overlapping checks icon and group details buttons (#920)
+- *(app)* Don't fail profile update for groups without a chat (#921)
+- *(server)* Race condition in QS postres listen/unlisten (#919)
+- *(app)* Set a picture during group creation (#922)
+- *(app)* Lower minimum required iOS version for NSE (#925)
+- *(app)* Clean up the composer (#924)
+- *(app)* Solid color for message previews (#929)
+- *(app)* Size of the app back button (#927)
+- *(app)* Allow underscores in legacy names (#935)
+- *(app)* Safety code design (#932)
+
+### ⚙️ Miscellaneous Tasks
+
+- Remove unused dependencies (#913)
+- Add staging deployment configuration (#918)
+- *(app)* No more underscores (#933)
+- *(app)* Missing translations (#928)
+
 ## [0.6.0] - 2025-12-12
 
 ### 🚀 Features

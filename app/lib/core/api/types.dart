@@ -424,7 +424,7 @@ sealed class UiUserHandle with _$UiUserHandle {
 
   /// Returns `None` if the handle is valid, otherwise returns an error message why it is
   /// invalid.
-  String? validationError() =>
+  UserHandleValidationError? validationError() =>
       RustLib.instance.api.crateApiTypesUiUserHandleValidationError(that: this);
 }
 
@@ -479,4 +479,13 @@ class UiUserProfile {
           userId == other.userId &&
           displayName == other.displayName &&
           profilePicture == other.profilePicture;
+}
+
+/// UI representation of an [`UserHandleValidationError`]
+enum UserHandleValidationError {
+  tooShort,
+  tooLong,
+  invalidCharacter,
+  consecutiveDashes,
+  leadingDigit,
 }

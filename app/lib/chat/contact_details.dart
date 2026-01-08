@@ -11,12 +11,12 @@ import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/modal/app_dialog.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
@@ -104,10 +104,7 @@ class ContactDetailsView extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                iconoir.ChatBubbleEmpty(
-                  color: CustomColorScheme.of(context).text.primary,
-                  width: 16,
-                ),
+                const AppIcon.messageCircle(size: 16),
                 const SizedBox(width: Spacings.xxs),
                 Text(
                   "Chat",
@@ -128,10 +125,7 @@ class ContactDetailsView extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                iconoir.Shield(
-                  color: CustomColorScheme.of(context).text.primary,
-                  width: 16,
-                ),
+                const AppIcon.shield(size: 16),
                 const SizedBox(width: Spacings.xxs),
                 Text(
                   loc.contactDetailsScreen_viewSafetyCode,

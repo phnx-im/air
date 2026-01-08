@@ -8,6 +8,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/debouncer.dart';
@@ -15,7 +16,6 @@ import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' as iconoir;
 import 'package:image_picker/image_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
@@ -217,9 +217,8 @@ class _UsernamesSection extends StatelessWidget {
                             RemoveUsernameDialog(username: handle),
                       );
                     },
-                    child: iconoir.Trash(
-                      width: 24,
-                      height: 24,
+                    child: AppIcon.trash(
+                      size: 24,
                       color: colors.function.danger,
                     ),
                   ),

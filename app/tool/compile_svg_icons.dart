@@ -1,0 +1,166 @@
+// SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import 'dart:convert';
+import 'dart:io';
+import 'package:path/path.dart' as p;
+import 'package:vector_graphics_compiler/vector_graphics_compiler.dart' as vgc;
+
+/// Directory containing raw SVGs (relative to app/).
+const _svgDir = 'lib/ui/icons/svg';
+
+/// Output generated Dart file (relative to app/).
+const _outputFile = 'lib/ui/icons/app_icons.dart';
+
+Future<void> main() async {
+  if (!vgc.initializeTessellatorFromFlutterCache()) {
+    stderr.writeln('Failed to initialize tessellator; run `flutter precache`.');
+    exit(1);
+  }
+  if (!vgc.initializePathOpsFromFlutterCache()) {
+    stderr.writeln('Failed to initialize path_ops; run `flutter precache`.');
+    exit(1);
+  }
+
+  final svgDirectory = Directory(_svgDir);
+  if (!svgDirectory.existsSync()) {
+    stderr.writeln('SVG directory not found: $_svgDir');
+    exit(1);
+  }
+
+  final svgFiles =
+      svgDirectory
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.toLowerCase().endsWith('.svg'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
+
+  if (svgFiles.isEmpty) {
+    stderr.writeln('No SVG files found in $_svgDir');
+    exit(1);
+  }
+
+  final enumEntries = <String>[];
+  final constructorEntries = StringBuffer();
+  final loaderEntries = StringBuffer();
+
+  for (final file in svgFiles) {
+    final name = p.basenameWithoutExtension(file.path);
+    final enumName = _toEnumName(name);
+    enumEntries.add(enumName);
+
+    constructorEntries.writeln('  const AppIcon.$enumName({');
+    constructorEntries.writeln('    super.key,');
+    constructorEntries.writeln('    this.size,');
+    constructorEntries.writeln('    this.color,');
+    constructorEntries.writeln('  })');
+    constructorEntries.writeln('      : type = AppIconType.$enumName,');
+    constructorEntries.writeln('        fit = BoxFit.contain,');
+    constructorEntries.writeln('        alignment = Alignment.center;');
+    constructorEntries.writeln();
+
+    final svgString = await file.readAsString();
+    final bytes = vgc.encodeSvg(xml: svgString, debugName: name);
+    final base64Data = base64Encode(bytes);
+
+    loaderEntries.writeln(
+      "  AppIconType.$enumName: const _InlineBytesLoader('$base64Data'),",
+    );
+  }
+
+  final buffer = StringBuffer();
+  buffer.writeln('// GENERATED CODE - DO NOT MODIFY BY HAND');
+  buffer.writeln("// Generated via app/tool/compile_svg_icons.dart");
+  buffer.writeln();
+  buffer.writeln("import 'dart:convert';");
+  buffer.writeln("import 'package:air/ui/colors/themes.dart';");
+  buffer.writeln("import 'package:flutter/foundation.dart';");
+  buffer.writeln("import 'package:flutter/services.dart';");
+  buffer.writeln("import 'package:flutter/widgets.dart';");
+  buffer.writeln("import 'package:vector_graphics/vector_graphics.dart';");
+  buffer.writeln();
+  buffer.writeln('enum AppIconType { ${enumEntries.join(', ')} }');
+  buffer.writeln();
+  buffer.writeln(
+    'final Map<AppIconType, _InlineBytesLoader> _compiledSvgLoaders = {',
+  );
+  buffer.write(loaderEntries.toString());
+  buffer.writeln('};');
+  buffer.writeln();
+  buffer.writeln(
+    'BytesLoader compiledSvgLoader(AppIconType icon) => _compiledSvgLoaders[icon]!;',
+  );
+  buffer.writeln();
+  buffer.writeln('class AppIcon extends StatelessWidget {');
+  buffer.writeln('  const AppIcon({');
+  buffer.writeln('    super.key,');
+  buffer.writeln('    required this.type,');
+  buffer.writeln('    this.size,');
+  buffer.writeln('    this.color,');
+  buffer.writeln('    this.fit = BoxFit.contain,');
+  buffer.writeln('    this.alignment = Alignment.center,');
+  buffer.writeln('  });');
+  buffer.writeln();
+  buffer.write(constructorEntries.toString());
+  buffer.writeln('  final AppIconType type;');
+  buffer.writeln('  final double? size;');
+  buffer.writeln('  final Color? color;');
+  buffer.writeln('  final BoxFit fit;');
+  buffer.writeln('  final Alignment alignment;');
+  buffer.writeln();
+  buffer.writeln('  @override');
+  buffer.writeln('  Widget build(BuildContext context) {');
+  buffer.writeln(
+    '    final color = this.color ?? CustomColorScheme.of(context).text.primary;',
+  );
+  buffer.writeln('    return VectorGraphic(');
+  buffer.writeln('      loader: compiledSvgLoader(type),');
+  buffer.writeln('      width: size,');
+  buffer.writeln('      height: size,');
+  buffer.writeln('      fit: fit,');
+  buffer.writeln('      alignment: alignment,');
+  buffer.writeln('      colorFilter: ColorFilter.mode(color, BlendMode.srcIn)');
+  buffer.writeln('    );');
+  buffer.writeln('  }');
+  buffer.writeln('}');
+  buffer.writeln();
+  buffer.writeln('class _InlineBytesLoader extends BytesLoader {');
+  buffer.writeln('  const _InlineBytesLoader(this.base64Data);');
+  buffer.writeln('  final String base64Data;');
+  buffer.writeln('  @override');
+  buffer.writeln('  Future<ByteData> loadBytes(BuildContext? context) {');
+  buffer.writeln('    final bytes = base64Decode(base64Data);');
+  buffer.writeln('    return SynchronousFuture(ByteData.sublistView(bytes));');
+  buffer.writeln('  }');
+  buffer.writeln('  @override');
+  buffer.writeln('  Object cacheKey(BuildContext? context) => this;');
+  buffer.writeln('}');
+
+  File(_outputFile).writeAsStringSync(buffer.toString());
+  // Keep generated file tidy.
+  Process.runSync('dart', ['format', _outputFile], runInShell: true);
+  stdout.writeln('Generated $_outputFile with ${svgFiles.length} icons.');
+}
+
+String _toEnumName(String name) {
+  // Keep it simple: map file-name with dashes/underscores to lowerCamel.
+  final segments = name.split(RegExp(r'[-_ ]+')).where((s) => s.isNotEmpty);
+  return segments
+      .mapIndexed((i, s) => i == 0 ? s.toLowerCase() : _capitalize(s))
+      .join();
+}
+
+extension<T> on Iterable<T> {
+  Iterable<E> mapIndexed<E>(E Function(int i, T e) convert) sync* {
+    var index = 0;
+    for (final element in this) {
+      yield convert(index++, element);
+    }
+  }
+}
+
+String _capitalize(String input) => input.isEmpty
+    ? input
+    : input[0].toUpperCase() + input.substring(1).toLowerCase();

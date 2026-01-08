@@ -84,7 +84,7 @@ class UsernameOnboardingScreen extends HookWidget {
         actions: [
           TextButton(
             onPressed: isSubmitting.value ? null : skip,
-            child: Text(loc.usernameOnboarding_skip),
+            child: Text(loc.usernameOnboarding_next),
           ),
         ],
       ),
@@ -158,7 +158,17 @@ class UsernameOnboardingScreen extends HookWidget {
       return loc.userHandleScreen_error_emptyHandle;
     }
     final handle = UiUserHandle(plaintext: normalized);
-    return handle.validationError();
+    return switch (handle.validationError()) {
+      UserHandleValidationError.tooShort => loc.userHandleScreen_error_tooShort,
+      UserHandleValidationError.tooLong => loc.userHandleScreen_error_tooLong,
+      UserHandleValidationError.invalidCharacter =>
+        loc.userHandleScreen_error_invalidCharacter,
+      UserHandleValidationError.consecutiveDashes =>
+        loc.userHandleScreen_error_consecutiveDashes,
+      UserHandleValidationError.leadingDigit =>
+        loc.userHandleScreen_error_leadingDigit,
+      null => null,
+    };
   }
 }
 
@@ -246,7 +256,6 @@ class _UsernameTextField extends StatelessWidget {
             hintText: loc.usernameOnboarding_userameInputHint,
             fillColor: colors.backgroundBase.tertiary,
           ),
-          // Temporary strict enforcement until legacy underscores are fully removed.
           inputFormatters: const [UserHandleInputFormatter()],
           onChanged: (_) {
             if (handleExists.value) {

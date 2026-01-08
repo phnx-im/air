@@ -152,10 +152,7 @@ class AddContactDialog extends HookWidget {
   }
 
   bool _validate(String value) {
-    final normalized = UserHandleInputFormatter.normalize(
-      value,
-      allowUnderscore: false,
-    );
+    final normalized = UserHandleInputFormatter.normalize(value);
     if (normalized.isEmpty) {
       return false;
     }

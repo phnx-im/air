@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:air/background_service.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/l10n/supported_locales.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/registration/registration.dart';
 import 'package:air/theme/theme.dart';
@@ -166,7 +167,10 @@ class _AppState extends State<App> with WidgetsBindingObserver {
           scaffoldMessengerKey: scaffoldMessengerKey,
           onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
+          supportedLocales: supportedLocalesWithFallback(
+            AppLocalizations.supportedLocales,
+            const Locale('en', 'US'),
+          ),
           debugShowCheckedModeBanner: false,
           theme: lightTheme,
           darkTheme: darkTheme,

@@ -49,15 +49,6 @@ void main() {
     expect(first.text, isEmpty);
   });
 
-  test('allows underscores when configured', () {
-    const underscoreFormatter = UserHandleInputFormatter(allowUnderscore: true);
-    final result = underscoreFormatter.formatEditUpdate(
-      TextEditingValue.empty,
-      value('user_name'),
-    );
-    expect(result.text, 'user_name');
-  });
-
   test('rejects usernames longer than 63 characters', () {
     final valid = 'a' * 63;
     final result = formatter.formatEditUpdate(
@@ -76,9 +67,6 @@ void main() {
   test('normalize respects validation rules', () {
     expect(UserHandleInputFormatter.normalize('1abc'), isEmpty);
     expect(UserHandleInputFormatter.normalize('valid-name'), 'valid-name');
-    expect(
-      UserHandleInputFormatter.normalize('foo_bar', allowUnderscore: true),
-      'foo_bar',
-    );
+    expect(UserHandleInputFormatter.normalize('foo_bar'), isEmpty);
   });
 }

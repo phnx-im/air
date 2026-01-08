@@ -59,6 +59,18 @@ app_rust_base_dir := "../applogic"
 generate-dart-files:
     dart run build_runner build --delete-conflicting-outputs
 
+[working-directory: 'app']
+generate-icons:
+    dart run tool/compile_svg_icons.dart
+
+[working-directory: 'app']
+check-icons: generate-icons
+    if [ -n "$(git status --porcelain lib/ui/icons/generated_svg_icons.dart)" ]; then \
+        git --no-pager diff -- lib/ui/icons/generated_svg_icons.dart; \
+        echo -e "\x1b[1;31mFound uncommitted changes. Did you forget to run 'just generate-icons'?"; \
+        exit 1; \
+    fi
+
 # generate Rust and Dart flutter bridge files
 [working-directory: 'app']
 frb-generate $CARGO_TARGET_DIR=(justfile_directory() + "/target/frb_codegen"):
@@ -175,6 +187,7 @@ analyze-dart:
 # run Flutter tests
 [working-directory: 'app']
 test-flutter *args='':
+    just check-icons
     flutter test {{args}}
 
 # run backend server (at localhost)

@@ -32,13 +32,18 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
 }
 
 Future<void> _loadFonts() async {
-  final monospace = getSystemMonospaceFontFamily();
+  final monospaceFamily = getSystemMonospaceFontFamily();
   final fonts = <String, String>{
     "MaterialIcons": "fonts/MaterialIcons-Regular.otf",
     "SourceCodeProEmbedded": "assets/fonts/SourceCodePro.ttf",
-    monospace: "assets/fonts/RobotoMono-Regular.ttf",
   };
+  final usesSystemMonospace = await _tryLoadSystemMonospaceFont(
+    monospaceFamily,
+  );
   final usesSanFrancisco = await _tryLoadSanFranciscoFont();
+  if (!usesSystemMonospace) {
+    fonts[monospaceFamily] = "assets/fonts/RobotoMono-Regular.ttf";
+  }
   if (!usesSanFrancisco) {
     fonts["Roboto"] = "assets/fonts/Roboto-Regular.ttf";
   }
@@ -47,6 +52,43 @@ Future<void> _loadFonts() async {
     final fontLoader = FontLoader(entry.key)..addFont(bytes);
     await fontLoader.load();
   }
+}
+
+Future<bool> _tryLoadSystemMonospaceFont(String family) async {
+  final paths = <String>[
+    if (Platform.isMacOS || Platform.isIOS) ...[
+      '/System/Library/Fonts/Menlo.ttc',
+      '/Library/Fonts/Menlo.ttc',
+    ],
+    if (Platform.isWindows) ...[
+      r'C:\Windows\Fonts\consola.ttf',
+      r'C:\Windows\Fonts\consolab.ttf',
+      r'C:\Windows\Fonts\consolai.ttf',
+      r'C:\Windows\Fonts\consolaz.ttf',
+    ],
+    if (Platform.isLinux) ...[
+      '/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf',
+      '/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf',
+      '/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf',
+      '/usr/share/fonts/opentype/noto/NotoSansMono-Regular.otf',
+      '/usr/share/fonts/TTF/DejaVuSansMono.ttf',
+    ],
+  ];
+
+  for (final path in paths) {
+    final file = File(path);
+    if (!file.existsSync()) {
+      continue;
+    }
+
+    final bytes = file.readAsBytesSync();
+    final byteData = bytes.buffer.asByteData();
+    final loader = FontLoader(family)..addFont(Future.value(byteData));
+    await loader.load();
+    return true;
+  }
+
+  return false;
 }
 
 Future<bool> _tryLoadSanFranciscoFont() async {
