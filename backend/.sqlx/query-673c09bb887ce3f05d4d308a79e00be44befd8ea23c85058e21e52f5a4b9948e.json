@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM key_package WHERE client_id = $1 AND is_last_resort = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "673c09bb887ce3f05d4d308a79e00be44befd8ea23c85058e21e52f5a4b9948e"
+}

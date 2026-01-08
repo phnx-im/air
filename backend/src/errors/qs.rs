@@ -4,6 +4,9 @@
 
 use thiserror::Error;
 use tonic::Status;
+use tracing::error;
+
+use crate::errors::StorageError;
 
 // === Client ===
 
@@ -84,6 +87,20 @@ pub(crate) enum QsPublishKeyPackagesError {
     /// Invalid KeyPackage
     #[error("Invalid KeyPackage")]
     InvalidKeyPackage,
+}
+
+impl From<StorageError> for QsPublishKeyPackagesError {
+    fn from(error: StorageError) -> Self {
+        error!(%error, "Error publishing key packages");
+        Self::StorageError
+    }
+}
+
+impl From<sqlx::Error> for QsPublishKeyPackagesError {
+    fn from(error: sqlx::Error) -> Self {
+        error!(%error, "Error publishing key packages");
+        Self::StorageError
+    }
 }
 
 impl From<QsPublishKeyPackagesError> for Status {
