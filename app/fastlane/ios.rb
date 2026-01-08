@@ -38,33 +38,13 @@ platform :ios do
     team_id = @app_store_params[:team_id]
     app_identifier = @app_store_params[:app_identifier]
     app_identifier_nse = @app_store_params[:app_identifier_nse]
-  
+
     UI.user_error!("TEAM_ID must be provided for the beta_ios lane") if team_id.to_s.empty?
 
     # Load the app store connect API key
     api_key = @app_store_api_key
     UI.user_error!("App Store Connect credentials are required for the beta_ios lane") unless api_key
-  
-    # Read app version from pubspec.yaml
-    pubspec = YAML.load_file("../pubspec.yaml")
-    app_version = (pubspec['version'] || '').to_s.split('+').first
 
-    # Determine build number
-    build_number = if options[:build_number]
-                    options[:build_number].to_i
-                  else
-                    latest_testflight_build_number(
-                      version: app_version,
-                      api_key: api_key,
-                      app_identifier: app_identifier
-                    ) + 1
-                  end
-  
-    increment_build_number(
-      xcodeproj: "ios/Runner.xcodeproj",
-      build_number: build_number,
-    )
-  
     # Use match for code signing
     ["development", "appstore"].each do |i|
       match(
@@ -78,7 +58,7 @@ platform :ios do
         readonly: is_ci,
       )
     end
-  
+
     # Build the app with signing
     build_ios(with_signing: upload_to_test_flight)
 
@@ -126,7 +106,9 @@ platform :ios do
     # The following is false when "with_signing" is not provided in the option
     # and true otherwise
     skip_signing = !options[:with_signing]
-  
+
+    build_number = sh("git rev-list --count HEAD").strip.to_i
+
     # Set up CI
     setup_ci()
 
@@ -134,8 +116,8 @@ platform :ios do
     sh "flutter pub get"
 
     # Build the app with flutter first to create the necessary ephemeral files
-    sh "flutter build ios --config-only #{skip_signing ? '--debug' : '--release'}"
-  
+    sh "flutter build ios --config-only #{skip_signing ? '--debug' : '--release'} --build-number #{build_number}"
+
     # Install CocoaPods dependencies
     cocoapods(
       podfile: "ios/Podfile"
@@ -143,7 +125,7 @@ platform :ios do
 
     # Build the app
     build_app(
-      workspace: "ios/Runner.xcworkspace", 
+      workspace: "ios/Runner.xcworkspace",
       scheme: "Runner",
       configuration: skip_signing ? "Debug" : "Release",
       skip_codesigning: skip_signing,
