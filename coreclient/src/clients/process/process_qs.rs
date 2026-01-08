@@ -199,7 +199,6 @@ impl CoreUser {
                 // If we've been in that chat before, we delete the old chat
                 // first and then create a new one. We do leave the messages
                 // intact, though.
-                Chat::delete(txn.as_mut(), notifier, chat.id()).await?;
                 chat.store(txn.as_mut(), notifier).await?;
 
                 // Add system message who added us to the group.
