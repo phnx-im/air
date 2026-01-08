@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use openmls::prelude::OpenMlsProvider;
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::{
@@ -23,6 +23,11 @@ impl OutboundServiceContext {
         &self,
         run_token: &CancellationToken,
     ) -> anyhow::Result<()> {
+        // Make sure that upload package task always exists
+        TimedTaskQueue::new_key_package_upload_task(DateTime::UNIX_EPOCH)
+            .ensure_exists(&self.pool)
+            .await?;
+
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
         loop {
@@ -100,7 +105,8 @@ impl OutboundServiceContext {
             .map(|kp| kp.hash_ref(crypto_provider.crypto()))
             .collect::<Result<Vec<_>, _>>()?;
 
-        debug!("Uploading key packages");
+        info!(n = key_packages.len(), "Uploading key packages");
+        let num_packages = key_packages.len();
         if let Err(error) = self
             .api_clients
             .default_client()?
@@ -125,6 +131,7 @@ impl OutboundServiceContext {
 
             return Err(error.into());
         }
+        info!("Uploaded key packages");
 
         // If the upload was successful, we mark the uploaded ones as live and
         // mark the others as stale.
