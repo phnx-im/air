@@ -1,5 +1,6 @@
 {
   "appTitle": "Air",
+  "languageName": "Svenska",
   "userSettingsScreen_title": "Profil och inställningar",
   "userSettingsScreen_profileDescription": "Ditt visningsnamn och din profilbild är synliga för dina Air-kontakter och medlemmar i grupper du är med i.",
   "userSettingsScreen_userNamesDescription": "Dela användarnamn med personer du vill ansluta till. Användarnamn är inte synliga för andra, inte ens dina Air-kontakter. Du kan ha upp till 5 användarnamn.",
@@ -35,7 +36,7 @@
   "removeUserDialog_title": "Ta bort användare",
   "removeUserDialog_content": "Är du säker på att du vill ta bort {displayName} från gruppen?",
   "removeUserDialog_removeUser": "Ta bort användare",
-  "removeUserButton_text": "Ta bort användare",
+  "removeUserButton_text": "Ta bort",
   "blockContactButton_text": "Blockera",
   "blockContactDialog_title": "Blockera {displayName}?",
   "blockContactDialog_content": "Du får inga meddelanden från {displayName} och personen kan inte se några uppdateringar av din profil. Personen ser inte att du har blockerat {displayName}. Du kan avblockera {displayName} när som helst.",
@@ -214,7 +215,7 @@
   "contactUsScreen_errorLaunchingEmail": "Kunde inte öppna e-postklienten",
   "groupDetails_leaveChat": "Lämna",
   "groupDetails_deleteChat": "Radera",
-  "groupDetails_addPeople": "Lägg till personer",
+  "groupDetails_addPeople": "Lägg till",
   "groupDetails_seeAll": "Visa alla",
   "groupDetails_memberCount": "{count, plural, one {{count} medlem} other {{count} medlemmar}}",
   "@groupDetails_memberCount": {

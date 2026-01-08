@@ -136,7 +136,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get removeUserDialog_removeUser => 'Ta bort användare';
 
   @override
-  String get removeUserButton_text => 'Ta bort användare';
+  String get removeUserButton_text => 'Ta bort';
 
   @override
   String get blockContactButton_text => 'Blockera';
@@ -736,7 +736,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get groupDetails_deleteChat => 'Radera';
 
   @override
-  String get groupDetails_addPeople => 'Lägg till personer';
+  String get groupDetails_addPeople => 'Lägg till';
 
   @override
   String get groupDetails_seeAll => 'Visa alla';
