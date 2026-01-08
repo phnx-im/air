@@ -109,6 +109,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
 
     if (state == AppLifecycleState.resumed) {
       _appStateController.sink.add(AppState.foreground);
+      unawaited(_coreClient.refreshPushToken());
     }
   }
 
@@ -217,6 +218,7 @@ class LoadableUserCubitProvider extends StatelessWidget {
               context.read<NavigationCubit>().openHome();
             }
             context.read<UserSettingsCubit>().loadState(user: user);
+            unawaited(context.read<CoreClient>().refreshPushToken());
           case LoadingUser() || LoadedUser(user: null):
             context.read<NavigationCubit>().openIntro();
             context.read<UserSettingsCubit>().reset();
