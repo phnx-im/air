@@ -180,7 +180,7 @@ mod persistence {
         }
         qb.build().execute(txn.as_mut()).await?;
 
-        // Delete orphaned key packages
+        // Delete orphaned key packages (usually this is a no-op)
         sqlx::query!(
             "DELETE FROM key_package WHERE key_package_ref NOT IN (
                 SELECT key_package_ref
