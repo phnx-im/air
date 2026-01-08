@@ -106,7 +106,6 @@ impl OutboundServiceContext {
             .collect::<Result<Vec<_>, _>>()?;
 
         info!(n = key_packages.len(), "Uploading key packages");
-        let num_packages = key_packages.len();
         if let Err(error) = self
             .api_clients
             .default_client()?
