@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO timed_tasks_queue\n                    (task_kind, due_at)\n                VALUES (?1, ?2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "de69182ccdaceed2a71cec9bcc297a8a5cd2679b61f5bdf678ddebe08ce36885"
+}
