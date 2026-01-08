@@ -50,23 +50,37 @@ const _messagePadding = EdgeInsets.symmetric(
   vertical: messageVerticalPadding,
 );
 
-Widget _wrapWithBubbleWidth({required bool isSender, required Widget child}) {
-  return LayoutBuilder(
-    builder: (context, constraints) {
-      final hasFiniteWidth = constraints.maxWidth.isFinite;
-      final double maxWidth = hasFiniteWidth
-          ? constraints.maxWidth * _bubbleMaxWidthFactor
-          : double.infinity;
-      final alignment = isSender ? Alignment.centerRight : Alignment.centerLeft;
-      final boxConstraints = hasFiniteWidth
-          ? BoxConstraints(maxWidth: maxWidth)
-          : const BoxConstraints();
-      return Align(
-        alignment: alignment,
-        child: ConstrainedBox(constraints: boxConstraints, child: child),
-      );
-    },
-  );
+class WrapWithBubbleWidth extends StatelessWidget {
+  const WrapWithBubbleWidth({
+    super.key,
+    required this.isSender,
+    required this.child,
+  });
+
+  final bool isSender;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final hasFiniteWidth = constraints.maxWidth.isFinite;
+        final double maxWidth = hasFiniteWidth
+            ? constraints.maxWidth * _bubbleMaxWidthFactor
+            : double.infinity;
+        final alignment = isSender
+            ? Alignment.centerRight
+            : Alignment.centerLeft;
+        final boxConstraints = hasFiniteWidth
+            ? BoxConstraints(maxWidth: maxWidth)
+            : const BoxConstraints();
+        return Align(
+          alignment: alignment,
+          child: ConstrainedBox(constraints: boxConstraints, child: child),
+        );
+      },
+    );
+  }
 }
 
 class TextMessageTile extends StatelessWidget {
@@ -384,7 +398,7 @@ class _MessageView extends HookWidget {
     }
 
     if (isMobilePlatform) {
-      return _wrapWithBubbleWidth(
+      return WrapWithBubbleWidth(
         isSender: isSender,
         child: buildMessageShell(
           onLongPress: actions.isEmpty
@@ -426,7 +440,7 @@ class _MessageView extends HookWidget {
       );
     }
 
-    return _wrapWithBubbleWidth(
+    return WrapWithBubbleWidth(
       isSender: isSender,
       child: ContextMenu(
         direction: isSender
