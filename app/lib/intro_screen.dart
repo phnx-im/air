@@ -2,10 +2,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ui/icons/icons.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:air/l10n/app_locale_cubit.dart';
+import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/ui/colors/themes.dart';
@@ -54,6 +57,13 @@ class IntroScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+              ),
+            ),
+            const Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: EdgeInsets.only(left: Spacings.m, top: Spacings.m),
+                child: _LanguagePicker(),
               ),
             ),
             Align(
@@ -109,6 +119,54 @@ class IntroScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _LanguagePicker extends StatelessWidget {
+  const _LanguagePicker();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = CustomColorScheme.of(context);
+
+    return LanguagePickerMenu(
+      onLocaleSelected: (locale) async {
+        context.read<AppLocaleCubit>().setLocale(locale);
+      },
+      childBuilder: (context, option, onTap) {
+        return TextButton(
+          style: TextButton.styleFrom(
+            padding: EdgeInsets.zero,
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          onPressed: onTap,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: colors.backgroundBase.tertiary,
+                  shape: BoxShape.circle,
+                ),
+                child: AppIcon.globe(color: colors.text.secondary, size: 18),
+              ),
+              const SizedBox(width: Spacings.xs),
+              Text(
+                option.label,
+                style: TextStyle(
+                  fontSize: LabelFontSize.base.size,
+                  color: colors.text.primary,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

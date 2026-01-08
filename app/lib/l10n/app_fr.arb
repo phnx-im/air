@@ -1,5 +1,6 @@
 {
   "appTitle": "Air",
+  "languageName": "Français",
   "userSettingsScreen_title": "Profil et paramètres",
   "userSettingsScreen_profileDescription": "Votre nom d'affichage et votre photo de profil sont visibles pour vos contacts Air et les membres de vos groupes.",
   "userSettingsScreen_userNamesDescription": "Partagez des noms d'utilisateur avec d'autres pour qu'ils puissent se connecter avec vous. Après la connexion, les noms d'utilisateur ne sont plus visibles aux autres. Vous pouvez avoir jusqu'à 5 noms d'utilisateur.",
