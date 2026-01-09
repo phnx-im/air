@@ -128,6 +128,11 @@ zeroize = "1.8.1"
 # PR: <https://github.com/RustCrypto/formats/pull/1656/files>
 tls_codec = { git = "https://github.com/boxdot/formats", rev = "9846c69f91e732b493dcccf92f4c163bfc711b7d" }
 tls_codec_derive = { git = "https://github.com/boxdot/formats", rev = "9846c69f91e732b493dcccf92f4c163bfc711b7d" }
+# Backported fix that allows us to skip lifetime checks temporarily. This can be
+# removed once we adopt the next OpenMLS release.
+openmls = { git = "https://github.com/openmls/openmls", rev = "45aa7e738bbdd11a3a4f3d7a9cb66811534d672a" }
+openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "45aa7e738bbdd11a3a4f3d7a9cb66811534d672a" }
+openmls_traits = { git = "https://github.com/openmls/openmls", rev = "45aa7e738bbdd11a3a4f3d7a9cb66811534d672a" }
 
 [profile.release]
 strip = true

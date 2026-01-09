@@ -77,7 +77,7 @@ use crate::{
 use std::collections::HashSet;
 
 use openmls::{
-    group::{ExternalCommitBuilder, Member, ProcessedWelcome},
+    group::{ExternalCommitBuilder, JoinBuilder, Member, ProcessedWelcome},
     key_packages::KeyPackageBundle,
     prelude::{
         BasicCredentialError, CredentialWithKey, Extension, Extensions, GroupId, KeyPackage,
@@ -337,8 +337,11 @@ impl Group {
         let (mls_group, joiner_info, welcome_attribution_info, sender_user_id) = {
             // Phase 5: Finish processing the welcome message
             let provider = AirOpenMlsProvider::new(txn.as_mut());
-            let staged_welcome =
-                processed_welcome.into_staged_welcome(&provider, Some(ratchet_tree))?;
+            let staged_welcome = JoinBuilder::new(&provider, processed_welcome)
+                // We skip lifetime validation for now.
+                .skip_lifetime_validation()
+                .with_ratchet_tree(ratchet_tree)
+                .build()?;
 
             let mls_group = staged_welcome.into_group(&provider)?;
 
