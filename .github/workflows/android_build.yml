@@ -22,10 +22,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Clone repository
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
-          lfs: true
+          # Fetch all commit metadata (build number is derived from number of commits)
+          fetch-depth: 0
+          # Don't download historical file contents (blobs)
+          filter: blob:none
+
+      - run: git lfs install && git lfs pull
 
       - name: Set up Just
         uses: extractions/setup-just@v2
