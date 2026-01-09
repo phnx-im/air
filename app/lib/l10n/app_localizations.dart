@@ -112,6 +112,12 @@ abstract class AppLocalizations {
   /// **'Air'**
   String get appTitle;
 
+  /// No description provided for @languageName.
+  ///
+  /// In en, this message translates to:
+  /// **'English'**
+  String get languageName;
+
   /// No description provided for @userSettingsScreen_title.
   ///
   /// In en, this message translates to:

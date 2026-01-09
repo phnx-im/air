@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'package:air/background_service.dart';
 import 'package:air/core/core.dart';
+import 'package:air/l10n/app_locale_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/l10n/supported_locales.dart';
 import 'package:air/navigation/navigation.dart';
@@ -161,24 +162,42 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         BlocProvider<UserSettingsCubit>(
           create: (context) => UserSettingsCubit(),
         ),
+        BlocProvider<AppLocaleCubit>(create: (context) => AppLocaleCubit()),
       ],
       child: InterfaceScale(
-        child: MaterialApp.router(
-          scaffoldMessengerKey: scaffoldMessengerKey,
-          onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: supportedLocalesWithFallback(
-            AppLocalizations.supportedLocales,
-            const Locale('en', 'US'),
-          ),
-          debugShowCheckedModeBanner: false,
-          theme: lightTheme,
-          darkTheme: darkTheme,
-          routerConfig: _appRouter,
-          builder: (context, router) => LoadableUserCubitProvider(
-            appStateController: _appStateController,
-            child: router!,
-          ),
+        child: Builder(
+          builder: (context) {
+            final userLocaleCode = context.select(
+              (UserSettingsCubit cubit) => cubit.state.locale,
+            );
+            final appLocale = context.select(
+              (AppLocaleCubit cubit) => cubit.state,
+            );
+            // Prefer persisted user locale; fall back to in-memory selection.
+            final locale = userLocaleCode != null
+                ? Locale(userLocaleCode)
+                : appLocale;
+
+            return MaterialApp.router(
+              scaffoldMessengerKey: scaffoldMessengerKey,
+              onGenerateTitle: (context) =>
+                  AppLocalizations.of(context).appTitle,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: supportedLocalesWithFallback(
+                AppLocalizations.supportedLocales,
+                const Locale('en', 'US'),
+              ),
+              locale: locale,
+              debugShowCheckedModeBanner: false,
+              theme: lightTheme,
+              darkTheme: darkTheme,
+              routerConfig: _appRouter,
+              builder: (context, router) => LoadableUserCubitProvider(
+                appStateController: _appStateController,
+                child: router!,
+              ),
+            );
+          },
         ),
       ),
     );
@@ -203,23 +222,39 @@ class LoadableUserCubitProvider extends StatelessWidget {
     return BlocConsumer<LoadableUserCubit, LoadableUser>(
       listenWhen: _isUserLoadedOrUnloaded,
       buildWhen: _isUserLoadedOrUnloaded,
-      listener: (context, loadableUser) {
+      listener: (context, loadableUser) async {
+        final navigationCubit = context.read<NavigationCubit>();
+        final registrationCubit = context.read<RegistrationCubit>();
+        final userSettingsCubit = context.read<UserSettingsCubit>();
+        final appLocaleCubit = context.read<AppLocaleCubit>();
         // Side Effect: navigate to the home screen or away to the intro
         // screen, depending on whether the user was loaded or unloaded.
         switch (loadableUser) {
           case LoadedUser(user: final user?):
-            final registrationState = context.read<RegistrationCubit>().state;
+            final registrationState = registrationCubit.state;
             if (registrationState.needsUsernameOnboarding) {
-              context.read<NavigationCubit>().openIntroScreen(
+              navigationCubit.openIntroScreen(
                 const IntroScreenType.usernameOnboarding(),
               );
             } else {
-              context.read<NavigationCubit>().openHome();
+              navigationCubit.openHome();
             }
-            context.read<UserSettingsCubit>().loadState(user: user);
+            await userSettingsCubit.loadState(user: user);
+            final userLocaleCode = userSettingsCubit.state.locale;
+            final appLocale = appLocaleCubit.state;
+            if (userLocaleCode != null) {
+              // Sync UI locale with persisted user preference.
+              appLocaleCubit.setLocale(Locale(userLocaleCode));
+            } else if (appLocale != null) {
+              // Persist pre-user selection once the user exists.
+              await userSettingsCubit.setLocale(
+                user: user,
+                value: appLocale.languageCode,
+              );
+            }
           case LoadingUser() || LoadedUser(user: null):
-            context.read<NavigationCubit>().openIntro();
-            context.read<UserSettingsCubit>().reset();
+            navigationCubit.openIntro();
+            await userSettingsCubit.reset();
         }
       },
       builder: (context, loadableUser) => loadableUser.user == null

@@ -33,7 +33,7 @@ pub(crate) struct TimedTaskQueue {
 }
 
 impl TimedTaskQueue {
-    pub(crate) fn new_key_package_upload_task(due_at: DateTime<Utc>) -> Self {
+    pub(crate) const fn new_key_package_upload_task(due_at: DateTime<Utc>) -> Self {
         Self {
             due_at,
             kind: TaskKind::KeyPackageUpload,
@@ -66,6 +66,22 @@ mod persistence {
             Ok(())
         }
 
+        pub(crate) async fn ensure_exists(
+            &self,
+            executor: impl SqliteExecutor<'_>,
+        ) -> sqlx::Result<()> {
+            query!(
+                "INSERT OR IGNORE INTO timed_tasks_queue
+                    (task_kind, due_at)
+                VALUES (?1, ?2)",
+                self.kind,
+                self.due_at,
+            )
+            .execute(executor)
+            .await?;
+            Ok(())
+        }
+
         pub(crate) async fn dequeue(
             executor: impl SqliteExecutor<'_>,
             task_id: Uuid,
@@ -78,7 +94,7 @@ mod persistence {
                 WHERE task_kind = (
                     SELECT task_kind
                     FROM timed_tasks_queue
-                    WHERE 
+                    WHERE
                         (locked_by IS NULL OR locked_by != ?1)
                         AND due_at <= ?2
                     ORDER BY due_at ASC

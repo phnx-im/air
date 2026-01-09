@@ -30,7 +30,7 @@ impl Qs {
             key_packages,
         } = params;
 
-        let mut verified_key_packages = vec![];
+        let mut verified_key_packages = Vec::with_capacity(key_packages.len());
         let mut last_resort_key_package = None;
         for key_package in key_packages {
             let verified_key_package: KeyPackage = key_package
@@ -49,22 +49,14 @@ impl Qs {
             }
         }
 
+        let mut txn = self.db_pool.begin().await?;
         if let Some(last_resort_key_package) = last_resort_key_package {
             last_resort_key_package
-                .store_last_resort(&self.db_pool, &sender)
-                .await
-                .map_err(|e| {
-                    tracing::warn!("Failed to store last resort key package: {:?}", e);
-                    QsPublishKeyPackagesError::StorageError
-                })?;
+                .replace_last_resort(&mut txn, &sender)
+                .await?;
         }
-
-        KeyPackage::store_multiple(&self.db_pool, &sender, &verified_key_packages)
-            .await
-            .map_err(|e| {
-                tracing::warn!("Failed to store last resort key package: {:?}", e);
-                QsPublishKeyPackagesError::StorageError
-            })?;
+        KeyPackage::replace_multiple(&mut txn, &sender, &verified_key_packages).await?;
+        txn.commit().await?;
 
         Ok(())
     }

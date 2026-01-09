@@ -18,6 +18,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get appTitle => 'Air';
 
   @override
+  String get languageName => 'Français';
+
+  @override
   String get userSettingsScreen_title => 'Profil et paramètres';
 
   @override
@@ -138,7 +141,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get removeUserDialog_removeUser => 'Retirer l\'utilisateur';
 
   @override
-  String get removeUserButton_text => 'Retirer l\'utilisateur';
+  String get removeUserButton_text => 'Retirer';
 
   @override
   String get blockContactButton_text => 'Bloquer';
@@ -748,7 +751,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get groupDetails_deleteChat => 'Supprimer';
 
   @override
-  String get groupDetails_addPeople => 'Ajouter des personnes';
+  String get groupDetails_addPeople => 'Ajouter';
 
   @override
   String get groupDetails_seeAll => 'Voir tout';
