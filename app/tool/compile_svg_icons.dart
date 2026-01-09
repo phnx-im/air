@@ -14,15 +14,6 @@ const _svgDir = 'lib/ui/icons/svg';
 const _outputFile = 'lib/ui/icons/app_icons.dart';
 
 Future<void> main() async {
-  if (!vgc.initializeTessellatorFromFlutterCache()) {
-    stderr.writeln('Failed to initialize tessellator; run `flutter precache`.');
-    exit(1);
-  }
-  if (!vgc.initializePathOpsFromFlutterCache()) {
-    stderr.writeln('Failed to initialize path_ops; run `flutter precache`.');
-    exit(1);
-  }
-
   final svgDirectory = Directory(_svgDir);
   if (!svgDirectory.existsSync()) {
     stderr.writeln('SVG directory not found: $_svgDir');
@@ -62,7 +53,14 @@ Future<void> main() async {
     constructorEntries.writeln();
 
     final svgString = await file.readAsString();
-    final bytes = vgc.encodeSvg(xml: svgString, debugName: name);
+
+    final bytes = vgc.encodeSvg(
+      xml: svgString,
+      debugName: name,
+      enableClippingOptimizer: false,
+      enableMaskingOptimizer: false,
+      enableOverdrawOptimizer: false,
+    );
     final base64Data = base64Encode(bytes);
 
     loaderEntries.writeln(
@@ -79,7 +77,10 @@ Future<void> main() async {
   buffer.writeln("import 'package:flutter/foundation.dart';");
   buffer.writeln("import 'package:flutter/services.dart';");
   buffer.writeln("import 'package:flutter/widgets.dart';");
-  buffer.writeln("import 'package:vector_graphics/vector_graphics.dart';");
+  buffer.writeln(
+    "import 'package:vector_graphics/vector_graphics_compat.dart';",
+  );
+
   buffer.writeln();
   buffer.writeln('enum AppIconType { ${enumEntries.join(', ')} }');
   buffer.writeln();
@@ -115,7 +116,7 @@ Future<void> main() async {
   buffer.writeln(
     '    final color = this.color ?? CustomColorScheme.of(context).text.primary;',
   );
-  buffer.writeln('    return VectorGraphic(');
+  buffer.writeln('    return createCompatVectorGraphic(');
   buffer.writeln('      loader: compiledSvgLoader(type),');
   buffer.writeln('      width: size,');
   buffer.writeln('      height: size,');
