@@ -6,7 +6,7 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:vector_graphics/vector_graphics.dart';
+import 'package:vector_graphics/vector_graphics_compat.dart';
 
 enum AppIconType {
   arrowLeft,
@@ -386,7 +386,7 @@ class AppIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = this.color ?? CustomColorScheme.of(context).text.primary;
-    return VectorGraphic(
+    return createCompatVectorGraphic(
       loader: compiledSvgLoader(type),
       width: size,
       height: size,
