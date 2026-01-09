@@ -41,11 +41,47 @@ const double largeCornerRadius = Spacings.sm;
 const double smallCornerRadius = Spacings.xxs;
 const double messageHorizontalPadding = Spacings.s;
 const double messageVerticalPadding = Spacings.xxs;
+const double senderAvatarSize = Spacings.l;
+const double senderAvatarVerticalOffset = Spacings.xxxs;
+const double senderLabelBottomGap = Spacings.xxxs / 2;
 
 const _messagePadding = EdgeInsets.symmetric(
   horizontal: messageHorizontalPadding,
   vertical: messageVerticalPadding,
 );
+
+class WrapWithBubbleWidth extends StatelessWidget {
+  const WrapWithBubbleWidth({
+    super.key,
+    required this.isSender,
+    required this.child,
+  });
+
+  final bool isSender;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final hasFiniteWidth = constraints.maxWidth.isFinite;
+        final double maxWidth = hasFiniteWidth
+            ? constraints.maxWidth * _bubbleMaxWidthFactor
+            : double.infinity;
+        final alignment = isSender
+            ? Alignment.centerRight
+            : Alignment.centerLeft;
+        final boxConstraints = hasFiniteWidth
+            ? BoxConstraints(maxWidth: maxWidth)
+            : const BoxConstraints();
+        return Align(
+          alignment: alignment,
+          child: ConstrainedBox(constraints: boxConstraints, child: child),
+        );
+      },
+    );
+  }
+}
 
 class TextMessageTile extends StatelessWidget {
   const TextMessageTile({
@@ -69,18 +105,120 @@ class TextMessageTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        if (showSender && !isSender && flightPosition.isFirst)
-          _Sender(sender: contentMessage.sender, isSender: false),
-        _MessageView(
-          messageId: messageId,
-          contentMessage: contentMessage,
-          timestamp: timestamp,
-          isSender: isSender,
-          flightPosition: flightPosition,
-          status: status,
+    final showParticipantDetails = showSender && !isSender;
+    if (showParticipantDetails) {
+      return _IncomingMessageTile(
+        messageId: messageId,
+        contentMessage: contentMessage,
+        timestamp: timestamp,
+        flightPosition: flightPosition,
+        status: status,
+      );
+    }
+
+    return _MessageView(
+      messageId: messageId,
+      contentMessage: contentMessage,
+      timestamp: timestamp,
+      isSender: isSender,
+      flightPosition: flightPosition,
+      status: status,
+      showMetadata: true,
+    );
+  }
+}
+
+class _IncomingMessageTile extends StatelessWidget {
+  const _IncomingMessageTile({
+    required this.messageId,
+    required this.contentMessage,
+    required this.timestamp,
+    required this.flightPosition,
+    required this.status,
+  });
+
+  final MessageId messageId;
+  final UiContentMessage contentMessage;
+  final DateTime timestamp;
+  final UiFlightPosition flightPosition;
+  final UiMessageStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final showSenderLabel = flightPosition.isFirst;
+    final showAvatar = flightPosition.isLast;
+    const senderLeftInset =
+        senderAvatarSize + Spacings.xs + messageHorizontalPadding;
+    final senderProfile = showSenderLabel
+        ? context.select(
+            (UsersCubit cubit) =>
+                cubit.state.profile(userId: contentMessage.sender),
+          )
+        : null;
+    void openMemberDetails() {
+      unawaited(
+        context.read<NavigationCubit>().openMemberDetails(
+          contentMessage.sender,
         ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (showSenderLabel)
+          Padding(
+            padding: const EdgeInsets.only(
+              top: Spacings.xs,
+              bottom: senderLabelBottomGap,
+              left: senderLeftInset,
+            ),
+            child: _SenderHeader(
+              displayName: senderProfile!.displayName,
+              onTap: openMemberDetails,
+            ),
+          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            SizedBox(
+              width: senderAvatarSize,
+              child: showAvatar
+                  ? Transform.translate(
+                      offset: const Offset(0, -senderAvatarVerticalOffset),
+                      child: _SenderAvatar(
+                        sender: contentMessage.sender,
+                        onTap: openMemberDetails,
+                        size: senderAvatarSize,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            const SizedBox(width: Spacings.xs),
+            Expanded(
+              child: _MessageView(
+                messageId: messageId,
+                contentMessage: contentMessage,
+                timestamp: timestamp,
+                isSender: false,
+                flightPosition: flightPosition,
+                status: status,
+                showMetadata: false,
+              ),
+            ),
+          ],
+        ),
+        if (flightPosition.isLast)
+          Padding(
+            padding: const EdgeInsets.only(left: senderLeftInset),
+            child: _MessageMetadataRow(
+              timestamp: timestamp,
+              isSender: false,
+              flightPosition: flightPosition,
+              status: status,
+            ),
+          ),
+        if (flightPosition.isLast) const SizedBox(height: Spacings.xxs),
       ],
     );
   }
@@ -94,6 +232,7 @@ class _MessageView extends HookWidget {
     required this.flightPosition,
     required this.isSender,
     required this.status,
+    required this.showMetadata,
   });
 
   final MessageId messageId;
@@ -102,6 +241,7 @@ class _MessageView extends HookWidget {
   final UiFlightPosition flightPosition;
   final bool isSender;
   final UiMessageStatus status;
+  final bool showMetadata;
 
   @override
   Widget build(BuildContext context) {
@@ -152,56 +292,6 @@ class _MessageView extends HookWidget {
       return child;
     }
 
-    final showMessageStatus =
-        isSender && flightPosition.isLast && status != UiMessageStatus.hidden;
-
-    final isSendingOrError =
-        status == UiMessageStatus.error || status == UiMessageStatus.sending;
-
-    Widget buildTimestampRow() {
-      if (!flightPosition.isLast) {
-        return const SizedBox.shrink();
-      }
-
-      return SelectionContainer.disabled(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 2),
-            Row(
-              mainAxisAlignment: isSender
-                  ? MainAxisAlignment.end
-                  : MainAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(width: Spacings.s),
-                if (!isSendingOrError) Timestamp(timestamp),
-                if (showMessageStatus) const SizedBox(width: Spacings.xxxs),
-                if (showMessageStatus && status == UiMessageStatus.error)
-                  Text(
-                    style: TextStyle(
-                      color: CustomColorScheme.of(context).function.warning,
-                    ),
-                    loc.messageBubble_failedToSend,
-                  ),
-                if (showMessageStatus && status == UiMessageStatus.sending)
-                  Text(
-                    style: TextStyle(
-                      color: CustomColorScheme.of(context).text.tertiary,
-                    ),
-                    loc.messageBubble_sending,
-                  ),
-                if (showMessageStatus && isSendingOrError)
-                  const SizedBox(width: Spacings.xxxs),
-                if (showMessageStatus) _MessageStatus(status: status),
-                const SizedBox(width: Spacings.xs),
-              ],
-            ),
-          ],
-        ),
-      );
-    }
-
     final attachments = contentMessage.content.attachments;
 
     const iconSize = 16.0;
@@ -237,15 +327,26 @@ class _MessageView extends HookWidget {
         ),
     ];
 
-    final menuItems = actions
-        .map(
-          (action) => ContextMenuItem(
-            label: action.label,
-            leading: action.leading,
-            onPressed: action.onSelected,
-          ),
-        )
-        .toList();
+    final menuItems = <ContextMenuEntry>[];
+    for (final (index, action) in actions.indexed) {
+      if (index > 0) {
+        menuItems.add(const ContextMenuSeparator());
+      }
+      menuItems.add(
+        ContextMenuItem(
+          label: action.label,
+          leading: action.leading,
+          onPressed: action.onSelected,
+        ),
+      );
+    }
+
+    final metadata = _MessageMetadataRow(
+      timestamp: timestamp,
+      isSender: isSender,
+      flightPosition: flightPosition,
+      status: status,
+    );
 
     Widget buildMessageShell({
       required VoidCallback? onLongPress,
@@ -254,18 +355,18 @@ class _MessageView extends HookWidget {
       required GlobalKey messageKey,
       required bool detached,
       GlobalKey? bubbleRenderKey,
+      required bool includeMetadata,
     }) {
       final bubble = buildMessageBubble(
         enableSelection: enableSelection,
         key: bubbleRenderKey,
       );
-      final timestampRow = buildTimestampRow();
 
       return Container(
         key: messageKey,
         padding: EdgeInsets.only(
-          top: flightPosition.isFirst ? 5 : 0,
-          bottom: flightPosition.isLast ? 5 : 0,
+          top: flightPosition.isFirst ? Spacings.xxxs : 0,
+          bottom: includeMetadata && flightPosition.isLast ? 5 : 0,
         ),
         child: Column(
           crossAxisAlignment: isSender
@@ -290,36 +391,16 @@ class _MessageView extends HookWidget {
                 ),
               ),
             ),
-            timestampRow,
+            if (includeMetadata) metadata,
           ],
         ),
       );
     }
 
-    Widget wrapWithBubbleWidth(Widget child) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final hasFiniteWidth = constraints.maxWidth.isFinite;
-          final double maxWidth = hasFiniteWidth
-              ? constraints.maxWidth * _bubbleMaxWidthFactor
-              : double.infinity;
-          final alignment = isSender
-              ? Alignment.centerRight
-              : Alignment.centerLeft;
-          final boxConstraints = hasFiniteWidth
-              ? BoxConstraints(maxWidth: maxWidth)
-              : const BoxConstraints();
-          return Align(
-            alignment: alignment,
-            child: ConstrainedBox(constraints: boxConstraints, child: child),
-          );
-        },
-      );
-    }
-
     if (isMobilePlatform) {
-      return wrapWithBubbleWidth(
-        buildMessageShell(
+      return WrapWithBubbleWidth(
+        isSender: isSender,
+        child: buildMessageShell(
           onLongPress: actions.isEmpty
               ? null
               : () {
@@ -354,16 +435,17 @@ class _MessageView extends HookWidget {
           messageKey: messageContainerKey,
           detached: isDetached.value,
           bubbleRenderKey: bubbleKey,
+          includeMetadata: showMetadata,
         ),
       );
     }
 
-    return wrapWithBubbleWidth(
-      ContextMenu(
+    return WrapWithBubbleWidth(
+      isSender: isSender,
+      child: ContextMenu(
         direction: isSender
             ? ContextMenuDirection.left
             : ContextMenuDirection.right,
-        width: 200,
         offset: const Offset(Spacings.xxs, 0),
         controller: contextMenuController,
         menuItems: menuItems,
@@ -384,6 +466,7 @@ class _MessageView extends HookWidget {
           messageKey: messageContainerKey,
           detached: false,
           bubbleRenderKey: bubbleKey,
+          includeMetadata: showMetadata,
         ),
       ),
     );
@@ -540,6 +623,73 @@ class _MessageStatus extends StatelessWidget {
       _ => null,
     };
     return MessageStatusIcon(size: 16, statusIcon: statusIconType!);
+  }
+}
+
+class _MessageMetadataRow extends StatelessWidget {
+  const _MessageMetadataRow({
+    required this.timestamp,
+    required this.isSender,
+    required this.flightPosition,
+    required this.status,
+  });
+
+  final DateTime timestamp;
+  final bool isSender;
+  final UiFlightPosition flightPosition;
+  final UiMessageStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!flightPosition.isLast) {
+      return const SizedBox.shrink();
+    }
+
+    final loc = AppLocalizations.of(context);
+    final showMessageStatus = isSender && status != UiMessageStatus.hidden;
+    final isSendingOrError =
+        status == UiMessageStatus.error || status == UiMessageStatus.sending;
+    final double leadingSpacing = isSender ? Spacings.s : 0;
+
+    return SelectionContainer.disabled(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 2),
+          Row(
+            mainAxisAlignment: isSender
+                ? MainAxisAlignment.end
+                : MainAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(width: leadingSpacing),
+              if (!isSendingOrError) Timestamp(timestamp),
+              if (showMessageStatus) const SizedBox(width: Spacings.xxxs),
+              if (showMessageStatus && status == UiMessageStatus.error)
+                Text(
+                  style: TextStyle(
+                    color: CustomColorScheme.of(context).function.warning,
+                    fontSize: LabelFontSize.small2.size,
+                  ),
+                  loc.messageBubble_failedToSend,
+                ),
+              if (showMessageStatus && status == UiMessageStatus.sending)
+                Text(
+                  style: TextStyle(
+                    color: CustomColorScheme.of(context).text.tertiary,
+                    fontSize: LabelFontSize.small2.size,
+                  ),
+                  loc.messageBubble_sending,
+                ),
+              if (showMessageStatus && isSendingOrError)
+                const SizedBox(width: Spacings.xxxs),
+              if (showMessageStatus) _MessageStatus(status: status),
+              const SizedBox(width: Spacings.xs),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -701,58 +851,59 @@ class _MessageContent extends StatelessWidget {
   }
 }
 
-class _Sender extends StatelessWidget {
-  const _Sender({required this.sender, required this.isSender});
+class _SenderHeader extends StatelessWidget {
+  const _SenderHeader({required this.displayName, required this.onTap});
 
-  final UiUserId sender;
-  final bool isSender;
+  final String displayName;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final profile = context.select(
-      (UsersCubit cubit) => cubit.state.profile(userId: sender),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: _DisplayName(displayName: displayName),
+      ),
     );
+  }
+}
 
-    return Padding(
-      padding: const EdgeInsets.only(top: Spacings.xs, bottom: Spacings.xxs),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () {
-            unawaited(
-              context.read<NavigationCubit>().openMemberDetails(sender),
-            );
-          },
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              UserAvatar(userId: sender, size: Spacings.m),
-              const SizedBox(width: Spacings.xs),
-              _DisplayName(
-                displayName: profile.displayName,
-                isSender: isSender,
-              ),
-            ],
-          ),
-        ),
+class _SenderAvatar extends StatelessWidget {
+  const _SenderAvatar({
+    required this.sender,
+    required this.onTap,
+    this.size = senderAvatarSize,
+  });
+
+  final UiUserId sender;
+  final VoidCallback onTap;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: UserAvatar(userId: sender, size: size),
       ),
     );
   }
 }
 
 class _DisplayName extends StatelessWidget {
-  const _DisplayName({required this.displayName, required this.isSender});
+  const _DisplayName({required this.displayName});
 
   final String displayName;
-  final bool isSender;
 
   @override
   Widget build(BuildContext context) {
-    final text = isSender ? "You" : displayName;
     return SelectionContainer.disabled(
       child: Text(
-        text,
+        displayName,
         style: TextTheme.of(context).labelSmall!.copyWith(
           color: CustomColorScheme.of(context).text.tertiary,
         ),

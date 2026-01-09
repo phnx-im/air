@@ -5,6 +5,8 @@
 import 'dart:io';
 
 import 'package:air/core/core.dart';
+import 'package:air/l10n/app_locale_cubit.dart';
+import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
@@ -265,6 +267,9 @@ class _CommonSettings extends HookWidget {
     final loc = AppLocalizations.of(context);
     return Column(
       children: [
+        const _LanguageSetting(),
+
+        const SizedBox(height: Spacings.xs),
         _SwitchField(
           onSubmit: (value) {
             context.read<UserSettingsCubit>().setReadReceipts(
@@ -280,6 +285,41 @@ class _CommonSettings extends HookWidget {
 
         FieldLabel(loc.userSettingsScreen_readReceiptsDescription),
       ],
+    );
+  }
+}
+
+class _LanguageSetting extends StatelessWidget {
+  const _LanguageSetting();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = CustomColorScheme.of(context);
+
+    return LanguagePickerMenu(
+      onLocaleSelected: (locale) async {
+        context.read<AppLocaleCubit>().setLocale(locale);
+        final user = context.read<LoadableUserCubit>().state.user;
+        if (user == null) {
+          return;
+        }
+        await context.read<UserSettingsCubit>().setLocale(
+          user: user,
+          value: locale.languageCode,
+        );
+      },
+      childBuilder: (context, option, onTap) {
+        return _FieldContainer(
+          onTap: onTap,
+          child: Row(
+            children: [
+              AppIcon.globe(color: colors.text.secondary, size: 24),
+              const SizedBox(width: Spacings.xs),
+              Expanded(child: Text(option.label)),
+            ],
+          ),
+        );
+      },
     );
   }
 }

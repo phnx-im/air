@@ -76,7 +76,6 @@ class _PlusButtonState extends State<_PlusButton> {
       padding: const EdgeInsets.symmetric(vertical: Spacings.xs),
       child: ContextMenu(
         direction: ContextMenuDirection.left,
-        width: 250,
         controller: contextMenuController,
         menuItems: [
           ContextMenuItem(

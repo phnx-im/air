@@ -13,13 +13,40 @@ class ContextMenuUi extends StatelessWidget {
     super.key,
     required this.menuItems,
     required this.onHide,
+    this.maxHeight,
   });
 
-  final List<ContextMenuItem> menuItems;
+  final List<ContextMenuEntry> menuItems;
   final VoidCallback onHide;
+  final double? maxHeight;
 
   @override
   Widget build(BuildContext context) {
+    // Only reserve a leading column when any item uses it so labels align.
+    final hasAnyLeading = menuItems.whereType<ContextMenuItem>().any(
+      (item) => item.hasLeading || item.reserveLeadingSpace,
+    );
+    // Render entries as provided so callers can interleave separators with items.
+    final items = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final entry in menuItems)
+          if (entry is ContextMenuItem)
+            hasAnyLeading ? entry.copyWith(reserveLeadingSpace: true) : entry
+          else
+            entry,
+      ],
+    );
+
+    // Constrain and scroll when the menu would exceed available viewport height.
+    final body = maxHeight == null
+        ? items
+        : ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxHeight!),
+            child: SingleChildScrollView(child: items),
+          );
+
     return Container(
       clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
@@ -29,26 +56,9 @@ class ContextMenuUi extends StatelessWidget {
       ),
       padding: const EdgeInsets.symmetric(
         horizontal: Spacings.s,
-        vertical: Spacings.xs,
+        vertical: Spacings.xxs,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final (i, item) in menuItems.indexed) ...[
-            item,
-            if (i < menuItems.length - 1)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: Spacings.xxs),
-                child: Divider(
-                  height: 0,
-                  thickness: 1,
-                  color: CustomColorScheme.of(context).separator.primary,
-                ),
-              ),
-          ],
-        ],
-      ),
+      child: body,
     );
   }
 }

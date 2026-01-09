@@ -36,6 +36,9 @@ class UserSettingsCubit implements StateStreamableSource<UserSettings> {
 
   Future<void> loadState({required User user}) => _impl.loadState(user: user);
 
+  Future<void> setLocale({required User user, required String value}) =>
+      _impl.setLocale(user: user, value: value);
+
   Future<void> setInterfaceScale({
     required UserCubit userCubit,
     required double value,

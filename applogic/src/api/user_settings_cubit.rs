@@ -19,6 +19,7 @@ use crate::{
 #[derive(Debug, Clone)]
 #[frb(dart_metadata = ("freezed"))]
 pub struct UserSettings {
+    pub locale: Option<String>,
     pub interface_scale: Option<f64>,
     #[frb(default = 300.0)]
     pub sidebar_width: f64,
@@ -32,6 +33,7 @@ impl Default for UserSettings {
     #[frb(ignore)]
     fn default() -> Self {
         Self {
+            locale: None,
             interface_scale: None,
             sidebar_width: 300.0,
             send_on_enter: false,
@@ -83,11 +85,13 @@ impl UserSettingsCubitBase {
 
     pub async fn load_state(&self, user: &User) {
         let store = &user.user;
+        let locale = store.user_setting().await;
         let interface_scale = store.user_setting().await;
         let sidebar_width = store.user_setting().await;
         let send_on_enter = store.user_setting().await;
         let read_receipts = store.user_setting().await;
         self.core.state_tx().send_modify(|state| {
+            state.locale = locale.map(|LocaleSetting(value)| value);
             state.interface_scale = interface_scale.map(|InterfaceScaleSetting(value)| value);
             if let Some(SidebarWidthSetting(value)) = sidebar_width {
                 state.sidebar_width = value;
@@ -99,6 +103,19 @@ impl UserSettingsCubitBase {
                 state.read_receipts = value;
             }
         });
+    }
+
+    pub async fn set_locale(&self, user: &User, value: String) -> anyhow::Result<()> {
+        if self.core.state_tx().borrow().locale.as_deref() == Some(value.as_str()) {
+            return Ok(());
+        }
+        user.user
+            .set_user_setting(&LocaleSetting(value.clone()))
+            .await?;
+        self.core
+            .state_tx()
+            .send_modify(|state| state.locale = Some(value));
+        Ok(())
     }
 
     pub async fn set_interface_scale(
@@ -214,6 +231,22 @@ fn f64_decode(bytes: Vec<u8>) -> anyhow::Result<f64> {
     Ok(f64::from_le_bytes(
         bytes.try_into().map_err(|_| anyhow!("invalid f64 bytes"))?,
     ))
+}
+
+struct LocaleSetting(String);
+
+impl UserSetting for LocaleSetting {
+    const KEY: &'static str = "locale";
+
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(self.0.as_bytes().to_vec())
+    }
+
+    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
+        let value =
+            String::from_utf8(bytes).map_err(|error| anyhow!("invalid locale bytes: {error}"))?;
+        Ok(Self(value))
+    }
 }
 
 struct SendOnEnterSetting(bool);
