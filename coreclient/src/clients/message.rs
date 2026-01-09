@@ -19,8 +19,7 @@ use super::{CoreUser, Group, StoreNotifier};
 impl CoreUser {
     /// Send a message and return it.
     ///
-    /// The message is stored, then sent to the DS and finally returned. The
-    /// chat is marked as read until this message.
+    /// The message is stored, then sent to the DS and finally returned.
     pub(crate) async fn send_message(
         &self,
         chat_id: ChatId,
@@ -221,10 +220,6 @@ impl UnsentMessage<GroupUpdateNeeded> {
         // Immediately write the group back. No need to wait for the DS to
         // confirm as this is just an application message.
         group.store_update(txn.as_mut()).await?;
-
-        // Also, mark the message (and all messages preceeding it) as read.
-        Chat::mark_as_read_until_message_id(txn, notifier, chat.id(), message.id(), own_user)
-            .await?;
 
         Ok(UnsentMessage {
             chat,
