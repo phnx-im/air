@@ -29,7 +29,8 @@ jobs:
           fetch-depth: 0
           # Don't download historical file contents (blobs)
           filter: blob:none
-          lfs: true
+
+      - run: git lfs install && git lfs pull
 
       - name: Set up Just
         uses: extractions/setup-just@v2
