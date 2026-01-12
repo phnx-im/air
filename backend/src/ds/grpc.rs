@@ -63,6 +63,7 @@ pub struct GrpcDs<Qep: QsConnector> {
 enum LoadGroupStateError {
     #[error(transparent)]
     Status(Status),
+    #[allow(unused)]
     #[error("Group state expired")]
     Expired,
 }
