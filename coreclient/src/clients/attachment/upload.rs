@@ -29,7 +29,6 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tokio_stream::StreamExt;
 use tokio_util::io::ReaderStream;
-use tracing::error;
 
 use crate::{
     AttachmentContent, AttachmentProgressEvent, AttachmentStatus, AttachmentUrl, Chat, ChatId,
