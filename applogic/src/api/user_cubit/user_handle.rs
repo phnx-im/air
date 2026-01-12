@@ -55,7 +55,7 @@ impl HandleContext {
             let records = match cubit_context.core_user.user_handle_records().await {
                 Ok(records) => records,
                 Err(error) => {
-                    error!(%error, "failed to load user handle records; won't listen to handles");
+                    error!(%error, "failed to load username records; won't listen to usernames");
                     return;
                 }
             };
@@ -74,24 +74,29 @@ impl HandleContext {
         background_tasks: &HandleBackgroundTasks,
     ) -> BackgroundStreamTask<Self, HandleQueueMessage> {
         let handle = self.handle_record.handle.clone();
-        let name = format!("handle-{}", handle.plaintext());
+        let (prefix, suffix_len) = handle
+            .plaintext()
+            .split_at_checked(2)
+            .map(|(prefix, suffix)| (prefix, suffix.len()))
+            .unwrap_or(("unknown", 0));
+        let name = format!("username-{prefix}<..{suffix_len}>");
         background_tasks.insert(handle, cancel.clone());
         BackgroundStreamTask::new(name, self, cancel)
     }
 
     async fn ack(&self, message_id: Option<Uuid>) {
         if let Err(error) = self.try_ack(message_id).await {
-            error!(%error, "failed to ack handle queue message");
+            error!(%error, "failed to ack username queue message");
         }
     }
 
     async fn try_ack(&self, message_id: Option<Uuid>) -> anyhow::Result<()> {
-        let message_id = message_id.context("no message id in handle queue message")?;
+        let message_id = message_id.context("no message id in username queue message")?;
         let response = self.responder.read().await;
         let Some(responder) = response.as_ref() else {
-            bail!("logic error: no handle queue responder");
+            bail!("logic error: no username queue responder");
         };
-        debug!(?message_id, "acking handle queue message");
+        debug!(?message_id, "acking username queue message");
         responder.ack(message_id).await;
         Ok(())
     }
@@ -174,7 +179,7 @@ impl BackgroundStreamContext<HandleQueueMessage> for HandleContext {
                 self.cubit_context.show_notifications(notifications).await;
             }
             Err(error) => {
-                error!(?error, "failed to process handle queue message");
+                error!(?error, "failed to process username queue message");
             }
         }
         // ack the message independently of the result of processing the message
