@@ -71,6 +71,7 @@ allow-git = [
     "https://github.com/facebook/voprf",
     "https://github.com/raphaelrobert/privacypass",
     "https://github.com/openmls/openmls",
+    "https://github.com/jedisct1/rust-blind-rsa-signatures",
 ]
 
 [sources.allow-org]
