@@ -922,7 +922,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
                     .other_destination_clients(sender_index)
                     .collect();
 
-                let (group_message, welcome_bundles) =
+                let (group_message, mut individual_fan_out_messages) =
                     group_state.group_operation(params, ear_key).await?;
 
                 group_state.proposals.clear();
@@ -931,15 +931,19 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
                     .fan_out_message_without_notifications(group_message, destination_clients)
                     .await;
 
-                // TODO: Should we fan out the welcome bundles concurrently?
-                for message in welcome_bundles {
+                let commit_response =
+                    group_state.create_commit_response(sender_index, timestamp)?;
+                individual_fan_out_messages.push(commit_response);
+
+                // TODO: Should we fan out the individual fan out messages concurrently?
+                for message in individual_fan_out_messages {
                     if let Err(e) = self
                         .qs_connector
                         .dispatch(message)
                         .await
                         .map_err(DistributeMessageError::Connector)
                     {
-                        error!(%e, "Failed to dispatch welcome bundle");
+                        error!(%e, "Failed to dispatch message");
                     };
                 }
 
