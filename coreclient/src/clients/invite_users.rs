@@ -48,14 +48,15 @@ impl CoreUser {
 
         // Phase 5: Merge the commit into the group
         // Now that we know the commit went through, we can merge the commit
+        let mut notifier = self.store_notifier();
         let messages = connection
             .with_transaction(async |txn| {
-                self.with_notifier(async |notifier| {
-                    invited.merge_pending_commit(txn, notifier, chat_id).await
-                })
-                .await
+                invited
+                    .merge_pending_commit(txn, &mut notifier, chat_id)
+                    .await
             })
             .await?;
+        notifier.notify(); // Notify the store *after* the transaction is committed
 
         Ok(messages)
     }
