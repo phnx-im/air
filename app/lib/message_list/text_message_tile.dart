@@ -24,6 +24,7 @@ import 'package:air/user/user.dart';
 import 'package:air/util/platform.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -92,6 +93,8 @@ class TextMessageTile extends StatelessWidget {
     required this.status,
     required this.isSender,
     required this.showSender,
+    required this.showTimestamp,
+    required this.onToggleTimestamp,
     super.key,
   });
 
@@ -102,6 +105,8 @@ class TextMessageTile extends StatelessWidget {
   final UiMessageStatus status;
   final bool isSender;
   final bool showSender;
+  final bool showTimestamp;
+  final VoidCallback onToggleTimestamp;
 
   @override
   Widget build(BuildContext context) {
@@ -113,6 +118,8 @@ class TextMessageTile extends StatelessWidget {
         timestamp: timestamp,
         flightPosition: flightPosition,
         status: status,
+        showTimestamp: showTimestamp,
+        onToggleTimestamp: onToggleTimestamp,
       );
     }
 
@@ -124,6 +131,8 @@ class TextMessageTile extends StatelessWidget {
       flightPosition: flightPosition,
       status: status,
       showMetadata: true,
+      showTimestamp: showTimestamp,
+      onToggleTimestamp: onToggleTimestamp,
     );
   }
 }
@@ -135,6 +144,8 @@ class _IncomingMessageTile extends StatelessWidget {
     required this.timestamp,
     required this.flightPosition,
     required this.status,
+    required this.showTimestamp,
+    required this.onToggleTimestamp,
   });
 
   final MessageId messageId;
@@ -142,6 +153,8 @@ class _IncomingMessageTile extends StatelessWidget {
   final DateTime timestamp;
   final UiFlightPosition flightPosition;
   final UiMessageStatus status;
+  final bool showTimestamp;
+  final VoidCallback onToggleTimestamp;
 
   @override
   Widget build(BuildContext context) {
@@ -149,6 +162,9 @@ class _IncomingMessageTile extends StatelessWidget {
     final showAvatar = flightPosition.isLast;
     const senderLeftInset =
         senderAvatarSize + Spacings.xs + messageHorizontalPadding;
+    final forceMetadataVisible =
+        status == UiMessageStatus.error || status == UiMessageStatus.sending;
+    final metadataVisible = showTimestamp || forceMetadataVisible;
     final senderProfile = showSenderLabel
         ? context.select(
             (UsersCubit cubit) =>
@@ -204,21 +220,22 @@ class _IncomingMessageTile extends StatelessWidget {
                 flightPosition: flightPosition,
                 status: status,
                 showMetadata: false,
+                showTimestamp: showTimestamp,
+                onToggleTimestamp: onToggleTimestamp,
               ),
             ),
           ],
         ),
-        if (flightPosition.isLast)
-          Padding(
-            padding: const EdgeInsets.only(left: senderLeftInset),
-            child: _MessageMetadataRow(
-              timestamp: timestamp,
-              isSender: false,
-              flightPosition: flightPosition,
-              status: status,
-            ),
+        Padding(
+          padding: const EdgeInsets.only(left: senderLeftInset),
+          child: _MessageMetadataRow(
+            timestamp: timestamp,
+            isSender: false,
+            status: status,
+            visible: metadataVisible,
           ),
-        if (flightPosition.isLast) const SizedBox(height: Spacings.xxs),
+        ),
+        if (metadataVisible) const SizedBox(height: Spacings.xxs),
       ],
     );
   }
@@ -233,6 +250,8 @@ class _MessageView extends HookWidget {
     required this.isSender,
     required this.status,
     required this.showMetadata,
+    required this.showTimestamp,
+    required this.onToggleTimestamp,
   });
 
   final MessageId messageId;
@@ -242,6 +261,8 @@ class _MessageView extends HookWidget {
   final bool isSender;
   final UiMessageStatus status;
   final bool showMetadata;
+  final bool showTimestamp;
+  final VoidCallback onToggleTimestamp;
 
   @override
   Widget build(BuildContext context) {
@@ -255,6 +276,11 @@ class _MessageView extends HookWidget {
     final bubbleKey = useMemoized(GlobalKey.new);
     final messageContainerKey = useMemoized(() => GlobalKey());
     final isDetached = useState(false);
+    final tapDownPosition = useState<Offset?>(null);
+    final tapDownPointer = useState<int?>(null);
+    final suppressTap = useState(false);
+    final lastTapPosition = useState<Offset?>(null);
+    final lastTapTime = useState<Duration?>(null);
     useEffect(() {
       return cursorPositionNotifier.dispose;
     }, [cursorPositionNotifier]);
@@ -341,12 +367,52 @@ class _MessageView extends HookWidget {
       );
     }
 
+    final forceMetadataVisible =
+        status == UiMessageStatus.error || status == UiMessageStatus.sending;
     final metadata = _MessageMetadataRow(
       timestamp: timestamp,
       isSender: isSender,
-      flightPosition: flightPosition,
       status: status,
+      visible: showTimestamp || forceMetadataVisible,
     );
+    final metadataVisible =
+        showMetadata && (showTimestamp || forceMetadataVisible);
+    const tapTolerance = kTouchSlop;
+
+    bool canTrackPointerDown(PointerDownEvent event) {
+      if (event.kind == PointerDeviceKind.mouse ||
+          event.kind == PointerDeviceKind.trackpad) {
+        return event.buttons == kPrimaryButton;
+      }
+      return true;
+    }
+
+    void clearTapTracking() {
+      tapDownPosition.value = null;
+      tapDownPointer.value = null;
+    }
+
+    bool isMouseLikeDevice(PointerDeviceKind kind) {
+      return kind == PointerDeviceKind.mouse ||
+          kind == PointerDeviceKind.trackpad;
+    }
+
+    void clearLastTap() {
+      lastTapPosition.value = null;
+      lastTapTime.value = null;
+    }
+
+    bool isDoubleClick(Offset position, Duration timeStamp) {
+      final lastTime = lastTapTime.value;
+      final lastPosition = lastTapPosition.value;
+      if (lastTime == null || lastPosition == null) {
+        return false;
+      }
+      if (timeStamp - lastTime > kDoubleTapTimeout) {
+        return false;
+      }
+      return (position - lastPosition).distance <= kDoubleTapSlop;
+    }
 
     Widget buildMessageShell({
       required VoidCallback? onLongPress,
@@ -366,7 +432,7 @@ class _MessageView extends HookWidget {
         key: messageKey,
         padding: EdgeInsets.only(
           top: flightPosition.isFirst ? Spacings.xxxs : 0,
-          bottom: includeMetadata && flightPosition.isLast ? 5 : 0,
+          bottom: metadataVisible ? 5 : 0,
         ),
         child: Column(
           crossAxisAlignment: isSender
@@ -381,12 +447,72 @@ class _MessageView extends HookWidget {
                 duration: const Duration(milliseconds: 120),
                 child: IgnorePointer(
                   ignoring: detached,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.deferToChild,
-                    onTap: () => isRevealed.value = true,
-                    onLongPress: onLongPress,
-                    onSecondaryTapDown: onSecondaryTapDown,
-                    child: bubble,
+                  child: Listener(
+                    behavior: HitTestBehavior.translucent,
+                    onPointerDown: (event) {
+                      if (!canTrackPointerDown(event)) {
+                        return;
+                      }
+                      tapDownPosition.value = event.position;
+                      tapDownPointer.value = event.pointer;
+                    },
+                    onPointerMove: (event) {
+                      if (tapDownPointer.value != event.pointer) {
+                        return;
+                      }
+                      final downPosition = tapDownPosition.value;
+                      if (downPosition == null) {
+                        return;
+                      }
+                      if ((event.position - downPosition).distance >
+                          tapTolerance) {
+                        clearTapTracking();
+                      }
+                    },
+                    onPointerCancel: (_) {
+                      clearTapTracking();
+                      clearLastTap();
+                      suppressTap.value = false;
+                    },
+                    onPointerUp: (event) {
+                      if (tapDownPointer.value != event.pointer) {
+                        return;
+                      }
+                      final downPosition = tapDownPosition.value;
+                      clearTapTracking();
+                      if (downPosition == null) {
+                        return;
+                      }
+                      if (suppressTap.value) {
+                        suppressTap.value = false;
+                        return;
+                      }
+                      if ((event.position - downPosition).distance >
+                          tapTolerance) {
+                        return;
+                      }
+                      if (isMouseLikeDevice(event.kind) && enableSelection) {
+                        if (isDoubleClick(event.position, event.timeStamp)) {
+                          clearLastTap();
+                          return;
+                        }
+                        lastTapPosition.value = event.position;
+                        lastTapTime.value = event.timeStamp;
+                      }
+                      isRevealed.value = true;
+                      onToggleTimestamp();
+                    },
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.deferToChild,
+                      onLongPress: onLongPress == null
+                          ? null
+                          : () {
+                              suppressTap.value = true;
+                              onLongPress();
+                            },
+                      onSecondaryTapDown: onSecondaryTapDown,
+                      child: bubble,
+                    ),
                   ),
                 ),
               ),
@@ -630,65 +756,78 @@ class _MessageMetadataRow extends StatelessWidget {
   const _MessageMetadataRow({
     required this.timestamp,
     required this.isSender,
-    required this.flightPosition,
     required this.status,
+    required this.visible,
   });
 
   final DateTime timestamp;
   final bool isSender;
-  final UiFlightPosition flightPosition;
   final UiMessageStatus status;
+  final bool visible;
 
   @override
   Widget build(BuildContext context) {
-    if (!flightPosition.isLast) {
-      return const SizedBox.shrink();
+    final shouldShow = visible;
+    Widget? content;
+    if (shouldShow) {
+      final loc = AppLocalizations.of(context);
+      final showMessageStatus = isSender && status != UiMessageStatus.hidden;
+      final isSendingOrError =
+          status == UiMessageStatus.error || status == UiMessageStatus.sending;
+      content = SelectionContainer.disabled(
+        child: Column(
+          crossAxisAlignment: isSender
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 2),
+            Row(
+              mainAxisAlignment: isSender
+                  ? MainAxisAlignment.end
+                  : MainAxisAlignment.start,
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                if (!isSendingOrError) Timestamp(timestamp),
+                if (showMessageStatus) const SizedBox(width: Spacings.xxxs),
+                if (showMessageStatus && status == UiMessageStatus.error)
+                  Text(
+                    style: TextStyle(
+                      color: CustomColorScheme.of(context).function.warning,
+                      fontSize: LabelFontSize.small2.size,
+                    ),
+                    loc.messageBubble_failedToSend,
+                  ),
+                if (showMessageStatus && status == UiMessageStatus.sending)
+                  Text(
+                    style: TextStyle(
+                      color: CustomColorScheme.of(context).text.tertiary,
+                      fontSize: LabelFontSize.small2.size,
+                    ),
+                    loc.messageBubble_sending,
+                  ),
+                if (showMessageStatus && isSendingOrError)
+                  const SizedBox(width: Spacings.xxxs),
+                if (showMessageStatus) _MessageStatus(status: status),
+                const SizedBox(width: Spacings.xs),
+              ],
+            ),
+          ],
+        ),
+      );
     }
 
-    final loc = AppLocalizations.of(context);
-    final showMessageStatus = isSender && status != UiMessageStatus.hidden;
-    final isSendingOrError =
-        status == UiMessageStatus.error || status == UiMessageStatus.sending;
-    final double leadingSpacing = isSender ? Spacings.s : 0;
-
-    return SelectionContainer.disabled(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 2),
-          Row(
-            mainAxisAlignment: isSender
-                ? MainAxisAlignment.end
-                : MainAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(width: leadingSpacing),
-              if (!isSendingOrError) Timestamp(timestamp),
-              if (showMessageStatus) const SizedBox(width: Spacings.xxxs),
-              if (showMessageStatus && status == UiMessageStatus.error)
-                Text(
-                  style: TextStyle(
-                    color: CustomColorScheme.of(context).function.warning,
-                    fontSize: LabelFontSize.small2.size,
-                  ),
-                  loc.messageBubble_failedToSend,
-                ),
-              if (showMessageStatus && status == UiMessageStatus.sending)
-                Text(
-                  style: TextStyle(
-                    color: CustomColorScheme.of(context).text.tertiary,
-                    fontSize: LabelFontSize.small2.size,
-                  ),
-                  loc.messageBubble_sending,
-                ),
-              if (showMessageStatus && isSendingOrError)
-                const SizedBox(width: Spacings.xxxs),
-              if (showMessageStatus) _MessageStatus(status: status),
-              const SizedBox(width: Spacings.xs),
-            ],
-          ),
-        ],
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 180),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      transitionBuilder: (child, animation) => SizeTransition(
+        axis: Axis.vertical,
+        axisAlignment: -1.0,
+        sizeFactor: animation,
+        child: child,
       ),
+      child: content ?? const SizedBox.shrink(),
     );
   }
 }

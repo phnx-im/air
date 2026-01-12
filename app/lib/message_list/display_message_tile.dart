@@ -19,25 +19,52 @@ import 'timestamp.dart';
 class DisplayMessageTile extends StatelessWidget {
   final UiEventMessage eventMessage;
   final DateTime timestamp;
-  const DisplayMessageTile(this.eventMessage, this.timestamp, {super.key});
+  final bool showTimestamp;
+  final VoidCallback onToggleTimestamp;
+  const DisplayMessageTile(
+    this.eventMessage,
+    this.timestamp, {
+    required this.showTimestamp,
+    required this.onToggleTimestamp,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: Spacings.m),
-      child: Column(
-        spacing: Spacings.xxxs,
-        children: [
-          Container(
-            child: switch (eventMessage) {
-              UiEventMessage_System(field0: final message) =>
-                _SystemMessageContent(message: message),
-              UiEventMessage_Error(field0: final message) =>
-                _ErrorMessageContent(message: message),
-            },
-          ),
-          Timestamp(timestamp),
-        ],
+    final messageContent = switch (eventMessage) {
+      UiEventMessage_System(field0: final message) =>
+        _SystemMessageContent(message: message),
+      UiEventMessage_Error(field0: final message) =>
+        _ErrorMessageContent(message: message),
+    };
+
+    return GestureDetector(
+      behavior: HitTestBehavior.deferToChild,
+      onTap: onToggleTimestamp,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: Spacings.m),
+        child: Column(
+          children: [
+            Container(child: messageContent),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, animation) => SizeTransition(
+                axis: Axis.vertical,
+                axisAlignment: -1.0,
+                sizeFactor: animation,
+                child: child,
+              ),
+              child: showTimestamp
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: Spacings.xxxs),
+                      child: Timestamp(timestamp),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
       ),
     );
   }

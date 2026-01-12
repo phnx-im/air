@@ -38,6 +38,7 @@ class _MessageListViewState extends State<MessageListView> {
   /// for messages that were newly added to the list, but are re-built because
   /// they were removed from the rendering tree due to the scroll position.
   final _animatedMessages = List<MessageId>.empty(growable: true);
+  final Map<MessageId, bool> _timestampVisibility = <MessageId, bool>{};
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +61,9 @@ class _MessageListViewState extends State<MessageListView> {
           if (animate) {
             _animatedMessages.add(message.id);
           }
+          final isLastMessage = index == state.loadedMessagesCount - 1;
+          final showTimestamp =
+              _timestampVisibility[message.id] ?? isLastMessage;
           return BlocProvider(
             key: ValueKey(message.id),
             create: (context) {
@@ -74,6 +78,12 @@ class _MessageListViewState extends State<MessageListView> {
               child: ChatTile(
                 isConnectionChat: state.isConnectionChat ?? false,
                 animated: animate,
+                showTimestamp: showTimestamp,
+                onToggleTimestamp: () {
+                  setState(() {
+                    _timestampVisibility[message.id] = !showTimestamp;
+                  });
+                },
               ),
             ),
           );

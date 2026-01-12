@@ -17,10 +17,14 @@ class ChatTile extends StatelessWidget {
     super.key,
     required this.isConnectionChat,
     required this.animated,
+    required this.showTimestamp,
+    required this.onToggleTimestamp,
   });
 
   final bool isConnectionChat;
   final bool animated;
+  final bool showTimestamp;
+  final VoidCallback onToggleTimestamp;
 
   @override
   Widget build(BuildContext context) {
@@ -61,10 +65,14 @@ class ChatTile extends StatelessWidget {
             status: adjustedStatus,
             isSender: isSender,
             showSender: !isConnectionChat,
+            showTimestamp: showTimestamp,
+            onToggleTimestamp: onToggleTimestamp,
           ),
           UiMessage_Display(field0: final display) => DisplayMessageTile(
             display,
             timestamp,
+            showTimestamp: showTimestamp,
+            onToggleTimestamp: onToggleTimestamp,
           ),
         },
       ),
