@@ -330,7 +330,7 @@ mod test {
             endpoint: "https://region.example.com".to_owned(),
             region: "example-region".to_owned(),
             access_key_id: "EXAMPLEKEY".to_owned(),
-            secret_access_key: "EXAMPLESECRET".to_owned().into(),
+            secret_access_key: "EXMPLESECRET".to_owned().into(),
             bucket: "data".to_owned(),
             force_path_style: false,
             upload_expiration: Duration::seconds(60),
