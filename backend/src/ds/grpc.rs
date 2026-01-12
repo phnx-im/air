@@ -99,16 +99,17 @@ impl<Qep: QsConnector> GrpcDs<Qep> {
         let group_data = StorableDsGroupData::load(&mut *connection, qgid)
             .await?
             .ok_or(GroupNotFoundError)?;
-        if group_data.has_expired() {
-            warn!(%qgid, "Group state has expired, deleting group");
-            StorableDsGroupData::<true>::delete(connection, qgid)
-                .await
-                .map_err(|error| {
-                    error!(%error, "Failed to delete expired group");
-                    Status::internal("Failed to delete expired group")
-                })?;
-            return Err(LoadGroupStateError::Expired);
-        }
+        // Group state expiration is disabled for now
+        //if group_data.has_expired() {
+        //    warn!(%qgid, "Group state has expired, deleting group");
+        //    StorableDsGroupData::<true>::delete(connection, qgid)
+        //        .await
+        //        .map_err(|error| {
+        //            error!(%error, "Failed to delete expired group");
+        //            Status::internal("Failed to delete expired group")
+        //        })?;
+        //    return Err(LoadGroupStateError::Expired);
+        //}
         let group_state = DsGroupState::decrypt(&group_data.encrypted_group_state, ear_key)?;
         Ok((group_data, group_state))
     }
