@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 use crate::{
     AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact, MessageDraft,
-    MessageId,
+    MessageId, UploadTaskError,
     clients::{
         CoreUser,
         add_contact::AddHandleContactResult,
@@ -331,7 +331,7 @@ impl Store for CoreUser {
     ) -> StoreResult<(
         AttachmentId,
         AttachmentProgress,
-        impl Future<Output = anyhow::Result<ChatMessage>> + use<>,
+        impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
     )> {
         self.upload_attachment(chat_id, path).await
     }
@@ -342,7 +342,7 @@ impl Store for CoreUser {
     ) -> StoreResult<(
         AttachmentId,
         AttachmentProgress,
-        impl Future<Output = StoreResult<ChatMessage>> + use<>,
+        impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
     )> {
         self.retry_upload_attachment(attachment_id).await
     }

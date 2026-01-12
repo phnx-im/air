@@ -11,7 +11,7 @@ use aircommon::{
     OpenMlsRand, RustCrypto,
     identifiers::{AttachmentId, UserId},
 };
-use aircoreclient::{AttachmentProgress, Chat, ChatId, ChatMessage, MessageDraft};
+use aircoreclient::{AttachmentProgress, Chat, ChatId, ChatMessage, MessageDraft, UploadTaskError};
 use aircoreclient::{MessageId, clients::CoreUser, store::Store};
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
@@ -269,7 +269,7 @@ impl ChatDetailsCubitBase {
         &self,
         attachment_id: AttachmentId,
         progress: AttachmentProgress,
-        upload_task: impl Future<Output = anyhow::Result<ChatMessage>> + Send + 'static,
+        upload_task: impl Future<Output = Result<ChatMessage, UploadTaskError>> + Send + 'static,
     ) -> anyhow::Result<()> {
         let handle = AttachmentTaskHandle::new(progress);
         let cancel = handle.cancellation_token().clone();
@@ -282,8 +282,13 @@ impl ChatDetailsCubitBase {
                     .enqueue_chat_message(message.id(), Some(attachment_id))
                     .await?;
             }
-            Some(Err(error)) => {
+            Some(Err(UploadTaskError { message_id, error })) => {
                 error!(%error, ?attachment_id, "Failed to upload attachment");
+                self.context
+                    .store
+                    .outbound_service()
+                    .fail_enqueued_chat_message(message_id, Some(attachment_id))
+                    .await?;
             }
             None => {
                 info!(?attachment_id, "Upload was cancelled");

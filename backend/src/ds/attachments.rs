@@ -68,7 +68,7 @@ impl Ds {
         let request = storage
             .client()
             .get_object()
-            .bucket("data")
+            .bucket(storage.settings().bucket.clone())
             .key(attachment_id.uuid().as_simple().to_string())
             .presigned(presigning_config)
             .await
@@ -330,7 +330,8 @@ mod test {
             endpoint: "https://region.example.com".to_owned(),
             region: "example-region".to_owned(),
             access_key_id: "EXAMPLEKEY".to_owned(),
-            secret_access_key: "EXMPLESECRET".to_owned().into(),
+            secret_access_key: "EXAMPLESECRET".to_owned().into(),
+            bucket: "data".to_owned(),
             force_path_style: false,
             upload_expiration: Duration::seconds(60),
             download_expiration: Duration::seconds(60),

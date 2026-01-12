@@ -26,7 +26,6 @@ enumset.workspace = true
 flate2.workspace = true
 image.workspace = true
 infer.workspace = true
-kamadak-exif.workspace = true
 mimi-room-policy.workspace = true
 mimi_content.workspace = true
 mls-assist.workspace = true

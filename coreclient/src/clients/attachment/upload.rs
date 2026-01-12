@@ -19,7 +19,6 @@ use airprotos::delivery_service::v1::SignedPostPolicy;
 use anyhow::{Context, bail, ensure};
 use base64::{Engine, prelude::BASE64_STANDARD};
 use chrono::{DateTime, Local, Utc};
-use infer::MatcherType;
 use mimi_content::{
     MimiContent,
     content_container::{Disposition, NestedPart, NestedPartContent, PartSemantics},
@@ -30,9 +29,11 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tokio_stream::StreamExt;
 use tokio_util::io::ReaderStream;
+use tracing::error;
 
 use crate::{
-    AttachmentContent, AttachmentStatus, AttachmentUrl, Chat, ChatId, ChatMessage, MessageId,
+    AttachmentContent, AttachmentProgressEvent, AttachmentStatus, AttachmentUrl, Chat, ChatId,
+    ChatMessage, MessageId,
     clients::{
         CoreUser,
         attachment::{
@@ -45,7 +46,7 @@ use crate::{
     store::{Store, StoreNotifier},
     utils::{
         connection_ext::StoreExt,
-        image::{ReencodedAttachmentImage, reencode_attachment_image},
+        image::{ReencodedAttachmentImage, load_attachment_image},
     },
 };
 
@@ -58,7 +59,7 @@ impl CoreUser {
     ) -> anyhow::Result<(
         AttachmentId,
         AttachmentProgress,
-        impl Future<Output = anyhow::Result<ChatMessage>> + use<>,
+        impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
     )> {
         let (chat, group) = self
             .with_transaction(async |txn| {
@@ -142,24 +143,22 @@ impl CoreUser {
     ) -> anyhow::Result<(
         AttachmentId,
         AttachmentProgress,
-        impl Future<Output = anyhow::Result<ChatMessage>> + use<>,
+        impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
     )> {
         // load locally stored data
         let (group, mut message, content) = self
             .with_transaction(async |txn| {
-                let AttachmentContent::Uploading(bytes) =
-                    self.load_attachment(attachment_id).await?
-                else {
-                    bail!("Attachment {attachment_id:?} is not uploading");
+                let content = match self.load_attachment(attachment_id).await? {
+                    AttachmentContent::UploadFailed(bytes) => AttachmentBytes::from(bytes),
+                    status => bail!("Unexpected attachment {attachment_id:?} status {status:?}"),
                 };
-                let content = AttachmentBytes::from(bytes);
 
                 let attachment_record = AttachmentRecord::load(self.pool(), attachment_id)
                     .await?
                     .context("Attachment not found")?;
                 ensure!(
-                    matches!(attachment_record.status, AttachmentStatus::Uploading),
-                    "Attachment is not uploading"
+                    matches!(attachment_record.status, AttachmentStatus::UploadFailed),
+                    "For retrying, the attachment must be in UploadFailed status"
                 );
 
                 let message = self
@@ -243,7 +242,7 @@ impl CoreUser {
         provision_response: ProvisionAttachmentResponse,
     ) -> (
         AttachmentProgress,
-        impl Future<Output = anyhow::Result<ChatMessage>> + use<>,
+        impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
     ) {
         let (progress_tx, progress) = AttachmentProgress::new();
         let http_client = self.http_client();
@@ -256,15 +255,41 @@ impl CoreUser {
                 ciphertext,
             )
             .await;
-            let status = if res.is_ok() {
-                AttachmentStatus::Ready
-            } else {
-                AttachmentStatus::Failed
-            };
-            AttachmentRecord::update_status(&pool, attachment_id, status).await?;
+            match res {
+                Ok(()) => {
+                    AttachmentRecord::update_status(&pool, attachment_id, AttachmentStatus::Ready)
+                        .await
+                        .map_err(|error| UploadTaskError::new(message.id(), error.into()))?;
+                }
+                Err(error) => {
+                    AttachmentRecord::update_status(
+                        &pool,
+                        attachment_id,
+                        AttachmentStatus::UploadFailed,
+                    )
+                    .await
+                    .map_err(|error| UploadTaskError::new(message.id(), error.into()))?;
+                    return Err(UploadTaskError {
+                        message_id: message.id(),
+                        error,
+                    });
+                }
+            }
             Ok(message)
         };
         (progress, task)
+    }
+}
+
+#[derive(Debug)]
+pub struct UploadTaskError {
+    pub message_id: MessageId,
+    pub error: anyhow::Error,
+}
+
+impl UploadTaskError {
+    fn new(message_id: MessageId, error: anyhow::Error) -> Self {
+        Self { message_id, error }
     }
 }
 
@@ -288,34 +313,29 @@ struct ProcessedAttachmentImageData {
 
 impl ProcessedAttachment {
     fn from_file(path: &Path) -> anyhow::Result<Self> {
-        // TODO(#589): Avoid reading the whole file into memory when it is an image.
-        // Instead, it should be re-encoded directly from the file.
-        let content = std::fs::read(path)
-            .with_context(|| format!("Failed to read file at {}", path.display()))?;
-        let mime = infer::get(&content);
-
-        let (content, content_type, image_data): (AttachmentBytes, _, _) = if mime
-            .map(|mime| mime.matcher_type() == MatcherType::Image)
-            .unwrap_or(false)
-        {
-            let ReencodedAttachmentImage {
+        let (content, content_type, image_data): (AttachmentBytes, _, _) =
+            if let Some(ReencodedAttachmentImage {
                 webp_image,
                 image_dimensions: (width, height),
                 blurhash,
-            } = reencode_attachment_image(content)?;
-            let image_data = ProcessedAttachmentImageData {
-                blurhash,
-                width,
-                height,
+            }) = load_attachment_image(path)?
+            {
+                let image_data = ProcessedAttachmentImageData {
+                    blurhash,
+                    width,
+                    height,
+                };
+                (webp_image.into(), "image/webp", Some(image_data))
+            } else {
+                let content = std::fs::read(path)
+                    .with_context(|| format!("Failed to read file at {}", path.display()))?;
+                let mime = infer::get(&content);
+                let content_type = mime
+                    .as_ref()
+                    .map(|mime| mime.mime_type())
+                    .unwrap_or("application/octet-stream");
+                (content.into(), content_type, None)
             };
-            (webp_image.into(), "image/webp", Some(image_data))
-        } else {
-            let content_type = mime
-                .as_ref()
-                .map(|mime| mime.mime_type())
-                .unwrap_or("application/octet-stream");
-            (content.into(), content_type, None)
-        };
 
         let content_hash = Sha256::digest(&content).to_vec();
 
@@ -458,15 +478,14 @@ async fn upload_encrypted_attachment(
         }
 
         let mut uploaded = 0;
-        let total_len = ciphertext.len();
-
+        let tx = progress_tx.tx();
         let stream = ReaderStream::new(Cursor::new(ciphertext)).map(move |chunk| {
             if let Ok(chunk) = &chunk {
                 uploaded += chunk.len();
-                if uploaded == total_len {
-                    progress_tx.finish();
-                } else {
-                    progress_tx.report(uploaded);
+                if let Some(tx) = tx.as_ref() {
+                    let _ignore_closed = tx.send(AttachmentProgressEvent::Progress {
+                        bytes_loaded: uploaded,
+                    });
                 }
             }
             chunk
@@ -477,6 +496,8 @@ async fn upload_encrypted_attachment(
             .send()
             .await?
             .error_for_status()?;
+
+        progress_tx.finish();
     }
     Ok(())
 }

@@ -29,7 +29,7 @@ pub use crate::{
         add_contact::{AddHandleContactError, AddHandleContactResult},
         attachment::{
             AttachmentContent, AttachmentStatus, AttachmentUrl, AttachmentUrlParseError,
-            MimiContentExt,
+            MimiContentExt, UploadTaskError,
             progress::{AttachmentProgress, AttachmentProgressEvent},
         },
         block_contact::BlockedContactError,

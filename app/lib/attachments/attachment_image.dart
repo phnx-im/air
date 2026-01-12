@@ -107,6 +107,9 @@ class _UploadStatus extends HookWidget {
       [attachmentId],
     );
     final uploadStatus = useStream<UiAttachmentStatus>(uploadStatusSteam);
+    debugPrint(
+      'uploadStatus: ${uploadStatus.data}, attachmentId: $attachmentId',
+    );
 
     final loc = AppLocalizations.of(context);
 

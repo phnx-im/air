@@ -97,6 +97,9 @@ pub struct StorageSettings {
     pub access_key_id: String,
     /// Secret access key for the storage provider
     pub secret_access_key: SecretAccessKey,
+    /// Bucket name for the storage provider
+    #[serde(default = "default_bucket")]
+    pub bucket: String,
     /// Force path style for the storage provider
     #[serde(default)]
     pub force_path_style: bool,
@@ -215,6 +218,10 @@ fn default_20mib() -> u64 {
 
 fn default_burst() -> u32 {
     100
+}
+
+fn default_bucket() -> String {
+    "data".to_string()
 }
 
 mod duration_seconds {
