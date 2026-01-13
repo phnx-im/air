@@ -286,7 +286,7 @@ mod tests {
         let now = TimeStamp::now();
 
         // Pending updates should only be returned when due.
-        let due_at = TimeStamp::from(now.as_ref().clone() + Duration::seconds(60));
+        let due_at = TimeStamp::from(*now.as_ref() + Duration::seconds(60));
         query!(
             "UPDATE push_token_state SET pending_update = ?1 WHERE id = ?2",
             due_at,
@@ -299,7 +299,7 @@ mod tests {
 
         // clamp_pending_future should cap far-future timestamps.
         let far_future = TimeStamp::from(
-            now.as_ref().clone() + Duration::seconds(PUSH_TOKEN_PENDING_MAX_FUTURE_SECS + 1000),
+            *now.as_ref() + Duration::seconds(PUSH_TOKEN_PENDING_MAX_FUTURE_SECS + 1000),
         );
         query!(
             "UPDATE push_token_state SET pending_update = ?1 WHERE id = ?2",
@@ -316,7 +316,7 @@ mod tests {
 
         // schedule_retry should also clamp to the max pending window.
         let far_retry = TimeStamp::from(
-            now.as_ref().clone() + Duration::seconds(PUSH_TOKEN_PENDING_MAX_FUTURE_SECS + 1000),
+            *now.as_ref() + Duration::seconds(PUSH_TOKEN_PENDING_MAX_FUTURE_SECS + 1000),
         );
         schedule_retry(&pool, far_retry).await?;
         let state = load_state(&pool).await?.expect("state should exist");
