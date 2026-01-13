@@ -40,27 +40,6 @@ platform :mac do
     api_key = @app_store_api_key
     UI.user_error!("App Store Connect credentials are required for the beta_macos lane") unless api_key
 
-    # Read app version from pubspec.yaml
-    pubspec = YAML.load_file("../pubspec.yaml")
-    app_version = (pubspec['version'] || '').to_s.split('+').first
-
-    # Determine build number
-    build_number = if options[:build_number]
-                    options[:build_number].to_i
-                  else
-                    latest_testflight_build_number(
-                      version: app_version,
-                      api_key: api_key,
-                      platform: "osx",
-                      app_identifier: app_identifier
-                    ) + 1
-                  end
-
-    increment_build_number(
-      xcodeproj: "macos/Runner.xcodeproj",
-      build_number: build_number,
-    )
-
     # Use match for code signing
     ["development", "appstore"].each do |i|
       match(
@@ -101,6 +80,8 @@ platform :mac do
       UI.user_error!("App Store Connect credentials are required when with_signing is true") unless @app_store_api_key
     end
 
+    build_number = sh("git rev-list --count HEAD").strip.to_i
+
     # Set up CI
     setup_ci()
 
@@ -108,7 +89,7 @@ platform :mac do
     sh "fvm flutter pub get"
 
     # Build the app with flutter first to create the necessary ephemeral files
-    sh "fvm flutter build macos --config-only #{skip_signing ? '--debug' : '--release'}"
+    sh "fvm flutter build macos --config-only #{skip_signing ? '--debug' : '--release'} --build-number=#{build_number}"
 
     # Install CocoaPods dependencies
     cocoapods(

@@ -8,13 +8,14 @@ export RUST_LOG := "info"
 export RUST_BACKTRACE := "1"
 export RUSTFLAGS := "-D warnings"
 
+build_number := `git rev-list --count HEAD`
 
 _default:
     just --list
 
 # Reset and migrate databases.
 reset-dev:
-    cd coreclient && cargo sqlx database reset -y --database-url sqlite:$PWD/client.db
+    cd coreclient && cargo sqlx database reset -y --database-url sqlite:client.db
     cd backend && cargo sqlx database reset -y
 
 # Run fast and simple Rust lints.
@@ -104,7 +105,7 @@ regenerate-l10n:
 
 # Regenerate database query metadata.
 regenerate-sqlx:
-    cd coreclient && cargo sqlx prepare --database-url sqlite:$PWD/client.db
+    cd coreclient && cargo sqlx prepare --database-url sqlite:client.db
     cd backend && cargo sqlx prepare
 
 # Recompile svg icons for rendering.

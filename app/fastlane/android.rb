@@ -35,26 +35,9 @@ platform :android do
           File.open(playstore_key_path, "wb") do |file|
             file.write(Base64.decode64(base64_playstore_key))
           end
-
-          # Get the previous build number
-          begin
-            previous_build_number = google_play_track_version_codes(
-              track: track,
-              package_name: package_name,
-              json_key: "fastlane/" + playstore_key_path,
-            )[0]
-            previous_build_number = (previous_build_number || 0).to_i
-          rescue
-            previous_build_number = 0
-          end
-          current_build_number = previous_build_number + 1
-
-          # Increment the build number in the gradle file
-          increment_version_code(
-            gradle_file_path: "android/app/build.gradle.kts",
-            version_code: current_build_number
-          )
         end
+
+        current_build_number = sh("git rev-list --count HEAD").strip.to_i
 
         # When not uploading to the Play Store, we just build the app as APK to
         # allow manual installation
@@ -63,7 +46,7 @@ platform :android do
 
         sh "fvm flutter precache --android"
         sh "fvm flutter pub get"
-        sh "fvm flutter build #{build_target} --release --target-platform android-arm64"
+        sh "fvm flutter build #{build_target} --release --target-platform android-arm64 --build-number=#{build_number}"
 
         if upload_to_play_store
           metadata_path = File.expand_path("../stores/android/metadata", __dir__)
