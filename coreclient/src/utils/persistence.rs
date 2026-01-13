@@ -22,7 +22,7 @@ use sqlx::{
 use tracing::{error, info};
 
 use crate::clients::store::{ClientRecord, ClientRecordState::Finished};
-use crate::utils::{data_migrations, global_lock::GlobalLock};
+use crate::utils::global_lock::GlobalLock;
 
 pub(crate) const AIR_DB_NAME: &str = "air.db";
 
@@ -243,7 +243,6 @@ pub async fn open_client_db(user_id: &UserId, client_db_path: &str) -> sqlx::Res
         .create_if_missing(true);
     let pool = SqlitePoolOptions::default().connect_with(opts).await?;
 
-    data_migrations::migrate(&pool).await?;
     migrate!().run(&pool).await?;
 
     Ok(pool)

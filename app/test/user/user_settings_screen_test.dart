@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:air/core/core.dart';
+import 'package:air/l10n/app_locale_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/user/user.dart';
@@ -37,6 +38,7 @@ void main() {
 
     Widget buildSubject() => MultiBlocProvider(
       providers: [
+        BlocProvider<AppLocaleCubit>(create: (_) => AppLocaleCubit()),
         BlocProvider<UserCubit>.value(value: userCubit),
         BlocProvider<UsersCubit>.value(value: contactsCubit),
         BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),

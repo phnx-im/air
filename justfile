@@ -162,21 +162,23 @@ setup-macos-ci: install-cargo-binstall
 test-rust *args='':
     env DATABASE_URL={{POSTGRES_DATABASE_URL}} SQLX_OFFLINE=true cargo test {{args}}
 
+build_number := `git rev-list --count HEAD`
+
 # build Android
 # we limit it to android-arm64 to speed up the build process
 [working-directory: 'app']
 build-android:
-     flutter build appbundle --target-platform android-arm64
+     flutter build appbundle --target-platform android-arm64 --build-number={{build_number}}
 
 # build iOS
 [working-directory: 'app']
 build-ios:
-    flutter build ios --no-codesign
+    flutter build ios --no-codesign --build-number={{build_number}}
 
 # Build Linux app
 [working-directory: 'app']
 build-linux:
-     flutter build linux -v
+     flutter build linux -v --build-number={{build_number}}
 
 # analyze Dart code
 [working-directory: 'app']
@@ -197,7 +199,7 @@ run-backend: init-backend-db
 # Build Windows app
 [working-directory: 'app']
 build-windows:
-     flutter build windows -v
+     flutter build windows -v --build-number={{build_number}}
 
 # Run app
 [working-directory: 'app']

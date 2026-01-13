@@ -94,6 +94,7 @@ impl<const LOADED_FOR_UPDATE: bool> StorableDsGroupData<LOADED_FOR_UPDATE> {
         }
     }
 
+    #[allow(unused)]
     pub(crate) async fn delete(
         connection: impl PgExecutor<'_>,
         qgid: &QualifiedGroupId,
