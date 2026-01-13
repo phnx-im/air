@@ -677,6 +677,7 @@ impl CoreUser {
                     txn,
                     &mut notifier,
                     aad,
+                    ds_timestamp,
                     sender,
                     sender_client_credential,
                     &mut chat,
@@ -727,6 +728,7 @@ impl CoreUser {
         txn: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
         notifier: &mut StoreNotifier,
         aad: Vec<u8>,
+        ds_timestamp: TimeStamp,
         sender: &Sender,
         sender_client_credential: &ClientCredential,
         chat: &mut Chat,
@@ -809,7 +811,7 @@ impl CoreUser {
             user_handle,
         };
 
-        let message = TimestampedMessage::system_message(system_message, TimeStamp::now());
+        let message = TimestampedMessage::system_message(system_message, ds_timestamp);
 
         Ok(message)
     }
