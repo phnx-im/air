@@ -148,7 +148,7 @@ _generate-db-certs:
 
 # Use the current test results as new reference images.
 update-flutter-goldens:
-    fvm flutter test --update-goldens
+    cd app && fvm flutter test --update-goldens
 
 # Start the client in debug mode.
 run-client *args='':
