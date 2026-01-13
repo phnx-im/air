@@ -119,4 +119,29 @@ class CoreClient {
   Future<void> loadUser({required UiUserId userId}) async {
     user = await User.load(dbPath: await dbPath(), userId: userId);
   }
+
+  Future<void> refreshPushToken() async {
+    final currentUser = _user;
+    if (currentUser == null) {
+      return;
+    }
+
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      return;
+    }
+
+    final deviceToken = await getDeviceToken();
+    if (deviceToken == null) {
+      return;
+    }
+
+    final pushToken = Platform.isAndroid
+        ? PlatformPushToken.google(deviceToken)
+        : PlatformPushToken.apple(deviceToken);
+    try {
+      await currentUser.updatePushToken(pushToken);
+    } catch (error, stackTrace) {
+      _log.severe("Failed to update push token", error, stackTrace);
+    }
+  }
 }
