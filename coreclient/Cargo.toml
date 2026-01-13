@@ -24,6 +24,7 @@ chrono.workspace = true
 derive_more.workspace = true
 enumset.workspace = true
 flate2.workspace = true
+hex.workspace = true
 image.workspace = true
 infer.workspace = true
 kamadak-exif.workspace = true
