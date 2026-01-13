@@ -2,14 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::convert::Infallible;
-
 use aircommon::{
-    RustCrypto,
-    credentials::{ClientCredential, VerifiableClientCredential},
+    credentials::ClientCredential,
     crypto::{
         ear::keys::FriendshipPackageEarKey, hpke::HpkeDecryptable,
-        indexed_aead::keys::UserProfileKey, signatures::signable::Verifiable,
+        indexed_aead::keys::UserProfileKey,
     },
     identifiers::{QualifiedGroupId, UserHandle, UserId},
     messages::{
@@ -20,7 +17,7 @@ use aircommon::{
 };
 use airprotos::auth_service::v1::{HandleQueueMessage, handle_queue_message};
 use anyhow::{Context, Result, bail, ensure};
-use openmls::group::{GroupId, LeafNodeLifetimePolicy, ProposalStore, PublicGroup};
+use openmls::group::GroupId;
 use sqlx::SqliteConnection;
 use tls_codec::DeserializeBytes;
 use tracing::{error, warn};
@@ -196,45 +193,17 @@ impl CoreUser {
                     "Unjoined connection group must have exactly one user profile key"
                 );
 
-                // Get member from the group
-                let crypto = RustCrypto::default();
-                let (ephemeral_public_group, _group_info) =
-                    PublicGroup::from_ratchet_tree::<Infallible>(
-                        &crypto,
-                        eci.ratchet_tree_in,
-                        eci.verifiable_group_info,
-                        ProposalStore::new(),
-                        LeafNodeLifetimePolicy::Skip,
-                    )?;
-                let member = ephemeral_public_group
-                    .members()
-                    .next()
-                    .context("No members in a connection group")?;
-
-                // Veriufy client credential
-                let verifiable_credential =
-                    VerifiableClientCredential::try_from(member.credential).unwrap();
-                let as_credential = AsCredentials::get(
-                    self.pool().acquire().await?.as_mut(),
-                    &self.inner.api_clients,
-                    verifiable_credential.domain(),
-                    verifiable_credential.signer_fingerprint(),
-                )
-                .await?;
-                let client_credential: ClientCredential =
-                    verifiable_credential.verify(as_credential.verifying_key())?;
-
                 // Decrypt user profile key
                 let encrypted_user_profile_key = &eci.encrypted_user_profile_keys[0];
                 let user_profile_key = UserProfileKey::decrypt(
                     &connection_info.connection_group_identity_link_wrapper_key,
                     encrypted_user_profile_key,
-                    client_credential.identity(),
+                    sender_client_credential.identity(),
                 )?;
 
                 // Fetch and store user profile (it also creates a new contact)
                 let profile_info = ProfileInfo {
-                    client_credential,
+                    client_credential: sender_client_credential.clone(),
                     user_profile_key,
                 };
                 self.fetch_and_store_user_profile(

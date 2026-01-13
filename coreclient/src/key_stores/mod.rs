@@ -106,7 +106,7 @@ impl MemoryUserKeyStore {
         let kp = KeyPackage::builder()
             .key_package_extensions(key_package_extensions)
             .leaf_node_capabilities(capabilities)
-            .leaf_node_extensions(leaf_node_extensions)?
+            .leaf_node_extensions(leaf_node_extensions)
             .build(
                 CIPHERSUITE,
                 &provider,
