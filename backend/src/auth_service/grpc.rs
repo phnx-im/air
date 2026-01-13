@@ -10,7 +10,7 @@ use airprotos::{
     validation::MissingFieldExt,
 };
 use displaydoc::Display;
-use futures_util::stream::BoxStream;
+use futures_util::stream::{self, BoxStream};
 
 use aircommon::{
     credentials::keys,
@@ -33,7 +33,7 @@ use aircommon::{
 use privacypass::{amortized_tokens::AmortizedBatchTokenRequest, private_tokens::Ristretto255};
 use tls_codec::{Deserialize, Serialize};
 use tokio::sync::mpsc;
-use tokio_stream::StreamExt;
+use tokio_stream::{StreamExt, wrappers::ReceiverStream};
 use tonic::{Code, Request, Response, Status, Streaming, async_trait};
 use tracing::error;
 
@@ -126,6 +126,7 @@ impl GrpcAs {
     async fn process_listen_handle_requests_task(
         queues: UserHandleQueues,
         mut requests: Streaming<ListenHandleRequest>,
+        responses_tx: mpsc::Sender<Status>,
     ) {
         while let Some(request) = requests.next().await {
             if let Err(error) = Self::process_listen_handle_request(&queues, request).await {
@@ -137,9 +138,9 @@ impl GrpcAs {
                     // Client closed connection => not an error
                     continue;
                 } else {
-                    // We report the error, but don't stop processing requests.
-                    // TODO(#466): Send this to the client.
-                    error!(%error, "error processing listen request");
+                    // We report the error to the client, but don't stop processing requests.
+                    error!(%error, "error processing listen handle request");
+                    let _ = responses_tx.send(error).await;
                 }
             }
         }
@@ -547,14 +548,22 @@ impl auth_service_server::AuthService for GrpcAs {
 
         let messages = self.inner.handle_queues.listen(hash).await?;
 
+        const REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
+        let (requests_responses_tx, requests_responses_rx) =
+            mpsc::channel::<Status>(REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE);
+
         tokio::spawn(Self::process_listen_handle_requests_task(
             self.inner.handle_queues.clone(),
             requests,
+            requests_responses_tx,
         ));
 
-        let responses = Box::pin(messages.map(|message| Ok(ListenHandleResponse { message })));
+        let responses = stream::select(
+            messages.map(|message| Ok(ListenHandleResponse { message })),
+            ReceiverStream::new(requests_responses_rx).map(Err),
+        );
 
-        Ok(Response::new(responses))
+        Ok(Response::new(Box::pin(responses)))
     }
 }
 
