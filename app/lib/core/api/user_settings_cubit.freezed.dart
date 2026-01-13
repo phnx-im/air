@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$UserSettings {
 
- double? get interfaceScale; double get sidebarWidth; bool get sendOnEnter; bool get readReceipts;
+ String? get locale; double? get interfaceScale; double get sidebarWidth; bool get sendOnEnter; bool get readReceipts;
 /// Create a copy of UserSettings
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $UserSettingsCopyWith<UserSettings> get copyWith => _$UserSettingsCopyWithImpl<U
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UserSettings&&(identical(other.interfaceScale, interfaceScale) || other.interfaceScale == interfaceScale)&&(identical(other.sidebarWidth, sidebarWidth) || other.sidebarWidth == sidebarWidth)&&(identical(other.sendOnEnter, sendOnEnter) || other.sendOnEnter == sendOnEnter)&&(identical(other.readReceipts, readReceipts) || other.readReceipts == readReceipts));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UserSettings&&(identical(other.locale, locale) || other.locale == locale)&&(identical(other.interfaceScale, interfaceScale) || other.interfaceScale == interfaceScale)&&(identical(other.sidebarWidth, sidebarWidth) || other.sidebarWidth == sidebarWidth)&&(identical(other.sendOnEnter, sendOnEnter) || other.sendOnEnter == sendOnEnter)&&(identical(other.readReceipts, readReceipts) || other.readReceipts == readReceipts));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,interfaceScale,sidebarWidth,sendOnEnter,readReceipts);
+int get hashCode => Object.hash(runtimeType,locale,interfaceScale,sidebarWidth,sendOnEnter,readReceipts);
 
 @override
 String toString() {
-  return 'UserSettings(interfaceScale: $interfaceScale, sidebarWidth: $sidebarWidth, sendOnEnter: $sendOnEnter, readReceipts: $readReceipts)';
+  return 'UserSettings(locale: $locale, interfaceScale: $interfaceScale, sidebarWidth: $sidebarWidth, sendOnEnter: $sendOnEnter, readReceipts: $readReceipts)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $UserSettingsCopyWith<$Res>  {
   factory $UserSettingsCopyWith(UserSettings value, $Res Function(UserSettings) _then) = _$UserSettingsCopyWithImpl;
 @useResult
 $Res call({
- double? interfaceScale, double sidebarWidth, bool sendOnEnter, bool readReceipts
+ String? locale, double? interfaceScale, double sidebarWidth, bool sendOnEnter, bool readReceipts
 });
 
 
@@ -62,9 +62,10 @@ class _$UserSettingsCopyWithImpl<$Res>
 
 /// Create a copy of UserSettings
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? interfaceScale = freezed,Object? sidebarWidth = null,Object? sendOnEnter = null,Object? readReceipts = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? locale = freezed,Object? interfaceScale = freezed,Object? sidebarWidth = null,Object? sendOnEnter = null,Object? readReceipts = null,}) {
   return _then(_self.copyWith(
-interfaceScale: freezed == interfaceScale ? _self.interfaceScale : interfaceScale // ignore: cast_nullable_to_non_nullable
+locale: freezed == locale ? _self.locale : locale // ignore: cast_nullable_to_non_nullable
+as String?,interfaceScale: freezed == interfaceScale ? _self.interfaceScale : interfaceScale // ignore: cast_nullable_to_non_nullable
 as double?,sidebarWidth: null == sidebarWidth ? _self.sidebarWidth : sidebarWidth // ignore: cast_nullable_to_non_nullable
 as double,sendOnEnter: null == sendOnEnter ? _self.sendOnEnter : sendOnEnter // ignore: cast_nullable_to_non_nullable
 as bool,readReceipts: null == readReceipts ? _self.readReceipts : readReceipts // ignore: cast_nullable_to_non_nullable
@@ -80,9 +81,10 @@ as bool,
 
 
 class _UserSettings implements UserSettings {
-  const _UserSettings({this.interfaceScale, this.sidebarWidth = 300.0, this.sendOnEnter = false, this.readReceipts = true});
+  const _UserSettings({this.locale, this.interfaceScale, this.sidebarWidth = 300.0, this.sendOnEnter = false, this.readReceipts = true});
   
 
+@override final  String? locale;
 @override final  double? interfaceScale;
 @override@JsonKey() final  double sidebarWidth;
 @override@JsonKey() final  bool sendOnEnter;
@@ -98,16 +100,16 @@ _$UserSettingsCopyWith<_UserSettings> get copyWith => __$UserSettingsCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UserSettings&&(identical(other.interfaceScale, interfaceScale) || other.interfaceScale == interfaceScale)&&(identical(other.sidebarWidth, sidebarWidth) || other.sidebarWidth == sidebarWidth)&&(identical(other.sendOnEnter, sendOnEnter) || other.sendOnEnter == sendOnEnter)&&(identical(other.readReceipts, readReceipts) || other.readReceipts == readReceipts));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UserSettings&&(identical(other.locale, locale) || other.locale == locale)&&(identical(other.interfaceScale, interfaceScale) || other.interfaceScale == interfaceScale)&&(identical(other.sidebarWidth, sidebarWidth) || other.sidebarWidth == sidebarWidth)&&(identical(other.sendOnEnter, sendOnEnter) || other.sendOnEnter == sendOnEnter)&&(identical(other.readReceipts, readReceipts) || other.readReceipts == readReceipts));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,interfaceScale,sidebarWidth,sendOnEnter,readReceipts);
+int get hashCode => Object.hash(runtimeType,locale,interfaceScale,sidebarWidth,sendOnEnter,readReceipts);
 
 @override
 String toString() {
-  return 'UserSettings(interfaceScale: $interfaceScale, sidebarWidth: $sidebarWidth, sendOnEnter: $sendOnEnter, readReceipts: $readReceipts)';
+  return 'UserSettings(locale: $locale, interfaceScale: $interfaceScale, sidebarWidth: $sidebarWidth, sendOnEnter: $sendOnEnter, readReceipts: $readReceipts)';
 }
 
 
@@ -118,7 +120,7 @@ abstract mixin class _$UserSettingsCopyWith<$Res> implements $UserSettingsCopyWi
   factory _$UserSettingsCopyWith(_UserSettings value, $Res Function(_UserSettings) _then) = __$UserSettingsCopyWithImpl;
 @override @useResult
 $Res call({
- double? interfaceScale, double sidebarWidth, bool sendOnEnter, bool readReceipts
+ String? locale, double? interfaceScale, double sidebarWidth, bool sendOnEnter, bool readReceipts
 });
 
 
@@ -135,9 +137,10 @@ class __$UserSettingsCopyWithImpl<$Res>
 
 /// Create a copy of UserSettings
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? interfaceScale = freezed,Object? sidebarWidth = null,Object? sendOnEnter = null,Object? readReceipts = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? locale = freezed,Object? interfaceScale = freezed,Object? sidebarWidth = null,Object? sendOnEnter = null,Object? readReceipts = null,}) {
   return _then(_UserSettings(
-interfaceScale: freezed == interfaceScale ? _self.interfaceScale : interfaceScale // ignore: cast_nullable_to_non_nullable
+locale: freezed == locale ? _self.locale : locale // ignore: cast_nullable_to_non_nullable
+as String?,interfaceScale: freezed == interfaceScale ? _self.interfaceScale : interfaceScale // ignore: cast_nullable_to_non_nullable
 as double?,sidebarWidth: null == sidebarWidth ? _self.sidebarWidth : sidebarWidth // ignore: cast_nullable_to_non_nullable
 as double,sendOnEnter: null == sendOnEnter ? _self.sendOnEnter : sendOnEnter // ignore: cast_nullable_to_non_nullable
 as bool,readReceipts: null == readReceipts ? _self.readReceipts : readReceipts // ignore: cast_nullable_to_non_nullable

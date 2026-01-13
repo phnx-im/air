@@ -126,6 +126,9 @@ impl From<SqlPastMember> for UserId {
 }
 
 impl Chat {
+    /// Creates a new chat with the given id.
+    ///
+    /// On conflict, the chat is **not** removed but updated.
     pub(crate) async fn store(
         &self,
         connection: &mut SqliteConnection,
@@ -189,7 +192,18 @@ impl Chat {
                 is_active,
                 is_incoming
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(chat_id) DO UPDATE SET
+                chat_title = excluded.chat_title,
+                chat_picture = excluded.chat_picture,
+                group_id = excluded.group_id,
+                last_read = excluded.last_read,
+                connection_user_uuid = excluded.connection_user_uuid,
+                connection_user_domain = excluded.connection_user_domain,
+                connection_user_handle = excluded.connection_user_handle,
+                is_confirmed_connection = excluded.is_confirmed_connection,
+                is_active = excluded.is_active,
+                is_incoming = excluded.is_incoming",
             self.id,
             title,
             picture,

@@ -1,3 +1,36 @@
+## [0.8.0] - 2026-01-12
+
+### 🚀 Features
+
+- *(app)* Language picker (#946)
+- *(app)* Separate chat avatar (#930)
+
+### 🐛 Bug Fixes
+
+- *(app)* Tweak two buttons (#937)
+- *(app)* Set l10n fallback (#938)
+- *(app)* Make sure key package upload task always exists (#944)
+- *(server)* Replace key packages on publish (#948)
+- *(app)* Preserve chat history after re-joining a chat (#947)
+- *(app)* Long text in remove and add person buttons (#945)
+- *(app)* Delete orphaned key packages if any (#949)
+- *(coreclient)* Skip lifetime validation during welcome processing (#943)
+- *(ci)* Fetch all commit metadata for build number to work (#950)
+- *(app)* Increase quality of rendered app icons (#952)
+- *(backend)* Disable group expiration on the DS (#954)
+- *(app)* Added user system message was not immediately visible (#958)
+
+### 💼 Other
+
+- *(app)* Use number of commits as build number (#941)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(app)* Context menu extension (#940)
+- *(app)* Redact user names in logs (#955)
+- *(server)* Reuse http client in push notification provider (#956)
+- *(server)* Update dependencies (#957)
+
 ## [0.7.0] - 2025-12-28
 
 ### 🚀 Features

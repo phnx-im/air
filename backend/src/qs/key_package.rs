@@ -10,7 +10,7 @@ use aircommon::{
     messages::FriendshipToken,
 };
 use serde::{Serialize, de::DeserializeOwned};
-use sqlx::{Arguments, Connection, PgConnection, PgExecutor, postgres::PgArguments};
+use sqlx::{Arguments, Connection, PgConnection, PgTransaction, postgres::PgArguments, query};
 use tonic::async_trait;
 
 use crate::errors::StorageError;
@@ -21,28 +21,36 @@ impl StorableKeyPackage for KeyPackage {}
 pub(super) trait StorableKeyPackage:
     Sized + Serialize + DeserializeOwned + Send + Sync + Unpin
 {
-    async fn store_multiple(
-        connection: impl PgExecutor<'_>,
+    async fn replace_multiple(
+        txn: &mut PgTransaction<'_>,
         client_id: &QsClientId,
         key_packages: &[Self],
     ) -> Result<(), StorageError> {
-        Self::store_multiple_internal(connection, client_id, key_packages, false).await
+        Self::replace_multiple_internal(txn, client_id, key_packages, false).await
     }
 
-    async fn store_last_resort(
+    async fn replace_last_resort(
         &self,
-        connection: impl PgExecutor<'_>,
+        txn: &mut PgTransaction<'_>,
         client_id: &QsClientId,
     ) -> Result<(), StorageError> {
-        Self::store_multiple_internal(connection, client_id, std::slice::from_ref(self), true).await
+        Self::replace_multiple_internal(txn, client_id, std::slice::from_ref(self), true).await
     }
 
-    async fn store_multiple_internal(
-        connection: impl PgExecutor<'_>,
+    async fn replace_multiple_internal(
+        txn: &mut PgTransaction<'_>,
         client_id: &QsClientId,
         key_packages: &[Self],
         is_last_resort: bool,
     ) -> Result<(), StorageError> {
+        query!(
+            "DELETE FROM key_package WHERE client_id = $1 AND is_last_resort = $2",
+            client_id as _,
+            is_last_resort
+        )
+        .execute(txn.as_mut())
+        .await?;
+
         let mut query_args = PgArguments::default();
         let mut query_string =
             String::from("INSERT INTO key_package (client_id, key_package, is_last_resort) VALUES");
@@ -71,7 +79,7 @@ pub(super) trait StorableKeyPackage:
 
         // Execute the query
         sqlx::query_with(&query_string, query_args)
-            .execute(connection)
+            .execute(txn.as_mut())
             .await?;
 
         Ok(())
@@ -131,6 +139,9 @@ pub(super) trait StorableKeyPackage:
 #[cfg(test)]
 mod tests {
 
+    use std::collections::HashSet;
+
+    use rand::{Rng, thread_rng};
     use sqlx::PgPool;
 
     use crate::qs::{
@@ -185,15 +196,51 @@ mod tests {
         Ok(())
     }
 
+    #[sqlx::test]
+    async fn packages_are_replaced(pool: PgPool) -> anyhow::Result<()> {
+        let user_record = store_random_user_record(&pool).await?;
+        let client_record = store_random_client_record(&pool, user_record.user_id).await?;
+
+        for _ in 0..2 {
+            let packages = store_random_key_packages(&pool, &client_record.client_id).await?;
+            let loaded: Vec<BlobDecoded<Vec<u8>>> = sqlx::query_scalar(
+                r#"SELECT key_package as "key_package: BlobDecoded<Vec<u8>>" FROM key_package"#,
+            )
+            .fetch_all(&pool)
+            .await?;
+            let loaded: HashSet<_> = loaded
+                .into_iter()
+                .map(|BlobDecoded(key_package)| key_package)
+                .collect();
+            let packages: HashSet<_> = packages.into_iter().collect();
+            assert_eq!(loaded, packages);
+        }
+
+        Ok(())
+    }
+
     async fn store_random_key_packages(
         pool: &PgPool,
         client_id: &QsClientId,
     ) -> anyhow::Result<Vec<DummyKeyPackage>> {
-        let pkg_a = vec![1, 2, 3, 4];
-        let pkg_b = vec![5, 6, 7, 8];
-        let pkg_last_resort = vec![9, 10, 11, 12];
-        DummyKeyPackage::store_multiple(pool, client_id, &[pkg_a.clone(), pkg_b.clone()]).await?;
-        pkg_last_resort.store_last_resort(pool, client_id).await?;
+        let mut rng = thread_rng();
+
+        let a: [u8; 4] = rng.r#gen();
+        let b: [u8; 4] = rng.r#gen();
+        let last_resort: [u8; 4] = rng.r#gen();
+
+        let pkg_a = a.to_vec();
+        let pkg_b = b.to_vec();
+        let pkg_last_resort = last_resort.to_vec();
+
+        let mut txn = pool.begin().await?;
+        DummyKeyPackage::replace_multiple(&mut txn, client_id, &[pkg_a.clone(), pkg_b.clone()])
+            .await?;
+        pkg_last_resort
+            .replace_last_resort(&mut txn, client_id)
+            .await?;
+        txn.commit().await?;
+
         Ok(vec![pkg_a, pkg_b, pkg_last_resort])
     }
 }

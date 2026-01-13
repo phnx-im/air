@@ -27,7 +27,7 @@ const DEFAULT_REGULAR_STOP_TIMEOUT: Duration = Duration::from_secs(30 * 60 * 60)
 /// - stream is restarted on errors with a fibonacci backoff
 /// - stream is restarted when it gracefully stops
 pub(crate) struct BackgroundStreamTask<C, Event> {
-    id: Uuid,
+    task_id: Uuid,
     name: Arc<str>,
     context: C,
     cancel: CancellationToken,
@@ -44,11 +44,11 @@ where
     Event: fmt::Debug + Send + 'static,
 {
     pub(crate) fn new(name: impl Into<String>, context: C, cancel: CancellationToken) -> Self {
-        let id = Uuid::new_v4();
+        let task_id = Uuid::new_v4();
         let name = name.into().into();
-        debug!(%name, %id, "new background stream task");
+        debug!(%name, %task_id, "new background stream task");
         Self {
-            id,
+            task_id,
             name,
             context,
             cancel,
@@ -88,7 +88,11 @@ where
             State::Finished => State::Finished,
 
             _ if self.cancel.is_cancelled() => {
-                info!(name = %self.name, id = %self.id, "background stream stopped");
+                info!(
+                    name = %self.name,
+                    task_id = %self.task_id,
+                    "background stream stopped"
+                );
                 State::Finished
             }
 
@@ -97,10 +101,18 @@ where
                 self.context.in_foreground().await;
 
                 let started_at = Instant::now();
-                info!(name = %self.name, id = %self.id, "background stream starting");
+                info!(
+                    name = %self.name,
+                    task_id = %self.task_id,
+                    "background stream starting"
+                );
                 match self.context.create_stream().await {
                     Ok(stream) => {
-                        info!(name = %self.name, id = %self.id, "background stream started");
+                        info!(
+                            name = %self.name,
+                            task_id = %self.task_id,
+                            "background stream started"
+                        );
                         self.backoff.reset();
                         State::Running {
                             stream: Box::pin(stream),
@@ -133,7 +145,12 @@ where
 
                 match event {
                     NextEvent::Event(Some(event)) => {
-                        debug!(name = %self.name, id = %self.id, ?event, "received event");
+                        debug!(
+                            name = %self.name,
+                            task_id = %self.task_id,
+                            ?event,
+                            "received event"
+                        );
                         if self.context.handle_event(event).await {
                             // Continue processing
                             self.backoff.reset();
@@ -178,7 +195,7 @@ where
                 if let Some(error) = error {
                     error!(
                         name = %self.name,
-                        id = %self.id,
+                        task_id = %self.task_id,
                         retry_in =? timeout,
                         %error,
                         "background stream backoff"
@@ -186,7 +203,7 @@ where
                 } else {
                     info!(
                         name = %self.name,
-                        id = %self.id,
+                        task_id = %self.task_id,
                         retry_in =? timeout,
                         "background stream backoff"
                     );

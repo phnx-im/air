@@ -22,6 +22,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Fetch only last commit, we do not need build_number for CI tests
+          fetch-depth: 1
+          # Don't download historical file contents (blobs)
+          filter: blob:none
 
       ## CHECK FRB
       - uses: dtolnay/rust-toolchain@1.90.0

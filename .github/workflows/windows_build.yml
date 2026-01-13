@@ -23,8 +23,15 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Clone repository
+      - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # Fetch all commit metadata (build number is derived from number of commits)
+          fetch-depth: 0
+          # Don't download historical file contents (blobs)
+          filter: blob:none
+
+      - run: git lfs install && git lfs pull
 
       - run: choco install fvm
       - run: cd app && fvm install

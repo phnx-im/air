@@ -108,6 +108,7 @@ pub struct ServiceAccount {
 
 #[derive(Debug, Clone)]
 pub struct ProductionPushNotificationProvider {
+    client: reqwest::Client,
     fcm_state: Option<FcmState>,
     apns_state: Option<ApnsState>,
 }
@@ -150,6 +151,7 @@ impl ProductionPushNotificationProvider {
         };
 
         Ok(Self {
+            client: Client::new(),
             fcm_state,
             apns_state,
         })
@@ -192,8 +194,8 @@ impl ProductionPushNotificationProvider {
 
         // Send the JWT to Google's OAuth2 token endpoint and get a bearer token
         // back
-        let client = Client::new();
-        let response = client
+        let response = self
+            .client
             .post("https://oauth2.googleapis.com/token")
             .form(&[
                 ("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
@@ -314,8 +316,8 @@ impl ProductionPushNotificationProvider {
         });
 
         // Send the request
-        let client = Client::new();
-        let res = client
+        let res = self
+            .client
             .post(&url)
             .bearer_auth(bearer_token.token())
             .json(&message)

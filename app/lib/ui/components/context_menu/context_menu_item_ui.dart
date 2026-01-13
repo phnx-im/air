@@ -3,12 +3,32 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:io';
-import 'package:flutter/material.dart';
 import 'package:air/theme/spacings.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
+import 'package:flutter/material.dart';
 
-class ContextMenuItem extends StatelessWidget {
+abstract class ContextMenuEntry extends StatelessWidget {
+  const ContextMenuEntry({super.key});
+}
+
+class ContextMenuSeparator extends ContextMenuEntry {
+  const ContextMenuSeparator({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: Spacings.xxs),
+      child: Divider(
+        height: 0,
+        thickness: 1,
+        color: CustomColorScheme.of(context).separator.primary,
+      ),
+    );
+  }
+}
+
+class ContextMenuItem extends ContextMenuEntry {
   const ContextMenuItem({
     super.key,
     required this.onPressed,
@@ -16,6 +36,7 @@ class ContextMenuItem extends StatelessWidget {
     this.leadingIcon,
     this.leading,
     this.trailingIcon,
+    this.reserveLeadingSpace = false,
   });
 
   final VoidCallback onPressed;
@@ -23,15 +44,34 @@ class ContextMenuItem extends StatelessWidget {
   final IconData? leadingIcon;
   final Widget? leading;
   final IconData? trailingIcon;
+  // Reserve a fixed leading column so labels line up across items.
+  final bool reserveLeadingSpace;
+
+  static const double defaultLeadingWidth = 16.0;
+
+  bool get hasLeading => leading != null || leadingIcon != null;
+
+  Widget? buildLeading(BuildContext context) {
+    final widget = leading;
+    if (widget != null) {
+      return widget;
+    }
+    final icon = leadingIcon;
+    if (icon != null) {
+      return Icon(icon, size: defaultLeadingWidth);
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final leadingWidget = buildLeading(context);
     return TextButton(
       onPressed: onPressed,
       style: TextButton.styleFrom(
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         foregroundColor: CustomColorScheme.of(context).text.primary,
-        padding: const EdgeInsets.symmetric(vertical: Spacings.s),
+        padding: const EdgeInsets.symmetric(vertical: Spacings.xxxs),
         alignment: Alignment.centerLeft,
         splashFactory: !Platform.isAndroid ? NoSplash.splashFactory : null,
         overlayColor: Colors.transparent,
@@ -40,17 +80,20 @@ class ContextMenuItem extends StatelessWidget {
         mainAxisSize: MainAxisSize.max,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (leading != null) ...[
-            leading!,
+          if (reserveLeadingSpace) ...[
+            SizedBox(width: defaultLeadingWidth, child: leadingWidget),
             const SizedBox(width: Spacings.xxs),
-          ] else if (leadingIcon != null) ...[
-            Icon(leadingIcon, size: 16),
+          ] else if (leadingWidget != null) ...[
+            leadingWidget,
             const SizedBox(width: Spacings.xxs),
           ],
           Expanded(
             child: Text(
               label,
               style: TextStyle(fontSize: LabelFontSize.base.size),
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           if (trailingIcon != null) ...[
@@ -62,13 +105,18 @@ class ContextMenuItem extends StatelessWidget {
     );
   }
 
-  ContextMenuItem copyWith({required Null Function() onPressed}) {
+  ContextMenuItem copyWith({
+    VoidCallback? onPressed,
+    bool? reserveLeadingSpace,
+  }) {
     return ContextMenuItem(
-      onPressed: onPressed,
+      key: key,
+      onPressed: onPressed ?? this.onPressed,
       label: label,
       leadingIcon: leadingIcon,
       leading: leading,
       trailingIcon: trailingIcon,
+      reserveLeadingSpace: reserveLeadingSpace ?? this.reserveLeadingSpace,
     );
   }
 }
