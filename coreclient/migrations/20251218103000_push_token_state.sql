@@ -8,6 +8,5 @@ CREATE TABLE push_token_state(
     operator INTEGER,
     token text,
     updated_at text NOT NULL,
-    pending_update integer NOT NULL DEFAULT 0
+    pending_update text
 );
-
