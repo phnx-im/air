@@ -2356,3 +2356,49 @@ async fn invitation_code() {
             .is_ok()
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Adding a contact and chaning user profile", skip_all)]
+async fn add_contact_and_change_profile() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+
+    let bob = setup.add_user().await;
+
+    let alice_test_user = setup.get_user_mut(&alice);
+    let alice_handle = alice_test_user.add_user_handle().await.unwrap();
+
+    // Add Alice as a contact
+    let bob_user = setup.get_user(&bob).user.clone();
+    let res = bob_user
+        .add_contact(alice_handle.handle.clone(), alice_handle.hash)
+        .await
+        .unwrap();
+    let _bob_alice_chat_id = match res {
+        AddHandleContactResult::Ok(chat_id) => chat_id,
+        AddHandleContactResult::Err(error) => {
+            panic!("Unexpected error: {error:?}");
+        }
+    };
+
+    // Change Bob's profile
+    let bob_user_profile = UserProfile {
+        user_id: bob.clone(),
+        display_name: "B0b".parse().unwrap(),
+        profile_picture: None,
+    };
+
+    bob_user
+        .set_own_user_profile(bob_user_profile)
+        .await
+        .unwrap();
+
+    // Accept invite from Bob
+
+    let alice_user = &setup.get_user(&alice).user;
+    let mut messages = alice_user.fetch_handle_messages().await.unwrap();
+    assert_eq!(messages.len(), 1);
+    let _alice_bob_chat_id = alice_user
+        .process_handle_queue_message(&alice_handle.handle, messages.pop().unwrap())
+        .await;
+}
