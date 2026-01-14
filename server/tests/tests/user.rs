@@ -5,10 +5,10 @@
 use std::{collections::HashMap, fs};
 
 use airapiclient::as_api::AsRequestError;
-use aircommon::identifiers::UserHandle;
+use aircommon::{assert_matches, identifiers::UserHandle};
 use aircoreclient::{
     AddHandleContactError, AddHandleContactResult, Asset, BlockedContactError, DisplayName,
-    UserProfile, clients::CoreUser, store::Store,
+    EventMessage, Message, SystemMessage, UserProfile, clients::CoreUser, store::Store,
 };
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use mimi_content::MimiContent;
@@ -541,7 +541,7 @@ async fn add_contact_and_change_profile() {
     alice_user
         .send_message(
             alice_bob_chat_id,
-            MimiContent::simple_markdown_message("hello".to_owned(), MESSAGE_SALT),
+            MimiContent::simple_markdown_message("hello".to_owned(), [0; 16]),
             None,
         )
         .await
