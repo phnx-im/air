@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n            operator AS \"operator: _\",\n            token,\n            pending_update AS \"pending_update: _\"\n        FROM push_token_state\n        WHERE id = ?1\n            AND pending_update IS NOT NULL\n            AND pending_update <= ?2",
+  "describe": {
+    "columns": [
+      {
+        "name": "operator: _",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "token",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "pending_update: _",
+        "ordinal": 2,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "46d687d4a5a5697512b0f400021ea9ce6e545e0abb98a92811f1156a8f657082"
+}

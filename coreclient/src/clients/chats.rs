@@ -91,9 +91,10 @@ impl CoreUser {
             DeleteChatData::SingleMember(data) => {
                 // No need to send a message to the server if we are the only member.
                 // Phase 5: Set the chat to inactive
-                self.with_notifier(async |notifier| data.set_inactive(&mut txn, notifier).await)
-                    .await?;
+                let mut notifier = self.store_notifier();
+                data.set_inactive(&mut txn, &mut notifier).await?;
                 txn.commit().await?;
+                notifier.notify();
 
                 Ok(Vec::new())
             }

@@ -37,9 +37,9 @@ impl PrivateKeyStore for AuthServiceBatchedKeyStoreProvider<'_> {
         &self,
         truncated_token_key_id: TruncatedTokenKeyId,
         server: VoprfServer<Ristretto255>,
-    ) {
+    ) -> bool {
         let server = BlobEncoded(server);
-        if let Err(error) = sqlx::query!(
+        match sqlx::query!(
             "INSERT INTO as_batched_key (token_key_id, voprf_server)
             VALUES ($1, $2)",
             truncated_token_key_id as i16,
@@ -48,7 +48,11 @@ impl PrivateKeyStore for AuthServiceBatchedKeyStoreProvider<'_> {
         .execute(&mut **self.connection.lock().await)
         .await
         {
-            error!(%error, "Failed to insert key into batched key store");
+            Ok(res) => res.rows_affected() > 0,
+            Err(error) => {
+                error!(%error, "Failed to insert key into batched key store");
+                false
+            }
         }
     }
 
