@@ -54,6 +54,8 @@ use tonic_health::pb::{
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
+const MESSAGE_SALT: [u8; 16] = [1; 16];
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Connect users test", skip_all)]
 async fn connect_users_via_user_handle() {
@@ -2354,5 +2356,96 @@ async fn invitation_code() {
         TestUser::try_new(&user_id, setup.server_url().clone(), UNREDEEMABLE_CODE)
             .await
             .is_ok()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Adding a contact and changing user profile", skip_all)]
+async fn add_contact_and_change_profile() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+
+    let bob = setup.add_user().await;
+
+    let alice_test_user = setup.get_user_mut(&alice);
+    let alice_handle = alice_test_user.add_user_handle().await.unwrap();
+
+    // Add Alice as a contact
+    let bob_user = setup.get_user(&bob).user.clone();
+    let res = bob_user
+        .add_contact(alice_handle.handle.clone(), alice_handle.hash)
+        .await
+        .unwrap();
+    let bob_alice_chat_id = match res {
+        AddHandleContactResult::Ok(chat_id) => chat_id,
+        AddHandleContactResult::Err(error) => {
+            panic!("Unexpected error: {error:?}");
+        }
+    };
+
+    // Change Bob's profile
+    let bob_user_profile = UserProfile {
+        user_id: bob.clone(),
+        display_name: "B0b".parse().unwrap(),
+        profile_picture: None,
+    };
+
+    bob_user
+        .set_own_user_profile(bob_user_profile)
+        .await
+        .unwrap();
+
+    // Fetch invitation from Bob and accept it
+    let alice_user = &setup.get_user(&alice).user;
+    let mut messages = alice_user.fetch_handle_messages().await.unwrap();
+    assert_eq!(messages.len(), 1);
+    let alice_bob_chat_id = alice_user
+        .process_handle_queue_message(&alice_handle.handle, messages.pop().unwrap())
+        .await
+        .unwrap();
+    alice_user
+        .accept_contact_request(alice_bob_chat_id)
+        .await
+        .unwrap();
+
+    // Send message from Alice to Bob
+    alice_user
+        .send_message(
+            alice_bob_chat_id,
+            MimiContent::simple_markdown_message("hello".to_owned(), MESSAGE_SALT),
+            None,
+        )
+        .await
+        .unwrap();
+    alice_user.outbound_service().run_once().await;
+
+    // Bob receives invitation acceptance and sees the message from Alice
+    let bob_user = &setup.get_user(&bob).user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let res = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(res.errors.is_empty());
+
+    let messages = bob_user.messages(bob_alice_chat_id, 10).await.unwrap();
+    assert_eq!(messages.len(), 3);
+    assert_matches!(
+        messages[0].message(),
+        Message::Event(EventMessage::System(
+            SystemMessage::NewHandleConnectionChat(_)
+        ))
+    );
+    assert_matches!(
+        messages[1].message(),
+        Message::Event(EventMessage::System(
+            SystemMessage::ReceivedConnectionConfirmation { .. }
+        ))
+    );
+    assert_eq!(
+        messages[2]
+            .message()
+            .mimi_content()
+            .unwrap()
+            .string_rendering()
+            .unwrap(),
+        "hello"
     );
 }
