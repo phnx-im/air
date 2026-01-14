@@ -47,6 +47,10 @@ impl AttachmentProgressSender {
             let _ignore_closed = tx.send(AttachmentProgressEvent::Completed);
         }
     }
+
+    pub(super) fn tx(&self) -> Option<watch::Sender<AttachmentProgressEvent>> {
+        self.tx.clone()
+    }
 }
 
 impl Drop for AttachmentProgressSender {

@@ -106,7 +106,9 @@ impl AttachmentsRepository {
         attachment_id: AttachmentId,
     ) -> anyhow::Result<Option<Vec<u8>>> {
         match self.store.load_attachment(attachment_id).await? {
-            AttachmentContent::Ready(data) | AttachmentContent::Uploading(data) => Ok(Some(data)),
+            AttachmentContent::Ready(data)
+            | AttachmentContent::Uploading(data)
+            | AttachmentContent::UploadFailed(data) => Ok(Some(data)),
             _ => Ok(None),
         }
     }
@@ -122,6 +124,7 @@ impl AttachmentsRepository {
         match self.store.load_attachment(attachment_id).await? {
             AttachmentContent::Ready(bytes) => Ok(bytes),
             AttachmentContent::Uploading(bytes) => Ok(bytes),
+            AttachmentContent::UploadFailed(bytes) => Ok(bytes),
             AttachmentContent::Pending => {
                 debug!(?attachment_id, "Attachment is pending; spawn download task");
                 let handle = spawn_download_task(
@@ -146,7 +149,7 @@ impl AttachmentsRepository {
                 }
             }
             AttachmentContent::None => bail!("Attachment not found"),
-            AttachmentContent::Failed | AttachmentContent::Unknown => {
+            AttachmentContent::DownloadFailed | AttachmentContent::Unknown => {
                 bail!("Attachment download failed")
             }
         }

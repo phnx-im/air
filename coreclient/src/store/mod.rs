@@ -12,7 +12,6 @@ use mimi_room_policy::VerifiedRoomState;
 use tokio_stream::Stream;
 use uuid::Uuid;
 
-use crate::clients::add_contact::AddHandleContactResult;
 use crate::clients::safety_code::SafetyCode;
 use crate::contacts::{ContactType, TargetedMessageContact};
 use crate::{
@@ -20,6 +19,7 @@ use crate::{
     MessageId, clients::attachment::progress::AttachmentProgress, contacts::HandleContact,
     user_handles::UserHandleRecord, user_profiles::UserProfile,
 };
+use crate::{UploadTaskError, clients::add_contact::AddHandleContactResult};
 
 pub use notification::{StoreEntityId, StoreNotification, StoreOperation};
 pub(crate) use notification::{StoreNotificationsSender, StoreNotifier};
@@ -272,7 +272,7 @@ pub trait Store {
     ) -> StoreResult<(
         AttachmentId,
         AttachmentProgress,
-        impl Future<Output = StoreResult<ChatMessage>> + use<Self>,
+        impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<Self>,
     )>;
 
     async fn retry_upload_attachment(
@@ -281,7 +281,7 @@ pub trait Store {
     ) -> StoreResult<(
         AttachmentId,
         AttachmentProgress,
-        impl Future<Output = StoreResult<ChatMessage>> + use<Self>,
+        impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<Self>,
     )>;
 
     fn download_attachment(
