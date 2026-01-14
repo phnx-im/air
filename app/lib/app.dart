@@ -110,6 +110,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
 
     if (state == AppLifecycleState.resumed) {
       _appStateController.sink.add(AppState.foreground);
+      unawaited(_coreClient.refreshPushToken());
     }
   }
 
@@ -227,6 +228,7 @@ class LoadableUserCubitProvider extends StatelessWidget {
         final registrationCubit = context.read<RegistrationCubit>();
         final userSettingsCubit = context.read<UserSettingsCubit>();
         final appLocaleCubit = context.read<AppLocaleCubit>();
+        final coreClient = context.read<CoreClient>();
         // Side Effect: navigate to the home screen or away to the intro
         // screen, depending on whether the user was loaded or unloaded.
         switch (loadableUser) {
@@ -252,6 +254,7 @@ class LoadableUserCubitProvider extends StatelessWidget {
                 value: appLocale.languageCode,
               );
             }
+            unawaited(coreClient.refreshPushToken());
           case LoadingUser() || LoadedUser(user: null):
             navigationCubit.openIntro();
             await userSettingsCubit.reset();

@@ -29,6 +29,7 @@ pub use timed_tasks::KEY_PACKAGES;
 mod chat_message_queue;
 mod chat_messages;
 mod error;
+mod push_tokens;
 mod receipt_queue;
 mod receipts;
 pub(crate) mod resync;
@@ -136,6 +137,10 @@ impl<C: OutboundServiceWork> OutboundService<C> {
         WaitForDoneFuture::new(done_token)
     }
 
+    pub(crate) fn notify_push_token_update(&self) -> WaitForDoneFuture {
+        self.notify_work()
+    }
+
     /// Runs the background task and waits until it is done.
     ///
     /// If the background is already running, just waits until it is done.
@@ -204,6 +209,9 @@ impl OutboundServiceContext {
         }
         if let Err(error) = self.send_queued_messages(&run_token).await {
             error!(%error, "Failed to send queued messages");
+        }
+        if let Err(error) = self.send_pending_push_token_updates(&run_token).await {
+            error!(%error, "Failed to send push token update");
         }
         if let Err(error) = self.execute_timed_tasks(&run_token).await {
             error!(%error, "Failed to execute timed tasks");

@@ -269,6 +269,7 @@ impl StorableDsGroupData<false> {
 }
 
 impl<const LOADED_FOR_UPDATE: bool> StorableDsGroupData<LOADED_FOR_UPDATE> {
+    #[allow(unused)]
     pub(super) fn has_expired(&self) -> bool {
         self.last_used.has_expired(GROUP_STATE_EXPIRATION)
     }
