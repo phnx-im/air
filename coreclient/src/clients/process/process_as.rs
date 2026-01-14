@@ -8,7 +8,7 @@ use aircommon::{
         ear::keys::FriendshipPackageEarKey, hpke::HpkeDecryptable,
         indexed_aead::keys::UserProfileKey,
     },
-    identifiers::{UserHandle, UserId},
+    identifiers::{QualifiedGroupId, UserHandle, UserId},
     messages::{
         client_as::{ConnectionOfferHash, ConnectionOfferMessage},
         connection_package::{ConnectionPackage, ConnectionPackageHash},
@@ -16,10 +16,11 @@ use aircommon::{
     time::TimeStamp,
 };
 use airprotos::auth_service::v1::{HandleQueueMessage, handle_queue_message};
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use openmls::group::GroupId;
 use sqlx::SqliteConnection;
-use tracing::error;
+use tls_codec::DeserializeBytes;
+use tracing::{error, warn};
 
 use crate::{
     PartialContact, SystemMessage, TargetedMessageContact,
@@ -165,12 +166,54 @@ impl CoreUser {
                 client_credential: sender_client_credential.clone(),
                 user_profile_key: sender_profile_key,
             };
-            self.fetch_and_store_user_profile(
-                self.pool().acquire().await?.as_mut(),
-                notifier,
-                profile_info,
-            )
-            .await
+            let res = self
+                .fetch_and_store_user_profile(
+                    self.pool().acquire().await?.as_mut(),
+                    notifier,
+                    profile_info,
+                )
+                .await;
+            if let Err(error) = res {
+                warn!(%error, "Failed to fetch user profile; falling back to fetching group info");
+
+                // Fetch external commit info
+                let qgid = QualifiedGroupId::tls_deserialize_exact_bytes(
+                    connection_info.connection_group_id.as_slice(),
+                )?;
+                let eci = self
+                    .api_clients()
+                    .get(qgid.owning_domain())?
+                    .ds_connection_group_info(
+                        connection_info.connection_group_id.clone(),
+                        &connection_info.connection_group_ear_key,
+                    )
+                    .await?;
+                ensure!(
+                    eci.encrypted_user_profile_keys.len() == 1,
+                    "Unjoined connection group must have exactly one user profile key"
+                );
+
+                // Decrypt user profile key
+                let encrypted_user_profile_key = &eci.encrypted_user_profile_keys[0];
+                let user_profile_key = UserProfileKey::decrypt(
+                    &connection_info.connection_group_identity_link_wrapper_key,
+                    encrypted_user_profile_key,
+                    sender_client_credential.identity(),
+                )?;
+
+                // Fetch and store user profile (it also creates a new contact)
+                let profile_info = ProfileInfo {
+                    client_credential: sender_client_credential.clone(),
+                    user_profile_key,
+                };
+                self.fetch_and_store_user_profile(
+                    self.pool().acquire().await?.as_mut(),
+                    notifier,
+                    profile_info,
+                )
+                .await?;
+            }
+            Ok(())
         })
         .await?;
 
