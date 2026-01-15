@@ -11,13 +11,16 @@ enum AppButtonSize { small, large }
 
 enum AppButtonType { primary, secondary }
 
-enum AppButtonState { active, inactive, danger, pending }
+enum AppButtonTone { normal, danger }
+
+enum AppButtonState { active, inactive, pending }
 
 class AppButton extends StatelessWidget {
   const AppButton({
     super.key,
     this.size = AppButtonSize.large,
     this.type = AppButtonType.primary,
+    this.tone = AppButtonTone.normal,
     this.state = AppButtonState.active,
     required this.onPressed,
     this.icon,
@@ -26,6 +29,7 @@ class AppButton extends StatelessWidget {
 
   final AppButtonSize size;
   final AppButtonType type;
+  final AppButtonTone tone;
   final AppButtonState state;
 
   final VoidCallback onPressed;
@@ -37,18 +41,21 @@ class AppButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
 
-    final foregroundColor = switch ((type, state)) {
-      (.primary, .active || .pending) => colors.function.toggleWhite,
-      (.primary, .inactive) => colors.function.toggleWhite.withValues(
+    final foregroundColor = switch ((type, state, tone)) {
+      (.primary, .inactive, .danger) => colors.function.white.withValues(
         alpha: 0.5,
       ),
-      (.primary, .danger) => colors.function.white,
-      (.secondary, _) => colors.function.toggleBlack,
+      (.primary, .inactive, .normal) => colors.function.toggleWhite.withValues(
+        alpha: 0.5,
+      ),
+      (.primary, _, .danger) => colors.function.white,
+      (.primary, _, .normal) => colors.function.toggleWhite,
+      (.secondary, _, _) => colors.function.toggleBlack,
     };
 
-    final backgroundColor = switch ((type, state)) {
-      (.primary, .active || .inactive || .pending) => colors.accent.primary,
+    final backgroundColor = switch ((type, tone)) {
       (.primary, .danger) => colors.function.danger,
+      (.primary, .normal) => colors.accent.primary,
       (.secondary, _) => colors.accent.quaternary,
     };
 
@@ -78,7 +85,7 @@ class AppButton extends StatelessWidget {
     };
 
     return OutlinedButton(
-      onPressed: state == AppButtonState.inactive ? null : () => onPressed(),
+      onPressed: state == AppButtonState.active ? onPressed : null,
       style: ButtonStyle(
         visualDensity: .compact,
         padding: const WidgetStatePropertyAll(EdgeInsets.zero),
