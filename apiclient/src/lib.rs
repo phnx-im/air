@@ -84,6 +84,9 @@ impl ApiClient {
             format!("http://localhost:{LOCALHOST_PORT}")
         } else if domain == &Fqdn::from(Host::Domain("air.ms".to_string())) {
             // Rewrite the domain to the production endpoint.
+            //
+            // At somepoint, we will discover the production endpoint e.g. via DNS or a .well-known
+            // endpoint.
             "https://prod.air.ms".to_string()
         } else {
             format!("https://{domain}")
