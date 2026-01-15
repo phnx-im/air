@@ -621,7 +621,7 @@ abstract class RustLibApi extends BaseApi {
   Future<User?> crateApiUserUserLoadDefault({required String path});
 
   Future<User> crateApiUserUserNew({
-    required String address,
+    required String domain,
     required String path,
     PlatformPushToken? pushToken,
     required String displayName,
@@ -676,7 +676,7 @@ abstract class RustLibApi extends BaseApi {
   Future<ChatListState> crateApiChatListCubitChatListStateDefault();
 
   Future<bool> crateApiInvitationCodeCheckInvitationCode({
-    required String serverUrl,
+    required String domain,
     required String invitationCode,
   });
 
@@ -5187,7 +5187,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<User> crateApiUserUserNew({
-    required String address,
+    required String domain,
     required String path,
     PlatformPushToken? pushToken,
     required String displayName,
@@ -5198,7 +5198,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_String(address, serializer);
+          sse_encode_String(domain, serializer);
           sse_encode_String(path, serializer);
           sse_encode_opt_box_autoadd_platform_push_token(pushToken, serializer);
           sse_encode_String(displayName, serializer);
@@ -5218,7 +5218,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta: kCrateApiUserUserNewConstMeta,
         argValues: [
-          address,
+          domain,
           path,
           pushToken,
           displayName,
@@ -5233,7 +5233,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiUserUserNewConstMeta => const TaskConstMeta(
     debugName: "User_new",
     argNames: [
-      "address",
+      "domain",
       "path",
       "pushToken",
       "displayName",
@@ -5701,14 +5701,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<bool> crateApiInvitationCodeCheckInvitationCode({
-    required String serverUrl,
+    required String domain,
     required String invitationCode,
   }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_String(serverUrl, serializer);
+          sse_encode_String(domain, serializer);
           sse_encode_String(invitationCode, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
@@ -5722,7 +5722,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiInvitationCodeCheckInvitationCodeConstMeta,
-        argValues: [serverUrl, invitationCode],
+        argValues: [domain, invitationCode],
         apiImpl: this,
       ),
     );
@@ -5731,7 +5731,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiInvitationCodeCheckInvitationCodeConstMeta =>
       const TaskConstMeta(
         debugName: "check_invitation_code",
-        argNames: ["serverUrl", "invitationCode"],
+        argNames: ["domain", "invitationCode"],
       );
 
   @override

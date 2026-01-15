@@ -40,8 +40,6 @@ sealed class RegistrationState with _$RegistrationState {
   bool get isDomainValid => _domainRegex.hasMatch(domain);
   bool get isValid =>
       isDomainValid && displayName.trim().isNotEmpty && invitationCode != null;
-  String get serverUrl =>
-      domain == "localhost" ? "http://$domain:8080" : "https://$domain";
 }
 
 class RegistrationCubit extends Cubit<RegistrationState> {
@@ -91,7 +89,7 @@ class RegistrationCubit extends Cubit<RegistrationState> {
 
     try {
       final isValid = await checkInvitationCode(
-        serverUrl: state.serverUrl,
+        domain: state.domain,
         invitationCode: state.invitationCode!,
       );
       if (!isValid) {
@@ -117,7 +115,7 @@ class RegistrationCubit extends Cubit<RegistrationState> {
     try {
       _log.info("Registering user...");
       await _coreClient.createUser(
-        state.serverUrl,
+        state.domain,
         state.displayName,
         state.avatar?.data,
         state.invitationCode!,

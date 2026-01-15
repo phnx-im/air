@@ -9,46 +9,43 @@ use std::{
 
 use airapiclient::{ApiClient, ApiClientInitError};
 use aircommon::identifiers::Fqdn;
+use url::Url;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ApiClients {
-    // We store our own domain such that we can manually map our own domain to
-    // an API client that uses an IP address instead of the actual domain. This
-    // is a temporary workaround and should probably be replaced by a more
-    // thought-out mechanism.
     own_domain: Fqdn,
-    own_endpoint: String,
-    clients: Arc<Mutex<HashMap<String, ApiClient>>>,
+    /// Override the endpoint for the own domain.
+    own_endpoint: Option<Url>,
+    clients: Arc<Mutex<HashMap<Fqdn, ApiClient>>>,
 }
 
 impl ApiClients {
-    pub(super) fn new(own_domain: Fqdn, own_endpoint: impl ToString) -> Self {
+    pub(super) fn new(own_domain: Fqdn, own_endpoint: Option<Url>) -> Self {
         Self {
             own_domain,
-            own_endpoint: own_endpoint.to_string(),
+            own_endpoint,
             clients: Default::default(),
         }
     }
 
     pub(crate) fn get(&self, domain: &Fqdn) -> Result<ApiClient, ApiClientInitError> {
-        let domain = if domain == &self.own_domain {
-            self.own_endpoint.clone()
-        } else {
-            domain.to_string()
-        };
         let mut clients = self.clients.lock().unwrap();
-        let client = match clients.entry(domain) {
-            Entry::Occupied(entry) => entry.get().clone(),
+        match clients.entry(domain.clone()) {
+            Entry::Occupied(entry) => Ok(entry.get().clone()),
             Entry::Vacant(entry) => {
-                let client = ApiClient::new(entry.key())?;
-                entry.insert(client).clone()
+                let client = if let Some(endpoint) = self.own_endpoint.as_ref()
+                    && domain == &self.own_domain
+                {
+                    ApiClient::with_endpoint(endpoint)?
+                } else {
+                    ApiClient::with_domain(domain)?
+                };
+                Ok(entry.insert(client).clone())
             }
-        };
-        Ok(client)
+        }
     }
 
     pub(crate) fn default_client(&self) -> Result<ApiClient, ApiClientInitError> {
-        let own_domain = self.own_domain.clone();
-        self.get(&own_domain)
+        self.get(&self.own_domain)
     }
 }

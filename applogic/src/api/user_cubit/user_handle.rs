@@ -7,7 +7,7 @@ use std::{collections::HashMap, convert::identity, sync::Arc};
 use aircommon::identifiers::UserHandle;
 use aircoreclient::{
     UserHandleRecord,
-    clients::{HandleQueueMessage, ListenHandleResponder},
+    clients::{AsListenHandleResponder, HandleQueueMessage},
     store::Store,
 };
 use anyhow::{Context, bail};
@@ -31,7 +31,7 @@ use super::{AppState, CubitContext};
 pub(super) struct HandleContext {
     cubit_context: CubitContext,
     handle_record: Arc<UserHandleRecord>,
-    responder: Arc<RwLock<Option<ListenHandleResponder>>>,
+    responder: Arc<RwLock<Option<AsListenHandleResponder>>>,
 }
 
 impl HandleContext {

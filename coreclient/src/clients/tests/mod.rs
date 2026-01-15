@@ -16,7 +16,7 @@ use super::api_clients::ApiClients;
 async fn user_stages() -> anyhow::Result<()> {
     // Set up backend
     let setup = TestBackend::single().await;
-    let server_url = setup.server_url();
+    let server_url = Some(setup.server_url());
 
     let user_id = UserId::random("example.com".parse().unwrap());
 
@@ -29,7 +29,6 @@ async fn user_stages() -> anyhow::Result<()> {
         &client_db,
         &air_db,
         user_id.clone(),
-        server_url,
         None,
         "DUMMY007".to_owned(),
     )

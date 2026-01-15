@@ -31,7 +31,7 @@ impl CoreUser {
 
         Self::new_with_connections(
             user_id,
-            server_url,
+            Some(server_url),
             push_token,
             air_db,
             client_db,

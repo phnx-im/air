@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+//! Client API for the queuing service (QS)
+
 use aircommon::{
     crypto::{
         RatchetEncryptionKey,
@@ -266,20 +268,24 @@ impl ApiClient {
         Ok(EncryptionKeyResponse { encryption_key })
     }
 
-    /// Listens to a queue.
+    /// Listens to the event queue of the given client.
     ///
-    /// Returns a stream of [`QueueEvent`]s and a [`ListenResponder`].
+    /// Only events with a sequence number greater than or equal to the given sequence number are
+    /// returned. The server can safely discard events with a sequence number lower than the one
+    /// specified.
+    ///
+    /// Returns a stream of [`QueueEvent`]s and a [`QsListenResponder`].
     ///
     /// The connection to server is bound to the lifetime of the stream. When the stream has ended
-    /// or is dropped, the connection is closed. In this case, the [`ListenResponder`] is closed.
-    pub async fn listen_queue(
+    /// or is dropped, the connection is closed. In this case, the [`QsListenResponder`] is closed.
+    pub async fn qs_listen_queue(
         &self,
-        queue_id: QsClientId,
+        client_id: QsClientId,
         sequence_number_start: u64,
-    ) -> Result<(impl Stream<Item = QueueEvent> + use<>, ListenResponder), QsRequestError> {
+    ) -> Result<(impl Stream<Item = QueueEvent> + use<>, QsListenResponder), QsRequestError> {
         let init_request = InitListenRequest {
             client_metadata: Some(self.metadata().clone()),
-            client_id: Some(queue_id.into()),
+            client_id: Some(client_id.into()),
             sequence_number_start,
         };
         let init_request = ListenRequest {
@@ -305,39 +311,43 @@ impl ApiClient {
         });
 
         let stream = CancellingStream::new(responses, cancel);
-        let responder = ListenResponder { tx };
+        let responder = QsListenResponder { tx };
 
         Ok((stream, responder))
     }
 }
 
+/// Sends responses to the QS listening stream.
 #[derive(Debug, Clone)]
-pub struct ListenResponder {
+pub struct QsListenResponder {
     tx: mpsc::Sender<ListenRequest>,
 }
 
-#[derive(Debug, thiserror::Error)]
-#[error("listen responder is closed")]
-pub struct ListenResponderClosedError;
-
-impl ListenResponder {
-    pub async fn ack(&self, up_to_sequence_number: u64) -> Result<(), ListenResponderClosedError> {
-        self.tx
+impl QsListenResponder {
+    /// Acknowledges that the client has received events up to the given sequence number.
+    ///
+    /// The server can safely discard events with a sequence number lower than the one specified.
+    pub async fn ack(&self, up_to_sequence_number: u64) {
+        let _ignore_closed_tx = self
+            .tx
             .send(ListenRequest {
                 request: Some(listen_request::Request::Ack(AckListenRequest {
                     up_to_sequence_number,
                 })),
             })
-            .await
-            .map_err(|_| ListenResponderClosedError)
+            .await;
     }
 
-    pub async fn fetch(&self) -> Result<(), ListenResponderClosedError> {
-        self.tx
+    /// Asks the QS to fetch the next batch of events.
+    ///
+    /// After calling this function, the QS will send the next batch of events to the client over
+    /// the open stream, or a sentinel (empty) event if there are no events in the queue.
+    pub async fn fetch(&self) {
+        let _ignore_closed_tx = self
+            .tx
             .send(ListenRequest {
                 request: Some(listen_request::Request::Fetch(FetchListenRequest {})),
             })
-            .await
-            .map_err(|_| ListenResponderClosedError)
+            .await;
     }
 }

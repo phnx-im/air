@@ -1135,13 +1135,7 @@ impl QsStreamProcessor {
                     // processed. In particular, the queue ratchet sequence number has been already
                     // written back into the database.
                     if let Some(responder) = self.responder.as_ref() {
-                        responder
-                            .ack(max_sequence_number + 1)
-                            .await
-                            .inspect_err(|error| {
-                                error!(%error, "failed to ack QS messages");
-                            })
-                            .ok();
+                        responder.ack(max_sequence_number + 1).await;
                     } else {
                         error!("logic error: no responder to ack QS messages");
                     }
