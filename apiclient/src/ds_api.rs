@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! API client implementation for the DS
+//! Client API for the delivery service (DS)
 
 use aircommon::{
     LibraryError,
@@ -40,6 +40,7 @@ use tracing::error;
 
 use crate::ApiClient;
 
+/// Errors that can occur when sending requests to the DS.
 #[derive(Debug, thiserror::Error)]
 pub enum DsRequestError {
     #[error("Library Error")]

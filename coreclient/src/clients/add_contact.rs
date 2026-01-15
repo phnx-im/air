@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airapiclient::{ApiClient, as_api::ConnectionOfferResponder};
+use airapiclient::{ApiClient, as_api::AsConnectionOfferResponder};
 use aircommon::{
     codec::PersistenceCodec,
     credentials::keys::ClientSigningKey,
@@ -480,7 +480,7 @@ impl LocalHandleContact<HandlePayload> {
         self,
         client: &ApiClient,
         signer: &ClientSigningKey,
-        responder: ConnectionOfferResponder,
+        responder: AsConnectionOfferResponder,
     ) -> anyhow::Result<ChatId> {
         let Self {
             group,

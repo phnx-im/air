@@ -83,7 +83,7 @@ class CoreClient {
 
   // used in registration cubit
   Future<void> createUser(
-    String address,
+    String domain,
     String displayName,
     Uint8List? profilePicture,
     String invitationCode,
@@ -105,7 +105,7 @@ class CoreClient {
     }
 
     user = await User.newInstance(
-      address: address,
+      domain: domain,
       path: await dbPath(),
       pushToken: pushToken,
       displayName: displayName,

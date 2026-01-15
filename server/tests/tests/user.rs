@@ -116,9 +116,13 @@ async fn client_persistence() {
     let db_path = setup.temp_dir().to_owned();
 
     // Try to load the user from the database.
-    CoreUser::load(alice.clone(), db_path.to_str().unwrap())
-        .await
-        .unwrap();
+    CoreUser::load(
+        alice.clone(),
+        db_path.to_str().unwrap(),
+        Some(setup.server_url()),
+    )
+    .await
+    .unwrap();
 
     let client_db_path = db_path.join(format!("{}@{}.db", alice.uuid(), alice.domain()));
     assert!(client_db_path.exists());
@@ -127,9 +131,13 @@ async fn client_persistence() {
 
     assert!(!client_db_path.exists());
     assert!(
-        CoreUser::load(alice.clone(), db_path.to_str().unwrap())
-            .await
-            .is_err()
+        CoreUser::load(
+            alice.clone(),
+            db_path.to_str().unwrap(),
+            Some(setup.server_url())
+        )
+        .await
+        .is_err()
     );
 
     // `CoreUser::load` opened the client DB, and so it was re-created.
