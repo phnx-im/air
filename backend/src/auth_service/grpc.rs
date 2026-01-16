@@ -10,7 +10,7 @@ use airprotos::{
     validation::MissingFieldExt,
 };
 use displaydoc::Display;
-use futures_util::stream::{self, BoxStream};
+use futures_util::stream::BoxStream;
 
 use aircommon::{
     credentials::keys,
@@ -37,7 +37,10 @@ use tokio_stream::{StreamExt, wrappers::ReceiverStream};
 use tonic::{Code, Request, Response, Status, Streaming, async_trait};
 use tracing::error;
 
-use crate::{auth_service::invitation_code_record::InvitationCodeRecord, util::find_cause};
+use crate::{
+    auth_service::invitation_code_record::InvitationCodeRecord,
+    util::{self, find_cause, select_until_first_ends},
+};
 
 use super::{
     AuthService,
@@ -558,7 +561,7 @@ impl auth_service_server::AuthService for GrpcAs {
             requests_responses_tx,
         ));
 
-        let responses = stream::select(
+        let responses = select_until_first_ends(
             messages.map(|message| Ok(ListenHandleResponse { message })),
             ReceiverStream::new(requests_responses_rx).map(Err),
         );
