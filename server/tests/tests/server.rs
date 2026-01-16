@@ -15,7 +15,7 @@ use aircommon::{
 use aircoreclient::{
     ChatId,
     clients::{
-        HandleQueueMessage, QueueEvent,
+        QueueEvent,
         process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
         queue_event,
     },

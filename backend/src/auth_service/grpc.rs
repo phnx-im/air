@@ -39,7 +39,7 @@ use tracing::error;
 
 use crate::{
     auth_service::invitation_code_record::InvitationCodeRecord,
-    util::{self, find_cause, select_until_first_ends},
+    util::{find_cause, select_until_first_ends},
 };
 
 use super::{
