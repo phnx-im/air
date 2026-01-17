@@ -310,27 +310,6 @@ impl TargetedMessageContact {
         .map(|res| res.map(From::from))
     }
 
-    /// Load by chat_id (for debugging when primary lookup fails)
-    pub(crate) async fn load_by_chat_id(
-        executor: impl SqliteExecutor<'_>,
-        chat_id: ChatId,
-    ) -> sqlx::Result<Option<Self>> {
-        query_as!(
-            Record,
-            r#"SELECT
-                user_uuid AS "user_id: _",
-                user_domain AS "user_domain: _",
-                chat_id AS "chat_id: _",
-                friendship_package_ear_key AS "friendship_package_ear_key: _"
-            FROM targeted_message_contact
-            WHERE chat_id = ?"#,
-            chat_id,
-        )
-        .fetch_optional(executor)
-        .await
-        .map(|res| res.map(From::from))
-    }
-
     pub(crate) async fn load_all(executor: impl SqliteExecutor<'_>) -> sqlx::Result<Vec<Self>> {
         query_as!(
             Record,

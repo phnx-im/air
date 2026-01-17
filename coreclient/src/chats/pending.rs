@@ -60,13 +60,15 @@ impl CoreUser {
                 let own_user_profile_key = UserProfileKey::load_own(txn.as_mut()).await?;
                 let sender_user_id = sender_user_id.clone();
 
-                // Look up partial contact by chat_id since multiple senders can use same handle
+                // Look up partial contact:
+                // - HandleContact: by chat_id since multiple senders can use same username
+                // - TargetedMessageContact: by user_id (its natural key)
                 let partial_contact = if pending_connection_info.handle.is_some() {
                     HandleContact::load_by_chat_id(txn.as_mut(), chat_id)
                         .await?
                         .map(PartialContact::Handle)
                 } else {
-                    TargetedMessageContact::load_by_chat_id(txn.as_mut(), chat_id)
+                    TargetedMessageContact::load(txn.as_mut(), &sender_user_id)
                         .await?
                         .map(PartialContact::TargetedMessage)
                 };
