@@ -1,3 +1,7 @@
+-- SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+--
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+
 -- Recreate user_handle_contact as username_contact with chat_id as primary key
 -- This allows multiple senders to use the same username without overwriting each other's contact requests
 CREATE TABLE username_contact (
