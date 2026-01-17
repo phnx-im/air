@@ -14,8 +14,10 @@ use aircommon::{
 };
 use aircoreclient::{
     ChatId,
-    clients::process::process_qs::{
-        ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor,
+    clients::{
+        QueueEvent,
+        process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
+        queue_event,
     },
     outbound_service::KEY_PACKAGES,
     store::Store,
@@ -32,7 +34,10 @@ use chrono::Utc;
 use mimi_content::MimiContent;
 use rand::thread_rng;
 use semver::VersionReq;
-use tokio::{task::JoinSet, time::sleep};
+use tokio::{
+    task::JoinSet,
+    time::{sleep, timeout},
+};
 use tokio_stream::StreamExt;
 use tonic::transport::Channel;
 use tonic_health::pb::{
@@ -698,4 +703,76 @@ async fn unsupported_client_version() {
 
     let details = StatusDetails::from_status(&status).unwrap();
     assert_matches!(details.code(), StatusDetailsCode::VersionUnsupported);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Listen stream eviction", skip_all)]
+async fn listen_stream_eviction() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+
+    let alice_test_user = setup.get_user_mut(&alice);
+    let handle_record = alice_test_user.add_user_handle().await.unwrap();
+
+    let alice_user = alice_test_user.user.clone();
+
+    // Handle messages stream is evicted when another stream is opened
+    let (mut stream_a, _responder_a) = alice_user.listen_handle(&handle_record).await.unwrap();
+    assert_matches!(
+        stream_a.next().await,
+        Some(None),
+        "should receive empty message"
+    );
+
+    let (mut stream_b, _responder_b) = alice_user.listen_handle(&handle_record).await.unwrap();
+    assert_matches!(
+        stream_b.next().await,
+        Some(None),
+        "should receive empty message"
+    );
+
+    assert!(
+        timeout(Duration::from_millis(100), stream_a.next())
+            .await
+            .unwrap()
+            .is_none(),
+        "first stream is closed"
+    );
+    assert!(
+        timeout(Duration::from_millis(100), stream_b.next())
+            .await
+            .is_err(),
+        "second stream is still open"
+    );
+
+    // QS events stream is evicted when another stream is opened
+    let (mut stream_a, _responder_a) = alice_user.listen_queue().await.unwrap();
+    assert_matches!(
+        stream_a.next().await,
+        Some(QueueEvent {
+            event: Some(queue_event::Event::Empty(_)),
+        })
+    );
+
+    let (mut stream_b, _responder_b) = alice_user.listen_queue().await.unwrap();
+    assert_matches!(
+        stream_b.next().await,
+        Some(QueueEvent {
+            event: Some(queue_event::Event::Empty(_)),
+        })
+    );
+
+    assert!(
+        timeout(Duration::from_millis(100), stream_a.next())
+            .await
+            .unwrap()
+            .is_none(),
+        "first stream is not closed"
+    );
+    assert!(
+        timeout(Duration::from_millis(100), stream_b.next())
+            .await
+            .is_err(),
+        "second stream is closed"
+    );
 }

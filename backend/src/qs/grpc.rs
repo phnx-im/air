@@ -20,7 +20,6 @@ use aircommon::{
     time::TimeStamp,
 };
 use displaydoc::Display;
-use futures_util::stream;
 use tokio::sync::mpsc;
 use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
 use tonic::{Code, Request, Response, Status, Streaming, async_trait};
@@ -29,7 +28,7 @@ use tracing::error;
 use crate::{
     errors::QueueError,
     qs::{client_record::QsClientRecord, queue::Queues, user_record::UserRecord},
-    util::find_cause,
+    util::{find_cause, select_until_first_ends},
 };
 
 use super::Qs;
@@ -409,7 +408,7 @@ impl QueueService for GrpcQs {
             requests_responses_tx,
         ));
 
-        let responses = stream::select(
+        let responses = select_until_first_ends(
             events.map(Ok),
             ReceiverStream::new(requests_responses_rx).map(Err),
         );
