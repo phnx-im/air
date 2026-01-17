@@ -305,7 +305,7 @@ impl ChatDetailsCubitBase {
         until_message_id: MessageId,
         until_timestamp: DateTime<Utc>,
     ) -> anyhow::Result<()> {
-        const MARK_AS_READ_DEBOUNCE: Duration = Duration::from_secs(2);
+        const MARK_AS_READ_DEBOUNCE: Duration = Duration::from_millis(300);
         crate::mark_as_read::mark_as_read(
             &self.context.store,
             &self.context.mark_as_read_tx,
