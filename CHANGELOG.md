@@ -1,3 +1,24 @@
+## [0.9.0] - 2026-01-17
+
+### 🚀 Features
+
+- *(app)* Update push tokens (#942)
+- *(server)* Send errors to client when processing listen requests (#963)
+
+### 🐛 Bug Fixes
+
+- *(app)* Support self remove proposals (#953)
+- *(app)* Adding contact fails if the requester has changed their profile (#964)
+- *(app)* Use work manager for android notifications (#965)
+- *(app)* Retrying attachment uploads (#959)
+- *(app)* Make appbutton more robust (#968)
+- *(app)* Retrigger mark as read (#971)
+- *(app)* Multiple contact requests per username (#970)
+
+### 🚜 Refactor
+
+- *(test)* Split large integration test file (#966)
+
 ## [0.8.0] - 2026-01-12
 
 ### 🚀 Features
