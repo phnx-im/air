@@ -15,16 +15,16 @@ use aircommon::{
 use anyhow::{Context, bail, ensure};
 use mimi_room_policy::RoleIndex;
 use tls_codec::DeserializeBytes;
-use tracing::warn;
+use tracing::{instrument, warn};
 
 use crate::{
-    Chat, ChatId, ChatType, PartialContact, SystemMessage,
+    Chat, ChatId, ChatType, PartialContact, SystemMessage, TargetedMessageContact,
     chats::messages::TimestampedMessage,
     clients::{
         CoreUser,
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
     },
-    contacts::PartialContactType,
+    contacts::HandleContact,
     groups::Group,
     key_stores::indexed_keys::StorableIndexedKey,
     user_handles::connection_packages::StorableConnectionPackage,
@@ -41,6 +41,7 @@ pub(crate) struct PendingConnectionInfo {
 }
 
 impl CoreUser {
+    #[instrument(skip(self), err)]
     pub(crate) async fn accept_contact_request(&self, chat_id: ChatId) -> anyhow::Result<()> {
         // Load needed data
         let (chat, sender_user_id, pending_connection_info, partial_contact, own_user_profile_key) =
@@ -59,17 +60,19 @@ impl CoreUser {
                 let own_user_profile_key = UserProfileKey::load_own(txn.as_mut()).await?;
                 let sender_user_id = sender_user_id.clone();
 
-                let partial_contact_type =
-                    if let Some(handle) = pending_connection_info.handle.clone() {
-                        PartialContactType::Handle(handle)
-                    } else {
-                        PartialContactType::TargetedMessage(sender_user_id.clone())
-                    };
-                let partial_contact = PartialContact::load(txn.as_mut(), &partial_contact_type)
-                    .await?
-                    .with_context(|| {
-                        format!("No partial contact found for user: {sender_user_id:?}")
-                    })?;
+                // Look up partial contact by chat_id since multiple senders can use same handle
+                let partial_contact = if pending_connection_info.handle.is_some() {
+                    HandleContact::load_by_chat_id(txn.as_mut(), chat_id)
+                        .await?
+                        .map(PartialContact::Handle)
+                } else {
+                    TargetedMessageContact::load_by_chat_id(txn.as_mut(), chat_id)
+                        .await?
+                        .map(PartialContact::TargetedMessage)
+                };
+
+                let partial_contact = partial_contact
+                    .with_context(|| format!("No partial contact found for chat: {chat_id}"))?;
 
                 Ok((
                     chat,

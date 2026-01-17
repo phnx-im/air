@@ -126,15 +126,20 @@ impl HandleContact {
     ) -> sqlx::Result<()> {
         let created_at = Utc::now();
         query!(
-            "INSERT OR REPLACE INTO user_handle_contact (
-                user_handle,
+            "INSERT INTO username_contact (
                 chat_id,
+                username,
                 friendship_package_ear_key,
                 created_at,
                 connection_offer_hash
-            ) VALUES (?, ?, ?, ?, ?)",
-            self.handle,
+            ) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(chat_id) DO UPDATE SET
+                username = excluded.username,
+                friendship_package_ear_key = excluded.friendship_package_ear_key,
+                created_at = excluded.created_at,
+                connection_offer_hash = excluded.connection_offer_hash",
             self.chat_id,
+            self.handle,
             self.friendship_package_ear_key,
             created_at,
             self.connection_offer_hash
@@ -152,13 +157,32 @@ impl HandleContact {
         query_as!(
             Self,
             r#"SELECT
-                user_handle AS "handle: _",
+                username AS "handle: _",
                 chat_id AS "chat_id: _",
                 friendship_package_ear_key AS "friendship_package_ear_key: _",
                 connection_offer_hash AS "connection_offer_hash: _"
-            FROM user_handle_contact
-            WHERE user_handle = ?"#,
+            FROM username_contact
+            WHERE username = ?"#,
             handle,
+        )
+        .fetch_optional(executor)
+        .await
+    }
+
+    pub(crate) async fn load_by_chat_id(
+        executor: impl SqliteExecutor<'_>,
+        chat_id: ChatId,
+    ) -> sqlx::Result<Option<Self>> {
+        query_as!(
+            Self,
+            r#"SELECT
+                username AS "handle: _",
+                chat_id AS "chat_id: _",
+                friendship_package_ear_key AS "friendship_package_ear_key: _",
+                connection_offer_hash AS "connection_offer_hash: _"
+            FROM username_contact
+            WHERE chat_id = ?"#,
+            chat_id,
         )
         .fetch_optional(executor)
         .await
@@ -168,11 +192,11 @@ impl HandleContact {
         query_as!(
             Self,
             r#"SELECT
-                user_handle AS "handle: _",
+                username AS "handle: _",
                 chat_id AS "chat_id: _",
                 friendship_package_ear_key AS "friendship_package_ear_key: _",
                 connection_offer_hash AS "connection_offer_hash: _"
-            FROM user_handle_contact"#,
+            FROM username_contact"#,
         )
         .fetch_all(executor)
         .await
@@ -180,8 +204,8 @@ impl HandleContact {
 
     async fn delete(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
         query!(
-            "DELETE FROM user_handle_contact WHERE user_handle = ?",
-            self.handle
+            "DELETE FROM username_contact WHERE chat_id = ?",
+            self.chat_id
         )
         .execute(executor)
         .await?;
@@ -280,6 +304,27 @@ impl TargetedMessageContact {
             WHERE user_uuid = ? AND user_domain = ?"#,
             uuid,
             domain,
+        )
+        .fetch_optional(executor)
+        .await
+        .map(|res| res.map(From::from))
+    }
+
+    /// Load by chat_id (for debugging when primary lookup fails)
+    pub(crate) async fn load_by_chat_id(
+        executor: impl SqliteExecutor<'_>,
+        chat_id: ChatId,
+    ) -> sqlx::Result<Option<Self>> {
+        query_as!(
+            Record,
+            r#"SELECT
+                user_uuid AS "user_id: _",
+                user_domain AS "user_domain: _",
+                chat_id AS "chat_id: _",
+                friendship_package_ear_key AS "friendship_package_ear_key: _"
+            FROM targeted_message_contact
+            WHERE chat_id = ?"#,
+            chat_id,
         )
         .fetch_optional(executor)
         .await
@@ -550,6 +595,56 @@ mod tests {
 
         let loaded = HandleContact::load(&pool, &handle).await?.unwrap();
         assert_eq!(loaded, handle_contact);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn username_contact_multiple_senders_same_username(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let mut store_notifier = StoreNotifier::noop();
+
+        // Create two chats
+        let chat_a = test_chat();
+        let chat_b = test_chat();
+        chat_a
+            .store(pool.acquire().await?.as_mut(), &mut store_notifier)
+            .await?;
+        chat_b
+            .store(pool.acquire().await?.as_mut(), &mut store_notifier)
+            .await?;
+
+        let username = UserHandle::new("alice".to_owned()).unwrap();
+
+        // Sender A sends connection request to username "alice"
+        let contact_a = HandleContact {
+            handle: username.clone(),
+            chat_id: chat_a.id(),
+            friendship_package_ear_key: FriendshipPackageEarKey::random().unwrap(),
+            connection_offer_hash: ConnectionOfferHash::new_for_test(vec![1, 2, 3]),
+        };
+        contact_a.upsert(&pool, &mut store_notifier).await?;
+
+        // Verify A's HandleContact exists
+        let loaded_a = HandleContact::load(&pool, &username).await?.unwrap();
+        assert_eq!(loaded_a.chat_id, chat_a.id());
+
+        // Sender B sends connection request to same username "alice"
+        let contact_b = HandleContact {
+            handle: username.clone(),
+            chat_id: chat_b.id(),
+            friendship_package_ear_key: FriendshipPackageEarKey::random().unwrap(),
+            connection_offer_hash: ConnectionOfferHash::new_for_test(vec![4, 5, 6]),
+        };
+        contact_b.upsert(&pool, &mut store_notifier).await?;
+
+        // Both contacts should exist (each has unique chat_id)
+        let loaded_a_by_chat = HandleContact::load_by_chat_id(&pool, chat_a.id()).await?;
+        assert!(loaded_a_by_chat.is_some());
+
+        let loaded_b_by_chat = HandleContact::load_by_chat_id(&pool, chat_b.id()).await?;
+        assert!(loaded_b_by_chat.is_some());
 
         Ok(())
     }
