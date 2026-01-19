@@ -72,7 +72,6 @@ impl User {
 
         let user = CoreUser::new(
             user_id,
-            None,
             &path,
             push_token.map(|p| p.into()),
             invitation_code,
@@ -111,7 +110,8 @@ impl User {
     }
 
     pub async fn load(db_path: String, user_id: UiUserId) -> anyhow::Result<Self> {
-        let user = CoreUser::load(user_id.into(), &db_path, None).await?;
+        let user_id = user_id.into();
+        let user = CoreUser::load(&user_id, &db_path).await?;
         Ok(Self { user: user.clone() })
     }
 
@@ -131,7 +131,7 @@ impl User {
         let mut loaded_user = None;
         for client_record in records {
             let user_id = client_record.user_id;
-            match CoreUser::load(user_id.clone(), &path, None).await {
+            match CoreUser::load(&user_id, &path).await {
                 Ok(user) => {
                     loaded_user = Some(user);
                     break;

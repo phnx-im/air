@@ -88,7 +88,7 @@ impl TestUser {
     }
 
     pub async fn new_persisted(user_id: &UserId, server_url: Url, db_dir: &str) -> Self {
-        let user = CoreUser::new(
+        let user = CoreUser::with_server_url(
             user_id.clone(),
             Some(server_url),
             db_dir,

@@ -126,6 +126,27 @@ impl CoreUser {
     /// If a user with this name already exists, this will overwrite that user.
     pub async fn new(
         user_id: UserId,
+        db_path: &str,
+        push_token: Option<PushToken>,
+        invitation_code: String,
+    ) -> Result<Self> {
+        Self::new_impl(user_id, None, db_path, push_token, invitation_code).await
+    }
+
+    /// Same as [`new`], but allows to override the server URL.
+    #[cfg(feature = "test_utils")]
+    pub async fn with_server_url(
+        user_id: UserId,
+        server_url: Option<Url>,
+        db_path: &str,
+        push_token: Option<PushToken>,
+        invitation_code: String,
+    ) -> Result<Self> {
+        Self::new_impl(user_id, server_url, db_path, push_token, invitation_code).await
+    }
+
+    async fn new_impl(
+        user_id: UserId,
         server_url: Option<Url>,
         db_path: &str,
         push_token: Option<PushToken>,
@@ -189,10 +210,28 @@ impl CoreUser {
     ///
     /// If a user creation process with a matching `UserId` was interrupted before, this will
     /// resume that process.
-    pub async fn load(user_id: UserId, db_path: &str, server_url: Option<Url>) -> Result<CoreUser> {
-        let client_db = open_client_db(&user_id, db_path).await?;
+    pub async fn load(user_id: &UserId, db_path: &str) -> Result<CoreUser> {
+        Self::load_impl(user_id, db_path, None).await
+    }
 
-        let user_creation_state = UserCreationState::load(&client_db, &user_id)
+    /// Same as [`load`], but allows to override the server URL.
+    #[cfg(feature = "test_utils")]
+    pub async fn load_with_server_url(
+        user_id: &UserId,
+        db_path: &str,
+        server_url: Option<Url>,
+    ) -> Result<CoreUser> {
+        Self::load_impl(user_id, db_path, server_url).await
+    }
+
+    async fn load_impl(
+        user_id: &UserId,
+        db_path: &str,
+        server_url: Option<Url>,
+    ) -> Result<CoreUser> {
+        let client_db = open_client_db(user_id, db_path).await?;
+
+        let user_creation_state = UserCreationState::load(&client_db, user_id)
             .await?
             .context("missing user creation state")?;
 
@@ -201,7 +240,7 @@ impl CoreUser {
         let final_state = user_creation_state
             .complete_user_creation(&air_db, &client_db, &api_clients)
             .await?;
-        ClientRecord::set_default(&air_db, &user_id).await?;
+        ClientRecord::set_default(&air_db, user_id).await?;
 
         let global_lock = open_lock_file(db_path)?;
 
