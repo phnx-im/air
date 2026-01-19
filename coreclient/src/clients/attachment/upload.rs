@@ -15,7 +15,7 @@ use aircommon::{
     crypto::ear::{AeadCiphertext, EarEncryptable, keys::AttachmentEarKey},
     identifiers::AttachmentId,
 };
-use airprotos::delivery_service::v1::SignedPostPolicy;
+use airprotos::{common::v1::AttachmentTooLargeDetail, delivery_service::v1::SignedPostPolicy};
 use anyhow::{Context, bail, ensure};
 use base64::{Engine, prelude::BASE64_STANDARD};
 use chrono::{DateTime, Local, Utc};
@@ -55,11 +55,16 @@ impl CoreUser {
         &self,
         chat_id: ChatId,
         path: &Path,
-    ) -> anyhow::Result<(
-        AttachmentId,
-        AttachmentProgress,
-        impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
-    )> {
+    ) -> anyhow::Result<
+        Result<
+            (
+                AttachmentId,
+                AttachmentProgress,
+                impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
+            ),
+            ProvisionAttachmentError,
+        >,
+    > {
         let (chat, group) = self
             .with_transaction(async |txn| {
                 let chat = Chat::load(txn, &chat_id)
@@ -78,13 +83,17 @@ impl CoreUser {
         let mut attachment = ProcessedAttachment::from_file(path)?;
 
         // encrypt the content and provision the attachment, but don't upload it yet
-        let (attachment_metadata, ciphertext, provision_response) = encrypt_and_provision(
+        let (attachment_metadata, ciphertext, provision_response) = match encrypt_and_provision(
             &self.api_client()?,
             self.signing_key(),
             &group,
             &attachment.content,
         )
-        .await?;
+        .await?
+        {
+            Ok(result) => result,
+            Err(error) => return Ok(Err(error)),
+        };
 
         // store local attachment message
         let attachment_id = attachment_metadata.attachment_id;
@@ -133,17 +142,22 @@ impl CoreUser {
         // upload the encrypted attachment
         let (progress, task) =
             self.upload_attachment_task(attachment_id, message, ciphertext, provision_response);
-        Ok((attachment_id, progress, task))
+        Ok(Ok((attachment_id, progress, task)))
     }
 
     pub async fn retry_upload_attachment(
         &self,
         attachment_id: AttachmentId,
-    ) -> anyhow::Result<(
-        AttachmentId,
-        AttachmentProgress,
-        impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
-    )> {
+    ) -> anyhow::Result<
+        Result<
+            (
+                AttachmentId,
+                AttachmentProgress,
+                impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
+            ),
+            ProvisionAttachmentError,
+        >,
+    > {
         // load locally stored data
         let (group, mut message, content) = self
             .with_transaction(async |txn| {
@@ -181,8 +195,12 @@ impl CoreUser {
 
         // encrypt the content and provision the attachment, but don't upload it yet
         let (attachment_metadata, ciphertext, provision_response) =
-            encrypt_and_provision(&self.api_client()?, self.signing_key(), &group, &content)
-                .await?;
+            match encrypt_and_provision(&self.api_client()?, self.signing_key(), &group, &content)
+                .await?
+            {
+                Ok(result) => result,
+                Err(error) => return Ok(Err(error)),
+            };
 
         // update local attachment message
 
@@ -220,7 +238,7 @@ impl CoreUser {
             })
             .await?;
         } else {
-            bail!("Invalid attachment mimi content");
+            bail!("Invalid attachment mimi content")
         }
 
         // upload task
@@ -230,7 +248,11 @@ impl CoreUser {
             ciphertext,
             provision_response,
         );
-        Ok((attachment_metadata.attachment_id, progress, upload_task))
+        Ok(Ok((
+            attachment_metadata.attachment_id,
+            progress,
+            upload_task,
+        )))
     }
 
     fn upload_attachment_task(
@@ -415,12 +437,25 @@ struct AttachmentMetadata {
     nonce: [u8; 12],
 }
 
+#[derive(Debug)]
+pub enum ProvisionAttachmentError {
+    TooLarge(AttachmentTooLargeDetail),
+}
+
+// impl<E: std::error::Error + Sync + Send + 'static> From<E> for ProvisionAttachmentError {
+//     fn from(error: E) -> Self {
+//         Self::Fatal(error.into())
+//     }
+// }
+
 async fn encrypt_and_provision(
     api_client: &ApiClient,
     signing_key: &ClientSigningKey,
     group: &Group,
     content: &AttachmentBytes,
-) -> anyhow::Result<(AttachmentMetadata, Vec<u8>, ProvisionAttachmentResponse)> {
+) -> anyhow::Result<
+    Result<(AttachmentMetadata, Vec<u8>, ProvisionAttachmentResponse), ProvisionAttachmentError>,
+> {
     // encrypt the content
     let key = AttachmentEarKey::random()?;
     let ciphertext: AeadCiphertext = content.encrypt(&key)?.into();
@@ -428,7 +463,7 @@ async fn encrypt_and_provision(
 
     // provision attachment
     let content_length = ciphertext.len().try_into().context("usize overflow")?;
-    let response = api_client
+    let response = match api_client
         .ds_provision_attachment(
             signing_key,
             group.group_state_ear_key(),
@@ -436,7 +471,18 @@ async fn encrypt_and_provision(
             group.own_index(),
             content_length,
         )
-        .await?;
+        .await
+    {
+        Ok(response) => response,
+        Err(error) => {
+            return match error.get_attachment_too_large() {
+                Some(attachment_too_large) => Ok(Err(ProvisionAttachmentError::TooLarge(
+                    attachment_too_large,
+                ))),
+                None => Err(error.into()),
+            };
+        }
+    };
 
     let attachment_id =
         AttachmentId::new(response.attachment_id.context("no attachment id")?.into());
@@ -446,7 +492,7 @@ async fn encrypt_and_provision(
         key,
         nonce,
     };
-    Ok((metadata, ciphertext, response))
+    Ok(Ok((metadata, ciphertext, response)))
 }
 
 async fn upload_encrypted_attachment(

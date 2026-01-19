@@ -2,9 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airprotos::common::v1::{ClientMetadata, StatusDetails, StatusDetailsCode};
+use airprotos::common::v1::{
+    ClientMetadata, StatusDetails, StatusDetailsCode, VersionUnsupportedDetail,
+    status_details::Detail,
+};
 use prost::Message;
-use semver::VersionReq;
+use semver::{Version, VersionReq};
 use tonic::{Code, Status};
 use tracing::{error, warn};
 
@@ -26,15 +29,16 @@ pub(crate) fn verify_client_version(
         warn!("missing client metadata");
         return Err(failed_version_precondition(
             "missing required client version",
+            None,
+            client_version_req,
         ));
     };
-    let client_version = client_metadata
-        .version
-        .clone()
-        .ok_or_else(|| failed_version_precondition("missing client version"))?;
+    let client_version = client_metadata.version.clone().ok_or_else(|| {
+        failed_version_precondition("missing client version", None, client_version_req)
+    })?;
     let client_version: semver::Version = client_version.try_into().map_err(|error| {
         error!(%error, "invalid client version");
-        failed_version_precondition("invalid client version")
+        failed_version_precondition("invalid client version", None, client_version_req)
     })?;
 
     if client_version_req.matches(&client_version) {
@@ -46,16 +50,26 @@ pub(crate) fn verify_client_version(
         );
         Err(failed_version_precondition(
             "client version does not match required version",
+            Some(&client_version),
+            client_version_req,
         ))
     }
 }
 
-fn failed_version_precondition(message: impl Into<String>) -> Status {
+fn failed_version_precondition(
+    message: impl Into<String>,
+    client_version: Option<&Version>,
+    client_version_req: &VersionReq,
+) -> Status {
     Status::with_details(
         Code::FailedPrecondition,
         message,
         StatusDetails {
             code: StatusDetailsCode::VersionUnsupported.into(),
+            detail: Some(Detail::VersionUnsupported(VersionUnsupportedDetail {
+                client_version: client_version.map(|v| v.to_string()),
+                client_version_requirement: client_version_req.to_string(),
+            })),
         }
         .encode_to_vec()
         .into(),

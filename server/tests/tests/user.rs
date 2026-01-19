@@ -7,8 +7,8 @@ use std::{collections::HashMap, fs};
 use airapiclient::as_api::AsRequestError;
 use aircommon::{assert_matches, identifiers::UserHandle};
 use aircoreclient::{
-    AddHandleContactError, AddHandleContactResult, Asset, BlockedContactError, DisplayName,
-    EventMessage, Message, SystemMessage, UserProfile, clients::CoreUser, store::Store,
+    AddHandleContactError, Asset, BlockedContactError, DisplayName, EventMessage, Message,
+    SystemMessage, UserProfile, clients::CoreUser, store::Store,
 };
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use mimi_content::MimiContent;
@@ -150,10 +150,7 @@ async fn error_if_user_doesnt_exist() {
 
     let res = alice_user.add_contact(handle, hash).await.unwrap();
 
-    assert!(matches!(
-        res,
-        AddHandleContactResult::Err(AddHandleContactError::HandleNotFound)
-    ));
+    assert_matches!(res, Err(AddHandleContactError::HandleNotFound));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -263,7 +260,8 @@ async fn blocked_contact() {
         .user
         .add_contact(alice_handle.clone(), alice_handle_hash)
         .await
-        .unwrap();
+        .expect("fatal error")
+        .expect("non-fatal error");
     let mut messages = alice_test_user.user.fetch_handle_messages().await.unwrap();
     assert_eq!(messages.len(), 1);
 
@@ -363,11 +361,9 @@ async fn handle_sanity_checks() {
         .add_contact(alice_handle.clone(), alice_handle_hash)
         .await
         .unwrap();
-    assert!(
-        matches!(
-            res,
-            AddHandleContactResult::Err(AddHandleContactError::OwnHandle)
-        ),
+    assert_matches!(
+        res,
+        Err(AddHandleContactError::OwnHandle),
         "Should not be able to add own handle as contact"
     );
 
@@ -376,19 +372,14 @@ async fn handle_sanity_checks() {
         .add_contact(bob_handle.clone(), bob_handle_hash)
         .await
         .unwrap();
-    assert!(
-        matches!(res, AddHandleContactResult::Ok(_)),
-        "Should be able to add Bob as contact"
-    );
+    assert_matches!(res, Ok(_), "Should be able to add Bob as contact");
     let res = alice_user
         .add_contact(bob_handle.clone(), bob_handle_hash)
         .await
         .unwrap();
-    assert!(
-        matches!(
-            res,
-            AddHandleContactResult::Err(AddHandleContactError::DuplicateRequest)
-        ),
+    assert_matches!(
+        res,
+        Err(AddHandleContactError::DuplicateRequest),
         "Should not be able to add Bob twice"
     );
 }
@@ -501,16 +492,11 @@ async fn add_contact_and_change_profile() {
 
     // Add Alice as a contact
     let bob_user = setup.get_user(&bob).user.clone();
-    let res = bob_user
+    let bob_alice_chat_id = bob_user
         .add_contact(alice_handle.handle.clone(), alice_handle.hash)
         .await
-        .unwrap();
-    let bob_alice_chat_id = match res {
-        AddHandleContactResult::Ok(chat_id) => chat_id,
-        AddHandleContactResult::Err(error) => {
-            panic!("Unexpected error: {error:?}");
-        }
-    };
+        .expect("fatal error")
+        .expect("non-fatal error");
 
     // Change Bob's profile
     let bob_user_profile = UserProfile {

@@ -10,7 +10,7 @@ pub(crate) use persistence::AttachmentRecord;
 pub use persistence::{AttachmentContent, AttachmentStatus};
 use thiserror::Error;
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
-pub use upload::UploadTaskError;
+pub use upload::{ProvisionAttachmentError, UploadTaskError};
 use url::Url;
 
 mod content;

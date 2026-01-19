@@ -198,6 +198,7 @@
   "composer_inputHint": "Message {chatTitle}",
   "composer_editMessage": "Edit message",
   "composer_error_attachment": "Failed to upload attachment. Try again.",
+  "composer_error_attachment_too_large": "Attachment is too large. The maximum size is {maxSize} and the actual size is {actualSize}.",
 
   "attachmentSize": "{size} {byteUnit}",
   "@attachmentSize": {

@@ -168,6 +168,7 @@ pub struct TestBackendParams {
     pub client_version_req: Option<VersionReq>,
     pub invitation_only: bool,
     pub unredeemable_code: Option<String>,
+    pub max_attachment_size: Option<u64>,
 }
 
 impl TestBackend {
@@ -392,7 +393,8 @@ impl TestBackend {
         user1
             .add_contact(user2_handle.clone(), user_handle_hash)
             .await
-            .unwrap();
+            .expect("fatal error")
+            .expect("non-fatal error");
         let mut user1_handle_contacts_after = user1.handle_contacts().await.unwrap();
         let error_msg = format!(
             "User 2 should be in the handle contacts list of user 1. List: {user1_handle_contacts_after:?}",
@@ -907,7 +909,7 @@ impl TestBackend {
         recipients: Vec<&UserId>,
         attachment: &[u8],
         filename: &str,
-    ) -> (MessageId, NestedPartContent) {
+    ) -> Result<(MessageId, NestedPartContent), ProvisionAttachmentError> {
         let recipient_strings = recipients
             .iter()
             .map(|n| format!("{n:?}"))
@@ -928,8 +930,11 @@ impl TestBackend {
         let path = tmp_dir.path().join(filename);
         std::fs::write(&path, attachment).unwrap();
 
-        let (attachment_id, _progress, upload_task) =
-            sender.upload_attachment(chat_id, &path).await.unwrap();
+        let (attachment_id, _progress, upload_task) = sender
+            .upload_attachment(chat_id, &path)
+            .await
+            .expect("fatal error")?;
+
         let message = upload_task.await.unwrap();
         sender
             .outbound_service()
@@ -1010,7 +1015,7 @@ impl TestBackend {
                 .unwrap();
         }
 
-        (message.id(), external_part)
+        Ok((message.id(), external_part))
     }
 
     /// This function goes through all tables of the database and returns all columns that contain the query.

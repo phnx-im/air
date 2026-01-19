@@ -175,7 +175,7 @@ abstract class RustLibApi extends BaseApi {
     required ChatDetailsCubitBase that,
   });
 
-  Future<void>
+  Future<UploadAttachmentError?>
   crateApiChatDetailsCubitChatDetailsCubitBaseRetryUploadAttachment({
     required ChatDetailsCubitBase that,
     required AttachmentId attachmentId,
@@ -210,7 +210,8 @@ abstract class RustLibApi extends BaseApi {
     required ChatDetailsCubitBase that,
   });
 
-  Future<void> crateApiChatDetailsCubitChatDetailsCubitBaseUploadAttachment({
+  Future<UploadAttachmentError?>
+  crateApiChatDetailsCubitChatDetailsCubitBaseUploadAttachment({
     required ChatDetailsCubitBase that,
     required String path,
   });
@@ -219,7 +220,7 @@ abstract class RustLibApi extends BaseApi {
     required ChatListCubitBase that,
   });
 
-  Future<AddHandleContactResult>
+  Future<AddHandleContactError?>
   crateApiChatListCubitChatListCubitBaseCreateContactChat({
     required ChatListCubitBase that,
     required UiUserHandle handle,
@@ -1493,7 +1494,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void>
+  Future<UploadAttachmentError?>
   crateApiChatDetailsCubitChatDetailsCubitBaseRetryUploadAttachment({
     required ChatDetailsCubitBase that,
     required AttachmentId attachmentId,
@@ -1515,7 +1516,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
+          decodeSuccessData: sse_decode_opt_box_autoadd_upload_attachment_error,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta:
@@ -1771,7 +1772,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiChatDetailsCubitChatDetailsCubitBaseUploadAttachment({
+  Future<UploadAttachmentError?>
+  crateApiChatDetailsCubitChatDetailsCubitBaseUploadAttachment({
     required ChatDetailsCubitBase that,
     required String path,
   }) {
@@ -1792,7 +1794,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
+          decodeSuccessData: sse_decode_opt_box_autoadd_upload_attachment_error,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta:
@@ -1847,7 +1849,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<AddHandleContactResult>
+  Future<AddHandleContactError?>
   crateApiChatListCubitChatListCubitBaseCreateContactChat({
     required ChatListCubitBase that,
     required UiUserHandle handle,
@@ -1874,7 +1876,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_add_handle_contact_result,
+          decodeSuccessData:
+              sse_decode_opt_box_autoadd_add_handle_contact_error,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta:
@@ -7409,23 +7412,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AddHandleContactResult dco_decode_add_handle_contact_result(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    switch (raw[0]) {
-      case 0:
-        return AddHandleContactResult_Ok(
-          dco_decode_box_autoadd_chat_id(raw[1]),
-        );
-      case 1:
-        return AddHandleContactResult_Err(
-          dco_decode_add_handle_contact_error(raw[1]),
-        );
-      default:
-        throw Exception("unreachable");
-    }
-  }
-
-  @protected
   AppState dco_decode_app_state(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return AppState.values[raw as int];
@@ -7518,6 +7504,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
       raw,
     );
+  }
+
+  @protected
+  AddHandleContactError dco_decode_box_autoadd_add_handle_contact_error(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_add_handle_contact_error(raw);
   }
 
   @protected
@@ -7665,6 +7659,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiUserProfile dco_decode_box_autoadd_ui_user_profile(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_ui_user_profile(raw);
+  }
+
+  @protected
+  UploadAttachmentError dco_decode_box_autoadd_upload_attachment_error(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_upload_attachment_error(raw);
   }
 
   @protected
@@ -8124,6 +8126,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AddHandleContactError? dco_decode_opt_box_autoadd_add_handle_contact_error(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_add_handle_contact_error(raw);
+  }
+
+  @protected
   bool? dco_decode_opt_box_autoadd_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_bool(raw);
@@ -8216,6 +8228,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiUserId? dco_decode_opt_box_autoadd_ui_user_id(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_ui_user_id(raw);
+  }
+
+  @protected
+  UploadAttachmentError? dco_decode_opt_box_autoadd_upload_attachment_error(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_upload_attachment_error(raw);
   }
 
   @protected
@@ -8657,6 +8679,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void dco_decode_unit(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return;
+  }
+
+  @protected
+  UploadAttachmentError dco_decode_upload_attachment_error(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return UploadAttachmentError_TooLarge(
+          maxSizeBytes: dco_decode_u_64(raw[1]),
+          actualSizeBytes: dco_decode_u_64(raw[2]),
+        );
+      default:
+        throw Exception("unreachable");
+    }
   }
 
   @protected
@@ -9632,25 +9668,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AddHandleContactResult sse_decode_add_handle_contact_result(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var tag_ = sse_decode_i_32(deserializer);
-    switch (tag_) {
-      case 0:
-        var var_field0 = sse_decode_box_autoadd_chat_id(deserializer);
-        return AddHandleContactResult_Ok(var_field0);
-      case 1:
-        var var_field0 = sse_decode_add_handle_contact_error(deserializer);
-        return AddHandleContactResult_Err(var_field0);
-      default:
-        throw UnimplementedError('');
-    }
-  }
-
-  @protected
   AppState sse_decode_app_state(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_i_32(deserializer);
@@ -9746,6 +9763,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return (sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
       deserializer,
     ));
+  }
+
+  @protected
+  AddHandleContactError sse_decode_box_autoadd_add_handle_contact_error(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_add_handle_contact_error(deserializer));
   }
 
   @protected
@@ -9925,6 +9950,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_ui_user_profile(deserializer));
+  }
+
+  @protected
+  UploadAttachmentError sse_decode_box_autoadd_upload_attachment_error(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_upload_attachment_error(deserializer));
   }
 
   @protected
@@ -10504,6 +10537,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AddHandleContactError? sse_decode_opt_box_autoadd_add_handle_contact_error(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_add_handle_contact_error(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -10690,6 +10736,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_ui_user_id(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  UploadAttachmentError? sse_decode_opt_box_autoadd_upload_attachment_error(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_upload_attachment_error(deserializer));
     } else {
       return null;
     }
@@ -11173,6 +11232,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_decode_unit(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+  }
+
+  @protected
+  UploadAttachmentError sse_decode_upload_attachment_error(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        var var_maxSizeBytes = sse_decode_u_64(deserializer);
+        var var_actualSizeBytes = sse_decode_u_64(deserializer);
+        return UploadAttachmentError_TooLarge(
+          maxSizeBytes: var_maxSizeBytes,
+          actualSizeBytes: var_actualSizeBytes,
+        );
+      default:
+        throw UnimplementedError('');
+    }
   }
 
   @protected
@@ -12387,22 +12466,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_add_handle_contact_result(
-    AddHandleContactResult self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    switch (self) {
-      case AddHandleContactResult_Ok(field0: final field0):
-        sse_encode_i_32(0, serializer);
-        sse_encode_box_autoadd_chat_id(field0, serializer);
-      case AddHandleContactResult_Err(field0: final field0):
-        sse_encode_i_32(1, serializer);
-        sse_encode_add_handle_contact_error(field0, serializer);
-    }
-  }
-
-  @protected
   void sse_encode_app_state(AppState self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
@@ -12492,6 +12555,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       self,
       serializer,
     );
+  }
+
+  @protected
+  void sse_encode_box_autoadd_add_handle_contact_error(
+    AddHandleContactError self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_add_handle_contact_error(self, serializer);
   }
 
   @protected
@@ -12699,6 +12771,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_ui_user_profile(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_upload_attachment_error(
+    UploadAttachmentError self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_upload_attachment_error(self, serializer);
   }
 
   @protected
@@ -13239,6 +13320,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_add_handle_contact_error(
+    AddHandleContactError? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_add_handle_contact_error(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -13424,6 +13518,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_ui_user_id(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_upload_attachment_error(
+    UploadAttachmentError? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_upload_attachment_error(self, serializer);
     }
   }
 
@@ -13847,6 +13954,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_upload_attachment_error(
+    UploadAttachmentError self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case UploadAttachmentError_TooLarge(
+        maxSizeBytes: final maxSizeBytes,
+        actualSizeBytes: final actualSizeBytes,
+      ):
+        sse_encode_i_32(0, serializer);
+        sse_encode_u_64(maxSizeBytes, serializer);
+        sse_encode_u_64(actualSizeBytes, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_user_handle_validation_error(
     UserHandleValidationError self,
     SseSerializer serializer,
@@ -14009,12 +14133,13 @@ class ChatDetailsCubitBaseImpl extends RustOpaque
   Future<void> resetDraft() => RustLib.instance.api
       .crateApiChatDetailsCubitChatDetailsCubitBaseResetDraft(that: this);
 
-  Future<void> retryUploadAttachment({required AttachmentId attachmentId}) =>
-      RustLib.instance.api
-          .crateApiChatDetailsCubitChatDetailsCubitBaseRetryUploadAttachment(
-            that: this,
-            attachmentId: attachmentId,
-          );
+  Future<UploadAttachmentError?> retryUploadAttachment({
+    required AttachmentId attachmentId,
+  }) => RustLib.instance.api
+      .crateApiChatDetailsCubitChatDetailsCubitBaseRetryUploadAttachment(
+        that: this,
+        attachmentId: attachmentId,
+      );
 
   /// Sends a message to the chat.
   ///
@@ -14059,11 +14184,12 @@ class ChatDetailsCubitBaseImpl extends RustOpaque
   Stream<ChatDetailsState> stream() => RustLib.instance.api
       .crateApiChatDetailsCubitChatDetailsCubitBaseStream(that: this);
 
-  Future<void> uploadAttachment({required String path}) => RustLib.instance.api
-      .crateApiChatDetailsCubitChatDetailsCubitBaseUploadAttachment(
-        that: this,
-        path: path,
-      );
+  Future<UploadAttachmentError?> uploadAttachment({required String path}) =>
+      RustLib.instance.api
+          .crateApiChatDetailsCubitChatDetailsCubitBaseUploadAttachment(
+            that: this,
+            path: path,
+          );
 }
 
 @sealed
@@ -14095,7 +14221,7 @@ class ChatListCubitBaseImpl extends RustOpaque implements ChatListCubitBase {
   /// Creates a new 1:1 connection with the given user via a user handle.
   ///
   /// Returns `None` if the provided handle does not exist.
-  Future<AddHandleContactResult> createContactChat({
+  Future<AddHandleContactError?> createContactChat({
     required UiUserHandle handle,
     required UserHandleHash hash,
   }) => RustLib.instance.api
