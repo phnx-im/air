@@ -6074,7 +6074,7 @@ fn wire__crate__api__user__User_new_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_address = <String>::sse_decode(&mut deserializer);
+            let api_domain = <String>::sse_decode(&mut deserializer);
             let api_path = <String>::sse_decode(&mut deserializer);
             let api_push_token =
                 <Option<crate::api::user::PlatformPushToken>>::sse_decode(&mut deserializer);
@@ -6086,7 +6086,7 @@ fn wire__crate__api__user__User_new_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok = crate::api::user::User::new(
-                            api_address,
+                            api_domain,
                             api_path,
                             api_push_token,
                             api_display_name,
@@ -6770,14 +6770,14 @@ fn wire__crate__api__invitation_code__check_invitation_code_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_server_url = <String>::sse_decode(&mut deserializer);
+            let api_domain = <String>::sse_decode(&mut deserializer);
             let api_invitation_code = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok = crate::api::invitation_code::check_invitation_code(
-                            api_server_url,
+                            api_domain,
                             api_invitation_code,
                         )
                         .await?;

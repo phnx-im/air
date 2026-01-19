@@ -4,11 +4,11 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-pub use airapiclient::as_api::ListenHandleResponder;
+pub use airapiclient::as_api::AsListenHandleResponder;
 use airapiclient::{
     ApiClient, ApiClientInitError,
     as_api::AsRequestError,
-    qs_api::{ListenResponder, ListenResponderClosedError, QsRequestError},
+    qs_api::{QsListenResponder, QsRequestError},
 };
 use aircommon::{
     credentials::{
@@ -126,7 +126,28 @@ impl CoreUser {
     /// If a user with this name already exists, this will overwrite that user.
     pub async fn new(
         user_id: UserId,
-        server_url: Url,
+        db_path: &str,
+        push_token: Option<PushToken>,
+        invitation_code: String,
+    ) -> Result<Self> {
+        Self::new_impl(user_id, None, db_path, push_token, invitation_code).await
+    }
+
+    /// Same as [`new`], but allows to override the server URL.
+    #[cfg(feature = "test_utils")]
+    pub async fn with_server_url(
+        user_id: UserId,
+        server_url: Option<Url>,
+        db_path: &str,
+        push_token: Option<PushToken>,
+        invitation_code: String,
+    ) -> Result<Self> {
+        Self::new_impl(user_id, server_url, db_path, push_token, invitation_code).await
+    }
+
+    async fn new_impl(
+        user_id: UserId,
+        server_url: Option<Url>,
         db_path: &str,
         push_token: Option<PushToken>,
         invitation_code: String,
@@ -155,32 +176,24 @@ impl CoreUser {
 
     async fn new_with_connections(
         user_id: UserId,
-        server_url: Url,
+        server_url: Option<Url>,
         push_token: Option<PushToken>,
         air_db: SqlitePool,
         client_db: SqlitePool,
         global_lock: GlobalLock,
         invitation_code: String,
     ) -> Result<Self> {
-        let server_url = server_url.to_string();
         let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone());
 
-        let user_creation_state = UserCreationState::new(
-            &client_db,
-            &air_db,
-            user_id,
-            server_url.clone(),
-            push_token,
-            invitation_code,
-        )
-        .await?;
+        let user_creation_state =
+            UserCreationState::new(&client_db, &air_db, user_id, push_token, invitation_code)
+                .await?;
 
         let final_state = user_creation_state
             .complete_user_creation(&air_db, &client_db, &api_clients)
             .await?;
 
         OwnClientInfo {
-            server_url,
             qs_user_id: *final_state.qs_user_id(),
             qs_client_id: *final_state.qs_client_id(),
             user_id: final_state.user_id().clone(),
@@ -197,20 +210,37 @@ impl CoreUser {
     ///
     /// If a user creation process with a matching `UserId` was interrupted before, this will
     /// resume that process.
-    pub async fn load(user_id: UserId, db_path: &str) -> Result<CoreUser> {
-        let client_db = open_client_db(&user_id, db_path).await?;
+    pub async fn load(user_id: &UserId, db_path: &str) -> Result<CoreUser> {
+        Self::load_impl(user_id, db_path, None).await
+    }
 
-        let user_creation_state = UserCreationState::load(&client_db, &user_id)
+    /// Same as [`load`], but allows to override the server URL.
+    #[cfg(feature = "test_utils")]
+    pub async fn load_with_server_url(
+        user_id: &UserId,
+        db_path: &str,
+        server_url: Option<Url>,
+    ) -> Result<CoreUser> {
+        Self::load_impl(user_id, db_path, server_url).await
+    }
+
+    async fn load_impl(
+        user_id: &UserId,
+        db_path: &str,
+        server_url: Option<Url>,
+    ) -> Result<CoreUser> {
+        let client_db = open_client_db(user_id, db_path).await?;
+
+        let user_creation_state = UserCreationState::load(&client_db, user_id)
             .await?
             .context("missing user creation state")?;
 
         let air_db = open_air_db(db_path).await?;
-        let api_clients =
-            ApiClients::new(user_id.domain().clone(), user_creation_state.server_url());
+        let api_clients = ApiClients::new(user_id.domain().clone(), server_url);
         let final_state = user_creation_state
             .complete_user_creation(&air_db, &client_db, &api_clients)
             .await?;
-        ClientRecord::set_default(&air_db, &user_id).await?;
+        ClientRecord::set_default(&air_db, user_id).await?;
 
         let global_lock = open_lock_file(db_path)?;
 
@@ -547,9 +577,8 @@ impl CoreUser {
         let sequence_number_start = queue_ratchet.sequence_number();
         let api_client = self.inner.api_clients.default_client()?;
         let (stream, responder) = api_client
-            .listen_queue(self.inner.qs_client_id, sequence_number_start)
+            .qs_listen_queue(self.inner.qs_client_id, sequence_number_start)
             .await?;
-        let responder = QsListenResponder { responder };
         Ok((stream, responder))
     }
 
@@ -559,7 +588,7 @@ impl CoreUser {
     ) -> std::result::Result<
         (
             impl Stream<Item = Option<HandleQueueMessage>> + Send + 'static,
-            ListenHandleResponder,
+            AsListenHandleResponder,
         ),
         ListenHandleError,
     > {
@@ -738,29 +767,6 @@ impl StoreExt for CoreUser {
 
     fn notifier(&self) -> StoreNotifier {
         StoreNotifier::new(self.inner.store_notifications_tx.clone())
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct QsListenResponder {
-    responder: ListenResponder,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum QsListenResponderError {
-    #[error(transparent)]
-    Closed(#[from] ListenResponderClosedError),
-}
-
-impl QsListenResponder {
-    pub async fn ack(&self, up_to_sequence_number: u64) -> Result<(), QsListenResponderError> {
-        self.responder.ack(up_to_sequence_number).await?;
-        Ok(())
-    }
-
-    pub async fn fetch(&self) -> Result<(), QsListenResponderError> {
-        self.responder.fetch().await?;
-        Ok(())
     }
 }
 

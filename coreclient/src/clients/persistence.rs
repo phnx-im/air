@@ -312,7 +312,6 @@ mod tests {
 
         UserCreationState::BasicUserData(BasicUserData {
             user_id: UserId::new(user_id, "localhost".parse().unwrap()),
-            server_url: "localhost".to_owned(),
             push_token: Some(PushToken::new(
                 PushTokenOperator::Google,
                 "token".to_owned(),

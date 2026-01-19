@@ -88,9 +88,9 @@ impl TestUser {
     }
 
     pub async fn new_persisted(user_id: &UserId, server_url: Url, db_dir: &str) -> Self {
-        let user = CoreUser::new(
+        let user = CoreUser::with_server_url(
             user_id.clone(),
-            server_url,
+            Some(server_url),
             db_dir,
             None,
             "DUMMY007".to_owned(),
@@ -187,7 +187,7 @@ impl TestBackend {
                 (ServerUrl::External(url), domain, None, Vec::new())
             } else {
                 let network_provider = MockNetworkProvider::new();
-                let domain: Fqdn = "example.com".parse().unwrap();
+                let domain: Fqdn = "localhost".parse().unwrap();
                 let (listen_addr, control_handle, codes) =
                     spawn_app(domain.clone(), network_provider, params).await;
                 info!(%listen_addr, "using spawned test server");

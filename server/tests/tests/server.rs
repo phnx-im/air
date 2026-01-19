@@ -418,7 +418,7 @@ async fn resync() {
         panic!("Bob should have one message in the queue");
     };
     let (stream, responder) = bob_user.listen_queue().await.unwrap();
-    responder.ack(message.sequence_number + 1).await.unwrap();
+    responder.ack(message.sequence_number + 1).await;
     sleep(Duration::from_secs(1)).await;
     drop(stream);
 
@@ -490,7 +490,7 @@ async fn resync() {
         panic!("Bob should have one message in the queue");
     };
     let (stream, responder) = bob_user.listen_queue().await.unwrap();
-    responder.ack(message.sequence_number + 1).await.unwrap();
+    responder.ack(message.sequence_number + 1).await;
     sleep(Duration::from_secs(1)).await;
     drop(stream);
 
@@ -675,7 +675,7 @@ async fn unsupported_client_version() {
     })
     .await;
 
-    let client = ApiClient::new(setup.server_url().as_str()).unwrap();
+    let client = ApiClient::with_endpoint(&setup.server_url()).unwrap();
 
     let handle = UserHandle::new("test-handle".to_string()).unwrap();
     let signing_key = HandleSigningKey::generate().unwrap();
@@ -693,7 +693,7 @@ async fn unsupported_client_version() {
     assert_matches!(details.code(), StatusDetailsCode::VersionUnsupported);
 
     let client_id = QsClientId::random(&mut thread_rng());
-    let res = client.listen_queue(client_id, 0).await;
+    let res = client.qs_listen_queue(client_id, 0).await;
     match res {
         Err(QsRequestError::Tonic(status)) => status,
         Err(error) => panic!("Unexpected error type: {error:?}"),

@@ -6,7 +6,10 @@
 
 use std::cmp::Reverse;
 
-use aircommon::{identifiers::UserId, messages::push_token::PushTokenOperator};
+use aircommon::{
+    identifiers::{Fqdn, UserId},
+    messages::push_token::PushTokenOperator,
+};
 use aircoreclient::{
     Asset, UserProfile,
     clients::{
@@ -15,12 +18,11 @@ use aircoreclient::{
     },
     open_client_db,
 };
-use anyhow::{Context, Result};
+use anyhow::Result;
 use flutter_rust_bridge::frb;
 use tracing::error;
 
 pub(crate) use aircommon::messages::push_token::PushToken;
-use url::{Host, Url};
 use uuid::Uuid;
 
 use super::types::{UiClientRecord, UiUserId, UiUserProfile};
@@ -56,28 +58,20 @@ impl User {
         Self { user: core_user }
     }
 
-    /// Creates a new user with a generated `uuid` at the domain described by `address`.
+    /// Creates a new user with a generated `uuid` at the domain `domain`.
     pub async fn new(
-        address: String,
+        domain: String,
         path: String,
         push_token: Option<PlatformPushToken>,
         display_name: String,
         profile_picture: Option<Vec<u8>>,
         invitation_code: String,
     ) -> Result<User> {
-        let mut server_url: Url = address.parse()?;
-        let domain = server_url.host().context("missing host in server url")?;
-
-        let user_id = UserId::new(Uuid::new_v4(), domain.to_owned().into());
-
-        if domain == Host::Domain("air.ms") {
-            // TODO: For now, we redirect to the production server manually.
-            server_url.set_host(Some("prod.air.ms"))?;
-        }
+        let domain: Fqdn = domain.parse()?;
+        let user_id = UserId::new(Uuid::new_v4(), domain);
 
         let user = CoreUser::new(
             user_id,
-            server_url,
             &path,
             push_token.map(|p| p.into()),
             invitation_code,
@@ -116,7 +110,8 @@ impl User {
     }
 
     pub async fn load(db_path: String, user_id: UiUserId) -> anyhow::Result<Self> {
-        let user = CoreUser::load(user_id.into(), &db_path).await?;
+        let user_id = user_id.into();
+        let user = CoreUser::load(&user_id, &db_path).await?;
         Ok(Self { user: user.clone() })
     }
 
@@ -136,7 +131,7 @@ impl User {
         let mut loaded_user = None;
         for client_record in records {
             let user_id = client_record.user_id;
-            match CoreUser::load(user_id.clone(), &path).await {
+            match CoreUser::load(&user_id, &path).await {
                 Ok(user) => {
                     loaded_user = Some(user);
                     break;

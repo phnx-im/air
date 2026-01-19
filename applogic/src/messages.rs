@@ -54,13 +54,7 @@ impl User {
             // We received some messages, so we can ack them *after* they were fully
             // processed. In particular, the queue ratchet sequence number was written back
             // into the database.
-            responder
-                .ack(max_sequence_number + 1)
-                .await
-                .inspect_err(|error| {
-                    error!(%error, "failed to ack QS messages");
-                })
-                .ok();
+            responder.ack(max_sequence_number + 1).await;
         }
         drop(stream); // must be alive until the ack is sent
 
