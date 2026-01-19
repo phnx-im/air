@@ -32,7 +32,7 @@ class MainFlutterWindow: NSWindow {
           identifier: identifier,
           title: title,
           body: body,
-          chatId: UUID(uuidString: chatIdStr)
+          chatId: UUID(uuidString: chatIdStr))
         result(nil)
       } else {
         result(
