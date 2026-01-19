@@ -47,7 +47,8 @@ void main() {
             label: "Label",
             size: size,
             type: AppButtonType.primary,
-            state: AppButtonState.danger,
+            state: AppButtonState.active,
+            tone: AppButtonTone.danger,
             onPressed: () {},
           ),
           AppButton(
