@@ -199,7 +199,7 @@ FutureOr<void> sendNotification(NotificationContent content) async {
       'identifier': content.identifier.field0.toString(),
       'title': content.title,
       'body': content.body,
-      'chatId': content.chatId?.uuid.toString(),
+      'chatId': content.chatId.uuid.toString(),
     };
     await platform.invokeMethod('sendNotification', arguments);
   } on PlatformException catch (e, stacktrace) {

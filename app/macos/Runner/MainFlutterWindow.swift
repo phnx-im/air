@@ -26,13 +26,13 @@ class MainFlutterWindow: NSWindow {
         let identifier = UUID(uuidString: identifierStr),
         let title = args["title"] as? String,
         let body = args["body"] as? String,
-        let chatIdStr = args["chatId"] as? String?
+        let chatIdStr = args["chatId"] as? String
       {
         sendNotification(
           identifier: identifier,
           title: title,
           body: body,
-          chatId: chatIdStr.flatMap { UUID(uuidString: $0) })
+          chatId: UUID(uuidString: chatIdStr)
         result(nil)
       } else {
         result(
@@ -129,7 +129,7 @@ struct NotificationHandle {
     }
     self.identifier = identifier
     let chatIdStr: String? =
-      notification.request.content.userInfo["chatId"] as? String? ?? nil
+      notification.request.content.userInfo["chatId"] as? String
     self.chatId = chatIdStr.flatMap { UUID(uuidString: $0) }
   }
 
