@@ -375,7 +375,6 @@ impl QueueService for GrpcQs {
             return Err(ListenQueueProtocolViolation::MissingInitRequest.into());
         };
 
-        dbg!(&client_metadata);
         let client_version = self.verify_client_version(client_metadata.as_ref())?;
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
