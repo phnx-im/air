@@ -957,7 +957,7 @@ impl TestBackend {
                 hash_alg,
                 ..
             } => {
-                assert_eq!(*enc_alg, EncryptionAlgorithm::Aes256Gcm12);
+                assert_eq!(*enc_alg, EncryptionAlgorithm::Aes256Gcm);
                 assert_eq!(nonce.len(), 12);
                 assert_eq!(key.len(), 32);
                 assert_eq!(*hash_alg, HashAlgorithm::Sha256);
