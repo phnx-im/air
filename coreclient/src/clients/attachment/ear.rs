@@ -8,7 +8,7 @@ use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
 use super::AttachmentBytes;
 
 pub(super) const AIR_ATTACHMENT_ENCRYPTION_ALG: EncryptionAlgorithm =
-    EncryptionAlgorithm::Aes256Gcm12;
+    EncryptionAlgorithm::Aes256Gcm;
 
 pub(super) const AIR_ATTACHMENT_HASH_ALG: HashAlgorithm = HashAlgorithm::Sha256;
 
