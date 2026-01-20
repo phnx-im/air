@@ -8919,7 +8919,7 @@ impl SseDecode for crate::notifications::NotificationContent {
         let mut var_identifier = <crate::notifications::NotificationId>::sse_decode(deserializer);
         let mut var_title = <String>::sse_decode(deserializer);
         let mut var_body = <String>::sse_decode(deserializer);
-        let mut var_chatId = <Option<crate::api::types::ChatId>>::sse_decode(deserializer);
+        let mut var_chatId = <crate::api::types::ChatId>::sse_decode(deserializer);
         return crate::notifications::NotificationContent {
             identifier: var_identifier,
             title: var_title,
@@ -12811,7 +12811,7 @@ impl SseEncode for crate::notifications::NotificationContent {
         <crate::notifications::NotificationId>::sse_encode(self.identifier, serializer);
         <String>::sse_encode(self.title, serializer);
         <String>::sse_encode(self.body, serializer);
-        <Option<crate::api::types::ChatId>>::sse_encode(self.chat_id, serializer);
+        <crate::api::types::ChatId>::sse_encode(self.chat_id, serializer);
     }
 }
 

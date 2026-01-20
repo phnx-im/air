@@ -20,15 +20,21 @@ use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
 use tracing::{error, info};
 
-use crate::api::{
-    attachments_repository::{AttachmentTaskHandle, AttachmentsRepository, InProgressMap},
-    chats_repository::ChatsRepository,
-    types::{UiChatType, UiUserId},
-    user_settings_cubit::{UserSettings, UserSettingsCubitBase},
-};
 use crate::message_content::MimiContentExt;
-use crate::util::{Cubit, CubitCore, spawn_from_sync};
 use crate::{StreamSink, mark_as_read::MarkAsReadState};
+use crate::{
+    api::{
+        attachments_repository::{AttachmentTaskHandle, AttachmentsRepository, InProgressMap},
+        chats_repository::ChatsRepository,
+        types::{UiChatType, UiUserId},
+        user_settings_cubit::{UserSettings, UserSettingsCubitBase},
+    },
+    mark_as_read::MarkAsRead,
+};
+use crate::{
+    notifications::NotificationService,
+    util::{Cubit, CubitCore, spawn_from_sync},
+};
 
 use super::{types::UiChatDetails, user_cubit::UserCubitBase};
 
@@ -83,6 +89,7 @@ impl ChatDetailsCubitBase {
         let context = ChatDetailsContext::new(
             store.clone(),
             chats_repository.clone(),
+            user_cubit.notification_service().clone(),
             core.state_tx().clone(),
             chat_id,
             with_members,
@@ -306,8 +313,9 @@ impl ChatDetailsCubitBase {
         until_timestamp: DateTime<Utc>,
     ) -> anyhow::Result<()> {
         const MARK_AS_READ_DEBOUNCE: Duration = Duration::from_millis(300);
+        let service = MarkAsRead::new(&self.context.store, &self.context.notification_service);
         crate::mark_as_read::mark_as_read(
-            &self.context.store,
+            &service,
             &self.context.mark_as_read_tx,
             &self.user_settings_rx,
             self.context.chat_id,
@@ -446,6 +454,7 @@ impl ChatDetailsCubitBase {
 struct ChatDetailsContext {
     store: CoreUser,
     chats_repository: ChatsRepository,
+    notification_service: NotificationService,
     state_tx: watch::Sender<ChatDetailsState>,
     chat_id: ChatId,
     mark_as_read_tx: watch::Sender<MarkAsReadState>,
@@ -456,6 +465,7 @@ impl ChatDetailsContext {
     fn new(
         store: CoreUser,
         chats_repository: ChatsRepository,
+        notification_service: NotificationService,
         state_tx: watch::Sender<ChatDetailsState>,
         chat_id: ChatId,
         with_members: bool,
@@ -464,6 +474,7 @@ impl ChatDetailsContext {
         Self {
             store,
             chats_repository,
+            notification_service,
             state_tx,
             chat_id,
             mark_as_read_tx,
