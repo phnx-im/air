@@ -31,6 +31,7 @@ use aircommon::{
     },
 };
 use privacypass::{amortized_tokens::AmortizedBatchTokenRequest, private_tokens::Ristretto255};
+use semver::Version;
 use tls_codec::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio_stream::{StreamExt, wrappers::ReceiverStream};
@@ -167,7 +168,7 @@ impl GrpcAs {
     fn verify_client_version(
         &self,
         client_metadata: Option<&ClientMetadata>,
-    ) -> Result<(), Status> {
+    ) -> Result<Option<Version>, Status> {
         let client_version_req = self.inner.client_version_req.as_ref();
         crate::version::verify_client_version(client_version_req, client_metadata)
     }
