@@ -493,8 +493,22 @@ where
             }
 
             Event::Text(str) => {
-                let value = iter.next().expect("we already peeked");
-                collect_links(value.start, value.end, &str, &mut result);
+                // Consume the current Text event
+                let text_event = iter.next().expect("we already peeked");
+                let start = text_event.start;
+                let mut end = text_event.end;
+                let mut full_text = str.to_string();
+
+                // Continue consuming consecutive Text events
+                while let Some(next_event) = iter.peek()
+                    && let Event::Text(next_str) = &next_event.event
+                {
+                    full_text.push_str(next_str);
+                    end = next_event.end;
+                    iter.next(); // consume the next event
+                }
+
+                collect_links(start, end, &full_text, &mut result);
             }
 
             Event::Code(str) => {
@@ -936,5 +950,23 @@ But it ends after the paragraph"#,
         is_text(&elems[2], ", and this one: ", (36, 52));
         is_link(&elems[3], "http://example.org", (52, 70));
         is_text(&elems[4], "!", (70, 71));
+    }
+
+    #[test]
+    fn autolink_with_underscores() {
+        let text = "https://example.com/path/_suffix";
+        let message_content = MessageContent::try_parse_markdown(text).unwrap();
+
+        // Expecting one block element: a paragraph
+        assert_eq!(message_content.elements.len(), 1);
+        let paragraph = message_content.elements.first().unwrap();
+
+        match &paragraph.element {
+            BlockElement::Paragraph(inline_elements) => {
+                assert_eq!(inline_elements.len(), 1);
+                is_link(&inline_elements[0], text, (0, text.len() as u32));
+            }
+            _ => panic!("Expected a Paragraph block element"),
+        }
     }
 }
