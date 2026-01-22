@@ -442,12 +442,6 @@ pub enum ProvisionAttachmentError {
     TooLarge(AttachmentTooLargeDetail),
 }
 
-// impl<E: std::error::Error + Sync + Send + 'static> From<E> for ProvisionAttachmentError {
-//     fn from(error: E) -> Self {
-//         Self::Fatal(error.into())
-//     }
-// }
-
 async fn encrypt_and_provision(
     api_client: &ApiClient,
     signing_key: &ClientSigningKey,
