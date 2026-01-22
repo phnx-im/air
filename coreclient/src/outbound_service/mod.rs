@@ -4,6 +4,7 @@
 
 use std::{
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll},
 };
 
@@ -44,8 +45,17 @@ pub(crate) mod timed_tasks_queue;
 /// After doing the work once, it wait for the next notification, or stops if it is stopped.
 #[derive(Debug)]
 pub struct OutboundService<C: OutboundServiceWork = OutboundServiceContext> {
-    context: C,
+    context: Arc<C>,
     run_token_tx: watch::Sender<RunToken>,
+}
+
+impl<C: OutboundServiceWork> Clone for OutboundService<C> {
+    fn clone(&self) -> Self {
+        Self {
+            context: self.context.clone(),
+            run_token_tx: self.run_token_tx.clone(),
+        }
+    }
 }
 
 pub trait OutboundServiceWork: Clone + Send + 'static {
@@ -86,7 +96,7 @@ impl<C: OutboundServiceWork> OutboundService<C> {
         };
         tokio::spawn(task.run(run_token_rx, global_lock));
         Self {
-            context,
+            context: Arc::new(context),
             run_token_tx,
         }
     }

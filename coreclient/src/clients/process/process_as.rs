@@ -118,12 +118,9 @@ impl ConnectionInfoSource {
 }
 
 impl CoreUser {
-    /// Process a queue message received from the AS handle queue.
-    ///
-    /// Returns the [`ChatId`] of any newly created chat.
-    pub async fn process_handle_queue_message(
+    pub(crate) async fn process_handle_queue_message_event_loop(
         &self,
-        user_handle: &UserHandle,
+        user_handle: UserHandle,
         handle_queue_message: HandleQueueMessage,
     ) -> Result<ChatId> {
         let payload = handle_queue_message
@@ -166,13 +163,13 @@ impl CoreUser {
                 client_credential: sender_client_credential.clone(),
                 user_profile_key: sender_profile_key,
             };
-            let res = self
-                .fetch_and_store_user_profile(
-                    self.pool().acquire().await?.as_mut(),
-                    notifier,
-                    profile_info,
-                )
-                .await;
+            let res = Self::fetch_and_store_user_profile(
+                self.pool().acquire().await?.as_mut(),
+                notifier,
+                self.api_clients(),
+                profile_info,
+            )
+            .await;
             if let Err(error) = res {
                 warn!(%error, "Failed to fetch user profile; falling back to fetching group info");
 
@@ -206,9 +203,10 @@ impl CoreUser {
                     client_credential: sender_client_credential.clone(),
                     user_profile_key,
                 };
-                self.fetch_and_store_user_profile(
+                Self::fetch_and_store_user_profile(
                     self.pool().acquire().await?.as_mut(),
                     notifier,
+                    self.api_clients(),
                     profile_info,
                 )
                 .await?;
@@ -303,7 +301,7 @@ impl CoreUser {
     ) -> Result<(ConnectionOfferPayload, ConnectionPackageHash)> {
         let (eco, hash) = com.into_parts();
 
-        let decryption_key = ConnectionPackage::load_decryption_key(connection, &hash)
+        let decryption_key = ConnectionPackage::load_decryption_key(&mut *connection, &hash)
             .await?
             .context("No decryption key found for incoming connection offer")?;
 
@@ -341,8 +339,7 @@ impl CoreUser {
         _friendship_package: FriendshipPackage,
         handle_connection_info: Option<&HandleConnectionInfo>,
     ) -> anyhow::Result<(Chat, PartialContact)> {
-        let display_name = self
-            .user_profile_internal(connection, &sender_user_id)
+        let display_name = Self::user_profile_internal(connection, &sender_user_id)
             .await
             .display_name;
         let chat = Chat::new_pending_connection_chat(

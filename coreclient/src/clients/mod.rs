@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::HashSet,
+    sync::{Arc, Weak},
+};
 
 pub use airapiclient::as_api::AsListenHandleResponder;
 use airapiclient::{
@@ -36,11 +39,13 @@ use sqlx::{Row, SqliteConnection, SqlitePool, query};
 use store::ClientRecord;
 use tls_codec::DeserializeBytes;
 use tokio_stream::{Stream, StreamExt};
+use tokio_util::sync::DropGuard;
 use tracing::{error, info, warn};
 use url::Url;
 
 use crate::{
     Asset, UserHandleRecord,
+    clients::event_loop::{EventLoop, EventLoopSender},
     contacts::{HandleContact, TargetedMessageContact},
     groups::Group,
     key_stores::queue_ratchets::StorableQsQueueRatchet,
@@ -79,6 +84,7 @@ pub mod chats;
 pub(crate) mod connection_offer;
 mod create_user;
 mod delete_account;
+mod event_loop;
 mod invitation_code;
 mod invite_users;
 mod message;
@@ -105,11 +111,11 @@ pub(crate) const CONNECTION_PACKAGES: usize = 50;
 
 #[derive(Debug, Clone)]
 pub struct CoreUser {
-    inner: Arc<CoreUserInner>,
+    pub(crate) inner: Arc<CoreUserInner>,
 }
 
 #[derive(Debug)]
-struct CoreUserInner {
+pub(crate) struct CoreUserInner {
     pool: SqlitePool,
     api_clients: ApiClients,
     http_client: reqwest::Client,
@@ -118,6 +124,14 @@ struct CoreUserInner {
     key_store: MemoryUserKeyStore,
     store_notifications_tx: StoreNotificationsSender,
     outbound_service: OutboundService,
+    event_loop_sender: EventLoopSender,
+    _event_loop_cancel: DropGuard,
+}
+
+impl CoreUserInner {
+    pub(crate) fn upgrade(weak: &Weak<Self>) -> Option<CoreUser> {
+        weak.upgrade().map(|inner| CoreUser { inner })
+    }
 }
 
 impl CoreUser {
@@ -367,7 +381,7 @@ impl CoreUser {
     /// fallback.
     pub async fn user_profile(&self, user_id: &UserId) -> UserProfile {
         match self.pool().acquire().await {
-            Ok(mut connection) => self.user_profile_internal(&mut connection, user_id).await,
+            Ok(mut connection) => Self::user_profile_internal(&mut connection, user_id).await,
             Err(error) => {
                 error!(%error, "Error loading user profile; fallback to user_id");
                 UserProfile::from_user_id(user_id)
@@ -377,7 +391,6 @@ impl CoreUser {
 
     // Helper to use when we already hold a connection
     async fn user_profile_internal(
-        &self,
         connection: &mut SqliteConnection,
         user_id: &UserId,
     ) -> UserProfile {
@@ -409,7 +422,7 @@ impl CoreUser {
                     continue;
                 };
                 match self
-                    .process_handle_queue_message(&record.handle, message)
+                    .process_handle_queue_message(record.handle.clone(), message)
                     .await
                 {
                     Ok(chat_id) => {

@@ -269,7 +269,7 @@ async fn blocked_contact() {
 
     let res = alice_test_user
         .user
-        .process_handle_queue_message(&alice_handle, messages.pop().unwrap())
+        .process_handle_queue_message(alice_handle, messages.pop().unwrap())
         .await;
     res.unwrap_err().downcast::<BlockedContactError>().unwrap();
 
@@ -529,7 +529,7 @@ async fn add_contact_and_change_profile() {
     let mut messages = alice_user.fetch_handle_messages().await.unwrap();
     assert_eq!(messages.len(), 1);
     let alice_bob_chat_id = alice_user
-        .process_handle_queue_message(&alice_handle.handle, messages.pop().unwrap())
+        .process_handle_queue_message(alice_handle.handle, messages.pop().unwrap())
         .await
         .unwrap();
     alice_user

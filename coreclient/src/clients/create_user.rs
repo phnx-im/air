@@ -396,6 +396,10 @@ impl PersistedUserState {
             store_notifications_tx.clone(),
             global_lock,
         );
+
+        // listen to handles and queue messages
+        let (event_loop, event_loop_sender, event_loop_cancel) = EventLoop::new();
+
         let inner = Arc::new(CoreUserInner {
             pool,
             key_store,
@@ -405,7 +409,12 @@ impl PersistedUserState {
             http_client: reqwest::Client::new(),
             store_notifications_tx,
             outbound_service,
+            event_loop_sender,
+            _event_loop_cancel: event_loop_cancel.drop_guard(),
         });
+
+        event_loop.spawn(Arc::downgrade(&inner));
+
         CoreUser { inner }
     }
 
