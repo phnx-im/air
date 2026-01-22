@@ -15,13 +15,13 @@ class NotificationContent {
   final NotificationId identifier;
   final String title;
   final String body;
-  final ChatId? chatId;
+  final ChatId chatId;
 
   const NotificationContent({
     required this.identifier,
     required this.title,
     required this.body,
-    this.chatId,
+    required this.chatId,
   });
 
   @override

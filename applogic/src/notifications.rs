@@ -40,7 +40,7 @@ impl User {
                     identifier: NotificationId::random(),
                     title: title.to_owned(),
                     body: body.to_owned(),
-                    chat_id: Some(chat.id()),
+                    chat_id: chat.id(),
                 });
             }
         }
@@ -60,7 +60,7 @@ impl User {
                     identifier: NotificationId::random(),
                     title: title.to_owned(),
                     body: body.to_owned(),
-                    chat_id: Some(*chat_id),
+                    chat_id: *chat_id,
                 });
             }
         }
@@ -84,7 +84,7 @@ impl User {
                     identifier: NotificationId::random(),
                     title,
                     body,
-                    chat_id: Some(*chat_id),
+                    chat_id: *chat_id,
                 });
             }
         }
@@ -106,7 +106,7 @@ pub struct NotificationContent {
     pub identifier: NotificationId,
     pub title: String,
     pub body: String,
-    pub chat_id: Option<ChatId>,
+    pub chat_id: ChatId,
 }
 
 #[derive(Debug)]

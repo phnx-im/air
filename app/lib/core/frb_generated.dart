@@ -8049,7 +8049,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       identifier: dco_decode_notification_id(arr[0]),
       title: dco_decode_String(arr[1]),
       body: dco_decode_String(arr[2]),
-      chatId: dco_decode_opt_box_autoadd_chat_id(arr[3]),
+      chatId: dco_decode_chat_id(arr[3]),
     );
   }
 
@@ -10440,7 +10440,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_identifier = sse_decode_notification_id(deserializer);
     var var_title = sse_decode_String(deserializer);
     var var_body = sse_decode_String(deserializer);
-    var var_chatId = sse_decode_opt_box_autoadd_chat_id(deserializer);
+    var var_chatId = sse_decode_chat_id(deserializer);
     return NotificationContent(
       identifier: var_identifier,
       title: var_title,
@@ -13223,7 +13223,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_notification_id(self.identifier, serializer);
     sse_encode_String(self.title, serializer);
     sse_encode_String(self.body, serializer);
-    sse_encode_opt_box_autoadd_chat_id(self.chatId, serializer);
+    sse_encode_chat_id(self.chatId, serializer);
   }
 
   @protected
