@@ -156,6 +156,7 @@ impl CoreUser {
         let leave = leave
             .ds_self_remove(&self.inner.api_clients, self.signing_key())
             .await?;
+
         self.with_transaction_and_notifier(async |txn, notifier| {
             // Phase 3: Merge the commit into the group
             leave
@@ -604,10 +605,14 @@ mod leave_chat_flow {
     use anyhow::Context;
     use mimi_room_policy::RoleIndex;
     use sqlx::{SqliteConnection, SqliteTransaction};
+    use tracing::error;
 
     use crate::{
-        Chat, ChatId, SystemMessage, chats::messages::TimestampedMessage, clients::CoreUser,
-        groups::Group, store::StoreNotifier,
+        Chat, ChatId, SystemMessage,
+        chats::messages::TimestampedMessage,
+        clients::{CoreUser, chats::WrongEpochError},
+        groups::Group,
+        store::StoreNotifier,
     };
 
     pub(super) struct LeaveChatData<S> {
@@ -673,10 +678,15 @@ mod leave_chat_flow {
 
             let owner_domain = chat.owner_domain();
 
-            let ts = api_clients
+            let res = api_clients
                 .get(&owner_domain)?
                 .ds_self_remove(params, signer, group.group_state_ear_key())
-                .await?;
+                .await;
+            let ts = match res {
+                Ok(ts) => Ok(ts),
+                Err(error) if error.is_wrong_epoch() => Err(WrongEpochError),
+                Err(status) => return Err(status.into()),
+            };
 
             Ok(DsSelfRemoved {
                 group,
@@ -687,7 +697,7 @@ mod leave_chat_flow {
 
     pub(super) struct DsSelfRemoved {
         group: Group,
-        ds_timestamp: TimeStamp,
+        ds_timestamp: Result<TimeStamp, WrongEpochError>,
     }
 
     impl DsSelfRemoved {
@@ -702,6 +712,14 @@ mod leave_chat_flow {
                 group,
                 ds_timestamp,
             } = self;
+
+            let ds_timestamp = match ds_timestamp {
+                Ok(ds_timestamp) => ds_timestamp,
+                Err(WrongEpochError) => {
+                    error!(%chat_id, "Wrong epoch when leaving chat; removing chat only locally");
+                    TimeStamp::now()
+                }
+            };
 
             group.store_update(&mut **txn).await?;
             CoreUser::store_new_messages(
@@ -718,3 +736,6 @@ mod leave_chat_flow {
         }
     }
 }
+
+#[derive(Debug)]
+struct WrongEpochError;

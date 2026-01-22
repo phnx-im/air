@@ -24,8 +24,7 @@ impl DsGroupState {
         // proposal store.
         let processed_assisted_message_plus = self
             .group()
-            .process_assisted_message(self.provider.crypto(), remove_proposal)
-            .map_err(|_| ClientSelfRemovalError::ProcessingError)?;
+            .process_assisted_message(self.provider.crypto(), remove_proposal)?;
 
         // Perform DS-level validation
         // Make sure that we have the right message type.

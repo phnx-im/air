@@ -1,12 +1,13 @@
-// SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+// SPDX-FileCopyrightText: 2023 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::slice;
 
 use airapiclient::as_api::AsRequestError;
-use aircoreclient::{DisplayName, UserProfile, store::Store};
+use aircoreclient::{DisplayName, UserProfile, clients::queue_event, store::Store};
 use airserver_test_harness::utils::setup::TestBackend;
+use tokio_stream::StreamExt;
 use tracing::info;
 
 use super::attachment::test_picture_bytes;
@@ -395,4 +396,126 @@ async fn update_group_data() {
         let actual_title = user.chat(&chat_id).await.unwrap().attributes.title.clone();
         assert_eq!(actual_title, title);
     }
+}
+
+/// This test checks that bob can leave a group where he missed a commit. He leaves the group only
+/// locally. Other user can remove the bob correctly (commit is merged), and add him again.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Missed commit", skip_all)]
+async fn missed_commit() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+
+    // Alice creates a group and invites Bob
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    // Alice invites Charlie
+    let alice_user = &setup.get_user(&alice).user;
+    alice_user
+        .invite_users(chat_id, slice::from_ref(&charlie))
+        .await
+        .unwrap();
+
+    let charlie_qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    let result = alice_user
+        .fully_process_qs_messages(charlie_qs_messages)
+        .await;
+    assert!(
+        result.errors.is_empty(),
+        "Alice should process Charlie's invitation without errors"
+    );
+
+    // Bob misses the invitation commit
+    let bob_user = &setup.get_user(&bob).user;
+    let (stream, responder) = bob_user.listen_queue().await.unwrap();
+    let sequence_number = stream
+        .map_while(|message| match message.event {
+            Some(queue_event::Event::Message(queue_message)) => Some(queue_message.sequence_number),
+            _ => None,
+        })
+        .fold(0, |_, sequence_number| sequence_number)
+        .await;
+    // Throw away all messages
+    responder.ack(sequence_number + 1).await;
+
+    // Bob tries to leave the group; this works but only locally
+    bob_user.leave_chat(chat_id).await.unwrap();
+
+    // ... and Alice still has 3 members
+    let messages = alice_user.qs_fetch_messages().await.unwrap();
+    alice_user.fully_process_qs_messages(messages).await;
+    assert_eq!(
+        alice_user
+            .mls_members(chat_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .len(),
+        3,
+        "Alice still has 3 members"
+    );
+
+    // ... and Charlie still has 3 members
+    let charlie_user = &setup.get_user(&charlie).user;
+    let messages = charlie_user.qs_fetch_messages().await.unwrap();
+    charlie_user.fully_process_qs_messages(messages).await;
+    assert_eq!(
+        charlie_user
+            .mls_members(chat_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .len(),
+        3,
+        "Charlie still has 3 members"
+    );
+
+    // Alice removes Bob and adds him again
+    alice_user
+        .remove_users(chat_id, vec![bob.clone()])
+        .await
+        .unwrap();
+    alice_user
+        .invite_users(chat_id, slice::from_ref(&bob))
+        .await
+        .unwrap();
+    let messages = alice_user.qs_fetch_messages().await.unwrap();
+    alice_user.fully_process_qs_messages(messages).await;
+    let messages = bob_user.qs_fetch_messages().await.unwrap();
+    bob_user.fully_process_qs_messages(messages).await;
+    let messages = charlie_user.qs_fetch_messages().await.unwrap();
+    charlie_user.fully_process_qs_messages(messages).await;
+
+    // Now everyone sees 3 members
+    assert_eq!(
+        alice_user
+            .mls_members(chat_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .len(),
+        3,
+        "Alice has 3 members"
+    );
+    assert_eq!(
+        bob_user.mls_members(chat_id).await.unwrap().unwrap().len(),
+        3,
+        "Bob has 3 members"
+    );
+    assert_eq!(
+        charlie_user
+            .mls_members(chat_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .len(),
+        3,
+        "Charlie has 3 members"
+    );
 }

@@ -273,6 +273,11 @@ impl CoreUser {
         &self.inner.pool
     }
 
+    #[cfg(feature = "test_utils")]
+    pub fn pool_for_tests(&self) -> &SqlitePool {
+        &self.inner.pool
+    }
+
     pub(crate) fn signing_key(&self) -> &ClientSigningKey {
         &self.inner.key_store.signing_key
     }
