@@ -91,7 +91,7 @@ enum StatusDetailsCode {
   STATUS_DETAILS_CODE_UNSPECIFIED = 0;
   STATUS_DETAILS_CODE_VERSION_UNSUPPORTED = 1;
   STATUS_DETAILS_CODE_ATTACHMENT_TOO_LARGE = 2;
-  /// Group epoch differs from message epoch
+  /// Message epoch differs from the group's epoch
   STATUS_DETAILS_CODE_WRONG_EPOCH = 3;
 }
 
