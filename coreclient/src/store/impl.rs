@@ -15,11 +15,10 @@ use tracing::error;
 use uuid::Uuid;
 
 use crate::{
-    AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact, MessageDraft,
-    MessageId, UploadTaskError,
+    AddHandleContactError, AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact,
+    MessageDraft, MessageId, ProvisionAttachmentError, UploadTaskError,
     clients::{
         CoreUser,
-        add_contact::AddHandleContactResult,
         attachment::{AttachmentRecord, progress::AttachmentProgress},
         safety_code::SafetyCode,
         user_settings::UserSettingRecord,
@@ -171,7 +170,7 @@ impl Store for CoreUser {
         &self,
         handle: UserHandle,
         hash: UserHandleHash,
-    ) -> StoreResult<AddHandleContactResult> {
+    ) -> StoreResult<Result<ChatId, AddHandleContactError>> {
         self.add_contact_via_handle(handle, hash).await
     }
 
@@ -328,22 +327,32 @@ impl Store for CoreUser {
         &self,
         chat_id: ChatId,
         path: &Path,
-    ) -> StoreResult<(
-        AttachmentId,
-        AttachmentProgress,
-        impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
-    )> {
+    ) -> StoreResult<
+        Result<
+            (
+                AttachmentId,
+                AttachmentProgress,
+                impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
+            ),
+            ProvisionAttachmentError,
+        >,
+    > {
         self.upload_attachment(chat_id, path).await
     }
 
     async fn retry_upload_attachment(
         &self,
         attachment_id: AttachmentId,
-    ) -> StoreResult<(
-        AttachmentId,
-        AttachmentProgress,
-        impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
-    )> {
+    ) -> StoreResult<
+        Result<
+            (
+                AttachmentId,
+                AttachmentProgress,
+                impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
+            ),
+            ProvisionAttachmentError,
+        >,
+    > {
         self.retry_upload_attachment(attachment_id).await
     }
 

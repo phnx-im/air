@@ -57,11 +57,12 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
 
   Future<void> deleteMessage() => _impl.deleteMessage();
 
-  Future<void> uploadAttachment(String path) =>
+  Future<UploadAttachmentError?> uploadAttachment(String path) =>
       _impl.uploadAttachment(path: path);
 
-  Future<void> retryUploadAttachment(AttachmentId attachmentId) =>
-      _impl.retryUploadAttachment(attachmentId: attachmentId);
+  Future<UploadAttachmentError?> retryUploadAttachment(
+    AttachmentId attachmentId,
+  ) => _impl.retryUploadAttachment(attachmentId: attachmentId);
 
   Future<void> markAsRead({
     required MessageId untilMessageId,

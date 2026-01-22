@@ -11,7 +11,10 @@ use aircommon::{
     OpenMlsRand, RustCrypto,
     identifiers::{AttachmentId, UserId},
 };
-use aircoreclient::{AttachmentProgress, Chat, ChatId, ChatMessage, MessageDraft, UploadTaskError};
+use aircoreclient::{
+    AttachmentProgress, Chat, ChatId, ChatMessage, MessageDraft, ProvisionAttachmentError,
+    UploadTaskError,
+};
 use aircoreclient::{MessageId, clients::CoreUser, store::Store};
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
@@ -251,25 +254,41 @@ impl ChatDetailsCubitBase {
         Ok(())
     }
 
-    pub async fn upload_attachment(&self, path: String) -> anyhow::Result<()> {
+    pub async fn upload_attachment(
+        &self,
+        path: String,
+    ) -> anyhow::Result<Option<UploadAttachmentError>> {
         let path = PathBuf::from(path);
-        let (attachment_id, progress, upload_task) = self
+        let (attachment_id, progress, upload_task) = match self
             .context
             .store
             .upload_attachment(self.context.chat_id, &path)
-            .await?;
+            .await?
+        {
+            Ok(result) => result,
+            Err(error) => return error.into_ui_result(),
+        };
         self.upload_attachment_impl(attachment_id, progress, upload_task)
-            .await
+            .await?;
+        Ok(None)
     }
 
-    pub async fn retry_upload_attachment(&self, attachment_id: AttachmentId) -> anyhow::Result<()> {
-        let (new_attachment_id, progress, upload_task) = self
+    pub async fn retry_upload_attachment(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> anyhow::Result<Option<UploadAttachmentError>> {
+        let (new_attachment_id, progress, upload_task) = match self
             .context
             .store
             .retry_upload_attachment(attachment_id)
-            .await?;
+            .await?
+        {
+            Ok(result) => result,
+            Err(error) => return error.into_ui_result(),
+        };
         self.upload_attachment_impl(new_attachment_id, progress, upload_task)
-            .await
+            .await?;
+        Ok(None)
     }
 
     async fn upload_attachment_impl(
@@ -588,4 +607,35 @@ pub(super) async fn load_chat_details(store: &impl Store, chat: Chat) -> UiChatD
         last_message: last_message.map(From::from),
         draft,
     }
+}
+
+#[frb(ignore)]
+trait IntoUiResult {
+    type UiError;
+
+    #[frb(ignore)]
+    fn into_ui_result(self) -> anyhow::Result<Option<Self::UiError>>;
+}
+
+impl IntoUiResult for ProvisionAttachmentError {
+    type UiError = UploadAttachmentError;
+
+    fn into_ui_result(self) -> anyhow::Result<Option<UploadAttachmentError>> {
+        match self {
+            ProvisionAttachmentError::TooLarge(detail) => {
+                Ok(Some(UploadAttachmentError::TooLarge {
+                    max_size_bytes: detail.max_size_bytes,
+                    actual_size_bytes: detail.actual_size_bytes,
+                }))
+            }
+        }
+    }
+}
+
+/// Error which can occur when uploading an attachment
+pub enum UploadAttachmentError {
+    TooLarge {
+        max_size_bytes: u64,
+        actual_size_bytes: u64,
+    },
 }

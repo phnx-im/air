@@ -11,9 +11,7 @@ use std::fmt;
 
 // Re-export for FRB-reasons
 pub(crate) use aircommon::identifiers::UserHandle;
-pub(crate) use aircoreclient::{
-    AddHandleContactError, AddHandleContactResult, ChatId, MessageDraft, MessageId,
-};
+pub(crate) use aircoreclient::{AddHandleContactError, ChatId, MessageDraft, MessageId};
 
 pub(crate) use aircommon::identifiers::UserHandleValidationError;
 use aircommon::identifiers::UserId;
@@ -561,14 +559,7 @@ impl From<TargetedMessageContact> for UiContact {
     }
 }
 
-/// Mirror of the [`AddHandleContactResult`] type
-#[doc(hidden)]
-#[frb(mirror(AddHandleContactResult))]
-pub enum _AddHandleContactResult {
-    Ok(ChatId),
-    Err(AddHandleContactError),
-}
-
+/// Mirror of the [`AddHandleContactError`] type
 #[doc(hidden)]
 #[frb(mirror(AddHandleContactError))]
 pub enum _AddHandleContactError {

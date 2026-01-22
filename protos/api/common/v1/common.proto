@@ -80,9 +80,24 @@ message Version {
 // Additional details attached to a GRPC status
 message StatusDetails {
   StatusDetailsCode code = 1;
+  oneof detail {
+    VersionUnsupportedDetail version_unsupported = 2;
+    AttachmentTooLargeDetail attachment_too_large = 3;
+  }
 }
 
 enum StatusDetailsCode {
-  STATUS_DETAILS_CODE_UNKNOWN = 0;
+  STATUS_DETAILS_CODE_UNSPECIFIED = 0;
   STATUS_DETAILS_CODE_VERSION_UNSUPPORTED = 1;
+  STATUS_DETAILS_CODE_ATTACHMENT_TOO_LARGE = 2;
+}
+
+message VersionUnsupportedDetail {
+  optional string client_version = 1;
+  string client_version_requirement = 2;
+}
+
+message AttachmentTooLargeDetail {
+  uint64 max_size_bytes = 1;
+  uint64 actual_size_bytes = 2;
 }
