@@ -449,7 +449,7 @@ impl TestBackend {
         {
             let message_id = message.message_id.unwrap();
             user2
-                .process_handle_queue_message(&user2_handle_record.handle, message)
+                .process_handle_queue_message(user2_handle_record.handle.clone(), message)
                 .await
                 .unwrap();
             responder.ack(message_id.into()).await;
