@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The event loop of the [`CoreUser`].
+//! The main event loop of the `CoreUser`.
 //!
-//! Drives message processing and internal state machines. Implements operations for the
-//! [`CoreUser`] via message passing. In particular, the execution of operations and processing of
-//! events is linearized.
+//! Drives message processing and internal state machines. Implements operations for the `CoreUser`
+//! via message passing. In particular, the execution of operations and processing of events is
+//! linearized.
 
 use std::sync::Weak;
 
