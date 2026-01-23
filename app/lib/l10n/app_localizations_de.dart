@@ -599,6 +599,14 @@ class AppLocalizationsDe extends AppLocalizations {
       'Anhang konnte nicht hochgeladen werden. Bitte versuche es erneut.';
 
   @override
+  String composer_error_attachment_too_large(
+    Object actualSize,
+    Object maxSize,
+  ) {
+    return 'Attachment is too large. The maximum size is $maxSize and the actual size is $actualSize.';
+  }
+
+  @override
   String attachmentSize(double size, Object byteUnit) {
     final intl.NumberFormat sizeNumberFormat =
         intl.NumberFormat.decimalPatternDigits(

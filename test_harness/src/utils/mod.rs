@@ -52,6 +52,7 @@ pub(crate) async fn spawn_app(
         client_version_req,
         invitation_only,
         unredeemable_code,
+        max_attachment_size,
     } = params;
 
     // Load configuration
@@ -78,12 +79,15 @@ pub(crate) async fn spawn_app(
     )
     .await
     .expect("Failed to connect to database.");
-    ds.set_storage(Storage::new(
-        configuration
-            .storage
-            .clone()
-            .expect("no storage configuration"),
-    ));
+    let mut storage_config = configuration
+        .storage
+        .clone()
+        .expect("no storage configuration");
+    if let Some(max_size) = max_attachment_size {
+        storage_config.max_attachment_size = max_size;
+        storage_config.require_content_length = true;
+    }
+    ds.set_storage(Storage::new(storage_config));
 
     // New database name for the AS provider
     configuration.database.name = Uuid::new_v4().to_string();
