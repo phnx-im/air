@@ -54,7 +54,7 @@ impl<T, E> Responder<T, E> {
 }
 
 #[derive(Debug)]
-pub(crate) enum ResponderError<E> {
+pub(super) enum ResponderError<E> {
     Cancelled,
     Fatal(anyhow::Error),
     #[expect(unused)]

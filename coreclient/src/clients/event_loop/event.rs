@@ -24,7 +24,7 @@ use crate::{
 /// Incoming event from a remote queue.
 ///
 /// The remote queue is either the QS queue or the AS user handle queue.
-pub(crate) enum RemoteQueueEvent {
+pub(super) enum RemoteQueueEvent {
     Qs {
         event: QueueEvent,
         responder: Responder<QsProcessEventResult, Infallible>,

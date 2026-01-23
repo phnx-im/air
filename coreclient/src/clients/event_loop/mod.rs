@@ -24,7 +24,7 @@ use crate::clients::{
 };
 
 mod api;
-pub(crate) mod event;
+mod event;
 mod response;
 
 pub(crate) struct EventLoop {
@@ -123,9 +123,6 @@ impl EventLoop {
                     qs_stream_processor.replace_responder(responder);
                 }
             }
-
-            // do more stuff e.g. job manager
-            // service.run_once().await;
         }
     }
 }
@@ -138,11 +135,11 @@ pub(crate) struct EventLoopSender {
 }
 
 impl EventLoopSender {
-    pub(crate) async fn send_remote_queue_event(&self, message: RemoteQueueEvent) {
+    async fn send_remote_queue_event(&self, message: RemoteQueueEvent) {
         let _ = self.remote_queue_event_tx.send(message).await;
     }
 
-    pub(crate) async fn send_client_operation(&self, message: ClientOperation) {
+    async fn send_client_operation(&self, message: ClientOperation) {
         let _ = self.client_operation_tx.send(message).await;
     }
 }
