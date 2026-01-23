@@ -27,6 +27,18 @@ mod api;
 mod event;
 mod response;
 
+/// The main event loop of the [`CoreUser`].
+///
+/// Only a single instance of this struct exists per `CoreUser`. The `CoreUser` creates the event
+/// loop and holds an event loop sender to pass messages to it. When the last instance of the
+/// `CoreUser` is dropped, the event loop stops.
+///
+/// Implementation detail:
+///
+/// The event loop maintains a weak reference to the `CoreUser`. Because handlers are currently
+/// implemented on the `CoreUser`, the event loop must be able to access it. Once the handler
+/// implementation is made independent of the `CoreUser`, this weak circular dependency can be
+/// removed.
 pub(crate) struct EventLoop {
     remote_queue_event_rx: mpsc::Receiver<RemoteQueueEvent>,
     client_operation_rx: mpsc::Receiver<ClientOperation>,
