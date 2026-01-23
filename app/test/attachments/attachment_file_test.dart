@@ -178,8 +178,7 @@ void main() {
             color: color,
             backgroundColor: backgroundColor,
             attachment: file.copyWith(
-              filename:
-                  'a_very_logn_long_filename_which_should_break_the_text.bin',
+              filename: 'a_very_long_filename_which_overflows.bin',
             ),
           ),
       ];
