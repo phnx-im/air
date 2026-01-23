@@ -40,7 +40,7 @@ class AttachmentFile extends HookWidget {
                 color: color,
               )
             : AppIcon.paperclip(size: 32, color: color),
-        // Expanded is needed to make the text wrap if the filename is too long
+        // Flexible is needed to make the text wrap if the filename is too long
         Flexible(
           fit: FlexFit.loose,
           child: Column(
