@@ -2,13 +2,19 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use airprotos::common::v1::{
+    StatusDetails, StatusDetailsCode, WrongEpochDetail, status_details::Detail,
+};
 use displaydoc::Display;
 use mls_assist::{
-    group, memory_provider::MlsAssistMemoryStorage, openmls::group::MergeCommitError,
+    group::{self, errors::ProcessAssistedMessageError},
+    memory_provider::MlsAssistMemoryStorage,
+    openmls::group::{MergeCommitError, PublicProcessMessageError, ValidationError},
 };
+use prost::Message;
 use thiserror::Error;
 use tokio::sync::mpsc;
-use tonic::Status;
+use tonic::{Code, Status};
 use tracing::error;
 
 use aircommon::codec::PersistenceCodec;
@@ -202,8 +208,31 @@ pub(crate) enum ClientSelfRemovalError {
     /// Error processing message.
     #[error("Error processing message")]
     ProcessingError,
+    #[error("Message epoch differs from the group's epoch")]
+    WrongEpoch,
     #[error("Error merging commit")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
+}
+
+impl From<ProcessAssistedMessageError> for ClientSelfRemovalError {
+    fn from(error: ProcessAssistedMessageError) -> Self {
+        match error {
+            ProcessAssistedMessageError::InvalidAssistedMessage
+            | ProcessAssistedMessageError::InvalidGroupInfoSignature
+            | ProcessAssistedMessageError::InvalidGroupInfoMessage
+            | ProcessAssistedMessageError::UnknownSender
+            | ProcessAssistedMessageError::InconsistentGroupContext => Self::InvalidMessage,
+            ProcessAssistedMessageError::LibraryError(_) => Self::ProcessingError,
+            ProcessAssistedMessageError::ProcessMessageError(error) => match error {
+                PublicProcessMessageError::ValidationError(error) => match error {
+                    ValidationError::LibraryError(_) => Self::ProcessingError,
+                    ValidationError::WrongEpoch => Self::WrongEpoch,
+                    _ => Self::InvalidMessage,
+                },
+                _ => Self::ProcessingError,
+            },
+        }
+    }
 }
 
 impl From<ClientSelfRemovalError> for Status {
@@ -212,6 +241,16 @@ impl From<ClientSelfRemovalError> for Status {
         match e {
             ClientSelfRemovalError::InvalidMessage => Status::invalid_argument(msg),
             ClientSelfRemovalError::ProcessingError => Status::internal(msg),
+            ClientSelfRemovalError::WrongEpoch => Status::with_details(
+                Code::InvalidArgument,
+                msg,
+                StatusDetails {
+                    code: StatusDetailsCode::WrongEpoch.into(),
+                    detail: Some(Detail::WrongEpoch(WrongEpochDetail {})),
+                }
+                .encode_to_vec()
+                .into(),
+            ),
             ClientSelfRemovalError::MergeCommitError(merge_commit_error) => {
                 error!(%merge_commit_error, "failed merging commit");
                 Status::internal(msg)

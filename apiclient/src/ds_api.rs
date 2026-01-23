@@ -21,7 +21,9 @@ use aircommon::{
 };
 pub use airprotos::delivery_service::v1::ProvisionAttachmentResponse;
 use airprotos::{
-    common::v1::{AttachmentTooLargeDetail, StatusDetails, status_details::Detail},
+    common::v1::{
+        AttachmentTooLargeDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
+    },
     convert::{RefInto, TryRefInto},
     delivery_service::v1::{
         AddUsersInfo, ConnectionGroupInfoRequest, CreateGroupPayload, DeleteGroupPayload,
@@ -74,6 +76,18 @@ impl DsRequestError {
             }
         } else {
             None
+        }
+    }
+
+    pub fn is_wrong_epoch(&self) -> bool {
+        if let Self::Tonic(status) = self
+            && status.code() == tonic::Code::InvalidArgument
+            && let Some(details) = StatusDetails::from_status(status)
+            && let StatusDetailsCode::WrongEpoch = details.code()
+        {
+            true
+        } else {
+            false
         }
     }
 }
