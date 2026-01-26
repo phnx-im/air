@@ -16,7 +16,7 @@ use aircoreclient::{
     ChatId,
     clients::{
         QueueEvent,
-        process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
+        process::process_qs::{ProcessedQsMessages, QsStreamProcessor},
         queue_event,
     },
     outbound_service::KEY_PACKAGES,
@@ -343,7 +343,7 @@ async fn client_sequence_number_race() {
                     continue;
                 };
 
-                let mut handler = QsStreamProcessor::with_responder(bob_user.clone(), responder);
+                let mut handler = QsStreamProcessor::new(Some(responder));
 
                 loop {
                     let finished =
@@ -356,9 +356,7 @@ async fn client_sequence_number_race() {
                         break;
                     };
 
-                    let result = handler
-                        .process_event(event, &mut NoopNotificationProcessor)
-                        .await;
+                    let result = handler.process_event(&bob_user, event).await;
 
                     processed.send_modify(|processed| {
                         *processed += result.processed();
@@ -373,12 +371,6 @@ async fn client_sequence_number_race() {
     join_set.join_all().await; // panics on error
 
     assert_eq!(*processed.borrow(), NUM_SENDERS * NUM_MESSAGES);
-}
-
-struct NoopNotificationProcessor;
-
-impl QsNotificationProcessor for NoopNotificationProcessor {
-    async fn show_notifications(&mut self, _: ProcessedQsMessages) {}
 }
 
 // TODO: Re-enable once we have implemented a resync UX.

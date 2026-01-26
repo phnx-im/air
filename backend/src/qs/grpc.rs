@@ -20,6 +20,7 @@ use aircommon::{
     time::TimeStamp,
 };
 use displaydoc::Display;
+use semver::Version;
 use tokio::sync::mpsc;
 use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
 use tonic::{Code, Request, Response, Status, Streaming, async_trait};
@@ -105,7 +106,7 @@ impl GrpcQs {
     fn verify_client_version(
         &self,
         client_metadata: Option<&ClientMetadata>,
-    ) -> Result<(), Status> {
+    ) -> Result<Option<Version>, Status> {
         let client_version_req = self.qs.client_version_req.as_ref();
         crate::version::verify_client_version(client_version_req, client_metadata)
     }
@@ -374,14 +375,14 @@ impl QueueService for GrpcQs {
             return Err(ListenQueueProtocolViolation::MissingInitRequest.into());
         };
 
-        self.verify_client_version(client_metadata.as_ref())?;
+        let client_version = self.verify_client_version(client_metadata.as_ref())?;
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
 
         let queue_messages = self
             .qs
             .queues
-            .listen(client_id, sequence_number_start)
+            .listen(client_id, client_version, sequence_number_start)
             .await?;
         let events = queue_messages.map(|message| match message {
             Some(event) => event,

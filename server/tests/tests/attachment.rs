@@ -5,8 +5,8 @@
 use std::io::Cursor;
 
 use aircommon::assert_matches;
-use aircoreclient::{AttachmentProgressEvent, store::Store};
-use airserver_test_harness::utils::setup::TestBackend;
+use aircoreclient::{AttachmentProgressEvent, ProvisionAttachmentError, store::Store};
+use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams};
 use base64::{Engine, prelude::BASE64_STANDARD};
 use image::{ImageBuffer, Rgba};
 use mimi_content::content_container::NestedPartContent;
@@ -50,7 +50,8 @@ async fn send_attachment() {
     let attachment = vec![0x00, 0x01, 0x02, 0x03];
     let (_message_id, external_part) = setup
         .send_attachment(chat_id, &alice, vec![&bob], &attachment, "test.bin")
-        .await;
+        .await
+        .unwrap();
 
     let attachment_id = match &external_part {
         NestedPartContent::ExternalPart {
@@ -130,7 +131,8 @@ async fn send_image_attachment() {
     let attachment = BASE64_STANDARD.decode(SAMPLE_PNG_BASE64).unwrap();
     let (_message_id, external_part) = setup
         .send_attachment(chat_id, &alice, vec![&bob], &attachment, "test.png")
-        .await;
+        .await
+        .unwrap();
 
     let alice = setup.get_user(&alice);
     alice.user.outbound_service().run_once().await;
@@ -196,5 +198,37 @@ async fn send_image_attachment() {
             assert_eq!(sha256sum.as_slice(), content_hash.as_slice());
         }
         _ => panic!("unexpected attachment type"),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Attachment too large", skip_all)]
+async fn attachment_too_large() {
+    const MAX_ATTACHMENT_SIZE: u64 = 1023;
+
+    let mut setup = TestBackend::single_with_params(TestBackendParams {
+        max_attachment_size: Some(MAX_ATTACHMENT_SIZE),
+        ..Default::default()
+    })
+    .await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let attachment = vec![0; MAX_ATTACHMENT_SIZE as usize + 1];
+
+    // 2 bytes TLS size tag, 16 bytes AEAD tag
+    let encrypted_size = attachment.len() as u64 + 2 + 16;
+
+    let result = setup
+        .send_attachment(chat_id, &alice, vec![&bob], &attachment, "test.bin")
+        .await;
+    let error = result.unwrap_err();
+    match error {
+        ProvisionAttachmentError::TooLarge(detail) => {
+            assert_eq!(detail.max_size_bytes, MAX_ATTACHMENT_SIZE);
+            assert_eq!(detail.actual_size_bytes, encrypted_size);
+        }
     }
 }

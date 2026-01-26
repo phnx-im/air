@@ -35,6 +35,7 @@ use mls_assist::{
     messages::AssistedMessageIn,
     openmls::prelude::{LeafNodeIndex, MlsMessageBodyIn, MlsMessageIn, RatchetTreeIn, Sender},
 };
+use semver::Version;
 use sqlx::{PgConnection, PgTransaction};
 use thiserror::Error;
 use tls_codec::DeserializeBytes;
@@ -324,7 +325,7 @@ impl<Qep: QsConnector> GrpcDs<Qep> {
     fn verify_client_version(
         &self,
         client_metadata: Option<&ClientMetadata>,
-    ) -> Result<(), Status> {
+    ) -> Result<Option<Version>, Status> {
         let client_version_req = self.ds.client_version_req.as_ref();
         crate::version::verify_client_version(client_version_req, client_metadata)
     }

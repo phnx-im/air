@@ -21,6 +21,9 @@ use aircommon::{
 };
 pub use airprotos::delivery_service::v1::ProvisionAttachmentResponse;
 use airprotos::{
+    common::v1::{
+        AttachmentTooLargeDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
+    },
     convert::{RefInto, TryRefInto},
     delivery_service::v1::{
         AddUsersInfo, ConnectionGroupInfoRequest, CreateGroupPayload, DeleteGroupPayload,
@@ -36,6 +39,7 @@ use mls_assist::{
     messages::AssistedMessageOut,
     openmls::prelude::{GroupEpoch, GroupId, LeafNodeIndex, MlsMessageOut},
 };
+use tonic::Code;
 use tracing::error;
 
 use crate::ApiClient;
@@ -56,6 +60,35 @@ pub enum DsRequestError {
 impl From<LibraryError> for DsRequestError {
     fn from(_: LibraryError) -> Self {
         Self::LibraryError
+    }
+}
+
+impl DsRequestError {
+    pub fn get_attachment_too_large(&self) -> Option<AttachmentTooLargeDetail> {
+        if let Self::Tonic(status) = self
+            && status.code() == Code::InvalidArgument
+        {
+            let details = StatusDetails::from_status(status)?;
+            if let Detail::AttachmentTooLarge(attachment_too_large_detail) = details.detail? {
+                Some(attachment_too_large_detail)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn is_wrong_epoch(&self) -> bool {
+        if let Self::Tonic(status) = self
+            && status.code() == tonic::Code::InvalidArgument
+            && let Some(details) = StatusDetails::from_status(status)
+            && let StatusDetailsCode::WrongEpoch = details.code()
+        {
+            true
+        } else {
+            false
+        }
     }
 }
 

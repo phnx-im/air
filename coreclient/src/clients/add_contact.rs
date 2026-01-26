@@ -41,12 +41,6 @@ use crate::{
 use super::{CoreUser, connection_offer::payload::ConnectionOfferPayload};
 
 #[derive(Debug)]
-pub enum AddHandleContactResult {
-    Ok(ChatId),
-    Err(AddHandleContactError),
-}
-
-#[derive(Debug)]
 pub enum AddHandleContactError {
     /// The contact could not be added because the user handle does not exist
     HandleNotFound,
@@ -64,21 +58,17 @@ impl CoreUser {
         &self,
         handle: UserHandle,
         hash: UserHandleHash,
-    ) -> anyhow::Result<AddHandleContactResult> {
+    ) -> anyhow::Result<Result<ChatId, AddHandleContactError>> {
         let client = self.api_client()?;
 
         // Phase 0: Perform sanity checks
         // Check if a connection request is already pending
         if HandleContact::load(self.pool(), &handle).await?.is_some() {
-            return Ok(AddHandleContactResult::Err(
-                AddHandleContactError::DuplicateRequest,
-            ));
+            return Ok(Err(AddHandleContactError::DuplicateRequest));
         }
         // Check if the target handle is one of our own handles
         if self.user_handles().await?.contains(&handle) {
-            return Ok(AddHandleContactResult::Err(
-                AddHandleContactError::OwnHandle,
-            ));
+            return Ok(Err(AddHandleContactError::OwnHandle));
         }
 
         // Phase 1: Fetch a connection package from the AS
@@ -86,9 +76,7 @@ impl CoreUser {
             match client.as_connect_handle(hash).await {
                 Ok(res) => res,
                 Err(error) if error.is_not_found() => {
-                    return Ok(AddHandleContactResult::Err(
-                        AddHandleContactError::HandleNotFound,
-                    ));
+                    return Ok(Err(AddHandleContactError::HandleNotFound));
                 }
                 Err(error) => return Err(error.into()),
             };
@@ -140,7 +128,7 @@ impl CoreUser {
                 )
                 .await?;
 
-            Ok(AddHandleContactResult::Ok(chat_id))
+            Ok(Ok(chat_id))
         })
         .await
     }

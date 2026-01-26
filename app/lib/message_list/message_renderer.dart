@@ -273,7 +273,9 @@ InlineSpan buildInlineElement(
   return switch (inline.element) {
     InlineElement_Text(:final field0) => TextSpan(
       text: field0,
-      recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
+      recognizer: destUrl != null
+          ? openLinkRecognizer(context, destUrl, field0)
+          : null,
     ),
     InlineElement_Code(:final field0) => TextSpan(
       text: field0,
@@ -358,18 +360,23 @@ InlineSpan buildInlineElement(
   };
 }
 
-TapGestureRecognizer openLinkRecognizer(BuildContext context, Uri uri) =>
-    TapGestureRecognizer()
-      ..onTap = () async {
-        final shouldOpen = await _showLinkConfirmationDialog(context, uri);
-        if (!shouldOpen) {
-          return;
-        }
+TapGestureRecognizer openLinkRecognizer(
+  BuildContext context,
+  Uri uri, [
+  String? text,
+]) => TapGestureRecognizer()
+  ..onTap = () async {
+    if (text == null || text != uri.toString()) {
+      final shouldOpen = await _showLinkConfirmationDialog(context, uri);
+      if (!shouldOpen) {
+        return;
+      }
+    }
 
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        }
-      };
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  };
 
 Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
   final result = await showDialog<bool>(

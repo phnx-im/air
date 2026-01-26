@@ -7457,14 +7457,6 @@ fn wire__crate__api__username_suggestions__username_from_display_impl(
 
 #[allow(clippy::unnecessary_literal_unwrap)]
 const _: fn() = || {
-    match None::<crate::api::types::AddHandleContactResult>.unwrap() {
-        crate::api::types::AddHandleContactResult::Ok(field0) => {
-            let _: crate::api::types::ChatId = field0;
-        }
-        crate::api::types::AddHandleContactResult::Err(field0) => {
-            let _: crate::api::types::AddHandleContactError = field0;
-        }
-    }
     {
         let AttachmentId = None::<crate::api::message_content::AttachmentId>.unwrap();
         let _: uuid::Uuid = AttachmentId.uuid;
@@ -8273,27 +8265,6 @@ impl SseDecode for crate::api::types::AddHandleContactError {
     }
 }
 
-impl SseDecode for crate::api::types::AddHandleContactResult {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut tag_ = <i32>::sse_decode(deserializer);
-        match tag_ {
-            0 => {
-                let mut var_field0 = <crate::api::types::ChatId>::sse_decode(deserializer);
-                return crate::api::types::AddHandleContactResult::Ok(var_field0);
-            }
-            1 => {
-                let mut var_field0 =
-                    <crate::api::types::AddHandleContactError>::sse_decode(deserializer);
-                return crate::api::types::AddHandleContactResult::Err(var_field0);
-            }
-            _ => {
-                unimplemented!("");
-            }
-        }
-    }
-}
-
 impl SseDecode for crate::api::user_cubit::AppState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -8919,7 +8890,7 @@ impl SseDecode for crate::notifications::NotificationContent {
         let mut var_identifier = <crate::notifications::NotificationId>::sse_decode(deserializer);
         let mut var_title = <String>::sse_decode(deserializer);
         let mut var_body = <String>::sse_decode(deserializer);
-        let mut var_chatId = <Option<crate::api::types::ChatId>>::sse_decode(deserializer);
+        let mut var_chatId = <crate::api::types::ChatId>::sse_decode(deserializer);
         return crate::notifications::NotificationContent {
             identifier: var_identifier,
             title: var_title,
@@ -8998,6 +8969,19 @@ impl SseDecode for Option<UserHandleHash> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<UserHandleHash>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::types::AddHandleContactError> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::types::AddHandleContactError>::sse_decode(
+                deserializer,
+            ));
         } else {
             return None;
         }
@@ -9173,6 +9157,19 @@ impl SseDecode for Option<crate::api::types::UiUserId> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::api::types::UiUserId>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::chat_details_cubit::UploadAttachmentError> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(
+                <crate::api::chat_details_cubit::UploadAttachmentError>::sse_decode(deserializer),
+            );
         } else {
             return None;
         }
@@ -9740,6 +9737,26 @@ impl SseDecode for crate::api::types::UiUserProfile {
 impl SseDecode for () {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {}
+}
+
+impl SseDecode for crate::api::chat_details_cubit::UploadAttachmentError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                let mut var_maxSizeBytes = <u64>::sse_decode(deserializer);
+                let mut var_actualSizeBytes = <u64>::sse_decode(deserializer);
+                return crate::api::chat_details_cubit::UploadAttachmentError::TooLarge {
+                    max_size_bytes: var_maxSizeBytes,
+                    actual_size_bytes: var_actualSizeBytes,
+                };
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
 }
 
 impl SseDecode for crate::api::types::UserHandleValidationError {
@@ -10442,33 +10459,6 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::AddHandleCo
     for crate::api::types::AddHandleContactError
 {
     fn into_into_dart(self) -> FrbWrapper<crate::api::types::AddHandleContactError> {
-        self.into()
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AddHandleContactResult> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        match self.0 {
-            crate::api::types::AddHandleContactResult::Ok(field0) => {
-                [0.into_dart(), field0.into_into_dart().into_dart()].into_dart()
-            }
-            crate::api::types::AddHandleContactResult::Err(field0) => {
-                [1.into_dart(), field0.into_into_dart().into_dart()].into_dart()
-            }
-            _ => {
-                unimplemented!("");
-            }
-        }
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::types::AddHandleContactResult>
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::AddHandleContactResult>>
-    for crate::api::types::AddHandleContactResult
-{
-    fn into_into_dart(self) -> FrbWrapper<crate::api::types::AddHandleContactResult> {
         self.into()
     }
 }
@@ -11663,6 +11653,36 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiUserProfile>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::chat_details_cubit::UploadAttachmentError {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            crate::api::chat_details_cubit::UploadAttachmentError::TooLarge {
+                max_size_bytes,
+                actual_size_bytes,
+            } => [
+                0.into_dart(),
+                max_size_bytes.into_into_dart().into_dart(),
+                actual_size_bytes.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::chat_details_cubit::UploadAttachmentError
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::chat_details_cubit::UploadAttachmentError>
+    for crate::api::chat_details_cubit::UploadAttachmentError
+{
+    fn into_into_dart(self) -> crate::api::chat_details_cubit::UploadAttachmentError {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::UserHandleValidationError> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self.0 {
@@ -12276,25 +12296,6 @@ impl SseEncode for crate::api::types::AddHandleContactError {
     }
 }
 
-impl SseEncode for crate::api::types::AddHandleContactResult {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        match self {
-            crate::api::types::AddHandleContactResult::Ok(field0) => {
-                <i32>::sse_encode(0, serializer);
-                <crate::api::types::ChatId>::sse_encode(field0, serializer);
-            }
-            crate::api::types::AddHandleContactResult::Err(field0) => {
-                <i32>::sse_encode(1, serializer);
-                <crate::api::types::AddHandleContactError>::sse_encode(field0, serializer);
-            }
-            _ => {
-                unimplemented!("");
-            }
-        }
-    }
-}
-
 impl SseEncode for crate::api::user_cubit::AppState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -12811,7 +12812,7 @@ impl SseEncode for crate::notifications::NotificationContent {
         <crate::notifications::NotificationId>::sse_encode(self.identifier, serializer);
         <String>::sse_encode(self.title, serializer);
         <String>::sse_encode(self.body, serializer);
-        <Option<crate::api::types::ChatId>>::sse_encode(self.chat_id, serializer);
+        <crate::api::types::ChatId>::sse_encode(self.chat_id, serializer);
     }
 }
 
@@ -12876,6 +12877,16 @@ impl SseEncode for Option<UserHandleHash> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <UserHandleHash>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::types::AddHandleContactError> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::types::AddHandleContactError>::sse_encode(value, serializer);
         }
     }
 }
@@ -13028,6 +13039,16 @@ impl SseEncode for Option<crate::api::types::UiUserId> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::types::UiUserId>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::chat_details_cubit::UploadAttachmentError> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::chat_details_cubit::UploadAttachmentError>::sse_encode(value, serializer);
         }
     }
 }
@@ -13485,6 +13506,25 @@ impl SseEncode for crate::api::types::UiUserProfile {
 impl SseEncode for () {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {}
+}
+
+impl SseEncode for crate::api::chat_details_cubit::UploadAttachmentError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::api::chat_details_cubit::UploadAttachmentError::TooLarge {
+                max_size_bytes,
+                actual_size_bytes,
+            } => {
+                <i32>::sse_encode(0, serializer);
+                <u64>::sse_encode(max_size_bytes, serializer);
+                <u64>::sse_encode(actual_size_bytes, serializer);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
 }
 
 impl SseEncode for crate::api::types::UserHandleValidationError {
