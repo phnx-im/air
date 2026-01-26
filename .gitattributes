@@ -16,3 +16,7 @@ app/android/app/src/main/res/**/*.png filter=lfs diff=lfs merge=lfs -text
 app/stores/**/*.png filter=lfs diff=lfs merge=lfs -text
 app/test/assets/**/*.jpg filter=lfs diff=lfs merge=lfs -text
 app/test/assets/**/*.png filter=lfs diff=lfs merge=lfs -text
+
+# Don't use lfs for links
+app/stores/android/metadata/en-US/images/phoneScreenshots/*.png filter= diff= merge= text
+app/stores/ios/screenshots/en-US/*.png filter= diff= merge= text
