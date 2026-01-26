@@ -4,10 +4,7 @@
 
 use aircommon::identifiers::UserId;
 
-use crate::{
-    ChatId, ChatMessage,
-    job::{Job, chat_operation::ChatOperation},
-};
+use crate::{ChatId, ChatMessage, job::chat_operation::ChatOperation};
 
 use super::CoreUser;
 
@@ -23,10 +20,7 @@ impl CoreUser {
         chat_id: ChatId,
         invited_users: &[UserId],
     ) -> anyhow::Result<Vec<ChatMessage>> {
-        let mut context = self.job_context().await?;
-
-        ChatOperation::add_members(chat_id, invited_users.to_vec())
-            .execute(&mut context)
-            .await
+        let job = ChatOperation::add_members(chat_id, invited_users.to_vec());
+        self.execute_job(job).await
     }
 }

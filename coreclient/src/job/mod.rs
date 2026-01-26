@@ -2,21 +2,20 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use sqlx::{Sqlite, SqliteConnection, pool::PoolConnection};
+use sqlx::{Sqlite, pool::PoolConnection};
 
 use crate::{
-    clients::{CoreUser, api_clients::ApiClients},
-    key_stores::MemoryUserKeyStore,
-    store::StoreNotifier,
+    clients::api_clients::ApiClients, key_stores::MemoryUserKeyStore, store::StoreNotifier,
 };
 
+pub(crate) mod create_chat;
 pub(crate) mod chat_operation;
 mod pending_chat_operation;
 
 pub(crate) struct JobContext<'a> {
     pub api_clients: &'a ApiClients,
-    pub connection: PoolConnection<Sqlite>,
-    pub notifier: StoreNotifier,
+    pub connection: &'a mut PoolConnection<Sqlite>,
+    pub notifier: &'a mut StoreNotifier,
     pub key_store: &'a MemoryUserKeyStore,
 }
 
@@ -26,7 +25,9 @@ pub(crate) trait Job<T> {
         Self: Sized,
     {
         self.execute_dependencies(context).await?;
-        self.execute_logic(context).await
+        let result = self.execute_logic(context).await?;
+        //context.notifier.notify();
+        Ok(result)
     }
 
     async fn execute_logic(self, context: &mut JobContext<'_>) -> anyhow::Result<T>;

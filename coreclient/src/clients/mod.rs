@@ -43,7 +43,7 @@ use crate::{
     Asset, UserHandleRecord,
     contacts::{HandleContact, TargetedMessageContact},
     groups::Group,
-    job::JobContext,
+    job::{Job, JobContext},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
     outbound_service::OutboundService,
     store::Store,
@@ -766,16 +766,18 @@ impl CoreUser {
         .await
     }
 
-    pub(crate) async fn job_context<'a>(&'a self) -> sqlx::Result<JobContext<'a>> {
-        let connection = self.pool().acquire().await?;
-        let notifier = self.store_notifier();
-        let context = JobContext {
+    async fn execute_job<T: Send>(&self, job: impl Job<T>) -> anyhow::Result<T> {
+        let mut connection = self.pool().acquire().await?;
+        let mut notifier = self.store_notifier();
+        let mut context = JobContext {
             api_clients: &self.inner.api_clients,
-            connection,
-            notifier,
+            connection: &mut connection,
+            notifier: &mut notifier,
             key_store: &self.inner.key_store,
         };
-        Ok(context)
+        let value = job.execute(&mut context).await?;
+        notifier.notify();
+        Ok(value)
     }
 }
 

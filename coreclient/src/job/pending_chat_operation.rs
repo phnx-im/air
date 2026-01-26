@@ -5,8 +5,6 @@
 use std::collections::HashSet;
 
 use aircommon::{
-    codec::PersistenceCodec,
-    credentials::keys::ClientSigningKey,
     identifiers::QualifiedGroupId,
     messages::client_ds_out::{DeleteGroupParamsOut, GroupOperationParamsOut, SelfRemoveParamsOut},
 };
@@ -16,12 +14,11 @@ use openmls::group::GroupId;
 use sqlx::SqliteConnection;
 
 use crate::{
-    Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage,
+    Chat, ChatId, ChatMessage, SystemMessage,
     chats::messages::TimestampedMessage,
-    clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
+    clients::{CoreUser, update_key::update_chat_attributes},
     groups::Group,
-    job::{Job, JobContext, chat_operation::ChatOperationType},
-    store::StoreNotifier,
+    job::{Job, JobContext},
     utils::connection_ext::ConnectionExt,
 };
 
@@ -71,22 +68,22 @@ impl PendingChatOperation {
         }
     }
 
-    pub(super) async fn store(&self, connection: &mut SqliteConnection) -> sqlx::Result<()> {
+    pub(super) async fn store(&self, _connection: &mut SqliteConnection) -> sqlx::Result<()> {
         // Store the pending operation in the database.
         Ok(())
     }
 
     pub(super) async fn load(
-        connection: &mut SqliteConnection,
-        chat_id: &ChatId,
+        _connection: &mut SqliteConnection,
+        _chat_id: &ChatId,
     ) -> sqlx::Result<Option<Self>> {
         // Load the pending operation from the database.
         Ok(None)
     }
 
     async fn delete(
-        connection: &mut SqliteConnection,
-        group_id: &GroupId,
+        _connection: &mut SqliteConnection,
+        _group_id: &GroupId,
     ) -> sqlx::Result<Option<Self>> {
         // Delete the pending operation from the database.
         Ok(None)

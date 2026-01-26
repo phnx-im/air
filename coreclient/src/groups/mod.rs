@@ -163,35 +163,6 @@ impl From<Vec<u8>> for GroupData {
     }
 }
 
-/// Data required to add a member to a group.
-#[derive(Debug, Clone)]
-pub struct AddMemberData {
-    pub user_id: UserId,
-    pub add_info: ContactAddInfos,
-    pub wai_key: WelcomeAttributionInfoEarKey,
-    pub client_credential: ClientCredential,
-}
-
-#[derive(Debug)]
-pub(crate) enum GroupOperation {
-    AddMember { data: AddMemberData },
-    RemoveMember { member_id: UserId },
-    RemoveSelf,
-    DeleteGroup,
-    // This may need additional parameters for leaf updates in the future
-    UpdateKeyMaterial,
-    UpdateGroupProfile(GroupData),
-}
-
-#[derive(Debug)]
-pub(crate) enum StagedGroupOperation {
-    AddMember(UserId),
-    RemoveMember(UserId),
-    RemoveSelf,
-    UpdateKeyMaterial,
-    UpdateGroupProfile(GroupData),
-}
-
 #[derive(Debug)]
 pub(crate) struct Group {
     group_id: GroupId,
@@ -209,11 +180,12 @@ impl Group {
 
     /// Create a group.
     pub(super) fn create_group(
-        provider: &impl OpenMlsProvider,
+        connection: &mut SqliteConnection,
         signer: &ClientSigningKey,
         group_id: GroupId,
         group_data: GroupData,
     ) -> Result<(Self, GroupMembership, PartialCreateGroupParams)> {
+        let provider = AirOpenMlsProvider::new(connection);
         let group_state_ear_key = GroupStateEarKey::random()?;
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
 
@@ -240,7 +212,7 @@ impl Group {
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
             .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
-            .build(provider, signer, credential_with_key)
+            .build(&provider, signer, credential_with_key)
             .map_err(|e| anyhow!("Error while creating group: {:?}", e))?;
 
         let user_id = signer.credential().identity();
@@ -830,162 +802,13 @@ impl Group {
         Ok(params)
     }
 
-    /// Invite the given list of contacts to join the group.
-    ///
-    /// Returns the [`AddUserParamsOut`] as input for the API client.
-    pub(super) async fn stage_group_operations(
-        &mut self,
-        connection: &mut SqliteConnection,
-        signer: &ClientSigningKey,
-        group_operations: impl IntoIterator<Item = GroupOperation>,
-    ) -> anyhow::Result<GroupOperationParamsOut> {
-        // Prepare adds
-        let mut user_profile_keys = Vec::new();
-        let mut key_packages = Vec::new();
-        let mut wai_keys = Vec::new();
-        let mut client_credentials = Vec::new();
-        let mut removes = Vec::new();
-        let mut update = false;
-        let mut profile_update = None;
-
-        for operation in group_operations {
-            match operation {
-                GroupOperation::AddMember { data } => {
-                    key_packages.push(data.add_info.key_package);
-                    user_profile_keys.push(data.add_info.user_profile_key);
-                    wai_keys.push(data.wai_key);
-                    client_credentials.push(data.client_credential);
-                }
-                GroupOperation::RemoveMember { member_id } => {
-                    removes.push(member_id);
-                }
-                GroupOperation::UpdateKeyMaterial => {
-                    update = true;
-                }
-                GroupOperation::UpdateGroupProfile(group_data) => {
-                    profile_update = Some(group_data);
-                }
-                GroupOperation::RemoveSelf | GroupOperation::DeleteGroup => {
-                    // Self-removes and group deletions are handled in different
-                    // functions.
-                }
-            }
-        }
-
-        // Prepare adds
-        let new_encrypted_user_profile_keys = user_profile_keys
-            .iter()
-            .zip(client_credentials.iter())
-            .map(|(upk, client_credential)| {
-                upk.encrypt(
-                    &self.identity_link_wrapper_key,
-                    client_credential.identity(),
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let aad_message: AadMessage = AadPayload::GroupOperation(GroupOperationParamsAad {
-            new_encrypted_user_profile_keys,
-        })
-        .into();
-
-        // Prepare removes
-        let removed =
-            GroupMembership::client_indices(&mut *connection, self.group_id(), &removes).await?;
-
-        // Prepare group profile update
-        let extensions = profile_update.map(|gd| {
-            let group_data_extension =
-                Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, UnknownExtension(gd.bytes));
-            let mut exts = self.mls_group().extensions().clone();
-            exts.add_or_replace(group_data_extension);
-            exts
-        });
-
-        // Set Aad to contain the encrypted client credentials.
-        let (mls_commit, welcome_option, group_info_option) = {
-            let provider = AirOpenMlsProvider::new(&mut *connection);
-
-            self.mls_group
-                .set_aad(aad_message.tls_serialize_detached()?);
-
-            let mut builder = self.mls_group.commit_builder();
-            if let Some(extensions) = extensions {
-                builder = builder.propose_group_context_extensions(extensions);
-            };
-
-            builder
-                .force_self_update(update)
-                .create_group_info(true)
-                .propose_adds(key_packages)
-                .propose_removals(removed)
-                .load_psks(provider.storage())?
-                .build(provider.rand(), provider.crypto(), signer, |_| true)?
-                .stage_commit(&provider)?
-                .into_contents()
-        };
-
-        let group_info = group_info_option.ok_or(anyhow!("Commit didn't return a group info"))?;
-        let welcome = MlsMessageOut::from_welcome(
-            welcome_option.ok_or(anyhow!("Commit didn't return a welcome"))?,
-            ProtocolVersion::default(),
-        );
-        let commit = AssistedMessageOut::new(mls_commit, Some(group_info.into()));
-
-        let encrypted_welcome_attribution_infos = wai_keys
-            .iter()
-            .map(|wai_key| {
-                // WAI = WelcomeAttributionInfo
-                let wai_payload = WelcomeAttributionInfoPayload::new(
-                    signer.credential().identity().clone(),
-                    self.identity_link_wrapper_key.clone(),
-                );
-
-                let wai = WelcomeAttributionInfoTbs {
-                    payload: wai_payload,
-                    group_id: self.group_id().clone(),
-                    welcome: welcome.tls_serialize_detached()?,
-                }
-                .sign(signer)?;
-                Ok(wai.encrypt(wai_key)?)
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        // Stage removals
-        GroupMembership::stage_removals_in_pending_commit(&mut *connection, self).await?;
-
-        // Stage the adds in the DB.
-        let free_indices = GroupMembership::free_indices(&mut *connection, self.group_id()).await?;
-        for (leaf_index, client_credential) in free_indices.zip(client_credentials) {
-            let group_membership = GroupMembership::new(
-                client_credential.identity().clone(),
-                self.group_id.clone(),
-                leaf_index,
-            );
-            let client_auth_info = ClientAuthInfo::new(client_credential, group_membership);
-            client_auth_info.stage_add(&mut *connection).await?;
-        }
-
-        let add_users_info = AddUsersInfoOut {
-            welcome,
-            encrypted_welcome_attribution_infos,
-        };
-
-        let params = GroupOperationParamsOut {
-            commit,
-            add_users_info_option: Some(add_users_info),
-        };
-
-        Ok(params)
-    }
-
     pub(super) async fn discard_pending_commit(
         &mut self,
         connection: &mut SqliteConnection,
     ) -> Result<()> {
         let provider = AirOpenMlsProvider::new(&mut *connection);
         self.pending_diff = None;
-        self.mls_group.clear_pending_commit(provider.storage());
+        self.mls_group.clear_pending_commit(provider.storage())?;
         Ok(())
     }
 
@@ -1408,44 +1231,6 @@ impl Group {
         )?
         .store(&provider, &psk_value)?;
         Ok(())
-    }
-
-    /// Returns the operations staged in the pending commit, if any.
-    pub(crate) fn staged_operations(&self) -> Option<Vec<StagedGroupOperation>> {
-        let pending_commit = self.mls_group.pending_commit()?;
-        let mut operations = Vec::new();
-        for proposal in pending_commit.queued_proposals() {
-            match proposal.proposal() {
-                Proposal::Add(add_proposal) => {
-                    // This should always be Ok since we've verified the
-                    // proposal before.
-                    if let Ok(credential) = VerifiableClientCredential::try_from(
-                        add_proposal.key_package().leaf_node().credential().clone(),
-                    ) {
-                        operations.push(StagedGroupOperation::AddMember(
-                            credential.user_id().clone(),
-                        ))
-                    };
-                }
-                Proposal::Remove(remove_proposal) => {
-                    if let Some(removed_member) = self
-                        .mls_group
-                        .member_at(remove_proposal.removed())
-                        .and_then(|m| {
-                            VerifiableClientCredential::try_from(m.credential.clone()).ok()
-                        })
-                        .map(|c| c.user_id().clone())
-                    {
-                        operations.push(StagedGroupOperation::RemoveMember(removed_member))
-                    };
-                }
-                _ => { /* Other proposals are not represented as staged operations */ }
-            }
-            if pending_commit.update_path_leaf_node().is_some() {
-                operations.push(StagedGroupOperation::UpdateKeyMaterial);
-            }
-        }
-        Some(operations)
     }
 }
 

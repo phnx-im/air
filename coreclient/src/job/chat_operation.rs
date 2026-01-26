@@ -18,8 +18,8 @@ use crate::{
 pub(crate) enum ChatOperationType {
     AddMembers(Vec<UserId>),
     RemoveMembers(Vec<UserId>),
-    LeaveChat,
-    DeleteChat,
+    Leave,
+    Delete,
     Update(Option<ChatAttributes>),
 }
 
@@ -68,7 +68,7 @@ impl ChatOperation {
     pub(crate) fn leave_chat(chat_id: ChatId) -> Self {
         ChatOperation {
             chat_id,
-            operation: ChatOperationType::LeaveChat,
+            operation: ChatOperationType::Leave,
         }
     }
 
@@ -82,7 +82,7 @@ impl ChatOperation {
     pub(crate) fn delete_chat(chat_id: ChatId) -> Self {
         ChatOperation {
             chat_id,
-            operation: ChatOperationType::DeleteChat,
+            operation: ChatOperationType::Delete,
         }
     }
 
@@ -135,11 +135,11 @@ impl ChatOperation {
 
                 self.operation = ChatOperationType::RemoveMembers(refined_user_ids);
             }
-            // Leaving, deleting, and updating are always valid as long as the
+            // The following operations are always valid as long as the
             // group is active.
-            ChatOperationType::LeaveChat
-            | ChatOperationType::DeleteChat
-            | ChatOperationType::Update(_) => (),
+            ChatOperationType::Leave | ChatOperationType::Delete | ChatOperationType::Update(_) => {
+                ()
+            }
         }
         Ok(())
     }
@@ -155,8 +155,8 @@ impl ChatOperation {
             ChatOperationType::RemoveMembers(user_ids) => {
                 self.execute_remove_members(context, user_ids).await
             }
-            ChatOperationType::LeaveChat => self.execute_leave_chat(context).await,
-            ChatOperationType::DeleteChat => self.execute_delete(context).await,
+            ChatOperationType::Leave => self.execute_leave_chat(context).await,
+            ChatOperationType::Delete => self.execute_delete(context).await,
             ChatOperationType::Update(chat_attributes) => {
                 self.execute_update(context, chat_attributes.as_ref()).await
             }
@@ -381,7 +381,7 @@ pub(crate) mod add_users_flow {
         /// Stage the addition of new members to the group and create a
         /// PendingChatOperation for it. The PendingChatOperation is stored in
         /// the database within this function.
-        pub(crate) async fn create_job(
+        pub(super) async fn create_job(
             self,
             connection: &mut SqliteConnection,
             key_store: &MemoryUserKeyStore,
@@ -566,23 +566,13 @@ mod update_chat_attributes_flow {
 }
 
 mod delete_chat_flow {
-    use std::collections::HashSet;
-
-    use aircommon::{
-        credentials::keys::ClientSigningKey, identifiers::UserId,
-        messages::client_ds_out::DeleteGroupParamsOut, time::TimeStamp,
-    };
+    use aircommon::credentials::keys::ClientSigningKey;
     use anyhow::Context;
     use sqlx::SqliteConnection;
 
     use crate::{
-        Chat, ChatId, ChatMessage,
-        chats::messages::TimestampedMessage,
-        clients::{CoreUser, api_clients::ApiClients},
-        groups::Group,
-        job::pending_chat_operation::PendingChatOperation,
-        store::StoreNotifier,
-        utils::connection_ext::ConnectionExt as _,
+        Chat, ChatId, groups::Group, job::pending_chat_operation::PendingChatOperation,
+        store::StoreNotifier, utils::connection_ext::ConnectionExt as _,
     };
 
     impl PendingChatOperation {
