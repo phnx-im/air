@@ -70,11 +70,9 @@ class ReportSpamButton extends StatelessWidget {
       final loc = AppLocalizations.of(context);
       try {
         await context.read<UserCubit>().reportSpam(userId);
-        if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(loc.reportSpamDialog_success)));
-        }
+        showSnackBarStandalone(
+          (loc) => SnackBar(content: Text(loc.reportSpamDialog_success)),
+        );
       } catch (e) {
         _log.severe("Failed to report spam: $e");
         if (context.mounted) {
