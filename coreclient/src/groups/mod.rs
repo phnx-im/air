@@ -38,7 +38,7 @@ use aircommon::{
         client_ds_out::{
             AddUsersInfoOut, CreateGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
             GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageParamsOut,
-            TargetedMessageParamsOut, TargetedMessageType, UpdateParamsOut, WelcomeInfoIn,
+            TargetedMessageParamsOut, TargetedMessageType, WelcomeInfoIn,
         },
         welcome_attribution_info::{
             WelcomeAttributionInfo, WelcomeAttributionInfoPayload, WelcomeAttributionInfoTbs,
@@ -134,6 +134,7 @@ impl From<(ClientCredential, UserProfileKey)> for ProfileInfo {
     }
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub(crate) struct GroupData {
     bytes: Vec<u8>,
 }
@@ -160,6 +161,35 @@ impl From<Vec<u8>> for GroupData {
     fn from(bytes: Vec<u8>) -> Self {
         Self { bytes }
     }
+}
+
+/// Data required to add a member to a group.
+#[derive(Debug, Clone)]
+pub struct AddMemberData {
+    pub user_id: UserId,
+    pub add_info: ContactAddInfos,
+    pub wai_key: WelcomeAttributionInfoEarKey,
+    pub client_credential: ClientCredential,
+}
+
+#[derive(Debug)]
+pub(crate) enum GroupOperation {
+    AddMember { data: AddMemberData },
+    RemoveMember { member_id: UserId },
+    RemoveSelf,
+    DeleteGroup,
+    // This may need additional parameters for leaf updates in the future
+    UpdateKeyMaterial,
+    UpdateGroupProfile(GroupData),
+}
+
+#[derive(Debug)]
+pub(crate) enum StagedGroupOperation {
+    AddMember(UserId),
+    RemoveMember(UserId),
+    RemoveSelf,
+    UpdateKeyMaterial,
+    UpdateGroupProfile(GroupData),
 }
 
 #[derive(Debug)]
@@ -800,6 +830,176 @@ impl Group {
         Ok(params)
     }
 
+    /// Invite the given list of contacts to join the group.
+    ///
+    /// Returns the [`AddUserParamsOut`] as input for the API client.
+    pub(super) async fn stage_group_operations(
+        &mut self,
+        connection: &mut SqliteConnection,
+        signer: &ClientSigningKey,
+        group_operations: impl IntoIterator<Item = GroupOperation>,
+    ) -> anyhow::Result<GroupOperationParamsOut> {
+        // Prepare adds
+        let mut user_profile_keys = Vec::new();
+        let mut key_packages = Vec::new();
+        let mut wai_keys = Vec::new();
+        let mut client_credentials = Vec::new();
+        let mut removes = Vec::new();
+        let mut update = false;
+        let mut profile_update = None;
+
+        for operation in group_operations {
+            match operation {
+                GroupOperation::AddMember { data } => {
+                    key_packages.push(data.add_info.key_package);
+                    user_profile_keys.push(data.add_info.user_profile_key);
+                    wai_keys.push(data.wai_key);
+                    client_credentials.push(data.client_credential);
+                }
+                GroupOperation::RemoveMember { member_id } => {
+                    removes.push(member_id);
+                }
+                GroupOperation::UpdateKeyMaterial => {
+                    update = true;
+                }
+                GroupOperation::UpdateGroupProfile(group_data) => {
+                    profile_update = Some(group_data);
+                }
+                GroupOperation::RemoveSelf | GroupOperation::DeleteGroup => {
+                    // Self-removes and group deletions are handled in different
+                    // functions.
+                }
+            }
+        }
+
+        // Prepare adds
+        let new_encrypted_user_profile_keys = user_profile_keys
+            .iter()
+            .zip(client_credentials.iter())
+            .map(|(upk, client_credential)| {
+                upk.encrypt(
+                    &self.identity_link_wrapper_key,
+                    client_credential.identity(),
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let aad_message: AadMessage = AadPayload::GroupOperation(GroupOperationParamsAad {
+            new_encrypted_user_profile_keys,
+        })
+        .into();
+
+        // Prepare removes
+        let removed =
+            GroupMembership::client_indices(&mut *connection, self.group_id(), &removes).await?;
+
+        // Prepare group profile update
+        let extensions = profile_update.map(|gd| {
+            let group_data_extension =
+                Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, UnknownExtension(gd.bytes));
+            let mut exts = self.mls_group().extensions().clone();
+            exts.add_or_replace(group_data_extension);
+            exts
+        });
+
+        // Set Aad to contain the encrypted client credentials.
+        let (mls_commit, welcome_option, group_info_option) = {
+            let provider = AirOpenMlsProvider::new(&mut *connection);
+
+            self.mls_group
+                .set_aad(aad_message.tls_serialize_detached()?);
+
+            let mut builder = self.mls_group.commit_builder();
+            if let Some(extensions) = extensions {
+                builder = builder.propose_group_context_extensions(extensions);
+            };
+
+            builder
+                .force_self_update(update)
+                .create_group_info(true)
+                .propose_adds(key_packages)
+                .propose_removals(removed)
+                .load_psks(provider.storage())?
+                .build(provider.rand(), provider.crypto(), signer, |_| true)?
+                .stage_commit(&provider)?
+                .into_contents()
+        };
+
+        let group_info = group_info_option.ok_or(anyhow!("Commit didn't return a group info"))?;
+        let welcome = MlsMessageOut::from_welcome(
+            welcome_option.ok_or(anyhow!("Commit didn't return a welcome"))?,
+            ProtocolVersion::default(),
+        );
+        let commit = AssistedMessageOut::new(mls_commit, Some(group_info.into()));
+
+        let encrypted_welcome_attribution_infos = wai_keys
+            .iter()
+            .map(|wai_key| {
+                // WAI = WelcomeAttributionInfo
+                let wai_payload = WelcomeAttributionInfoPayload::new(
+                    signer.credential().identity().clone(),
+                    self.identity_link_wrapper_key.clone(),
+                );
+
+                let wai = WelcomeAttributionInfoTbs {
+                    payload: wai_payload,
+                    group_id: self.group_id().clone(),
+                    welcome: welcome.tls_serialize_detached()?,
+                }
+                .sign(signer)?;
+                Ok(wai.encrypt(wai_key)?)
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        // Stage removals
+        GroupMembership::stage_removals_in_pending_commit(&mut *connection, self).await?;
+
+        // Stage the adds in the DB.
+        let free_indices = GroupMembership::free_indices(&mut *connection, self.group_id()).await?;
+        for (leaf_index, client_credential) in free_indices.zip(client_credentials) {
+            let group_membership = GroupMembership::new(
+                client_credential.identity().clone(),
+                self.group_id.clone(),
+                leaf_index,
+            );
+            let client_auth_info = ClientAuthInfo::new(client_credential, group_membership);
+            client_auth_info.stage_add(&mut *connection).await?;
+        }
+
+        let add_users_info = AddUsersInfoOut {
+            welcome,
+            encrypted_welcome_attribution_infos,
+        };
+
+        let params = GroupOperationParamsOut {
+            commit,
+            add_users_info_option: Some(add_users_info),
+        };
+
+        Ok(params)
+    }
+
+    pub(super) async fn discard_pending_commit(
+        &mut self,
+        connection: &mut SqliteConnection,
+    ) -> Result<()> {
+        let provider = AirOpenMlsProvider::new(&mut *connection);
+        self.pending_diff = None;
+        self.mls_group.clear_pending_commit(provider.storage());
+        Ok(())
+    }
+
+    fn apply_staged_operations_to_room_state(&mut self) -> Result<()> {
+        for (remover, removed) in self.pending_removes() {
+            self.room_state_change_role(&remover, &removed, RoleIndex::Outsider)?;
+        }
+        for (adder, added) in self.pending_adds() {
+            self.room_state_change_role(&adder, &added, RoleIndex::Regular)?;
+        }
+
+        Ok(())
+    }
+
     /// If a [`StagedCommit`] is given, merge it and apply the pending group
     /// diff. If no [`StagedCommit`] is given, merge any pending commit and
     /// apply the pending group diff.
@@ -814,6 +1014,8 @@ impl Group {
     ) -> Result<(Vec<TimestampedMessage>, Option<GroupData>)> {
         let free_indices = GroupMembership::free_indices(&mut *connection, self.group_id()).await?;
         let staged_commit_option: Option<StagedCommit> = staged_commit_option.into();
+
+        self.apply_staged_operations_to_room_state()?;
 
         let (event_messages, group_data) = if let Some(staged_commit) = staged_commit_option {
             // Compute the messages we want to emit from the staged commit and the
@@ -1003,7 +1205,7 @@ impl Group {
         txn: &mut SqliteTransaction<'_>,
         signer: &ClientSigningKey,
         new_group_data: Option<GroupData>,
-    ) -> Result<UpdateParamsOut> {
+    ) -> Result<GroupOperationParamsOut> {
         // We don't expect there to be a welcome.
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
             new_encrypted_user_profile_keys: Vec::new(),
@@ -1043,7 +1245,10 @@ impl Group {
 
         GroupMembership::stage_removals_in_pending_commit(&mut *txn, self).await?;
         let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()));
-        Ok(UpdateParamsOut { commit })
+        Ok(GroupOperationParamsOut {
+            commit,
+            add_users_info_option: None,
+        })
     }
 
     pub(super) fn stage_leave_group(
@@ -1074,19 +1279,88 @@ impl Group {
         Ok(())
     }
 
-    pub(crate) async fn pending_removes(
-        &self,
-        connection: &mut sqlx::SqliteConnection,
-    ) -> Vec<UserId> {
+    /// Returns a list of (remover, removed) UserId pairs for pending remove proposals.
+    pub(crate) fn pending_removes(&self) -> Vec<(UserId, UserId)> {
         let mut pending_removes = Vec::new();
         for proposal in self.mls_group().pending_proposals() {
+            let Sender::Member(remover) = proposal.sender() else {
+                // We don't support external senders yet.
+                continue;
+            };
+            let remover = match self.user_id_at_index(*remover) {
+                Some(user_id) => user_id,
+                None => continue,
+            };
             if let Some(removed_client_index) = removed_client(proposal)
-                && let Some(client) = self.client_by_index(connection, removed_client_index).await
+                && let Some(removed) = self.user_id_at_index(removed_client_index)
             {
-                pending_removes.push(client);
+                pending_removes.push((remover, removed));
             }
         }
         pending_removes
+    }
+
+    /// Returns the `GroupData` of a pending GroupContextExtension change proposal, if any.
+    pub(crate) fn pending_group_data_update(&self) -> Option<GroupData> {
+        let Some(pending_commit) = self.mls_group().pending_commit() else {
+            return None;
+        };
+        GroupData::from_staged_commit(pending_commit)
+    }
+
+    fn user_id_at_index(&self, index: LeafNodeIndex) -> Option<UserId> {
+        self.mls_group().member_at(index).and_then(|m| {
+            VerifiableClientCredential::try_from(m.credential.clone())
+                .map(|c| c.user_id().clone())
+                .ok()
+        })
+    }
+
+    /// Returns a list of (adder, added) UserId pairs for pending add proposals.
+    pub(crate) fn pending_adds(&self) -> Vec<(UserId, UserId)> {
+        let mut pending_adds = Vec::new();
+        let Some(pending_commit) = self.mls_group().pending_commit() else {
+            return pending_adds;
+        };
+        for proposal in pending_commit.add_proposals() {
+            let Sender::Member(adder_index) = proposal.sender() else {
+                // We don't support external senders yet.
+                continue;
+            };
+            let adder = match self.user_id_at_index(*adder_index) {
+                Some(user_id) => user_id,
+                None => continue,
+            };
+            let Ok(added_user) = VerifiableClientCredential::try_from(
+                proposal
+                    .add_proposal()
+                    .key_package()
+                    .leaf_node()
+                    .credential()
+                    .clone(),
+            )
+            .map(|c| c.user_id().clone()) else {
+                continue;
+            };
+            pending_adds.push((adder, added_user));
+        }
+        pending_adds
+    }
+
+    pub(crate) fn verify_role_change(
+        &self,
+        sender: &UserId,
+        target: &UserId,
+        role: RoleIndex,
+    ) -> Result<()> {
+        let sender = sender.tls_serialize_detached()?;
+        let target = target.tls_serialize_detached()?;
+
+        let result = self
+            .room_state
+            .can_apply_regular_proposals(&sender, &[MimiProposal::ChangeRole { target, role }]);
+
+        Ok(result?)
     }
 
     pub(crate) fn room_state_change_role(
@@ -1134,6 +1408,44 @@ impl Group {
         )?
         .store(&provider, &psk_value)?;
         Ok(())
+    }
+
+    /// Returns the operations staged in the pending commit, if any.
+    pub(crate) fn staged_operations(&self) -> Option<Vec<StagedGroupOperation>> {
+        let pending_commit = self.mls_group.pending_commit()?;
+        let mut operations = Vec::new();
+        for proposal in pending_commit.queued_proposals() {
+            match proposal.proposal() {
+                Proposal::Add(add_proposal) => {
+                    // This should always be Ok since we've verified the
+                    // proposal before.
+                    if let Ok(credential) = VerifiableClientCredential::try_from(
+                        add_proposal.key_package().leaf_node().credential().clone(),
+                    ) {
+                        operations.push(StagedGroupOperation::AddMember(
+                            credential.user_id().clone(),
+                        ))
+                    };
+                }
+                Proposal::Remove(remove_proposal) => {
+                    if let Some(removed_member) = self
+                        .mls_group
+                        .member_at(remove_proposal.removed())
+                        .and_then(|m| {
+                            VerifiableClientCredential::try_from(m.credential.clone()).ok()
+                        })
+                        .map(|c| c.user_id().clone())
+                    {
+                        operations.push(StagedGroupOperation::RemoveMember(removed_member))
+                    };
+                }
+                _ => { /* Other proposals are not represented as staged operations */ }
+            }
+            if pending_commit.update_path_leaf_node().is_some() {
+                operations.push(StagedGroupOperation::UpdateKeyMaterial);
+            }
+        }
+        Some(operations)
     }
 }
 

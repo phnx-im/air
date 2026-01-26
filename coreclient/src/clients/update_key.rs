@@ -83,7 +83,7 @@ pub(crate) async fn update_chat_attributes(
 mod update_key_flow {
     use aircommon::{
         codec::PersistenceCodec, credentials::keys::ClientSigningKey, identifiers::UserId,
-        messages::client_ds_out::UpdateParamsOut, time::TimeStamp,
+        messages::client_ds_out::GroupOperationParamsOut, time::TimeStamp,
     };
     use anyhow::Context;
     use sqlx::SqliteTransaction;
@@ -97,7 +97,7 @@ mod update_key_flow {
     pub(super) struct UpdateKeyData {
         chat: Chat,
         group: Group,
-        params: UpdateParamsOut,
+        params: GroupOperationParamsOut,
     }
 
     impl UpdateKeyData {
@@ -139,7 +139,7 @@ mod update_key_flow {
             let owner_domain = chat.owner_domain();
             let ds_timestamp = api_clients
                 .get(&owner_domain)?
-                .ds_update(params, signer, group.group_state_ear_key())
+                .ds_group_operation(params, signer, group.group_state_ear_key())
                 .await?;
             Ok(UpdatedKey {
                 group,
