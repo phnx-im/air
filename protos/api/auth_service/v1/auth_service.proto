@@ -466,6 +466,8 @@ message HandleQueueMessage {
   oneof payload {
     ConnectionOfferMessage connection_offer = 3;
   }
+  // Timestamp when the message was enqueued on the server
+  common.v1.Timestamp created_at = 4;
 }
 
 message CheckHandleExistsRequest {

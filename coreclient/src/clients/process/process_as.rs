@@ -48,12 +48,16 @@ pub(crate) enum ConnectionInfoSource {
 pub(crate) struct ConnectionOfferSource {
     pub(crate) connection_offer: ConnectionOfferMessage,
     pub(crate) user_handle: UserHandle,
+    /// Timestamp when the connection offer was enqueued on the server
+    pub(crate) sent_at: Option<TimeStamp>,
 }
 
 pub(crate) struct TargetedMessageSource {
     pub(crate) connection_info: ConnectionInfo,
     pub(crate) sender_client_credential: ClientCredential,
     pub(crate) origin_chat_id: ChatId,
+    /// Timestamp when the targeted message was enqueued on the QS
+    pub(crate) sent_at: TimeStamp,
 }
 
 struct HandleConnectionInfo {
@@ -71,12 +75,14 @@ impl ConnectionInfoSource {
         ClientCredential,
         Option<ChatId>,
         Option<HandleConnectionInfo>,
+        Option<TimeStamp>,
     )> {
         match self {
             ConnectionInfoSource::ConnectionOffer(connection_offer_source) => {
                 let ConnectionOfferSource {
                     connection_offer,
                     user_handle,
+                    sent_at,
                 } = *connection_offer_source;
                 let connection_offer_hash = connection_offer.connection_offer_hash();
                 let mut connection = core_user.pool().acquire().await?;
@@ -98,6 +104,7 @@ impl ConnectionInfoSource {
                     sender_client_credential,
                     None,
                     Some(handle_connection_info),
+                    sent_at,
                 ))
             }
             ConnectionInfoSource::TargetedMessage(targeted_message_source) => {
@@ -105,12 +112,14 @@ impl ConnectionInfoSource {
                     connection_info,
                     sender_client_credential,
                     origin_chat_id,
+                    sent_at,
                 } = *targeted_message_source;
                 Ok((
                     connection_info,
                     sender_client_credential,
                     Some(origin_chat_id),
                     None,
+                    Some(sent_at),
                 ))
             }
         }
@@ -126,12 +135,17 @@ impl CoreUser {
         let payload = handle_queue_message
             .payload
             .context("no payload in handle queue message")?;
+
+        // Extract the server timestamp from the message
+        let sent_at = handle_queue_message.created_at.map(TimeStamp::from);
+
         match payload {
             handle_queue_message::Payload::ConnectionOffer(eco) => {
                 let connection_info_source =
                     ConnectionInfoSource::ConnectionOffer(Box::new(ConnectionOfferSource {
                         connection_offer: eco.try_into()?,
                         user_handle: user_handle.clone(),
+                        sent_at,
                     }));
                 self.process_connection_offer(connection_info_source).await
             }
@@ -142,8 +156,10 @@ impl CoreUser {
         &self,
         connection_info_source: ConnectionInfoSource,
     ) -> anyhow::Result<ChatId> {
-        let (connection_info, sender_client_credential, origin_chat_id, handle_connection_info) =
+        let (connection_info, sender_client_credential, origin_chat_id, handle_connection_info, sent_at) =
             connection_info_source.into_parts(self).await?;
+        // Use the server's timestamp if available, otherwise fall back to current time
+        let message_timestamp = sent_at.unwrap_or_else(TimeStamp::now);
 
         // Deny connection from blocked users
         if BlockedContact::check_blocked(self.pool(), sender_client_credential.identity()).await? {
@@ -277,7 +293,7 @@ impl CoreUser {
                 }
             };
             let received_message =
-                TimestampedMessage::system_message(received_system_message, TimeStamp::now());
+                TimestampedMessage::system_message(received_system_message, message_timestamp);
             let chat_messages = vec![received_message];
 
             // Store chat, pending connection info, partial contact and system message

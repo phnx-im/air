@@ -140,7 +140,8 @@ impl CoreUser {
             ) => {
                 let mls_message = MlsMessageIn::tls_deserialize_exact_bytes(&mls_message_bytes)
                     .context("Failed to deserialize targeted MLS message")?;
-                self.handle_targeted_application_message(mls_message).await
+                self.handle_targeted_application_message(mls_message, ds_timestamp)
+                    .await
             }
         }
     }
@@ -251,6 +252,7 @@ impl CoreUser {
     async fn handle_targeted_application_message(
         &self,
         mls_message: MlsMessageIn,
+        ds_timestamp: TimeStamp,
     ) -> Result<ProcessQsMessageResult> {
         let MlsMessageBodyIn::PrivateMessage(app_msg) = mls_message.extract() else {
             bail!("Unexpected message type")
@@ -310,6 +312,7 @@ impl CoreUser {
                         connection_info,
                         sender_client_credential,
                         origin_chat_id: chat.id(),
+                        sent_at: ds_timestamp,
                     }));
 
                 // MLSMessage Phase 3: Store the updated group.
