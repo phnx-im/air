@@ -156,8 +156,13 @@ impl CoreUser {
         &self,
         connection_info_source: ConnectionInfoSource,
     ) -> anyhow::Result<ChatId> {
-        let (connection_info, sender_client_credential, origin_chat_id, handle_connection_info, sent_at) =
-            connection_info_source.into_parts(self).await?;
+        let (
+            connection_info,
+            sender_client_credential,
+            origin_chat_id,
+            handle_connection_info,
+            sent_at,
+        ) = connection_info_source.into_parts(self).await?;
         // Use the server's timestamp if available, otherwise fall back to current time
         let message_timestamp = sent_at.unwrap_or_else(TimeStamp::now);
 

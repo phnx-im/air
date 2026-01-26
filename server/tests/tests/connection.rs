@@ -274,7 +274,10 @@ async fn connection_request_has_server_timestamp() {
         let message_id = message.message_id.unwrap();
 
         // Extract the server's created_at timestamp from the message
-        let created_at = message.created_at.as_ref().expect("Message should have created_at timestamp");
+        let created_at = message
+            .created_at
+            .as_ref()
+            .expect("Message should have created_at timestamp");
         server_timestamp = Some(TimeStamp::from(
             chrono::Utc
                 .timestamp_opt(created_at.seconds, created_at.nanos as u32)
