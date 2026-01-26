@@ -2,8 +2,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::time::Duration;
+
+use aircommon::time::TimeStamp;
 use aircoreclient::{EventMessage, Message, SystemMessage, store::Store};
 use airserver_test_harness::utils::setup::TestBackend;
+use chrono::TimeZone;
+use tokio::task::spawn_blocking;
+use tokio_stream::StreamExt;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Connect users test", skip_all)]
@@ -220,5 +226,103 @@ async fn sanity_checks_for_targeted_message_connections() {
     assert!(
         res.is_err(),
         "Bob should not be able to add Charlie again as a contact from the group"
+    );
+}
+
+/// Test that the timestamp on a received connection request reflects when the
+/// request was sent (server's enqueue time), not when the recipient processed it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Connection request timestamp test", skip_all)]
+async fn connection_request_has_server_timestamp() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    // Bob adds a user handle
+    let test_bob = setup.get_user_mut(&bob);
+    let bob_handle_record = test_bob.add_user_handle().await.unwrap();
+    let bob_handle = bob_handle_record.handle.clone();
+
+    // Alice sends a connection request to Bob
+    let test_alice = setup.get_user_mut(&alice);
+    let alice_user = &mut test_alice.user;
+    let user_handle_hash = spawn_blocking({
+        let handle = bob_handle.clone();
+        move || handle.calculate_hash().unwrap()
+    })
+    .await
+    .unwrap();
+
+    alice_user
+        .add_contact(bob_handle.clone(), user_handle_hash)
+        .await
+        .expect("fatal error")
+        .expect("non-fatal error");
+
+    // Bob fetches and processes the connection request
+    let test_bob = setup.get_user_mut(&bob);
+    let bob_user = &mut test_bob.user;
+    let (mut stream, responder) = bob_user.listen_handle(&bob_handle_record).await.unwrap();
+
+    // Process handle queue messages, extracting the server timestamp before processing
+    let mut bob_chat_id = None;
+    let mut server_timestamp = None;
+    while let Some(Some(message)) = tokio::time::timeout(Duration::from_millis(500), stream.next())
+        .await
+        .unwrap()
+    {
+        let message_id = message.message_id.unwrap();
+
+        // Extract the server's created_at timestamp from the message
+        let created_at = message
+            .created_at
+            .as_ref()
+            .expect("Message should have created_at timestamp");
+        server_timestamp = Some(TimeStamp::from(
+            chrono::Utc
+                .timestamp_opt(created_at.seconds, created_at.nanos as u32)
+                .single()
+                .expect("Valid timestamp"),
+        ));
+
+        let chat_id = bob_user
+            .process_handle_queue_message(bob_handle_record.handle.clone(), message)
+            .await
+            .unwrap();
+        bob_chat_id = Some(chat_id);
+        responder.ack(message_id.into()).await;
+    }
+
+    let bob_chat_id = bob_chat_id.expect("Bob should have processed at least one message");
+    let server_timestamp = server_timestamp.expect("Should have captured server timestamp");
+
+    // Get the system message and its timestamp
+    let messages = bob_user.messages(bob_chat_id, 1).await.unwrap();
+    let received_request_message = messages.first().expect("Should have at least one message");
+
+    let Message::Event(EventMessage::System(SystemMessage::ReceivedHandleConnectionRequest {
+        sender,
+        user_handle,
+    })) = received_request_message.message()
+    else {
+        panic!("Expected ReceivedHandleConnectionRequest system message");
+    };
+
+    assert_eq!(
+        *sender, alice,
+        "System message should indicate connection from Alice"
+    );
+    assert_eq!(
+        *user_handle, bob_handle,
+        "System message should have the correct handle"
+    );
+
+    // The system message timestamp should exactly match the server's created_at timestamp
+    let message_timestamp = received_request_message.timestamp();
+    let server_timestamp_chrono: chrono::DateTime<chrono::Utc> = server_timestamp.into();
+
+    assert_eq!(
+        message_timestamp, server_timestamp_chrono,
+        "System message timestamp should match the server's created_at timestamp exactly"
     );
 }
