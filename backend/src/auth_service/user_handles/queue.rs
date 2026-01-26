@@ -252,7 +252,7 @@ impl<S: Stream<Item = ()> + Send + Unpin> QueueStreamContext<S> {
 }
 
 mod persistence {
-    use airprotos::common::v1::Timestamp;
+    use aircommon::time::TimeStamp;
     use prost::Message;
     use sqlx::{
         Database, Decode, Encode, PgExecutor, Postgres, Type, encode::IsNull, error::BoxDynError,
@@ -314,7 +314,9 @@ mod persistence {
                 SET fetched_by = $2
                 FROM messages_to_fetch m
                 WHERE q.message_id = m.message_id
-                RETURNING q.message_bytes as "message_bytes: SqlHandleQueueMessage", q.created_at as "created_at!""#,
+                RETURNING
+                    q.message_bytes as "message_bytes: SqlHandleQueueMessage",
+                    q.created_at as "created_at: TimeStamp""#,
                 hash.as_bytes(),
                 fetched_by,
                 limit as i64,
@@ -324,10 +326,7 @@ mod persistence {
 
             for record in rows {
                 let mut message = record.message_bytes.0;
-                message.created_at = Some(Timestamp {
-                    seconds: record.created_at.timestamp(),
-                    nanos: record.created_at.timestamp_subsec_nanos() as i32,
-                });
+                message.created_at = record.created_at.map(From::from);
                 buffer.push(message);
             }
             Ok(())
