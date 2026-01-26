@@ -41,7 +41,8 @@ jobs:
         with:
           ruby-version: "3.3"
 
-      - run: curl -fsSL https://fvm.app/install.sh | bash
+      - uses: extractions/setup-just@v2
+      - run: just install-fvm
       - run: echo /Users/runner/fvm/bin >> $GITHUB_PATH
 
       - name: Set up Rust toolchain

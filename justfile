@@ -166,3 +166,9 @@ run-server:
 # Increment minor version numbers and update changelog.
 bump-version:
     cargo xtask bump-version
+
+# Install fvm.
+install-fvm:
+    curl -fsSL https://fvm.app/install.sh -o install-fvm.sh
+    echo "3a39003bb29531f95f7d5798bbf23737180f29b8c0d886e29327f0bc8cffa8f3  install-fvm.sh" | sha256sum --check
+    bash install-fvm.sh 4.0.5

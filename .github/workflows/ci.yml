@@ -31,7 +31,8 @@ jobs:
       ## CHECK FRB
       - uses: dtolnay/rust-toolchain@1.90.0
 
-      - run: curl -fsSL https://fvm.app/install.sh | bash
+      - uses: extractions/setup-just@v2
+      - run: just install-fvm
       - run: echo /home/runner/fvm/bin >> $GITHUB_PATH
 
       - run: (cd app && fvm install)
@@ -40,7 +41,6 @@ jobs:
           path: ~/.cargo/bin/flutter_rust_bridge_codegen
           key: cargo-install-${{ runner.os }}-frb-2.11.1
       - run: if ! command -v flutter_rust_bridge_codegen; then cargo install flutter_rust_bridge_codegen@2.11.1; fi
-      - uses: extractions/setup-just@v2
       - run: just check-frb
 
   flutter:
