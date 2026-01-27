@@ -19,8 +19,10 @@ pub(crate) struct JobContext<'a> {
     pub key_store: &'a MemoryUserKeyStore,
 }
 
-pub(crate) trait Job<T> {
-    async fn execute(mut self, context: &mut JobContext<'_>) -> anyhow::Result<T>
+pub(crate) trait Job {
+    type Output;
+
+    async fn execute(mut self, context: &mut JobContext<'_>) -> anyhow::Result<Self::Output>
     where
         Self: Sized,
     {
@@ -28,7 +30,7 @@ pub(crate) trait Job<T> {
         Box::pin(self.execute_logic(context)).await
     }
 
-    async fn execute_logic(self, context: &mut JobContext<'_>) -> anyhow::Result<T>;
+    async fn execute_logic(self, context: &mut JobContext<'_>) -> anyhow::Result<Self::Output>;
 
     async fn execute_dependencies(&mut self, _context: &mut JobContext<'_>) -> anyhow::Result<()> {
         Ok(())

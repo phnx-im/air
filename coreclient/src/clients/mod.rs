@@ -766,7 +766,10 @@ impl CoreUser {
         .await
     }
 
-    async fn execute_job<T: Send>(&self, job: impl Job<T>) -> anyhow::Result<T> {
+    async fn execute_job<T: Send, JobType: Job<Output = T>>(
+        &self,
+        job: JobType,
+    ) -> anyhow::Result<T> {
         let mut notifier = self.store_notifier();
         let mut context = JobContext {
             api_clients: &self.inner.api_clients,

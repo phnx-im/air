@@ -28,7 +28,9 @@ pub(crate) struct ChatOperation {
     operation: ChatOperationType,
 }
 
-impl Job<Vec<ChatMessage>> for ChatOperation {
+impl Job for ChatOperation {
+    type Output = Vec<ChatMessage>;
+
     async fn execute_logic(self, context: &mut JobContext<'_>) -> anyhow::Result<Vec<ChatMessage>> {
         self.execute_internal(context).await
     }

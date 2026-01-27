@@ -50,7 +50,9 @@ pub(super) struct PendingChatOperation {
     last_attempt: DateTime<Utc>,
 }
 
-impl Job<Vec<ChatMessage>> for PendingChatOperation {
+impl Job for PendingChatOperation {
+    type Output = Vec<ChatMessage>;
+
     async fn execute_logic(self, context: &mut JobContext<'_>) -> anyhow::Result<Vec<ChatMessage>> {
         self.execute_internal(context).await
     }

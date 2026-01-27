@@ -20,7 +20,9 @@ pub(crate) struct CreateChat {
     pub client_reference: QsReference,
 }
 
-impl Job<ChatId> for CreateChat {
+impl Job for CreateChat {
+    type Output = ChatId;
+
     async fn execute_logic(self, context: &mut JobContext<'_>) -> anyhow::Result<ChatId> {
         self.execute_internal(context).await
     }
