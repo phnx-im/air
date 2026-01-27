@@ -150,12 +150,12 @@ _generate-db-certs:
 update-flutter-goldens:
     cd app && fvm flutter test --update-goldens
 
-# Start the client in debug mode.
-run-client *args='':
+# Start the app in debug mode.
+run-app *args='':
     cd app && fvm flutter run {{args}}
 
-# Start the client from the last debug build.
-run-client-cached device="macos":
+# Start the app from the last debug build.
+run-app-cached device="macos":
     #!/usr/bin/env -S bash -eu
     app/build/{{device}}/Build/Products/Debug/Air.app/Contents/*/Air
 
