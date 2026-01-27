@@ -12,7 +12,10 @@ use aircommon::{
         indexed_aead,
         kdf::KDF_KEY_SIZE,
         secrets::Secret,
-        signatures::signable,
+        signatures::{
+            keys::{QsClientSignature, QsUserSignature},
+            signable,
+        },
     },
     identifiers, time,
 };
@@ -259,6 +262,34 @@ impl From<ClientSignature> for Signature {
 }
 
 impl From<Signature> for ClientSignature {
+    fn from(value: Signature) -> Self {
+        signable::Signature::from_bytes(value.value)
+    }
+}
+
+impl From<QsUserSignature> for Signature {
+    fn from(value: QsUserSignature) -> Self {
+        Self {
+            value: value.into_bytes(),
+        }
+    }
+}
+
+impl From<Signature> for QsUserSignature {
+    fn from(value: Signature) -> Self {
+        signable::Signature::from_bytes(value.value)
+    }
+}
+
+impl From<QsClientSignature> for Signature {
+    fn from(value: QsClientSignature) -> Self {
+        Self {
+            value: value.into_bytes(),
+        }
+    }
+}
+
+impl From<Signature> for QsClientSignature {
     fn from(value: Signature) -> Self {
         signable::Signature::from_bytes(value.value)
     }

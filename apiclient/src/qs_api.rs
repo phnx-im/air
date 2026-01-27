@@ -5,10 +5,14 @@
 //! Client API for the queuing service (QS)
 
 use aircommon::{
+    LibraryError,
     crypto::{
         RatchetEncryptionKey,
         kdf::keys::RatchetSecret,
-        signatures::keys::{QsClientSigningKey, QsClientVerifyingKey, QsUserSigningKey},
+        signatures::{
+            keys::{QsClientSigningKey, QsClientVerifyingKey, QsUserSigningKey},
+            signable::Signable,
+        },
     },
     identifiers::{QsClientId, QsUserId},
     messages::{
@@ -23,14 +27,14 @@ use aircommon::{
 use airprotos::{
     common::v1::{StatusDetails, StatusDetailsCode},
     queue_service::v1::{
-        AckListenRequest, FetchListenRequest, InitListenRequest, QueueEvent, listen_request,
+        AckListenRequest, CreateClientPayload, DeleteClientPayload, DeleteUserPayload,
+        FetchListenRequest, InitListenPayload, PublishKeyPackagesPayload, QueueEvent,
+        UpdateClientPayload, UpdateUserPayload, listen_request,
     },
 };
 use airprotos::{
     queue_service::v1::{
-        CreateClientRequest, CreateUserRequest, DeleteClientRequest, DeleteUserRequest,
-        KeyPackageRequest, ListenRequest, PublishKeyPackagesRequest, QsEncryptionKeyRequest,
-        UpdateClientRequest, UpdateUserRequest,
+        CreateUserRequest, KeyPackageRequest, ListenRequest, QsEncryptionKeyRequest,
     },
     validation::{MissingFieldError, MissingFieldExt},
 };
@@ -48,6 +52,8 @@ use crate::{
 
 #[derive(Error, Debug)]
 pub enum QsRequestError {
+    #[error("Library Error")]
+    LibraryError,
     #[error(transparent)]
     Tls(#[from] tls_codec::Error),
     #[error("received an unexpected response")]
@@ -56,6 +62,12 @@ pub enum QsRequestError {
     Tonic(#[from] tonic::Status),
     #[error("missing field in response: {0}")]
     MissingField(#[from] MissingFieldError<&'static str>),
+}
+
+impl From<LibraryError> for QsRequestError {
+    fn from(_: LibraryError) -> Self {
+        Self::LibraryError
+    }
 }
 
 impl QsRequestError {
@@ -122,12 +134,13 @@ impl ApiClient {
         friendship_token: FriendshipToken,
         signing_key: &QsUserSigningKey,
     ) -> Result<(), QsRequestError> {
-        let request = UpdateUserRequest {
+        let payload = UpdateUserPayload {
             client_metadata: Some(self.metadata().clone()),
             sender: Some(sender.into()),
             user_record_auth_key: Some(signing_key.verifying_key().clone().into()),
             friendship_token: Some(friendship_token.into()),
         };
+        let request = payload.sign(signing_key)?;
         self.qs_grpc_client().update_user(request).await?;
         Ok(())
     }
@@ -135,12 +148,13 @@ impl ApiClient {
     pub async fn qs_delete_user(
         &self,
         sender: QsUserId,
-        _signing_key: &QsUserSigningKey,
+        signing_key: &QsUserSigningKey,
     ) -> Result<(), QsRequestError> {
-        let request = DeleteUserRequest {
+        let payload = DeleteUserPayload {
             client_metadata: Some(self.metadata().clone()),
             sender: Some(sender.into()),
         };
+        let request = payload.sign(signing_key)?;
         self.qs_grpc_client().delete_user(request).await?;
         Ok(())
     }
@@ -152,9 +166,9 @@ impl ApiClient {
         queue_encryption_key: RatchetEncryptionKey,
         encrypted_push_token: Option<EncryptedPushToken>,
         initial_ratchet_key: RatchetSecret,
-        _signing_key: &QsUserSigningKey,
+        signing_key: &QsUserSigningKey,
     ) -> Result<CreateClientRecordResponse, QsRequestError> {
-        let request = CreateClientRequest {
+        let payload = CreateClientPayload {
             client_metadata: Some(self.metadata().clone()),
             sender: Some(sender.into()),
             client_record_auth_key: Some(client_record_auth_key.into()),
@@ -162,6 +176,7 @@ impl ApiClient {
             encrypted_push_token: encrypted_push_token.map(|token| token.into()),
             initial_ratched_secret: Some(initial_ratchet_key.into()),
         };
+        let request = payload.sign(signing_key)?;
         let response = self
             .qs_grpc_client()
             .create_client(request)
@@ -186,13 +201,14 @@ impl ApiClient {
         encrypted_push_token: Option<EncryptedPushToken>,
         signing_key: &QsClientSigningKey,
     ) -> Result<(), QsRequestError> {
-        let request = UpdateClientRequest {
+        let payload = UpdateClientPayload {
             client_metadata: Some(self.metadata().clone()),
             sender: Some(sender.into()),
             client_record_auth_key: Some(signing_key.verifying_key().clone().into()),
             queue_encryption_key: Some(queue_encryption_key.into()),
             encrypted_push_token: encrypted_push_token.map(|token| token.into()),
         };
+        let request = payload.sign(signing_key)?;
         self.qs_grpc_client().update_client(request).await?;
         Ok(())
     }
@@ -200,12 +216,13 @@ impl ApiClient {
     pub async fn qs_delete_client(
         &self,
         sender: QsClientId,
-        _signing_key: &QsClientSigningKey,
+        signing_key: &QsClientSigningKey,
     ) -> Result<(), QsRequestError> {
-        let request = DeleteClientRequest {
+        let payload = DeleteClientPayload {
             client_metadata: Some(self.metadata().clone()),
             sender: Some(sender.into()),
         };
+        let request = payload.sign(signing_key)?;
         self.qs_grpc_client().delete_client(request).await?;
         Ok(())
     }
@@ -214,9 +231,9 @@ impl ApiClient {
         &self,
         sender: QsClientId,
         key_packages: Vec<KeyPackage>,
-        _signing_key: &QsClientSigningKey,
+        signing_key: &QsClientSigningKey,
     ) -> Result<(), QsRequestError> {
-        let request = PublishKeyPackagesRequest {
+        let payload = PublishKeyPackagesPayload {
             client_metadata: Some(self.metadata().clone()),
             client_id: Some(sender.into()),
             key_packages: key_packages
@@ -224,6 +241,7 @@ impl ApiClient {
                 .map(|key_package| key_package.try_into())
                 .collect::<Result<Vec<_>, _>>()?,
         };
+        let request = payload.sign(signing_key)?;
         self.qs_grpc_client().publish_key_packages(request).await?;
         Ok(())
     }
@@ -282,12 +300,14 @@ impl ApiClient {
         &self,
         client_id: QsClientId,
         sequence_number_start: u64,
+        signing_key: &QsClientSigningKey,
     ) -> Result<(impl Stream<Item = QueueEvent> + use<>, QsListenResponder), QsRequestError> {
-        let init_request = InitListenRequest {
+        let init_payload = InitListenPayload {
             client_metadata: Some(self.metadata().clone()),
             client_id: Some(client_id.into()),
             sequence_number_start,
         };
+        let init_request = init_payload.sign(signing_key)?;
         let init_request = ListenRequest {
             request: Some(listen_request::Request::Init(init_request)),
         };

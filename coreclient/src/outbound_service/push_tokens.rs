@@ -109,7 +109,8 @@ fn classify_qs_error(error: QsRequestError) -> OutboundServiceError {
     }
 
     match error {
-        QsRequestError::MissingField(_)
+        QsRequestError::LibraryError
+        | QsRequestError::MissingField(_)
         | QsRequestError::UnexpectedResponse
         | QsRequestError::Tls(_) => OutboundServiceError::fatal(error),
         QsRequestError::Tonic(_) => OutboundServiceError::recoverable(error),

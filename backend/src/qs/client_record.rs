@@ -189,6 +189,26 @@ pub(crate) mod persistence {
             }))
         }
 
+        pub(in crate::qs) async fn load_verifying_key(
+            connection: impl PgExecutor<'_>,
+            client_id: &QsClientId,
+        ) -> Result<Option<QsClientVerifyingKey>, StorageError> {
+            let client_id = client_id.as_uuid();
+            sqlx::query_scalar!(
+                r#"SELECT
+                    owner_signature_key as "verifying_key: BlobDecoded<QsClientVerifyingKey>"
+                FROM
+                    qs_client_record
+                WHERE
+                    client_id = $1"#,
+                client_id,
+            )
+            .fetch_optional(connection)
+            .await
+            .map(|key| key.map(|BlobDecoded(verifying_key)| verifying_key))
+            .map_err(From::from)
+        }
+
         pub(in crate::qs) async fn update_activity_time(
             connection: impl PgExecutor<'_>,
             client_id: QsClientId,
@@ -328,6 +348,11 @@ pub(crate) mod persistence {
                 .await?
                 .expect("missing client record");
             assert_eq!(loaded, client_record);
+
+            let verifying_key = QsClientRecord::load_verifying_key(&pool, &client_record.client_id)
+                .await?
+                .expect("missing client verifying key");
+            assert_eq!(verifying_key, client_record.auth_key);
 
             Ok(())
         }

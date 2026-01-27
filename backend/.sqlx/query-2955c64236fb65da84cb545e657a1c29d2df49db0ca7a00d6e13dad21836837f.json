@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n                    verifying_key as \"verifying_key: QsUserVerifyingKey\"\n                FROM\n                    qs_user_record\n                WHERE\n                    user_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "verifying_key: QsUserVerifyingKey",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2955c64236fb65da84cb545e657a1c29d2df49db0ca7a00d6e13dad21836837f"
+}

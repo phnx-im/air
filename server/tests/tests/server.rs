@@ -9,6 +9,7 @@ use airbackend::settings::RateLimitsSettings;
 use aircommon::{
     assert_matches,
     credentials::keys::HandleSigningKey,
+    crypto::signatures::keys::QsClientSigningKey,
     identifiers::{QsClientId, UserHandle, UserId},
     mls_group_config::MAX_PAST_EPOCHS,
 };
@@ -685,7 +686,9 @@ async fn unsupported_client_version() {
     assert_matches!(details.code(), StatusDetailsCode::VersionUnsupported);
 
     let client_id = QsClientId::random(&mut thread_rng());
-    let res = client.qs_listen_queue(client_id, 0).await;
+    let signing_key = QsClientSigningKey::generate().unwrap();
+    // Signing key does not have to be valid, because the client version is checked first.
+    let res = client.qs_listen_queue(client_id, 0, &signing_key).await;
     match res {
         Err(QsRequestError::Tonic(status)) => status,
         Err(error) => panic!("Unexpected error type: {error:?}"),

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n                    owner_signature_key as \"verifying_key: BlobDecoded<QsClientVerifyingKey>\"\n                FROM\n                    qs_client_record\n                WHERE\n                    client_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "verifying_key: BlobDecoded<QsClientVerifyingKey>",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "65bdf9703b406bdbb2d47b2d8cc57d8b491e852fdb537c4c37e3acf3dee4fc90"
+}

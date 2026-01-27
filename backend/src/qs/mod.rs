@@ -77,6 +77,7 @@ use crate::{
     qs::queue::Queues,
 };
 
+mod auth;
 pub mod client_api;
 mod client_id_decryption_key;
 mod client_record;
