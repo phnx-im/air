@@ -95,6 +95,7 @@ Widget buildBlockElement(
                         ? CustomColorScheme.of(context).message.selfListPrefix
                         : CustomColorScheme.of(context).message.otherListPrefix,
                     fontSize: BodyFontSize.base.size,
+                    height: 1.3,
                   ),
                 ),
                 Flexible(
@@ -118,48 +119,52 @@ Widget buildBlockElement(
           )
           .toList(),
     ),
-    BlockElement_OrderedList(:final field0, :final field1) => Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: field1.indexed
-          .map(
-            (items) => Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text.rich(
-                  TextSpan(
-                    text: " ${field0 + BigInt.from(items.$1)}.  ",
-                    style: TextStyle(
-                      color: isSender
-                          ? CustomColorScheme.of(context).message.selfListPrefix
-                          : CustomColorScheme.of(
-                              context,
-                            ).message.otherListPrefix,
-                      fontSize: BodyFontSize.base.size,
+    BlockElement_OrderedList(field0: final offset, field1: final items) =>
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: items.indexed
+            .map(
+              (item) => Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text.rich(
+                    TextSpan(
+                      text: " ${offset + BigInt.from(item.$1)}.  ",
+                      style: TextStyle(
+                        color: isSender
+                            ? CustomColorScheme.of(
+                                context,
+                              ).message.selfListPrefix
+                            : CustomColorScheme.of(
+                                context,
+                              ).message.otherListPrefix,
+                        fontSize: BodyFontSize.base.size,
+                        height: 1.3,
+                      ),
                     ),
                   ),
-                ),
-                Flexible(
-                  fit: FlexFit.loose,
-                  child: Column(
-                    spacing: Spacings.xxxs,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: items.$2
-                        .map(
-                          (item) => buildBlockElement(
-                            context,
-                            item.element,
-                            isSender,
-                          ),
-                        )
-                        .toList(),
+                  Flexible(
+                    fit: FlexFit.loose,
+                    child: Column(
+                      spacing: Spacings.xxxs,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: item.$2
+                          .map(
+                            (item) => buildBlockElement(
+                              context,
+                              item.element,
+                              isSender,
+                            ),
+                          )
+                          .toList(),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          )
-          .toList(),
-    ),
+                ],
+              ),
+            )
+            .toList(),
+      ),
     BlockElement_Table(:final head, :final rows) => Table(
       border: TableBorder.all(
         color: isSender
