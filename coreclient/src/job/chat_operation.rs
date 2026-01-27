@@ -4,6 +4,7 @@
 
 use aircommon::identifiers::UserId;
 use anyhow::bail;
+use sqlx::SqliteConnection;
 
 use crate::{
     ChatAttributes, ChatId, ChatMessage,
@@ -12,6 +13,7 @@ use crate::{
         Job, JobContext, chat_operation::add_users_flow::AddUsersData,
         pending_chat_operation::PendingChatOperation,
     },
+    utils::connection_ext::ConnectionExt,
 };
 
 #[derive(Debug, Clone)]
@@ -37,8 +39,14 @@ impl Job for ChatOperation {
 
     async fn execute_dependencies(&mut self, context: &mut JobContext<'_>) -> anyhow::Result<()> {
         // Execute any pending operation for this chat first.
-        let mut connection = context.pool.acquire().await?;
-        let pending_operation = PendingChatOperation::load(&mut connection, &self.chat_id).await?;
+        let pending_operation = context
+            .pool
+            .with_connection(async |connection| {
+                let pending_operation =
+                    PendingChatOperation::load(connection, &self.chat_id).await?;
+                Ok(pending_operation)
+            })
+            .await?;
 
         if let Some(pending_operation) = pending_operation {
             pending_operation.execute(context).await?;
@@ -46,7 +54,10 @@ impl Job for ChatOperation {
 
         // Check whether our operation is still valid after the pending
         // operation was been executed.
-        self.check_validity_and_refine(context).await?;
+        context
+            .pool
+            .with_connection(async |connection| self.check_validity_and_refine(connection).await)
+            .await?;
 
         Ok(())
     }
@@ -96,10 +107,9 @@ impl ChatOperation {
     /// Returns an error if the operation is no longer valid.
     async fn check_validity_and_refine(
         &mut self,
-        context: &mut JobContext<'_>,
+        connection: &mut SqliteConnection,
     ) -> anyhow::Result<()> {
-        let mut connection = context.pool.acquire().await?;
-        let group = Group::load_with_chat_id_clean(&mut connection, self.chat_id)
+        let group = Group::load_with_chat_id_clean(connection, self.chat_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("No group found for chat {}", self.chat_id))?;
 
@@ -111,7 +121,7 @@ impl ChatOperation {
 
         match &self.operation {
             ChatOperationType::AddMembers(user_ids) => {
-                let members = group.members(connection.as_mut()).await;
+                let members = group.members(connection).await;
                 let refined_user_ids: Vec<UserId> = user_ids
                     .iter()
                     .filter(|&user_id| !members.contains(user_id))
@@ -125,7 +135,7 @@ impl ChatOperation {
                 self.operation = ChatOperationType::AddMembers(refined_user_ids);
             }
             ChatOperationType::RemoveMembers(user_ids) => {
-                let members = group.members(connection.as_mut()).await;
+                let members = group.members(connection).await;
                 let refined_user_ids: Vec<UserId> = user_ids
                     .iter()
                     .filter(|&user_id| members.contains(user_id))
@@ -178,20 +188,21 @@ impl ChatOperation {
         } = context;
         // Phase 1: Load all the relevant chat and all the contacts we
         // want to add.
-        let mut connection = pool.acquire().await?;
-        let invite_prepared = AddUsersData::load_chat(&mut connection, self.chat_id, users)
-            .await?
-            // Phase 2: Load add infos for each contact
-            // This needs the connection to load (and potentially fetch and store).
-            .load_add_infos(&mut connection, api_clients)
-            .await?;
+        let job = pool
+            .with_connection(async |connection| {
+                let invite_prepared = AddUsersData::load_chat(connection, self.chat_id, users)
+                    .await?
+                    // Phase 2: Load add infos for each contact
+                    // This needs the connection to load (and potentially fetch and store).
+                    .load_add_infos(connection, api_clients)
+                    .await?;
 
-        // Until here, everything is repeatable and can be retried
+                // Until here, everything is repeatable and can be retried
 
-        // Phase 3: Load the group and create the commit to add the new members.
-        // This creates and persists the PendingChatOperation in the database.
-        let job = invite_prepared
-            .create_job(&mut connection, key_store)
+                // Phase 3: Load the group and create the commit to add the new members.
+                // This creates and persists the PendingChatOperation in the database.
+                invite_prepared.create_job(connection, key_store).await
+            })
             .await?;
 
         job.execute(context).await
@@ -206,14 +217,17 @@ impl ChatOperation {
         let JobContext {
             pool, key_store, ..
         } = context;
-        let mut connection = pool.acquire().await?;
-        let job = PendingChatOperation::create_remove(
-            &mut connection,
-            &key_store.signing_key,
-            self.chat_id,
-            users,
-        )
-        .await?;
+        let job = pool
+            .with_connection(async |connection| {
+                PendingChatOperation::create_remove(
+                    connection,
+                    &key_store.signing_key,
+                    self.chat_id,
+                    users,
+                )
+                .await
+            })
+            .await?;
 
         job.execute(context).await
     }
@@ -226,13 +240,12 @@ impl ChatOperation {
         let JobContext {
             pool, key_store, ..
         } = context;
-        let mut connection = pool.acquire().await?;
-        let job = PendingChatOperation::create_leave(
-            &mut connection,
-            &key_store.signing_key,
-            self.chat_id,
-        )
-        .await?;
+        let job = pool
+            .with_connection(async |connection| {
+                PendingChatOperation::create_leave(connection, &key_store.signing_key, self.chat_id)
+                    .await
+            })
+            .await?;
 
         job.execute(context).await
     }
@@ -246,14 +259,17 @@ impl ChatOperation {
         let JobContext {
             pool, key_store, ..
         } = context;
-        let mut connection = pool.acquire().await?;
-        let job = PendingChatOperation::create_update(
-            &mut connection,
-            &key_store.signing_key,
-            self.chat_id,
-            chat_attributes,
-        )
-        .await?;
+        let job = pool
+            .with_connection(async |connection| {
+                PendingChatOperation::create_update(
+                    connection,
+                    &key_store.signing_key,
+                    self.chat_id,
+                    chat_attributes,
+                )
+                .await
+            })
+            .await?;
 
         job.execute(context).await
     }
@@ -268,14 +284,17 @@ impl ChatOperation {
             key_store,
             ..
         } = context;
-        let mut connection = pool.acquire().await?;
-        let job = PendingChatOperation::create_delete(
-            &mut connection,
-            &key_store.signing_key,
-            notifier,
-            self.chat_id,
-        )
-        .await?;
+        let job = pool
+            .with_connection(async |connection| {
+                PendingChatOperation::create_delete(
+                    connection,
+                    &key_store.signing_key,
+                    notifier,
+                    self.chat_id,
+                )
+                .await
+            })
+            .await?;
 
         if let Some(job) = job {
             job.execute(context).await

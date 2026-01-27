@@ -150,10 +150,8 @@ impl PendingChatOperation {
             }
         };
 
-        let mut connection = pool.acquire().await?;
-
         // If any of the following fails, something is very wrong.
-        let messages = connection
+        let messages = pool
             .with_transaction(async |txn| {
                 let Some(mut chat) = Chat::load_by_group_id(txn, self.group.group_id()).await?
                 else {
