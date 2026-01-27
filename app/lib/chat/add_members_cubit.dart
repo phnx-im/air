@@ -28,12 +28,12 @@ class AddMembersCubit extends Cubit<AddMembersState> {
   }
 
   void toggleContact(UiUserId userId) {
-    final newSelectedContacts = HashSet<UiUserId>.from(state.selectedContacts);
-    if (newSelectedContacts.contains(userId)) {
-      newSelectedContacts.remove(userId);
+    final selectedContacts = HashSet<UiUserId>.from(state.selectedContacts);
+    if (selectedContacts.contains(userId)) {
+      selectedContacts.remove(userId);
     } else {
-      newSelectedContacts.add(userId);
+      selectedContacts.add(userId);
     }
-    emit(state.copyWith(selectedContacts: newSelectedContacts));
+    emit(state.copyWith(selectedContacts: selectedContacts));
   }
 }
