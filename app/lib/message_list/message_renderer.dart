@@ -124,13 +124,13 @@ Widget buildBlockElement(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: items.indexed
             .map(
-              (items) => Row(
+              (item) => Row(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text.rich(
                     TextSpan(
-                      text: " ${offset + BigInt.from(items.$1)}.  ",
+                      text: " ${offset + BigInt.from(item.$1)}.  ",
                       style: TextStyle(
                         color: isSender
                             ? CustomColorScheme.of(
@@ -149,7 +149,7 @@ Widget buildBlockElement(
                     child: Column(
                       spacing: Spacings.xxxs,
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: items.$2
+                      children: item.$2
                           .map(
                             (item) => buildBlockElement(
                               context,
