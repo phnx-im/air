@@ -45,7 +45,7 @@ impl CreateChat {
         } = self;
         let JobContext {
             api_clients,
-            connection,
+            pool,
             notifier,
             key_store,
         } = context;
@@ -55,6 +55,8 @@ impl CreateChat {
         let own_user_id = key_store.signing_key.credential().identity();
 
         let group_data = PersistenceCodec::to_vec(&chat_attributes)?.into();
+
+        let mut connection = pool.acquire().await?;
 
         // Create the group. If the query to the DS fails later on, we just
         // clean up the group, so this is repeatable.

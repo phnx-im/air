@@ -802,6 +802,7 @@ impl Group {
         Ok(params)
     }
 
+    #[allow(dead_code)]
     pub(super) async fn discard_pending_commit(
         &mut self,
         connection: &mut SqliteConnection,
@@ -1124,10 +1125,9 @@ impl Group {
     }
 
     /// Returns the `GroupData` of a pending GroupContextExtension change proposal, if any.
+    #[allow(dead_code)]
     pub(crate) fn pending_group_data_update(&self) -> Option<GroupData> {
-        let Some(pending_commit) = self.mls_group().pending_commit() else {
-            return None;
-        };
+        let pending_commit = self.mls_group().pending_commit()?;
         GroupData::from_staged_commit(pending_commit)
     }
 

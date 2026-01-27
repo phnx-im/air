@@ -35,8 +35,8 @@ impl Job<Vec<ChatMessage>> for ChatOperation {
 
     async fn execute_dependencies(&mut self, context: &mut JobContext<'_>) -> anyhow::Result<()> {
         // Execute any pending operation for this chat first.
-        let pending_operation =
-            PendingChatOperation::load(&mut context.connection, &self.chat_id).await?;
+        let mut connection = context.pool.acquire().await?;
+        let pending_operation = PendingChatOperation::load(&mut connection, &self.chat_id).await?;
 
         if let Some(pending_operation) = pending_operation {
             pending_operation.execute(context).await?;
@@ -96,7 +96,8 @@ impl ChatOperation {
         &mut self,
         context: &mut JobContext<'_>,
     ) -> anyhow::Result<()> {
-        let group = Group::load_with_chat_id_clean(&mut context.connection, self.chat_id)
+        let mut connection = context.pool.acquire().await?;
+        let group = Group::load_with_chat_id_clean(&mut connection, self.chat_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("No group found for chat {}", self.chat_id))?;
 
@@ -108,7 +109,7 @@ impl ChatOperation {
 
         match &self.operation {
             ChatOperationType::AddMembers(user_ids) => {
-                let members = group.members(context.connection.as_mut()).await;
+                let members = group.members(connection.as_mut()).await;
                 let refined_user_ids: Vec<UserId> = user_ids
                     .iter()
                     .filter(|&user_id| !members.contains(user_id))
@@ -122,7 +123,7 @@ impl ChatOperation {
                 self.operation = ChatOperationType::AddMembers(refined_user_ids);
             }
             ChatOperationType::RemoveMembers(user_ids) => {
-                let members = group.members(context.connection.as_mut()).await;
+                let members = group.members(connection.as_mut()).await;
                 let refined_user_ids: Vec<UserId> = user_ids
                     .iter()
                     .filter(|&user_id| members.contains(user_id))
@@ -138,7 +139,6 @@ impl ChatOperation {
             // The following operations are always valid as long as the
             // group is active.
             ChatOperationType::Leave | ChatOperationType::Delete | ChatOperationType::Update(_) => {
-                ()
             }
         }
         Ok(())
@@ -170,24 +170,27 @@ impl ChatOperation {
     ) -> anyhow::Result<Vec<ChatMessage>> {
         let JobContext {
             api_clients,
-            connection,
+            pool,
             key_store,
             ..
         } = context;
         // Phase 1: Load all the relevant chat and all the contacts we
         // want to add.
-        let invite_prepared = AddUsersData::load_chat(connection, self.chat_id, users)
+        let mut connection = pool.acquire().await?;
+        let invite_prepared = AddUsersData::load_chat(&mut connection, self.chat_id, users)
             .await?
             // Phase 2: Load add infos for each contact
             // This needs the connection to load (and potentially fetch and store).
-            .load_add_infos(connection, &api_clients)
+            .load_add_infos(&mut connection, api_clients)
             .await?;
 
         // Until here, everything is repeatable and can be retried
 
         // Phase 3: Load the group and create the commit to add the new members.
         // This creates and persists the PendingChatOperation in the database.
-        let job = invite_prepared.create_job(connection, &key_store).await?;
+        let job = invite_prepared
+            .create_job(&mut connection, key_store)
+            .await?;
 
         job.execute(context).await
     }
@@ -199,12 +202,11 @@ impl ChatOperation {
         users: Vec<UserId>,
     ) -> anyhow::Result<Vec<ChatMessage>> {
         let JobContext {
-            connection,
-            key_store,
-            ..
+            pool, key_store, ..
         } = context;
+        let mut connection = pool.acquire().await?;
         let job = PendingChatOperation::create_remove(
-            connection,
+            &mut connection,
             &key_store.signing_key,
             self.chat_id,
             users,
@@ -220,13 +222,15 @@ impl ChatOperation {
         context: &mut JobContext<'_>,
     ) -> anyhow::Result<Vec<ChatMessage>> {
         let JobContext {
-            connection,
-            key_store,
-            ..
+            pool, key_store, ..
         } = context;
-        let job =
-            PendingChatOperation::create_leave(connection, &key_store.signing_key, self.chat_id)
-                .await?;
+        let mut connection = pool.acquire().await?;
+        let job = PendingChatOperation::create_leave(
+            &mut connection,
+            &key_store.signing_key,
+            self.chat_id,
+        )
+        .await?;
 
         job.execute(context).await
     }
@@ -238,12 +242,11 @@ impl ChatOperation {
         chat_attributes: Option<&ChatAttributes>,
     ) -> anyhow::Result<Vec<ChatMessage>> {
         let JobContext {
-            connection,
-            key_store,
-            ..
+            pool, key_store, ..
         } = context;
+        let mut connection = pool.acquire().await?;
         let job = PendingChatOperation::create_update(
-            connection,
+            &mut connection,
             &key_store.signing_key,
             self.chat_id,
             chat_attributes,
@@ -258,13 +261,14 @@ impl ChatOperation {
         context: &mut JobContext<'_>,
     ) -> anyhow::Result<Vec<ChatMessage>> {
         let JobContext {
-            connection,
+            pool,
             notifier,
             key_store,
             ..
         } = context;
+        let mut connection = pool.acquire().await?;
         let job = PendingChatOperation::create_delete(
-            connection,
+            &mut connection,
             &key_store.signing_key,
             notifier,
             self.chat_id,
@@ -419,7 +423,7 @@ pub(crate) mod add_users_flow {
                         .await?;
 
                     // Create PendingChatOperation job
-                    let pending_chat_operation = PendingChatOperation::new(group, params);
+                    let pending_chat_operation = PendingChatOperation::new(group, Box::new(params));
                     pending_chat_operation.store(txn).await?;
 
                     Ok(pending_chat_operation)
@@ -471,7 +475,7 @@ mod remove_users_flow {
                         .stage_remove(txn.as_mut(), signer, target_users)
                         .await?;
 
-                    let job = Self::new(group, params);
+                    let job = Self::new(group, Box::new(params));
                     job.store(txn.as_mut()).await?;
                     Ok(job)
                 })
@@ -555,7 +559,7 @@ mod update_chat_attributes_flow {
 
                     let params = group.update(txn, signer, group_data).await?;
 
-                    let job = Self::new(group, params);
+                    let job = Self::new(group, Box::new(params));
                     job.store(txn.as_mut()).await?;
 
                     Ok(job)

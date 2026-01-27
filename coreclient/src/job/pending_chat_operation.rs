@@ -26,7 +26,7 @@ use crate::{
 pub(super) enum OperationType {
     Leave(SelfRemoveParamsOut),
     Delete(DeleteGroupParamsOut),
-    Other(GroupOperationParamsOut),
+    Other(Box<GroupOperationParamsOut>),
 }
 
 impl OperationType {
@@ -46,6 +46,7 @@ impl OperationType {
 pub(super) struct PendingChatOperation {
     group: Group,
     operation: OperationType,
+    #[allow(dead_code)]
     last_attempt: DateTime<Utc>,
 }
 
@@ -95,7 +96,7 @@ impl PendingChatOperation {
     ) -> anyhow::Result<Vec<ChatMessage>> {
         let JobContext {
             api_clients,
-            connection,
+            pool,
             notifier,
             key_store,
         } = context;
@@ -121,7 +122,7 @@ impl PendingChatOperation {
             }
             OperationType::Other(params) => {
                 api_client
-                    .ds_group_operation(params, signer, self.group.group_state_ear_key())
+                    .ds_group_operation(*params, signer, self.group.group_state_ear_key())
                     .await
             }
         };
@@ -146,6 +147,8 @@ impl PendingChatOperation {
                 todo!("Handle error: {:?}", e);
             }
         };
+
+        let mut connection = pool.acquire().await?;
 
         // If any of the following fails, something is very wrong.
         let messages = connection
