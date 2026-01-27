@@ -15,7 +15,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub(crate) enum ChatOperationType {
+enum ChatOperationType {
     AddMembers(Vec<UserId>),
     RemoveMembers(Vec<UserId>),
     Leave,
