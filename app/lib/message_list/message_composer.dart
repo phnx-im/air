@@ -341,10 +341,8 @@ class _MessageComposerState extends State<MessageComposer>
                   :final maxSizeBytes,
                   :final actualSizeBytes,
                 ):
-                  if (!context.mounted) return;
-                  final loc = AppLocalizations.of(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
+                  showSnackBarStandalone(
+                    (loc) => SnackBar(
                       content: Text(
                         loc.composer_error_attachment_too_large(
                           loc.bytesToHumanReadable(actualSizeBytes.toInt()),
