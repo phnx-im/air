@@ -49,8 +49,8 @@ Widget buildBlockElement(
           fontSize: BodyFontSize.large1.size,
           fontWeight: FontWeight.bold,
           color: isSender
-              ? CustomColorScheme.of(context).backgroundBase.primary
-              : CustomColorScheme.of(context).text.primary,
+              ? CustomColorScheme.of(context).message.selfText
+              : CustomColorScheme.of(context).message.otherText,
         ),
       ),
     ),
@@ -74,6 +74,7 @@ Widget buildBlockElement(
             : CustomColorScheme.of(context).message.otherQuoteBackground,
       ),
       child: Column(
+        spacing: BodyFontSize.base.size,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: field0
             .map((inner) => buildBlockElement(context, inner.element, isSender))
@@ -100,7 +101,7 @@ Widget buildBlockElement(
                 Flexible(
                   fit: FlexFit.loose,
                   child: Column(
-                    spacing: Spacings.xxxs,
+                    spacing: BodyFontSize.base.size,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: items
                         .map(
@@ -142,7 +143,7 @@ Widget buildBlockElement(
                 Flexible(
                   fit: FlexFit.loose,
                   child: Column(
-                    spacing: Spacings.xxxs,
+                    spacing: BodyFontSize.base.size,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: items.$2
                         .map(
@@ -181,6 +182,7 @@ Widget buildBlockElement(
                   child: DefaultTextStyle(
                     style: const TextStyle(fontWeight: FontWeight.bold),
                     child: Column(
+                      spacing: BodyFontSize.base.size,
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: itemBlocks
@@ -208,6 +210,7 @@ Widget buildBlockElement(
                       vertical: Spacings.xxxs,
                     ),
                     child: Column(
+                      spacing: BodyFontSize.base.size,
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: itemBlocks

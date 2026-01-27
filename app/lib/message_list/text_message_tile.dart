@@ -766,17 +766,18 @@ class _MessageContent extends StatelessWidget {
 
       selectableBlocks.addAll(
         (content.content?.elements ?? []).map(
-          (inner) => Padding(
-            padding: _messagePadding.copyWith(bottom: isEdited ? 0 : null),
-            child: buildBlockElement(context, inner.element, isSender),
-          ),
+          (inner) => buildBlockElement(context, inner.element, isSender),
         ),
       );
 
       if (selectableBlocks.isNotEmpty) {
-        final textColumn = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: selectableBlocks,
+        final textColumn = Padding(
+          padding: _messagePadding.copyWith(bottom: isEdited ? 0 : null),
+          child: Column(
+            spacing: BodyFontSize.base.size,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: selectableBlocks,
+          )
         );
         final Widget selectableChild = enableSelection
             ? SelectableRegion(
