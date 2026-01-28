@@ -2,27 +2,30 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::collections::HashSet;
-
+use crate::{
+    Chat, ChatAttributes, ChatId, ChatMessage, Contact, SystemMessage,
+    chats::messages::TimestampedMessage,
+    clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
+    contacts::ContactAddInfos,
+    groups::{Group, GroupData, client_auth_info::StorableClientCredential},
+    job::{Job, JobContext},
+    store::StoreNotifier,
+    utils::connection_ext::ConnectionExt,
+};
 use aircommon::{
-    identifiers::QualifiedGroupId,
+    codec::PersistenceCodec,
+    credentials::{ClientCredential, keys::ClientSigningKey},
+    identifiers::{QualifiedGroupId, UserId},
     messages::client_ds_out::{DeleteGroupParamsOut, GroupOperationParamsOut, SelfRemoveParamsOut},
     time::TimeStamp,
 };
+use anyhow::Context as _;
 use chrono::{DateTime, Utc};
 use mimi_room_policy::RoleIndex;
 use openmls::group::GroupId;
 use sqlx::SqliteConnection;
+use std::collections::HashSet;
 use tracing::error;
-
-use crate::{
-    Chat, ChatId, ChatMessage, SystemMessage,
-    chats::messages::TimestampedMessage,
-    clients::{CoreUser, update_key::update_chat_attributes},
-    groups::Group,
-    job::{Job, JobContext},
-    utils::connection_ext::ConnectionExt,
-};
 
 #[derive(derive_more::From)]
 pub(super) enum OperationType {
@@ -217,5 +220,206 @@ impl PendingChatOperation {
             .await?;
 
         Ok(messages)
+    }
+
+    /// Creates and stores a PendingChatOperation for removing users.
+    pub(super) async fn create_remove(
+        connection: &mut SqliteConnection,
+        signer: &ClientSigningKey,
+        chat_id: ChatId,
+        target_users: Vec<UserId>,
+    ) -> anyhow::Result<Self> {
+        connection
+            .with_transaction(async |txn| {
+                let chat = Chat::load(txn.as_mut(), &chat_id)
+                    .await?
+                    .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+                let group_id = chat.group_id();
+                let mut group = Group::load_clean(txn, group_id)
+                    .await?
+                    .with_context(|| format!("No group found for group ID {group_id:?}"))?;
+
+                let own_id = signer.credential().identity();
+
+                // Room policy checks
+                for target in &target_users {
+                    group.verify_role_change(own_id, target, RoleIndex::Outsider)?;
+                }
+
+                let params = group
+                    .stage_remove(txn.as_mut(), signer, target_users)
+                    .await?;
+
+                let job = Self::new(group, Box::new(params));
+                job.store(txn.as_mut()).await?;
+                Ok(job)
+            })
+            .await
+    }
+    pub(super) async fn create_leave(
+        connection: &mut SqliteConnection,
+        signer: &ClientSigningKey,
+        chat_id: ChatId,
+    ) -> anyhow::Result<Self> {
+        connection
+            .with_transaction(async |txn| {
+                let chat = Chat::load(txn.as_mut(), &chat_id)
+                    .await?
+                    .with_context(|| format!("Can't find chat with id {chat_id}",))?;
+                let group_id = chat.group_id();
+                let mut group = Group::load_clean(txn, group_id)
+                    .await?
+                    .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+                let own_id = signer.credential().identity();
+                group.verify_role_change(own_id, own_id, RoleIndex::Outsider)?;
+
+                let params = group.stage_leave_group(txn, signer)?;
+
+                let job = Self::new(group, params);
+                job.store(txn.as_mut()).await?;
+                Ok(job)
+            })
+            .await
+    }
+    pub(super) async fn create_update(
+        connection: &mut SqliteConnection,
+        signer: &ClientSigningKey,
+        chat_id: ChatId,
+        new_chat_attributes: Option<&ChatAttributes>,
+    ) -> anyhow::Result<Self> {
+        connection
+            .with_transaction(async |txn| {
+                let chat = Chat::load(txn.as_mut(), &chat_id)
+                    .await?
+                    .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+                let group_id = chat.group_id();
+                let mut group = Group::load_clean(txn, group_id)
+                    .await?
+                    .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+                let group_data = match new_chat_attributes {
+                    Some(attrs) => Some(GroupData::from(PersistenceCodec::to_vec(attrs)?)),
+                    None => None,
+                };
+
+                let params = group.update(txn, signer, group_data).await?;
+
+                let job = Self::new(group, Box::new(params));
+                job.store(txn.as_mut()).await?;
+
+                Ok(job)
+            })
+            .await
+    }
+
+    /// Creates and stores a PendingChatOperation for deleting a chat.
+    /// If the chat has only one member (the user themself), it is
+    /// directly set to inactive instead.
+    pub(super) async fn create_delete(
+        connection: &mut SqliteConnection,
+        signer: &ClientSigningKey,
+        notifier: &mut StoreNotifier,
+        chat_id: ChatId,
+    ) -> anyhow::Result<Option<Self>> {
+        connection
+            .with_transaction(async |txn| {
+                let mut chat = Chat::load(txn.as_mut(), &chat_id)
+                    .await?
+                    .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+
+                let group_id = chat.group_id();
+                let mut group = Group::load_clean(txn, group_id)
+                    .await?
+                    .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+
+                let past_members = group.members(txn.as_mut()).await;
+
+                if past_members.len() == 1 {
+                    chat.set_inactive(txn.as_mut(), notifier, past_members.into_iter().collect())
+                        .await?;
+                    Ok(None)
+                } else {
+                    let message = group.stage_delete(txn, signer).await?;
+
+                    let job = Self::new(group, message);
+                    job.store(txn.as_mut()).await?;
+                    Ok(Some(job))
+                }
+            })
+            .await
+    }
+
+    pub(crate) async fn create_add(
+        connection: &mut SqliteConnection,
+        api_clients: &ApiClients,
+        signer: &ClientSigningKey,
+        chat_id: ChatId,
+        new_members: Vec<UserId>,
+    ) -> anyhow::Result<Self> {
+        // Load local data to prepare add operation
+        let chat = Chat::load(&mut *connection, &chat_id)
+            .await?
+            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+
+        let mut contact_wai_keys = Vec::with_capacity(new_members.len());
+        let mut contacts = Vec::with_capacity(new_members.len());
+        let mut client_credentials = Vec::with_capacity(new_members.len());
+
+        for new_member in &new_members {
+            // Get the WAI keys and client credentials for the invited users.
+            let contact = Contact::load(&mut *connection, new_member)
+                .await?
+                .with_context(|| format!("Can't find contact {new_member:?}"))?;
+            contact_wai_keys.push(contact.wai_ear_key().clone());
+
+            if let Some(client_credential) =
+                StorableClientCredential::load_by_user_id(&mut *connection, new_member).await?
+            {
+                client_credentials.push(ClientCredential::from(client_credential));
+            }
+
+            contacts.push(contact);
+        }
+
+        // Fetch add infos from the server
+        let mut contact_add_infos: Vec<ContactAddInfos> = Vec::with_capacity(contacts.len());
+        for contact in contacts {
+            let add_info = contact.fetch_add_infos(connection, api_clients).await?;
+            contact_add_infos.push(add_info);
+        }
+
+        let group_id = chat.group_id();
+        let job = connection
+            .with_transaction(async |txn| {
+                let mut group = Group::load_clean(txn, group_id)
+                    .await?
+                    .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+
+                let own_id = signer.credential().identity();
+
+                // Room policy check (doesn't apply changes to room state yet)
+                for target in &new_members {
+                    group.verify_role_change(own_id, target, RoleIndex::Regular)?;
+                }
+
+                // Adds new member and stages commit
+                let params = group
+                    .stage_invite(
+                        txn,
+                        signer,
+                        contact_add_infos,
+                        contact_wai_keys,
+                        client_credentials,
+                    )
+                    .await?;
+
+                // Create PendingChatOperation job
+                let pending_chat_operation = PendingChatOperation::new(group, Box::new(params));
+                pending_chat_operation.store(txn).await?;
+
+                Ok(pending_chat_operation)
+            })
+            .await?;
+
+        Ok(job)
     }
 }
