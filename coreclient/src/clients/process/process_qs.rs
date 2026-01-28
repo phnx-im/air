@@ -140,7 +140,8 @@ impl CoreUser {
             ) => {
                 let mls_message = MlsMessageIn::tls_deserialize_exact_bytes(&mls_message_bytes)
                     .context("Failed to deserialize targeted MLS message")?;
-                self.handle_targeted_application_message(mls_message).await
+                self.handle_targeted_application_message(mls_message, ds_timestamp)
+                    .await
             }
         }
     }
@@ -177,8 +178,13 @@ impl CoreUser {
                         own_profile_key_in_group = Some(profile_info.user_profile_key);
                         continue;
                     }
-                    self.fetch_and_store_user_profile(txn, notifier, profile_info)
-                        .await?;
+                    Self::fetch_and_store_user_profile(
+                        txn,
+                        notifier,
+                        self.api_clients(),
+                        profile_info,
+                    )
+                    .await?;
                 }
 
                 let Some(own_profile_key_in_group) = own_profile_key_in_group else {
@@ -246,6 +252,7 @@ impl CoreUser {
     async fn handle_targeted_application_message(
         &self,
         mls_message: MlsMessageIn,
+        ds_timestamp: TimeStamp,
     ) -> Result<ProcessQsMessageResult> {
         let MlsMessageBodyIn::PrivateMessage(app_msg) = mls_message.extract() else {
             bail!("Unexpected message type")
@@ -305,6 +312,7 @@ impl CoreUser {
                         connection_info,
                         sender_client_credential,
                         origin_chat_id: chat.id(),
+                        sent_at: ds_timestamp,
                     }));
 
                 // MLSMessage Phase 3: Store the updated group.
@@ -507,7 +515,7 @@ impl CoreUser {
         // MLSMessage Phase 4: Fetch user profiles of new clients and store them.
         self.with_transaction_and_notifier(async |txn, notifier| {
             for client in profile_infos {
-                self.fetch_and_store_user_profile(&mut *txn, notifier, client)
+                Self::fetch_and_store_user_profile(&mut *txn, notifier, self.api_clients(), client)
                     .await?;
             }
             Ok(())
@@ -782,9 +790,10 @@ impl CoreUser {
         )?;
 
         // UnconfirmedConnection Phase 2: Fetch the user profile.
-        self.fetch_and_store_user_profile(
+        Self::fetch_and_store_user_profile(
             txn,
             notifier,
+            self.api_clients(),
             (sender_client_credential.clone(), user_profile_key),
         )
         .await?;
@@ -849,9 +858,10 @@ impl CoreUser {
 
         // Phase 3: Fetch and store the (new) user profile and key
         self.with_notifier(async |notifier| {
-            self.fetch_and_store_user_profile(
+            Self::fetch_and_store_user_profile(
                 &mut connection,
                 notifier,
+                self.api_clients(),
                 (sender_credential.into(), new_user_profile_key),
             )
             .await
@@ -1025,7 +1035,6 @@ async fn handle_message_edit(
 /// `[Self::process_event]`.
 #[derive(Debug)]
 pub struct QsStreamProcessor {
-    core_user: CoreUser,
     responder: Option<QsListenResponder>,
     /// Accumulated but not yet processed messages
     ///
@@ -1036,26 +1045,10 @@ pub struct QsStreamProcessor {
     messages: Vec<QueueMessage>,
 }
 
-pub trait QsNotificationProcessor {
-    fn show_notifications(
-        &mut self,
-        messages: ProcessedQsMessages,
-    ) -> impl Future<Output = ()> + Send;
-}
-
 impl QsStreamProcessor {
-    pub fn new(core_user: CoreUser) -> Self {
+    pub fn new(responder: Option<QsListenResponder>) -> Self {
         Self {
-            core_user,
-            responder: None,
-            messages: Vec::new(),
-        }
-    }
-
-    pub fn with_responder(core_user: CoreUser, responder: QsListenResponder) -> Self {
-        Self {
-            core_user,
-            responder: Some(responder),
+            responder,
             messages: Vec::new(),
         }
     }
@@ -1064,15 +1057,10 @@ impl QsStreamProcessor {
         self.responder.replace(responder);
     }
 
-    pub async fn on_stream_end(&mut self) {
-        self.messages.clear();
-        self.core_user.outbound_service().stop().await;
-    }
-
     pub async fn process_event(
         &mut self,
+        core_user: &CoreUser,
         event: QueueEvent,
-        notification_processor: &mut impl QsNotificationProcessor,
     ) -> QsProcessEventResult {
         debug!(?event, "processing QS listen event");
 
@@ -1093,7 +1081,7 @@ impl QsStreamProcessor {
                     self.messages.push(message);
 
                     // Stop the background task and wait until it is fully stopped
-                    self.core_user.outbound_service().stop().await;
+                    core_user.outbound_service().stop().await;
 
                     QsProcessEventResult::Accumulated
                 }
@@ -1109,7 +1097,7 @@ impl QsStreamProcessor {
                 let messages = std::mem::take(&mut self.messages);
                 let num_messages = messages.len();
 
-                let processed_messages = self.core_user.fully_process_qs_messages(messages).await;
+                let processed_messages = core_user.fully_process_qs_messages(messages).await;
 
                 let result = if processed_messages.processed < num_messages {
                     error!(
@@ -1117,18 +1105,14 @@ impl QsStreamProcessor {
                         num_messages, "failed to fully process messages"
                     );
                     QsProcessEventResult::PartiallyProcessed {
-                        processed: processed_messages.processed,
                         dropped: num_messages - processed_messages.processed,
+                        processed: processed_messages,
                     }
                 } else {
                     QsProcessEventResult::FullyProcessed {
-                        processed: processed_messages.processed,
+                        processed: processed_messages,
                     }
                 };
-
-                notification_processor
-                    .show_notifications(processed_messages)
-                    .await;
 
                 if let Some(max_sequence_number) = max_sequence_number {
                     // We received some messages, so we can ack them *after* they were fully
@@ -1142,7 +1126,7 @@ impl QsStreamProcessor {
                 }
 
                 // Start the background task, but don't wait for it to start
-                drop(self.core_user.outbound_service().start());
+                drop(core_user.outbound_service().start());
 
                 result
             }
@@ -1156,9 +1140,12 @@ pub enum QsProcessEventResult {
     /// Event was ignored
     Ignored,
     /// All accumulated events where fully processed
-    FullyProcessed { processed: usize },
+    FullyProcessed { processed: ProcessedQsMessages },
     /// Accumulated events were partially processed, some events were dropped
-    PartiallyProcessed { processed: usize, dropped: usize },
+    PartiallyProcessed {
+        processed: ProcessedQsMessages,
+        dropped: usize,
+    },
 }
 
 impl QsProcessEventResult {
@@ -1166,8 +1153,8 @@ impl QsProcessEventResult {
         match self {
             Self::Accumulated => 0,
             Self::Ignored => 0,
-            Self::FullyProcessed { processed } => *processed,
-            Self::PartiallyProcessed { processed, .. } => *processed,
+            Self::FullyProcessed { processed } => processed.processed,
+            Self::PartiallyProcessed { processed, .. } => processed.processed,
         }
     }
 

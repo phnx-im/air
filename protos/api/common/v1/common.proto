@@ -83,6 +83,7 @@ message StatusDetails {
   oneof detail {
     VersionUnsupportedDetail version_unsupported = 2;
     AttachmentTooLargeDetail attachment_too_large = 3;
+    WrongEpochDetail wrong_epoch = 4;
   }
 }
 
@@ -90,6 +91,8 @@ enum StatusDetailsCode {
   STATUS_DETAILS_CODE_UNSPECIFIED = 0;
   STATUS_DETAILS_CODE_VERSION_UNSUPPORTED = 1;
   STATUS_DETAILS_CODE_ATTACHMENT_TOO_LARGE = 2;
+  /// Message epoch differs from the group's epoch
+  STATUS_DETAILS_CODE_WRONG_EPOCH = 3;
 }
 
 message VersionUnsupportedDetail {
@@ -101,3 +104,5 @@ message AttachmentTooLargeDetail {
   uint64 max_size_bytes = 1;
   uint64 actual_size_bytes = 2;
 }
+
+message WrongEpochDetail {}

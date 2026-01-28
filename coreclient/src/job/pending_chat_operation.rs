@@ -7,6 +7,7 @@ use std::collections::HashSet;
 use aircommon::{
     identifiers::QualifiedGroupId,
     messages::client_ds_out::{DeleteGroupParamsOut, GroupOperationParamsOut, SelfRemoveParamsOut},
+    time::TimeStamp,
 };
 use chrono::{DateTime, Utc};
 use mimi_room_policy::RoleIndex;
@@ -110,6 +111,7 @@ impl PendingChatOperation {
 
         let is_commit = self.operation.is_commit();
         let is_delete = self.operation.is_delete();
+        let is_leave = matches!(self.operation, OperationType::Leave(_));
 
         let api_client = api_clients.get(qgid.owning_domain())?;
         let res = match self.operation {
@@ -133,9 +135,22 @@ impl PendingChatOperation {
         let ds_timestamp = match res {
             Ok(ds_timestamp) => ds_timestamp,
             Err(e) => {
-                error!(group_id=%qgid, error=?e, "Failed to execute pending chat operation");
-                // For now we just log the error and return.
-                return Err(e.into());
+                if e.is_wrong_epoch() && is_leave {
+                    // Leaving should be successful even if we get a wrong epoch error
+                    TimeStamp::now()
+                } else {
+                    error!(group_id=%qgid, error=?e, "Failed to execute pending chat operation");
+                    // For now we just log the error and return. Later we'll
+                    // want the following sematics:
+                    // - If we can't tell whether the DS got the message, we
+                    //   should retry later.
+                    // - If we know the DS didn't get the message, we should
+                    //   delete the pending operation and return an error.
+                    // - If we're getting a WrongEpochError, we may want to mark
+                    //   the chat as stalled until we get something from the
+                    //   queue.
+                    return Err(e.into());
+                }
             }
         };
 

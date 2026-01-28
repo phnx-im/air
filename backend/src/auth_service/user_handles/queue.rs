@@ -92,6 +92,7 @@ impl UserHandleQueues {
         let message = HandleQueueMessage {
             message_id: Some(message_id.into()),
             payload: Some(payload),
+            created_at: None, // Will be set by the database
         };
 
         HandleQueue::enqueue(txn.as_mut(), hash, message_id, message).await?;
@@ -251,17 +252,18 @@ impl<S: Stream<Item = ()> + Send + Unpin> QueueStreamContext<S> {
 }
 
 mod persistence {
+    use aircommon::time::TimeStamp;
     use prost::Message;
     use sqlx::{
         Database, Decode, Encode, PgExecutor, Postgres, Type, encode::IsNull, error::BoxDynError,
-        query, query_scalar,
+        query,
     };
-    use tokio_stream::StreamExt;
 
     use super::*;
 
     pub(super) struct HandleQueue {}
 
+    #[derive(Debug)]
     struct SqlHandleQueueMessage(HandleQueueMessage);
 
     impl Type<Postgres> for SqlHandleQueueMessage {
@@ -300,7 +302,7 @@ mod persistence {
             limit: usize,
             buffer: &mut Vec<HandleQueueMessage>,
         ) -> sqlx::Result<()> {
-            let mut messages = query_scalar!(
+            let rows = sqlx::query!(
                 r#"WITH messages_to_fetch AS (
                     SELECT message_id FROM as_user_handles_queue
                     WHERE hash = $1 AND (fetched_by IS NULL OR fetched_by != $2)
@@ -312,13 +314,19 @@ mod persistence {
                 SET fetched_by = $2
                 FROM messages_to_fetch m
                 WHERE q.message_id = m.message_id
-                RETURNING q.message_bytes AS "message: SqlHandleQueueMessage""#,
+                RETURNING
+                    q.message_bytes as "message_bytes: SqlHandleQueueMessage",
+                    q.created_at as "created_at: TimeStamp""#,
                 hash.as_bytes(),
                 fetched_by,
                 limit as i64,
             )
-            .fetch(executor);
-            while let Some(SqlHandleQueueMessage(message)) = messages.next().await.transpose()? {
+            .fetch_all(executor)
+            .await?;
+
+            for record in rows {
+                let mut message = record.message_bytes.0;
+                message.created_at = record.created_at.map(From::from);
                 buffer.push(message);
             }
             Ok(())
@@ -396,7 +404,19 @@ mod test {
         HandleQueueMessage {
             message_id: Some(id.into()),
             payload: Some(payload),
+            created_at: None, // Will be populated from database
         }
+    }
+
+    /// Asserts that two messages are equal, ignoring the `created_at` field.
+    /// Also verifies that the actual message has a `created_at` timestamp.
+    fn assert_msg_eq(actual: &HandleQueueMessage, expected: &HandleQueueMessage) {
+        assert!(
+            actual.created_at.is_some(),
+            "Expected message to have a created_at timestamp"
+        );
+        assert_eq!(actual.message_id, expected.message_id);
+        assert_eq!(actual.payload, expected.payload);
     }
 
     async fn store_handle(pool: &PgPool, hash: UserHandleHash) -> anyhow::Result<()> {
@@ -471,11 +491,11 @@ mod test {
 
         HandleQueue::fetch_into(&pool, &hash, fetched_by, 1, &mut buffer).await?;
         assert_eq!(buffer.len(), 1);
-        assert_eq!(buffer[0], message_a, "First message should be fetched");
+        assert_msg_eq(&buffer[0], &message_a);
 
         HandleQueue::fetch_into(&pool, &hash, fetched_by, 1, &mut buffer).await?;
         assert_eq!(buffer.len(), 2, "Second message should be fetched");
-        assert_eq!(buffer[1], message_b);
+        assert_msg_eq(&buffer[1], &message_b);
 
         HandleQueue::fetch_into(&pool, &hash, fetched_by, 1, &mut buffer).await?;
         assert_eq!(buffer.len(), 2, "No more messages should be fetched");
@@ -484,8 +504,8 @@ mod test {
         buffer.clear();
         HandleQueue::fetch_into(&pool, &hash, other_fetched_by, 100, &mut buffer).await?;
         assert_eq!(buffer.len(), 2, "All messages should be fetched again");
-        assert_eq!(buffer[0], message_a);
-        assert_eq!(buffer[1], message_b);
+        assert_msg_eq(&buffer[0], &message_a);
+        assert_msg_eq(&buffer[1], &message_b);
 
         HandleQueue::delete(&pool, message_a_id).await?;
         HandleQueue::delete(&pool, message_b_id).await?;
@@ -515,7 +535,7 @@ mod test {
             .expect("Stream ended prematurely")
             .expect("Expected Some(QueueMessage), got None");
 
-        assert_eq!(received_msg, msg(msg1_id, payload));
+        assert_msg_eq(&received_msg, &msg(msg1_id, payload));
 
         // Check if queue is empty now for the listener (emits None)
         let next_item = timeout(STREAM_NEXT_TIMEOUT, stream.next()).await.unwrap();
@@ -547,21 +567,21 @@ mod test {
             .unwrap()
             .unwrap()
             .unwrap();
-        assert_eq!(received_msg1, msg(msg1_id, payload1.clone()));
+        assert_msg_eq(&received_msg1, &msg(msg1_id, payload1.clone()));
 
         let received_msg2 = timeout(STREAM_NEXT_TIMEOUT, stream.next())
             .await
             .unwrap()
             .unwrap()
             .unwrap();
-        assert_eq!(received_msg2, msg(msg2_id, payload2));
+        assert_msg_eq(&received_msg2, &msg(msg2_id, payload2));
 
         let received_msg3 = timeout(STREAM_NEXT_TIMEOUT, stream.next())
             .await
             .unwrap()
             .unwrap()
             .unwrap();
-        assert_eq!(received_msg3, msg(msg3_id, payload3));
+        assert_msg_eq(&received_msg3, &msg(msg3_id, payload3));
 
         // Listen again
         let mut stream = pin!(queues.listen(hash).await.unwrap());
@@ -570,11 +590,7 @@ mod test {
             .unwrap()
             .unwrap()
             .unwrap();
-        assert_eq!(
-            first_after_relisten,
-            msg(msg1_id, payload1),
-            "Msg1 should be refetched again"
-        );
+        assert_msg_eq(&first_after_relisten, &msg(msg1_id, payload1));
     }
 
     #[sqlx::test]
@@ -601,14 +617,14 @@ mod test {
             .unwrap()
             .unwrap()
             .unwrap();
-        assert_eq!(received_msg, msg(msg1_id, payload1));
+        assert_msg_eq(&received_msg, &msg(msg1_id, payload1));
 
         let received_msg = timeout(STREAM_NEXT_TIMEOUT, stream.next())
             .await
             .unwrap()
             .unwrap()
             .unwrap();
-        assert_eq!(received_msg, msg(msg3_id, payload3));
+        assert_msg_eq(&received_msg, &msg(msg3_id, payload3));
 
         // No more messages
         let next_item = timeout(STREAM_NEXT_TIMEOUT, stream.next()).await.unwrap();
@@ -634,7 +650,7 @@ mod test {
             .unwrap()
             .unwrap()
             .unwrap();
-        assert_eq!(received_msg1_listener1, msg(msg1_id, payload1));
+        assert_msg_eq(&received_msg1_listener1, &msg(msg1_id, payload1));
 
         // Start a new listener for the same queue
         let _stream2 = queues.listen(hash).await.unwrap();
@@ -680,7 +696,7 @@ mod test {
             .expect("Timeout waiting for new message")
             .expect("Stream ended prematurely after enqueue")
             .expect("Expected Some(QueueMessage) after enqueue, got None");
-        assert_eq!(received_msg, msg(msg1_id, payload1));
+        assert_msg_eq(&received_msg, &msg(msg1_id, payload1));
 
         // Queue is empty again for the listener
         let next_item = timeout(STREAM_NEXT_TIMEOUT, stream.next())

@@ -12,7 +12,7 @@ use tracing::warn;
 
 use crate::{
     Chat, ChatId,
-    clients::block_contact::BlockedContact,
+    clients::{api_clients::ApiClients, block_contact::BlockedContact},
     groups::{Group, ProfileInfo},
     key_stores::indexed_keys::StorableIndexedKey,
     store::StoreNotifier,
@@ -112,12 +112,11 @@ impl CoreUser {
     }
 
     pub(crate) async fn fetch_and_store_user_profile(
-        &self,
         connection: &mut SqliteConnection,
         notifier: &mut StoreNotifier,
+        api_clients: &ApiClients,
         profile_info: impl Into<ProfileInfo>,
     ) -> anyhow::Result<()> {
-        UserProfile::fetch_and_store(connection, notifier, &self.inner.api_clients, profile_info)
-            .await
+        UserProfile::fetch_and_store(connection, notifier, api_clients, profile_info).await
     }
 }

@@ -449,7 +449,7 @@ impl TestBackend {
         {
             let message_id = message.message_id.unwrap();
             user2
-                .process_handle_queue_message(&user2_handle_record.handle, message)
+                .process_handle_queue_message(user2_handle_record.handle.clone(), message)
                 .await
                 .unwrap();
             responder.ack(message_id.into()).await;
@@ -962,7 +962,7 @@ impl TestBackend {
                 hash_alg,
                 ..
             } => {
-                assert_eq!(*enc_alg, EncryptionAlgorithm::Aes256Gcm);
+                assert_eq!(*enc_alg, EncryptionAlgorithm::Aes256Gcm12);
                 assert_eq!(nonce.len(), 12);
                 assert_eq!(key.len(), 32);
                 assert_eq!(*hash_alg, HashAlgorithm::Sha256);

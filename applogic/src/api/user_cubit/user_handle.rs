@@ -168,7 +168,7 @@ impl BackgroundStreamContext<HandleQueueMessage> for HandleContext {
         match self
             .cubit_context
             .core_user
-            .process_handle_queue_message(&self.handle_record.handle.clone(), message)
+            .process_handle_queue_message(self.handle_record.handle.clone(), message)
             .await
         {
             Ok(chat_id) => {

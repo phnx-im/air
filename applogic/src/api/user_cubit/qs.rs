@@ -6,11 +6,12 @@ use std::sync::Arc;
 
 use aircoreclient::clients::{
     QueueEvent,
-    process::process_qs::{ProcessedQsMessages, QsNotificationProcessor, QsStreamProcessor},
+    process::process_qs::{ProcessedQsMessages, QsProcessEventResult},
 };
 use flutter_rust_bridge::frb;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
+use tracing::error;
 
 use crate::{
     api::user::User,
@@ -23,12 +24,11 @@ use super::{AppState, CubitContext};
 #[frb(ignore)]
 pub(super) struct QueueContext {
     cubit_context: CubitContext,
-    handler: QsStreamProcessor,
 }
 
-impl QsNotificationProcessor for CubitContext {
-    async fn show_notifications(
-        &mut self,
+impl CubitContext {
+    async fn show_notifications_for_processed_qs_messages(
+        &self,
         ProcessedQsMessages {
             new_chats,
             changed_chats: _,
@@ -46,7 +46,7 @@ impl QsNotificationProcessor for CubitContext {
             .await;
         user.new_connection_request_notifications(&new_connections, &mut notifications)
             .await;
-        CubitContext::show_notifications(self, notifications).await;
+        self.show_notifications(notifications).await;
     }
 }
 
@@ -77,16 +77,37 @@ impl BackgroundStreamContext<QueueEvent> for QueueContext {
             }
             Err(error) => return Err(error.into()),
         };
-        self.handler.replace_responder(responder);
+        self.cubit_context
+            .core_user
+            .replace_qs_listen_responder(responder)
+            .await;
         Ok(stream)
     }
 
     async fn handle_event(&mut self, event: QueueEvent) -> bool {
-        let result = Box::pin(self.handler.process_event(event, &mut self.cubit_context)).await;
+        let result = match self.cubit_context.core_user.process_qs_event(event).await {
+            Ok(result) => result,
+            Err(error) => {
+                error!(%error, "Failed to process QS event");
+                return false;
+            }
+        };
+
+        let is_partially_processed = result.is_partially_processed();
+        match result {
+            QsProcessEventResult::FullyProcessed { processed }
+            | QsProcessEventResult::PartiallyProcessed { processed, .. } => {
+                self.cubit_context
+                    .show_notifications_for_processed_qs_messages(processed)
+                    .await;
+            }
+            QsProcessEventResult::Accumulated | QsProcessEventResult::Ignored => (),
+        };
+
         // Stop stream if partially processed
         // => There is a hole in the sequence of the messages, therefore we cannot continue
         // processing them.
-        !result.is_partially_processed()
+        !is_partially_processed
     }
 
     async fn in_foreground(&self) {
@@ -115,11 +136,7 @@ impl BackgroundStreamContext<QueueEvent> for QueueContext {
 
 impl QueueContext {
     pub(super) fn new(cubit_context: CubitContext) -> Self {
-        let handler = QsStreamProcessor::new(cubit_context.core_user.clone());
-        Self {
-            handler,
-            cubit_context,
-        }
+        Self { cubit_context }
     }
 
     pub(super) fn into_task(
