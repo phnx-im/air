@@ -816,17 +816,15 @@ impl Group {
     /// Applies the staged operations of the given `StagedCommit` to the room
     /// state of this group. If no `StagedCommit` is given, apply the operation
     /// of the pending commit of this group, if any.
-    fn apply_staged_operations_to_room_state<'a>(
+    fn apply_staged_operations_to_room_state(
         &mut self,
-        staged_commit: Option<&'a StagedCommit>,
+        staged_commit: Option<&'_ StagedCommit>,
     ) -> Result<()> {
         for (remover, removed) in self.staged_commit_removes(staged_commit) {
             self.room_state_change_role(&remover, &removed, RoleIndex::Outsider)?;
-            println!("Removed member: {:?}", removed);
         }
         for (adder, added) in self.pending_adds(staged_commit) {
             self.room_state_change_role(&adder, &added, RoleIndex::Regular)?;
-            println!("Added member: {:?}", added);
         }
 
         Ok(())
@@ -847,13 +845,7 @@ impl Group {
         let free_indices = GroupMembership::free_indices(&mut *connection, self.group_id()).await?;
         let staged_commit_option: Option<StagedCommit> = staged_commit_option.into();
 
-        println!("Merging pending commit");
-        println!("Our own commit: {:?}", staged_commit_option.is_none());
-        let room_state_before = self.room_state.clone();
-        println!("Users before: {:?}", room_state_before.users().values());
         self.apply_staged_operations_to_room_state(staged_commit_option.as_ref())?;
-        let room_state_after = self.room_state.clone();
-        println!("Room state after: {:?}", room_state_after.users().values());
 
         let (event_messages, group_data) = if let Some(staged_commit) = staged_commit_option {
             // Compute the messages we want to emit from the staged commit and the
@@ -874,7 +866,6 @@ impl Group {
                 .merge_staged_commit(&provider, staged_commit)?;
             (staged_commit_messages, group_data)
         } else {
-            println!("Pending proposals: {:?}", self.pending_removes());
             // If we're merging a pending commit, we need to check if we have
             // committed a remove proposal by reference. If we have, we need to
             // create a notification message.
@@ -1123,9 +1114,9 @@ impl Group {
         self.compile_removed_list(self.mls_group().pending_proposals())
     }
 
-    fn staged_commit_removes<'a>(
+    fn staged_commit_removes(
         &self,
-        staged_commit: Option<&'a StagedCommit>,
+        staged_commit: Option<&'_ StagedCommit>,
     ) -> Vec<(UserId, UserId)> {
         let Some(staged_commit) = staged_commit.or_else(|| self.mls_group().pending_commit())
         else {
@@ -1174,9 +1165,9 @@ impl Group {
     }
 
     /// Returns a list of (adder, added) UserId pairs for pending add proposals.
-    pub(crate) fn pending_adds<'a>(
+    pub(crate) fn pending_adds(
         &self,
-        staged_commit: Option<&'a StagedCommit>,
+        staged_commit: Option<&'_ StagedCommit>,
     ) -> Vec<(UserId, UserId)> {
         let staged_commit = staged_commit.or_else(|| self.mls_group().pending_commit());
         let mut pending_adds = Vec::new();

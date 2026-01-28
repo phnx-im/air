@@ -183,8 +183,6 @@ impl ChatOperation {
             key_store,
             ..
         } = context;
-        // Phase 1: Load all the relevant chat and all the contacts we
-        // want to add.
         let job = pool
             .with_connection(async |connection| {
                 PendingChatOperation::create_add(
