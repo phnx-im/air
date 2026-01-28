@@ -12,6 +12,7 @@ use chrono::{DateTime, Utc};
 use mimi_room_policy::RoleIndex;
 use openmls::group::GroupId;
 use sqlx::SqliteConnection;
+use tracing::error;
 
 use crate::{
     Chat, ChatId, ChatMessage, SystemMessage,
@@ -132,21 +133,9 @@ impl PendingChatOperation {
         let ds_timestamp = match res {
             Ok(ds_timestamp) => ds_timestamp,
             Err(e) => {
-                // TODO: Branch here depending on the group operation and the
-                // error type. If sending a commit and we're getting a
-                // `WrongEpochError`, we need to log the fact and fail this
-                // operation indicating that we need to wait for the queue. To
-                // the app, this should look like a network error.
-                //
-                // If we're sending a leave proposal, we can always just retry.
-                //
-                // If we're getting a network error, we should update the
-                // `last_attempt`, store the job and return an error.
-                //
-                // If we're getting any other error, we schedule a retry. In the
-                // future, we may want to take other actions depending on the
-                // specific error.
-                todo!("Handle error: {:?}", e);
+                error!(group_id=%qgid, error=?e, "Failed to execute pending chat operation");
+                // For now we just log the error and return.
+                return Err(e.into());
             }
         };
 
