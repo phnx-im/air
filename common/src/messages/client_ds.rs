@@ -283,11 +283,6 @@ pub struct GroupOperationParamsAad {
 }
 
 #[derive(Debug)]
-pub struct UpdateParams {
-    pub commit: AssistedMessageIn,
-}
-
-#[derive(Debug)]
 pub struct JoinConnectionGroupParams {
     pub external_commit: AssistedMessageIn,
     pub qs_client_reference: QsReference,
