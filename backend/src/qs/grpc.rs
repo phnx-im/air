@@ -20,14 +20,16 @@ use aircommon::{
     time::TimeStamp,
 };
 use displaydoc::Display;
-use tokio_stream::{Stream, StreamExt};
+use semver::Version;
+use tokio::sync::mpsc;
+use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
 use tonic::{Code, Request, Response, Status, Streaming, async_trait};
 use tracing::error;
 
 use crate::{
     errors::QueueError,
     qs::{client_record::QsClientRecord, queue::Queues, user_record::UserRecord},
-    util::find_cause,
+    util::{find_cause, select_until_first_ends},
 };
 
 use super::Qs;
@@ -45,6 +47,7 @@ impl GrpcQs {
         queues: Queues,
         queue_id: identifiers::QsClientId,
         mut requests: Streaming<ListenRequest>,
+        requests_responses_tx: mpsc::Sender<Status>,
     ) {
         while let Some(request) = requests.next().await {
             if let Err(error) = Self::process_listen_queue_request(&queues, queue_id, request).await
@@ -58,9 +61,9 @@ impl GrpcQs {
                     // Client closed connection => not an error
                     continue;
                 } else {
-                    // We report the error, but don't stop processing requests.
-                    // TODO(#466): Send this to the client.
+                    // We report the error to the client, but don't stop processing requests.
                     error!(%error, "error processing listen queue request");
+                    let _ = requests_responses_tx.send(Status::from(error)).await;
                 }
             }
         }
@@ -103,7 +106,7 @@ impl GrpcQs {
     fn verify_client_version(
         &self,
         client_metadata: Option<&ClientMetadata>,
-    ) -> Result<(), Status> {
+    ) -> Result<Option<Version>, Status> {
         let client_version_req = self.qs.client_version_req.as_ref();
         crate::version::verify_client_version(client_version_req, client_metadata)
     }
@@ -119,6 +122,21 @@ enum ProcessListenQueueRequestError {
     Status(#[from] Status),
     /// Received empty request
     EmptyRequest,
+}
+
+impl From<ProcessListenQueueRequestError> for Status {
+    fn from(error: ProcessListenQueueRequestError) -> Self {
+        match error {
+            ProcessListenQueueRequestError::Queue(_)
+            | ProcessListenQueueRequestError::Status(_) => {
+                Status::internal("Failed to process listen queue request")
+            }
+            ProcessListenQueueRequestError::UnexpectedInitRequest
+            | ProcessListenQueueRequestError::EmptyRequest => {
+                Status::invalid_argument(error.to_string())
+            }
+        }
+    }
 }
 
 // Note: currently, *no* authentication is done
@@ -357,16 +375,16 @@ impl QueueService for GrpcQs {
             return Err(ListenQueueProtocolViolation::MissingInitRequest.into());
         };
 
-        self.verify_client_version(client_metadata.as_ref())?;
+        let client_version = self.verify_client_version(client_metadata.as_ref())?;
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
 
         let queue_messages = self
             .qs
             .queues
-            .listen(client_id, sequence_number_start)
+            .listen(client_id, client_version, sequence_number_start)
             .await?;
-        let responses = queue_messages.map(|message| match message {
+        let events = queue_messages.map(|message| match message {
             Some(event) => event,
             None => QueueEvent {
                 event: Some(queue_event::Event::Empty(QueueEmpty {})),
@@ -380,13 +398,23 @@ impl QueueService for GrpcQs {
             })
             .ok();
 
+        const REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
+        let (requests_responses_tx, requests_responses_rx) =
+            mpsc::channel::<Status>(REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE);
+
         tokio::spawn(Self::process_listen_queue_requests_task(
             self.qs.queues.clone(),
             client_id,
             requests,
+            requests_responses_tx,
         ));
 
-        Ok(Response::new(Box::pin(responses.map(Ok))))
+        let responses = select_until_first_ends(
+            events.map(Ok),
+            ReceiverStream::new(requests_responses_rx).map(Err),
+        );
+
+        Ok(Response::new(Box::pin(responses)))
     }
 }
 

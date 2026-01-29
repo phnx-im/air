@@ -184,7 +184,7 @@ where
     let peek = iter.peek().ok_or(Error::ExpectedMoreEvents)?;
     let block = match peek.clone().event {
         Event::Start(Tag::Paragraph) => {
-            let start = iter.next().expect("we already peeked");
+            let start = iter.next().ok_or(Error::ExpectedMoreEvents)?;
             let value = BlockElement::Paragraph(parse_inline_elements(iter, depth + 1)?);
             let end = iter.next().ok_or(Error::ExpectedMoreEvents)?;
 
@@ -199,7 +199,7 @@ where
             }
         }
         Event::Start(Tag::Heading { level, .. }) => {
-            let start = iter.next().expect("we already peeked");
+            let start = iter.next().ok_or(Error::ExpectedMoreEvents)?;
             let value = BlockElement::Heading(parse_inline_elements(iter, depth + 1)?);
             let end = iter.next().ok_or(Error::ExpectedMoreEvents)?;
 
@@ -214,7 +214,7 @@ where
             }
         }
         Event::Start(Tag::List(number)) => {
-            let start = iter.next().expect("we already peeked");
+            let start = iter.next().ok_or(Error::ExpectedMoreEvents)?;
             let value = match number {
                 Some(s) => BlockElement::OrderedList(s, parse_list_items(iter, depth + 1)?),
                 None => BlockElement::UnorderedList(parse_list_items(iter, depth + 1)?),
@@ -232,7 +232,7 @@ where
             }
         }
         Event::Start(Tag::Table(_alignments)) => {
-            let start = iter.next().expect("we already peeked");
+            let start = iter.next().ok_or(Error::ExpectedMoreEvents)?;
             let value = parse_table_content(iter, depth + 1)?;
             let end = iter.next().ok_or(Error::ExpectedMoreEvents)?;
 
@@ -247,13 +247,13 @@ where
             }
         }
         Event::Start(Tag::BlockQuote(_)) => {
-            let start = iter.next().expect("we already peeked");
+            let start = iter.next().ok_or(Error::ExpectedMoreEvents)?;
             let mut quote_blocks = Vec::new();
             let end;
             loop {
                 let peek = iter.peek().ok_or(Error::ExpectedMoreEvents)?;
                 if matches!(peek.event, Event::End(TagEnd::BlockQuote(..))) {
-                    end = iter.next().expect("we already peeked");
+                    end = iter.next().ok_or(Error::ExpectedMoreEvents)?;
                     break;
                 }
                 quote_blocks.push(parse_block_element(iter, depth + 1)?);
@@ -266,12 +266,12 @@ where
             }
         }
         Event::Start(Tag::CodeBlock(_code_block_kind)) => {
-            let start = iter.next().expect("we already peeked");
+            let start = iter.next().ok_or(Error::ExpectedMoreEvents)?;
             let mut value = Vec::new();
 
             while let Event::Text(str) = iter.peek().ok_or(Error::ExpectedMoreEvents)?.clone().event
             {
-                let event = iter.next().expect("we already peeked");
+                let event = iter.next().ok_or(Error::ExpectedMoreEvents)?;
 
                 // We need this code, otherwise there is an empty line at the end of code blocks
                 let mut str = str.into_string();
@@ -300,7 +300,7 @@ where
             }
         }
         Event::Rule => {
-            let item = iter.next().expect("we already peeked");
+            let item = iter.next().ok_or(Error::ExpectedMoreEvents)?;
             let value = BlockElement::HorizontalRule;
 
             RangedBlockElement {
@@ -336,13 +336,13 @@ where
         }
 
         Event::Start(Tag::HtmlBlock) => {
-            let start = iter.next().expect("we already peeked");
+            let start = iter.next().ok_or(Error::ExpectedMoreEvents)?;
             let mut value = Vec::new();
 
             while let Event::Html(str) | Event::Text(str) =
                 iter.peek().ok_or(Error::ExpectedMoreEvents)?.clone().event
             {
-                let event = iter.next().expect("we already peeked");
+                let event = iter.next().ok_or(Error::ExpectedMoreEvents)?;
                 collect_links(event.start, event.end, &str, &mut value);
             }
 
@@ -408,7 +408,7 @@ where
         let peek = iter.peek().ok_or(Error::ExpectedMoreEvents)?;
         match peek.clone().event {
             Event::Start(Tag::Emphasis) => {
-                let start = iter.next().expect("we already peeked");
+                let start = iter.next().ok_or(Error::ExpectedMoreEvents)?;
                 let value = InlineElement::Italic(parse_inline_elements(iter, depth + 1)?);
                 let end = iter.next().ok_or(Error::ExpectedMoreEvents)?;
 
@@ -424,7 +424,7 @@ where
             }
 
             Event::Start(Tag::Strong) => {
-                let start = iter.next().expect("we already peeked");
+                let start = iter.next().ok_or(Error::ExpectedMoreEvents)?;
                 let value = InlineElement::Bold(parse_inline_elements(iter, depth + 1)?);
                 let end = iter.next().ok_or(Error::ExpectedMoreEvents)?;
 
@@ -439,7 +439,7 @@ where
                 });
             }
             Event::Start(Tag::Strikethrough) => {
-                let start = iter.next().expect("we already peeked");
+                let start = iter.next().ok_or(Error::ExpectedMoreEvents)?;
                 let value = InlineElement::Strikethrough(parse_inline_elements(iter, depth + 1)?);
                 let end = iter.next().ok_or(Error::ExpectedMoreEvents)?;
 
@@ -455,7 +455,7 @@ where
             }
 
             Event::Start(Tag::Link { dest_url, .. }) => {
-                let start = iter.next().expect("we already peeked");
+                let start = iter.next().ok_or(Error::ExpectedMoreEvents)?;
                 let value = InlineElement::Link {
                     dest_url: dest_url.to_string(),
                     children: parse_inline_elements(iter, depth + 1)?,
@@ -474,7 +474,7 @@ where
             }
 
             Event::Start(Tag::Image { dest_url, .. }) => {
-                let start = iter.next().expect("we already peeked");
+                let start = iter.next().ok_or(Error::ExpectedMoreEvents)?;
                 let value = InlineElement::Image(dest_url.to_string());
 
                 let _description = parse_inline_elements(iter, depth + 1)?;
@@ -493,12 +493,26 @@ where
             }
 
             Event::Text(str) => {
-                let value = iter.next().expect("we already peeked");
-                collect_links(value.start, value.end, &str, &mut result);
+                // Consume the current Text event
+                let text_event = iter.next().ok_or(Error::ExpectedMoreEvents)?;
+                let start = text_event.start;
+                let mut end = text_event.end;
+                let mut full_text = str.to_string();
+
+                // Continue consuming consecutive Text events
+                while let Some(next_event) = iter.peek()
+                    && let Event::Text(next_str) = &next_event.event
+                {
+                    full_text.push_str(next_str);
+                    end = next_event.end;
+                    iter.next(); // consume the next event
+                }
+
+                collect_links(start, end, &full_text, &mut result);
             }
 
             Event::Code(str) => {
-                let value = iter.next().expect("we already peeked");
+                let value = iter.next().ok_or(Error::ExpectedMoreEvents)?;
                 result.push(RangedInlineElement {
                     start: value.start,
                     end: value.end,
@@ -507,7 +521,7 @@ where
             }
 
             Event::SoftBreak | Event::HardBreak => {
-                let value = iter.next().expect("we already peeked");
+                let value = iter.next().ok_or(Error::ExpectedMoreEvents)?;
                 result.push(RangedInlineElement {
                     start: value.start,
                     end: value.end,
@@ -516,7 +530,7 @@ where
             }
 
             Event::TaskListMarker(bool) => {
-                let value = iter.next().expect("we already peeked");
+                let value = iter.next().ok_or(Error::ExpectedMoreEvents)?;
                 result.push(RangedInlineElement {
                     start: value.start,
                     end: value.end,
@@ -529,7 +543,7 @@ where
 
             // Inline HTML should just show as text
             Event::InlineHtml(str) => {
-                let value = iter.next().expect("we already peeked");
+                let value = iter.next().ok_or(Error::ExpectedMoreEvents)?;
                 result.push(RangedInlineElement {
                     start: value.start,
                     end: value.end,
@@ -595,12 +609,12 @@ where
         let peek = iter.peek().ok_or(Error::ExpectedMoreEvents)?;
         match peek.event {
             Event::Start(Tag::Item) => {
-                iter.next().expect("we already peeked");
+                iter.next().ok_or(Error::ExpectedMoreEvents)?;
                 let mut item_blocks = Vec::new();
                 loop {
                     let peek = iter.peek().ok_or(Error::ExpectedMoreEvents)?;
                     if peek.event == Event::End(TagEnd::Item) {
-                        iter.next().expect("we already peeked");
+                        iter.next().ok_or(Error::ExpectedMoreEvents)?;
                         break;
                     }
                     item_blocks.push(parse_block_element(iter, depth + 1)?);
@@ -652,7 +666,7 @@ where
         let peek = iter.peek().ok_or(Error::ExpectedMoreEvents)?;
         match peek.event {
             Event::Start(Tag::TableRow) => {
-                iter.next().expect("we already peeked");
+                iter.next().ok_or(Error::ExpectedMoreEvents)?;
                 let cells = parse_table_cells(iter, depth + 1)?;
                 table_rows.push(cells);
                 if !matches!(
@@ -696,13 +710,13 @@ where
         let peek = iter.peek().ok_or(Error::ExpectedMoreEvents)?;
         match peek.event {
             Event::Start(Tag::TableCell) => {
-                iter.next().expect("we already peeked");
+                iter.next().ok_or(Error::ExpectedMoreEvents)?;
                 let mut cell_blocks = Vec::new();
                 loop {
                     let peek = iter.peek().ok_or(Error::ExpectedMoreEvents)?;
 
                     if peek.event == Event::End(TagEnd::TableCell) {
-                        iter.next().expect("we already peeked");
+                        iter.next().ok_or(Error::ExpectedMoreEvents)?;
                         break;
                     }
                     cell_blocks.push(parse_block_element(iter, depth + 1)?);
@@ -936,5 +950,23 @@ But it ends after the paragraph"#,
         is_text(&elems[2], ", and this one: ", (36, 52));
         is_link(&elems[3], "http://example.org", (52, 70));
         is_text(&elems[4], "!", (70, 71));
+    }
+
+    #[test]
+    fn autolink_with_underscores() {
+        let text = "https://example.com/path/_suffix";
+        let message_content = MessageContent::try_parse_markdown(text).unwrap();
+
+        // Expecting one block element: a paragraph
+        assert_eq!(message_content.elements.len(), 1);
+        let paragraph = message_content.elements.first().unwrap();
+
+        match &paragraph.element {
+            BlockElement::Paragraph(inline_elements) => {
+                assert_eq!(inline_elements.len(), 1);
+                is_link(&inline_elements[0], text, (0, text.len() as u32));
+            }
+            _ => panic!("Expected a Paragraph block element"),
+        }
     }
 }

@@ -31,13 +31,17 @@ use aircommon::{
     },
 };
 use privacypass::{amortized_tokens::AmortizedBatchTokenRequest, private_tokens::Ristretto255};
+use semver::Version;
 use tls_codec::{Deserialize, Serialize};
 use tokio::sync::mpsc;
-use tokio_stream::StreamExt;
+use tokio_stream::{StreamExt, wrappers::ReceiverStream};
 use tonic::{Code, Request, Response, Status, Streaming, async_trait};
 use tracing::error;
 
-use crate::{auth_service::invitation_code_record::InvitationCodeRecord, util::find_cause};
+use crate::{
+    auth_service::invitation_code_record::InvitationCodeRecord,
+    util::{find_cause, select_until_first_ends},
+};
 
 use super::{
     AuthService,
@@ -126,6 +130,7 @@ impl GrpcAs {
     async fn process_listen_handle_requests_task(
         queues: UserHandleQueues,
         mut requests: Streaming<ListenHandleRequest>,
+        responses_tx: mpsc::Sender<Status>,
     ) {
         while let Some(request) = requests.next().await {
             if let Err(error) = Self::process_listen_handle_request(&queues, request).await {
@@ -137,9 +142,9 @@ impl GrpcAs {
                     // Client closed connection => not an error
                     continue;
                 } else {
-                    // We report the error, but don't stop processing requests.
-                    // TODO(#466): Send this to the client.
-                    error!(%error, "error processing listen request");
+                    // We report the error to the client, but don't stop processing requests.
+                    error!(%error, "error processing listen handle request");
+                    let _ = responses_tx.send(error).await;
                 }
             }
         }
@@ -163,7 +168,7 @@ impl GrpcAs {
     fn verify_client_version(
         &self,
         client_metadata: Option<&ClientMetadata>,
-    ) -> Result<(), Status> {
+    ) -> Result<Option<Version>, Status> {
         let client_version_req = self.inner.client_version_req.as_ref();
         crate::version::verify_client_version(client_version_req, client_metadata)
     }
@@ -547,14 +552,22 @@ impl auth_service_server::AuthService for GrpcAs {
 
         let messages = self.inner.handle_queues.listen(hash).await?;
 
+        const REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
+        let (requests_responses_tx, requests_responses_rx) =
+            mpsc::channel::<Status>(REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE);
+
         tokio::spawn(Self::process_listen_handle_requests_task(
             self.inner.handle_queues.clone(),
             requests,
+            requests_responses_tx,
         ));
 
-        let responses = Box::pin(messages.map(|message| Ok(ListenHandleResponse { message })));
+        let responses = select_until_first_ends(
+            messages.map(|message| Ok(ListenHandleResponse { message })),
+            ReceiverStream::new(requests_responses_rx).map(Err),
+        );
 
-        Ok(Response::new(responses))
+        Ok(Response::new(Box::pin(responses)))
     }
 }
 

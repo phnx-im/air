@@ -614,9 +614,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AddHandleContactError dco_decode_add_handle_contact_error(dynamic raw);
 
   @protected
-  AddHandleContactResult dco_decode_add_handle_contact_result(dynamic raw);
-
-  @protected
   AppState dco_decode_app_state(dynamic raw);
 
   @protected
@@ -643,6 +640,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   UserHandleHash
   dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+    dynamic raw,
+  );
+
+  @protected
+  AddHandleContactError dco_decode_box_autoadd_add_handle_contact_error(
     dynamic raw,
   );
 
@@ -718,6 +720,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiUserProfile dco_decode_box_autoadd_ui_user_profile(dynamic raw);
+
+  @protected
+  UploadAttachmentError dco_decode_box_autoadd_upload_attachment_error(
+    dynamic raw,
+  );
 
   @protected
   UserHandleValidationError dco_decode_box_autoadd_user_handle_validation_error(
@@ -877,6 +884,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  AddHandleContactError? dco_decode_opt_box_autoadd_add_handle_contact_error(
+    dynamic raw,
+  );
+
+  @protected
   bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
 
   @protected
@@ -923,6 +935,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiUserId? dco_decode_opt_box_autoadd_ui_user_id(dynamic raw);
+
+  @protected
+  UploadAttachmentError? dco_decode_opt_box_autoadd_upload_attachment_error(
+    dynamic raw,
+  );
 
   @protected
   UserHandleValidationError?
@@ -1020,6 +1037,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void dco_decode_unit(dynamic raw);
+
+  @protected
+  UploadAttachmentError dco_decode_upload_attachment_error(dynamic raw);
 
   @protected
   UserHandleValidationError dco_decode_user_handle_validation_error(
@@ -1513,11 +1533,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  AddHandleContactResult sse_decode_add_handle_contact_result(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   AppState sse_decode_app_state(SseDeserializer deserializer);
 
   @protected
@@ -1544,6 +1559,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   UserHandleHash
   sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  AddHandleContactError sse_decode_box_autoadd_add_handle_contact_error(
     SseDeserializer deserializer,
   );
 
@@ -1651,6 +1671,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiUserProfile sse_decode_box_autoadd_ui_user_profile(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UploadAttachmentError sse_decode_box_autoadd_upload_attachment_error(
     SseDeserializer deserializer,
   );
 
@@ -1840,6 +1865,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  AddHandleContactError? sse_decode_opt_box_autoadd_add_handle_contact_error(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
@@ -1906,6 +1936,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiUserId? sse_decode_opt_box_autoadd_ui_user_id(SseDeserializer deserializer);
+
+  @protected
+  UploadAttachmentError? sse_decode_opt_box_autoadd_upload_attachment_error(
+    SseDeserializer deserializer,
+  );
 
   @protected
   UserHandleValidationError?
@@ -2013,6 +2048,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_decode_unit(SseDeserializer deserializer);
+
+  @protected
+  UploadAttachmentError sse_decode_upload_attachment_error(
+    SseDeserializer deserializer,
+  );
 
   @protected
   UserHandleValidationError sse_decode_user_handle_validation_error(
@@ -2616,12 +2656,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_add_handle_contact_result(
-    AddHandleContactResult self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_app_state(AppState self, SseSerializer serializer);
 
   @protected
@@ -2651,6 +2685,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
     UserHandleHash self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_add_handle_contact_error(
+    AddHandleContactError self,
     SseSerializer serializer,
   );
 
@@ -2786,6 +2826,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_ui_user_profile(
     UiUserProfile self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_upload_attachment_error(
+    UploadAttachmentError self,
     SseSerializer serializer,
   );
 
@@ -3027,6 +3073,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_add_handle_contact_error(
+    AddHandleContactError? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
 
   @protected
@@ -3107,6 +3159,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_ui_user_id(
     UiUserId? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_upload_attachment_error(
+    UploadAttachmentError? self,
     SseSerializer serializer,
   );
 
@@ -3256,6 +3314,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_upload_attachment_error(
+    UploadAttachmentError self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_user_handle_validation_error(

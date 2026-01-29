@@ -4,7 +4,7 @@
 
 [package]
 name = "airbackend"
-version = "0.8.0"
+version = "0.9.0"
 authors = ["Phoenix R&D <hello@phnx.im>"]
 edition = "2024"
 include = ["./migrations/**"]
@@ -28,6 +28,7 @@ h2.workspace = true
 metrics.workspace = true
 mimi-room-policy.workspace = true
 mls-assist.workspace = true
+pin-project.workspace = true
 privacypass.workspace = true
 prost.workspace = true
 rand.workspace = true

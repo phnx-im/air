@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO username_contact (\n                chat_id,\n                username,\n                friendship_package_ear_key,\n                created_at,\n                connection_offer_hash\n            ) VALUES (?, ?, ?, ?, ?)\n            ON CONFLICT(chat_id) DO UPDATE SET\n                username = excluded.username,\n                friendship_package_ear_key = excluded.friendship_package_ear_key,\n                created_at = excluded.created_at,\n                connection_offer_hash = excluded.connection_offer_hash",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "10faafe12b905db6de255c0d89e1591d4c7e5867fae16b91fabc9127f5a60071"
+}

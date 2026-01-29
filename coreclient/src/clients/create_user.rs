@@ -40,7 +40,6 @@ use super::*;
 #[derive(Serialize, Deserialize)]
 pub(crate) struct BasicUserData {
     pub(super) user_id: UserId,
-    pub(super) server_url: String,
     pub(super) push_token: Option<PushToken>,
     pub(super) invitation_code: String,
 }
@@ -48,10 +47,6 @@ pub(crate) struct BasicUserData {
 impl BasicUserData {
     pub(super) fn user_id(&self) -> &UserId {
         &self.user_id
-    }
-
-    pub(super) fn server_url(&self) -> &str {
-        &self.server_url
     }
 
     pub(super) async fn prepare_as_registration(
@@ -133,7 +128,6 @@ impl BasicUserData {
 
         let initial_user_state = InitialUserState {
             client_credential_payload: client_credential_payload.clone(),
-            server_url: self.server_url,
             as_intermediate_credential,
             encrypted_push_token,
             encrypted_user_profile,
@@ -152,7 +146,6 @@ impl BasicUserData {
 #[derive(Serialize, Deserialize)]
 pub(crate) struct InitialUserState {
     client_credential_payload: ClientCredentialPayload,
-    server_url: String,
     as_intermediate_credential: AsIntermediateCredential,
     encrypted_push_token: Option<EncryptedPushToken>,
     encrypted_user_profile: EncryptedUserProfile,
@@ -188,10 +181,6 @@ impl InitialUserState {
     pub(super) fn user_id(&self) -> &UserId {
         self.client_credential_payload.identity()
     }
-
-    pub(super) fn server_url(&self) -> &str {
-        &self.server_url
-    }
 }
 
 // State after server response to OPAKE initialization
@@ -211,7 +200,6 @@ impl PostAsRegistrationState {
     ) -> Result<UnfinalizedRegistrationState> {
         let InitialUserState {
             client_credential_payload: _,
-            server_url,
             as_intermediate_credential,
             encrypted_push_token,
             encrypted_user_profile: _,
@@ -249,7 +237,6 @@ impl PostAsRegistrationState {
 
         let unfinalized_registration_state = UnfinalizedRegistrationState {
             key_store,
-            server_url,
             qs_initial_ratchet_secret,
             connection_packages: Vec::new(),
             encrypted_push_token,
@@ -261,10 +248,6 @@ impl PostAsRegistrationState {
     pub(super) fn user_id(&self) -> &UserId {
         self.client_credential.user_id()
     }
-
-    pub(super) fn server_url(&self) -> &str {
-        &self.initial_user_state.server_url
-    }
 }
 
 // State after server response to OPAKE initialization
@@ -274,7 +257,6 @@ impl PostAsRegistrationState {
 #[derive(Serialize, Deserialize)]
 pub(crate) struct UnfinalizedRegistrationState {
     key_store: MemoryUserKeyStore,
-    server_url: String,
     qs_initial_ratchet_secret: RatchetSecret,
     connection_packages: Vec<ConnectionPackageV1>,
     encrypted_push_token: Option<EncryptedPushToken>,
@@ -286,14 +268,12 @@ impl UnfinalizedRegistrationState {
     pub(super) fn noop(self) -> AsRegisteredUserState {
         let UnfinalizedRegistrationState {
             key_store,
-            server_url,
             qs_initial_ratchet_secret,
             connection_packages: _,
             encrypted_push_token,
         } = self;
         AsRegisteredUserState {
             key_store,
-            server_url,
             qs_initial_ratchet_secret,
             encrypted_push_token,
         }
@@ -301,10 +281,6 @@ impl UnfinalizedRegistrationState {
 
     pub(super) fn user_id(&self) -> &UserId {
         self.key_store.signing_key.credential().identity()
-    }
-
-    pub(super) fn server_url(&self) -> &str {
-        &self.server_url
     }
 }
 
@@ -315,7 +291,6 @@ impl UnfinalizedRegistrationState {
 #[derive(Serialize, Deserialize)]
 pub(crate) struct AsRegisteredUserState {
     key_store: MemoryUserKeyStore,
-    server_url: String,
     qs_initial_ratchet_secret: RatchetSecret,
     encrypted_push_token: Option<EncryptedPushToken>,
 }
@@ -327,7 +302,6 @@ impl AsRegisteredUserState {
     ) -> Result<QsRegisteredUserState> {
         let AsRegisteredUserState {
             key_store,
-            server_url,
             qs_initial_ratchet_secret,
             encrypted_push_token,
         } = self;
@@ -349,7 +323,6 @@ impl AsRegisteredUserState {
 
         let qs_registered_user_state = QsRegisteredUserState {
             key_store,
-            server_url,
             qs_user_id: user_id,
             qs_client_id: client_id,
         };
@@ -360,10 +333,6 @@ impl AsRegisteredUserState {
     pub(super) fn user_id(&self) -> &UserId {
         self.key_store.signing_key.credential().identity()
     }
-
-    pub(super) fn server_url(&self) -> &str {
-        &self.server_url
-    }
 }
 
 // State after creating QS user
@@ -373,7 +342,6 @@ impl AsRegisteredUserState {
 #[derive(Serialize, Deserialize)]
 pub(crate) struct QsRegisteredUserState {
     key_store: MemoryUserKeyStore,
-    server_url: String,
     qs_user_id: QsUserId,
     qs_client_id: QsClientId,
 }
@@ -396,10 +364,6 @@ impl QsRegisteredUserState {
     pub(super) fn user_id(&self) -> &UserId {
         self.key_store.signing_key.credential().identity()
     }
-
-    pub(super) fn server_url(&self) -> &str {
-        &self.server_url
-    }
 }
 
 // State after creating QS user
@@ -420,7 +384,6 @@ impl PersistedUserState {
     ) -> CoreUser {
         let QsRegisteredUserState {
             key_store,
-            server_url: _,
             qs_user_id,
             qs_client_id,
         } = self.state;
@@ -433,6 +396,10 @@ impl PersistedUserState {
             store_notifications_tx.clone(),
             global_lock,
         );
+
+        // listen to handles and queue messages
+        let (event_loop, event_loop_sender, event_loop_cancel) = EventLoop::new();
+
         let inner = Arc::new(CoreUserInner {
             pool,
             key_store,
@@ -442,16 +409,17 @@ impl PersistedUserState {
             http_client: reqwest::Client::new(),
             store_notifications_tx,
             outbound_service,
+            event_loop_sender,
+            _event_loop_cancel: event_loop_cancel.drop_guard(),
         });
+
+        event_loop.spawn(Arc::downgrade(&inner));
+
         CoreUser { inner }
     }
 
     pub(super) fn user_id(&self) -> &UserId {
         self.state.key_store.signing_key.credential().identity()
-    }
-
-    pub(super) fn server_url(&self) -> &str {
-        &self.state.server_url
     }
 
     pub(super) fn qs_user_id(&self) -> &QsUserId {

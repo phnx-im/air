@@ -10,6 +10,7 @@ import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/util/logging.dart';
 import 'package:air/util/platform.dart';
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 
 void main() async {
@@ -88,4 +89,20 @@ void showErrorBannerStandalone(
       ],
     ),
   );
+}
+
+/// Shows a snackbar in the global scaffold messenger.
+///
+/// This function does not require a [BuildContext] to show a snackbar.
+void showSnackBarStandalone(SnackBar Function(AppLocalizations) snackBar) {
+  scaffoldMessengerKey.currentState?.removeCurrentSnackBar();
+
+  final context = scaffoldMessengerKey.currentContext;
+  if (context == null) {
+    Logger.detached('showSnackBar').severe("No context when showing snackbar");
+    return;
+  }
+
+  final loc = AppLocalizations.of(context);
+  scaffoldMessengerKey.currentState?.showSnackBar(snackBar(loc));
 }

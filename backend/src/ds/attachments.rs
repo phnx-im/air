@@ -3,9 +3,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{identifiers::AttachmentId, time::ExpirationData};
-use airprotos::delivery_service::v1::{
-    GetAttachmentUrlResponse, HeaderEntry, ProvisionAttachmentPayload, ProvisionAttachmentResponse,
-    SignedPostPolicy,
+use airprotos::{
+    common::v1::{
+        AttachmentTooLargeDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
+    },
+    delivery_service::v1::{
+        GetAttachmentUrlResponse, HeaderEntry, ProvisionAttachmentPayload,
+        ProvisionAttachmentResponse, SignedPostPolicy,
+    },
 };
 use aws_sdk_s3::{
     config::http,
@@ -16,9 +21,10 @@ use aws_sdk_s3::{
 use base64::{Engine, prelude::BASE64_STANDARD};
 use chrono::{DateTime, Utc};
 use displaydoc::Display;
+use prost::Message;
 use serde::Serialize;
 use serde_json::json;
-use tonic::{Response, Status};
+use tonic::{Code, Response, Status};
 use tracing::error;
 use uuid::Uuid;
 
@@ -68,7 +74,7 @@ impl Ds {
         let request = storage
             .client()
             .get_object()
-            .bucket("data")
+            .bucket(storage.settings().bucket.clone())
             .key(attachment_id.uuid().as_simple().to_string())
             .presigned(presigning_config)
             .await
@@ -266,10 +272,25 @@ impl From<ProvisionAttachmentError> for Status {
             ProvisionAttachmentError::AttachmentTooLarge {
                 max_size,
                 actual_size,
-            } => Status::invalid_argument(format!(
-                "attachment is too large; maximum size is {max_size} bytes, \
-                    actual size is {actual_size} bytes",
-            )),
+            } => {
+                let message = format!(
+                    "attachment is too large; maximum size is {max_size} bytes, \
+                        actual size is {actual_size} bytes",
+                );
+                Status::with_details(
+                    Code::InvalidArgument,
+                    message,
+                    StatusDetails {
+                        code: StatusDetailsCode::VersionUnsupported.into(),
+                        detail: Some(Detail::AttachmentTooLarge(AttachmentTooLargeDetail {
+                            max_size_bytes: max_size,
+                            actual_size_bytes: actual_size,
+                        })),
+                    }
+                    .encode_to_vec()
+                    .into(),
+                )
+            }
         }
     }
 }
@@ -331,6 +352,7 @@ mod test {
             region: "example-region".to_owned(),
             access_key_id: "EXAMPLEKEY".to_owned(),
             secret_access_key: "EXMPLESECRET".to_owned().into(),
+            bucket: "data".to_owned(),
             force_path_style: false,
             upload_expiration: Duration::seconds(60),
             download_expiration: Duration::seconds(60),

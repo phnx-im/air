@@ -5,6 +5,7 @@
 import 'dart:async';
 
 import 'package:air/attachments/attachments.dart';
+import 'package:air/l10n/app_localizations_extension.dart';
 import 'package:air/main.dart';
 import 'package:air/message_list/emoji_repository.dart';
 import 'package:air/message_list/emoji_autocomplete.dart';
@@ -334,13 +335,31 @@ class _MessageComposerState extends State<MessageComposer>
           file: file,
           onUpload: () async {
             try {
-              await cubit.uploadAttachment(file.path);
-            } catch (e) {
-              _log.severe("Failed to upload attachment: $e");
-              if (context.mounted) {
-                final loc = AppLocalizations.of(context);
-                showErrorBanner(context, loc.composer_error_attachment);
+              final error = await cubit.uploadAttachment(file.path);
+              switch (error) {
+                case UploadAttachmentError_TooLarge(
+                  :final maxSizeBytes,
+                  :final actualSizeBytes,
+                ):
+                  showSnackBarStandalone(
+                    (loc) => SnackBar(
+                      content: Text(
+                        loc.composer_error_attachment_too_large(
+                          loc.bytesToHumanReadable(actualSizeBytes.toInt()),
+                          loc.bytesToHumanReadable(maxSizeBytes.toInt()),
+                        ),
+                      ),
+                    ),
+                  );
+                  break;
+                case null:
+                  break;
               }
+            } catch (e) {
+              _log.severe("Failed to upload attachment: $e", e);
+              if (!context.mounted) return;
+              final loc = AppLocalizations.of(context);
+              showErrorBanner(context, loc.composer_error_attachment);
             }
           },
         ),

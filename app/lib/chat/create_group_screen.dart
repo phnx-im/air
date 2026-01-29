@@ -33,97 +33,60 @@ class CreateGroupScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    ChatListCubit? existingChatListCubit;
-    try {
-      existingChatListCubit = context.read<ChatListCubit>();
-    } catch (_) {
-      existingChatListCubit = null;
-    }
-
-    Widget flow;
-    if (existingChatListCubit != null) {
-      flow = _CreateGroupFlow(chatListCubit: existingChatListCubit);
-    } else {
-      flow = BlocProvider(
-        create: (context) =>
-            ChatListCubit(userCubit: context.read<UserCubit>()),
-        child: Builder(
-          builder: (innerContext) => _CreateGroupFlow(
-            chatListCubit: innerContext.read<ChatListCubit>(),
-          ),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (context) =>
+              ChatListCubit(userCubit: context.read<UserCubit>()),
         ),
-      );
-    }
-
-    return BlocProvider(
-      create: (context) {
-        final userCubit = context.read<UserCubit>();
-        final contactsFuture = userCubit.contacts;
-        return AddMembersCubit()..loadContacts(contactsFuture);
-      },
-      child: flow,
+        BlocProvider(
+          create: (context) {
+            final userCubit = context.read<UserCubit>();
+            final contactsFuture = userCubit.contacts;
+            return AddMembersCubit()..loadContacts(contactsFuture);
+          },
+        ),
+      ],
+      child: const _CreateGroupFlow(),
     );
   }
 }
 
-class _CreateGroupFlow extends StatefulWidget {
-  const _CreateGroupFlow({required this.chatListCubit});
-
-  final ChatListCubit chatListCubit;
-
-  @override
-  State<_CreateGroupFlow> createState() => _CreateGroupFlowState();
-}
-
-class _CreateGroupFlowState extends State<_CreateGroupFlow> {
-  bool _showDetails = false;
+class _CreateGroupFlow extends HookWidget {
+  const _CreateGroupFlow();
 
   @override
   Widget build(BuildContext context) {
+    final showDetails = useState(false);
+
     return PopScope(
-      canPop: !_showDetails,
+      canPop: !showDetails.value,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _showDetails) {
-          setState(() => _showDetails = false);
+        if (!didPop && showDetails.value) {
+          showDetails.value = false;
         }
       },
       child: IndexedStack(
-        index: _showDetails ? 1 : 0,
+        index: showDetails.value ? 1 : 0,
         children: [
-          _MemberSelectionStep(
-            onNext: () => setState(() => _showDetails = true),
-          ),
-          _CreateGroupDetailsStep(
-            chatListCubit: widget.chatListCubit,
-            onBack: () => setState(() => _showDetails = false),
-          ),
+          _MemberSelectionStep(onNext: () => showDetails.value = true),
+          _CreateGroupDetailsStep(onBack: () => showDetails.value = false),
         ],
       ),
     );
   }
 }
 
-class _MemberSelectionStep extends StatefulWidget {
+class _MemberSelectionStep extends HookWidget {
   const _MemberSelectionStep({required this.onNext});
 
   final VoidCallback onNext;
 
   @override
-  State<_MemberSelectionStep> createState() => _MemberSelectionStepState();
-}
-
-class _MemberSelectionStepState extends State<_MemberSelectionStep> {
-  final TextEditingController _searchController = TextEditingController();
-  String _query = '';
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final searchController = useTextEditingController();
+    final query = useState('');
+
     final (contacts, selectedContacts) = context.select(
       (AddMembersCubit cubit) =>
           (cubit.state.contacts, cubit.state.selectedContacts),
@@ -144,7 +107,7 @@ class _MemberSelectionStepState extends State<_MemberSelectionStep> {
           trailing: AppBarButton(
             onPressed: () {
               FocusScope.of(context).unfocus();
-              widget.onNext();
+              onNext();
             },
             child: Text(loc.groupCreationScreen_next),
           ),
@@ -160,17 +123,18 @@ class _MemberSelectionStepState extends State<_MemberSelectionStep> {
             child: Column(
               children: [
                 MemberSearchField(
-                  controller: _searchController,
+                  controller: searchController,
                   hintText: loc.groupMembersScreen_searchHint,
-                  onChanged: (value) => setState(() => _query = value),
+                  onChanged: (value) => query.value = value,
                 ),
                 Expanded(
                   child: MemberSelectionList(
                     contacts: contacts,
                     selectedContacts: selectedContacts,
-                    query: _query,
-                    onToggle: (contact) =>
-                        context.read<AddMembersCubit>().toggleContact(contact),
+                    query: query.value,
+                    onToggle: (contact) => context
+                        .read<AddMembersCubit>()
+                        .toggleContact(contact.userId),
                   ),
                 ),
               ],
@@ -183,13 +147,9 @@ class _MemberSelectionStepState extends State<_MemberSelectionStep> {
 }
 
 class _CreateGroupDetailsStep extends HookWidget {
-  const _CreateGroupDetailsStep({
-    required this.onBack,
-    required this.chatListCubit,
-  });
+  const _CreateGroupDetailsStep({required this.onBack});
 
   final VoidCallback onBack;
-  final ChatListCubit chatListCubit;
 
   @override
   Widget build(BuildContext context) {
@@ -211,12 +171,12 @@ class _CreateGroupDetailsStep extends HookWidget {
       [selectedIds, selectedProfiles],
     );
 
+    final groupName = useState('');
     final picture = useState<Uint8List?>(null);
     final isCreating = useState(false);
-    final nameController = useTextEditingController();
     final nameFocusNode = useFocusNode();
 
-    final isGroupNameValid = nameController.value.text.trim().isNotEmpty;
+    final isGroupNameValid = groupName.value.trim().isNotEmpty;
     final showHelperText = nameFocusNode.hasFocus && !isGroupNameValid;
 
     final loc = AppLocalizations.of(context);
@@ -237,7 +197,7 @@ class _CreateGroupDetailsStep extends HookWidget {
             onPressed: isGroupNameValid && !isCreating.value
                 ? () => _createGroupChat(
                     context,
-                    nameController.text.trim(),
+                    groupName.value.trim(),
                     isCreating,
                     picture.value,
                   )
@@ -285,7 +245,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                     SizedBox(
                       width: double.infinity,
                       child: TextField(
-                        controller: nameController,
+                        onChanged: (value) => groupName.value = value,
                         focusNode: nameFocusNode,
                         textInputAction: TextInputAction.next,
                         textAlign: TextAlign.center,
@@ -370,14 +330,7 @@ class _CreateGroupDetailsStep extends HookWidget {
   }
 
   void _removeContact(BuildContext context, UiUserId userId) {
-    final addMemberCubit = context.read<AddMembersCubit>();
-    final contact = addMemberCubit.state.contacts.firstWhereOrNull(
-      (contact) => contact.userId == contact.userId,
-    );
-    if (contact == null) {
-      throw StateError('Contact not found');
-    }
-    addMemberCubit.toggleContact(contact);
+    context.read<AddMembersCubit>().toggleContact(userId);
   }
 
   Future<void> _createGroupChat(
@@ -393,6 +346,8 @@ class _CreateGroupDetailsStep extends HookWidget {
     final selectedContacts = addMembersCubit.state.selectedContacts;
 
     isCreating.value = true;
+
+    final chatListCubit = context.read<ChatListCubit>();
 
     try {
       final chatId = await chatListCubit.createGroupChat(

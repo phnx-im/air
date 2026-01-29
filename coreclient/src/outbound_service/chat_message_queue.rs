@@ -91,7 +91,7 @@ mod persistence {
             message_id: MessageId,
         ) -> sqlx::Result<()> {
             let attachment_id = query_scalar!(
-                r#"DELETE FROM chat_message_queue 
+                r#"DELETE FROM chat_message_queue
                 WHERE message_id = ?
                 RETURNING attachment_id AS "uuid: _"
                 "#,
@@ -104,6 +104,37 @@ mod persistence {
                 PendingAttachmentRecord::delete(txn.as_mut(), attachment_id).await?;
             }
 
+            Ok(())
+        }
+
+        pub(crate) async fn remove_and_mark_as_failed(
+            &self,
+            txn: &mut SqliteTransaction<'_>,
+            notifier: &mut StoreNotifier,
+        ) -> sqlx::Result<()> {
+            let failed_status = MessageStatus::Error.repr();
+            query!(
+                "UPDATE message SET status = ? WHERE message_id = ?",
+                failed_status,
+                self.message_id
+            )
+            .execute(txn.as_mut())
+            .await?;
+            if let Some(attachment_id) = self.attachment_id {
+                query!(
+                    "DELETE FROM pending_attachment WHERE attachment_id = ?",
+                    attachment_id
+                )
+                .execute(txn.as_mut())
+                .await?;
+            }
+            query!(
+                "DELETE FROM chat_message_queue WHERE message_id = ?",
+                self.message_id,
+            )
+            .execute(txn.as_mut())
+            .await?;
+            notifier.update(self.message_id);
             Ok(())
         }
 

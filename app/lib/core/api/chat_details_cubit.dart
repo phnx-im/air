@@ -22,6 +22,8 @@ part 'chat_details_cubit.freezed.dart';
 // These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `store_draft_from_state`, `update_state_task`, `upload_attachment_impl`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChatDetailsContext`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `eq`, `fmt`, `hash`
+// These functions are ignored (category: IgnoreBecauseExplicitAttribute): `into_ui_result`
+// These functions are ignored (category: IgnoreBecauseNotAllowedOwner): `into_ui_result`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>>
 abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
@@ -65,7 +67,9 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
 
   Future<void> resetDraft();
 
-  Future<void> retryUploadAttachment({required AttachmentId attachmentId});
+  Future<UploadAttachmentError?> retryUploadAttachment({
+    required AttachmentId attachmentId,
+  });
 
   /// Sends a message to the chat.
   ///
@@ -89,7 +93,7 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
 
   Stream<ChatDetailsState> stream();
 
-  Future<void> uploadAttachment({required String path});
+  Future<UploadAttachmentError?> uploadAttachment({required String path});
 }
 
 /// The state of a single chat
@@ -106,4 +110,14 @@ sealed class ChatDetailsState with _$ChatDetailsState {
   }) = _ChatDetailsState;
   static Future<ChatDetailsState> default_() =>
       RustLib.instance.api.crateApiChatDetailsCubitChatDetailsStateDefault();
+}
+
+@freezed
+sealed class UploadAttachmentError with _$UploadAttachmentError {
+  const UploadAttachmentError._();
+
+  const factory UploadAttachmentError.tooLarge({
+    required BigInt maxSizeBytes,
+    required BigInt actualSizeBytes,
+  }) = UploadAttachmentError_TooLarge;
 }

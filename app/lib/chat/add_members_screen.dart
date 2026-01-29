@@ -97,8 +97,9 @@ class _AddMembersScreenViewState extends State<AddMembersScreenView> {
                     contacts: contacts,
                     selectedContacts: selectedContacts,
                     query: _query,
-                    onToggle: (contact) =>
-                        context.read<AddMembersCubit>().toggleContact(contact),
+                    onToggle: (contact) => context
+                        .read<AddMembersCubit>()
+                        .toggleContact(contact.userId),
                   ),
                 ),
               ],

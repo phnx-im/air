@@ -101,7 +101,7 @@ class GroupDetailsScreen extends StatelessWidget {
                   Expanded(
                     child: AppButton(
                       onPressed: () => _delete(context, chat),
-                      state: .danger,
+                      tone: .danger,
                       label: loc.groupDetails_deleteChat,
                     ),
                   ),

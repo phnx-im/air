@@ -26,10 +26,10 @@ pub use crate::{
         },
     },
     clients::{
-        add_contact::{AddHandleContactError, AddHandleContactResult},
+        add_contact::AddHandleContactError,
         attachment::{
             AttachmentContent, AttachmentStatus, AttachmentUrl, AttachmentUrlParseError,
-            MimiContentExt,
+            MimiContentExt, ProvisionAttachmentError, UploadTaskError,
             progress::{AttachmentProgress, AttachmentProgressEvent},
         },
         block_contact::BlockedContactError,
