@@ -777,7 +777,7 @@ class _MessageContent extends StatelessWidget {
             spacing: BodyFontSize.base.size,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: selectableBlocks,
-          )
+          ),
         );
         final Widget selectableChild = enableSelection
             ? SelectableRegion(
