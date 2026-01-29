@@ -10,7 +10,10 @@ use sqlx::PgExecutor;
 
 use crate::{
     errors::StorageError,
-    qs::{METRIC_AIR_QS_DAU_USERS, METRIC_AIR_QS_MAU_USERS, METRIC_AIR_QS_TOTAL_USERS},
+    qs::{
+        METRIC_AIR_QS_DAU_USERS, METRIC_AIR_QS_MAU_USERS, METRIC_AIR_QS_TOTAL_USERS,
+        METRIC_AIR_QS_WAU_USERS,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,6 +45,8 @@ pub(crate) struct UserMetrics {
     pub(crate) total_users: Option<i64>,
     /// Number of users connected in the last 30 days
     pub(crate) active_last_month_users: Option<i64>,
+    /// Number of users connected in the last 7 days
+    pub(crate) active_last_week_users: Option<i64>,
     /// Number of users connected in the last 24 hours
     pub(crate) active_last_day_users: Option<i64>,
 }
@@ -50,6 +55,7 @@ impl UserMetrics {
     pub(crate) fn report(&self) {
         gauge!(METRIC_AIR_QS_TOTAL_USERS).set(self.total_users.unwrap_or(0) as i32);
         gauge!(METRIC_AIR_QS_MAU_USERS).set(self.active_last_month_users.unwrap_or(0) as i32);
+        gauge!(METRIC_AIR_QS_WAU_USERS).set(self.active_last_week_users.unwrap_or(0) as i32);
         gauge!(METRIC_AIR_QS_DAU_USERS).set(self.active_last_day_users.unwrap_or(0) as i32);
     }
 }
@@ -156,6 +162,9 @@ pub(crate) mod persistence {
                     COUNT(last_activity_time) FILTER (
                         WHERE last_activity_time >= (NOW() - INTERVAL '1 month')
                     ) AS active_last_month_users,
+                    COUNT(last_activity_time) FILTER (
+                        WHERE last_activity_time >= (NOW() - INTERVAL '1 week')
+                    ) AS active_last_week_users,
                     COUNT(last_activity_time) FILTER (
                         WHERE last_activity_time >= (NOW() - INTERVAL '1 day')
                     ) AS active_last_day_users

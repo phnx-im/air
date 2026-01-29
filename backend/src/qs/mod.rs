@@ -99,6 +99,7 @@ pub struct Qs {
 
 pub(crate) const METRIC_AIR_QS_TOTAL_USERS: &str = "air_qs_total_users";
 pub(crate) const METRIC_AIR_QS_MAU_USERS: &str = "air_qs_mau_users";
+pub(crate) const METRIC_AIR_QS_WAU_USERS: &str = "air_qs_wau_users";
 pub(crate) const METRIC_AIR_QS_DAU_USERS: &str = "air_qs_dau_users";
 pub(crate) const METRIC_AIR_ACTIVE_USERS: &str = "air_qs_active_users";
 
@@ -134,6 +135,10 @@ impl BackendService for Qs {
         describe_gauge!(
             METRIC_AIR_QS_DAU_USERS,
             "Number of rolling DAU (daily active users)"
+        );
+        describe_gauge!(
+            METRIC_AIR_QS_WAU_USERS,
+            "Number of rolling WAU (weekly active users)"
         );
         describe_gauge!(
             METRIC_AIR_QS_MAU_USERS,
