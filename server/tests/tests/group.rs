@@ -519,3 +519,46 @@ async fn missed_commit() {
         "Charlie has 3 members"
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn confirmation_via_queue() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+
+    let alice_user = setup.get_user(&alice);
+    let alice_core = &alice_user.user;
+
+    // Make server drop connection instead of sending responses
+    setup.listener_control_handle().unwrap().set_drop_outgoing();
+
+    alice_core
+        .invite_users(chat_id, &[bob.clone()])
+        .await
+        .expect_err("No error despite server dropping messages");
+
+    // Set server to normal networking mode
+    setup.listener_control_handle().unwrap().set_normal();
+
+    // At this point, Alice has a pending commit. Once she receives the
+    // confirmation from the queue, she should be able to create another commit.
+    let qs_messages = alice_core.qs_fetch_messages().await.unwrap();
+    alice_core.fully_process_qs_messages(qs_messages).await;
+
+    // Bob shoul now be in the group.
+    let chat_contains_bob = alice_core
+        .group_members(chat_id)
+        .await
+        .unwrap()
+        .contains(&bob);
+    assert!(chat_contains_bob);
+
+    alice_core
+        .update_key(chat_id)
+        .await
+        .expect("No error despite server dropping messages");
+}

@@ -25,12 +25,14 @@ use tonic::transport::server::{Connected, TcpConnectInfo};
 pub enum Mode {
     Normal = 0,
     DropAll = 1,
+    DropOutgoing = 2,
 }
 
 impl Mode {
     fn from_u8(v: u8) -> Self {
         match v {
             1 => Mode::DropAll,
+            2 => Mode::DropOutgoing,
             _ => Mode::Normal,
         }
     }
@@ -54,12 +56,17 @@ impl ControlHandle {
         self.mode.store(Mode::DropAll as u8, Ordering::Relaxed);
     }
 
+    pub fn set_drop_outgoing(&self) {
+        self.mode.store(Mode::DropOutgoing as u8, Ordering::Relaxed);
+    }
+
     pub fn mode(&self) -> Mode {
         Mode::from_u8(self.mode.load(Ordering::Relaxed))
     }
 }
 
-/// A TcpStream wrapper that can drop incoming data when in DropAll mode.
+/// A TcpStream wrapper that can drop incoming data when in DropAll mode and
+/// outgoing data when im DropOutgoing mode.
 ///
 /// - In Normal mode: behaves like a regular TcpStream (AsyncRead/AsyncWrite).
 /// - In DropAll mode:
@@ -67,6 +74,9 @@ impl ControlHandle {
 ///       (so the kernel buffer doesn't fill), but does NOT deliver any bytes to
 ///       the caller.
 ///     * `poll_write` still forwards writes as normal.
+/// - In DropOutgoing mode:
+///     * `poll_read` forwards reads as normal.
+///     * `poll_write` drops any incoming bytes.
 pub struct ControlledStream {
     inner: TcpStream,
     mode: Arc<AtomicU8>,
@@ -117,6 +127,9 @@ impl AsyncWrite for ControlledStream {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
+        if self.mode() == Mode::DropOutgoing {
+            return self.poll_shutdown(cx).map(|_| io::Result::Ok(buf.len()));
+        }
         let me = self.get_mut();
         // Writes are always forwarded (we can change this if we want symmetric behaviour).
         Pin::new(&mut me.inner).poll_write(cx, buf)
