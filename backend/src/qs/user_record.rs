@@ -114,6 +114,24 @@ pub(crate) mod persistence {
             .transpose()
         }
 
+        pub(in crate::qs) async fn load_verifying_key(
+            connection: impl PgExecutor<'_>,
+            user_id: &QsUserId,
+        ) -> Result<Option<QsUserVerifyingKey>, StorageError> {
+            sqlx::query_scalar!(
+                r#"SELECT
+                    verifying_key as "verifying_key: QsUserVerifyingKey"
+                FROM
+                    qs_user_record
+                WHERE
+                    user_id = $1"#,
+                user_id.as_uuid(),
+            )
+            .fetch_optional(connection)
+            .await
+            .map_err(From::from)
+        }
+
         pub(in crate::qs) async fn delete(
             connection: impl PgExecutor<'_>,
             user_id: QsUserId,
@@ -204,6 +222,11 @@ pub(crate) mod persistence {
                 .await?
                 .expect("missing user record");
             assert_eq!(loaded, user_record);
+
+            let verifying_key = UserRecord::load_verifying_key(&pool, &user_record.user_id)
+                .await?
+                .expect("missing user verifying key");
+            assert_eq!(verifying_key, user_record.verifying_key);
 
             Ok(())
         }
