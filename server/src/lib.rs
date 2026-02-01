@@ -24,6 +24,8 @@ use airprotos::{
 use axum::extract::State;
 use connect_info::ConnectInfoInterceptor;
 use futures_core::Stream;
+#[cfg(target_os = "linux")]
+use metrics::{describe_gauge, gauge};
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
@@ -183,6 +185,28 @@ fn serve_metrics(metrics_listener: Option<TcpListener>) {
             loop {
                 tokio::time::sleep(UPKEEP_TIMEOUT).await;
                 handle.run_upkeep();
+            }
+        });
+
+        #[cfg(target_os = "linux")]
+        tokio::spawn(async move {
+            describe_gauge!(
+                "air_server_memory_used_bytes",
+                "Bytes actively allocated by the application"
+            );
+            describe_gauge!(
+                "air_server_memory_free_bytes",
+                "Bytes held by allocator but not in use"
+            );
+            describe_gauge!("air_server_memory_mmap_bytes", "Bytes allocated via mmap");
+            loop {
+                tokio::time::sleep(Duration::from_secs(10)).await;
+                // Safety: mallinfo2 is always safe to call because it does not
+                // modify any memory.
+                let info = unsafe { libc::mallinfo2() };
+                gauge!("air_server_memory_used_bytes").set(info.uordblks as f64);
+                gauge!("air_server_memory_free_bytes").set(info.fordblks as f64);
+                gauge!("air_server_memory_mmap_bytes").set(info.hblkhd as f64);
             }
         });
 

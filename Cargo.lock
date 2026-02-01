@@ -306,6 +306,7 @@ dependencies = [
  "hex",
  "image",
  "jsonwebtoken",
+ "libc",
  "metrics",
  "metrics-exporter-prometheus",
  "mimi_content",
