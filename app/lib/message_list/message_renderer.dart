@@ -16,6 +16,7 @@ import 'package:air/ui/typography/font_size.dart';
 import 'package:air/ui/typography/monospace.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:air/message_list/jumbo_emoji.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 Widget buildBlockElement(
@@ -24,22 +25,27 @@ Widget buildBlockElement(
   bool isSender,
 ) {
   return switch (block) {
-    BlockElement_Paragraph(:final field0) => Text.rich(
-      TextSpan(
-        children: field0
-            .map((child) => buildInlineElement(context, child, isSender))
-            .toList(),
-        style: TextStyle(
-          color: isSender
-              ? CustomColorScheme.of(context).message.selfText
-              : CustomColorScheme.of(context).message.otherText,
-          fontSize: BodyFontSize.base.size,
-          height: 1.3,
+    BlockElement_Paragraph(:final field0) => () {
+      final jumbo = isJumboEmoji(field0);
+      return Text.rich(
+        TextSpan(
+          children: field0
+              .map((child) => buildInlineElement(context, child, isSender))
+              .toList(),
+          style: TextStyle(
+            color: isSender
+                ? CustomColorScheme.of(context).message.selfText
+                : CustomColorScheme.of(context).message.otherText,
+            fontSize: jumbo
+                ? BodyFontSize.base.size * jumboEmojiScale
+                : BodyFontSize.base.size,
+            height: jumbo ? 1.1 : 1.3,
+          ),
         ),
-      ),
-      softWrap: true,
-      textWidthBasis: TextWidthBasis.longestLine,
-    ),
+        softWrap: true,
+        textWidthBasis: TextWidthBasis.longestLine,
+      );
+    }(),
     BlockElement_Heading(:final field0) => Text.rich(
       TextSpan(
         children: field0

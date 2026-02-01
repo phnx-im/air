@@ -11,6 +11,7 @@ import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/main.dart';
+import 'package:air/message_list/jumbo_emoji.dart';
 import 'package:air/message_list/mobile_message_actions.dart';
 import 'package:air/message_list/timestamp.dart';
 import 'package:air/navigation/navigation.dart';
@@ -124,6 +125,7 @@ class TextMessageTile extends StatelessWidget {
       flightPosition: flightPosition,
       status: status,
       showMetadata: true,
+      showSenderLabel: showSender,
     );
   }
 }
@@ -204,6 +206,7 @@ class _IncomingMessageTile extends StatelessWidget {
                 flightPosition: flightPosition,
                 status: status,
                 showMetadata: false,
+                showSenderLabel: showSenderLabel,
               ),
             ),
           ],
@@ -233,6 +236,7 @@ class _MessageView extends HookWidget {
     required this.isSender,
     required this.status,
     required this.showMetadata,
+    required this.showSenderLabel,
   });
 
   final MessageId messageId;
@@ -242,6 +246,7 @@ class _MessageView extends HookWidget {
   final bool isSender;
   final UiMessageStatus status;
   final bool showMetadata;
+  final bool showSenderLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -285,6 +290,7 @@ class _MessageView extends HookWidget {
         isEdited: contentMessage.edited,
         isHidden: status == UiMessageStatus.hidden && !isRevealed.value,
         enableSelection: enableSelection,
+        showSenderLabel: showSenderLabel,
       );
       if (key != null) {
         child = KeyedSubtree(key: key, child: child);
@@ -698,6 +704,7 @@ class _MessageContent extends StatelessWidget {
     required this.isEdited,
     required this.isHidden,
     required this.enableSelection,
+    required this.showSenderLabel,
   });
 
   final UiMimiContent content;
@@ -706,11 +713,20 @@ class _MessageContent extends StatelessWidget {
   final bool isEdited;
   final bool isHidden;
   final bool enableSelection;
+  final bool showSenderLabel;
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final bool isDeleted = content.replaces != null && content.content == null;
+    final bool isJumboEmoji =
+        !isDeleted && !isHidden && isJumboEmojiMessage(content);
+    // Hide the bubble background and padding
+    final nakedContent = isJumboEmoji;
+    // Adjust padding when sender label is not shown
+    final nakedPadding = EdgeInsets.only(
+      left: showSenderLabel ? messageHorizontalPadding : 0,
+    );
     final List<Widget> columnChildren = [];
 
     if (isHidden) {
@@ -767,7 +783,9 @@ class _MessageContent extends StatelessWidget {
       selectableBlocks.addAll(
         (content.content?.elements ?? []).map(
           (inner) => Padding(
-            padding: _messagePadding.copyWith(bottom: isEdited ? 0 : null),
+            padding: nakedContent
+                ? nakedPadding
+                : _messagePadding.copyWith(bottom: isEdited ? 0 : null),
             child: buildBlockElement(context, inner.element, isSender),
           ),
         ),
@@ -798,7 +816,9 @@ class _MessageContent extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: _messageBorderRadius(isSender, flightPosition),
-            color: isSender
+            color: nakedContent
+                ? Colors.transparent
+                : isSender
                 ? CustomColorScheme.of(context).message.selfBackground
                 : CustomColorScheme.of(context).message.otherBackground,
           ),
