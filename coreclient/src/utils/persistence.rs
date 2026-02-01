@@ -34,7 +34,11 @@ pub(crate) async fn open_air_db(db_path: &str) -> sqlx::Result<SqlitePool> {
     let opts = opts
         .journal_mode(SqliteJournalMode::Wal)
         .create_if_missing(true);
-    let pool = SqlitePool::connect_with(opts).await?;
+    let pool = SqlitePoolOptions::new()
+        .idle_timeout(None)
+        .max_lifetime(None)
+        .connect_with(opts)
+        .await?;
 
     // Delete the old migration table if it exists
     const FIRST_MIGRATION: i64 = 20250115104336;
