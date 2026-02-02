@@ -9,7 +9,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
 import 'package:air/user/user.dart';
 
 import '../helpers.dart';
@@ -37,7 +36,7 @@ void main() {
         builder: (context) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
-            theme: themeData(MediaQuery.platformBrightnessOf(context)),
+            theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             home: Scaffold(
               body: ContactRequestDialog(sender: sender, source: source),

@@ -11,18 +11,21 @@ use sqlx::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TaskKind {
     KeyPackageUpload,
+    HandleRefresh,
 }
 
 impl TaskKind {
     pub(super) fn default_interval(&self) -> Duration {
         match self {
             TaskKind::KeyPackageUpload => Duration::weeks(1),
+            TaskKind::HandleRefresh => Duration::weeks(1),
         }
     }
 
     pub(super) fn default_retry_interval(&self) -> Duration {
         match self {
             TaskKind::KeyPackageUpload => Duration::minutes(5),
+            TaskKind::HandleRefresh => Duration::minutes(5),
         }
     }
 }
@@ -37,6 +40,13 @@ impl TimedTaskQueue {
         Self {
             due_at,
             kind: TaskKind::KeyPackageUpload,
+        }
+    }
+
+    pub(crate) const fn new_handle_refresh_task(due_at: DateTime<Utc>) -> Self {
+        Self {
+            due_at,
+            kind: TaskKind::HandleRefresh,
         }
     }
 }
@@ -139,6 +149,7 @@ impl<'r> Decode<'r, Sqlite> for TaskKind {
         let s: &str = Decode::<Sqlite>::decode(value)?;
         match s {
             "KeyPackageUpload" => Ok(TaskKind::KeyPackageUpload),
+            "HandleRefresh" => Ok(TaskKind::HandleRefresh),
             _ => Err(format!("Unknown TaskKind variant: {}", s).into()),
         }
     }
@@ -151,6 +162,7 @@ impl<'q> Encode<'q, Sqlite> for TaskKind {
     ) -> Result<IsNull, BoxDynError> {
         let s = match self {
             TaskKind::KeyPackageUpload => "KeyPackageUpload",
+            TaskKind::HandleRefresh => "HandleRefresh",
         };
         <&str as Encode<Sqlite>>::encode(s, buf)
     }

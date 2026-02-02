@@ -7,7 +7,6 @@ import 'package:air/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
-import 'package:air/theme/theme.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -68,7 +67,7 @@ void main() {
           builder: (context) {
             return MaterialApp(
               debugShowCheckedModeBanner: false,
-              theme: themeData(MediaQuery.platformBrightnessOf(context)),
+              theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               home: Scaffold(
                 body: ChatListView(

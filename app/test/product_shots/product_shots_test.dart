@@ -11,7 +11,6 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/message_list/message_list.dart';
 import 'package:air/navigation/navigation_cubit.dart';
-import 'package:air/theme/theme_data.dart';
 import 'package:air/ui/colors/palette.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
@@ -128,7 +127,7 @@ void main() {
 
             return MaterialApp(
               debugShowCheckedModeBanner: false,
-              theme: lightTheme,
+              theme: testLightTheme,
               themeMode: ThemeMode.light,
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               home: Material(
@@ -277,7 +276,7 @@ void main() {
 
                 return MaterialApp(
                   debugShowCheckedModeBanner: false,
-                  theme: lightTheme,
+                  theme: testLightTheme,
                   themeMode: ThemeMode.light,
                   localizationsDelegates:
                       AppLocalizations.localizationsDelegates,
@@ -420,7 +419,7 @@ void main() {
 
                 return MaterialApp(
                   debugShowCheckedModeBanner: false,
-                  theme: lightTheme,
+                  theme: testLightTheme,
                   themeMode: ThemeMode.light,
                   localizationsDelegates:
                       AppLocalizations.localizationsDelegates,
