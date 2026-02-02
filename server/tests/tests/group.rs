@@ -540,7 +540,7 @@ async fn confirmation_via_queue() {
         .set_drop_next_response();
 
     let _ = alice_core
-        .invite_users(chat_id, &[bob.clone()])
+        .invite_users(chat_id, &[bob])
         .await
         .expect_err("No error despite server dropping messages");
 
