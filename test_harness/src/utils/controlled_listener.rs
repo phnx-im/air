@@ -45,6 +45,12 @@ pub struct ControlHandle {
     mode: Arc<AtomicU8>,
 }
 
+impl Default for ControlHandle {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ControlHandle {
     pub fn new() -> Self {
         Self {

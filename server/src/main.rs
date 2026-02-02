@@ -143,7 +143,7 @@ async fn main() -> anyhow::Result<()> {
             rate_limits: configuration.ratelimits,
         },
         #[cfg(any(feature = "test_utils", test))]
-        |req| Ok(req),
+        Ok,
     )
     .await;
 
