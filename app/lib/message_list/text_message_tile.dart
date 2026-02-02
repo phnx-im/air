@@ -290,7 +290,6 @@ class _MessageView extends HookWidget {
         isEdited: contentMessage.edited,
         isHidden: status == UiMessageStatus.hidden && !isRevealed.value,
         enableSelection: enableSelection,
-        showSenderLabel: showSenderLabel,
       );
       if (key != null) {
         child = KeyedSubtree(key: key, child: child);
@@ -704,7 +703,6 @@ class _MessageContent extends StatelessWidget {
     required this.isEdited,
     required this.isHidden,
     required this.enableSelection,
-    required this.showSenderLabel,
   });
 
   final UiMimiContent content;
@@ -713,7 +711,6 @@ class _MessageContent extends StatelessWidget {
   final bool isEdited;
   final bool isHidden;
   final bool enableSelection;
-  final bool showSenderLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -724,8 +721,10 @@ class _MessageContent extends StatelessWidget {
     // Hide the bubble background and padding
     final nakedContent = isJumboEmoji;
     // Adjust padding when sender label is not shown
-    final nakedPadding = EdgeInsets.only(
-      left: showSenderLabel ? messageHorizontalPadding : 0,
+    const nakedPadding = EdgeInsets.only(
+      left: messageHorizontalPadding,
+      top: messageVerticalPadding,
+      bottom: messageVerticalPadding,
     );
     final List<Widget> columnChildren = [];
 
@@ -784,7 +783,7 @@ class _MessageContent extends StatelessWidget {
         (content.content?.elements ?? []).map(
           (inner) => Padding(
             padding: nakedContent
-                ? nakedPadding
+                ? nakedPadding.copyWith(bottom: isEdited ? 0 : null)
                 : _messagePadding.copyWith(bottom: isEdited ? 0 : null),
             child: buildBlockElement(context, inner.element, isSender),
           ),
