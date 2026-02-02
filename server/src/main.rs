@@ -132,15 +132,19 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // Start the server
-    let server = run(ServerRunParams {
-        listener,
-        metrics_listener: Some(metrics_listener),
-        ds,
-        auth_service,
-        qs,
-        qs_connector,
-        rate_limits: configuration.ratelimits,
-    })
+    let server = run(
+        ServerRunParams {
+            listener,
+            metrics_listener: Some(metrics_listener),
+            ds,
+            auth_service,
+            qs,
+            qs_connector,
+            rate_limits: configuration.ratelimits,
+        },
+        #[cfg(any(feature = "test_utils", test))]
+        |req| Ok(req),
+    )
     .await;
 
     server.await?;

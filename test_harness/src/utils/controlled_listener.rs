@@ -25,27 +25,31 @@ use tonic::transport::server::{Connected, TcpConnectInfo};
 pub enum Mode {
     Normal = 0,
     DropAll = 1,
-    DropOutgoing = 2,
+    DropNextResponse = 2,
+    DropConnectionOnWrite = 3,
 }
 
 impl Mode {
     fn from_u8(v: u8) -> Self {
         match v {
             1 => Mode::DropAll,
-            2 => Mode::DropOutgoing,
+            2 => Mode::DropNextResponse,
+            3 => Mode::DropConnectionOnWrite,
             _ => Mode::Normal,
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ControlHandle {
     mode: Arc<AtomicU8>,
 }
 
 impl ControlHandle {
-    fn new(mode: Arc<AtomicU8>) -> Self {
-        Self { mode }
+    pub fn new() -> Self {
+        Self {
+            mode: Arc::new(AtomicU8::new(Mode::Normal as u8)),
+        }
     }
 
     pub fn set_normal(&self) {
@@ -56,8 +60,14 @@ impl ControlHandle {
         self.mode.store(Mode::DropAll as u8, Ordering::Relaxed);
     }
 
-    pub fn set_drop_outgoing(&self) {
-        self.mode.store(Mode::DropOutgoing as u8, Ordering::Relaxed);
+    pub fn set_drop_next_response(&self) {
+        self.mode
+            .store(Mode::DropNextResponse as u8, Ordering::Relaxed);
+    }
+
+    pub(super) fn set_drop_connection_on_write(&self) {
+        self.mode
+            .store(Mode::DropConnectionOnWrite as u8, Ordering::Relaxed);
     }
 
     pub fn mode(&self) -> Mode {
@@ -78,26 +88,25 @@ impl ControlHandle {
 ///     * `poll_read` forwards reads as normal.
 ///     * `poll_write` drops any incoming bytes.
 pub struct ControlledStream {
-    inner: TcpStream,
+    inner: Option<TcpStream>,
+    connect_info: TcpConnectInfo,
     mode: Arc<AtomicU8>,
     drop_buf: Box<[u8; 8192]>,
 }
 
 impl ControlledStream {
     fn new(inner: TcpStream, mode: Arc<AtomicU8>) -> Self {
+        let connect_info = inner.connect_info();
         Self {
-            inner,
+            inner: Some(inner),
             mode,
             drop_buf: Box::new([0u8; 8192]),
+            connect_info,
         }
     }
 
     fn mode(&self) -> Mode {
         Mode::from_u8(self.mode.load(Ordering::Relaxed))
-    }
-
-    pub fn inner(&self) -> &TcpStream {
-        &self.inner
     }
 }
 
@@ -116,8 +125,14 @@ impl AsyncRead for ControlledStream {
                 "connection dropped by ControlledStream",
             )));
         }
+        let Some(inner) = &mut me.inner else {
+            return Poll::Ready(Err(io::Error::new(
+                ErrorKind::ConnectionAborted,
+                "ControlledStream inner TcpStream is gone",
+            )));
+        };
 
-        Pin::new(&mut me.inner).poll_read(cx, buf)
+        Pin::new(inner).poll_read(cx, buf)
     }
 }
 
@@ -127,22 +142,47 @@ impl AsyncWrite for ControlledStream {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        if self.mode() == Mode::DropOutgoing {
-            return self.poll_shutdown(cx).map(|_| io::Result::Ok(buf.len()));
-        }
         let me = self.get_mut();
+        let mode = me.mode();
+        let Some(inner) = &mut me.inner else {
+            return Poll::Ready(Err(io::Error::new(
+                ErrorKind::ConnectionAborted,
+                "ControlledStream inner TcpStream is gone",
+            )));
+        };
         // Writes are always forwarded (we can change this if we want symmetric behaviour).
-        Pin::new(&mut me.inner).poll_write(cx, buf)
+        if mode == Mode::DropConnectionOnWrite {
+            // Take connection so it's dropped.
+            me.inner.take();
+            // Reset mode to normal.
+            me.mode.store(Mode::Normal as u8, Ordering::Relaxed);
+            // Return Ok to simulate successful write.
+            Poll::Ready(Ok(buf.len()))
+        } else {
+            Pin::new(inner).poll_write(cx, buf)
+        }
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         let me = self.get_mut();
-        Pin::new(&mut me.inner).poll_flush(cx)
+        let Some(inner) = &mut me.inner else {
+            return Poll::Ready(Err(io::Error::new(
+                ErrorKind::ConnectionAborted,
+                "ControlledStream inner TcpStream is gone",
+            )));
+        };
+        Pin::new(inner).poll_flush(cx)
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         let me = self.get_mut();
-        Pin::new(&mut me.inner).poll_shutdown(cx)
+        let Some(inner) = &mut me.inner else {
+            return Poll::Ready(Err(io::Error::new(
+                ErrorKind::ConnectionAborted,
+                "ControlledStream inner TcpStream is gone",
+            )));
+        };
+        Pin::new(inner).poll_shutdown(cx)
     }
 }
 
@@ -150,7 +190,7 @@ impl Connected for ControlledStream {
     type ConnectInfo = TcpConnectInfo;
 
     fn connect_info(&self) -> Self::ConnectInfo {
-        self.inner.connect_info()
+        self.connect_info.clone()
     }
 }
 
@@ -162,17 +202,27 @@ pub struct ControlledIncoming {
 impl ControlledIncoming {
     pub async fn bind(addr: SocketAddr) -> io::Result<(Self, ControlHandle)> {
         let listener = TcpListener::bind(addr).await?;
-        let mode = Arc::new(AtomicU8::new(Mode::Normal as u8));
-        let handle = ControlHandle::new(mode.clone());
+        let handle = ControlHandle::new();
 
-        Ok((ControlledIncoming { listener, mode }, handle))
+        Ok((
+            ControlledIncoming {
+                listener,
+                mode: handle.mode.clone(),
+            },
+            handle,
+        ))
     }
 
     pub fn from_listener(listener: TcpListener) -> (Self, ControlHandle) {
-        let mode = Arc::new(AtomicU8::new(Mode::Normal as u8));
-        let handle = ControlHandle::new(mode.clone());
+        let handle = ControlHandle::new();
 
-        (ControlledIncoming { listener, mode }, handle)
+        (
+            ControlledIncoming {
+                listener,
+                mode: handle.mode.clone(),
+            },
+            handle,
+        )
     }
 
     pub fn inner(&self) -> &TcpListener {

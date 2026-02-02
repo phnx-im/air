@@ -27,7 +27,7 @@ use uuid::Uuid;
 use crate::{
     init_test_tracing,
     utils::{
-        controlled_listener::{ControlHandle, ControlledIncoming},
+        controlled_listener::{ControlHandle, ControlledIncoming, Mode},
         setup::TestBackendParams,
     },
 };
@@ -68,6 +68,15 @@ pub(crate) async fn spawn_app(
     let (listener, control_handle) = ControlledIncoming::bind(listen)
         .await
         .expect("Failed to bind controlled listener.");
+
+    let interceptor_control_handle = control_handle.clone();
+
+    let interceptor = move |request| {
+        if interceptor_control_handle.mode() == Mode::DropNextResponse {
+            interceptor_control_handle.set_drop_connection_on_write();
+        }
+        Ok(request)
+    };
 
     let address = listener.local_addr().unwrap();
 
@@ -137,15 +146,18 @@ pub(crate) async fn spawn_app(
     };
 
     // Start the server
-    let server = run(ServerRunParams {
-        listener,
-        metrics_listener: None,
-        ds,
-        auth_service,
-        qs,
-        qs_connector,
-        rate_limits: rate_limits.unwrap_or(TEST_RATE_LIMITS),
-    })
+    let server = run(
+        ServerRunParams {
+            listener,
+            metrics_listener: None,
+            ds,
+            auth_service,
+            qs,
+            qs_connector,
+            rate_limits: rate_limits.unwrap_or(TEST_RATE_LIMITS),
+        },
+        interceptor,
+    )
     .await;
 
     // Execute the server in the background
