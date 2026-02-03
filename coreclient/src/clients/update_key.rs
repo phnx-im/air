@@ -4,11 +4,10 @@
 
 use aircommon::{codec::PersistenceCodec, identifiers::UserId, time::TimeStamp};
 use sqlx::SqliteConnection;
-use update_key_flow::UpdateKeyData;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage, chats::messages::TimestampedMessage,
-    groups::GroupData, store::StoreNotifier, utils::connection_ext::StoreExt,
+    groups::GroupData, job::chat_operation::ChatOperation, store::StoreNotifier,
 };
 
 use super::CoreUser;
@@ -26,23 +25,8 @@ impl CoreUser {
         chat_id: ChatId,
         new_chat_attributes: Option<&ChatAttributes>,
     ) -> anyhow::Result<Vec<ChatMessage>> {
-        // Phase 1: Load the chat and the group
-        let update = self
-            .with_transaction(async |txn| {
-                UpdateKeyData::lock(txn, chat_id, self.signing_key(), new_chat_attributes).await
-            })
-            .await?;
-
-        // Phase 2: Send the update to the DS
-        let updated = update
-            .ds_update(&self.inner.api_clients, self.signing_key())
-            .await?;
-
-        // Phase 3: Merge the commit into the group
-        self.with_transaction_and_notifier(async |txn, notifier| {
-            updated.merge_pending_commit(txn, notifier, chat_id).await
-        })
-        .await
+        let job = ChatOperation::update(chat_id, new_chat_attributes.cloned());
+        self.execute_job(job).await
     }
 }
 
@@ -78,116 +62,4 @@ pub(crate) async fn update_chat_attributes(
     }
 
     Ok(())
-}
-
-mod update_key_flow {
-    use aircommon::{
-        codec::PersistenceCodec, credentials::keys::ClientSigningKey, identifiers::UserId,
-        messages::client_ds_out::UpdateParamsOut, time::TimeStamp,
-    };
-    use anyhow::Context;
-    use sqlx::SqliteTransaction;
-
-    use crate::{
-        Chat, ChatAttributes, ChatId, ChatMessage,
-        clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
-        groups::{Group, GroupData},
-    };
-
-    pub(super) struct UpdateKeyData {
-        chat: Chat,
-        group: Group,
-        params: UpdateParamsOut,
-    }
-
-    impl UpdateKeyData {
-        pub(super) async fn lock(
-            txn: &mut SqliteTransaction<'_>,
-            chat_id: ChatId,
-            signer: &ClientSigningKey,
-            new_chat_attributes: Option<&ChatAttributes>,
-        ) -> anyhow::Result<Self> {
-            let chat = Chat::load(txn.as_mut(), &chat_id)
-                .await?
-                .with_context(|| format!("Can't find chat with id {chat_id}"))?;
-            let group_id = chat.group_id();
-            let mut group = Group::load_clean(txn, group_id)
-                .await?
-                .with_context(|| format!("Can't find group with id {group_id:?}"))?;
-            let group_data = match new_chat_attributes {
-                Some(attrs) => Some(GroupData::from(PersistenceCodec::to_vec(attrs)?)),
-                None => None,
-            };
-            let params = group.update(txn, signer, group_data).await?;
-            Ok(Self {
-                chat,
-                group,
-                params,
-            })
-        }
-
-        pub(super) async fn ds_update(
-            self,
-            api_clients: &ApiClients,
-            signer: &ClientSigningKey,
-        ) -> anyhow::Result<UpdatedKey> {
-            let Self {
-                chat,
-                group,
-                params,
-            } = self;
-            let owner_domain = chat.owner_domain();
-            let ds_timestamp = api_clients
-                .get(&owner_domain)?
-                .ds_update(params, signer, group.group_state_ear_key())
-                .await?;
-            Ok(UpdatedKey {
-                group,
-                chat,
-                ds_timestamp,
-                own_id: signer.credential().identity().clone(),
-            })
-        }
-    }
-
-    pub(super) struct UpdatedKey {
-        group: Group,
-        chat: Chat,
-        ds_timestamp: TimeStamp,
-        own_id: UserId,
-    }
-    impl UpdatedKey {
-        pub(crate) async fn merge_pending_commit(
-            self,
-            connection: &mut sqlx::SqliteConnection,
-            notifier: &mut crate::store::StoreNotifier,
-            chat_id: ChatId,
-        ) -> anyhow::Result<Vec<ChatMessage>> {
-            let Self {
-                mut group,
-                mut chat,
-                ds_timestamp,
-                own_id,
-            } = self;
-            let (mut group_messages, group_data) = group
-                .merge_pending_commit(&mut *connection, None, ds_timestamp)
-                .await?;
-
-            if let Some(group_data) = group_data {
-                update_chat_attributes(
-                    connection,
-                    notifier,
-                    &mut chat,
-                    own_id,
-                    group_data,
-                    ds_timestamp,
-                    &mut group_messages,
-                )
-                .await?;
-            }
-
-            group.store_update(&mut *connection).await?;
-            CoreUser::store_new_messages(&mut *connection, notifier, chat_id, group_messages).await
-        }
-    }
 }

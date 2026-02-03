@@ -14,7 +14,7 @@ use aircommon::{
         client_ds_out::{
             CreateGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
             GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageParamsOut,
-            TargetedMessageParamsOut, UpdateParamsOut, WelcomeInfoIn,
+            TargetedMessageParamsOut, WelcomeInfoIn,
         },
     },
     time::TimeStamp,
@@ -281,31 +281,6 @@ impl ApiClient {
             .map_err(|_| DsRequestError::UnexpectedResponse)?,
             proposals: response.proposals.into_iter().map(|m| m.tls).collect(),
         })
-    }
-
-    /// Update your client in this group.
-    pub async fn ds_update(
-        &self,
-        params: UpdateParamsOut,
-        signing_key: &ClientSigningKey,
-        group_state_ear_key: &GroupStateEarKey,
-    ) -> Result<TimeStamp, DsRequestError> {
-        let payload = GroupOperationPayload {
-            client_metadata: Some(self.metadata().clone()),
-            group_state_ear_key: Some(group_state_ear_key.ref_into()),
-            commit: Some(params.commit.try_ref_into()?),
-            add_users_info: None,
-        };
-        let request = payload.sign(signing_key)?;
-        let response = self
-            .ds_grpc_client()
-            .group_operation(request)
-            .await?
-            .into_inner();
-        Ok(response
-            .fanout_timestamp
-            .ok_or(DsRequestError::UnexpectedResponse)?
-            .into())
     }
 
     /// Join the connection group with a new client.
