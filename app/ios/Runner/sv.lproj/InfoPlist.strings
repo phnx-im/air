@@ -1,0 +1,3 @@
+CFBundleDisplayName = "Air";
+NSCameraUsageDescription = "Åtkomst till kameran krävs för att ta ett profilbild";
+NSPhotoLibraryUsageDescription = "Åtkomst till fotobiblioteket krävs för att ställa in en profilbild";

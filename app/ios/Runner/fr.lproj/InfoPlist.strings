@@ -1,0 +1,3 @@
+CFBundleDisplayName = "Air";
+NSCameraUsageDescription = "L'accès à la caméra est nécessaire pour prendre une photo de profil";
+NSPhotoLibraryUsageDescription = "L'accès à la photothèque est nécessaire pour définir une photo de profil";
