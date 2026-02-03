@@ -5,6 +5,10 @@
 package ms.air
 
 import android.util.Log
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
@@ -14,40 +18,24 @@ class BackgroundFirebaseMessagingService : FirebaseMessagingService() {
     // Handle incoming messages from the OS
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         Log.d(LOGTAG, "onMessageReceived")
-        // Check if the message contains data payload
-        if (remoteMessage.data.isNotEmpty()) {
-            handleDataMessage(remoteMessage.data)
-        }
+        val isHighPriority =
+            remoteMessage.priority == RemoteMessage.PRIORITY_HIGH ||
+                    remoteMessage.originalPriority == RemoteMessage.PRIORITY_HIGH
+        enqueueDataMessage(remoteMessage.data, isHighPriority)
     }
 
-    // Handle incoming data messages
-    private fun handleDataMessage(data: Map<String, String>) {
-        Log.d(LOGTAG, "handleDataMessage")
-
-        val logFilePath = cacheDir.resolve("background.log").absolutePath
-        Log.d(LOGTAG, "Logging file path: $logFilePath")
-
-        val notificationContent = IncomingNotificationContent(
-            title = "",
-            body = "",
-            data = data["data"] ?: "",
-            path = filesDir.absolutePath,
-            logFilePath = cacheDir.resolve("background.log").absolutePath,
-        )
-
-        Log.d(LOGTAG, "Starting to process messages in Rust")
-        val notificationBatch = NativeLib().processNewMessages(notificationContent)
-        Log.d(LOGTAG, "Finished to process messages in Rust")
-
-        // Show the notifications
-        notificationBatch?.additions?.forEach { content ->
-            Notifications.showNotification(this, content)
+    private fun enqueueDataMessage(data: Map<String, String>, isHighPriority: Boolean) {
+        Log.d(LOGTAG, "enqueueDataMessage highPriority=$isHighPriority")
+        val workData =
+            workDataOf(
+                PushProcessingWorker.KEY_DATA_PAYLOAD to (data["data"] ?: ""),
+            )
+        val requestBuilder =
+            OneTimeWorkRequestBuilder<PushProcessingWorker>().setInputData(workData)
+        if (isHighPriority) {
+            requestBuilder.setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
         }
-
-        // Remove the notifications
-        if (notificationBatch?.removals != null) {
-            Notifications.cancelNotifications(this, ArrayList(notificationBatch.removals))
-        }
+        WorkManager.getInstance(applicationContext).enqueue(requestBuilder.build())
     }
 
     override fun onNewToken(token: String) {

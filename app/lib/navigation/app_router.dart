@@ -216,10 +216,10 @@ extension on HomeNavigationState {
           key: ValueKey("chat-group-members-screen"),
           child: GroupMembersScreen(),
         ),
-      if (openChatId != null && memberDetails != null)
-        const MaterialPage(
-          key: ValueKey("chat-member-details-screen"),
-          child: MemberDetailsScreen(),
+      if ((openChatId, memberDetails) case (final chatId?, final memberId?))
+        MaterialPage(
+          key: const ValueKey("chat-member-details-screen"),
+          child: MemberDetailsScreen(chatId: chatId, memberId: memberId),
         ),
       if (openChatId != null && chatDetailsOpen && addMembersOpen)
         const MaterialPage(

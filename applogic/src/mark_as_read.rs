@@ -13,7 +13,7 @@ use mimi_content::MessageStatus;
 use tokio::{sync::watch, time::sleep};
 use tracing::error;
 
-use crate::api::user_settings_cubit::UserSettings;
+use crate::{api::user_settings_cubit::UserSettings, notifications::NotificationService};
 
 #[cfg_attr(test, mockall::automock)]
 pub(crate) trait MarkAsReadService {
@@ -32,13 +32,50 @@ pub(crate) trait MarkAsReadService {
     async fn message_ordering(&self, a: MessageId, b: MessageId) -> anyhow::Result<Ordering>;
 }
 
-impl MarkAsReadService for CoreUser {
+pub(crate) struct MarkAsRead<'a> {
+    core_user: &'a CoreUser,
+    notification_service: &'a NotificationService,
+}
+
+impl<'a> MarkAsRead<'a> {
+    pub(crate) fn new(
+        core_user: &'a CoreUser,
+        notification_service: &'a NotificationService,
+    ) -> Self {
+        Self {
+            core_user,
+            notification_service,
+        }
+    }
+
+    async fn cancel_notifications(&self, chat_id: ChatId) -> anyhow::Result<()> {
+        let handles = self.notification_service.get_active_notifications().await;
+        let ids = handles
+            .into_iter()
+            .filter_map(|handle| {
+                if handle.chat_id? == chat_id {
+                    Some(handle.identifier)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        self.notification_service.cancel_notifications(ids).await;
+        Ok(())
+    }
+}
+
+impl MarkAsReadService for MarkAsRead<'_> {
     async fn mark_chat_as_read(
         &self,
         chat_id: ChatId,
         until: MessageId,
     ) -> anyhow::Result<(bool, Vec<(MessageId, MimiId)>)> {
-        <Self as Store>::mark_chat_as_read(self, chat_id, until).await
+        let (marked, ids) = self.core_user.mark_chat_as_read(chat_id, until).await?;
+        if marked {
+            self.cancel_notifications(chat_id).await?;
+        }
+        Ok((marked, ids))
     }
 
     async fn enqueue_read_receipts(
@@ -49,14 +86,15 @@ impl MarkAsReadService for CoreUser {
         let statuses = statuses
             .iter()
             .map(|(id, mimi_id)| (*id, mimi_id, MessageStatus::Read));
-        self.outbound_service()
+        self.core_user
+            .outbound_service()
             .enqueue_receipts(chat_id, statuses)
             .await
     }
 
     async fn message_ordering(&self, a: MessageId, b: MessageId) -> anyhow::Result<Ordering> {
-        let message_a = self.message(a).await?.context("no message")?;
-        let message_b = self.message(b).await?.context("no message")?;
+        let message_a = self.core_user.message(a).await?.context("no message")?;
+        let message_b = self.core_user.message(b).await?.context("no message")?;
         // Tie break by message id
         Ok(message_a
             .timestamp()

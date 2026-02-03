@@ -7,7 +7,7 @@ use std::{collections::HashMap, convert::identity, sync::Arc};
 use aircommon::identifiers::UserHandle;
 use aircoreclient::{
     UserHandleRecord,
-    clients::{HandleQueueMessage, ListenHandleResponder},
+    clients::{AsListenHandleResponder, HandleQueueMessage},
     store::Store,
 };
 use anyhow::{Context, bail};
@@ -31,7 +31,7 @@ use super::{AppState, CubitContext};
 pub(super) struct HandleContext {
     cubit_context: CubitContext,
     handle_record: Arc<UserHandleRecord>,
-    responder: Arc<RwLock<Option<ListenHandleResponder>>>,
+    responder: Arc<RwLock<Option<AsListenHandleResponder>>>,
 }
 
 impl HandleContext {
@@ -168,7 +168,7 @@ impl BackgroundStreamContext<HandleQueueMessage> for HandleContext {
         match self
             .cubit_context
             .core_user
-            .process_handle_queue_message(&self.handle_record.handle.clone(), message)
+            .process_handle_queue_message(self.handle_record.handle.clone(), message)
             .await
         {
             Ok(chat_id) => {

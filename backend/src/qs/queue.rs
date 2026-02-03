@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::VecDeque, sync::Arc};
+use std::{borrow::Cow, collections::VecDeque, sync::Arc};
 
 use aircommon::identifiers::QsClientId;
 use airprotos::queue_service::v1::{
@@ -11,6 +11,7 @@ use airprotos::queue_service::v1::{
 use dashmap::DashMap;
 use futures_util::{Stream, stream};
 use metrics::gauge;
+use semver::Version;
 use sqlx::{PgExecutor, PgPool, PgTransaction};
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
@@ -44,8 +45,17 @@ struct ListenerContext {
 }
 
 impl ListenerContext {
-    fn new(cancel: CancellationToken, payload_tx: mpsc::Sender<QueueEventPayload>) -> Self {
-        gauge!(METRIC_AIR_ACTIVE_USERS).increment(1);
+    fn new(
+        cancel: CancellationToken,
+        client_version: Option<&Version>,
+        payload_tx: mpsc::Sender<QueueEventPayload>,
+    ) -> Self {
+        let client_version_label = client_version_label(client_version);
+        gauge!(
+            METRIC_AIR_ACTIVE_USERS,
+            "client_version" => client_version_label,
+        )
+        .increment(1);
         Self { cancel, payload_tx }
     }
 }
@@ -68,17 +78,19 @@ impl Queues {
 
     pub(crate) async fn listen(
         &self,
-        queue_id: QsClientId,
+        client_id: QsClientId,
+        client_version: Option<Version>,
         sequence_number_start: u64,
     ) -> Result<impl Stream<Item = Option<QueueEvent>> + use<>, QueueError> {
-        let notifications = self.pg_listener_task_handle.subscribe(queue_id);
-        let (payload_tx, payload_rx) = tokio::sync::mpsc::channel(1024);
+        let notifications = self.pg_listener_task_handle.subscribe(client_id);
+        let (payload_tx, payload_rx) = mpsc::channel(1024);
 
-        let cancel = self.track_listener(queue_id, payload_tx);
+        let cancel = self.track_listener(client_id, client_version.as_ref(), payload_tx);
         let context = QueueStreamContext {
             pool: self.pool.clone(),
             notifications,
-            queue_id,
+            client_id,
+            client_version,
             sequence_number: sequence_number_start,
             cancel,
             buffer: VecDeque::with_capacity(MAX_BUFFER_SIZE),
@@ -158,6 +170,7 @@ impl Queues {
     fn track_listener(
         &self,
         client_id: QsClientId,
+        client_version: Option<&Version>,
         payload_tx: mpsc::Sender<QueueEventPayload>,
     ) -> CancellationToken {
         // Clean up cancelled listeners
@@ -171,7 +184,7 @@ impl Queues {
         });
 
         let cancel = CancellationToken::new();
-        let context = ListenerContext::new(cancel.clone(), payload_tx);
+        let context = ListenerContext::new(cancel.clone(), client_version, payload_tx);
         if let Some(prev_listener) = self.listeners.insert(client_id, context) {
             prev_listener.cancel.cancel();
         } else {
@@ -196,7 +209,8 @@ impl PgChannelName for QsClientId {
 struct QueueStreamContext<S> {
     pool: PgPool,
     notifications: S,
-    queue_id: QsClientId,
+    client_id: QsClientId,
+    client_version: Option<Version>,
     sequence_number: u64,
     cancel: CancellationToken,
     /// Buffer for already fetched messages
@@ -209,8 +223,13 @@ struct QueueStreamContext<S> {
 impl<S> Drop for QueueStreamContext<S> {
     fn drop(&mut self) {
         self.cancel.cancel();
-        gauge!(METRIC_AIR_ACTIVE_USERS).decrement(1);
-        debug!(queue_id =? self.queue_id, "QS queue stream stopped");
+        let client_version_label = client_version_label(self.client_version.as_ref());
+        gauge!(
+            METRIC_AIR_ACTIVE_USERS,
+            "client_version" => client_version_label
+        )
+        .decrement(1);
+        debug!(queue_id =? self.client_id, "QS queue stream stopped");
     }
 }
 
@@ -273,7 +292,7 @@ impl<S: Stream<Item = ()> + Send + Unpin> QueueStreamContext<S> {
         debug_assert!(self.buffer.is_empty());
         Queue::fetch_into(
             &self.pool,
-            &self.queue_id,
+            &self.client_id,
             self.sequence_number,
             MAX_BUFFER_SIZE,
             &mut self.buffer,
@@ -302,6 +321,13 @@ impl<S: Stream<Item = ()> + Send + Unpin> QueueStreamContext<S> {
 
 fn pg_queue_label(queue_id: QsClientId) -> String {
     format!("qs_{}", queue_id.as_uuid())
+}
+
+fn client_version_label(client_version: Option<&Version>) -> Cow<'static, str> {
+    client_version
+        .as_ref()
+        .map(|v| v.to_string().into())
+        .unwrap_or("unknown".into())
 }
 
 pub(super) struct Queue {}

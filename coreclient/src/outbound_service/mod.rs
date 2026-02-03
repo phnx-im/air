@@ -4,6 +4,7 @@
 
 use std::{
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll},
 };
 
@@ -29,6 +30,7 @@ pub use timed_tasks::KEY_PACKAGES;
 mod chat_message_queue;
 mod chat_messages;
 mod error;
+mod push_tokens;
 mod receipt_queue;
 mod receipts;
 pub(crate) mod resync;
@@ -43,8 +45,17 @@ pub(crate) mod timed_tasks_queue;
 /// After doing the work once, it wait for the next notification, or stops if it is stopped.
 #[derive(Debug)]
 pub struct OutboundService<C: OutboundServiceWork = OutboundServiceContext> {
-    context: C,
+    context: Arc<C>,
     run_token_tx: watch::Sender<RunToken>,
+}
+
+impl<C: OutboundServiceWork> Clone for OutboundService<C> {
+    fn clone(&self) -> Self {
+        Self {
+            context: self.context.clone(),
+            run_token_tx: self.run_token_tx.clone(),
+        }
+    }
 }
 
 pub trait OutboundServiceWork: Clone + Send + 'static {
@@ -85,7 +96,7 @@ impl<C: OutboundServiceWork> OutboundService<C> {
         };
         tokio::spawn(task.run(run_token_rx, global_lock));
         Self {
-            context,
+            context: Arc::new(context),
             run_token_tx,
         }
     }
@@ -134,6 +145,10 @@ impl<C: OutboundServiceWork> OutboundService<C> {
         });
         debug!(?notified, "notifying background task about new work");
         WaitForDoneFuture::new(done_token)
+    }
+
+    pub(crate) fn notify_push_token_update(&self) -> WaitForDoneFuture {
+        self.notify_work()
     }
 
     /// Runs the background task and waits until it is done.
@@ -204,6 +219,9 @@ impl OutboundServiceContext {
         }
         if let Err(error) = self.send_queued_messages(&run_token).await {
             error!(%error, "Failed to send queued messages");
+        }
+        if let Err(error) = self.send_pending_push_token_updates(&run_token).await {
+            error!(%error, "Failed to send push token update");
         }
         if let Err(error) = self.execute_timed_tasks(&run_token).await {
             error!(%error, "Failed to execute timed tasks");

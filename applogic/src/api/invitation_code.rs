@@ -2,12 +2,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircommon::identifiers::Fqdn;
 use aircoreclient::clients::CoreUser;
 
 pub async fn check_invitation_code(
-    server_url: String,
+    domain: String,
     invitation_code: String,
 ) -> anyhow::Result<bool> {
-    let server_url = server_url.parse()?;
-    CoreUser::check_invitation_code(server_url, invitation_code).await
+    let domain: Fqdn = domain.parse()?;
+    CoreUser::check_invitation_code(domain, invitation_code).await
 }

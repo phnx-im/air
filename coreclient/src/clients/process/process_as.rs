@@ -8,7 +8,7 @@ use aircommon::{
         ear::keys::FriendshipPackageEarKey, hpke::HpkeDecryptable,
         indexed_aead::keys::UserProfileKey,
     },
-    identifiers::{UserHandle, UserId},
+    identifiers::{QualifiedGroupId, UserHandle, UserId},
     messages::{
         client_as::{ConnectionOfferHash, ConnectionOfferMessage},
         connection_package::{ConnectionPackage, ConnectionPackageHash},
@@ -16,10 +16,11 @@ use aircommon::{
     time::TimeStamp,
 };
 use airprotos::auth_service::v1::{HandleQueueMessage, handle_queue_message};
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use openmls::group::GroupId;
 use sqlx::SqliteConnection;
-use tracing::error;
+use tls_codec::DeserializeBytes;
+use tracing::{error, warn};
 
 use crate::{
     PartialContact, SystemMessage, TargetedMessageContact,
@@ -47,12 +48,16 @@ pub(crate) enum ConnectionInfoSource {
 pub(crate) struct ConnectionOfferSource {
     pub(crate) connection_offer: ConnectionOfferMessage,
     pub(crate) user_handle: UserHandle,
+    /// Timestamp when the connection offer was enqueued on the server
+    pub(crate) sent_at: Option<TimeStamp>,
 }
 
 pub(crate) struct TargetedMessageSource {
     pub(crate) connection_info: ConnectionInfo,
     pub(crate) sender_client_credential: ClientCredential,
     pub(crate) origin_chat_id: ChatId,
+    /// Timestamp when the targeted message was enqueued on the QS
+    pub(crate) sent_at: TimeStamp,
 }
 
 struct HandleConnectionInfo {
@@ -70,12 +75,14 @@ impl ConnectionInfoSource {
         ClientCredential,
         Option<ChatId>,
         Option<HandleConnectionInfo>,
+        Option<TimeStamp>,
     )> {
         match self {
             ConnectionInfoSource::ConnectionOffer(connection_offer_source) => {
                 let ConnectionOfferSource {
                     connection_offer,
                     user_handle,
+                    sent_at,
                 } = *connection_offer_source;
                 let connection_offer_hash = connection_offer.connection_offer_hash();
                 let mut connection = core_user.pool().acquire().await?;
@@ -97,6 +104,7 @@ impl ConnectionInfoSource {
                     sender_client_credential,
                     None,
                     Some(handle_connection_info),
+                    sent_at,
                 ))
             }
             ConnectionInfoSource::TargetedMessage(targeted_message_source) => {
@@ -104,12 +112,14 @@ impl ConnectionInfoSource {
                     connection_info,
                     sender_client_credential,
                     origin_chat_id,
+                    sent_at,
                 } = *targeted_message_source;
                 Ok((
                     connection_info,
                     sender_client_credential,
                     Some(origin_chat_id),
                     None,
+                    Some(sent_at),
                 ))
             }
         }
@@ -117,23 +127,25 @@ impl ConnectionInfoSource {
 }
 
 impl CoreUser {
-    /// Process a queue message received from the AS handle queue.
-    ///
-    /// Returns the [`ChatId`] of any newly created chat.
-    pub async fn process_handle_queue_message(
+    pub(crate) async fn process_handle_queue_message_event_loop(
         &self,
-        user_handle: &UserHandle,
+        user_handle: UserHandle,
         handle_queue_message: HandleQueueMessage,
     ) -> Result<ChatId> {
         let payload = handle_queue_message
             .payload
             .context("no payload in handle queue message")?;
+
+        // Extract the server timestamp from the message
+        let sent_at = handle_queue_message.created_at.map(TimeStamp::from);
+
         match payload {
             handle_queue_message::Payload::ConnectionOffer(eco) => {
                 let connection_info_source =
                     ConnectionInfoSource::ConnectionOffer(Box::new(ConnectionOfferSource {
                         connection_offer: eco.try_into()?,
                         user_handle: user_handle.clone(),
+                        sent_at,
                     }));
                 self.process_connection_offer(connection_info_source).await
             }
@@ -144,8 +156,15 @@ impl CoreUser {
         &self,
         connection_info_source: ConnectionInfoSource,
     ) -> anyhow::Result<ChatId> {
-        let (connection_info, sender_client_credential, origin_chat_id, handle_connection_info) =
-            connection_info_source.into_parts(self).await?;
+        let (
+            connection_info,
+            sender_client_credential,
+            origin_chat_id,
+            handle_connection_info,
+            sent_at,
+        ) = connection_info_source.into_parts(self).await?;
+        // Use the server's timestamp if available, otherwise fall back to current time
+        let message_timestamp = sent_at.unwrap_or_else(TimeStamp::now);
 
         // Deny connection from blocked users
         if BlockedContact::check_blocked(self.pool(), sender_client_credential.identity()).await? {
@@ -165,12 +184,55 @@ impl CoreUser {
                 client_credential: sender_client_credential.clone(),
                 user_profile_key: sender_profile_key,
             };
-            self.fetch_and_store_user_profile(
+            let res = Self::fetch_and_store_user_profile(
                 self.pool().acquire().await?.as_mut(),
                 notifier,
+                self.api_clients(),
                 profile_info,
             )
-            .await
+            .await;
+            if let Err(error) = res {
+                warn!(%error, "Failed to fetch user profile; falling back to fetching group info");
+
+                // Fetch external commit info
+                let qgid = QualifiedGroupId::tls_deserialize_exact_bytes(
+                    connection_info.connection_group_id.as_slice(),
+                )?;
+                let eci = self
+                    .api_clients()
+                    .get(qgid.owning_domain())?
+                    .ds_connection_group_info(
+                        connection_info.connection_group_id.clone(),
+                        &connection_info.connection_group_ear_key,
+                    )
+                    .await?;
+                ensure!(
+                    eci.encrypted_user_profile_keys.len() == 1,
+                    "Unjoined connection group must have exactly one user profile key"
+                );
+
+                // Decrypt user profile key
+                let encrypted_user_profile_key = &eci.encrypted_user_profile_keys[0];
+                let user_profile_key = UserProfileKey::decrypt(
+                    &connection_info.connection_group_identity_link_wrapper_key,
+                    encrypted_user_profile_key,
+                    sender_client_credential.identity(),
+                )?;
+
+                // Fetch and store user profile (it also creates a new contact)
+                let profile_info = ProfileInfo {
+                    client_credential: sender_client_credential.clone(),
+                    user_profile_key,
+                };
+                Self::fetch_and_store_user_profile(
+                    self.pool().acquire().await?.as_mut(),
+                    notifier,
+                    self.api_clients(),
+                    profile_info,
+                )
+                .await?;
+            }
+            Ok(())
         })
         .await?;
 
@@ -236,7 +298,7 @@ impl CoreUser {
                 }
             };
             let received_message =
-                TimestampedMessage::system_message(received_system_message, TimeStamp::now());
+                TimestampedMessage::system_message(received_system_message, message_timestamp);
             let chat_messages = vec![received_message];
 
             // Store chat, pending connection info, partial contact and system message
@@ -260,7 +322,7 @@ impl CoreUser {
     ) -> Result<(ConnectionOfferPayload, ConnectionPackageHash)> {
         let (eco, hash) = com.into_parts();
 
-        let decryption_key = ConnectionPackage::load_decryption_key(connection, &hash)
+        let decryption_key = ConnectionPackage::load_decryption_key(&mut *connection, &hash)
             .await?
             .context("No decryption key found for incoming connection offer")?;
 
@@ -298,8 +360,7 @@ impl CoreUser {
         _friendship_package: FriendshipPackage,
         handle_connection_info: Option<&HandleConnectionInfo>,
     ) -> anyhow::Result<(Chat, PartialContact)> {
-        let display_name = self
-            .user_profile_internal(connection, &sender_user_id)
+        let display_name = Self::user_profile_internal(connection, &sender_user_id)
             .await
             .display_name;
         let chat = Chat::new_pending_connection_chat(

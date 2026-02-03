@@ -187,6 +187,11 @@ impl UserCubitBase {
         &self.context.core_user
     }
 
+    #[frb(ignore)]
+    pub(crate) fn notification_service(&self) -> &NotificationService {
+        &self.context.notification_service
+    }
+
     // Cubit inteface
 
     #[frb(getter, sync)]
@@ -553,7 +558,7 @@ impl CubitContext {
                 // - we are on desktop, the app is in the foreground, and the notification belongs to the currently open chat
                 let app_state = *self.app_state.borrow();
                 if !IS_DESKTOP || app_state == AppState::Foreground {
-                    notifications.retain(|notification| notification.chat_id != Some(chat_id));
+                    notifications.retain(|notification| notification.chat_id != chat_id);
                 }
             }
             NotificationContext::Other => (),

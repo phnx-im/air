@@ -21,8 +21,8 @@ pub use attachment::{AttachmentId, AttachmentIdParseError};
 pub use mimi_id::{MimiId, MimiIdCalculationError};
 pub use tls_codec_impls::{TlsStr, TlsString};
 pub use user_handle::{
-    USER_HANDLE_VALIDITY_PERIOD, UserHandle, UserHandleHash, UserHandleHashError,
-    UserHandleValidationError,
+    USER_HANDLE_REFRESH_THRESHOLD, USER_HANDLE_VALIDITY_PERIOD, UserHandle, UserHandleHash,
+    UserHandleHashError, UserHandleValidationError,
 };
 
 use super::*;
@@ -35,6 +35,16 @@ mod user_handle;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Fqdn {
     domain: Host<String>,
+}
+
+impl Fqdn {
+    pub fn is_localhost(&self) -> bool {
+        match self.domain {
+            Host::Domain(ref domain) => domain == "localhost",
+            Host::Ipv4(ref addr) => addr.is_loopback(),
+            Host::Ipv6(ref addr) => addr.is_loopback(),
+        }
+    }
 }
 
 impl From<Host> for Fqdn {

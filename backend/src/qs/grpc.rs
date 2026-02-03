@@ -20,20 +20,22 @@ use aircommon::{
     time::TimeStamp,
 };
 use displaydoc::Display;
-use tokio_stream::{Stream, StreamExt};
+use semver::Version;
+use tokio::sync::mpsc;
+use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
 use tonic::{Code, Request, Response, Status, Streaming, async_trait};
 use tracing::error;
 
 use crate::{
     errors::QueueError,
     qs::{client_record::QsClientRecord, queue::Queues, user_record::UserRecord},
-    util::find_cause,
+    util::{find_cause, select_until_first_ends},
 };
 
 use super::Qs;
 
 pub struct GrpcQs {
-    qs: Qs,
+    pub(super) qs: Qs,
 }
 
 impl GrpcQs {
@@ -45,6 +47,7 @@ impl GrpcQs {
         queues: Queues,
         queue_id: identifiers::QsClientId,
         mut requests: Streaming<ListenRequest>,
+        requests_responses_tx: mpsc::Sender<Status>,
     ) {
         while let Some(request) = requests.next().await {
             if let Err(error) = Self::process_listen_queue_request(&queues, queue_id, request).await
@@ -58,9 +61,9 @@ impl GrpcQs {
                     // Client closed connection => not an error
                     continue;
                 } else {
-                    // We report the error, but don't stop processing requests.
-                    // TODO(#466): Send this to the client.
+                    // We report the error to the client, but don't stop processing requests.
                     error!(%error, "error processing listen queue request");
+                    let _ = requests_responses_tx.send(Status::from(error)).await;
                 }
             }
         }
@@ -103,7 +106,7 @@ impl GrpcQs {
     fn verify_client_version(
         &self,
         client_metadata: Option<&ClientMetadata>,
-    ) -> Result<(), Status> {
+    ) -> Result<Option<Version>, Status> {
         let client_version_req = self.qs.client_version_req.as_ref();
         crate::version::verify_client_version(client_version_req, client_metadata)
     }
@@ -119,6 +122,21 @@ enum ProcessListenQueueRequestError {
     Status(#[from] Status),
     /// Received empty request
     EmptyRequest,
+}
+
+impl From<ProcessListenQueueRequestError> for Status {
+    fn from(error: ProcessListenQueueRequestError) -> Self {
+        match error {
+            ProcessListenQueueRequestError::Queue(_)
+            | ProcessListenQueueRequestError::Status(_) => {
+                Status::internal("Failed to process listen queue request")
+            }
+            ProcessListenQueueRequestError::UnexpectedInitRequest
+            | ProcessListenQueueRequestError::EmptyRequest => {
+                Status::invalid_argument(error.to_string())
+            }
+        }
+    }
 }
 
 // Note: currently, *no* authentication is done
@@ -177,15 +195,28 @@ impl QueueService for GrpcQs {
         request: Request<UpdateUserRequest>,
     ) -> Result<Response<UpdateUserResponse>, Status> {
         let request = request.into_inner();
-        self.verify_client_version(request.client_metadata.as_ref())?;
+
+        self.verify_client_version(
+            request
+                .payload
+                .as_ref()
+                .and_then(|p| p.client_metadata.as_ref())
+                .or(request.client_metadata.as_ref()),
+        )?;
+
+        let UpdateUserPayload {
+            client_metadata: _,
+            sender,
+            user_record_auth_key,
+            friendship_token,
+        } = self.verify_user_auth(request).await?;
+
         let params = UpdateUserRecordParams {
-            sender: request.sender.ok_or_missing_field("sender")?.try_into()?,
-            user_record_auth_key: request
-                .user_record_auth_key
+            sender: sender.ok_or_missing_field("sender")?.try_into()?,
+            user_record_auth_key: user_record_auth_key
                 .ok_or_missing_field("user_record_auth_key")?
                 .into(),
-            friendship_token: request
-                .friendship_token
+            friendship_token: friendship_token
                 .ok_or_missing_field("friendship_token")?
                 .into(),
         };
@@ -204,9 +235,22 @@ impl QueueService for GrpcQs {
         request: Request<DeleteUserRequest>,
     ) -> Result<Response<DeleteUserResponse>, Status> {
         let request = request.into_inner();
-        self.verify_client_version(request.client_metadata.as_ref())?;
+
+        self.verify_client_version(
+            request
+                .payload
+                .as_ref()
+                .and_then(|p| p.client_metadata.as_ref())
+                .or(request.client_metadata.as_ref()),
+        )?;
+
+        let DeleteUserPayload {
+            client_metadata: _,
+            sender,
+        } = self.verify_user_auth(request).await?;
+
         let params = DeleteUserRecordParams {
-            sender: request.sender.ok_or_missing_field("sender")?.try_into()?,
+            sender: sender.ok_or_missing_field("sender")?.try_into()?,
         };
         self.qs
             .qs_delete_user_record(params)
@@ -223,23 +267,27 @@ impl QueueService for GrpcQs {
         request: Request<CreateClientRequest>,
     ) -> Result<Response<CreateClientResponse>, Status> {
         let request = request.into_inner();
-        self.verify_client_version(request.client_metadata.as_ref())?;
+        let CreateClientPayload {
+            client_metadata,
+            sender,
+            client_record_auth_key,
+            queue_encryption_key,
+            encrypted_push_token,
+            initial_ratched_secret,
+        } = self.verify_user_auth(request).await?;
+        self.verify_client_version(client_metadata.as_ref())?;
         let params = CreateClientRecordParams {
-            sender: request.sender.ok_or_missing_field("sender")?.try_into()?,
-            client_record_auth_key: request
-                .client_record_auth_key
+            sender: sender.ok_or_missing_field("sender")?.try_into()?,
+            client_record_auth_key: client_record_auth_key
                 .ok_or_missing_field("client_record_auth_key")?
                 .into(),
-            queue_encryption_key: request
-                .queue_encryption_key
+            queue_encryption_key: queue_encryption_key
                 .ok_or_missing_field("queue_encryption_key")?
                 .into(),
-            encrypted_push_token: request
-                .encrypted_push_token
+            encrypted_push_token: encrypted_push_token
                 .map(|token| token.try_into())
                 .transpose()?,
-            initial_ratchet_secret: request
-                .initial_ratched_secret
+            initial_ratchet_secret: initial_ratched_secret
                 .ok_or_missing_field("initial_ratched_secret")?
                 .try_into()?,
         };
@@ -254,19 +302,29 @@ impl QueueService for GrpcQs {
         request: Request<UpdateClientRequest>,
     ) -> Result<Response<UpdateClientResponse>, Status> {
         let request = request.into_inner();
-        self.verify_client_version(request.client_metadata.as_ref())?;
+        self.verify_client_version(
+            request
+                .payload
+                .as_ref()
+                .and_then(|p| p.client_metadata.as_ref())
+                .or(request.client_metadata.as_ref()),
+        )?;
+        let UpdateClientPayload {
+            client_metadata: _,
+            sender,
+            client_record_auth_key,
+            queue_encryption_key,
+            encrypted_push_token,
+        } = self.verify_client_auth(request).await?;
         let params = UpdateClientRecordParams {
-            sender: request.sender.ok_or_missing_field("sender")?.try_into()?,
-            client_record_auth_key: request
-                .client_record_auth_key
+            sender: sender.ok_or_missing_field("sender")?.try_into()?,
+            client_record_auth_key: client_record_auth_key
                 .ok_or_missing_field("client_record_auth_key")?
                 .into(),
-            queue_encryption_key: request
-                .queue_encryption_key
+            queue_encryption_key: queue_encryption_key
                 .ok_or_missing_field("queue_encryption_key")?
                 .into(),
-            encrypted_push_token: request
-                .encrypted_push_token
+            encrypted_push_token: encrypted_push_token
                 .map(|token| token.try_into())
                 .transpose()?,
         };
@@ -279,9 +337,19 @@ impl QueueService for GrpcQs {
         request: Request<DeleteClientRequest>,
     ) -> Result<Response<DeleteClientResponse>, Status> {
         let request = request.into_inner();
-        self.verify_client_version(request.client_metadata.as_ref())?;
+        self.verify_client_version(
+            request
+                .payload
+                .as_ref()
+                .and_then(|p| p.client_metadata.as_ref())
+                .or(request.client_metadata.as_ref()),
+        )?;
+        let DeleteClientPayload {
+            client_metadata: _,
+            sender,
+        } = self.verify_client_auth(request).await?;
         let params = DeleteClientRecordParams {
-            sender: request.sender.ok_or_missing_field("sender")?.try_into()?,
+            sender: sender.ok_or_missing_field("sender")?.try_into()?,
         };
         self.qs.qs_delete_client_record(params).await?;
         Ok(Response::new(DeleteClientResponse {}))
@@ -292,14 +360,21 @@ impl QueueService for GrpcQs {
         request: Request<PublishKeyPackagesRequest>,
     ) -> Result<Response<PublishKeyPackagesResponse>, Status> {
         let request = request.into_inner();
-        self.verify_client_version(request.client_metadata.as_ref())?;
+        self.verify_client_version(
+            request
+                .payload
+                .as_ref()
+                .and_then(|p| p.client_metadata.as_ref())
+                .or(request.client_metadata.as_ref()),
+        )?;
+        let PublishKeyPackagesPayload {
+            client_metadata: _,
+            client_id,
+            key_packages,
+        } = self.verify_client_auth(request).await?;
         let params = PublishKeyPackagesParams {
-            sender: request
-                .client_id
-                .ok_or_missing_field("client_id")?
-                .try_into()?,
-            key_packages: request
-                .key_packages
+            sender: client_id.ok_or_missing_field("client_id")?.try_into()?,
+            key_packages: key_packages
                 .into_iter()
                 .map(|key_package| key_package.try_into())
                 .collect::<Result<Vec<_>, _>>()
@@ -348,25 +423,32 @@ impl QueueService for GrpcQs {
             .next()
             .await
             .ok_or(ListenQueueProtocolViolation::MissingInitRequest)??;
-        let Some(listen_request::Request::Init(InitListenRequest {
-            client_metadata,
-            client_id,
-            sequence_number_start,
-        })) = request.request
-        else {
+        let Some(listen_request::Request::Init(init_request)) = request.request else {
             return Err(ListenQueueProtocolViolation::MissingInitRequest.into());
         };
 
-        self.verify_client_version(client_metadata.as_ref())?;
+        let client_version = self.verify_client_version(
+            init_request
+                .payload
+                .as_ref()
+                .and_then(|p| p.client_metadata.as_ref())
+                .or(init_request.client_metadata.as_ref()),
+        )?;
+
+        let InitListenPayload {
+            client_metadata: _,
+            client_id,
+            sequence_number_start,
+        } = self.verify_client_auth(init_request).await?;
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
 
         let queue_messages = self
             .qs
             .queues
-            .listen(client_id, sequence_number_start)
+            .listen(client_id, client_version, sequence_number_start)
             .await?;
-        let responses = queue_messages.map(|message| match message {
+        let events = queue_messages.map(|message| match message {
             Some(event) => event,
             None => QueueEvent {
                 event: Some(queue_event::Event::Empty(QueueEmpty {})),
@@ -380,13 +462,23 @@ impl QueueService for GrpcQs {
             })
             .ok();
 
+        const REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
+        let (requests_responses_tx, requests_responses_rx) =
+            mpsc::channel::<Status>(REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE);
+
         tokio::spawn(Self::process_listen_queue_requests_task(
             self.qs.queues.clone(),
             client_id,
             requests,
+            requests_responses_tx,
         ));
 
-        Ok(Response::new(Box::pin(responses.map(Ok))))
+        let responses = select_until_first_ends(
+            events.map(Ok),
+            ReceiverStream::new(requests_responses_rx).map(Err),
+        );
+
+        Ok(Response::new(Box::pin(responses)))
     }
 }
 

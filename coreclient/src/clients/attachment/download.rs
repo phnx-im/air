@@ -7,6 +7,7 @@ use aircommon::{
     identifiers::AttachmentId,
 };
 use anyhow::{Context, anyhow, ensure};
+use mimi_content::content_container::EncryptionAlgorithm;
 use sha2::{Digest, Sha256};
 use tokio_stream::StreamExt;
 use tracing::{debug, info};
@@ -86,7 +87,11 @@ impl CoreUser {
         // Check encryption parameters
         debug!(?attachment_id, "Checking encryption parameters");
         ensure!(
-            pending_record.enc_alg == AIR_ATTACHMENT_ENCRYPTION_ALG,
+            pending_record.enc_alg == AIR_ATTACHMENT_ENCRYPTION_ALG
+            // Older clients (<= v0.9.0) specified Aes256Gcm12 as encryption algorithm, however
+            // they were actually using Aes256Gcm. To be forward compatible, we also accept the the
+            // correctly specified algorithm.
+                || pending_record.enc_alg == EncryptionAlgorithm::Aes256Gcm,
             "unsupported encryption algorithm: {:?}",
             pending_record.enc_alg
         );

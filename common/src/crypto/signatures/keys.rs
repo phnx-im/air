@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use crate::crypto::RawKey;
+use crate::crypto::{RawKey, signatures::signable::Signature};
 
 use super::private_keys::{SigningKey, VerifyingKey, VerifyingKeyRef};
 
@@ -18,6 +18,8 @@ impl RawKey for QsClientVerifyingKeyType {}
 
 pub type QsClientSigningKey = SigningKey<QsClientVerifyingKeyType>;
 
+pub type QsClientSignature = Signature<QsClientVerifyingKeyType>;
+
 #[derive(Debug)]
 pub struct QsUserVerifyingKeyType;
 pub type QsUserVerifyingKey = VerifyingKey<QsUserVerifyingKeyType>;
@@ -25,6 +27,8 @@ pub type QsUserVerifyingKey = VerifyingKey<QsUserVerifyingKeyType>;
 impl RawKey for QsUserVerifyingKeyType {}
 
 pub type QsUserSigningKey = SigningKey<QsUserVerifyingKeyType>;
+
+pub type QsUserSignature = Signature<QsUserVerifyingKeyType>;
 
 #[cfg(test)]
 mod test {

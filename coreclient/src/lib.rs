@@ -10,6 +10,7 @@ mod chats;
 pub mod clients;
 mod contacts;
 mod groups;
+mod job;
 mod key_stores;
 pub mod outbound_service;
 pub mod store;
@@ -26,10 +27,10 @@ pub use crate::{
         },
     },
     clients::{
-        add_contact::{AddHandleContactError, AddHandleContactResult},
+        add_contact::AddHandleContactError,
         attachment::{
             AttachmentContent, AttachmentStatus, AttachmentUrl, AttachmentUrlParseError,
-            MimiContentExt,
+            MimiContentExt, ProvisionAttachmentError, UploadTaskError,
             progress::{AttachmentProgress, AttachmentProgressEvent},
         },
         block_contact::BlockedContactError,

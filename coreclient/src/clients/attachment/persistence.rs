@@ -41,7 +41,9 @@ pub enum AttachmentStatus {
     /// The download has completed successfully.
     Ready = 3,
     /// The download has failed.
-    Failed = 4,
+    DownloadFailed = 4,
+    /// The upload has failed.
+    UploadFailed = 6,
 }
 
 impl AttachmentStatus {
@@ -50,8 +52,9 @@ impl AttachmentStatus {
             1 => Self::Pending,
             2 => Self::Downloading,
             3 => Self::Ready,
-            4 => Self::Failed,
+            4 => Self::DownloadFailed,
             5 => Self::Uploading,
+            6 => Self::UploadFailed,
             _ => Self::Unknown,
         }
     }
@@ -71,7 +74,9 @@ pub enum AttachmentContent {
     /// Currently uploading
     Uploading(Vec<u8>),
     /// Failed to download
-    Failed,
+    DownloadFailed,
+    /// Upload failed
+    UploadFailed(Vec<u8>),
     /// Unknown status
     Unknown,
 }
@@ -92,7 +97,11 @@ impl AttachmentContent {
             (_, AttachmentStatus::Downloading) => AttachmentContent::Downloading,
             (Some(content), AttachmentStatus::Uploading) => AttachmentContent::Uploading(content),
             (None, AttachmentStatus::Uploading) => AttachmentContent::Unknown,
-            (_, AttachmentStatus::Failed) => AttachmentContent::Failed,
+            (Some(content), AttachmentStatus::UploadFailed) => {
+                AttachmentContent::UploadFailed(content)
+            }
+            (None, AttachmentStatus::UploadFailed) => AttachmentContent::Unknown,
+            (_, AttachmentStatus::DownloadFailed) => AttachmentContent::DownloadFailed,
             (_, AttachmentStatus::Unknown) => AttachmentContent::Unknown,
         }
     }
@@ -503,10 +512,14 @@ mod test {
         assert_eq!(loaded_record.status, AttachmentStatus::Ready);
 
         // 4. Update status to Failed
-        AttachmentRecord::update_status(&pool, record.attachment_id, AttachmentStatus::Failed)
-            .await?;
+        AttachmentRecord::update_status(
+            &pool,
+            record.attachment_id,
+            AttachmentStatus::DownloadFailed,
+        )
+        .await?;
         let loaded_content = AttachmentRecord::load_content(&pool, record.attachment_id).await?;
-        assert_eq!(loaded_content, AttachmentContent::Failed);
+        assert_eq!(loaded_content, AttachmentContent::DownloadFailed);
 
         // 5. Check loading content for a non-existent attachment
         let non_existent_id = AttachmentId::new(Uuid::new_v4());

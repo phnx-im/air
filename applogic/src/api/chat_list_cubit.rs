@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use aircommon::identifiers::{UserHandle, UserHandleHash};
 use aircoreclient::{
-    AddHandleContactResult, ChatId,
+    AddHandleContactError, ChatId,
     clients::CoreUser,
     store::{Store, StoreEntityId, StoreNotification},
 };
@@ -88,9 +88,13 @@ impl ChatListCubitBase {
         &self,
         handle: UiUserHandle,
         hash: UserHandleHash,
-    ) -> anyhow::Result<AddHandleContactResult> {
+    ) -> anyhow::Result<Option<AddHandleContactError>> {
         let handle = UserHandle::new(handle.plaintext)?;
-        self.context.store.add_contact(handle, hash).await
+        self.context
+            .store
+            .add_contact(handle, hash)
+            .await
+            .map(Result::err)
     }
 
     /// Creates a new group chat with the given name and optional picture.

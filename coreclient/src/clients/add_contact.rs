@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airapiclient::{ApiClient, as_api::ConnectionOfferResponder};
+use airapiclient::{ApiClient, as_api::AsConnectionOfferResponder};
 use aircommon::{
     codec::PersistenceCodec,
     credentials::keys::ClientSigningKey,
@@ -41,12 +41,6 @@ use crate::{
 use super::{CoreUser, connection_offer::payload::ConnectionOfferPayload};
 
 #[derive(Debug)]
-pub enum AddHandleContactResult {
-    Ok(ChatId),
-    Err(AddHandleContactError),
-}
-
-#[derive(Debug)]
 pub enum AddHandleContactError {
     /// The contact could not be added because the user handle does not exist
     HandleNotFound,
@@ -64,21 +58,17 @@ impl CoreUser {
         &self,
         handle: UserHandle,
         hash: UserHandleHash,
-    ) -> anyhow::Result<AddHandleContactResult> {
+    ) -> anyhow::Result<Result<ChatId, AddHandleContactError>> {
         let client = self.api_client()?;
 
         // Phase 0: Perform sanity checks
         // Check if a connection request is already pending
         if HandleContact::load(self.pool(), &handle).await?.is_some() {
-            return Ok(AddHandleContactResult::Err(
-                AddHandleContactError::DuplicateRequest,
-            ));
+            return Ok(Err(AddHandleContactError::DuplicateRequest));
         }
         // Check if the target handle is one of our own handles
         if self.user_handles().await?.contains(&handle) {
-            return Ok(AddHandleContactResult::Err(
-                AddHandleContactError::OwnHandle,
-            ));
+            return Ok(Err(AddHandleContactError::OwnHandle));
         }
 
         // Phase 1: Fetch a connection package from the AS
@@ -86,9 +76,7 @@ impl CoreUser {
             match client.as_connect_handle(hash).await {
                 Ok(res) => res,
                 Err(error) if error.is_not_found() => {
-                    return Ok(AddHandleContactResult::Err(
-                        AddHandleContactError::HandleNotFound,
-                    ));
+                    return Ok(Err(AddHandleContactError::HandleNotFound));
                 }
                 Err(error) => return Err(error.into()),
             };
@@ -140,7 +128,7 @@ impl CoreUser {
                 )
                 .await?;
 
-            Ok(AddHandleContactResult::Ok(chat_id))
+            Ok(Ok(chat_id))
         })
         .await
     }
@@ -219,9 +207,8 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
     ) -> anyhow::Result<(Group, PartialCreateGroupParams)> {
         let group_data = PersistenceCodec::to_vec(attributes)?.into();
 
-        let provider = AirOpenMlsProvider::new(txn);
         let (group, group_membership, partial_params) =
-            Group::create_group(&provider, signing_key, self.group_id.clone(), group_data)?;
+            Group::create_group(txn, signing_key, self.group_id.clone(), group_data)?;
 
         group.store(txn.as_mut()).await?;
         group_membership.store(txn.as_mut()).await?;
@@ -480,7 +467,7 @@ impl LocalHandleContact<HandlePayload> {
         self,
         client: &ApiClient,
         signer: &ClientSigningKey,
-        responder: ConnectionOfferResponder,
+        responder: AsConnectionOfferResponder,
     ) -> anyhow::Result<ChatId> {
         let Self {
             group,

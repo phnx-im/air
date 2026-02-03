@@ -15,11 +15,10 @@ use aircommon::{
     crypto::ear::{AeadCiphertext, EarEncryptable, keys::AttachmentEarKey},
     identifiers::AttachmentId,
 };
-use airprotos::delivery_service::v1::SignedPostPolicy;
+use airprotos::{common::v1::AttachmentTooLargeDetail, delivery_service::v1::SignedPostPolicy};
 use anyhow::{Context, bail, ensure};
 use base64::{Engine, prelude::BASE64_STANDARD};
 use chrono::{DateTime, Local, Utc};
-use infer::MatcherType;
 use mimi_content::{
     MimiContent,
     content_container::{Disposition, NestedPart, NestedPartContent, PartSemantics},
@@ -32,7 +31,8 @@ use tokio_stream::StreamExt;
 use tokio_util::io::ReaderStream;
 
 use crate::{
-    AttachmentContent, AttachmentStatus, AttachmentUrl, Chat, ChatId, ChatMessage, MessageId,
+    AttachmentContent, AttachmentProgressEvent, AttachmentStatus, AttachmentUrl, Chat, ChatId,
+    ChatMessage, MessageId,
     clients::{
         CoreUser,
         attachment::{
@@ -45,7 +45,7 @@ use crate::{
     store::{Store, StoreNotifier},
     utils::{
         connection_ext::StoreExt,
-        image::{ReencodedAttachmentImage, reencode_attachment_image},
+        image::{ReencodedAttachmentImage, load_attachment_image},
     },
 };
 
@@ -55,11 +55,16 @@ impl CoreUser {
         &self,
         chat_id: ChatId,
         path: &Path,
-    ) -> anyhow::Result<(
-        AttachmentId,
-        AttachmentProgress,
-        impl Future<Output = anyhow::Result<ChatMessage>> + use<>,
-    )> {
+    ) -> anyhow::Result<
+        Result<
+            (
+                AttachmentId,
+                AttachmentProgress,
+                impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
+            ),
+            ProvisionAttachmentError,
+        >,
+    > {
         let (chat, group) = self
             .with_transaction(async |txn| {
                 let chat = Chat::load(txn, &chat_id)
@@ -78,13 +83,17 @@ impl CoreUser {
         let mut attachment = ProcessedAttachment::from_file(path)?;
 
         // encrypt the content and provision the attachment, but don't upload it yet
-        let (attachment_metadata, ciphertext, provision_response) = encrypt_and_provision(
+        let (attachment_metadata, ciphertext, provision_response) = match encrypt_and_provision(
             &self.api_client()?,
             self.signing_key(),
             &group,
             &attachment.content,
         )
-        .await?;
+        .await?
+        {
+            Ok(result) => result,
+            Err(error) => return Ok(Err(error)),
+        };
 
         // store local attachment message
         let attachment_id = attachment_metadata.attachment_id;
@@ -133,33 +142,36 @@ impl CoreUser {
         // upload the encrypted attachment
         let (progress, task) =
             self.upload_attachment_task(attachment_id, message, ciphertext, provision_response);
-        Ok((attachment_id, progress, task))
+        Ok(Ok((attachment_id, progress, task)))
     }
 
     pub async fn retry_upload_attachment(
         &self,
         attachment_id: AttachmentId,
-    ) -> anyhow::Result<(
-        AttachmentId,
-        AttachmentProgress,
-        impl Future<Output = anyhow::Result<ChatMessage>> + use<>,
-    )> {
+    ) -> anyhow::Result<
+        Result<
+            (
+                AttachmentId,
+                AttachmentProgress,
+                impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
+            ),
+            ProvisionAttachmentError,
+        >,
+    > {
         // load locally stored data
         let (group, mut message, content) = self
             .with_transaction(async |txn| {
-                let AttachmentContent::Uploading(bytes) =
-                    self.load_attachment(attachment_id).await?
-                else {
-                    bail!("Attachment {attachment_id:?} is not uploading");
+                let content = match self.load_attachment(attachment_id).await? {
+                    AttachmentContent::UploadFailed(bytes) => AttachmentBytes::from(bytes),
+                    status => bail!("Unexpected attachment {attachment_id:?} status {status:?}"),
                 };
-                let content = AttachmentBytes::from(bytes);
 
                 let attachment_record = AttachmentRecord::load(self.pool(), attachment_id)
                     .await?
                     .context("Attachment not found")?;
                 ensure!(
-                    matches!(attachment_record.status, AttachmentStatus::Uploading),
-                    "Attachment is not uploading"
+                    matches!(attachment_record.status, AttachmentStatus::UploadFailed),
+                    "For retrying, the attachment must be in UploadFailed status"
                 );
 
                 let message = self
@@ -183,8 +195,12 @@ impl CoreUser {
 
         // encrypt the content and provision the attachment, but don't upload it yet
         let (attachment_metadata, ciphertext, provision_response) =
-            encrypt_and_provision(&self.api_client()?, self.signing_key(), &group, &content)
-                .await?;
+            match encrypt_and_provision(&self.api_client()?, self.signing_key(), &group, &content)
+                .await?
+            {
+                Ok(result) => result,
+                Err(error) => return Ok(Err(error)),
+            };
 
         // update local attachment message
 
@@ -222,7 +238,7 @@ impl CoreUser {
             })
             .await?;
         } else {
-            bail!("Invalid attachment mimi content");
+            bail!("Invalid attachment mimi content")
         }
 
         // upload task
@@ -232,7 +248,11 @@ impl CoreUser {
             ciphertext,
             provision_response,
         );
-        Ok((attachment_metadata.attachment_id, progress, upload_task))
+        Ok(Ok((
+            attachment_metadata.attachment_id,
+            progress,
+            upload_task,
+        )))
     }
 
     fn upload_attachment_task(
@@ -243,7 +263,7 @@ impl CoreUser {
         provision_response: ProvisionAttachmentResponse,
     ) -> (
         AttachmentProgress,
-        impl Future<Output = anyhow::Result<ChatMessage>> + use<>,
+        impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
     ) {
         let (progress_tx, progress) = AttachmentProgress::new();
         let http_client = self.http_client();
@@ -256,15 +276,41 @@ impl CoreUser {
                 ciphertext,
             )
             .await;
-            let status = if res.is_ok() {
-                AttachmentStatus::Ready
-            } else {
-                AttachmentStatus::Failed
-            };
-            AttachmentRecord::update_status(&pool, attachment_id, status).await?;
+            match res {
+                Ok(()) => {
+                    AttachmentRecord::update_status(&pool, attachment_id, AttachmentStatus::Ready)
+                        .await
+                        .map_err(|error| UploadTaskError::new(message.id(), error.into()))?;
+                }
+                Err(error) => {
+                    AttachmentRecord::update_status(
+                        &pool,
+                        attachment_id,
+                        AttachmentStatus::UploadFailed,
+                    )
+                    .await
+                    .map_err(|error| UploadTaskError::new(message.id(), error.into()))?;
+                    return Err(UploadTaskError {
+                        message_id: message.id(),
+                        error,
+                    });
+                }
+            }
             Ok(message)
         };
         (progress, task)
+    }
+}
+
+#[derive(Debug)]
+pub struct UploadTaskError {
+    pub message_id: MessageId,
+    pub error: anyhow::Error,
+}
+
+impl UploadTaskError {
+    fn new(message_id: MessageId, error: anyhow::Error) -> Self {
+        Self { message_id, error }
     }
 }
 
@@ -288,34 +334,29 @@ struct ProcessedAttachmentImageData {
 
 impl ProcessedAttachment {
     fn from_file(path: &Path) -> anyhow::Result<Self> {
-        // TODO(#589): Avoid reading the whole file into memory when it is an image.
-        // Instead, it should be re-encoded directly from the file.
-        let content = std::fs::read(path)
-            .with_context(|| format!("Failed to read file at {}", path.display()))?;
-        let mime = infer::get(&content);
-
-        let (content, content_type, image_data): (AttachmentBytes, _, _) = if mime
-            .map(|mime| mime.matcher_type() == MatcherType::Image)
-            .unwrap_or(false)
-        {
-            let ReencodedAttachmentImage {
+        let (content, content_type, image_data): (AttachmentBytes, _, _) =
+            if let Some(ReencodedAttachmentImage {
                 webp_image,
                 image_dimensions: (width, height),
                 blurhash,
-            } = reencode_attachment_image(content)?;
-            let image_data = ProcessedAttachmentImageData {
-                blurhash,
-                width,
-                height,
+            }) = load_attachment_image(path)?
+            {
+                let image_data = ProcessedAttachmentImageData {
+                    blurhash,
+                    width,
+                    height,
+                };
+                (webp_image.into(), "image/webp", Some(image_data))
+            } else {
+                let content = std::fs::read(path)
+                    .with_context(|| format!("Failed to read file at {}", path.display()))?;
+                let mime = infer::get(&content);
+                let content_type = mime
+                    .as_ref()
+                    .map(|mime| mime.mime_type())
+                    .unwrap_or("application/octet-stream");
+                (content.into(), content_type, None)
             };
-            (webp_image.into(), "image/webp", Some(image_data))
-        } else {
-            let content_type = mime
-                .as_ref()
-                .map(|mime| mime.mime_type())
-                .unwrap_or("application/octet-stream");
-            (content.into(), content_type, None)
-        };
 
         let content_hash = Sha256::digest(&content).to_vec();
 
@@ -396,12 +437,19 @@ struct AttachmentMetadata {
     nonce: [u8; 12],
 }
 
+#[derive(Debug)]
+pub enum ProvisionAttachmentError {
+    TooLarge(AttachmentTooLargeDetail),
+}
+
 async fn encrypt_and_provision(
     api_client: &ApiClient,
     signing_key: &ClientSigningKey,
     group: &Group,
     content: &AttachmentBytes,
-) -> anyhow::Result<(AttachmentMetadata, Vec<u8>, ProvisionAttachmentResponse)> {
+) -> anyhow::Result<
+    Result<(AttachmentMetadata, Vec<u8>, ProvisionAttachmentResponse), ProvisionAttachmentError>,
+> {
     // encrypt the content
     let key = AttachmentEarKey::random()?;
     let ciphertext: AeadCiphertext = content.encrypt(&key)?.into();
@@ -409,7 +457,7 @@ async fn encrypt_and_provision(
 
     // provision attachment
     let content_length = ciphertext.len().try_into().context("usize overflow")?;
-    let response = api_client
+    let response = match api_client
         .ds_provision_attachment(
             signing_key,
             group.group_state_ear_key(),
@@ -417,7 +465,18 @@ async fn encrypt_and_provision(
             group.own_index(),
             content_length,
         )
-        .await?;
+        .await
+    {
+        Ok(response) => response,
+        Err(error) => {
+            return match error.get_attachment_too_large() {
+                Some(attachment_too_large) => Ok(Err(ProvisionAttachmentError::TooLarge(
+                    attachment_too_large,
+                ))),
+                None => Err(error.into()),
+            };
+        }
+    };
 
     let attachment_id =
         AttachmentId::new(response.attachment_id.context("no attachment id")?.into());
@@ -427,7 +486,7 @@ async fn encrypt_and_provision(
         key,
         nonce,
     };
-    Ok((metadata, ciphertext, response))
+    Ok(Ok((metadata, ciphertext, response)))
 }
 
 async fn upload_encrypted_attachment(
@@ -458,15 +517,14 @@ async fn upload_encrypted_attachment(
         }
 
         let mut uploaded = 0;
-        let total_len = ciphertext.len();
-
+        let tx = progress_tx.tx();
         let stream = ReaderStream::new(Cursor::new(ciphertext)).map(move |chunk| {
             if let Ok(chunk) = &chunk {
                 uploaded += chunk.len();
-                if uploaded == total_len {
-                    progress_tx.finish();
-                } else {
-                    progress_tx.report(uploaded);
+                if let Some(tx) = tx.as_ref() {
+                    let _ignore_closed = tx.send(AttachmentProgressEvent::Progress {
+                        bytes_loaded: uploaded,
+                    });
                 }
             }
             chunk
@@ -477,6 +535,8 @@ async fn upload_encrypted_attachment(
             .send()
             .await?
             .error_for_status()?;
+
+        progress_tx.finish();
     }
     Ok(())
 }

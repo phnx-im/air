@@ -88,9 +88,9 @@ impl TestUser {
     }
 
     pub async fn new_persisted(user_id: &UserId, server_url: Url, db_dir: &str) -> Self {
-        let user = CoreUser::new(
+        let user = CoreUser::with_server_url(
             user_id.clone(),
-            server_url,
+            Some(server_url),
             db_dir,
             None,
             "DUMMY007".to_owned(),
@@ -168,6 +168,7 @@ pub struct TestBackendParams {
     pub client_version_req: Option<VersionReq>,
     pub invitation_only: bool,
     pub unredeemable_code: Option<String>,
+    pub max_attachment_size: Option<u64>,
 }
 
 impl TestBackend {
@@ -187,7 +188,7 @@ impl TestBackend {
                 (ServerUrl::External(url), domain, None, Vec::new())
             } else {
                 let network_provider = MockNetworkProvider::new();
-                let domain: Fqdn = "example.com".parse().unwrap();
+                let domain: Fqdn = "localhost".parse().unwrap();
                 let (listen_addr, control_handle, codes) =
                     spawn_app(domain.clone(), network_provider, params).await;
                 info!(%listen_addr, "using spawned test server");
@@ -392,7 +393,8 @@ impl TestBackend {
         user1
             .add_contact(user2_handle.clone(), user_handle_hash)
             .await
-            .unwrap();
+            .expect("fatal error")
+            .expect("non-fatal error");
         let mut user1_handle_contacts_after = user1.handle_contacts().await.unwrap();
         let error_msg = format!(
             "User 2 should be in the handle contacts list of user 1. List: {user1_handle_contacts_after:?}",
@@ -447,7 +449,7 @@ impl TestBackend {
         {
             let message_id = message.message_id.unwrap();
             user2
-                .process_handle_queue_message(&user2_handle_record.handle, message)
+                .process_handle_queue_message(user2_handle_record.handle.clone(), message)
                 .await
                 .unwrap();
             responder.ack(message_id.into()).await;
@@ -907,7 +909,7 @@ impl TestBackend {
         recipients: Vec<&UserId>,
         attachment: &[u8],
         filename: &str,
-    ) -> (MessageId, NestedPartContent) {
+    ) -> Result<(MessageId, NestedPartContent), ProvisionAttachmentError> {
         let recipient_strings = recipients
             .iter()
             .map(|n| format!("{n:?}"))
@@ -928,8 +930,11 @@ impl TestBackend {
         let path = tmp_dir.path().join(filename);
         std::fs::write(&path, attachment).unwrap();
 
-        let (attachment_id, _progress, upload_task) =
-            sender.upload_attachment(chat_id, &path).await.unwrap();
+        let (attachment_id, _progress, upload_task) = sender
+            .upload_attachment(chat_id, &path)
+            .await
+            .expect("fatal error")?;
+
         let message = upload_task.await.unwrap();
         sender
             .outbound_service()
@@ -1010,7 +1015,7 @@ impl TestBackend {
                 .unwrap();
         }
 
-        (message.id(), external_part)
+        Ok((message.id(), external_part))
     }
 
     /// This function goes through all tables of the database and returns all columns that contain the query.
