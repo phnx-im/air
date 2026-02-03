@@ -66,15 +66,15 @@ class IntroScreen extends StatelessWidget {
                 child: _LanguagePicker(),
               ),
             ),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: ConstrainedWidth(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    _TermsOfUseText(loc: loc),
-                    if (!isUserLoading) ...[
+            if (!isUserLoading)
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: ConstrainedWidth(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _TermsOfUseText(loc: loc),
                       SizedBox(
                         width: double.infinity,
                         child: Padding(
@@ -95,9 +95,7 @@ class IntroScreen extends StatelessWidget {
                                 ),
                             onPressed: () async {
                               await requestNotificationPermissionsIfNeeded();
-                              if (!context.mounted) {
-                                return;
-                              }
+                              if (!context.mounted) return;
                               context.read<NavigationCubit>().openSignUp();
                             },
                             child: Text(
@@ -110,12 +108,11 @@ class IntroScreen extends StatelessWidget {
                           ),
                         ),
                       ),
+                      const SizedBox(height: Spacings.s),
                     ],
-                    const SizedBox(height: Spacings.s),
-                  ],
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),

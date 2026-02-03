@@ -6,7 +6,7 @@ import 'package:air/user/change_display_name_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
+import '../helpers.dart';
 
 void main() {
   group('ChangeDisplayNameDialogTest', () {
@@ -14,7 +14,7 @@ void main() {
       builder: (context) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          theme: themeData(MediaQuery.platformBrightnessOf(context)),
+          theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: const ChangeDisplayNameDialog(displayName: "Ellie"),
         );

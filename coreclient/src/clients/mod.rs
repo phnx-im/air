@@ -48,6 +48,7 @@ use crate::{
     clients::event_loop::{EventLoop, EventLoopSender},
     contacts::{HandleContact, TargetedMessageContact},
     groups::Group,
+    job::{Job, JobContext},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
     outbound_service::OutboundService,
     store::Store,
@@ -100,7 +101,7 @@ pub mod targeted_message;
 mod test_utils;
 #[cfg(test)]
 mod tests;
-mod update_key;
+pub(crate) mod update_key;
 mod user_profile;
 pub(crate) mod user_settings;
 
@@ -582,7 +583,13 @@ impl CoreUser {
         let mut connection = self.pool().acquire().await.ok()?;
         let chat = Chat::load(&mut connection, &chat_id).await.ok()??;
         let group = Group::load(&mut connection, chat.group_id()).await.ok()??;
-        Some(group.pending_removes(&mut connection).await)
+        Some(
+            group
+                .pending_removes()
+                .into_iter()
+                .map(|(_, removed)| removed)
+                .collect(),
+        )
     }
 
     pub async fn listen_queue(
@@ -594,8 +601,13 @@ impl CoreUser {
         let queue_ratchet = StorableQsQueueRatchet::load(self.pool()).await?;
         let sequence_number_start = queue_ratchet.sequence_number();
         let api_client = self.inner.api_clients.default_client()?;
+        let client_signing_key = &self.inner.key_store.qs_client_signing_key;
         let (stream, responder) = api_client
-            .qs_listen_queue(self.inner.qs_client_id, sequence_number_start)
+            .qs_listen_queue(
+                self.inner.qs_client_id,
+                sequence_number_start,
+                client_signing_key,
+            )
             .await?;
         Ok((stream, responder))
     }
@@ -775,6 +787,22 @@ impl CoreUser {
             Ok(result)
         })
         .await
+    }
+
+    async fn execute_job<T: Send, JobType: Job<Output = T>>(
+        &self,
+        job: JobType,
+    ) -> anyhow::Result<T> {
+        let mut notifier = self.store_notifier();
+        let mut context = JobContext {
+            api_clients: &self.inner.api_clients,
+            pool: self.pool().clone(),
+            notifier: &mut notifier,
+            key_store: &self.inner.key_store,
+        };
+        let value = job.execute(&mut context).await?;
+        notifier.notify();
+        Ok(value)
     }
 }
 

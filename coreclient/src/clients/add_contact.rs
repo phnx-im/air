@@ -207,9 +207,8 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
     ) -> anyhow::Result<(Group, PartialCreateGroupParams)> {
         let group_data = PersistenceCodec::to_vec(attributes)?.into();
 
-        let provider = AirOpenMlsProvider::new(txn);
         let (group, group_membership, partial_params) =
-            Group::create_group(&provider, signing_key, self.group_id.clone(), group_data)?;
+            Group::create_group(txn, signing_key, self.group_id.clone(), group_data)?;
 
         group.store(txn.as_mut()).await?;
         group_membership.store(txn.as_mut()).await?;

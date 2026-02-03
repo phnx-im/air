@@ -60,11 +60,6 @@ pub struct GroupOperationParamsOut {
 }
 
 #[derive(Debug)]
-pub struct UpdateParamsOut {
-    pub commit: AssistedMessageOut,
-}
-
-#[derive(Debug)]
 pub struct SelfRemoveParamsOut {
     pub remove_proposal: AssistedMessageOut,
 }

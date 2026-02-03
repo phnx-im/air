@@ -33,25 +33,34 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
 
 Future<void> _loadFonts() async {
   final monospaceFamily = getSystemMonospaceFontFamily();
-  final fonts = <String, String>{
-    "MaterialIcons": "fonts/MaterialIcons-Regular.otf",
-    "SourceCodeProEmbedded": "assets/fonts/SourceCodePro.ttf",
-  };
+  // Load MaterialIcons from the Flutter SDK via rootBundle
+  final iconBytes = rootBundle.load("fonts/MaterialIcons-Regular.otf");
+  final iconLoader = FontLoader("MaterialIcons")..addFont(iconBytes);
+  await iconLoader.load();
+
+  // Load test-only fonts from disk (not registered in pubspec.yaml)
+  final testFonts = <String, String>{"NotoEmoji": "test/fonts/NotoEmoji.ttf"};
   final usesSystemMonospace = await _tryLoadSystemMonospaceFont(
     monospaceFamily,
   );
   final usesSanFrancisco = await _tryLoadSanFranciscoFont();
   if (!usesSystemMonospace) {
-    fonts[monospaceFamily] = "assets/fonts/RobotoMono-Regular.ttf";
+    testFonts[monospaceFamily] = "test/fonts/RobotoMono-Regular.ttf";
   }
   if (!usesSanFrancisco) {
-    fonts["Roboto"] = "assets/fonts/Roboto-Regular.ttf";
+    testFonts["Roboto"] = "test/fonts/Roboto-Regular.ttf";
   }
-  for (final entry in fonts.entries) {
-    final bytes = rootBundle.load(entry.value);
-    final fontLoader = FontLoader(entry.key)..addFont(bytes);
-    await fontLoader.load();
+  for (final entry in testFonts.entries) {
+    await _loadFontFromFile(entry.key, entry.value);
   }
+}
+
+Future<void> _loadFontFromFile(String family, String path) async {
+  final file = File(path);
+  final bytes = file.readAsBytesSync();
+  final byteData = bytes.buffer.asByteData();
+  final loader = FontLoader(family)..addFont(Future.value(byteData));
+  await loader.load();
 }
 
 Future<bool> _tryLoadSystemMonospaceFont(String family) async {
