@@ -601,8 +601,13 @@ impl CoreUser {
         let queue_ratchet = StorableQsQueueRatchet::load(self.pool()).await?;
         let sequence_number_start = queue_ratchet.sequence_number();
         let api_client = self.inner.api_clients.default_client()?;
+        let client_signing_key = &self.inner.key_store.qs_client_signing_key;
         let (stream, responder) = api_client
-            .qs_listen_queue(self.inner.qs_client_id, sequence_number_start)
+            .qs_listen_queue(
+                self.inner.qs_client_id,
+                sequence_number_start,
+                client_signing_key,
+            )
             .await?;
         Ok((stream, responder))
     }

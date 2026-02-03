@@ -21,8 +21,8 @@ pub use attachment::{AttachmentId, AttachmentIdParseError};
 pub use mimi_id::{MimiId, MimiIdCalculationError};
 pub use tls_codec_impls::{TlsStr, TlsString};
 pub use user_handle::{
-    USER_HANDLE_VALIDITY_PERIOD, UserHandle, UserHandleHash, UserHandleHashError,
-    UserHandleValidationError,
+    USER_HANDLE_REFRESH_THRESHOLD, USER_HANDLE_VALIDITY_PERIOD, UserHandle, UserHandleHash,
+    UserHandleHashError, UserHandleValidationError,
 };
 
 use super::*;
