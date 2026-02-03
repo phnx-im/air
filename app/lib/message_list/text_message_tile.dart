@@ -318,6 +318,14 @@ class _MessageView extends HookWidget {
             context.read<ChatDetailsCubit>().editMessage(messageId: messageId);
           },
         ),
+      if (isSender)
+        MessageAction(
+          label: "Delete",
+          leading: const AppIcon.trash(size: iconSize),
+          onSelected: () {
+            context.read<ChatDetailsCubit>().deleteMessage(messageId: messageId);
+          },
+        ),
       if (attachments.isNotEmpty && !Platform.isIOS)
         MessageAction(
           label: loc.messageContextMenu_save,

@@ -145,6 +145,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiChatDetailsCubitChatDetailsCubitBaseDeleteMessage({
     required ChatDetailsCubitBase that,
+    required MessageId messageId,
   });
 
   Future<void> crateApiChatDetailsCubitChatDetailsCubitBaseEditMessage({
@@ -1240,6 +1241,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @override
   Future<void> crateApiChatDetailsCubitChatDetailsCubitBaseDeleteMessage({
     required ChatDetailsCubitBase that,
+    required MessageId messageId,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -1249,6 +1251,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
+          sse_encode_box_autoadd_message_id(messageId, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -1262,7 +1265,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kCrateApiChatDetailsCubitChatDetailsCubitBaseDeleteMessageConstMeta,
-        argValues: [that],
+        argValues: [that, messageId],
         apiImpl: this,
       ),
     );
@@ -1272,7 +1275,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiChatDetailsCubitChatDetailsCubitBaseDeleteMessageConstMeta =>
       const TaskConstMeta(
         debugName: "ChatDetailsCubitBase_delete_message",
-        argNames: ["that"],
+        argNames: ["that", "messageId"],
       );
 
   @override
@@ -14105,8 +14108,13 @@ class ChatDetailsCubitBaseImpl extends RustOpaque
   Future<void> close() => RustLib.instance.api
       .crateApiChatDetailsCubitChatDetailsCubitBaseClose(that: this);
 
-  Future<void> deleteMessage() => RustLib.instance.api
-      .crateApiChatDetailsCubitChatDetailsCubitBaseDeleteMessage(that: this);
+  Future<void> deleteMessage({required MessageId messageId}) => RustLib
+      .instance
+      .api
+      .crateApiChatDetailsCubitChatDetailsCubitBaseDeleteMessage(
+        that: this,
+        messageId: messageId,
+      );
 
   Future<void> editMessage({MessageId? messageId}) => RustLib.instance.api
       .crateApiChatDetailsCubitChatDetailsCubitBaseEditMessage(

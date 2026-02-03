@@ -154,30 +154,13 @@ impl ChatDetailsCubitBase {
         Store::set_chat_title(&self.context.store, self.context.chat_id, title).await
     }
 
-    pub async fn delete_message(&self) -> anyhow::Result<()> {
-        let mut draft = None;
-        self.core.state_tx().send_if_modified(|state| {
-            let Some(chat) = state.chat.as_mut() else {
-                return false;
-            };
-            draft = chat.draft.take();
-            draft.is_some()
-        });
+    pub async fn delete_message(&self, message_id: MessageId) -> anyhow::Result<()> {
+        // Load message
+        let message = self.context.store.message(message_id).await?;
 
-        let Some(draft) = draft else {
-            return Err(anyhow::anyhow!("You did not select a message to delete"));
+        let Some(_message) = message else {
+            return Ok(());
         };
-        if draft.editing_id.is_none() {
-            return Err(anyhow::anyhow!("You did not select a message to delete"));
-        }
-
-        // Remove stored draft
-        self.context
-            .store
-            .store_message_draft(self.context.chat_id, None)
-            .await?;
-
-        let editing_id = draft.editing_id;
 
         let salt: [u8; 16] = RustCrypto::default().random_array()?;
         let content = MimiContent {
@@ -196,7 +179,7 @@ impl ChatDetailsCubitBase {
 
         self.context
             .store
-            .send_message(self.context.chat_id, content, editing_id)
+            .send_message(self.context.chat_id, content, Some(message_id))
             .await
             .inspect_err(|error| error!(%error, "Failed to send message"))?;
 
@@ -227,23 +210,7 @@ impl ChatDetailsCubitBase {
         let editing_id = draft.and_then(|d| d.editing_id);
 
         let salt: [u8; 16] = RustCrypto::default().random_array()?;
-        let content = if message_text == "delete" {
-            MimiContent {
-                salt: ByteBuf::from(salt),
-                replaces: None, // Replaces is set by store_unsent_message
-                topic_id: Default::default(),
-                expires: None,
-                in_reply_to: None,
-                extensions: Default::default(),
-                nested_part: NestedPart {
-                    disposition: Disposition::Render,
-                    language: "".to_owned(),
-                    part: NestedPartContent::NullPart,
-                },
-            }
-        } else {
-            MimiContent::simple_markdown_message(message_text, salt)
-        };
+        let content = MimiContent::simple_markdown_message(message_text, salt);
 
         self.context
             .store

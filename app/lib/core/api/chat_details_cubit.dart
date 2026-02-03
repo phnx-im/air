@@ -31,7 +31,7 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
 
   Future<void> close();
 
-  Future<void> deleteMessage();
+  Future<void> deleteMessage({required MessageId messageId});
 
   Future<void> editMessage({MessageId? messageId});
 

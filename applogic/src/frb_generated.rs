@@ -372,6 +372,7 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_delete_message_imp
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>,
             >>::sse_decode(&mut deserializer);
+            let api_message_id = <crate::api::types::MessageId>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -396,6 +397,7 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_delete_message_imp
                         let output_ok =
                             crate::api::chat_details_cubit::ChatDetailsCubitBase::delete_message(
                                 &*api_that_guard,
+                                api_message_id,
                             )
                             .await?;
                         Ok(output_ok)
