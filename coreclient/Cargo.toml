@@ -4,7 +4,7 @@
 
 [package]
 name = "aircoreclient"
-version = "0.8.0"
+version = "0.10.0"
 authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
 edition = "2024"
 publish = false
@@ -26,7 +26,6 @@ enumset.workspace = true
 flate2.workspace = true
 image.workspace = true
 infer.workspace = true
-kamadak-exif.workspace = true
 mimi-room-policy.workspace = true
 mimi_content.workspace = true
 mls-assist.workspace = true

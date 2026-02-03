@@ -33,8 +33,16 @@ void initDartLogging(core.LogWriter logWriter) {
   Logger.root.level = kDebugMode ? Level.FINE : Level.INFO;
   Logger.root.onRecord.listen((record) {
     final utcTime = record.time.toUtc();
-    final message =
-        '$utcTime [Dart] ${record.level.asString} ${record.loggerName}: ${record.message}';
+    final buffer = StringBuffer()
+      ..write('$utcTime [Dart] ${record.level.asString} ')
+      ..write('${record.loggerName}: ${record.message}');
+    if (record.error != null) {
+      buffer.write('\nError: ${record.error}');
+    }
+    if (record.stackTrace != null) {
+      buffer.write('\nStackTrace: ${record.stackTrace}');
+    }
+    final message = buffer.toString();
     // ignore: avoid_print
     print(message);
     logWriter.writeLine(message: message);

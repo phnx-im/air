@@ -15,6 +15,14 @@ pub(crate) trait ConnectionExt {
         &mut self,
         f: impl AsyncFnOnce(&mut SqliteTransaction<'_>) -> anyhow::Result<T>,
     ) -> anyhow::Result<T>;
+
+    /// Executes a function with a connection.
+    ///
+    /// The connection is dropped at the end of the closure.
+    async fn with_connection<T: Send>(
+        &mut self,
+        f: impl AsyncFnOnce(&mut SqliteConnection) -> anyhow::Result<T>,
+    ) -> anyhow::Result<T>;
 }
 
 impl ConnectionExt for SqliteConnection {
@@ -26,6 +34,33 @@ impl ConnectionExt for SqliteConnection {
         let value = f(&mut txn).await?;
         txn.commit().await?;
         Ok(value)
+    }
+
+    async fn with_connection<T: Send>(
+        &mut self,
+        f: impl AsyncFnOnce(&mut SqliteConnection) -> anyhow::Result<T>,
+    ) -> anyhow::Result<T> {
+        f(self).await
+    }
+}
+
+impl ConnectionExt for SqlitePool {
+    async fn with_transaction<T: Send>(
+        &mut self,
+        f: impl AsyncFnOnce(&mut SqliteTransaction<'_>) -> anyhow::Result<T>,
+    ) -> anyhow::Result<T> {
+        let mut txn = self.begin_with("BEGIN IMMEDIATE").await?;
+        let value = f(&mut txn).await?;
+        txn.commit().await?;
+        Ok(value)
+    }
+
+    async fn with_connection<T: Send>(
+        &mut self,
+        f: impl AsyncFnOnce(&mut SqliteConnection) -> anyhow::Result<T>,
+    ) -> anyhow::Result<T> {
+        let mut connection = self.acquire().await?;
+        f(&mut connection).await
     }
 }
 

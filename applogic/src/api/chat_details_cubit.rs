@@ -11,7 +11,10 @@ use aircommon::{
     OpenMlsRand, RustCrypto,
     identifiers::{AttachmentId, UserId},
 };
-use aircoreclient::{AttachmentProgress, Chat, ChatId, ChatMessage, MessageDraft};
+use aircoreclient::{
+    AttachmentProgress, Chat, ChatId, ChatMessage, MessageDraft, ProvisionAttachmentError,
+    UploadTaskError,
+};
 use aircoreclient::{MessageId, clients::CoreUser, store::Store};
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
@@ -20,15 +23,21 @@ use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
 use tracing::{error, info};
 
-use crate::api::{
-    attachments_repository::{AttachmentTaskHandle, AttachmentsRepository, InProgressMap},
-    chats_repository::ChatsRepository,
-    types::{UiChatType, UiUserId},
-    user_settings_cubit::{UserSettings, UserSettingsCubitBase},
-};
 use crate::message_content::MimiContentExt;
-use crate::util::{Cubit, CubitCore, spawn_from_sync};
 use crate::{StreamSink, mark_as_read::MarkAsReadState};
+use crate::{
+    api::{
+        attachments_repository::{AttachmentTaskHandle, AttachmentsRepository, InProgressMap},
+        chats_repository::ChatsRepository,
+        types::{UiChatType, UiUserId},
+        user_settings_cubit::{UserSettings, UserSettingsCubitBase},
+    },
+    mark_as_read::MarkAsRead,
+};
+use crate::{
+    notifications::NotificationService,
+    util::{Cubit, CubitCore, spawn_from_sync},
+};
 
 use super::{types::UiChatDetails, user_cubit::UserCubitBase};
 
@@ -83,6 +92,7 @@ impl ChatDetailsCubitBase {
         let context = ChatDetailsContext::new(
             store.clone(),
             chats_repository.clone(),
+            user_cubit.notification_service().clone(),
             core.state_tx().clone(),
             chat_id,
             with_members,
@@ -244,32 +254,48 @@ impl ChatDetailsCubitBase {
         Ok(())
     }
 
-    pub async fn upload_attachment(&self, path: String) -> anyhow::Result<()> {
+    pub async fn upload_attachment(
+        &self,
+        path: String,
+    ) -> anyhow::Result<Option<UploadAttachmentError>> {
         let path = PathBuf::from(path);
-        let (attachment_id, progress, upload_task) = self
+        let (attachment_id, progress, upload_task) = match self
             .context
             .store
             .upload_attachment(self.context.chat_id, &path)
-            .await?;
+            .await?
+        {
+            Ok(result) => result,
+            Err(error) => return error.into_ui_result(),
+        };
         self.upload_attachment_impl(attachment_id, progress, upload_task)
-            .await
+            .await?;
+        Ok(None)
     }
 
-    pub async fn retry_upload_attachment(&self, attachment_id: AttachmentId) -> anyhow::Result<()> {
-        let (new_attachment_id, progress, upload_task) = self
+    pub async fn retry_upload_attachment(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> anyhow::Result<Option<UploadAttachmentError>> {
+        let (new_attachment_id, progress, upload_task) = match self
             .context
             .store
             .retry_upload_attachment(attachment_id)
-            .await?;
+            .await?
+        {
+            Ok(result) => result,
+            Err(error) => return error.into_ui_result(),
+        };
         self.upload_attachment_impl(new_attachment_id, progress, upload_task)
-            .await
+            .await?;
+        Ok(None)
     }
 
     async fn upload_attachment_impl(
         &self,
         attachment_id: AttachmentId,
         progress: AttachmentProgress,
-        upload_task: impl Future<Output = anyhow::Result<ChatMessage>> + Send + 'static,
+        upload_task: impl Future<Output = Result<ChatMessage, UploadTaskError>> + Send + 'static,
     ) -> anyhow::Result<()> {
         let handle = AttachmentTaskHandle::new(progress);
         let cancel = handle.cancellation_token().clone();
@@ -282,8 +308,13 @@ impl ChatDetailsCubitBase {
                     .enqueue_chat_message(message.id(), Some(attachment_id))
                     .await?;
             }
-            Some(Err(error)) => {
+            Some(Err(UploadTaskError { message_id, error })) => {
                 error!(%error, ?attachment_id, "Failed to upload attachment");
+                self.context
+                    .store
+                    .outbound_service()
+                    .fail_enqueued_chat_message(message_id, Some(attachment_id))
+                    .await?;
             }
             None => {
                 info!(?attachment_id, "Upload was cancelled");
@@ -300,9 +331,10 @@ impl ChatDetailsCubitBase {
         until_message_id: MessageId,
         until_timestamp: DateTime<Utc>,
     ) -> anyhow::Result<()> {
-        const MARK_AS_READ_DEBOUNCE: Duration = Duration::from_secs(2);
+        const MARK_AS_READ_DEBOUNCE: Duration = Duration::from_millis(300);
+        let service = MarkAsRead::new(&self.context.store, &self.context.notification_service);
         crate::mark_as_read::mark_as_read(
-            &self.context.store,
+            &service,
             &self.context.mark_as_read_tx,
             &self.user_settings_rx,
             self.context.chat_id,
@@ -441,6 +473,7 @@ impl ChatDetailsCubitBase {
 struct ChatDetailsContext {
     store: CoreUser,
     chats_repository: ChatsRepository,
+    notification_service: NotificationService,
     state_tx: watch::Sender<ChatDetailsState>,
     chat_id: ChatId,
     mark_as_read_tx: watch::Sender<MarkAsReadState>,
@@ -451,6 +484,7 @@ impl ChatDetailsContext {
     fn new(
         store: CoreUser,
         chats_repository: ChatsRepository,
+        notification_service: NotificationService,
         state_tx: watch::Sender<ChatDetailsState>,
         chat_id: ChatId,
         with_members: bool,
@@ -459,6 +493,7 @@ impl ChatDetailsContext {
         Self {
             store,
             chats_repository,
+            notification_service,
             state_tx,
             chat_id,
             mark_as_read_tx,
@@ -572,4 +607,35 @@ pub(super) async fn load_chat_details(store: &impl Store, chat: Chat) -> UiChatD
         last_message: last_message.map(From::from),
         draft,
     }
+}
+
+#[frb(ignore)]
+trait IntoUiResult {
+    type UiError;
+
+    #[frb(ignore)]
+    fn into_ui_result(self) -> anyhow::Result<Option<Self::UiError>>;
+}
+
+impl IntoUiResult for ProvisionAttachmentError {
+    type UiError = UploadAttachmentError;
+
+    fn into_ui_result(self) -> anyhow::Result<Option<UploadAttachmentError>> {
+        match self {
+            ProvisionAttachmentError::TooLarge(detail) => {
+                Ok(Some(UploadAttachmentError::TooLarge {
+                    max_size_bytes: detail.max_size_bytes,
+                    actual_size_bytes: detail.actual_size_bytes,
+                }))
+            }
+        }
+    }
+}
+
+/// Error which can occur when uploading an attachment
+pub enum UploadAttachmentError {
+    TooLarge {
+        max_size_bytes: u64,
+        actual_size_bytes: u64,
+    },
 }

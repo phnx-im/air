@@ -76,6 +76,16 @@ message UpdateUserRequest {
   QsUserId sender = 1;
   QsUserVerifyingKey user_record_auth_key = 2;
   FriendshipToken friendship_token = 3;
+
+  UpdateUserPayload payload = 5;
+  common.v1.Signature signature = 6;
+}
+
+message UpdateUserPayload {
+  common.v1.ClientMetadata client_metadata = 1;
+  QsUserId sender = 2;
+  QsUserVerifyingKey user_record_auth_key = 3;
+  FriendshipToken friendship_token = 4;
 }
 
 message UpdateUserResponse {}
@@ -86,6 +96,14 @@ message DeleteUserRequest {
   common.v1.ClientMetadata client_metadata = 2;
   QsUserId sender = 1;
   // TODO: don't we need user_record_auth_key here?
+
+  DeleteUserPayload payload = 3;
+  common.v1.Signature signature = 4;
+}
+
+message DeleteUserPayload {
+  common.v1.ClientMetadata client_metadata = 1;
+  QsUserId sender = 2;
 }
 
 message DeleteUserResponse {}
@@ -99,6 +117,18 @@ message CreateClientRequest {
   common.v1.RatchetEncryptionKey queue_encryption_key = 3;
   optional EncryptedPushToken encrypted_push_token = 4;
   common.v1.RatchetSecret initial_ratched_secret = 5;
+
+  CreateClientPayload payload = 7;
+  common.v1.Signature signature = 8;
+}
+
+message CreateClientPayload {
+  common.v1.ClientMetadata client_metadata = 1;
+  QsUserId sender = 2;
+  QsClientVerifyingKey client_record_auth_key = 3;
+  common.v1.RatchetEncryptionKey queue_encryption_key = 4;
+  optional EncryptedPushToken encrypted_push_token = 5;
+  common.v1.RatchetSecret initial_ratched_secret = 6;
 }
 
 message CreateClientResponse {
@@ -113,6 +143,17 @@ message UpdateClientRequest {
   QsClientVerifyingKey client_record_auth_key = 2;
   common.v1.RatchetEncryptionKey queue_encryption_key = 3;
   optional EncryptedPushToken encrypted_push_token = 4;
+
+  UpdateClientPayload payload = 6;
+  common.v1.Signature signature = 7;
+}
+
+message UpdateClientPayload {
+  common.v1.ClientMetadata client_metadata = 1;
+  QsClientId sender = 2;
+  QsClientVerifyingKey client_record_auth_key = 3;
+  common.v1.RatchetEncryptionKey queue_encryption_key = 4;
+  optional EncryptedPushToken encrypted_push_token = 5;
 }
 
 message UpdateClientResponse {}
@@ -122,6 +163,14 @@ message UpdateClientResponse {}
 message DeleteClientRequest {
   common.v1.ClientMetadata client_metadata = 2;
   QsClientId sender = 1;
+
+  DeleteClientPayload payload = 3;
+  common.v1.Signature signature = 4;
+}
+
+message DeleteClientPayload {
+  common.v1.ClientMetadata client_metadata = 1;
+  QsClientId sender = 2;
 }
 
 message DeleteClientResponse {}
@@ -132,6 +181,15 @@ message PublishKeyPackagesRequest {
   common.v1.ClientMetadata client_metadata = 3;
   QsClientId client_id = 1;
   repeated KeyPackage key_packages = 2;
+
+  PublishKeyPackagesPayload payload = 4;
+  common.v1.Signature signature = 5;
+}
+
+message PublishKeyPackagesPayload {
+  common.v1.ClientMetadata client_metadata = 1;
+  QsClientId client_id = 2;
+  repeated KeyPackage key_packages = 3;
 }
 
 message KeyPackage {
@@ -180,6 +238,16 @@ message InitListenRequest {
   QsClientId client_id = 1;
   // Sequence number to start listening from (inclusive)
   uint64 sequence_number_start = 2;
+
+  InitListenPayload payload = 4;
+  common.v1.Signature signature = 5;
+}
+
+message InitListenPayload {
+  common.v1.ClientMetadata client_metadata = 1;
+  QsClientId client_id = 2;
+  // Sequence number to start listening from (inclusive)
+  uint64 sequence_number_start = 3;
 }
 
 message AckListenRequest {

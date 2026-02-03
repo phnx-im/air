@@ -7,7 +7,7 @@ use aircommon::{
     credentials::keys::HandleSigningKey,
     identifiers::{UserHandle, UserHandleHash},
 };
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use sqlx::{SqliteExecutor, query, query_as, query_scalar};
 
 /// A user handle record stored in the client database.
@@ -132,6 +132,48 @@ impl UserHandleRecord {
         Ok(())
     }
 
+    /// Load handles where `refreshed_at` is older than the given threshold.
+    pub(crate) async fn load_needing_refresh(
+        executor: impl SqliteExecutor<'_>,
+        threshold: DateTime<Utc>,
+    ) -> sqlx::Result<Vec<Self>> {
+        let records = query_as!(
+            SqlUserHandleRecord,
+            r#"
+                SELECT
+                    handle AS "handle: _",
+                    hash AS "hash: _",
+                    signing_key AS "signing_key: _"
+                FROM user_handle
+                WHERE refreshed_at < ?
+            "#,
+            threshold
+        )
+        .fetch_all(executor)
+        .await?;
+        Ok(records.into_iter().map(From::from).collect())
+    }
+
+    /// Update `refreshed_at` for a handle identified by its hash.
+    pub(crate) async fn update_refreshed_at(
+        executor: impl SqliteExecutor<'_>,
+        hash: &UserHandleHash,
+        refreshed_at: DateTime<Utc>,
+    ) -> sqlx::Result<()> {
+        query!(
+            r#"
+                UPDATE user_handle
+                SET refreshed_at = ?
+                WHERE hash = ?
+            "#,
+            refreshed_at,
+            hash,
+        )
+        .execute(executor)
+        .await?;
+        Ok(())
+    }
+
     pub(super) async fn delete(
         executor: impl SqliteExecutor<'_>,
         handle: &UserHandle,
@@ -207,6 +249,51 @@ mod test {
         assert_eq!(loaded_handles.len(), 2);
         assert!(loaded_handles.contains(&handle1));
         assert!(loaded_handles.contains(&handle2));
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn user_handle_record_load_needing_refresh(pool: SqlitePool) -> anyhow::Result<()> {
+        use chrono::Duration;
+
+        // Create a handle with old refreshed_at (> 90 days ago)
+        let handle_old = UserHandle::new("old-handle".to_owned())?;
+        let hash_old = handle_old.calculate_hash()?;
+        let signing_key_old = HandleSigningKey::generate()?;
+        let record_old = UserHandleRecord::new(handle_old.clone(), hash_old, signing_key_old);
+        record_old.store(&pool).await?;
+
+        // Manually set refreshed_at to 100 days ago
+        let old_time = Utc::now() - Duration::days(100);
+        sqlx::query!(
+            "UPDATE user_handle SET refreshed_at = ? WHERE handle = ?",
+            old_time,
+            handle_old
+        )
+        .execute(&pool)
+        .await?;
+
+        // Create a handle with recent refreshed_at
+        let handle_new = UserHandle::new("new-handle".to_owned())?;
+        let hash_new = handle_new.calculate_hash()?;
+        let signing_key_new = HandleSigningKey::generate()?;
+        let record_new = UserHandleRecord::new(handle_new.clone(), hash_new, signing_key_new);
+        record_new.store(&pool).await?;
+
+        // Query handles needing refresh (threshold = now - 90 days)
+        let threshold = Utc::now() - Duration::days(90);
+        let needing_refresh = UserHandleRecord::load_needing_refresh(&pool, threshold).await?;
+        assert_eq!(needing_refresh.len(), 1);
+        assert_eq!(needing_refresh[0].handle, handle_old);
+
+        // Update refreshed_at for the old handle
+        let now = Utc::now();
+        UserHandleRecord::update_refreshed_at(&pool, &hash_old, now).await?;
+
+        // Now it should no longer need refresh
+        let needing_refresh = UserHandleRecord::load_needing_refresh(&pool, threshold).await?;
+        assert!(needing_refresh.is_empty());
+
         Ok(())
     }
 

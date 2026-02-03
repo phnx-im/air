@@ -45,16 +45,16 @@ abstract class User implements RustOpaqueInterface {
       RustLib.instance.api.crateApiUserUserLoadDefault(path: path);
 
   // HINT: Make it `#[frb(sync)]` to let it become the default constructor of Dart class.
-  /// Creates a new user with a generated `uuid` at the domain described by `address`.
+  /// Creates a new user with a generated `uuid` at the domain `domain`.
   static Future<User> newInstance({
-    required String address,
+    required String domain,
     required String path,
     PlatformPushToken? pushToken,
     required String displayName,
     Uint8List? profilePicture,
     required String invitationCode,
   }) => RustLib.instance.api.crateApiUserUserNew(
-    address: address,
+    domain: domain,
     path: path,
     pushToken: pushToken,
     displayName: displayName,

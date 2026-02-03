@@ -9,7 +9,7 @@ use aircommon::{
     identifiers::UserHandle,
     messages::connection_package::{ConnectionPackage, ConnectionPackageHash},
 };
-use sqlx::{Result, SqliteConnection, query, query_scalar};
+use sqlx::{Result, SqliteConnection, SqliteExecutor, query, query_scalar};
 
 pub(crate) trait StorableConnectionPackage: Sized + Borrow<ConnectionPackage> {
     /// Store the connection package in the database.
@@ -42,7 +42,7 @@ pub(crate) trait StorableConnectionPackage: Sized + Borrow<ConnectionPackage> {
     }
 
     async fn load_decryption_key(
-        connection: &mut SqliteConnection,
+        executor: impl SqliteExecutor<'_>,
         hash: &ConnectionPackageHash,
     ) -> Result<Option<ConnectionDecryptionKey>> {
         query_scalar!(
@@ -52,7 +52,7 @@ pub(crate) trait StorableConnectionPackage: Sized + Borrow<ConnectionPackage> {
             WHERE connection_package_hash = $1"#,
             hash
         )
-        .fetch_optional(connection)
+        .fetch_optional(executor)
         .await
     }
 
@@ -110,7 +110,7 @@ mod tests {
             .unwrap();
 
         let loaded_decryption_key =
-            ConnectionPackage::load_decryption_key(&mut connection, &connection_package.hash())
+            ConnectionPackage::load_decryption_key(&mut *connection, &connection_package.hash())
                 .await
                 .unwrap()
                 .unwrap();
@@ -119,7 +119,7 @@ mod tests {
             .await
             .unwrap();
         let loaded_decryption_key_after_delete =
-            ConnectionPackage::load_decryption_key(&mut connection, &connection_package.hash())
+            ConnectionPackage::load_decryption_key(&mut *connection, &connection_package.hash())
                 .await
                 .unwrap();
         assert!(loaded_decryption_key_after_delete.is_none());

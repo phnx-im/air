@@ -8,9 +8,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:air/registration/registration.dart';
-import 'package:air/theme/theme.dart';
 
 import '../mocks.dart';
+import '../helpers.dart';
 
 void main() {
   group('UsernameOnboardingScreen', () {
@@ -28,7 +28,7 @@ void main() {
         builder: (context) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
-            theme: themeData(MediaQuery.platformBrightnessOf(context)),
+            theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             home: const Scaffold(body: UsernameOnboardingScreen()),
           );

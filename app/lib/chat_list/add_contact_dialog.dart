@@ -265,33 +265,29 @@ class _SubmitHandler {
     final loc = AppLocalizations.of(context);
     final chatListCubit = context.read<ChatListCubit>();
     try {
-      final result = await chatListCubit.createContactChat(
+      final error = await chatListCubit.createContactChat(
         handle: handle,
         hash: hash,
       );
-      switch (result) {
-        case AddHandleContactResult_Ok():
-          // success
-          if (context.mounted) {
-            Navigator.of(context).pop();
-          }
-        case AddHandleContactResult_Err(field0: final error):
-          // error
-          final errorMessage = switch (error) {
-            AddHandleContactError.handleNotFound =>
-              loc.newConnectionDialog_error_handleNotFound(handle.plaintext),
-            AddHandleContactError.duplicateRequest =>
-              loc.newConnectionDialog_error_duplicateRequest,
-            AddHandleContactError.ownHandle =>
-              loc.newConnectionDialog_error_ownHandle,
-          };
-          this.errorMessage.value = errorMessage;
+      final errorMessage = switch (error) {
+        AddHandleContactError.handleNotFound =>
+          loc.newConnectionDialog_error_handleNotFound(handle.plaintext),
+        AddHandleContactError.duplicateRequest =>
+          loc.newConnectionDialog_error_duplicateRequest,
+        AddHandleContactError.ownHandle =>
+          loc.newConnectionDialog_error_ownHandle,
+        null => null,
+      };
+      if (errorMessage != null) {
+        this.errorMessage.value = errorMessage;
+      } else if (context.mounted) {
+        Navigator.of(context).pop();
       }
     } catch (e) {
       // fatal error
       Logger.detached(
         "AddContactDialog",
-      ).severe("Failed to create connection: $e");
+      ).severe("Failed to create connection: $e", e);
       showErrorBannerStandalone(
         (loc) => loc.newConnectionDialog_error(handle.plaintext),
       );

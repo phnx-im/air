@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
+import '../../helpers.dart';
 
 void main() {
   group('AppButton', () {
@@ -14,7 +15,7 @@ void main() {
       builder: (context) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          theme: themeData(MediaQuery.platformBrightnessOf(context)),
+          theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: Scaffold(
             body: Padding(
@@ -47,7 +48,8 @@ void main() {
             label: "Label",
             size: size,
             type: AppButtonType.primary,
-            state: AppButtonState.danger,
+            state: AppButtonState.active,
+            tone: AppButtonTone.danger,
             onPressed: () {},
           ),
           AppButton(

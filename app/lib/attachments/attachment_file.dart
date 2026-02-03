@@ -40,21 +40,28 @@ class AttachmentFile extends HookWidget {
                 color: color,
               )
             : AppIcon.paperclip(size: 32, color: color),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              attachment.filename,
-              style: TextStyle(fontSize: BodyFontSize.base.size, color: color),
-            ),
-            Text(
-              loc.bytesToHumanReadable(attachment.size),
-              style: TextStyle(
-                fontSize: BodyFontSize.small2.size,
-                color: color,
+        // Flexible is needed to make the text wrap if the filename is too long
+        Flexible(
+          fit: FlexFit.loose,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                attachment.filename,
+                style: TextStyle(
+                  fontSize: BodyFontSize.base.size,
+                  color: color,
+                ),
               ),
-            ),
-          ],
+              Text(
+                loc.bytesToHumanReadable(attachment.size),
+                style: TextStyle(
+                  fontSize: BodyFontSize.small2.size,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );

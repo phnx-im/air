@@ -39,23 +39,10 @@ impl UserCreationState {
         }
     }
 
-    pub(super) fn server_url(&self) -> &str {
-        match self {
-            Self::BasicUserData(state) => state.server_url(),
-            Self::InitialUserState(state) => state.server_url(),
-            Self::PostRegistrationInitState(state) => state.server_url(),
-            Self::UnfinalizedRegistrationState(state) => state.server_url(),
-            Self::AsRegisteredUserState(state) => state.server_url(),
-            Self::QsRegisteredUserState(state) => state.server_url(),
-            Self::FinalUserState(state) => state.server_url(),
-        }
-    }
-
     pub(super) async fn new(
         client_db: &SqlitePool,
         air_db: &SqlitePool,
         user_id: UserId,
-        server_url: impl ToString,
         push_token: Option<PushToken>,
         invitation_code: String,
     ) -> Result<Self> {
@@ -64,7 +51,6 @@ impl UserCreationState {
 
         let basic_user_data = BasicUserData {
             user_id: user_id.clone(),
-            server_url: server_url.to_string(),
             push_token,
             invitation_code,
         };

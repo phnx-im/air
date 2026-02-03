@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! API client implementation for the DS
+//! Client API for the delivery service (DS)
 
 use aircommon::{
     LibraryError,
@@ -14,13 +14,16 @@ use aircommon::{
         client_ds_out::{
             CreateGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
             GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageParamsOut,
-            TargetedMessageParamsOut, UpdateParamsOut, WelcomeInfoIn,
+            TargetedMessageParamsOut, WelcomeInfoIn,
         },
     },
     time::TimeStamp,
 };
 pub use airprotos::delivery_service::v1::ProvisionAttachmentResponse;
 use airprotos::{
+    common::v1::{
+        AttachmentTooLargeDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
+    },
     convert::{RefInto, TryRefInto},
     delivery_service::v1::{
         AddUsersInfo, ConnectionGroupInfoRequest, CreateGroupPayload, DeleteGroupPayload,
@@ -36,10 +39,12 @@ use mls_assist::{
     messages::AssistedMessageOut,
     openmls::prelude::{GroupEpoch, GroupId, LeafNodeIndex, MlsMessageOut},
 };
+use tonic::Code;
 use tracing::error;
 
 use crate::ApiClient;
 
+/// Errors that can occur when sending requests to the DS.
 #[derive(Debug, thiserror::Error)]
 pub enum DsRequestError {
     #[error("Library Error")]
@@ -55,6 +60,35 @@ pub enum DsRequestError {
 impl From<LibraryError> for DsRequestError {
     fn from(_: LibraryError) -> Self {
         Self::LibraryError
+    }
+}
+
+impl DsRequestError {
+    pub fn get_attachment_too_large(&self) -> Option<AttachmentTooLargeDetail> {
+        if let Self::Tonic(status) = self
+            && status.code() == Code::InvalidArgument
+        {
+            let details = StatusDetails::from_status(status)?;
+            if let Detail::AttachmentTooLarge(attachment_too_large_detail) = details.detail? {
+                Some(attachment_too_large_detail)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn is_wrong_epoch(&self) -> bool {
+        if let Self::Tonic(status) = self
+            && status.code() == tonic::Code::InvalidArgument
+            && let Some(details) = StatusDetails::from_status(status)
+            && let StatusDetailsCode::WrongEpoch = details.code()
+        {
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -247,31 +281,6 @@ impl ApiClient {
             .map_err(|_| DsRequestError::UnexpectedResponse)?,
             proposals: response.proposals.into_iter().map(|m| m.tls).collect(),
         })
-    }
-
-    /// Update your client in this group.
-    pub async fn ds_update(
-        &self,
-        params: UpdateParamsOut,
-        signing_key: &ClientSigningKey,
-        group_state_ear_key: &GroupStateEarKey,
-    ) -> Result<TimeStamp, DsRequestError> {
-        let payload = GroupOperationPayload {
-            client_metadata: Some(self.metadata().clone()),
-            group_state_ear_key: Some(group_state_ear_key.ref_into()),
-            commit: Some(params.commit.try_ref_into()?),
-            add_users_info: None,
-        };
-        let request = payload.sign(signing_key)?;
-        let response = self
-            .ds_grpc_client()
-            .group_operation(request)
-            .await?
-            .into_inner();
-        Ok(response
-            .fanout_timestamp
-            .ok_or(DsRequestError::UnexpectedResponse)?
-            .into())
     }
 
     /// Join the connection group with a new client.

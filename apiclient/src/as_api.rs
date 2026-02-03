@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+//! Client API for the authentication service (AS)
+
 use std::convert::identity;
 
 use aircommon::{
@@ -29,8 +31,9 @@ use airprotos::{
         DeleteHandlePayload, DeleteUserPayload, EnqueueConnectionOfferStep,
         FetchConnectionPackageStep, GetUserProfileRequest, HandleQueueMessage,
         InitListenHandlePayload, InvitationCode, ListenHandleRequest, MergeUserProfilePayload,
-        PublishConnectionPackagesPayload, RegisterUserRequest, ReportSpamPayload,
-        StageUserProfilePayload, connect_request, connect_response, listen_handle_request,
+        PublishConnectionPackagesPayload, RefreshHandlePayload, RegisterUserRequest,
+        ReportSpamPayload, StageUserProfilePayload, connect_request, connect_response,
+        listen_handle_request,
     },
     common::v1::{StatusDetails, StatusDetailsCode},
 };
@@ -44,6 +47,7 @@ use uuid::Uuid;
 
 use crate::ApiClient;
 
+/// Errors that can occur when sending requests to the AS.
 #[derive(Error, Debug)]
 pub enum AsRequestError {
     #[error("Library Error")]
@@ -55,6 +59,7 @@ pub enum AsRequestError {
 }
 
 impl AsRequestError {
+    /// Returns whether the error is a gRPC not found error.
     pub fn is_not_found(&self) -> bool {
         match self {
             AsRequestError::Tonic(status) => status.code() == tonic::Code::NotFound,
@@ -62,6 +67,8 @@ impl AsRequestError {
         }
     }
 
+    /// Returns whether the error is a gRPC failed precondition error with a version unsupported
+    /// code.
     pub fn is_unsupported_version(&self) -> bool {
         match self {
             AsRequestError::Tonic(status) => {
@@ -240,7 +247,7 @@ impl ApiClient {
     pub async fn as_connect_handle(
         &self,
         hash: UserHandleHash,
-    ) -> Result<(VersionedConnectionPackageIn, ConnectionOfferResponder), AsRequestError> {
+    ) -> Result<(VersionedConnectionPackageIn, AsConnectionOfferResponder), AsRequestError> {
         // Step 1: Fetch connection package
         let fetch_request = ConnectRequest {
             step: Some(connect_request::Step::Fetch(FetchConnectionPackageStep {
@@ -312,7 +319,7 @@ impl ApiClient {
         };
 
         let responder =
-            ConnectionOfferResponder::new(connection_offer_tx, connection_offer_response_fut);
+            AsConnectionOfferResponder::new(connection_offer_tx, connection_offer_response_fut);
         Ok((connection_package, responder))
     }
 
@@ -323,7 +330,7 @@ impl ApiClient {
     ) -> Result<
         (
             impl Stream<Item = Option<HandleQueueMessage>> + Send + use<>,
-            ListenHandleResponder,
+            AsListenHandleResponder,
         ),
         AsRequestError,
     > {
@@ -364,7 +371,7 @@ impl ApiClient {
             Some(response.message)
         });
 
-        let responder = ListenHandleResponder { tx: ack_tx };
+        let responder = AsListenHandleResponder { tx: ack_tx };
 
         Ok((responses, responder))
     }
@@ -445,6 +452,20 @@ impl ApiClient {
         }
     }
 
+    pub async fn as_refresh_handle(
+        &self,
+        hash: UserHandleHash,
+        signing_key: &HandleSigningKey,
+    ) -> Result<(), AsRequestError> {
+        let payload = RefreshHandlePayload {
+            client_metadata: Some(self.metadata().clone()),
+            hash: Some(hash.into()),
+        };
+        let request = payload.sign(signing_key)?;
+        self.as_grpc_client().refresh_handle(request).await?;
+        Ok(())
+    }
+
     pub async fn as_delete_handle(
         &self,
         hash: UserHandleHash,
@@ -466,24 +487,29 @@ impl ApiClient {
     }
 }
 
+/// Sends responses to the AS listening stream.
 #[derive(Debug)]
-pub struct ListenHandleResponder {
+pub struct AsListenHandleResponder {
     tx: mpsc::Sender<Uuid>,
 }
 
-impl ListenHandleResponder {
+impl AsListenHandleResponder {
+    /// Acknowledges that the client has received the message with the given id.
+    ///
+    /// The server can safely discard the message.
     pub async fn ack(&self, message_id: Uuid) {
         let _ = self.tx.send(message_id).await;
     }
 }
 
-pub struct ConnectionOfferResponder {
+/// Sends a connection offer to the AS in the connect handle protocol.
+pub struct AsConnectionOfferResponder {
     tx: oneshot::Sender<ConnectionOfferMessage>,
     response: BoxFuture<'static, Result<(), AsRequestError>>,
 }
 
-impl ConnectionOfferResponder {
-    pub fn new(
+impl AsConnectionOfferResponder {
+    fn new(
         tx: oneshot::Sender<ConnectionOfferMessage>,
         response: impl Future<Output = Result<(), AsRequestError>> + Send + 'static,
     ) -> Self {
@@ -493,11 +519,13 @@ impl ConnectionOfferResponder {
         }
     }
 
+    /// Send the connection offer to the AS.
     pub async fn send(self, offer: ConnectionOfferMessage) -> Result<(), AsRequestError> {
         self.tx.send(offer).map_err(|_| {
             error!("failed to send connection offer: connection closed");
             AsRequestError::UnexpectedResponse
         })?;
-        self.response.await
+        self.response.await?;
+        Ok(())
     }
 }

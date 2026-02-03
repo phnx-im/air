@@ -2,27 +2,27 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::io::Cursor;
+use std::{fs, io::Cursor, path::Path};
 
-use exif::{Exif, Tag};
-use image::{DynamicImage, GenericImageView};
+use image::{DynamicImage, GenericImageView, ImageDecoder, ImageReader};
 use tracing::info;
 
 const MAX_PROFILE_IMAGE_WIDTH: u32 = 256;
 const MAX_PROFILE_IMAGE_HEIGHT: u32 = 256;
 
-pub(crate) fn resize_profile_image(mut image_bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
-    let image = image::load_from_memory(image_bytes)?;
+pub(crate) fn resize_profile_image(image_bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
+    let mut decoder = ImageReader::new(Cursor::new(image_bytes))
+        .with_guessed_format()?
+        .into_decoder()?;
 
-    // Read EXIF data
-    let exif_reader = exif::Reader::new();
-    let mut image_bytes_cursor = Cursor::new(&mut image_bytes);
-    let exif = exif_reader
-        .read_from_container(&mut image_bytes_cursor)
-        .ok();
+    let orientation = decoder.orientation().ok();
 
-    let image = resize(image, MAX_PROFILE_IMAGE_WIDTH, MAX_PROFILE_IMAGE_HEIGHT);
-    let image = rotate(exif, image);
+    // Decode, resize and rotate the image
+    let image = DynamicImage::from_decoder(decoder)?;
+    let mut image = resize(image, MAX_PROFILE_IMAGE_WIDTH, MAX_PROFILE_IMAGE_HEIGHT);
+    if let Some(orientation) = orientation {
+        image.apply_orientation(orientation);
+    }
 
     // Save the resized image
     let mut buf = Vec::new();
@@ -47,31 +47,37 @@ pub(crate) struct ReencodedAttachmentImage {
     pub(crate) blurhash: String,
 }
 
-/// Reencodes the image to WEBP format.
+/// Loads an image and re-encodes it to WEBP format.
+///
+/// If the path is not an image, returns `None`.
 ///
 /// This does several things:
 /// - Rotates and flips the image according to the EXIF orientation
 /// - Resizes the image to a maximum width and height of 4096x4096
 /// - Converts the image to WebP
-pub(crate) fn reencode_attachment_image(
-    image_bytes: Vec<u8>,
-) -> anyhow::Result<ReencodedAttachmentImage> {
-    let mut image_bytes = image_bytes.as_slice();
-    let image = image::load_from_memory(image_bytes)?;
+pub(crate) fn load_attachment_image(
+    path: &Path,
+) -> anyhow::Result<Option<ReencodedAttachmentImage>> {
+    let file_size = fs::metadata(path)?.len();
 
-    // Read EXIF data
-    let exif_reader = exif::Reader::new();
-    let mut image_bytes_cursor = Cursor::new(&mut image_bytes);
-    let exif = exif_reader
-        .read_from_container(&mut image_bytes_cursor)
-        .ok();
+    let reader = ImageReader::open(path)?.with_guessed_format()?;
+    if reader.format().is_none() {
+        return Ok(None);
+    }
 
-    let image = resize(
+    let mut decoder = reader.into_decoder()?;
+
+    let orientation = decoder.orientation().ok();
+
+    let image = DynamicImage::from_decoder(decoder)?;
+    let mut image = resize(
         image,
         MAX_ATTACHMENT_IMAGE_WIDTH,
         MAX_ATTACHMENT_IMAGE_HEIGHT,
     );
-    let image = rotate(exif, image);
+    if let Some(orientation) = orientation {
+        image.apply_orientation(orientation);
+    }
 
     // TODO: Preserve format instead of converting to WebP
 
@@ -86,46 +92,22 @@ pub(crate) fn reencode_attachment_image(
     let blurhash = blurhash::encode(4, 3, width, height, &image_rgba)?;
 
     info!(
-        from_bytes = image_bytes.len(),
+        from_bytes = file_size,
         to_bytes = webp_image.len(),
         "Reencoded attachment image as WebP",
     );
 
     // Note: We need to convert WebPMemory to Vec here, because the former is not Send.
-    Ok(ReencodedAttachmentImage {
+    Ok(Some(ReencodedAttachmentImage {
         webp_image: webp_image.to_vec(),
         image_dimensions: (width, height),
         blurhash,
-    })
-}
-
-// Rotate/flip the image according to the orientation if necessary
-fn rotate(exif: Option<Exif>, image: DynamicImage) -> DynamicImage {
-    if let Some(exif) = exif {
-        let orientation = exif
-            .get_field(Tag::Orientation, exif::In::PRIMARY)
-            .and_then(|field| field.value.get_uint(0))
-            .unwrap_or(1);
-        // TODO(#590): rotate and flip in-place
-        match orientation {
-            1 => image,
-            2 => image.fliph(),
-            3 => image.rotate180(),
-            4 => image.flipv(),
-            5 => image.rotate90().fliph(),
-            6 => image.rotate90(),
-            7 => image.rotate270().fliph(),
-            8 => image.rotate270(),
-            _ => image,
-        }
-    } else {
-        image
-    }
+    }))
 }
 
 /// Resizes the image to fit within the given dimensions.
 ///
-/// If the image is already smaller than the given dimensions, it is returned
+/// If the image is already smaller than the given dimensions, it is returned.
 fn resize(image: DynamicImage, max_width: u32, max_height: u32) -> DynamicImage {
     let (width, height) = image.dimensions();
     if width <= max_width && height <= max_height {

@@ -10,9 +10,9 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 Future<bool> checkInvitationCode({
-  required String serverUrl,
+  required String domain,
   required String invitationCode,
 }) => RustLib.instance.api.crateApiInvitationCodeCheckInvitationCode(
-  serverUrl: serverUrl,
+  domain: domain,
   invitationCode: invitationCode,
 );

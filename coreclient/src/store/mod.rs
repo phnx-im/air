@@ -12,15 +12,14 @@ use mimi_room_policy::VerifiedRoomState;
 use tokio_stream::Stream;
 use uuid::Uuid;
 
-use crate::clients::add_contact::AddHandleContactResult;
-use crate::clients::safety_code::SafetyCode;
-use crate::contacts::{ContactType, TargetedMessageContact};
 use crate::{
-    AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact, MessageDraft,
-    MessageId, clients::attachment::progress::AttachmentProgress, contacts::HandleContact,
-    user_handles::UserHandleRecord, user_profiles::UserProfile,
+    AddHandleContactError, AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact,
+    MessageDraft, MessageId, ProvisionAttachmentError, UploadTaskError,
+    clients::{attachment::progress::AttachmentProgress, safety_code::SafetyCode},
+    contacts::{ContactType, HandleContact, TargetedMessageContact},
+    user_handles::UserHandleRecord,
+    user_profiles::UserProfile,
 };
-
 pub use notification::{StoreEntityId, StoreNotification, StoreOperation};
 pub(crate) use notification::{StoreNotificationsSender, StoreNotifier};
 
@@ -180,7 +179,7 @@ pub trait Store {
         &self,
         handle: UserHandle,
         hash: UserHandleHash,
-    ) -> StoreResult<AddHandleContactResult>;
+    ) -> StoreResult<Result<ChatId, AddHandleContactError>>;
 
     /// Create a connection with a new user via an existing group chat.
     ///
@@ -269,20 +268,30 @@ pub trait Store {
         &self,
         chat_id: ChatId,
         path: &Path,
-    ) -> StoreResult<(
-        AttachmentId,
-        AttachmentProgress,
-        impl Future<Output = StoreResult<ChatMessage>> + use<Self>,
-    )>;
+    ) -> StoreResult<
+        Result<
+            (
+                AttachmentId,
+                AttachmentProgress,
+                impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<Self>,
+            ),
+            ProvisionAttachmentError,
+        >,
+    >;
 
     async fn retry_upload_attachment(
         &self,
         attachment_id: AttachmentId,
-    ) -> StoreResult<(
-        AttachmentId,
-        AttachmentProgress,
-        impl Future<Output = StoreResult<ChatMessage>> + use<Self>,
-    )>;
+    ) -> StoreResult<
+        Result<
+            (
+                AttachmentId,
+                AttachmentProgress,
+                impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<Self>,
+            ),
+            ProvisionAttachmentError,
+        >,
+    >;
 
     fn download_attachment(
         &self,

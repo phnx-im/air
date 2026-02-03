@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 import 'user/update_required_screen.dart';
 
@@ -110,6 +111,9 @@ class _AppState extends State<App> with WidgetsBindingObserver {
 
     if (state == AppLifecycleState.resumed) {
       _appStateController.sink.add(AppState.foreground);
+      // Re-trigger visibility callbacks to mark visible messages as read
+      VisibilityDetectorController.instance.notifyNow();
+      unawaited(_coreClient.refreshPushToken());
     }
   }
 
@@ -227,6 +231,7 @@ class LoadableUserCubitProvider extends StatelessWidget {
         final registrationCubit = context.read<RegistrationCubit>();
         final userSettingsCubit = context.read<UserSettingsCubit>();
         final appLocaleCubit = context.read<AppLocaleCubit>();
+        final coreClient = context.read<CoreClient>();
         // Side Effect: navigate to the home screen or away to the intro
         // screen, depending on whether the user was loaded or unloaded.
         switch (loadableUser) {
@@ -252,6 +257,7 @@ class LoadableUserCubitProvider extends StatelessWidget {
                 value: appLocale.languageCode,
               );
             }
+            unawaited(coreClient.refreshPushToken());
           case LoadingUser() || LoadedUser(user: null):
             navigationCubit.openIntro();
             await userSettingsCubit.reset();

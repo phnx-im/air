@@ -51,6 +51,43 @@ impl OutboundService {
 
         Ok(())
     }
+
+    pub async fn fail_enqueued_chat_message(
+        &self,
+        message_id: MessageId,
+        attachment_id: Option<AttachmentId>,
+    ) -> anyhow::Result<()> {
+        let mut connection = self.context.pool.acquire().await?;
+
+        // Load message to make sure it exists and get chat id
+        let message = ChatMessage::load(&mut *connection, message_id)
+            .await?
+            .with_context(|| format!("Can't find message with id {message_id:?}"))?;
+        let chat_id = message.chat_id();
+
+        // Load chat to check status
+        let chat = Chat::load(&mut connection, &chat_id)
+            .await?
+            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+        if let ChatStatus::Blocked = chat.status() {
+            return Ok(());
+        }
+
+        let message_queue = ChatMessageQueue::new(message.chat_id(), message_id, attachment_id);
+
+        self.context
+            .with_transaction_and_notifier(async |txn, notifier| {
+                message_queue
+                    .remove_and_mark_as_failed(txn, notifier)
+                    .await?;
+                Ok(())
+            })
+            .await?;
+
+        self.notify_work();
+
+        Ok(())
+    }
 }
 
 impl OutboundServiceContext {

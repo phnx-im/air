@@ -44,11 +44,13 @@ class _FileTestBubble extends StatelessWidget {
     required this.attachmentId,
     required this.color,
     required this.backgroundColor,
+    this.attachment,
   });
 
   final AttachmentId attachmentId;
   final Color color;
   final Color backgroundColor;
+  final UiAttachment? attachment;
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +64,7 @@ class _FileTestBubble extends StatelessWidget {
         borderRadius: BorderRadius.circular(Spacings.sm),
       ),
       child: AttachmentFile(
-        attachment: file.copyWith(attachmentId: attachmentId),
+        attachment: attachment ?? file.copyWith(attachmentId: attachmentId),
         isSender: true,
         color: color,
       ),
@@ -85,48 +87,51 @@ void main() {
       ),
     ).thenAnswer(
       (invocation) => Stream.value(
-        testStatuses[invocation.namedArguments[#attachmentId] as AttachmentId]!,
+        testStatuses[invocation.namedArguments[#attachmentId]
+                as AttachmentId] ??
+            const UiAttachmentStatus.completed(),
       ),
     );
   });
 
   group('AttachmentFile', () {
-    Widget buildSubject() => Builder(
-      builder: (context) {
-        return RepositoryProvider<AttachmentsRepository>.value(
-          value: attachmentsRepository,
-          child: MaterialApp(
-            debugShowCheckedModeBanner: false,
-            theme: themeData(MediaQuery.platformBrightnessOf(context)),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            home: Scaffold(
-              body: Padding(
-                padding: const EdgeInsets.all(Spacings.s),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: Column(
-                    spacing: Spacings.s,
-                    crossAxisAlignment: .end,
-                    children: [
-                      for (final (color, backgroundColor) in testColors(
-                        context,
-                      ))
-                        for (final attachmentId in testStatuses.keys) ...[
-                          _FileTestBubble(
-                            attachmentId: attachmentId,
-                            color: color,
-                            backgroundColor: backgroundColor,
-                          ),
-                        ],
-                    ],
+    Widget buildSubject(List<Widget> Function(BuildContext) children) =>
+        Builder(
+          builder: (context) {
+            return RepositoryProvider<AttachmentsRepository>.value(
+              value: attachmentsRepository,
+              child: MaterialApp(
+                debugShowCheckedModeBanner: false,
+                theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                home: Scaffold(
+                  body: Padding(
+                    padding: const EdgeInsets.all(Spacings.s),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: Column(
+                        spacing: Spacings.s,
+                        crossAxisAlignment: .end,
+                        children: children(context),
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         );
-      },
-    );
+
+    List<_FileTestBubble> attachmentPerStatus(context) => [
+      for (final (color, backgroundColor) in testColors(context))
+        for (final attachmentId in testStatuses.keys) ...[
+          _FileTestBubble(
+            attachmentId: attachmentId,
+            color: color,
+            backgroundColor: backgroundColor,
+          ),
+        ],
+    ];
 
     testWidgets('renders correctly', (tester) async {
       tester.platformDispatcher.views.first.physicalSize = physicalSize;
@@ -134,7 +139,7 @@ void main() {
         tester.platformDispatcher.views.first.resetPhysicalSize();
       });
 
-      await tester.pumpWidget(buildSubject());
+      await tester.pumpWidget(buildSubject(attachmentPerStatus));
       await tester.pumpAndSettle();
 
       await expectLater(
@@ -151,12 +156,39 @@ void main() {
         tester.platformDispatcher.clearPlatformBrightnessTestValue();
       });
 
-      await tester.pumpWidget(buildSubject());
+      await tester.pumpWidget(buildSubject(attachmentPerStatus));
       await tester.pumpAndSettle();
 
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/attachment_file_dark_mode.png'),
+      );
+    });
+
+    testWidgets('renders correctly overflow', (tester) async {
+      tester.platformDispatcher.views.first.physicalSize = physicalSize;
+      addTearDown(() {
+        tester.platformDispatcher.views.first.resetPhysicalSize();
+      });
+
+      List<_FileTestBubble> children(context) => [
+        for (final (color, backgroundColor) in testColors(context))
+          _FileTestBubble(
+            attachmentId: 5.attachmentId(),
+            color: color,
+            backgroundColor: backgroundColor,
+            attachment: file.copyWith(
+              filename: 'a_very_long_filename_which_overflows.bin',
+            ),
+          ),
+      ];
+
+      await tester.pumpWidget(buildSubject(children));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/attachment_file_overflow.png'),
       );
     });
   });

@@ -38,7 +38,7 @@ use aircommon::{
         client_ds_out::{
             AddUsersInfoOut, CreateGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
             GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageParamsOut,
-            TargetedMessageParamsOut, TargetedMessageType, UpdateParamsOut, WelcomeInfoIn,
+            TargetedMessageParamsOut, TargetedMessageType, WelcomeInfoIn,
         },
         welcome_attribution_info::{
             WelcomeAttributionInfo, WelcomeAttributionInfoPayload, WelcomeAttributionInfoTbs,
@@ -134,6 +134,7 @@ impl From<(ClientCredential, UserProfileKey)> for ProfileInfo {
     }
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub(crate) struct GroupData {
     bytes: Vec<u8>,
 }
@@ -179,11 +180,12 @@ impl Group {
 
     /// Create a group.
     pub(super) fn create_group(
-        provider: &impl OpenMlsProvider,
+        connection: &mut SqliteConnection,
         signer: &ClientSigningKey,
         group_id: GroupId,
         group_data: GroupData,
     ) -> Result<(Self, GroupMembership, PartialCreateGroupParams)> {
+        let provider = AirOpenMlsProvider::new(connection);
         let group_state_ear_key = GroupStateEarKey::random()?;
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
 
@@ -210,7 +212,7 @@ impl Group {
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
             .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
-            .build(provider, signer, credential_with_key)
+            .build(&provider, signer, credential_with_key)
             .map_err(|e| anyhow!("Error while creating group: {:?}", e))?;
 
         let user_id = signer.credential().identity();
@@ -800,6 +802,34 @@ impl Group {
         Ok(params)
     }
 
+    #[allow(dead_code)]
+    pub(super) async fn discard_pending_commit(
+        &mut self,
+        connection: &mut SqliteConnection,
+    ) -> Result<()> {
+        let provider = AirOpenMlsProvider::new(&mut *connection);
+        self.pending_diff = None;
+        self.mls_group.clear_pending_commit(provider.storage())?;
+        Ok(())
+    }
+
+    /// Applies the staged operations of the given `StagedCommit` to the room
+    /// state of this group. If no `StagedCommit` is given, apply the operation
+    /// of the pending commit of this group, if any.
+    fn apply_staged_operations_to_room_state(
+        &mut self,
+        staged_commit: Option<&'_ StagedCommit>,
+    ) -> Result<()> {
+        for (remover, removed) in self.staged_commit_removes(staged_commit) {
+            self.room_state_change_role(&remover, &removed, RoleIndex::Outsider)?;
+        }
+        for (adder, added) in self.pending_adds(staged_commit) {
+            self.room_state_change_role(&adder, &added, RoleIndex::Regular)?;
+        }
+
+        Ok(())
+    }
+
     /// If a [`StagedCommit`] is given, merge it and apply the pending group
     /// diff. If no [`StagedCommit`] is given, merge any pending commit and
     /// apply the pending group diff.
@@ -814,6 +844,8 @@ impl Group {
     ) -> Result<(Vec<TimestampedMessage>, Option<GroupData>)> {
         let free_indices = GroupMembership::free_indices(&mut *connection, self.group_id()).await?;
         let staged_commit_option: Option<StagedCommit> = staged_commit_option.into();
+
+        self.apply_staged_operations_to_room_state(staged_commit_option.as_ref())?;
 
         let (event_messages, group_data) = if let Some(staged_commit) = staged_commit_option {
             // Compute the messages we want to emit from the staged commit and the
@@ -1003,7 +1035,7 @@ impl Group {
         txn: &mut SqliteTransaction<'_>,
         signer: &ClientSigningKey,
         new_group_data: Option<GroupData>,
-    ) -> Result<UpdateParamsOut> {
+    ) -> Result<GroupOperationParamsOut> {
         // We don't expect there to be a welcome.
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
             new_encrypted_user_profile_keys: Vec::new(),
@@ -1043,7 +1075,10 @@ impl Group {
 
         GroupMembership::stage_removals_in_pending_commit(&mut *txn, self).await?;
         let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()));
-        Ok(UpdateParamsOut { commit })
+        Ok(GroupOperationParamsOut {
+            commit,
+            add_users_info_option: None,
+        })
     }
 
     pub(super) fn stage_leave_group(
@@ -1074,19 +1109,110 @@ impl Group {
         Ok(())
     }
 
-    pub(crate) async fn pending_removes(
+    /// Returns a list of (remover, removed) UserId pairs for pending remove proposals.
+    pub(crate) fn pending_removes(&self) -> Vec<(UserId, UserId)> {
+        self.compile_removed_list(self.mls_group().pending_proposals())
+    }
+
+    fn staged_commit_removes(
         &self,
-        connection: &mut sqlx::SqliteConnection,
-    ) -> Vec<UserId> {
+        staged_commit: Option<&'_ StagedCommit>,
+    ) -> Vec<(UserId, UserId)> {
+        let Some(staged_commit) = staged_commit.or_else(|| self.mls_group().pending_commit())
+        else {
+            return Vec::new();
+        };
+        self.compile_removed_list(staged_commit.queued_proposals())
+    }
+
+    fn compile_removed_list<'a>(
+        &self,
+        removes: impl Iterator<Item = &'a QueuedProposal>,
+    ) -> Vec<(UserId, UserId)> {
         let mut pending_removes = Vec::new();
-        for proposal in self.mls_group().pending_proposals() {
+
+        for proposal in removes {
+            let Sender::Member(remover) = proposal.sender() else {
+                // We don't support external senders yet.
+                continue;
+            };
+            let remover = match self.user_id_at_index(*remover) {
+                Some(user_id) => user_id,
+                None => continue,
+            };
             if let Some(removed_client_index) = removed_client(proposal)
-                && let Some(client) = self.client_by_index(connection, removed_client_index).await
+                && let Some(removed) = self.user_id_at_index(removed_client_index)
             {
-                pending_removes.push(client);
+                pending_removes.push((remover, removed));
             }
         }
         pending_removes
+    }
+
+    /// Returns the `GroupData` of a pending GroupContextExtension change proposal, if any.
+    #[expect(dead_code)]
+    pub(crate) fn pending_group_data_update(&self) -> Option<GroupData> {
+        let pending_commit = self.mls_group().pending_commit()?;
+        GroupData::from_staged_commit(pending_commit)
+    }
+
+    fn user_id_at_index(&self, index: LeafNodeIndex) -> Option<UserId> {
+        self.mls_group().member_at(index).and_then(|m| {
+            VerifiableClientCredential::try_from(m.credential.clone())
+                .map(|c| c.user_id().clone())
+                .ok()
+        })
+    }
+
+    /// Returns a list of (adder, added) UserId pairs for pending add proposals.
+    pub(crate) fn pending_adds(
+        &self,
+        staged_commit: Option<&'_ StagedCommit>,
+    ) -> Vec<(UserId, UserId)> {
+        let staged_commit = staged_commit.or_else(|| self.mls_group().pending_commit());
+        let mut pending_adds = Vec::new();
+        let Some(pending_commit) = staged_commit else {
+            return pending_adds;
+        };
+        for proposal in pending_commit.add_proposals() {
+            let Sender::Member(adder_index) = proposal.sender() else {
+                // We don't support external senders yet.
+                continue;
+            };
+            let adder = match self.user_id_at_index(*adder_index) {
+                Some(user_id) => user_id,
+                None => continue,
+            };
+            let Ok(added_user) = VerifiableClientCredential::try_from(
+                proposal
+                    .add_proposal()
+                    .key_package()
+                    .leaf_node()
+                    .credential()
+                    .clone(),
+            )
+            .map(|c| c.user_id().clone()) else {
+                continue;
+            };
+            pending_adds.push((adder, added_user));
+        }
+        pending_adds
+    }
+
+    pub(crate) fn verify_role_change(
+        &self,
+        sender: &UserId,
+        target: &UserId,
+        role: RoleIndex,
+    ) -> Result<()> {
+        let sender = sender.tls_serialize_detached()?;
+        let target = target.tls_serialize_detached()?;
+
+        let result = self
+            .room_state
+            .can_apply_regular_proposals(&sender, &[MimiProposal::ChangeRole { target, role }]);
+
+        Ok(result?)
     }
 
     pub(crate) fn room_state_change_role(

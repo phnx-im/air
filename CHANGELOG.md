@@ -1,3 +1,61 @@
+## [0.10.0] - 2026-02-02
+
+### 🚀 Features
+
+- *(app)* Clear notifications when marking chat as read (#973)
+- *(server)* Add client version label when reporting active users (#975)
+- *(app)* Swedish translation (#939)
+- *(app)* Open plaintext links without a confirmation dialog (#978)
+- *(app)* Surface attachment size limit on upload (#974)
+- *(server)* Introduce WAU metric (#993)
+- *(server)* Add auth to QS API (#986)
+- *(app)* Refresh usernames (#996)
+- *(app)* Jumbo emojis (#1000)
+
+### 🐛 Bug Fixes
+
+- *(server)* Fix as user handle/qs events stream eviction (#969)
+- *(app)* Specify correct encryption algorithm for attachments (#976)
+- *(app)* Specify previously used encryption algorithm (#981)
+- *(app)* Allow to leave group locally when epoch is wrong (#982)
+- *(app)* Long filename of attachments overflows the message (#979)
+- *(app)* Contact request timestamp (#983)
+- *(app)* Recognize links with underscores as such (#977)
+- *(app)* Show snackbar when attachment is too large (#984)
+- *(app)* Removing multiple preselected members in group creation (#987)
+- *(app)* Fix group member view back transition (#988)
+- *(app)* Disable backup and D2D transfer on Android (#994)
+- *(app)* Fix line height in markdown list (#989)
+- *(app)* Hide terms of use when user is loading (#990)
+- *(app)* Ios: expose locales in app (#997)
+- *(app)* Dismiss contact request dialog (#998)
+
+### 🚜 Refactor
+
+- *(app)* Remove server url from state (#967)
+- *(app)* Introduce an internal event loop in core user (#980)
+
+## [0.9.0] - 2026-01-17
+
+### 🚀 Features
+
+- *(app)* Update push tokens (#942)
+- *(server)* Send errors to client when processing listen requests (#963)
+
+### 🐛 Bug Fixes
+
+- *(app)* Support self remove proposals (#953)
+- *(app)* Adding contact fails if the requester has changed their profile (#964)
+- *(app)* Use work manager for android notifications (#965)
+- *(app)* Retrying attachment uploads (#959)
+- *(app)* Make appbutton more robust (#968)
+- *(app)* Retrigger mark as read (#971)
+- *(app)* Multiple contact requests per username (#970)
+
+### 🚜 Refactor
+
+- *(test)* Split large integration test file (#966)
+
 ## [0.8.0] - 2026-01-12
 
 ### 🚀 Features
