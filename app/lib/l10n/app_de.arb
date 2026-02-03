@@ -186,6 +186,7 @@
   "linkConfirmation_cancel": "Abbrechen",
   "messageContextMenu_copy": "Kopieren",
   "messageContextMenu_edit": "Bearbeiten",
+  "messageContextMenu_edit": "Löschen",
   "messageContextMenu_save": "Speichern",
   "messageContextMenu_share": "Teilen",
   "messageContextMenu_saveError": "Anhang konnte nicht gespeichert werden",
