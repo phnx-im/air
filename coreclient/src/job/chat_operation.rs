@@ -111,39 +111,25 @@ impl ChatOperation {
             .ok_or_else(|| anyhow::anyhow!("No group found for chat {}", self.chat_id))?;
 
         if !group.mls_group().is_active() {
-            return Err(anyhow::anyhow!(
-                "Cannot execute operation on inactive group"
-            ));
+            bail!("Cannot execute operation on inactive group");
         }
 
-        match &self.operation {
+        match &mut self.operation {
             ChatOperationType::AddMembers(user_ids) => {
                 let members = group.members(connection).await;
-                let refined_user_ids: Vec<UserId> = user_ids
-                    .iter()
-                    .filter(|&user_id| !members.contains(user_id))
-                    .cloned()
-                    .collect();
+                user_ids.retain(|user_id| !members.contains(user_id));
 
-                if refined_user_ids.is_empty() {
+                if user_ids.is_empty() {
                     bail!("All users to add are already members of the group");
                 }
-
-                self.operation = ChatOperationType::AddMembers(refined_user_ids);
             }
             ChatOperationType::RemoveMembers(user_ids) => {
                 let members = group.members(connection).await;
-                let refined_user_ids: Vec<UserId> = user_ids
-                    .iter()
-                    .filter(|&user_id| members.contains(user_id))
-                    .cloned()
-                    .collect();
+                user_ids.retain(|user_id| members.contains(user_id));
 
-                if refined_user_ids.is_empty() {
+                if user_ids.is_empty() {
                     bail!("None of the users to remove are members of the group");
                 }
-
-                self.operation = ChatOperationType::RemoveMembers(refined_user_ids);
             }
             // The following operations are always valid as long as the
             // group is active.
@@ -209,9 +195,9 @@ impl ChatOperation {
             pool, key_store, ..
         } = context;
         let job = pool
-            .with_connection(async |connection| {
+            .with_transaction(async |txn| {
                 PendingChatOperation::create_remove(
-                    connection,
+                    txn,
                     &key_store.signing_key,
                     self.chat_id,
                     users,
@@ -232,9 +218,8 @@ impl ChatOperation {
             pool, key_store, ..
         } = context;
         let job = pool
-            .with_connection(async |connection| {
-                PendingChatOperation::create_leave(connection, &key_store.signing_key, self.chat_id)
-                    .await
+            .with_transaction(async |txn| {
+                PendingChatOperation::create_leave(txn, &key_store.signing_key, self.chat_id).await
             })
             .await?;
 
@@ -251,9 +236,9 @@ impl ChatOperation {
             pool, key_store, ..
         } = context;
         let job = pool
-            .with_connection(async |connection| {
+            .with_transaction(async |txn| {
                 PendingChatOperation::create_update(
-                    connection,
+                    txn,
                     &key_store.signing_key,
                     self.chat_id,
                     chat_attributes,
@@ -276,9 +261,9 @@ impl ChatOperation {
             ..
         } = context;
         let job = pool
-            .with_connection(async |connection| {
+            .with_transaction(async |txn| {
                 PendingChatOperation::create_delete(
-                    connection,
+                    txn,
                     &key_store.signing_key,
                     notifier,
                     self.chat_id,
