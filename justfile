@@ -4,14 +4,134 @@
 
 set windows-shell := ["C:\\Program Files\\Git\\bin\\sh.exe","-c"]
 
-# === Backend ===
+export RUST_LOG := "info"
+export RUST_BACKTRACE := "1"
+export RUSTFLAGS := "-D warnings"
 
-POSTGRES_DATABASE_URL := "postgres://postgres:password@localhost:5432/air_db"
+build_number := `git rev-list --count HEAD`
+
+_default:
+    just --list
+
+# Reset and migrate databases.
+reset-dev:
+    cd coreclient && cargo sqlx database reset -y --database-url sqlite:client.db
+    cd backend && cargo sqlx database reset -y
+
+# Run fast and simple Rust lints.
+@check-rust:
+    just _check-status "cargo machete"
+    just _check-status "reuse lint -l"
+    just _check-status "cargo metadata --format-version 1 --locked > /dev/null"
+    just _check-status "cargo fmt -- --check"
+    just _check-status "cargo deny check"
+    just _check-unstaged-changes "git diff"
+
+    # It's fine if this fails on CI, but this is useful for devs
+    just _check-unstaged-changes "just regenerate-sqlx || echo 'Database not configured?'"
+
+    echo "{{BOLD}}check-rust done{{NORMAL}}"
+
+# Run fast and simple Flutter lints.
+@check-flutter:
+    just _check-status "git lfs --version"
+    just _check-unstaged-changes "git diff"
+    just _check-unstaged-changes "cd app && fvm flutter pub get"
+    just _check-unstaged-changes "cd app/rust_builder/cargokit/build_tool && fvm flutter pub get"
+    just _check-unstaged-changes "cd app && fvm dart format ."
+    just _check-status "cd app && fvm flutter analyze --no-pub"
+    just _check-unstaged-changes "just regenerate-l10n"
+    just _check-unstaged-changes "just regenerate-icons"
+    echo "{{BOLD}}check-flutter done{{NORMAL}}"
+
+# Run flutter rust bridge lint.
+@check-frb:
+    just _check-unstaged-changes "just regenerate-frb"
+
+# Run all fast and simple lints.
+@check: check-rust check-flutter check-frb
+
+# This task will run the command and hide stdout and stderr. If the command fails, it prints the logs and the task fails.
+_check-status command:
+    #!/usr/bin/env -S bash -eu
+    echo "{{BOLD}}Running {{command}}{{NORMAL}}"
+    if ! log=$({{command}} 2>&1); then
+        echo "{{RED}}$log{{NORMAL}}" >&2
+        just _log-error "{{command}}"
+    fi
+
+# This task will run the command and hide stdout. If git diff then reports unstaged changes, the task will fail.
+_check-unstaged-changes command:
+    #!/usr/bin/env -S bash -eu
+    echo "{{BOLD}}Running {{command}}{{NORMAL}}"
+    {{command}} >/dev/null
+    if ! git diff --quiet; then
+        echo -e "{{RED}}Found unstaged changes.{{NORMAL}}"
+        git diff
+        just _log-error "{{command}}"
+    fi
+
+# This task will print the error and call exit 1. If this is running in GitHub CI, it will add the error to the GitHub summary as an annotation.
+_log-error msg:
+    #!/usr/bin/env -S bash -eu
+    if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+        echo -e "::error::{{msg}}"
+    else
+        msg="\x1b[1;31mERROR: {{msg}}\x1b[0m"
+        echo -e "$msg"
+    fi
+    exit 1
+
+
+# Regenerate frb and l10n.
+regenerate: regenerate-frb regenerate-l10n regenerate-sqlx regenerate-icons
+
+# Regenerate flutter rust bridge files.
+[working-directory: 'app']
+regenerate-frb:
+    rm -f ../applogic/src/frb_*.rs
+    touch ../applogic/src/frb_generated.rs
+    rm -Rf lib/core/api lib/core/frb_*.dart lib/core/lib.dart
+
+    CARGO_TARGET_DIR="{{justfile_directory()}}/target/frb_codegen" \
+        flutter_rust_bridge_codegen generate
+
+    cd .. && cargo fmt
+
+# Regenerate localization files.
+regenerate-l10n:
+    cd app && cargo xtask prune-unused-l10n # pass --apply and optionally --safe to prevent data loss
+    cd app && fvm flutter gen-l10n
+
+# Regenerate database query metadata.
+regenerate-sqlx:
+    cd coreclient && cargo sqlx prepare --database-url sqlite:client.db
+    cd backend && cargo sqlx prepare
+
+# Recompile svg icons for rendering.
+regenerate-icons:
+    cd app && fvm dart run tool/compile_svg_icons.dart
+
+# Run cargo build, clippy and test.
+@test-rust: start-docker-compose
+    just _check-status "cargo clippy --locked --all-targets"
+    just _check-status "cargo test --locked -q"
+    echo "{{BOLD}}test-rust done{{NORMAL}}"
+
+# Run flutter test.
+test-flutter:
+    cd app && fvm flutter test
+    @echo "{{BOLD}}test-flutter done{{NORMAL}}"
+
+# Run all lints and tests.
+ci: check test
+
+# Run all tests.
+test: test-rust test-flutter
 
 docker-is-podman := if `command -v podman || true` =~ ".*podman$" { "true" } else { "false" }
-
-# run docker compose services in the background
-run-services: generate-db-certs
+# Run docker compose services in the background.
+@start-docker-compose: _generate-db-certs
     if {{docker-is-podman}} == "true"; then \
         podman rm air_minio-setup_1 -i 2>&1 /dev/null; \
         podman-compose --podman-run-args=--replace up -d; \
@@ -22,200 +142,35 @@ run-services: generate-db-certs
         docker compose ps; \
     fi
 
-# initialize the backend database and apply migrations
-init-backend-db $DATABASE_URL=(POSTGRES_DATABASE_URL):
-    cd backend && sqlx database create
-    cd backend && sqlx database setup
-
-[working-directory: 'backend']
-prepare-db-statements $DATABASE_URL=(POSTGRES_DATABASE_URL):
-    cargo sqlx database create
-    cargo sqlx database setup
-    cargo sqlx prepare --database-url $DATABASE_URL -- --tests
-
-# generate postgres TLS certificates
-generate-db-certs:
+# Generate postgres TLS certificates.
+_generate-db-certs:
     cd backend && TEST_CERT_DIR_NAME=test_certs scripts/generate_test_certs.sh
 
-# === Client ===
+# Use the current test results as new reference images.
+update-flutter-goldens:
+    cd app && fvm flutter test --update-goldens
 
-[working-directory: 'coreclient']
-init-client-db:
-    sqlx database create --database-url sqlite://{{justfile_directory()}}/coreclient/client.db
-    sqlx database setup --database-url sqlite://{{justfile_directory()}}/coreclient/client.db
-
-[working-directory: 'coreclient']
-prepare-client-db-statements: init-client-db
-    cargo sqlx prepare --database-url sqlite://{{justfile_directory()}}/coreclient/client.db
-
-
-# === App ===
-
-app_lib_name := "applogic"
-app_rust_base_dir := "../applogic"
-
-# generate Dart files e.g. the data classes a.k.a freezed classes
-[working-directory: 'app']
-generate-dart-files:
-    dart run build_runner build --delete-conflicting-outputs
-
-[working-directory: 'app']
-generate-icons:
-    dart run tool/compile_svg_icons.dart
-
-[working-directory: 'app']
-check-icons: generate-icons
-    if [ -n "$(git status --porcelain lib/ui/icons/generated_svg_icons.dart)" ]; then \
-        git --no-pager diff -- lib/ui/icons/generated_svg_icons.dart; \
-        echo -e "\x1b[1;31mFound uncommitted changes. Did you forget to run 'just generate-icons'?"; \
-        exit 1; \
-    fi
-
-# generate Rust and Dart flutter bridge files
-[working-directory: 'app']
-frb-generate $CARGO_TARGET_DIR=(justfile_directory() + "/target/frb_codegen"):
-    rm -f {{app_rust_base_dir}}/src/frb_*.rs
-    touch {{app_rust_base_dir}}/src/frb_generated.rs
-    rm -Rf lib/core/api lib/core/frb_*.dart lib/core/lib.dart
-    flutter_rust_bridge_codegen generate
-    cd .. && cargo fmt
-
-# Generate Rust and Dart flutter bridge files and check that they are committed
-#
-# Note: As a side effect, this recipe also checks whether the generated Dart
-# files and the `app/pubspec.lock` file are up to date. This occurs because
-# `flutter_rust_bridge_codegen` runs the `dart run build_runner build` command,
-# which updates the generated files.
-check-frb: frb-generate
-    just check-clean-repo "just frb-generate"
-
-# same as check-generated-frb (with all prerequisite steps for running in CI)
-check-frb-ci: install-cargo-binstall
-    cargo binstall flutter_rust_bridge_codegen@2.11.1 cargo-expand
-    just check-frb
-
-check-clean-repo command:
-    #!/usr/bin/env -S bash -eu
-    if [ -n "$(git status --porcelain)" ]; then
-        git add -N .
-        git --no-pager diff
-        echo -e "\x1b[1;31mFound uncommitted changes. Did you forget to run '{{command}}'?"
-        exit 1
-    fi
-
-# update the Flutter dependencies
-[working-directory: 'app']
-flutter-pub-get:
-    flutter pub get
-
-# check that the Flutter lockfile is up to date
-[working-directory: 'app']
-check-flutter-lockfile: flutter-pub-get
-    # getting the Flutter dependencies may change the formatting
-    just dart-format
-    just check-clean-repo "just flutter-pub-get"
-
-# format dart code
-[working-directory: 'app']
-dart-format:
-    dart format .
-
-# check that dart code is formatted
-[working-directory: 'app']
-check-dart-format: dart-format
-    just check-clean-repo "just dart-format"
-
-# generate localization files
-[working-directory: 'app']
-gen-l10n:
-    flutter gen-l10n
-
-# prune unused localization keys (dry run by default; pass --apply and optionally --safe to prevent data loss)
-prune-l10n *args='':
-    cargo xtask prune-unused-l10n {{args}}
-
-# check that the localization files are up to date
-[working-directory: 'app']
-check-l10n: gen-l10n
-    just check-clean-repo "just gen-l10n"
-
-# set up the CI environment for the app
-install-cargo-binstall:
-    curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-
-# set up the CI environment for Android builds
-[working-directory: 'app/fastlane']
-setup-android-ci: install-cargo-binstall
-    cargo binstall -y cargo-ndk
-    bundle install
-
-# set up the CI environment for iOS builds
-[working-directory: 'app/fastlane']
-setup-ios-ci: install-cargo-binstall
-    bundle install
-
-# set up the CI environment for macOS builds
-[working-directory: 'app/fastlane']
-setup-macos-ci: install-cargo-binstall
-    bundle install
-
-test-rust *args='':
-    env DATABASE_URL={{POSTGRES_DATABASE_URL}} SQLX_OFFLINE=true cargo test {{args}}
-
-build_number := `git rev-list --count HEAD`
-
-# build Android
-# we limit it to android-arm64 to speed up the build process
-[working-directory: 'app']
-build-android:
-     flutter build appbundle --target-platform android-arm64 --build-number={{build_number}}
-
-# build iOS
-[working-directory: 'app']
-build-ios:
-    flutter build ios --no-codesign --build-number={{build_number}}
-
-# Build Linux app
-[working-directory: 'app']
-build-linux:
-     flutter build linux -v --build-number={{build_number}}
-
-# analyze Dart code
-[working-directory: 'app']
-analyze-dart:
-    cd rust_builder/cargokit/build_tool && flutter pub get
-    flutter analyze
-
-# run Flutter tests
-[working-directory: 'app']
-test-flutter *args='':
-    just check-icons
-    flutter test {{args}}
-
-# run backend server (at localhost)
-run-backend: init-backend-db
-    cargo run --bin airserver
-
-# Build Windows app
-[working-directory: 'app']
-build-windows:
-     flutter build windows -v --build-number={{build_number}}
-
-# Run app
-[working-directory: 'app']
+# Start the app in debug mode.
 run-app *args='':
-    flutter run {{args}}
+    cd app && fvm flutter run {{args}}
 
-# Run app on Linux
-run-app-linux *args='':
-    just run-app -d linux {{args}}
+# Start the app from the last debug build.
+run-app-cached device="macos":
+    #!/usr/bin/env -S bash -eu
+    app/build/{{device}}/Build/Products/Debug/Air.app/Contents/*/Air
 
-# Add client migration
-[working-directory: 'coreclient']
-add-client-migration migration_name:
-    sqlx migrate add {{migration_name}}
+# Start the server.
+run-server:
+    cargo run --bin airserver | bunyan
 
-# === Release utilities ===
-
+# Increment minor version numbers and update changelog.
 bump-version:
     cargo xtask bump-version
+
+# Install fvm.
+install-fvm:
+    curl -fsSL https://fvm.app/install.sh -o install-fvm.sh
+    printf "%s  %s\n" \
+        "3a39003bb29531f95f7d5798bbf23737180f29b8c0d886e29327f0bc8cffa8f3" \
+        "install-fvm.sh" | sha256sum -c -
+    bash install-fvm.sh 4.0.5

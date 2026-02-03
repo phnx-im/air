@@ -16,6 +16,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
+  SQLX_OFFLINE: true
 
 jobs:
   ios-build:
@@ -32,19 +33,14 @@ jobs:
 
       - run: git lfs install && git lfs pull
 
-      - name: Set up Just
-        uses: extractions/setup-just@v2
-
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
 
-      - name: Set up Flutter FVM
-        uses: kuhnroyal/flutter-fvm-config-action/setup@v3
-        with:
-          path: "app/.fvmrc"
-          cache: false
+      - uses: extractions/setup-just@v2
+      - run: just install-fvm
+      - run: echo /Users/runner/fvm/bin >> $GITHUB_PATH
 
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@1.92.0
@@ -52,17 +48,7 @@ jobs:
       - name: Set up iOS CI
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: just setup-ios-ci
-
-      - name: Test flutter
-        run: just test-flutter
-
-      - name: Upload golden failures
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: golden-failures
-          path: app/test/**/failures/*
+        run: cd app/fastlane && bundle install
 
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -86,7 +72,7 @@ jobs:
       - name: Build iOS app
         if: ${{ steps.detect_fork.outputs.is_fork == 'true' || github.actor == 'dependabot[bot]' }}
         run: |
-          cd app && fastlane ios build_ios
+          cd app && fastlane ios build_ios --verbose
 
       - name: Build and sign iOS app
         if: ${{ steps.detect_fork.outputs.is_fork == 'false' && github.actor != 'dependabot[bot]' }}
