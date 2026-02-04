@@ -50,6 +50,7 @@ impl CreateChat {
             pool,
             notifier,
             key_store,
+            ..
         } = context;
         // If we can't get a new group ID, we can't create the chat. Getting a
         // new group ID is repeatable.

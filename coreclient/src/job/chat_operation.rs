@@ -39,9 +39,7 @@ impl Job for ChatOperation {
         let pending_operation = context
             .pool
             .with_connection(async |connection| {
-                let pending_operation =
-                    PendingChatOperation::load(connection, &self.chat_id).await?;
-                Ok(pending_operation)
+                PendingChatOperation::load(connection, &self.chat_id).await
             })
             .await?;
 

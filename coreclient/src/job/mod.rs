@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use chrono::{DateTime, Utc};
 use sqlx::SqlitePool;
 
 use crate::{
@@ -10,13 +11,14 @@ use crate::{
 
 pub(crate) mod chat_operation;
 pub(crate) mod create_chat;
-mod pending_chat_operation;
+pub(crate) mod pending_chat_operation;
 
 pub(crate) struct JobContext<'a> {
     pub api_clients: &'a ApiClients,
     pub pool: SqlitePool,
     pub notifier: &'a mut StoreNotifier,
     pub key_store: &'a MemoryUserKeyStore,
+    pub now: DateTime<Utc>,
 }
 
 pub(crate) trait Job {

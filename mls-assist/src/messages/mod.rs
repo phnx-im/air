@@ -14,10 +14,11 @@ use openmls::{
 
 #[cfg(doc)]
 use openmls::prelude::{PrivateMessage, PublicMessage, group_info::GroupInfo};
+use serde::{Deserialize, Serialize};
 
 pub mod codec;
 
-#[derive(Debug, TlsSerialize, TlsSize)]
+#[derive(Clone, Debug, TlsSerialize, TlsSize, Serialize, Deserialize)]
 pub struct AssistedMessageOut {
     mls_message: MlsMessageOut,
     assisted_group_info_option: Option<AssistedGroupInfo>,
@@ -93,7 +94,7 @@ impl AssistedMessageIn {
     }
 }
 
-#[derive(Debug, TlsSize, Clone, TlsSerialize)]
+#[derive(Debug, TlsSize, Clone, TlsSerialize, Serialize, Deserialize)]
 pub struct AssistedGroupInfo {
     extensions: Extensions,
     signature: Signature,

@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT pco.group_id, pco.operation_data, pco.last_attempt AS \"last_attempt: _\"\n            FROM pending_chat_operation pco\n            JOIN chat c ON pco.group_id = c.group_id\n            WHERE c.chat_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "group_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "operation_data",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "last_attempt: _",
+        "ordinal": 2,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "4dee76421a733632b94a875689527a13079a12fa6c422f4cf8cf5994ba037fcf"
+}
