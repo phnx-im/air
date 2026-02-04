@@ -146,6 +146,7 @@ abstract class RustLibApi extends BaseApi {
   Future<void> crateApiChatDetailsCubitChatDetailsCubitBaseDeleteMessage({
     required ChatDetailsCubitBase that,
     required MessageId messageId,
+    required DeleteMode deleteMode,
   });
 
   Future<void> crateApiChatDetailsCubitChatDetailsCubitBaseEditMessage({
@@ -1242,6 +1243,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<void> crateApiChatDetailsCubitChatDetailsCubitBaseDeleteMessage({
     required ChatDetailsCubitBase that,
     required MessageId messageId,
+    required DeleteMode deleteMode,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -1252,6 +1254,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             serializer,
           );
           sse_encode_box_autoadd_message_id(messageId, serializer);
+          sse_encode_delete_mode(deleteMode, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -1265,7 +1268,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kCrateApiChatDetailsCubitChatDetailsCubitBaseDeleteMessageConstMeta,
-        argValues: [that, messageId],
+        argValues: [that, messageId, deleteMode],
         apiImpl: this,
       ),
     );
@@ -1275,7 +1278,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiChatDetailsCubitChatDetailsCubitBaseDeleteMessageConstMeta =>
       const TaskConstMeta(
         debugName: "ChatDetailsCubitBase_delete_message",
-        argNames: ["that", "messageId"],
+        argNames: ["that", "messageId", "deleteMode"],
       );
 
   @override
@@ -7717,6 +7720,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DeleteMode dco_decode_delete_mode(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return DeleteMode.values[raw as int];
+  }
+
+  @protected
   DeveloperSettingsScreenType dco_decode_developer_settings_screen_type(
     dynamic raw,
   ) {
@@ -9999,6 +10008,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_chatIds = sse_decode_list_chat_id(deserializer);
     return ChatListState(chatIds: var_chatIds);
+  }
+
+  @protected
+  DeleteMode sse_decode_delete_mode(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return DeleteMode.values[inner];
   }
 
   @protected
@@ -12829,6 +12845,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_delete_mode(DeleteMode self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
   void sse_encode_developer_settings_screen_type(
     DeveloperSettingsScreenType self,
     SseSerializer serializer,
@@ -14108,12 +14130,14 @@ class ChatDetailsCubitBaseImpl extends RustOpaque
   Future<void> close() => RustLib.instance.api
       .crateApiChatDetailsCubitChatDetailsCubitBaseClose(that: this);
 
-  Future<void> deleteMessage({required MessageId messageId}) => RustLib
-      .instance
-      .api
+  Future<void> deleteMessage({
+    required MessageId messageId,
+    required DeleteMode deleteMode,
+  }) => RustLib.instance.api
       .crateApiChatDetailsCubitChatDetailsCubitBaseDeleteMessage(
         that: this,
         messageId: messageId,
+        deleteMode: deleteMode,
       );
 
   Future<void> editMessage({MessageId? messageId}) => RustLib.instance.api

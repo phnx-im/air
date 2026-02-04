@@ -641,6 +641,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get textMessage_deleted => 'Nachricht gelöscht';
 
   @override
+  String get textMessage_deletedBySelf => 'Du hast diese Nachricht gelöscht.';
+
+  @override
+  String textMessage_deletedByOther(String senderName) {
+    return '$senderName hat diese Nachricht gelöscht.';
+  }
+
+  @override
   String get linkConfirmation_title => 'Link öffnen?';
 
   @override
@@ -660,6 +668,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get messageContextMenu_edit => 'Bearbeiten';
 
   @override
+  String get messageContextMenu_delete => 'Löschen';
+
+  @override
   String get messageContextMenu_save => 'Speichern';
 
   @override
@@ -671,6 +682,19 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get messageContextMenu_saveConfirmation => 'Anhang gespeichert';
+
+  @override
+  String get deleteMessageDialog_title => 'Nachricht löschen?';
+
+  @override
+  String get deleteMessageDialog_description =>
+      'Wähle, für wen diese Nachricht gelöscht werden soll. Sie wird von all deinen Geräten gelöscht.';
+
+  @override
+  String get deleteMessageDialog_forEveryone => 'Für alle löschen';
+
+  @override
+  String get deleteMessageDialog_forMe => 'Für mich löschen';
 
   @override
   String get reportSpamButton_text => 'Spam melden';

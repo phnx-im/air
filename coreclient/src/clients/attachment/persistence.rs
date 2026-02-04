@@ -313,6 +313,48 @@ impl AttachmentRecord {
         notifier.remove(attachment_id);
         Ok(())
     }
+
+    /// Delete all attachments for a given message and notify about the deletions.
+    ///
+    /// This is used for network deletions where the message content becomes NullPart
+    /// but the message row remains (so FK cascade doesn't apply).
+    pub(crate) async fn delete_by_message_id(
+        executor: impl SqliteExecutor<'_>,
+        notifier: &mut StoreNotifier,
+        message_id: MessageId,
+    ) -> sqlx::Result<()> {
+        // Load attachment_ids and delete in one query with RETURNING
+        let attachment_ids: Vec<AttachmentId> = query_scalar!(
+            r#"DELETE FROM attachment WHERE message_id = ?
+            RETURNING attachment_id AS "attachment_id: AttachmentId""#,
+            message_id
+        )
+        .fetch_all(executor)
+        .await?;
+
+        // Notify for each deleted attachment
+        for id in attachment_ids {
+            notifier.remove(id);
+        }
+        Ok(())
+    }
+
+    /// Load all attachment IDs for a given message.
+    ///
+    /// This is primarily used for test verification.
+    pub(crate) async fn load_ids_by_message_id(
+        executor: impl SqliteExecutor<'_>,
+        message_id: MessageId,
+    ) -> sqlx::Result<Vec<AttachmentId>> {
+        query_scalar!(
+            r#"SELECT attachment_id AS "attachment_id: AttachmentId"
+            FROM attachment
+            WHERE message_id = ?"#,
+            message_id
+        )
+        .fetch_all(executor)
+        .await
+    }
 }
 
 #[derive(Debug)]
@@ -699,6 +741,90 @@ mod test {
         );
         let loaded_content = AttachmentRecord::load_content(&pool, attachment_id).await?;
         assert_eq!(loaded_content, AttachmentContent::Ready(content));
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn delete_message_cascade_attachment(pool: Pool<Sqlite>) -> anyhow::Result<()> {
+        use crate::ChatMessage;
+
+        let mut notifier = StoreNotifier::noop();
+
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
+            .await?;
+        let message = test_chat_message(chat.id());
+        message.store(&pool, &mut notifier).await?;
+        let record = test_attachment_record(chat.id(), message.id());
+
+        // Store the attachment
+        record.store(&pool, &mut notifier, None).await?;
+
+        // Verify attachment exists
+        let loaded_record = AttachmentRecord::load(&pool, record.attachment_id).await?;
+        assert!(loaded_record.is_some());
+
+        // Delete the message - FK cascade should delete the attachment
+        ChatMessage::delete(&pool, &mut notifier, message.id(), chat.id()).await?;
+
+        // Verify the attachment is gone (FK cascade)
+        let loaded_record = AttachmentRecord::load(&pool, record.attachment_id).await?;
+        assert!(
+            loaded_record.is_none(),
+            "Attachment should be deleted by FK cascade when message is deleted"
+        );
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn delete_attachment_by_message_id(pool: Pool<Sqlite>) -> anyhow::Result<()> {
+        let mut notifier = StoreNotifier::noop();
+
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
+            .await?;
+        let message = test_chat_message(chat.id());
+        message.store(&pool, &mut notifier).await?;
+
+        // Create two attachments for the same message
+        let record1 = test_attachment_record(chat.id(), message.id());
+        let record2 = test_attachment_record(chat.id(), message.id());
+
+        record1.store(&pool, &mut notifier, None).await?;
+        record2.store(&pool, &mut notifier, None).await?;
+
+        // Verify both attachments exist
+        let loaded1 = AttachmentRecord::load(&pool, record1.attachment_id).await?;
+        let loaded2 = AttachmentRecord::load(&pool, record2.attachment_id).await?;
+        assert!(loaded1.is_some());
+        assert!(loaded2.is_some());
+
+        // Also verify load_ids_by_message_id returns both
+        let ids = AttachmentRecord::load_ids_by_message_id(&pool, message.id()).await?;
+        assert_eq!(ids.len(), 2);
+        assert!(ids.contains(&record1.attachment_id));
+        assert!(ids.contains(&record2.attachment_id));
+
+        // Delete attachments by message_id
+        AttachmentRecord::delete_by_message_id(&pool, &mut notifier, message.id()).await?;
+
+        // Verify both attachments are gone
+        let loaded1 = AttachmentRecord::load(&pool, record1.attachment_id).await?;
+        let loaded2 = AttachmentRecord::load(&pool, record2.attachment_id).await?;
+        assert!(
+            loaded1.is_none(),
+            "First attachment should be deleted by delete_by_message_id"
+        );
+        assert!(
+            loaded2.is_none(),
+            "Second attachment should be deleted by delete_by_message_id"
+        );
+
+        // Verify load_ids_by_message_id returns empty
+        let ids = AttachmentRecord::load_ids_by_message_id(&pool, message.id()).await?;
+        assert!(ids.is_empty());
 
         Ok(())
     }

@@ -323,6 +323,14 @@ impl Store for CoreUser {
         self.send_message(chat_id, content, replaces_id).await
     }
 
+    async fn delete_message_content_locally(&self, message_id: MessageId) -> StoreResult<()> {
+        self.delete_message_content_locally(message_id).await
+    }
+
+    async fn delete_message_locally(&self, message_id: MessageId) -> StoreResult<()> {
+        self.delete_message_locally(message_id).await
+    }
+
     async fn upload_attachment(
         &self,
         chat_id: ChatId,
@@ -379,6 +387,13 @@ impl Store for CoreUser {
         attachment_id: AttachmentId,
     ) -> StoreResult<Option<AttachmentStatus>> {
         Ok(AttachmentRecord::status(self.pool(), attachment_id).await?)
+    }
+
+    async fn attachment_ids_for_message(
+        &self,
+        message_id: MessageId,
+    ) -> StoreResult<Vec<AttachmentId>> {
+        Ok(AttachmentRecord::load_ids_by_message_id(self.pool(), message_id).await?)
     }
 
     async fn resend_message(&self, local_message_id: Uuid) -> StoreResult<()> {

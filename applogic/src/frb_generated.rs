@@ -373,6 +373,7 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_delete_message_imp
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>,
             >>::sse_decode(&mut deserializer);
             let api_message_id = <crate::api::types::MessageId>::sse_decode(&mut deserializer);
+            let api_delete_mode = <crate::api::types::DeleteMode>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -398,6 +399,7 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_delete_message_imp
                             crate::api::chat_details_cubit::ChatDetailsCubitBase::delete_message(
                                 &*api_that_guard,
                                 api_message_id,
+                                api_delete_mode,
                             )
                             .await?;
                         Ok(output_ok)
@@ -8396,6 +8398,18 @@ impl SseDecode for crate::api::chat_list_cubit::ChatListState {
     }
 }
 
+impl SseDecode for crate::api::types::DeleteMode {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::DeleteMode::ForMe,
+            1 => crate::api::types::DeleteMode::ForEveryone,
+            _ => unreachable!("Invalid variant for DeleteMode: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for crate::api::navigation_cubit::DeveloperSettingsScreenType {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -10611,6 +10625,24 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::chat_list_cubit::ChatListStat
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::DeleteMode {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::ForMe => 0.into_dart(),
+            Self::ForEveryone => 1.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::DeleteMode {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::DeleteMode>
+    for crate::api::types::DeleteMode
+{
+    fn into_into_dart(self) -> crate::api::types::DeleteMode {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::navigation_cubit::DeveloperSettingsScreenType {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -12409,6 +12441,22 @@ impl SseEncode for crate::api::chat_list_cubit::ChatListState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Vec<crate::api::types::ChatId>>::sse_encode(self.chat_ids, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::DeleteMode {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::DeleteMode::ForMe => 0,
+                crate::api::types::DeleteMode::ForEveryone => 1,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
     }
 }
 

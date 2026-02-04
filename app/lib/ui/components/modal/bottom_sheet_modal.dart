@@ -7,6 +7,7 @@ import 'dart:math' as math;
 
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/components/button/button.dart';
 import 'package:flutter/material.dart';
 
 /// Displays a custom bottom sheet modal that slides and fades into view.
@@ -309,6 +310,8 @@ class _BottomSheetHandle extends StatelessWidget {
   }
 }
 
+typedef AsyncAction = FutureOr<void> Function(BuildContext context);
+
 class BottomSheetDialogContent extends StatelessWidget {
   const BottomSheetDialogContent({
     super.key,
@@ -316,38 +319,43 @@ class BottomSheetDialogContent extends StatelessWidget {
     this.description,
     this.primaryActionText,
     this.onPrimaryAction,
+    this.secondaryActionText,
+    this.onSecondaryAction,
     this.titleAlignment = TextAlign.center,
     this.descriptionAlignment = TextAlign.center,
-    this.isPrimaryDanger = false,
-  });
+    this.primaryType = AppButtonType.primary,
+    this.primaryTone = AppButtonTone.normal,
+    this.secondaryType = AppButtonType.secondary,
+    this.secondaryTone = AppButtonTone.normal,
+    @Deprecated('Use primaryTone instead') bool isPrimaryDanger = false,
+    @Deprecated('Use secondaryTone instead') bool isSecondaryDanger = false,
+  }) : _isPrimaryDanger = isPrimaryDanger,
+       _isSecondaryDanger = isSecondaryDanger;
 
   final String? title;
   final String? description;
   final String? primaryActionText;
-  final FutureOr<void> Function(BuildContext context)? onPrimaryAction;
+  final AsyncAction? onPrimaryAction;
+  final String? secondaryActionText;
+  final AsyncAction? onSecondaryAction;
   final TextAlign titleAlignment;
   final TextAlign descriptionAlignment;
-  final bool isPrimaryDanger;
+  final AppButtonType primaryType;
+  final AppButtonTone primaryTone;
+  final AppButtonType secondaryType;
+  final AppButtonTone secondaryTone;
+  final bool _isPrimaryDanger;
+  final bool _isSecondaryDanger;
+
+  AppButtonTone get _effectivePrimaryTone =>
+      _isPrimaryDanger ? AppButtonTone.danger : primaryTone;
+  AppButtonTone get _effectiveSecondaryTone =>
+      _isSecondaryDanger ? AppButtonTone.danger : secondaryTone;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final colors = CustomColorScheme.of(context);
-    final baseStyle = CustomOutlineButtonStyle(
-      colorScheme: colors,
-      baselineTextTheme: textTheme,
-    );
-    final dangerBackground = colors.function.danger;
-    final dangerForeground = colors.function.white;
-    final buttonStyle = isPrimaryDanger
-        ? baseStyle.copyWith(
-            backgroundColor: WidgetStateProperty.all(dangerBackground),
-            foregroundColor: WidgetStateProperty.all(dangerForeground),
-            overlayColor: WidgetStateProperty.all(
-              dangerBackground.withValues(alpha: 0.9),
-            ),
-          )
-        : baseStyle;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -375,7 +383,9 @@ class BottomSheetDialogContent extends StatelessWidget {
         ],
         const SizedBox(height: Spacings.m),
         if (primaryActionText != null)
-          OutlinedButton(
+          AppButton(
+            type: primaryType,
+            tone: _effectivePrimaryTone,
             onPressed: () async {
               final navigator = Navigator.of(context);
               if (onPrimaryAction != null) {
@@ -385,14 +395,25 @@ class BottomSheetDialogContent extends StatelessWidget {
                 navigator.pop(true);
               }
             },
-            style: buttonStyle,
-            child: Text(
-              primaryActionText!,
-              style: textTheme.bodyLarge!.copyWith(
-                color: buttonStyle.foregroundColor?.resolve({}),
-              ),
-            ),
+            label: primaryActionText!,
           ),
+        if (secondaryActionText != null) ...[
+          const SizedBox(height: Spacings.s),
+          AppButton(
+            type: secondaryType,
+            tone: _effectiveSecondaryTone,
+            onPressed: () async {
+              final navigator = Navigator.of(context);
+              if (onSecondaryAction != null) {
+                await onSecondaryAction!(context);
+              }
+              if (navigator.mounted) {
+                navigator.pop(true);
+              }
+            },
+            label: secondaryActionText!,
+          ),
+        ],
       ],
     );
   }
@@ -404,7 +425,7 @@ Future<bool> showBottomSheetDialog({
   String? description,
   required String primaryActionText,
   FutureOr<void> Function(BuildContext context)? onPrimaryAction,
-  bool isPrimaryDanger = false,
+  AppButtonTone primaryTone = AppButtonTone.normal,
   double? maxHeight,
   double maxHeightFraction = 0.4,
   EdgeInsetsGeometry? contentPadding,
@@ -425,7 +446,7 @@ Future<bool> showBottomSheetDialog({
       onPrimaryAction: onPrimaryAction,
       titleAlignment: titleAlignment,
       descriptionAlignment: descriptionAlignment,
-      isPrimaryDanger: isPrimaryDanger,
+      primaryTone: primaryTone,
     ),
     maxHeight: maxHeight,
     maxHeightFraction: maxHeightFraction,

@@ -637,6 +637,14 @@ class AppLocalizationsSv extends AppLocalizations {
   String get textMessage_deleted => 'Meddelande raderat';
 
   @override
+  String get textMessage_deletedBySelf => 'Du raderade det här meddelandet.';
+
+  @override
+  String textMessage_deletedByOther(String senderName) {
+    return '$senderName raderade det här meddelandet.';
+  }
+
+  @override
   String get linkConfirmation_title => 'Öppna länk?';
 
   @override
@@ -656,6 +664,9 @@ class AppLocalizationsSv extends AppLocalizations {
   String get messageContextMenu_edit => 'Redigera';
 
   @override
+  String get messageContextMenu_delete => 'Radera';
+
+  @override
   String get messageContextMenu_save => 'Spara';
 
   @override
@@ -666,6 +677,19 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get messageContextMenu_saveConfirmation => 'Bilagan sparad';
+
+  @override
+  String get deleteMessageDialog_title => 'Radera meddelande?';
+
+  @override
+  String get deleteMessageDialog_description =>
+      'Välj vem meddelandet ska raderas för. Det raderas från alla dina enheter.';
+
+  @override
+  String get deleteMessageDialog_forEveryone => 'Radera för alla';
+
+  @override
+  String get deleteMessageDialog_forMe => 'Radera för mig';
 
   @override
   String get reportSpamButton_text => 'Rapportera spam';

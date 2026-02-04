@@ -265,13 +265,11 @@ mod test {
 
         // Manually set refreshed_at to 100 days ago
         let old_time = Utc::now() - Duration::days(100);
-        sqlx::query!(
-            "UPDATE user_handle SET refreshed_at = ? WHERE handle = ?",
-            old_time,
-            handle_old
-        )
-        .execute(&pool)
-        .await?;
+        sqlx::query("UPDATE user_handle SET refreshed_at = ? WHERE handle = ?")
+            .bind(old_time)
+            .bind(&handle_old)
+            .execute(&pool)
+            .await?;
 
         // Create a handle with recent refreshed_at
         let handle_new = UserHandle::new("new-handle".to_owned())?;

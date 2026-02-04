@@ -180,17 +180,32 @@
   "textMessage_edited": "bearbeitet",
   "textMessage_hiddenPlaceholder": "Blockierter Benutzer, tippe, um die Nachricht anzuzeigen",
   "textMessage_deleted": "Nachricht gelöscht",
+  "textMessage_deletedBySelf": "Du hast diese Nachricht gelöscht.",
+  "textMessage_deletedByOther": "{senderName} hat diese Nachricht gelöscht.",
+  "@textMessage_deletedByOther": {
+    "placeholders": {
+      "senderName": {
+        "type": "String"
+      }
+    }
+  },
   "linkConfirmation_title": "Link öffnen?",
   "linkConfirmation_description": "Prüfe die URL, um sicherzugehen, dass du sie öffnen möchtest:",
   "linkConfirmation_openLink": "Öffnen",
   "linkConfirmation_cancel": "Abbrechen",
   "messageContextMenu_copy": "Kopieren",
   "messageContextMenu_edit": "Bearbeiten",
-  "messageContextMenu_edit": "Löschen",
+  "messageContextMenu_delete": "Löschen",
   "messageContextMenu_save": "Speichern",
   "messageContextMenu_share": "Teilen",
   "messageContextMenu_saveError": "Anhang konnte nicht gespeichert werden",
   "messageContextMenu_saveConfirmation": "Anhang gespeichert",
+
+  "deleteMessageDialog_title": "Nachricht löschen?",
+  "deleteMessageDialog_description": "Wähle, für wen diese Nachricht gelöscht werden soll. Sie wird von all deinen Geräten gelöscht.",
+  "deleteMessageDialog_forEveryone": "Für alle löschen",
+  "deleteMessageDialog_forMe": "Für mich löschen",
+
   "reportSpamButton_text": "Spam melden",
   "reportSpamDialog_title": "Spam melden?",
   "reportSpamDialog_content": "Air wird benachrichtigt, dass diese Person möglicherweise Spam sendet. Air kann niemals den Inhalt von Chats einsehen.",

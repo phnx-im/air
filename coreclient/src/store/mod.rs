@@ -256,6 +256,18 @@ pub trait Store {
 
     async fn resend_message(&self, local_message_id: Uuid) -> StoreResult<()>;
 
+    /// Delete message content locally without sending a network message.
+    ///
+    /// This replaces the message content with NullPart and deletes the edit history.
+    /// The message remains visible as a "deleted" placeholder.
+    async fn delete_message_content_locally(&self, message_id: MessageId) -> StoreResult<()>;
+
+    /// Delete a message locally without sending a network message.
+    ///
+    /// This completely removes the message from the database, including edit history
+    /// and status records. The message will no longer appear in the chat.
+    async fn delete_message_locally(&self, message_id: MessageId) -> StoreResult<()>;
+
     // attachments
 
     /// Stores local attachment incl. the corresponding message, and returns a task for uploading
@@ -309,6 +321,14 @@ pub trait Store {
         &self,
         attachment_id: AttachmentId,
     ) -> StoreResult<Option<AttachmentStatus>>;
+
+    /// Load all attachment IDs for a given message.
+    ///
+    /// This is primarily used for test verification.
+    async fn attachment_ids_for_message(
+        &self,
+        message_id: MessageId,
+    ) -> StoreResult<Vec<AttachmentId>>;
 
     // observability
 

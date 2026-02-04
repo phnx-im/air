@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{identifiers::UserId, time::TimeStamp};
+use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId, time::TimeStamp};
 use anyhow::{Context, bail};
 use mimi_content::{MessageStatus, MimiContent, NestedPartContent};
 use sqlx::SqliteTransaction;
@@ -10,13 +10,146 @@ use sqlx::SqliteTransaction;
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, ContentMessage, MessageId,
     chats::{StatusRecord, messages::edit::MessageEdit},
-    clients::block_contact::BlockedContactError,
+    clients::{attachment::AttachmentRecord, block_contact::BlockedContactError},
     utils::connection_ext::StoreExt,
 };
 
 use super::{CoreUser, Group, StoreNotifier};
 
 impl CoreUser {
+    /// Delete a message and send the deletion to other group members.
+    ///
+    /// This sends a NullPart message that replaces the original message,
+    /// notifying all group members that the message has been deleted.
+    /// The message remains visible as a "deleted" placeholder.
+    pub async fn delete_message(
+        &self,
+        chat_id: ChatId,
+        message_id: MessageId,
+    ) -> anyhow::Result<ChatMessage> {
+        // Load the message to get its mimi_id
+        let message = self
+            .with_transaction(async |txn| {
+                ChatMessage::load(txn.as_mut(), message_id)
+                    .await?
+                    .with_context(|| format!("Can't find message with id {message_id:?}"))
+            })
+            .await?;
+
+        // Create NullPart content
+        let salt: [u8; 16] = RustCrypto::default().random_array()?;
+        let null_content = MimiContent {
+            salt: mimi_content::ByteBuf::from(salt.to_vec()),
+            replaces: message
+                .message()
+                .mimi_id()
+                .map(|id| id.as_slice().to_vec().into()),
+            topic_id: Default::default(),
+            expires: None,
+            in_reply_to: None,
+            extensions: Default::default(),
+            nested_part: mimi_content::NestedPart {
+                disposition: mimi_content::Disposition::Render,
+                language: String::new(),
+                part: NestedPartContent::NullPart,
+            },
+        };
+
+        // Send the deletion message
+        self.send_message(chat_id, null_content, Some(message_id))
+            .await
+    }
+
+    /// Delete a message locally without sending a network message.
+    ///
+    /// This completely removes the message from the database, including edit history
+    /// and status records. The message will no longer appear in the chat.
+    pub(crate) async fn delete_message_locally(&self, message_id: MessageId) -> anyhow::Result<()> {
+        self.with_transaction_and_notifier(async |txn, notifier| {
+            let message = ChatMessage::load(txn.as_mut(), message_id)
+                .await?
+                .with_context(|| format!("Can't find message with id {message_id:?}"))?;
+
+            let chat_id = message.chat_id();
+
+            // Delete edit history
+            MessageEdit::delete_by_message_id(txn.as_mut(), message_id).await?;
+
+            // Delete status records
+            StatusRecord::clear(txn.as_mut(), notifier, message_id).await?;
+
+            // Delete the message itself
+            ChatMessage::delete(txn.as_mut(), notifier, message_id, chat_id).await?;
+
+            Ok(())
+        })
+        .await
+    }
+
+    /// Delete message content locally without sending a network message.
+    ///
+    /// This replaces the message content with NullPart and deletes the edit history.
+    /// The message remains visible as a "deleted" placeholder.
+    pub(crate) async fn delete_message_content_locally(
+        &self,
+        message_id: MessageId,
+    ) -> anyhow::Result<()> {
+        self.with_transaction_and_notifier(async |txn, notifier| {
+            let mut message = ChatMessage::load(txn.as_mut(), message_id)
+                .await?
+                .with_context(|| format!("Can't find message with id {message_id:?}"))?;
+
+            let chat = Chat::load(txn.as_mut(), &message.chat_id())
+                .await?
+                .with_context(|| format!("Can't find chat with id {:?}", message.chat_id()))?;
+
+            let original_sender = message
+                .message()
+                .sender()
+                .context("Message does not have sender")?
+                .clone();
+
+            // Delete edit history
+            MessageEdit::delete_by_message_id(txn.as_mut(), message_id).await?;
+
+            // Create NullPart content for deletion
+            let salt: [u8; 16] = RustCrypto::default().random_array()?;
+            let null_content = MimiContent {
+                salt: mimi_content::ByteBuf::from(salt.to_vec()),
+                replaces: message
+                    .message()
+                    .mimi_id()
+                    .map(|id| id.as_slice().to_vec().into()),
+                topic_id: Default::default(),
+                expires: None,
+                in_reply_to: None,
+                extensions: Default::default(),
+                nested_part: mimi_content::NestedPart {
+                    disposition: mimi_content::Disposition::Render,
+                    language: String::new(),
+                    part: NestedPartContent::NullPart,
+                },
+            };
+
+            // Update the message with NullPart content
+            message.set_content_message(ContentMessage::new(
+                original_sender,
+                true, // is_sent
+                null_content,
+                chat.group_id(),
+            ));
+            message.set_status(MessageStatus::Deleted);
+            message.set_edited_at(TimeStamp::now());
+            message.update(txn.as_mut(), notifier).await?;
+
+            // Clear the status records
+            StatusRecord::clear(txn.as_mut(), notifier, message_id).await?;
+
+            Ok(())
+        })
+        .await
+    }
+
     /// Send a message and return it.
     ///
     /// The message is stored, then sent to the DS and finally returned. The
@@ -162,6 +295,13 @@ impl UnsentContent {
             original.set_edited_at(edit_created_at);
             original.update(txn.as_mut(), notifier).await?;
             StatusRecord::clear(txn.as_mut(), notifier, original.id()).await?;
+
+            // Delete attachments for this message on network deletion
+            // (FK cascade handles local deletion where the message row is deleted)
+            if is_deletion {
+                AttachmentRecord::delete_by_message_id(txn.as_mut(), notifier, original.id())
+                    .await?;
+            }
 
             original
         } else {

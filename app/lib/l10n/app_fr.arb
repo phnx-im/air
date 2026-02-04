@@ -180,16 +180,33 @@
   "textMessage_edited": "modifié",
   "textMessage_hiddenPlaceholder": "Utilisateur bloqué, appuyez pour afficher le message",
   "textMessage_deleted": "Message supprimé",
+  "textMessage_deletedBySelf": "Vous avez supprimé ce message.",
+  "textMessage_deletedByOther": "{senderName} a supprimé ce message.",
+  "@textMessage_deletedByOther": {
+    "placeholders": {
+      "senderName": {
+        "type": "String"
+      }
+    }
+  },
+
   "linkConfirmation_title": "Ouvrir le lien ?",
   "linkConfirmation_description": "Vérifiez l’URL pour vous assurer de vouloir l’ouvrir :",
   "linkConfirmation_openLink": "Ouvrir",
   "linkConfirmation_cancel": "Annuler",
   "messageContextMenu_copy": "Copier",
   "messageContextMenu_edit": "Modifier",
+  "messageContextMenu_delete": "Supprimer",
   "messageContextMenu_save": "Enregistrer",
   "messageContextMenu_share": "Partager",
   "messageContextMenu_saveError": "Échec de l'enregistrement de la pièce jointe",
   "messageContextMenu_saveConfirmation": "Pièce jointe enregistrée",
+
+  "deleteMessageDialog_title": "Supprimer le message ?",
+  "deleteMessageDialog_description": "Choisissez pour qui supprimer ce message. Il sera supprimé de tous vos appareils.",
+  "deleteMessageDialog_forEveryone": "Supprimer pour tout le monde",
+  "deleteMessageDialog_forMe": "Supprimer pour moi",
+
   "reportSpamButton_text": "Signaler comme spam",
   "reportSpamDialog_title": "Signaler comme spam ?",
   "reportSpamDialog_content": "Air sera averti que cette personne peut envoyer des spams. Air ne peut jamais voir le contenu des discussions.",
