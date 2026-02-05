@@ -327,10 +327,7 @@ class BottomSheetDialogContent extends StatelessWidget {
     this.primaryTone = AppButtonTone.normal,
     this.secondaryType = AppButtonType.secondary,
     this.secondaryTone = AppButtonTone.normal,
-    @Deprecated('Use primaryTone instead') bool isPrimaryDanger = false,
-    @Deprecated('Use secondaryTone instead') bool isSecondaryDanger = false,
-  }) : _isPrimaryDanger = isPrimaryDanger,
-       _isSecondaryDanger = isSecondaryDanger;
+  });
 
   final String? title;
   final String? description;
@@ -344,13 +341,6 @@ class BottomSheetDialogContent extends StatelessWidget {
   final AppButtonTone primaryTone;
   final AppButtonType secondaryType;
   final AppButtonTone secondaryTone;
-  final bool _isPrimaryDanger;
-  final bool _isSecondaryDanger;
-
-  AppButtonTone get _effectivePrimaryTone =>
-      _isPrimaryDanger ? AppButtonTone.danger : primaryTone;
-  AppButtonTone get _effectiveSecondaryTone =>
-      _isSecondaryDanger ? AppButtonTone.danger : secondaryTone;
 
   @override
   Widget build(BuildContext context) {
@@ -385,7 +375,7 @@ class BottomSheetDialogContent extends StatelessWidget {
         if (primaryActionText != null)
           AppButton(
             type: primaryType,
-            tone: _effectivePrimaryTone,
+            tone: primaryTone,
             onPressed: () async {
               final navigator = Navigator.of(context);
               if (onPrimaryAction != null) {
@@ -401,7 +391,7 @@ class BottomSheetDialogContent extends StatelessWidget {
           const SizedBox(height: Spacings.s),
           AppButton(
             type: secondaryType,
-            tone: _effectiveSecondaryTone,
+            tone: secondaryTone,
             onPressed: () async {
               final navigator = Navigator.of(context);
               if (onSecondaryAction != null) {
