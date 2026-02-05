@@ -65,7 +65,7 @@ image = "0.25.1"
 infer = "0.19.0"
 insta = { version = "1.42.1", features = ["json"] }
 jni = "0.21"
-jsonwebtoken = "10"
+jsonwebtoken = "9"
 lru = "0.16.2"
 memmap2 = "0.9.5"
 metrics = "0.24.2"
