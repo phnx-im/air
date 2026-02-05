@@ -39,7 +39,7 @@ axum = { version = "0.8.6", features = ["http2"] }
 base64 = "0.22.1"
 blake3 = "1.8.2"
 blurhash = "0.2.3"
-bytes = "1.10.0"
+bytes = "1.11.1"
 camino = "1.1"
 cargo_metadata = "0.23"
 chrono = { version = "0.4.38", features = ["serde"] }
@@ -65,7 +65,7 @@ image = "0.25.1"
 infer = "0.19.0"
 insta = { version = "1.42.1", features = ["json"] }
 jni = "0.21"
-jsonwebtoken = "9"
+jsonwebtoken = "10"
 lru = "0.16.2"
 memmap2 = "0.9.5"
 metrics = "0.24.2"
@@ -129,9 +129,9 @@ tls_codec = { git = "https://github.com/boxdot/formats", rev = "9846c69f91e732b4
 tls_codec_derive = { git = "https://github.com/boxdot/formats", rev = "9846c69f91e732b493dcccf92f4c163bfc711b7d" }
 # Backported fix that allows us to skip lifetime checks temporarily. This can be
 # removed once we adopt the next OpenMLS release.
-openmls = { git = "https://github.com/openmls/openmls", rev = "45aa7e738bbdd11a3a4f3d7a9cb66811534d672a" }
-openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "45aa7e738bbdd11a3a4f3d7a9cb66811534d672a" }
-openmls_traits = { git = "https://github.com/openmls/openmls", rev = "45aa7e738bbdd11a3a4f3d7a9cb66811534d672a" }
+openmls = { git = "https://github.com/openmls/openmls", rev = "e00c64ed648df3742fdffe40267b21555dec1bed" }
+openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "e00c64ed648df3742fdffe40267b21555dec1bed" }
+openmls_traits = { git = "https://github.com/openmls/openmls", rev = "e00c64ed648df3742fdffe40267b21555dec1bed" }
 # Unrealeased version with updated dependencies
 blind-rsa-signatures = { git = "https://github.com/jedisct1/rust-blind-rsa-signatures", rev = "5902c657fa46c663cda224afbe8ee6493d45c9b8" }
 
