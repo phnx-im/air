@@ -39,7 +39,7 @@ axum = { version = "0.8.6", features = ["http2"] }
 base64 = "0.22.1"
 blake3 = "1.8.2"
 blurhash = "0.2.3"
-bytes = "1.10.0"
+bytes = "1.11.1"
 camino = "1.1"
 cargo_metadata = "0.23"
 chrono = { version = "0.4.38", features = ["serde"] }
