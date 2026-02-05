@@ -18,7 +18,7 @@ use aircoreclient::{
 use aircoreclient::{MessageId, clients::CoreUser, store::Store};
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
-use mimi_content::{ByteBuf, Disposition, MimiContent, NestedPart, NestedPartContent};
+use mimi_content::MimiContent;
 use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
 use tracing::{error, info};
@@ -29,7 +29,7 @@ use crate::{
     api::{
         attachments_repository::{AttachmentTaskHandle, AttachmentsRepository, InProgressMap},
         chats_repository::ChatsRepository,
-        types::{UiChatType, UiUserId},
+        types::{DeleteMode, UiChatType, UiUserId},
         user_settings_cubit::{UserSettings, UserSettingsCubitBase},
     },
     mark_as_read::MarkAsRead,
@@ -154,51 +154,29 @@ impl ChatDetailsCubitBase {
         Store::set_chat_title(&self.context.store, self.context.chat_id, title).await
     }
 
-    pub async fn delete_message(&self) -> anyhow::Result<()> {
-        let mut draft = None;
-        self.core.state_tx().send_if_modified(|state| {
-            let Some(chat) = state.chat.as_mut() else {
-                return false;
-            };
-            draft = chat.draft.take();
-            draft.is_some()
-        });
-
-        let Some(draft) = draft else {
-            return Err(anyhow::anyhow!("You did not select a message to delete"));
-        };
-        if draft.editing_id.is_none() {
-            return Err(anyhow::anyhow!("You did not select a message to delete"));
+    pub async fn delete_message(
+        &self,
+        message_id: MessageId,
+        delete_mode: DeleteMode,
+    ) -> anyhow::Result<()> {
+        match delete_mode {
+            DeleteMode::ForEveryone => {
+                // Send NullPart via network to delete for all participants
+                self.context
+                    .store
+                    .delete_message(self.context.chat_id, message_id)
+                    .await
+                    .inspect_err(|error| error!(%error, "Failed to send delete message"))?;
+            }
+            DeleteMode::ForMe => {
+                // Delete locally - completely remove the message from the database
+                self.context
+                    .store
+                    .delete_message_locally(message_id)
+                    .await
+                    .inspect_err(|error| error!(%error, "Failed to delete message locally"))?;
+            }
         }
-
-        // Remove stored draft
-        self.context
-            .store
-            .store_message_draft(self.context.chat_id, None)
-            .await?;
-
-        let editing_id = draft.editing_id;
-
-        let salt: [u8; 16] = RustCrypto::default().random_array()?;
-        let content = MimiContent {
-            salt: ByteBuf::from(salt),
-            replaces: None, // Replaces is set by store_unsent_message
-            topic_id: Default::default(),
-            expires: None,
-            in_reply_to: None,
-            extensions: Default::default(),
-            nested_part: NestedPart {
-                disposition: Disposition::Render,
-                language: "".to_owned(),
-                part: NestedPartContent::NullPart,
-            },
-        };
-
-        self.context
-            .store
-            .send_message(self.context.chat_id, content, editing_id)
-            .await
-            .inspect_err(|error| error!(%error, "Failed to send message"))?;
 
         Ok(())
     }
@@ -227,23 +205,7 @@ impl ChatDetailsCubitBase {
         let editing_id = draft.and_then(|d| d.editing_id);
 
         let salt: [u8; 16] = RustCrypto::default().random_array()?;
-        let content = if message_text == "delete" {
-            MimiContent {
-                salt: ByteBuf::from(salt),
-                replaces: None, // Replaces is set by store_unsent_message
-                topic_id: Default::default(),
-                expires: None,
-                in_reply_to: None,
-                extensions: Default::default(),
-                nested_part: NestedPart {
-                    disposition: Disposition::Render,
-                    language: "".to_owned(),
-                    part: NestedPartContent::NullPart,
-                },
-            }
-        } else {
-            MimiContent::simple_markdown_message(message_text, salt)
-        };
+        let content = MimiContent::simple_markdown_message(message_text, salt);
 
         self.context
             .store

@@ -6,6 +6,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/components/button/button.dart' show AppButtonTone;
 import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
@@ -87,7 +88,7 @@ class RemoveMemberButton extends StatelessWidget {
       title: loc.removeUserDialog_title,
       description: loc.removeUserDialog_content(displayName),
       primaryActionText: loc.removeUserDialog_removeUser,
-      isPrimaryDanger: true,
+      primaryTone: AppButtonTone.danger,
       onPrimaryAction: (actionContext) async {
         await actionContext.read<UserCubit>().removeUserFromChat(
           chatId,

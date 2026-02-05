@@ -746,6 +746,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ChatListState dco_decode_chat_list_state(dynamic raw);
 
   @protected
+  DeleteMode dco_decode_delete_mode(dynamic raw);
+
+  @protected
   DeveloperSettingsScreenType dco_decode_developer_settings_screen_type(
     dynamic raw,
   );
@@ -1699,6 +1702,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ChatListState sse_decode_chat_list_state(SseDeserializer deserializer);
+
+  @protected
+  DeleteMode sse_decode_delete_mode(SseDeserializer deserializer);
 
   @protected
   DeveloperSettingsScreenType sse_decode_developer_settings_screen_type(
@@ -2860,6 +2866,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_chat_list_state(ChatListState self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_delete_mode(DeleteMode self, SseSerializer serializer);
 
   @protected
   void sse_encode_developer_settings_screen_type(

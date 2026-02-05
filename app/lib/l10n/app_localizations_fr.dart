@@ -646,6 +646,14 @@ class AppLocalizationsFr extends AppLocalizations {
   String get textMessage_deleted => 'Message supprimé';
 
   @override
+  String get textMessage_deletedBySelf => 'Vous avez supprimé ce message.';
+
+  @override
+  String textMessage_deletedByOther(String senderName) {
+    return '$senderName a supprimé ce message.';
+  }
+
+  @override
   String get linkConfirmation_title => 'Ouvrir le lien ?';
 
   @override
@@ -665,6 +673,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get messageContextMenu_edit => 'Modifier';
 
   @override
+  String get messageContextMenu_delete => 'Supprimer';
+
+  @override
   String get messageContextMenu_save => 'Enregistrer';
 
   @override
@@ -676,6 +687,19 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get messageContextMenu_saveConfirmation => 'Pièce jointe enregistrée';
+
+  @override
+  String get deleteMessageDialog_title => 'Supprimer le message ?';
+
+  @override
+  String get deleteMessageDialog_description =>
+      'Choisissez pour qui supprimer ce message. Il sera supprimé de tous vos appareils.';
+
+  @override
+  String get deleteMessageDialog_forEveryone => 'Supprimer pour tout le monde';
+
+  @override
+  String get deleteMessageDialog_forMe => 'Supprimer pour moi';
 
   @override
   String get reportSpamButton_text => 'Signaler comme spam';

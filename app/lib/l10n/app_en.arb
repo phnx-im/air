@@ -221,6 +221,15 @@
   "textMessage_edited": "edited",
   "textMessage_hiddenPlaceholder": "Blocked user, tap to reveal message",
   "textMessage_deleted": "Deleted message",
+  "textMessage_deletedBySelf": "You deleted this message.",
+  "textMessage_deletedByOther": "{senderName} deleted this message.",
+  "@textMessage_deletedByOther": {
+    "placeholders": {
+      "senderName": {
+        "type": "String"
+      }
+    }
+  },
 
   "linkConfirmation_title": "Open link?",
   "linkConfirmation_description": "Check the URL to make sure you want to open it:",
@@ -229,11 +238,17 @@
 
   "messageContextMenu_copy": "Copy",
   "messageContextMenu_edit": "Edit",
+  "messageContextMenu_delete": "Delete",
   "messageContextMenu_save": "Save",
   "messageContextMenu_share": "Share",
 
   "messageContextMenu_saveError": "Failed to save attachment",
   "messageContextMenu_saveConfirmation": "Attachment saved",
+
+  "deleteMessageDialog_title": "Delete message?",
+  "deleteMessageDialog_description": "Choose who to delete this message for. It will be deleted from all your devices.",
+  "deleteMessageDialog_forEveryone": "Delete for everyone",
+  "deleteMessageDialog_forMe": "Delete for me",
 
   "reportSpamButton_text": "Report spam",
   "reportSpamDialog_title": "Report spam?",

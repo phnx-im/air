@@ -1113,6 +1113,18 @@ abstract class AppLocalizations {
   /// **'Deleted message'**
   String get textMessage_deleted;
 
+  /// No description provided for @textMessage_deletedBySelf.
+  ///
+  /// In en, this message translates to:
+  /// **'You deleted this message.'**
+  String get textMessage_deletedBySelf;
+
+  /// No description provided for @textMessage_deletedByOther.
+  ///
+  /// In en, this message translates to:
+  /// **'{senderName} deleted this message.'**
+  String textMessage_deletedByOther(String senderName);
+
   /// No description provided for @linkConfirmation_title.
   ///
   /// In en, this message translates to:
@@ -1149,6 +1161,12 @@ abstract class AppLocalizations {
   /// **'Edit'**
   String get messageContextMenu_edit;
 
+  /// No description provided for @messageContextMenu_delete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get messageContextMenu_delete;
+
   /// No description provided for @messageContextMenu_save.
   ///
   /// In en, this message translates to:
@@ -1172,6 +1190,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Attachment saved'**
   String get messageContextMenu_saveConfirmation;
+
+  /// No description provided for @deleteMessageDialog_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete message?'**
+  String get deleteMessageDialog_title;
+
+  /// No description provided for @deleteMessageDialog_description.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose who to delete this message for. It will be deleted from all your devices.'**
+  String get deleteMessageDialog_description;
+
+  /// No description provided for @deleteMessageDialog_forEveryone.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete for everyone'**
+  String get deleteMessageDialog_forEveryone;
+
+  /// No description provided for @deleteMessageDialog_forMe.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete for me'**
+  String get deleteMessageDialog_forMe;
 
   /// No description provided for @reportSpamButton_text.
   ///

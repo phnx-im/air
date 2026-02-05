@@ -27,6 +27,16 @@ use uuid::Uuid;
 
 use crate::api::message_content::UiMimiContent;
 
+/// Mode for deleting a message
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[frb(dart_metadata = ("freezed"))]
+pub enum DeleteMode {
+    /// Delete message locally only (sender still sees it)
+    ForMe,
+    /// Delete message for all participants (only available for own messages)
+    ForEveryone,
+}
+
 /// Mirror of the [`ChatId`] type
 #[doc(hidden)]
 #[frb(mirror(ChatId))]

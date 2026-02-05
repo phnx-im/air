@@ -5,7 +5,9 @@
 use mimi_content::{MessageStatus, MimiContent};
 use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
 
-use aircoreclient::{ChatId, ChatMessage, ReadReceiptsSetting, clients::CoreUser, store::Store};
+use aircoreclient::{
+    ChatId, ChatMessage, MimiContentExt, ReadReceiptsSetting, clients::CoreUser, store::Store,
+};
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -342,6 +344,281 @@ async fn read_receipts_setting() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Delete message in group", skip_all)]
+async fn delete_message_in_group() {
+    let mut setup = TestBackend::single().await;
+
+    // Create alice, bob, and charlie
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+
+    // Connect alice with bob and charlie (needed for group invites)
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+
+    // Create a group and invite bob and charlie
+    let group_chat = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(group_chat, &alice, vec![&bob, &charlie])
+        .await;
+
+    // Alice sends a message to the group
+    setup
+        .send_message(group_chat, &alice, vec![&bob, &charlie])
+        .await;
+
+    // Get the message content before deletion
+    let alice_user = &setup.get_user(&alice).user;
+    let last_message = alice_user.last_message(group_chat).await.unwrap().unwrap();
+    let original_content = last_message
+        .message()
+        .mimi_content()
+        .unwrap()
+        .string_rendering()
+        .unwrap();
+
+    // Verify message exists on all users
+    assert!(
+        !setup
+            .scan_database(&original_content, false, vec![&alice, &bob, &charlie])
+            .await
+            .is_empty()
+    );
+
+    // Alice deletes the message
+    setup
+        .delete_message(group_chat, &alice, vec![&bob, &charlie])
+        .await;
+
+    // Verify the content is no longer in any database
+    assert_eq!(
+        setup
+            .scan_database(&original_content, false, vec![&alice, &bob, &charlie])
+            .await,
+        Vec::<String>::new()
+    );
+
+    // Verify the message still exists but with NullPart content for all users
+    for user_id in [&alice, &bob, &charlie] {
+        let user = &setup.get_user(user_id).user;
+        let messages = user.messages(group_chat, 10).await.unwrap();
+        // Find a content message (not system messages)
+        let content_messages: Vec<_> = messages
+            .iter()
+            .filter(|m| m.message().mimi_content().is_some())
+            .collect();
+        assert!(
+            !content_messages.is_empty(),
+            "User should still have the deleted message placeholder"
+        );
+        let deleted_message = content_messages.last().unwrap();
+        assert!(
+            deleted_message
+                .message()
+                .mimi_content()
+                .unwrap()
+                .nested_part
+                .part
+                == mimi_content::NestedPartContent::NullPart,
+            "Deleted message should have NullPart content"
+        );
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Delete message preserves other messages", skip_all)]
+async fn delete_message_preserves_other_messages() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+    let bob_user = &setup.get_user(&bob).user;
+
+    // Send three messages with distinct content
+    let contents = ["First message", "Second message to delete", "Third message"];
+    for content in &contents {
+        let message_content = MimiContent::simple_markdown_message(content.to_string(), [0; 16]);
+        alice_user
+            .send_message(chat_id, message_content, None)
+            .await
+            .unwrap();
+    }
+    alice_user.outbound_service().run_once().await;
+
+    // Bob receives all messages
+    let bob_test_user = setup.get_user(&bob);
+    bob_test_user.fetch_and_process_qs_messages().await;
+
+    // Helper to filter only our test messages (not system messages)
+    let is_test_message = |m: &&ChatMessage| {
+        m.message()
+            .mimi_content()
+            .map(|c| {
+                let text = c.string_rendering().unwrap_or_default();
+                text.contains("First")
+                    || text.contains("Second")
+                    || text.contains("Third")
+                    || c.nested_part.part == mimi_content::NestedPartContent::NullPart
+            })
+            .unwrap_or(false)
+    };
+
+    // Verify bob has all 3 test messages
+    let bob_messages = bob_user.messages(chat_id, 10).await.unwrap();
+    let bob_test_messages: Vec<_> = bob_messages.iter().filter(is_test_message).collect();
+    assert_eq!(bob_test_messages.len(), 3);
+
+    // Get the middle message for deletion
+    let alice_messages = alice_user.messages(chat_id, 10).await.unwrap();
+    let alice_content_messages: Vec<_> = alice_messages
+        .iter()
+        .filter(|m| {
+            m.message()
+                .mimi_content()
+                .map(|c| c.string_rendering().unwrap_or_default().contains("Second"))
+                .unwrap_or(false)
+        })
+        .collect();
+    assert_eq!(alice_content_messages.len(), 1);
+    let message_to_delete = alice_content_messages[0];
+
+    // Alice deletes the middle message using the proper API
+    let message_to_delete_id = message_to_delete.id();
+    let alice_test_user = setup.get_user(&alice);
+    alice_test_user.fetch_and_process_qs_messages().await;
+    alice_user
+        .delete_message(chat_id, message_to_delete_id)
+        .await
+        .unwrap();
+    alice_user.outbound_service().run_once().await;
+
+    // Bob receives the deletion
+    bob_test_user.fetch_and_process_qs_messages().await;
+
+    // Verify first and third messages still have their original content
+    let bob_messages = bob_user.messages(chat_id, 10).await.unwrap();
+    let bob_test_messages: Vec<_> = bob_messages.iter().filter(is_test_message).collect();
+
+    // Should still have 3 message slots (First, NullPart for deleted, Third)
+    assert_eq!(bob_test_messages.len(), 3);
+
+    // Check that "First" and "Third" messages are intact
+    let first_msg = bob_test_messages.iter().find(|m| {
+        m.message()
+            .mimi_content()
+            .map(|c| c.string_rendering().unwrap_or_default().contains("First"))
+            .unwrap_or(false)
+    });
+    assert!(first_msg.is_some(), "First message should still exist");
+
+    let third_msg = bob_test_messages.iter().find(|m| {
+        m.message()
+            .mimi_content()
+            .map(|c| c.string_rendering().unwrap_or_default().contains("Third"))
+            .unwrap_or(false)
+    });
+    assert!(third_msg.is_some(), "Third message should still exist");
+
+    // Check that deleted message is now NullPart
+    let deleted_msg = bob_test_messages.iter().find(|m| {
+        m.message()
+            .mimi_content()
+            .map(|c| c.nested_part.part == mimi_content::NestedPartContent::NullPart)
+            .unwrap_or(false)
+    });
+    assert!(
+        deleted_msg.is_some(),
+        "Deleted message should exist with NullPart"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Delete edited message", skip_all)]
+async fn delete_edited_message() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    // Alice sends a message
+    setup.send_message(chat_id, &alice, vec![&bob]).await;
+
+    // Alice edits the message
+    setup.edit_message(chat_id, &alice, vec![&bob]).await;
+
+    // Get the edited content for verification
+    let edited_content = {
+        let alice_user = &setup.get_user(&alice).user;
+        let last_message = alice_user.last_message(chat_id).await.unwrap().unwrap();
+
+        // Verify the message has been edited
+        assert!(
+            last_message.edited_at().is_some(),
+            "Message should have edited_at timestamp"
+        );
+
+        last_message
+            .message()
+            .mimi_content()
+            .unwrap()
+            .string_rendering()
+            .unwrap()
+    };
+
+    // Verify edited content exists
+    assert!(
+        !setup
+            .scan_database(&edited_content, false, vec![&alice, &bob])
+            .await
+            .is_empty()
+    );
+
+    // Alice deletes the edited message
+    setup.delete_message(chat_id, &alice, vec![&bob]).await;
+
+    // Verify the edited content is no longer present
+    assert_eq!(
+        setup
+            .scan_database(&edited_content, false, vec![&alice, &bob])
+            .await,
+        Vec::<String>::new()
+    );
+
+    // Verify the message exists but with NullPart content
+    let alice_user = &setup.get_user(&alice).user;
+    let alice_messages = alice_user.messages(chat_id, 10).await.unwrap();
+    let content_messages: Vec<_> = alice_messages
+        .iter()
+        .filter(|m| m.message().mimi_content().is_some())
+        .collect();
+    assert!(!content_messages.is_empty());
+
+    let deleted_message = content_messages.last().unwrap();
+    assert!(
+        deleted_message
+            .message()
+            .mimi_content()
+            .unwrap()
+            .nested_part
+            .part
+            == mimi_content::NestedPartContent::NullPart,
+        "Deleted message should have NullPart content"
+    );
+    assert_eq!(
+        deleted_message.status(),
+        MessageStatus::Deleted,
+        "Message status should be Deleted"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn message_sending_failures() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -374,5 +651,203 @@ async fn message_sending_failures() {
                 status
             );
         }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Delete message with attachment", skip_all)]
+async fn delete_message_with_attachment() {
+    let mut setup = TestBackend::single().await;
+
+    // Create alice and bob
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    // Connect them
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    // Alice sends an attachment
+    let (_returned_message_id, _external_part) = setup
+        .send_attachment(
+            chat_id,
+            &alice,
+            vec![&bob],
+            b"test attachment data",
+            "test.bin",
+        )
+        .await
+        .unwrap();
+
+    // Get the actual message_id of the last message (the attachment message)
+    let message_id = {
+        let alice_user = &setup.get_user(&alice).user;
+        let messages = alice_user.messages(chat_id, 10).await.unwrap();
+        // Find the attachment message (has ExternalPart)
+        let attachment_msg = messages
+            .iter()
+            .filter(|m| m.message().mimi_content().is_some())
+            .find(|m| {
+                let mut has_attachment = false;
+                m.message()
+                    .mimi_content()
+                    .unwrap()
+                    .visit_attachments(|_| {
+                        has_attachment = true;
+                        Ok(())
+                    })
+                    .unwrap();
+                has_attachment
+            })
+            .expect("Should have an attachment message");
+        attachment_msg.id()
+    };
+
+    // Verify attachment exists before deletion
+    {
+        let alice_user = &setup.get_user(&alice).user;
+        let attachment_ids = alice_user
+            .attachment_ids_for_message(message_id)
+            .await
+            .unwrap();
+        assert_eq!(
+            attachment_ids.len(),
+            1,
+            "Attachment should exist before deletion"
+        );
+    }
+
+    // Bob downloads the attachment (so he has an attachment record to verify deletion)
+    {
+        let bob_user = &setup.get_user(&bob).user;
+        let messages = bob_user.messages(chat_id, 10).await.unwrap();
+        let attachment_msg = messages
+            .iter()
+            .filter(|m| m.message().mimi_content().is_some())
+            .find(|m| {
+                let mut has_attachment = false;
+                m.message()
+                    .mimi_content()
+                    .unwrap()
+                    .visit_attachments(|_| {
+                        has_attachment = true;
+                        Ok(())
+                    })
+                    .unwrap();
+                has_attachment
+            })
+            .expect("Bob should have the attachment message");
+
+        let bob_attachment_ids = bob_user
+            .attachment_ids_for_message(attachment_msg.id())
+            .await
+            .unwrap();
+
+        // Download each attachment
+        for attachment_id in &bob_attachment_ids {
+            let (_, download_future) = bob_user.download_attachment(*attachment_id);
+            download_future.await.unwrap();
+        }
+
+        // Verify Bob has the attachment
+        assert!(
+            !bob_attachment_ids.is_empty(),
+            "Bob should have attachment after download"
+        );
+    }
+
+    // Alice deletes the message (network deletion)
+    // Note: We need to delete the specific attachment message, not just the last message
+    {
+        let alice_test_user = setup.get_user_mut(&alice);
+        let alice_user = &mut alice_test_user.user;
+
+        // Fetch and process QS messages first
+        let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+        alice_user.fully_process_qs_messages(qs_messages).await;
+
+        // Delete the specific message by ID
+        alice_user
+            .delete_message(chat_id, message_id)
+            .await
+            .unwrap();
+        alice_user.outbound_service().run_once().await;
+    }
+
+    // Bob receives the deletion
+    {
+        let bob_test_user = setup.get_user_mut(&bob);
+        let bob_user = &mut bob_test_user.user;
+        let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+        bob_user.fully_process_qs_messages(qs_messages).await;
+    }
+
+    // Verify: Message is NullPart for Alice (the sender)
+    {
+        let alice_user = &setup.get_user(&alice).user;
+        let messages = alice_user.messages(chat_id, 10).await.unwrap();
+        let deleted = messages
+            .iter()
+            .find(|m| m.id() == message_id)
+            .expect("Alice should still have the message");
+        assert_eq!(
+            deleted.message().mimi_content().unwrap().nested_part.part,
+            mimi_content::NestedPartContent::NullPart,
+            "Deleted message should have NullPart content for Alice"
+        );
+    }
+
+    // Verify: Bob received the deletion (message is NullPart)
+    {
+        let bob_user = &setup.get_user(&bob).user;
+        let messages = bob_user.messages(chat_id, 10).await.unwrap();
+        // Find the message that was originally an attachment but is now NullPart
+        let deleted = messages
+            .iter()
+            .filter(|m| m.message().mimi_content().is_some())
+            .find(|m| {
+                m.message().mimi_content().unwrap().nested_part.part
+                    == mimi_content::NestedPartContent::NullPart
+            })
+            .expect("Bob should have a deleted (NullPart) message");
+        assert_eq!(
+            deleted.message().mimi_content().unwrap().nested_part.part,
+            mimi_content::NestedPartContent::NullPart,
+            "Deleted message should have NullPart content for Bob"
+        );
+    }
+
+    // Verify: Attachment record is deleted for the sender (Alice)
+    let alice_user = &setup.get_user(&alice).user;
+    let attachment_ids = alice_user
+        .attachment_ids_for_message(message_id)
+        .await
+        .unwrap();
+    assert!(
+        attachment_ids.is_empty(),
+        "Alice's attachment should be deleted after message deletion"
+    );
+
+    // Verify: Attachment record is deleted for Bob (the receiver)
+    {
+        let bob_user = &setup.get_user(&bob).user;
+        let messages = bob_user.messages(chat_id, 10).await.unwrap();
+        // Find the deleted message (NullPart)
+        let deleted_msg = messages
+            .iter()
+            .filter(|m| m.message().mimi_content().is_some())
+            .find(|m| {
+                m.message().mimi_content().unwrap().nested_part.part
+                    == mimi_content::NestedPartContent::NullPart
+            })
+            .expect("Bob should have the deleted message");
+
+        let bob_attachment_ids = bob_user
+            .attachment_ids_for_message(deleted_msg.id())
+            .await
+            .unwrap();
+        assert!(
+            bob_attachment_ids.is_empty(),
+            "Bob's attachment should be deleted after message deletion"
+        );
     }
 }

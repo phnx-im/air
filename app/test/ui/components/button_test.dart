@@ -11,6 +11,67 @@ import '../../helpers.dart';
 
 void main() {
   group('AppButton', () {
+    String sizeLabel(AppButtonSize size) =>
+        size == AppButtonSize.small ? 'Small' : 'Large';
+
+    List<Widget> buildButtonConfigs() => [
+      for (final size in AppButtonSize.values) ...[
+        AppButton(
+          label: "${sizeLabel(size)} Primary",
+          size: size,
+          type: AppButtonType.primary,
+          state: AppButtonState.active,
+          onPressed: () {},
+        ),
+        AppButton(
+          label: "${sizeLabel(size)} Primary Inactive",
+          size: size,
+          type: AppButtonType.primary,
+          state: AppButtonState.inactive,
+          onPressed: () {},
+        ),
+        AppButton(
+          label: "${sizeLabel(size)} Primary Danger",
+          size: size,
+          type: AppButtonType.primary,
+          state: AppButtonState.active,
+          tone: AppButtonTone.danger,
+          onPressed: () {},
+        ),
+        AppButton(
+          label: "${sizeLabel(size)} Primary Icon",
+          size: size,
+          type: AppButtonType.primary,
+          state: AppButtonState.active,
+          icon: (size, color) =>
+              Container(width: size.width, height: size.height, color: color),
+          onPressed: () {},
+        ),
+        AppButton(
+          label: "${sizeLabel(size)} Secondary",
+          size: size,
+          type: AppButtonType.secondary,
+          state: AppButtonState.active,
+          onPressed: () {},
+        ),
+        AppButton(
+          label: "${sizeLabel(size)} Secondary Inactive",
+          size: size,
+          type: AppButtonType.secondary,
+          state: AppButtonState.inactive,
+          onPressed: () {},
+        ),
+        AppButton(
+          label: "${sizeLabel(size)} Secondary Danger",
+          size: size,
+          type: AppButtonType.secondary,
+          tone: AppButtonTone.danger,
+          onPressed: () {},
+        ),
+        const SizedBox(height: Spacings.s),
+      ],
+    ];
+
     Widget buildSubject(List<Widget> widgets) => Builder(
       builder: (context) {
         return MaterialApp(
@@ -28,64 +89,25 @@ void main() {
     );
 
     testWidgets('buttons render correctly', (tester) async {
-      final configs = [
-        for (final size in AppButtonSize.values) ...[
-          AppButton(
-            label: "Label",
-            size: size,
-            type: AppButtonType.primary,
-            state: AppButtonState.active,
-            onPressed: () {},
-          ),
-          AppButton(
-            label: "Label",
-            size: size,
-            type: AppButtonType.primary,
-            state: AppButtonState.inactive,
-            onPressed: () {},
-          ),
-          AppButton(
-            label: "Label",
-            size: size,
-            type: AppButtonType.primary,
-            state: AppButtonState.active,
-            tone: AppButtonTone.danger,
-            onPressed: () {},
-          ),
-          AppButton(
-            label: "Label",
-            size: size,
-            type: AppButtonType.primary,
-            state: AppButtonState.active,
-            icon: (size, color) =>
-                Container(width: size.width, height: size.height, color: color),
-            onPressed: () {},
-          ),
-          AppButton(
-            label: "Label",
-            size: size,
-            type: AppButtonType.secondary,
-            state: AppButtonState.active,
-            onPressed: () {},
-          ),
-          AppButton(
-            label: "Label",
-            size: size,
-            type: AppButtonType.secondary,
-            state: AppButtonState.active,
-            icon: (size, color) =>
-                Container(width: size.width, height: size.height, color: color),
-            onPressed: () {},
-          ),
-          const SizedBox(height: Spacings.s),
-        ],
-      ];
-
-      await tester.pumpWidget(buildSubject(configs));
+      await tester.pumpWidget(buildSubject(buildButtonConfigs()));
 
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/buttons.png'),
+      );
+    });
+
+    testWidgets('buttons render correctly (dark mode)', (tester) async {
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      addTearDown(() {
+        tester.platformDispatcher.clearPlatformBrightnessTestValue();
+      });
+
+      await tester.pumpWidget(buildSubject(buildButtonConfigs()));
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/buttons_dark.png'),
       );
     });
   });

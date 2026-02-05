@@ -39,6 +39,7 @@ use crate::{
     chats::{StatusRecord, messages::edit::MessageEdit},
     clients::{
         QsListenResponder,
+        attachment::AttachmentRecord,
         block_contact::{BlockedContact, BlockedContactError},
         process::process_as::{ConnectionInfoSource, TargetedMessageSource},
         targeted_message::TargetedMessageContent,
@@ -997,7 +998,12 @@ async fn handle_message_edit(
         "Only edits and deletes from original users are allowed for now"
     );
 
-    if !is_delete {
+    if is_delete {
+        // Delete edit history when message is deleted
+        MessageEdit::delete_by_message_id(txn.as_mut(), message.id()).await?;
+        // Delete attachments for this message
+        AttachmentRecord::delete_by_message_id(txn.as_mut(), notifier, message.id()).await?;
+    } else {
         // Store message edit
         MessageEdit::new(
             original_mimi_id,

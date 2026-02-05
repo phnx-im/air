@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{identifiers::UserId, time::TimeStamp};
+use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId, time::TimeStamp};
 use anyhow::{Context, bail};
 use mimi_content::{MessageStatus, MimiContent, NestedPartContent};
 use sqlx::SqliteTransaction;
@@ -10,13 +10,132 @@ use sqlx::SqliteTransaction;
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, ContentMessage, MessageId,
     chats::{StatusRecord, messages::edit::MessageEdit},
-    clients::block_contact::BlockedContactError,
+    clients::{attachment::AttachmentRecord, block_contact::BlockedContactError},
     utils::connection_ext::StoreExt,
 };
 
 use super::{CoreUser, Group, StoreNotifier};
 
+/// Create a `MimiContent` with `NullPart` that replaces the given message.
+fn null_part_content(message: &ChatMessage) -> anyhow::Result<MimiContent> {
+    let salt: [u8; 16] = RustCrypto::default().random_array()?;
+    Ok(MimiContent {
+        salt: mimi_content::ByteBuf::from(salt.to_vec()),
+        replaces: message
+            .message()
+            .mimi_id()
+            .map(|id| id.as_slice().to_vec().into()),
+        topic_id: Default::default(),
+        expires: None,
+        in_reply_to: None,
+        extensions: Default::default(),
+        nested_part: mimi_content::NestedPart {
+            disposition: mimi_content::Disposition::Render,
+            language: String::new(),
+            part: NestedPartContent::NullPart,
+        },
+    })
+}
+
 impl CoreUser {
+    /// Delete a message and send the deletion to other group members.
+    ///
+    /// This sends a NullPart message that replaces the original message,
+    /// notifying all group members that the message has been deleted.
+    /// The message remains visible as a "deleted" placeholder.
+    pub async fn delete_message(
+        &self,
+        chat_id: ChatId,
+        message_id: MessageId,
+    ) -> anyhow::Result<ChatMessage> {
+        // Load the message to get its mimi_id
+        let message = self
+            .with_transaction(async |txn| {
+                ChatMessage::load(txn.as_mut(), message_id)
+                    .await?
+                    .with_context(|| format!("Can't find message with id {message_id:?}"))
+            })
+            .await?;
+
+        // Create NullPart content
+        let null_content = null_part_content(&message)?;
+
+        // Send the deletion message
+        self.send_message(chat_id, null_content, Some(message_id))
+            .await
+    }
+
+    /// Delete a message locally without sending a network message.
+    ///
+    /// This completely removes the message from the database, including edit history
+    /// and status records. The message will no longer appear in the chat.
+    pub(crate) async fn delete_message_locally(&self, message_id: MessageId) -> anyhow::Result<()> {
+        self.with_transaction_and_notifier(async |txn, notifier| {
+            let message = ChatMessage::load(txn.as_mut(), message_id)
+                .await?
+                .with_context(|| format!("Can't find message with id {message_id:?}"))?;
+
+            let chat_id = message.chat_id();
+
+            // Delete the message (edit history and status records are cascade-deleted)
+            ChatMessage::delete(txn.as_mut(), notifier, message_id, chat_id).await?;
+
+            Ok(())
+        })
+        .await
+    }
+
+    /// Delete message content locally without sending a network message.
+    ///
+    /// This replaces the message content with NullPart and deletes the edit history.
+    /// The message remains visible as a "deleted" placeholder.
+    pub(crate) async fn delete_message_content_locally(
+        &self,
+        message_id: MessageId,
+    ) -> anyhow::Result<()> {
+        self.with_transaction_and_notifier(async |txn, notifier| {
+            let mut message = ChatMessage::load(txn.as_mut(), message_id)
+                .await?
+                .with_context(|| format!("Can't find message with id {message_id:?}"))?;
+
+            let chat = Chat::load(txn.as_mut(), &message.chat_id())
+                .await?
+                .with_context(|| format!("Can't find chat with id {:?}", message.chat_id()))?;
+
+            let original_sender = message
+                .message()
+                .sender()
+                .context("Message does not have sender")?
+                .clone();
+
+            // Delete edit history
+            MessageEdit::delete_by_message_id(txn.as_mut(), message_id).await?;
+
+            // Create NullPart content for deletion
+            let null_content = null_part_content(&message)?;
+
+            // Update the message with NullPart content
+            message.set_content_message(ContentMessage::new(
+                original_sender,
+                true, // is_sent
+                null_content,
+                chat.group_id(),
+            ));
+            message.set_status(MessageStatus::Deleted);
+            message.set_edited_at(TimeStamp::now());
+            message.update(txn.as_mut(), notifier).await?;
+
+            // Clear the status records
+            StatusRecord::clear(txn.as_mut(), notifier, message_id).await?;
+
+            // Delete attachments
+            AttachmentRecord::delete_by_message_id(txn.as_mut(), notifier, message_id).await?;
+
+            Ok(())
+        })
+        .await
+    }
+
     /// Send a message and return it.
     ///
     /// The message is stored, then sent to the DS and finally returned. The
@@ -163,6 +282,13 @@ impl UnsentContent {
             original.update(txn.as_mut(), notifier).await?;
             StatusRecord::clear(txn.as_mut(), notifier, original.id()).await?;
 
+            // Delete attachments for this message on network deletion
+            // (FK cascade handles local deletion where the message row is deleted)
+            if is_deletion {
+                AttachmentRecord::delete_by_message_id(txn.as_mut(), notifier, original.id())
+                    .await?;
+            }
+
             original
         } else {
             // Store the message as unsent so that we don't lose it in case
@@ -232,5 +358,62 @@ impl UnsentMessage<GroupUpdateNeeded> {
             message,
             group_update: GroupUpdated,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::identifiers::UserId;
+    use airserver_test_harness::utils::setup::TestBackend;
+    use mimi_content::MessageStatus;
+
+    use crate::{
+        ChatMessage,
+        chats::{messages::persistence::tests::test_chat_message, persistence::tests::test_chat},
+        clients::{
+            CoreUser,
+            attachment::{AttachmentRecord, persistence::test::test_attachment_record},
+        },
+        store::StoreNotifier,
+    };
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn delete_message_content_locally_cleans_up_attachments() -> anyhow::Result<()> {
+        let backend = TestBackend::single().await;
+        let user_id = UserId::random(backend.domain().clone());
+        let user =
+            CoreUser::new_ephemeral(user_id, backend.server_url(), None, "DUMMY007".to_owned())
+                .await?;
+
+        let pool = user.pool();
+        let mut notifier = StoreNotifier::noop();
+
+        // Set up test data: chat -> message -> attachment
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
+            .await?;
+
+        let message = test_chat_message(chat.id());
+        message.store(pool, &mut notifier).await?;
+
+        let attachment = test_attachment_record(chat.id(), message.id());
+        attachment.store(pool, &mut notifier, None).await?;
+
+        // Verify attachment exists before deletion
+        let ids = AttachmentRecord::load_ids_by_message_id(pool, message.id()).await?;
+        assert_eq!(ids.len(), 1);
+
+        // Call the actual function
+        user.delete_message_content_locally(message.id()).await?;
+
+        // Verify attachment is gone
+        let ids = AttachmentRecord::load_ids_by_message_id(pool, message.id()).await?;
+        assert!(ids.is_empty());
+
+        // Verify message still exists with Deleted status
+        let loaded = ChatMessage::load(pool, message.id()).await?.unwrap();
+        assert_eq!(loaded.status(), MessageStatus::Deleted);
+
+        Ok(())
     }
 }

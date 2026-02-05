@@ -180,16 +180,33 @@
   "textMessage_edited": "redigerad",
   "textMessage_hiddenPlaceholder": "Blockerad användare, tryck för att visa meddelandet",
   "textMessage_deleted": "Meddelande raderat",
+  "textMessage_deletedBySelf": "Du raderade det här meddelandet.",
+  "textMessage_deletedByOther": "{senderName} raderade det här meddelandet.",
+  "@textMessage_deletedByOther": {
+    "placeholders": {
+      "senderName": {
+        "type": "String"
+      }
+    }
+  },
+
   "linkConfirmation_title": "Öppna länk?",
   "linkConfirmation_description": "Kontrollera webbadressen så att du är säker på att du vill öppna den:",
   "linkConfirmation_openLink": "Öppna",
   "linkConfirmation_cancel": "Avbryt",
   "messageContextMenu_copy": "Kopiera",
   "messageContextMenu_edit": "Redigera",
+  "messageContextMenu_delete": "Radera",
   "messageContextMenu_save": "Spara",
   "messageContextMenu_share": "Dela",
   "messageContextMenu_saveError": "Kunde inte spara bilagan",
   "messageContextMenu_saveConfirmation": "Bilagan sparad",
+
+  "deleteMessageDialog_title": "Radera meddelande?",
+  "deleteMessageDialog_description": "Välj vem meddelandet ska raderas för. Det raderas från alla dina enheter.",
+  "deleteMessageDialog_forEveryone": "Radera för alla",
+  "deleteMessageDialog_forMe": "Radera för mig",
+
   "reportSpamButton_text": "Rapportera spam",
   "reportSpamDialog_title": "Rapportera spam?",
   "reportSpamDialog_content": "Air kommer att meddelas att den här personen kan skicka spam. Air kan aldrig se innehållet i några chattar.",
