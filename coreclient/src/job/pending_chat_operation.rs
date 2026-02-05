@@ -3,15 +3,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use crate::{
-    Chat, ChatAttributes, ChatId, ChatMessage, Contact, SystemMessage,
+    Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
     chats::messages::TimestampedMessage,
     clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
     contacts::ContactAddInfos,
     groups::{Group, GroupData, client_auth_info::StorableClientCredential},
-    job::{Job, JobContext},
+    job::{Job, JobContext, JobError},
     store::StoreNotifier,
     utils::connection_ext::ConnectionExt,
 };
+use airapiclient::ds_api::DsRequestError;
 use aircommon::{
     codec::PersistenceCodec,
     credentials::{ClientCredential, keys::ClientSigningKey},
@@ -19,12 +20,12 @@ use aircommon::{
     messages::client_ds_out::{DeleteGroupParamsOut, GroupOperationParamsOut, SelfRemoveParamsOut},
     time::TimeStamp,
 };
-use anyhow::Context as _;
+use anyhow::{Context as _, anyhow, bail};
 use chrono::{DateTime, Utc};
 use mimi_room_policy::RoleIndex;
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
-use sqlx::{SqliteConnection, SqliteTransaction, query, query_as};
+use sqlx::{SqliteConnection, SqlitePool, SqliteTransaction, query, query_as};
 use std::collections::HashSet;
 
 #[derive(Clone, derive_more::From, Serialize, Deserialize)]
@@ -57,6 +58,12 @@ impl OperationType {
     }
 }
 
+#[derive(Debug)]
+enum PendingChatOperationStatus {
+    ReadyToRetry,
+    WaitingForQueueResponse,
+}
+
 /// Represents a pending chat operation to be retried.
 pub(crate) struct PendingChatOperation {
     group: Group,
@@ -64,17 +71,17 @@ pub(crate) struct PendingChatOperation {
     /// If a previous try has been made, the timestamp of the last attempt to
     /// execute this operation
     last_attempt: Option<DateTime<Utc>>,
+    status: PendingChatOperationStatus,
 }
 
 impl Job for PendingChatOperation {
     type Output = Vec<ChatMessage>;
 
-    async fn execute_logic(self, context: &mut JobContext<'_>) -> anyhow::Result<Vec<ChatMessage>> {
+    async fn execute_logic(
+        self,
+        context: &mut JobContext<'_>,
+    ) -> Result<Vec<ChatMessage>, JobError> {
         self.execute_internal(context).await
-    }
-
-    async fn execute_dependencies(&mut self, _context: &mut JobContext<'_>) -> anyhow::Result<()> {
-        Ok(())
     }
 }
 
@@ -84,6 +91,7 @@ impl PendingChatOperation {
             group,
             operation: message.into(),
             last_attempt: Utc::now().into(),
+            status: PendingChatOperationStatus::ReadyToRetry,
         }
     }
 
@@ -94,7 +102,17 @@ impl PendingChatOperation {
     pub async fn execute_internal(
         mut self,
         context: &mut JobContext<'_>,
-    ) -> anyhow::Result<Vec<ChatMessage>> {
+    ) -> Result<Vec<ChatMessage>, JobError> {
+        if matches!(
+            self.status,
+            PendingChatOperationStatus::WaitingForQueueResponse
+        ) {
+            tracing::info!(
+                group_id = ?self.group.group_id(), "Failed to execute PendingChatOperation for group because it is still waiting for a queue response",
+            );
+            return Err(JobError::NetworkError);
+        }
+
         let JobContext {
             api_clients,
             pool,
@@ -111,8 +129,13 @@ impl PendingChatOperation {
         let is_delete = self.operation.is_delete();
         let is_leave = matches!(self.operation, OperationType::Leave(_));
 
-        let before_ds_request = Utc::now();
         let api_client = api_clients.get(qgid.owning_domain())?;
+
+        pool.with_connection(async |connection| {
+            self.update_last_attempt_timestamp(connection, *now).await
+        })
+        .await?;
+
         let res = match self.operation.clone() {
             OperationType::Leave(params) => {
                 api_client
@@ -130,51 +153,18 @@ impl PendingChatOperation {
                     .await
             }
         };
-        let ds_request_duration = Utc::now().signed_duration_since(before_ds_request);
 
         let mut have_left_successfully = true;
         let ds_timestamp = match res {
             Ok(ds_timestamp) => ds_timestamp,
-            Err(e) => {
-                if e.is_wrong_epoch() && is_leave {
-                    have_left_successfully = false;
-                    // The leave action is special in that we want to consider
-                    // it successful regardless of any DS errors and
-                    // post-process anyway. If the DS returned an error, we'll
-                    // try again later, but that's just for the benefit of the
-                    // server and the other chat members.
-                    TimeStamp::now()
-                } else {
-                    if e.is_wrong_epoch() {
-                        // If we get a WrongEpochError, we know the commit was
-                        // either accepted on a previous try, or the DS rejected
-                        // it because another one got there first.
-                        pool.with_connection(async |connection| {
-                            self.mark_as_waiting_for_queue_response(connection).await
-                        })
-                        .await?;
-                    } else if e.is_network_error() {
-                        // For network errors, where we don't know whether the
-                        // server has received and processed the request, we
-                        // update the `last_attempt` and return to retry later.
-                        pool.with_connection(async |connection| {
-                            let now = *now + ds_request_duration;
-                            self.update_last_attempt_timestamp(connection, now).await
-                        })
-                        .await?;
-                    } else {
-                        // For other errors, we delete the pending operation.
-                        pool.with_transaction(async |txn| {
-                            self.group.discard_pending_commit(txn).await?;
-                            Self::delete(txn, self.group.group_id()).await?;
-                            Ok(())
-                        })
-                        .await?;
-                    }
-                    // We return Ok here since there was no actual error that we
-                    // need to log.
-                    return Ok(vec![]);
-                }
+            Err(error) => {
+                self.handle_error(pool, is_leave, error).await?;
+
+                // The only case where we reach here is for leave operations
+                // with a network error, in which case we want to continue
+                // processing as if the operation were successful.
+                have_left_successfully = false;
+                TimeStamp::now()
             }
         };
 
@@ -183,7 +173,7 @@ impl PendingChatOperation {
             .with_transaction(async |txn| {
                 let Some(mut chat) = Chat::load_by_group_id(txn, self.group.group_id()).await?
                 else {
-                    anyhow::bail!("Chat not found for group: {:?}", self.group.group_id());
+                    bail!("Chat not found for group: {:?}", self.group.group_id());
                 };
 
                 // Get the past members before merging the commit
@@ -213,10 +203,10 @@ impl PendingChatOperation {
                     }
 
                     group_messages
-                } else if is_leave && self.last_attempt.is_none() {
+                } else if is_leave && !matches!(chat.status(), ChatStatus::Inactive(_)) {
                     // Post-process leave operation. No need to repeat this if
-                    // it has already happened once (indicated by last_attempt
-                    // being set).
+                    // it has already happened once (indicated by chat being
+                    // inactive).
 
                     self.group.room_state_change_role(
                         &own_user_id,
@@ -255,6 +245,54 @@ impl PendingChatOperation {
             .await?;
 
         Ok(messages)
+    }
+
+    async fn handle_error(
+        &mut self,
+        pool: &mut SqlitePool,
+        is_leave: bool,
+        error: DsRequestError,
+    ) -> Result<(), JobError> {
+        if error.is_wrong_epoch() && is_leave {
+            // The leave action is special in that we want to consider
+            // it successful regardless of any DS errors and
+            // post-process anyway. If the DS returned an error, we'll
+            // try again later, but that's just for the benefit of the
+            // server and the other chat members.
+            tracing::info!(
+                group_id = ?self.group.group_id(), "Leave operation failed due to WrongEpochError, proceeding with local post-processing"
+            );
+            Ok(())
+        } else if error.is_wrong_epoch() {
+            // If we get a WrongEpochError, we know the commit was
+            // either accepted on a previous try, or the DS rejected
+            // it because another one got there first.
+            pool.with_connection(async |connection| {
+                self.mark_as_waiting_for_queue_response(connection).await
+            })
+            .await?;
+            // We return a FatalError here to indicate that the job should be
+            // considered failed.
+            return Err(JobError::FatalError(anyhow!("WrongEpochError")));
+        } else if error.is_network_error() {
+            // For network errors, where we don't know whether the server has
+            // received and processed the request. We leave the job as-is, so it
+            // can be retried later.
+            return Err(JobError::NetworkError);
+        } else {
+            // For other errors, we consider the operation failed and delete the
+            // job.
+            pool.with_transaction(async |txn| {
+                self.group.discard_pending_commit(txn).await?;
+                Self::delete(txn, self.group.group_id()).await?;
+                Ok(())
+            })
+            .await?;
+            return Err(JobError::FatalError(anyhow!(
+                "Job failed due to an unexpected error: {:?}",
+                error
+            )));
+        }
     }
 
     /// Creates and stores a PendingChatOperation for removing users.
@@ -445,14 +483,40 @@ impl PendingChatOperation {
 }
 
 mod persistence {
+    use std::str::FromStr;
+
+    use thiserror::Error;
     use uuid::Uuid;
 
     use super::*;
+
+    #[derive(Debug, Error)]
+    #[error("Invalid PendingChatOperationStatus: {actual}")]
+    pub struct PendingChatOperationStatusError {
+        pub actual: String,
+    }
+
+    impl FromStr for PendingChatOperationStatus {
+        type Err = PendingChatOperationStatusError;
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            match s {
+                "ready_to_retry" => Ok(PendingChatOperationStatus::ReadyToRetry),
+                "waiting_for_queue_response" => {
+                    Ok(PendingChatOperationStatus::WaitingForQueueResponse)
+                }
+                s => Err(PendingChatOperationStatusError {
+                    actual: s.to_string(),
+                }),
+            }
+        }
+    }
 
     struct SqlPendingChatOperation {
         group_id: Vec<u8>,
         operation_data: Vec<u8>,
         last_attempt: Option<DateTime<Utc>>,
+        request_status: String,
     }
 
     impl SqlPendingChatOperation {
@@ -468,11 +532,14 @@ mod persistence {
                 .ok_or(sqlx::Error::RowNotFound)?;
             let operation: OperationType = PersistenceCodec::from_slice(&self.operation_data)
                 .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+            let status = PendingChatOperationStatus::from_str(&self.request_status)
+                .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
 
             Ok(PendingChatOperation {
                 group,
                 operation,
                 last_attempt: self.last_attempt,
+                status,
             })
         }
     }
@@ -540,7 +607,7 @@ mod persistence {
             // Get the group id from the chat table and then load the pending operation.
             let sql_pending_operation = query_as!(
                 SqlPendingChatOperation,
-                r#"SELECT pco.group_id, pco.operation_data, pco.last_attempt AS "last_attempt: _"
+                r#"SELECT pco.group_id, pco.operation_data, pco.last_attempt AS "last_attempt: _", pco.request_status
             FROM pending_chat_operation pco
             JOIN chat c ON pco.group_id = c.group_id
             WHERE c.chat_id = ?"#,
@@ -578,7 +645,8 @@ mod persistence {
                 RETURNING
                     group_id,
                     operation_data,
-                    last_attempt AS "last_attempt: _"
+                    last_attempt AS "last_attempt: _",
+                    request_status
                 "#,
                 task_id,
             )
@@ -596,7 +664,7 @@ mod persistence {
             Ok(Some(pending_operation))
         }
 
-        pub(super) async fn delete(
+        pub(crate) async fn delete(
             connection: &mut SqliteConnection,
             group_id: &GroupId,
         ) -> sqlx::Result<()> {

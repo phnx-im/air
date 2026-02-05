@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM group_membership\n            WHERE group_id = ? AND NOT status = 'merged'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "b7ab63eadbdaece94b383d3b9e8b5e8357ca57714c7c56dcddbbf44b9785052d"
+}

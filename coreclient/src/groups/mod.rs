@@ -802,12 +802,12 @@ impl Group {
         Ok(params)
     }
 
-    #[allow(dead_code)]
     pub(super) async fn discard_pending_commit(
         &mut self,
-        connection: &mut SqliteConnection,
+        txn: &mut SqliteTransaction<'_>,
     ) -> Result<()> {
-        let provider = AirOpenMlsProvider::new(&mut *connection);
+        GroupMembership::delete_staged_changes(txn.as_mut(), self.group_id()).await?;
+        let provider = AirOpenMlsProvider::new(txn.as_mut());
         self.pending_diff = None;
         self.mls_group.clear_pending_commit(provider.storage())?;
         Ok(())
@@ -838,11 +838,11 @@ impl Group {
     /// extracted from the staged commit.
     pub(super) async fn merge_pending_commit(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
+        txn: &mut SqliteTransaction<'_>,
         staged_commit_option: impl Into<Option<StagedCommit>>,
         ds_timestamp: TimeStamp,
     ) -> Result<(Vec<TimestampedMessage>, Option<GroupData>)> {
-        let free_indices = GroupMembership::free_indices(&mut *connection, self.group_id()).await?;
+        let free_indices = GroupMembership::free_indices(txn.as_mut(), self.group_id()).await?;
         let staged_commit_option: Option<StagedCommit> = staged_commit_option.into();
 
         self.apply_staged_operations_to_room_state(staged_commit_option.as_ref())?;
@@ -851,7 +851,7 @@ impl Group {
             // Compute the messages we want to emit from the staged commit and the
             // client info diff.
             let staged_commit_messages = TimestampedMessage::from_staged_commit(
-                &mut *connection,
+                txn.as_mut(),
                 self.group_id(),
                 free_indices,
                 &staged_commit,
@@ -861,7 +861,7 @@ impl Group {
 
             let group_data = GroupData::from_staged_commit(&staged_commit);
 
-            let provider = AirOpenMlsProvider::new(&mut *connection);
+            let provider = AirOpenMlsProvider::new(&mut *txn);
             self.mls_group
                 .merge_staged_commit(&provider, staged_commit)?;
             (staged_commit_messages, group_data)
@@ -873,7 +873,7 @@ impl Group {
                 if let Some(staged_commit) = self.mls_group.pending_commit() {
                     let group_data = GroupData::from_staged_commit(staged_commit);
                     let messages = TimestampedMessage::from_staged_commit(
-                        &mut *connection,
+                        &mut *txn,
                         self.group_id(),
                         free_indices,
                         staged_commit,
@@ -884,7 +884,7 @@ impl Group {
                 } else {
                     (vec![], None)
                 };
-            let provider = AirOpenMlsProvider::new(&mut *connection);
+            let provider = AirOpenMlsProvider::new(&mut *txn);
             self.mls_group.merge_pending_commit(&provider)?;
             (staged_commit_messages, group_data)
         };
@@ -899,7 +899,7 @@ impl Group {
             }
         }
 
-        GroupMembership::merge_for_group(&mut *connection, self.group_id()).await?;
+        GroupMembership::merge_for_group(&mut *txn, self.group_id()).await?;
         self.pending_diff = None;
         // Debug sanity checks after merging.
         #[cfg(debug_assertions)]
@@ -910,18 +910,15 @@ impl Group {
                 .map(|m| m.index)
                 .collect::<Vec<_>>();
             let group_member_data =
-                GroupMembership::group_members(&mut *connection, self.group_id()).await?;
+                GroupMembership::group_members(txn.as_mut(), self.group_id()).await?;
             if mls_group_members.len() != group_member_data.len() {
                 tracing::error!(?mls_group_members, "Group members according to OpenMLS");
                 tracing::error!(?group_member_data, "Group members according to DB");
                 panic!("Group members don't match up");
             }
-            let client_indices = GroupMembership::client_indices(
-                &mut *connection,
-                self.group_id(),
-                &group_member_data,
-            )
-            .await?;
+            let client_indices =
+                GroupMembership::client_indices(txn.as_mut(), self.group_id(), &group_member_data)
+                    .await?;
             self.mls_group.members().for_each(|m| {
                 let index = m.index;
                 debug_assert!(client_indices.contains(&index));

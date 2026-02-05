@@ -10,7 +10,7 @@ use aircommon::{
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage,
     groups::Group,
-    job::{Job, JobContext},
+    job::{Job, JobContext, JobError},
     key_stores::indexed_keys::StorableIndexedKey,
     utils::connection_ext::ConnectionExt as _,
 };
@@ -23,12 +23,8 @@ pub(crate) struct CreateChat {
 impl Job for CreateChat {
     type Output = ChatId;
 
-    async fn execute_logic(self, context: &mut JobContext<'_>) -> anyhow::Result<ChatId> {
+    async fn execute_logic(self, context: &mut JobContext<'_>) -> Result<ChatId, JobError> {
         self.execute_internal(context).await
-    }
-
-    async fn execute_dependencies(&mut self, _context: &mut JobContext<'_>) -> anyhow::Result<()> {
-        Ok(())
     }
 }
 
@@ -40,7 +36,7 @@ impl CreateChat {
         }
     }
 
-    async fn execute_internal(self, context: &mut JobContext<'_>) -> anyhow::Result<ChatId> {
+    async fn execute_internal(self, context: &mut JobContext<'_>) -> Result<ChatId, JobError> {
         let Self {
             chat_attributes,
             client_reference,

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT pco.group_id, pco.operation_data, pco.last_attempt AS \"last_attempt: _\"\n            FROM pending_chat_operation pco\n            JOIN chat c ON pco.group_id = c.group_id\n            WHERE c.chat_id = ?",
+  "query": "SELECT pco.group_id, pco.operation_data, pco.last_attempt AS \"last_attempt: _\", pco.request_status\n            FROM pending_chat_operation pco\n            JOIN chat c ON pco.group_id = c.group_id\n            WHERE c.chat_id = ?",
   "describe": {
     "columns": [
       {
@@ -17,6 +17,11 @@
         "name": "last_attempt: _",
         "ordinal": 2,
         "type_info": "Text"
+      },
+      {
+        "name": "request_status",
+        "ordinal": 3,
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -25,8 +30,9 @@
     "nullable": [
       false,
       false,
-      true
+      true,
+      false
     ]
   },
-  "hash": "4dee76421a733632b94a875689527a13079a12fa6c422f4cf8cf5994ba037fcf"
+  "hash": "6dd917fcdbfed6033f5f01d9a2f1700995517770d6c44580e6efcaad05d424f0"
 }

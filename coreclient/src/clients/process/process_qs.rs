@@ -375,7 +375,8 @@ impl CoreUser {
                     .ok_or_else(|| anyhow!("No chat found for group ID {:?}", group_id))?;
                 let chat_id = chat.id();
 
-                let mut group = Group::load_clean(txn, &group_id)
+                // Load the group regardless of whether it has a pending commit or not.
+                let mut group = Group::load(txn, &group_id)
                     .await?
                     .ok_or_else(|| anyhow!("No group found for group ID {:?}", group_id))?;
 
