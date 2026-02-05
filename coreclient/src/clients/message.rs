@@ -16,6 +16,27 @@ use crate::{
 
 use super::{CoreUser, Group, StoreNotifier};
 
+/// Create a `MimiContent` with `NullPart` that replaces the given message.
+fn null_part_content(message: &ChatMessage) -> anyhow::Result<MimiContent> {
+    let salt: [u8; 16] = RustCrypto::default().random_array()?;
+    Ok(MimiContent {
+        salt: mimi_content::ByteBuf::from(salt.to_vec()),
+        replaces: message
+            .message()
+            .mimi_id()
+            .map(|id| id.as_slice().to_vec().into()),
+        topic_id: Default::default(),
+        expires: None,
+        in_reply_to: None,
+        extensions: Default::default(),
+        nested_part: mimi_content::NestedPart {
+            disposition: mimi_content::Disposition::Render,
+            language: String::new(),
+            part: NestedPartContent::NullPart,
+        },
+    })
+}
+
 impl CoreUser {
     /// Delete a message and send the deletion to other group members.
     ///
@@ -37,23 +58,7 @@ impl CoreUser {
             .await?;
 
         // Create NullPart content
-        let salt: [u8; 16] = RustCrypto::default().random_array()?;
-        let null_content = MimiContent {
-            salt: mimi_content::ByteBuf::from(salt.to_vec()),
-            replaces: message
-                .message()
-                .mimi_id()
-                .map(|id| id.as_slice().to_vec().into()),
-            topic_id: Default::default(),
-            expires: None,
-            in_reply_to: None,
-            extensions: Default::default(),
-            nested_part: mimi_content::NestedPart {
-                disposition: mimi_content::Disposition::Render,
-                language: String::new(),
-                part: NestedPartContent::NullPart,
-            },
-        };
+        let null_content = null_part_content(&message)?;
 
         // Send the deletion message
         self.send_message(chat_id, null_content, Some(message_id))
@@ -72,13 +77,7 @@ impl CoreUser {
 
             let chat_id = message.chat_id();
 
-            // Delete edit history
-            MessageEdit::delete_by_message_id(txn.as_mut(), message_id).await?;
-
-            // Delete status records
-            StatusRecord::clear(txn.as_mut(), notifier, message_id).await?;
-
-            // Delete the message itself
+            // Delete the message (edit history and status records are cascade-deleted)
             ChatMessage::delete(txn.as_mut(), notifier, message_id, chat_id).await?;
 
             Ok(())
@@ -113,23 +112,7 @@ impl CoreUser {
             MessageEdit::delete_by_message_id(txn.as_mut(), message_id).await?;
 
             // Create NullPart content for deletion
-            let salt: [u8; 16] = RustCrypto::default().random_array()?;
-            let null_content = MimiContent {
-                salt: mimi_content::ByteBuf::from(salt.to_vec()),
-                replaces: message
-                    .message()
-                    .mimi_id()
-                    .map(|id| id.as_slice().to_vec().into()),
-                topic_id: Default::default(),
-                expires: None,
-                in_reply_to: None,
-                extensions: Default::default(),
-                nested_part: mimi_content::NestedPart {
-                    disposition: mimi_content::Disposition::Render,
-                    language: String::new(),
-                    part: NestedPartContent::NullPart,
-                },
-            };
+            let null_content = null_part_content(&message)?;
 
             // Update the message with NullPart content
             message.set_content_message(ContentMessage::new(
@@ -144,6 +127,9 @@ impl CoreUser {
 
             // Clear the status records
             StatusRecord::clear(txn.as_mut(), notifier, message_id).await?;
+
+            // Delete attachments
+            AttachmentRecord::delete_by_message_id(txn.as_mut(), notifier, message_id).await?;
 
             Ok(())
         })
@@ -372,5 +358,62 @@ impl UnsentMessage<GroupUpdateNeeded> {
             message,
             group_update: GroupUpdated,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::identifiers::UserId;
+    use airserver_test_harness::utils::setup::TestBackend;
+    use mimi_content::MessageStatus;
+
+    use crate::{
+        ChatMessage,
+        chats::{messages::persistence::tests::test_chat_message, persistence::tests::test_chat},
+        clients::{
+            CoreUser,
+            attachment::{AttachmentRecord, persistence::test::test_attachment_record},
+        },
+        store::StoreNotifier,
+    };
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn delete_message_content_locally_cleans_up_attachments() -> anyhow::Result<()> {
+        let backend = TestBackend::single().await;
+        let user_id = UserId::random(backend.domain().clone());
+        let user =
+            CoreUser::new_ephemeral(user_id, backend.server_url(), None, "DUMMY007".to_owned())
+                .await?;
+
+        let pool = user.pool();
+        let mut notifier = StoreNotifier::noop();
+
+        // Set up test data: chat -> message -> attachment
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
+            .await?;
+
+        let message = test_chat_message(chat.id());
+        message.store(pool, &mut notifier).await?;
+
+        let attachment = test_attachment_record(chat.id(), message.id());
+        attachment.store(pool, &mut notifier, None).await?;
+
+        // Verify attachment exists before deletion
+        let ids = AttachmentRecord::load_ids_by_message_id(pool, message.id()).await?;
+        assert_eq!(ids.len(), 1);
+
+        // Call the actual function
+        user.delete_message_content_locally(message.id()).await?;
+
+        // Verify attachment is gone
+        let ids = AttachmentRecord::load_ids_by_message_id(pool, message.id()).await?;
+        assert!(ids.is_empty());
+
+        // Verify message still exists with Deleted status
+        let loaded = ChatMessage::load(pool, message.id()).await?.unwrap();
+        assert_eq!(loaded.status(), MessageStatus::Deleted);
+
+        Ok(())
     }
 }

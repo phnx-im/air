@@ -388,8 +388,8 @@ impl ChatMessage {
 
     /// Delete a message from the database.
     ///
-    /// This removes the message row entirely. The caller is responsible for
-    /// deleting related data (edit history, status records) before calling this.
+    /// This removes the message row entirely. This will also remove associated
+    /// edit history and status records via foreign key cascade.
     pub(crate) async fn delete(
         executor: impl SqliteExecutor<'_>,
         notifier: &mut StoreNotifier,

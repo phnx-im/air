@@ -477,7 +477,7 @@ impl PendingAttachmentRecord {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use chrono::SubsecRound;
     use sqlx::Pool;
     use uuid::Uuid;
@@ -488,7 +488,10 @@ mod test {
 
     use super::*;
 
-    fn test_attachment_record(chat_id: ChatId, message_id: MessageId) -> AttachmentRecord {
+    pub(crate) fn test_attachment_record(
+        chat_id: ChatId,
+        message_id: MessageId,
+    ) -> AttachmentRecord {
         AttachmentRecord {
             attachment_id: AttachmentId::new(Uuid::new_v4()),
             chat_id,

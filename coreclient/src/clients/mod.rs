@@ -97,7 +97,7 @@ mod remove_users;
 pub(crate) mod safety_code;
 pub mod store;
 pub mod targeted_message;
-#[cfg(feature = "test_utils")]
+#[cfg(any(feature = "test_utils", test))]
 mod test_utils;
 #[cfg(test)]
 mod tests;
