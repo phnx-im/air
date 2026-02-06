@@ -167,14 +167,14 @@ impl CoreUser {
                 .context("Can't find group for commit response")?;
 
             // Check how the message epoch compares to our group's local epoch.
-            if group.mls_group().epoch() > epoch {
+            if group.mls_group().epoch() < epoch {
                 error!(
                     local_epoch=?group.mls_group().epoch(),
                     confirmation_epoch=?epoch,
                     "Received commit response for future epoch",
                 );
                 bail!("Received commit response for future epoch");
-            } else if group.mls_group().epoch() < epoch {
+            } else if group.mls_group().epoch() > epoch {
                 // It's just a confirmation for an old commit we already merged.
                 return Ok(());
             }
