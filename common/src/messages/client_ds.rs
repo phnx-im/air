@@ -61,6 +61,7 @@ pub enum QsQueueMessageType {
     MlsMessage,
     UserProfileKeyUpdate,
     TargetedMessage,
+    DsResponse,
 }
 
 #[derive(
@@ -95,12 +96,25 @@ impl QsQueueMessagePayload {
                     QsQueueTargetedMessage::tls_deserialize_exact_bytes(self.payload.as_slice())?;
                 ExtractedQsQueueMessagePayload::TargetedMessage(targeted_message_type)
             }
+            QsQueueMessageType::DsResponse => {
+                let response =
+                    DsCommitResponse::tls_deserialize_exact_bytes(self.payload.as_slice())?;
+                ExtractedQsQueueMessagePayload::DsCommitResponse(response)
+            }
         };
         Ok(ExtractedQsQueueMessage {
             timestamp: self.timestamp,
             payload,
         })
     }
+}
+
+/// Response by the DS to a commit. Meant to be put into the QS queue.
+#[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize, Clone)]
+pub struct DsCommitResponse {
+    pub group_id: GroupId,
+    pub epoch: GroupEpoch,
+    pub timestamp: TimeStamp,
 }
 
 #[derive(Debug)]
@@ -115,6 +129,7 @@ pub enum ExtractedQsQueueMessagePayload {
     MlsMessage(Box<MlsMessageIn>),
     UserProfileKeyUpdate(UserProfileKeyUpdateParams),
     TargetedMessage(QsQueueTargetedMessage),
+    DsCommitResponse(DsCommitResponse),
 }
 
 impl QsQueueMessagePayload {
@@ -126,6 +141,24 @@ impl QsQueueMessagePayload {
         Ok(Self {
             timestamp: TimeStamp::now(),
             message_type: QsQueueMessageType::TargetedMessage,
+            payload,
+        })
+    }
+
+    pub fn ds_commit_response(
+        group_id: GroupId,
+        epoch: GroupEpoch,
+        timestamp: TimeStamp,
+    ) -> Result<Self, tls_codec::Error> {
+        let response = DsCommitResponse {
+            group_id,
+            epoch,
+            timestamp,
+        };
+        let payload = response.tls_serialize_detached()?;
+        Ok(Self {
+            timestamp: TimeStamp::now(),
+            message_type: QsQueueMessageType::DsResponse,
             payload,
         })
     }
