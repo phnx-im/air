@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO pending_chat_operation (group_id, operation_type, operation_data, retry_due_at, request_status) VALUES (?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "93dccb244b70acc34974d44d7a2108171a41ad3d1a69149e291096a9ed7848d0"
+}

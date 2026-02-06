@@ -11,7 +11,7 @@ use crate::{
 };
 
 impl OutboundServiceContext {
-    pub(super) async fn retry_pending_chat_operations(
+    pub(super) async fn send_pending_chat_operations(
         &self,
         run_token: &CancellationToken,
     ) -> anyhow::Result<()> {
@@ -24,8 +24,10 @@ impl OutboundServiceContext {
 
             let mut connection = self.pool.acquire().await?;
 
+            let now = chrono::Utc::now();
+
             let Some(pending_chat_operation) =
-                PendingChatOperation::dequeue(&mut connection, task_id).await?
+                PendingChatOperation::dequeue(&mut connection, task_id, now).await?
             else {
                 return Ok(());
             };

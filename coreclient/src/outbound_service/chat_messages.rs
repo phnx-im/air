@@ -10,6 +10,7 @@ use tracing::debug;
 use tracing::warn;
 use uuid::Uuid;
 
+use crate::job::pending_chat_operation::PendingChatOperation;
 use crate::outbound_service::resync::Resync;
 use crate::{
     Chat, ChatMessage, ChatStatus, Message, MessageId,
@@ -102,10 +103,21 @@ impl OutboundServiceContext {
                 return Ok(()); // the task is being stopped
             }
 
-            let Some(message_id) = ChatMessageQueue::dequeue(&self.pool, task_id).await? else {
+            let Some((chat_id, message_id)) =
+                ChatMessageQueue::dequeue(&self.pool, task_id).await?
+            else {
                 return Ok(());
             };
             debug!(?message_id, "dequeued messages");
+
+            // If a chat operation is pending, we skip sending receipts for this chat
+            if PendingChatOperation::is_pending_for_chat(&self.pool, &chat_id).await? {
+                debug!(
+                    ?chat_id,
+                    "Skipping sending receipt due to pending chat operation"
+                );
+                continue;
+            }
 
             if let Err(e) = self.send_chat_message(message_id).await {
                 warn!(%e, ?message_id, "Failed to send chat message");

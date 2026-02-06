@@ -63,9 +63,13 @@ mod persistence {
         pub(crate) async fn dequeue(
             executor: impl SqliteExecutor<'_>,
             task_id: Uuid,
-        ) -> anyhow::Result<Option<MessageId>> {
-            let message_id = query_as!(
-                MessageId,
+        ) -> anyhow::Result<Option<(ChatId, MessageId)>> {
+            struct DequeuedMessage {
+                message_id: Uuid,
+                chat_id: Uuid,
+            }
+            let res = query_as!(
+                DequeuedMessage,
                 r#"
                 UPDATE chat_message_queue
                 SET locked_by = ?1
@@ -76,14 +80,22 @@ mod persistence {
                     ORDER BY created_at ASC
                     LIMIT 1
                 )
-                RETURNING message_id AS "uuid: _"
+                RETURNING message_id AS "message_id: _", chat_id AS "chat_id: _"
                 "#,
                 task_id
             )
             .fetch_optional(executor)
             .await?;
 
-            Ok(message_id)
+            if let Some(DequeuedMessage {
+                message_id,
+                chat_id,
+            }) = res
+            {
+                Ok(Some((ChatId::new(chat_id), MessageId::new(message_id))))
+            } else {
+                Ok(None)
+            }
         }
 
         pub(crate) async fn remove(

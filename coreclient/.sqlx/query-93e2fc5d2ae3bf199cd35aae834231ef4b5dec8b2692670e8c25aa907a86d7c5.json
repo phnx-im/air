@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE pending_chat_operation\n                    SET locked_by = ?1\n                    WHERE group_id = (\n                      SELECT group_id\n                      FROM pending_chat_operation\n                      WHERE (locked_by IS NULL OR locked_by != ?1)\n                      AND request_status = \"ready_to_retry\"\n                      AND retry_due_at <= ?2\n                      LIMIT 1\n                    )\n                RETURNING\n                    group_id,\n                    operation_data,\n                    retry_due_at AS \"retry_due_at: _\",\n                    request_status,\n                    number_of_attempts\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "group_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "operation_data",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "retry_due_at: _",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "request_status",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "number_of_attempts",
+        "ordinal": 4,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "93e2fc5d2ae3bf199cd35aae834231ef4b5dec8b2692670e8c25aa907a86d7c5"
+}

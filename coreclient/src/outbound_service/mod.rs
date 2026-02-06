@@ -234,8 +234,8 @@ impl OutboundServiceContext {
         if let Err(error) = self.perform_queued_resyncs(&run_token).await {
             error!(%error, "Failed to perform queued resyncs");
         }
-        if let Err(error) = self.retry_pending_chat_operations(&run_token).await {
-            error!(%error, "Failed to retry pending chat operations");
+        if let Err(error) = self.send_pending_chat_operations(&run_token).await {
+            error!(%error, "Failed to send pending chat operations");
         }
         if let Err(error) = self.send_queued_receipts(&run_token).await {
             error!(%error, "Failed to send queued receipts");

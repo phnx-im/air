@@ -21,7 +21,7 @@ use aircommon::{
     time::TimeStamp,
 };
 use anyhow::{Context as _, anyhow, bail};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use mimi_room_policy::RoleIndex;
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
@@ -68,10 +68,11 @@ enum PendingChatOperationStatus {
 pub(crate) struct PendingChatOperation {
     group: Group,
     operation: OperationType,
-    /// If a previous try has been made, the timestamp of the last attempt to
-    /// execute this operation
-    last_attempt: Option<DateTime<Utc>>,
+    // The time at which the operation should be retried. If None, it can be
+    // retried immediately.
+    retry_due_at: Option<DateTime<Utc>>,
     status: PendingChatOperationStatus,
+    number_of_attempts: u32,
 }
 
 impl Job for PendingChatOperation {
@@ -90,8 +91,9 @@ impl PendingChatOperation {
         Self {
             group,
             operation: message.into(),
-            last_attempt: Utc::now().into(),
+            retry_due_at: Utc::now().into(),
             status: PendingChatOperationStatus::ReadyToRetry,
+            number_of_attempts: 0,
         }
     }
 
@@ -131,8 +133,9 @@ impl PendingChatOperation {
 
         let api_client = api_clients.get(qgid.owning_domain())?;
 
+        let retry_due = *now + Duration::seconds(5);
         pool.with_connection(async |connection| {
-            self.update_last_attempt_timestamp(connection, *now).await
+            self.update_retry_due_at(connection, retry_due).await
         })
         .await?;
 
@@ -274,10 +277,29 @@ impl PendingChatOperation {
             // We return a FatalError here to indicate that the job should be
             // considered failed.
             return Err(JobError::FatalError(anyhow!("WrongEpochError")));
-        } else if error.is_network_error() {
-            // For network errors, where we don't know whether the server has
-            // received and processed the request. We leave the job as-is, so it
-            // can be retried later.
+        } else if error.is_network_error() || self.number_of_attempts > 0 {
+            // A network error is an error where we don't know whether the
+            // server has received and processed the request. If we either get a
+            // network error, or if we've gotten a network error in the past, we
+            // want to try again until we've either succeeded or reached a max
+            // number of retries.
+
+            const MAX_RETRIES: u32 = 5;
+            if self.number_of_attempts >= MAX_RETRIES {
+                pool.with_transaction(async |txn| {
+                    self.group.discard_pending_commit(txn).await?;
+                    Self::delete(txn, self.group.group_id()).await?;
+                    Ok(())
+                })
+                .await?;
+                return Err(JobError::FatalError(anyhow!(
+                    "Job failed after {} attempts due to network errors",
+                    MAX_RETRIES
+                )));
+            }
+
+            // If we haven't reached the max number of retries leave the job
+            // as-is, so it can be retried later.
             return Err(JobError::NetworkError);
         } else {
             // For other errors, we consider the operation failed and delete the
@@ -485,6 +507,7 @@ impl PendingChatOperation {
 mod persistence {
     use std::str::FromStr;
 
+    use sqlx::SqliteExecutor;
     use thiserror::Error;
     use uuid::Uuid;
 
@@ -515,8 +538,9 @@ mod persistence {
     struct SqlPendingChatOperation {
         group_id: Vec<u8>,
         operation_data: Vec<u8>,
-        last_attempt: Option<DateTime<Utc>>,
+        retry_due_at: Option<DateTime<Utc>>,
         request_status: String,
+        number_of_attempts: i64,
     }
 
     impl SqlPendingChatOperation {
@@ -538,8 +562,9 @@ mod persistence {
             Ok(PendingChatOperation {
                 group,
                 operation,
-                last_attempt: self.last_attempt,
+                retry_due_at: self.retry_due_at,
                 status,
+                number_of_attempts: self.number_of_attempts as u32,
             })
         }
     }
@@ -551,11 +576,11 @@ mod persistence {
             let group_id = self.group.group_id().as_slice();
             let operation_string = self.operation.to_string();
             // Store the pending operation in the database.
-            query!("INSERT INTO pending_chat_operation (group_id, operation_type, operation_data, last_attempt, request_status) VALUES (?, ?, ?, ?, ?)",
+            query!("INSERT INTO pending_chat_operation (group_id, operation_type, operation_data, retry_due_at, request_status) VALUES (?, ?, ?, ?, ?)",
             group_id,
             operation_string,
             operation_data,
-            self.last_attempt,
+            self.retry_due_at,
             "ready_to_retry"
         )
         .execute(connection)
@@ -564,22 +589,23 @@ mod persistence {
             Ok(())
         }
 
-        pub(super) async fn update_last_attempt_timestamp(
+        pub(super) async fn update_retry_due_at(
             &mut self,
-            connection: &mut SqliteConnection,
-            now: DateTime<Utc>,
+            connection: impl SqliteExecutor<'_>,
+            retry_due: DateTime<Utc>,
         ) -> sqlx::Result<()> {
             let group_id = self.group.group_id().as_slice();
-            // Update the last attempt timestamp in the database and increase number_of_attempts.
+            // Update the retry due timestamp in the database and increase number_of_attempts.
             query!(
-                "UPDATE pending_chat_operation SET last_attempt = ?, number_of_attempts = number_of_attempts + 1 WHERE group_id = ?",
-                now,
+                "UPDATE pending_chat_operation SET retry_due_at = ?, number_of_attempts = number_of_attempts + 1 WHERE group_id = ?",
+                retry_due,
                 group_id
             )
             .execute(connection)
             .await?;
 
-            self.last_attempt = Some(now);
+            self.retry_due_at = Some(retry_due);
+            self.number_of_attempts += 1;
 
             Ok(())
         }
@@ -607,7 +633,7 @@ mod persistence {
             // Get the group id from the chat table and then load the pending operation.
             let sql_pending_operation = query_as!(
                 SqlPendingChatOperation,
-                r#"SELECT pco.group_id, pco.operation_data, pco.last_attempt AS "last_attempt: _", pco.request_status
+                r#"SELECT pco.group_id, pco.operation_data, pco.retry_due_at AS "retry_due_at: _", pco.request_status, pco.number_of_attempts
             FROM pending_chat_operation pco
             JOIN chat c ON pco.group_id = c.group_id
             WHERE c.chat_id = ?"#,
@@ -626,10 +652,27 @@ mod persistence {
                 .map(Some)
         }
 
+        pub(crate) async fn is_pending_for_chat(
+            executor: impl SqliteExecutor<'_>,
+            chat_id: &ChatId,
+        ) -> sqlx::Result<bool> {
+            let record = query!(
+                "SELECT EXISTS(SELECT 1
+            FROM pending_chat_operation pco
+            JOIN chat c ON pco.group_id = c.group_id
+            WHERE c.chat_id = ? LIMIT 1) AS row_exists",
+                chat_id,
+            )
+            .fetch_one(executor)
+            .await?;
+            Ok(record.row_exists == 1)
+        }
+
         /// Dequeue a PendingChatOperation for retry by the OutboundService.
         pub(crate) async fn dequeue(
             connection: &mut SqliteConnection,
             task_id: Uuid,
+            now: DateTime<Utc>,
         ) -> anyhow::Result<Option<Self>> {
             let sql_pending_operation = query_as!(
                 SqlPendingChatOperation,
@@ -640,15 +683,18 @@ mod persistence {
                       FROM pending_chat_operation
                       WHERE (locked_by IS NULL OR locked_by != ?1)
                       AND request_status = "ready_to_retry"
+                      AND retry_due_at <= ?2
                       LIMIT 1
                     )
                 RETURNING
                     group_id,
                     operation_data,
-                    last_attempt AS "last_attempt: _",
-                    request_status
+                    retry_due_at AS "retry_due_at: _",
+                    request_status,
+                    number_of_attempts
                 "#,
                 task_id,
+                now
             )
             .fetch_optional(&mut *connection)
             .await?;
@@ -738,13 +784,13 @@ mod tests {
 
         assert!(matches!(loaded.operation, OperationType::Leave(_)));
         assert_eq!(loaded.group.group_id(), pending.group.group_id());
-        assert_eq!(loaded.last_attempt, pending.last_attempt);
+        assert_eq!(loaded.retry_due_at, pending.retry_due_at);
 
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn update_last_attempt_persists() -> anyhow::Result<()> {
+    async fn update_retry_due_at_persists() -> anyhow::Result<()> {
         let (pool, mut group, chat_id, signing_key) = setup_group_and_chat().await?;
         let mut connection = pool.acquire().await?;
 
@@ -754,13 +800,13 @@ mod tests {
 
         let new_timestamp = Utc::now() + Duration::seconds(30);
         pending
-            .update_last_attempt_timestamp(&mut connection, new_timestamp)
+            .update_retry_due_at(connection.as_mut(), new_timestamp)
             .await?;
 
         let reloaded = PendingChatOperation::load(&mut connection, &chat_id)
             .await?
             .expect("should load");
-        assert_eq!(reloaded.last_attempt, Some(new_timestamp));
+        assert_eq!(reloaded.retry_due_at, Some(new_timestamp));
 
         Ok(())
     }
@@ -776,7 +822,8 @@ mod tests {
 
         // Initially the job is ready to retry.
         let uuid = Uuid::new_v4();
-        let ready = PendingChatOperation::dequeue(&mut connection, uuid).await?;
+        let now = Utc::now();
+        let ready = PendingChatOperation::dequeue(&mut connection, uuid, now).await?;
         assert!(ready.is_some());
 
         pending
@@ -785,7 +832,7 @@ mod tests {
 
         // After marking, it should no longer be returned for retries.
         let uuid = Uuid::new_v4();
-        let ready = PendingChatOperation::dequeue(&mut connection, uuid).await?;
+        let ready = PendingChatOperation::dequeue(&mut connection, uuid, now).await?;
         assert!(ready.is_none());
 
         Ok(())
@@ -807,7 +854,8 @@ mod tests {
         assert!(loaded.is_none());
 
         let uuid = Uuid::new_v4();
-        let ready = PendingChatOperation::dequeue(&mut connection, uuid).await?;
+        let now = Utc::now();
+        let ready = PendingChatOperation::dequeue(&mut connection, uuid, now).await?;
         assert!(ready.is_none());
 
         Ok(())

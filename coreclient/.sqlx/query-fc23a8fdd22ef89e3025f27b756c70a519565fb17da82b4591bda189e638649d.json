@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS(SELECT 1\n            FROM pending_chat_operation pco\n            JOIN chat c ON pco.group_id = c.group_id\n            WHERE c.chat_id = ? LIMIT 1) AS row_exists",
+  "describe": {
+    "columns": [
+      {
+        "name": "row_exists",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "fc23a8fdd22ef89e3025f27b756c70a519565fb17da82b4591bda189e638649d"
+}
