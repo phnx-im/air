@@ -153,11 +153,7 @@ impl Group {
                         .context("Unknown removed_id")?;
 
                     // Room policy checks
-                    self.room_state_change_role(
-                        sender.user_id(),
-                        &removed_id,
-                        RoleIndex::Outsider,
-                    )?;
+                    self.verify_role_change(sender.user_id(), &removed_id, RoleIndex::Outsider)?;
 
                     GroupMembership::stage_removal(&mut *connection, &group_id, removed_index)
                         .await?;
@@ -426,7 +422,7 @@ impl Group {
 
         // Room policy checks
         for client in &client_auth_infos {
-            self.room_state_change_role(
+            self.verify_role_change(
                 sender_user,
                 client.group_membership().user_id(),
                 RoleIndex::Regular,

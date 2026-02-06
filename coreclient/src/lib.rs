@@ -10,6 +10,7 @@ mod chats;
 pub mod clients;
 mod contacts;
 mod groups;
+mod job;
 mod key_stores;
 pub mod outbound_service;
 pub mod store;
