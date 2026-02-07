@@ -311,9 +311,16 @@ class _MessageComposerState extends State<MessageComposer>
       ),
     );
 
+    // Reuce image quality to re-encode the image.
     final XFile? file = switch (selectedCategory) {
-      .gallery => await ImagePicker().pickImage(source: .gallery),
-      .camera => await ImagePicker().pickImage(source: .camera),
+      .gallery => await ImagePicker().pickImage(
+        source: .gallery,
+        imageQuality: 99,
+      ),
+      .camera => await ImagePicker().pickImage(
+        source: .camera,
+        imageQuality: 99,
+      ),
       .file => await openFile(),
       null => null,
     };
