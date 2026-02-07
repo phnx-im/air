@@ -128,6 +128,21 @@ Future<String?> _getSharedCacheDirectoryIOS() async {
   return null;
 }
 
+Future<Uint8List?> getClipboardImage() async {
+  if (!Platform.isIOS && !Platform.isAndroid) return null;
+  try {
+    final bytes = await platform.invokeMethod<Uint8List>('getClipboardImage');
+    return bytes;
+  } on PlatformException catch (e, stacktrace) {
+    _log.severe(
+      "Failed to get clipboard image: '${e.message}'.",
+      e,
+      stacktrace,
+    );
+  }
+  return null;
+}
+
 Future<void> setBadgeCount(int count) async {
   // Make sure we are on iOS or macOS
   if (!Platform.isIOS && !Platform.isMacOS) {
