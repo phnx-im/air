@@ -31,7 +31,10 @@ impl UserProfileUpdate {
             });
         }
         current_profile.display_name = new_user_profile.display_name;
-        current_profile.profile_picture = new_user_profile.profile_picture;
+        // Only update the profile picture if a new one is provided
+        if new_user_profile.profile_picture.is_some() {
+            current_profile.profile_picture = new_user_profile.profile_picture;
+        }
         current_profile.decryption_key_index = key_index;
         current_profile.epoch += 1;
         let verifiable_user_profile = current_profile.sign(signing_key)?;

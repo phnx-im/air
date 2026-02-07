@@ -117,7 +117,11 @@ class GroupDetailsScreen extends StatelessWidget {
   void _selectAvatar(BuildContext context, ChatId id) async {
     final chatDetailsCubit = context.read<ChatDetailsCubit>();
     final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    // Reduce image quality to re-encode the image.
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 99,
+    );
     if (image == null) {
       return;
     }

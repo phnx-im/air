@@ -5,9 +5,13 @@
 package ms.air
 
 import android.Manifest
+import android.content.ClipboardManager
 import android.content.ContentValues
 import android.content.ContentValues.TAG
+import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.content.pm.PackageManager
 import android.media.MediaScannerConnection
 import android.net.Uri
@@ -147,6 +151,39 @@ class MainActivity : FlutterActivity() {
                             null
                         )
                     }
+                }
+
+                "getClipboardImage" -> {
+                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = clipboard.primaryClip
+                    if (clip != null && clip.itemCount > 0) {
+                        val item = clip.getItemAt(0)
+                        val uri = item.uri
+                        if (uri != null) {
+                            val mimeType = contentResolver.getType(uri)
+                            if (mimeType != null && mimeType.startsWith("image/")) {
+                                try {
+                                    contentResolver.openInputStream(uri)?.use { stream ->
+                                        // Decode through BitmapFactory to handle any
+                                        // format Android supports (including HEIC),
+                                        // then re-encode as JPEG so the Dart side
+                                        // always receives a widely supported format.
+                                        val bitmap = BitmapFactory.decodeStream(stream)
+                                        if (bitmap != null) {
+                                            val outputStream = java.io.ByteArrayOutputStream()
+                                            bitmap.compress(Bitmap.CompressFormat.JPEG, 99, outputStream)
+                                            bitmap.recycle()
+                                            result.success(outputStream.toByteArray())
+                                            return@setMethodCallHandler
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Failed to read clipboard image", e)
+                                }
+                            }
+                        }
+                    }
+                    result.success(null)
                 }
 
                 else -> {
