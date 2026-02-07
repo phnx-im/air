@@ -162,7 +162,7 @@ class _Form extends HookWidget {
 Future<void> _pickAvatar(BuildContext context) async {
   final registrationCubit = context.read<RegistrationCubit>();
   final ImagePicker picker = ImagePicker();
-  // Reuce image quality to re-encode the image.
+  // Reduce image quality to re-encode the image.
   final XFile? image = await picker.pickImage(
     source: ImageSource.gallery,
     imageQuality: 99,

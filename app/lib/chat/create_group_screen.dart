@@ -321,7 +321,7 @@ class _CreateGroupDetailsStep extends HookWidget {
 
   void _pickImage(ValueNotifier<Uint8List?> picture) async {
     final picker = ImagePicker();
-    // Reuce image quality to re-encode the image.
+    // Reduce image quality to re-encode the image.
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 99,

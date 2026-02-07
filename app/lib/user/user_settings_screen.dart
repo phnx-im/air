@@ -129,7 +129,7 @@ class _UserAvatar extends StatelessWidget {
     final user = context.read<UserCubit>();
 
     final ImagePicker picker = ImagePicker();
-    // Reuce image quality to re-encode the image.
+    // Reduce image quality to re-encode the image.
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 99,

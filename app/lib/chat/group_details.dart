@@ -117,7 +117,7 @@ class GroupDetailsScreen extends StatelessWidget {
   void _selectAvatar(BuildContext context, ChatId id) async {
     final chatDetailsCubit = context.read<ChatDetailsCubit>();
     final ImagePicker picker = ImagePicker();
-    // Reuce image quality to re-encode the image.
+    // Reduce image quality to re-encode the image.
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 99,

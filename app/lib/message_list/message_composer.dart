@@ -316,7 +316,7 @@ class _MessageComposerState extends State<MessageComposer>
       ),
     );
 
-    // Reuce image quality to re-encode the image.
+    // Reduce image quality to re-encode the image.
     final XFile? file = switch (selectedCategory) {
       .gallery => await ImagePicker().pickImage(
         source: .gallery,
@@ -346,24 +346,23 @@ class _MessageComposerState extends State<MessageComposer>
     if (chatTitle == null) return;
 
     final tempDir = await getTemporaryDirectory();
-    final tempFile = File(
-      '${tempDir.path}/paste_${DateTime.now().millisecondsSinceEpoch}.png',
-    );
+    final tempFile = File('${tempDir.path}/clipboard_paste.jpg');
     await tempFile.writeAsBytes(imageBytes);
     final file = XFile(tempFile.path);
 
     if (!mounted) return;
-    _navigateToUploadPreview(context, file, chatTitle: chatTitle);
+    await _navigateToUploadPreview(context, file, chatTitle: chatTitle);
+    tempFile.delete().ignore();
   }
 
-  void _navigateToUploadPreview(
+  Future<void> _navigateToUploadPreview(
     BuildContext context,
     XFile file, {
     required String chatTitle,
   }) {
     final cubit = context.read<ChatDetailsCubit>();
 
-    Navigator.of(context).push(
+    return Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => AttachmentUploadView(
           title: chatTitle,
