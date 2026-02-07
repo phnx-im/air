@@ -116,8 +116,15 @@ pub(crate) async fn mark_as_read(
     let mut corner_case_id = None;
     let mut scheduled = mark_as_read_tx.send_if_modified(|state| match &state {
         MarkAsReadState::NotLoaded => {
-            error!("Marking as read while chat is not loaded");
-            false
+            // Chat data hasn't loaded yet, but the message is visible on
+            // screen (e.g. opened via push notification). Schedule the
+            // mark-as-read so it proceeds after the debounce, by which
+            // time the chat will have loaded.
+            *state = MarkAsReadState::Scheduled {
+                until_timestamp,
+                until_message_id,
+            };
+            true
         }
         MarkAsReadState::Marked { at }
         | MarkAsReadState::Scheduled {
@@ -421,6 +428,52 @@ mod test {
         )
         .await
         .unwrap();
+
+        service.checkpoint();
+    }
+
+    #[tokio::test]
+    async fn mark_as_read_while_not_loaded() {
+        let mut service = MockMarkAsReadService::new();
+
+        // Start in NotLoaded state (chat data hasn't loaded from DB yet)
+        let (mark_as_read_tx, _) = watch::channel(MarkAsReadState::NotLoaded);
+        let (_user_settings_tx, user_settings_rx) = watch::channel(UserSettings {
+            read_receipts: false,
+            ..Default::default()
+        });
+
+        let chat_id = ChatId::new(Uuid::from_u128(1));
+        let until_message_id = MessageId::new(Uuid::from_u128(2));
+        let until_timestamp = Utc::now();
+        let mark_as_read_debounce = Duration::ZERO;
+
+        let mimi_id = MimiId::from_slice(&[0; 32]).unwrap();
+
+        // Should schedule and complete even though state was NotLoaded
+        service
+            .expect_mark_chat_as_read()
+            .withf(move |cid, mid| *cid == chat_id && *mid == until_message_id)
+            .returning(move |_, _| Ok((true, vec![(until_message_id, mimi_id)])))
+            .times(1);
+
+        mark_as_read(
+            &service,
+            &mark_as_read_tx,
+            &user_settings_rx,
+            chat_id,
+            until_message_id,
+            until_timestamp,
+            mark_as_read_debounce,
+        )
+        .await
+        .unwrap();
+
+        // State should now be Marked
+        assert!(matches!(
+            *mark_as_read_tx.borrow(),
+            MarkAsReadState::Marked { .. }
+        ));
 
         service.checkpoint();
     }

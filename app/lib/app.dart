@@ -15,6 +15,7 @@ import 'package:air/registration/registration.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/interface_scale.dart';
+import 'package:air/ui/components/context_menu/context_menu.dart';
 import 'package:air/util/platform.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -57,6 +58,9 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     initMethodChannel(_openedNotificationController.sink);
     _openedNotificationSubscription = _openedNotificationController.stream
         .listen((chatId) {
+          // Dismiss any active overlays before navigating to the chat
+          ContextMenu.closeActiveMenu();
+          _appRouter.dismissOverlays();
           _navigationCubit.openChat(chatId);
         });
 
@@ -241,7 +245,10 @@ class LoadableUserCubitProvider extends StatelessWidget {
               navigationCubit.openIntroScreen(
                 const IntroScreenType.usernameOnboarding(),
               );
-            } else {
+            } else if (navigationCubit.state is! NavigationState_Home) {
+              // Only navigate to home if not already there. A push
+              // notification deep link may have already set the state to
+              // Home with a specific chat open, so we must not overwrite it.
               navigationCubit.openHome();
             }
             await userSettingsCubit.loadState(user: user);

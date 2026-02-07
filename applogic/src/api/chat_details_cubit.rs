@@ -517,9 +517,18 @@ impl ChatDetailsContext {
         }
 
         if let Some(last_read) = last_read {
-            let _ = self.mark_as_read_tx.send_replace(MarkAsReadState::Marked {
-                // truncate nanoseconds because they are not supported by Dart's DateTime
-                at: last_read.trunc_subsecs(6),
+            // truncate nanoseconds because they are not supported by Dart's DateTime
+            let last_read = last_read.trunc_subsecs(6);
+            self.mark_as_read_tx.send_if_modified(|state| match state {
+                // Don't overwrite a pending mark-as-read from a visibility
+                // callback (e.g. when the chat was opened via push notification
+                // before the chat data finished loading).
+                MarkAsReadState::Scheduled { .. } => false,
+                MarkAsReadState::Marked { at } if *at == last_read => false,
+                _ => {
+                    *state = MarkAsReadState::Marked { at: last_read };
+                    true
+                }
             });
         }
 
