@@ -228,9 +228,9 @@ impl UserCubitBase {
         if let Some(value) = display_name {
             profile.display_name = value;
         }
-        if let Some(value) = profile_picture {
-            profile.profile_picture = Some(value);
-        }
+        // Only pass the profile picture when a new one is provided, so that
+        // the existing picture is not needlessly re-encoded.
+        profile.profile_picture = profile_picture;
         self.context.core_user.set_own_user_profile(profile).await?;
 
         Ok(())
