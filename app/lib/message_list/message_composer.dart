@@ -282,14 +282,11 @@ class _MessageComposerState extends State<MessageComposer>
     }
   }
 
-  bool get _isPasteModifierPressed {
-    if (Platform.isMacOS) {
-      return HardwareKeyboard.instance.isMetaPressed &&
-          !HardwareKeyboard.instance.isControlPressed;
-    }
-    return HardwareKeyboard.instance.isControlPressed &&
-        !HardwareKeyboard.instance.isMetaPressed;
-  }
+  bool get _isPasteModifierPressed => Platform.isMacOS
+      ? HardwareKeyboard.instance.isMetaPressed &&
+            !HardwareKeyboard.instance.isControlPressed
+      : HardwareKeyboard.instance.isControlPressed &&
+            !HardwareKeyboard.instance.isMetaPressed;
 
   void _handleKeyboardPaste() async {
     final imageBytes = await getClipboardImage();
