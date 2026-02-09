@@ -329,24 +329,17 @@ class _MessageView extends HookWidget {
           label: loc.messageContextMenu_delete,
           leading: AppIcon.trash(size: iconSize, color: colors.function.danger),
           isDestructive: true,
-          onSelected: () => _showDeleteMessageDialog(
-            context: context,
-            messageId: messageId,
-            isSender: isSender,
-          ),
+          onSelected: () => isSender
+              ? _showDeleteMessageDialog(context: context, messageId: messageId)
+              : _showDeleteForMeDialog(context: context, messageId: messageId),
         ),
-      // Delete action for placeholders - deletes immediately without confirmation
       if (isDeleted)
         MessageAction(
           label: loc.messageContextMenu_delete,
           leading: AppIcon.trash(size: iconSize, color: colors.function.danger),
           isDestructive: true,
-          onSelected: () {
-            context.read<ChatDetailsCubit>().deleteMessage(
-              messageId: messageId,
-              deleteMode: DeleteMode.forMe,
-            );
-          },
+          onSelected: () =>
+              _showDeleteForMeDialog(context: context, messageId: messageId),
         ),
       if (attachments.isNotEmpty && !Platform.isIOS)
         MessageAction(
@@ -1093,7 +1086,6 @@ class _ImageAttachmentContent extends StatelessWidget {
 void _showDeleteMessageDialog({
   required BuildContext context,
   required MessageId messageId,
-  required bool isSender,
 }) {
   final loc = AppLocalizations.of(context);
   final cubit = context.read<ChatDetailsCubit>();
@@ -1103,17 +1095,13 @@ void _showDeleteMessageDialog({
     builder: (sheetContext) => BottomSheetDialogContent(
       title: loc.deleteMessageDialog_title,
       description: loc.deleteMessageDialog_description,
-      // Show "Delete for everyone" only for sender's own messages
-      primaryActionText: isSender ? loc.deleteMessageDialog_forEveryone : null,
-      onPrimaryAction: isSender
-          ? (_) => cubit.deleteMessage(
-              messageId: messageId,
-              deleteMode: DeleteMode.forEveryone,
-            )
-          : null,
+      primaryActionText: loc.deleteMessageDialog_forEveryone,
+      onPrimaryAction: (_) => cubit.deleteMessage(
+        messageId: messageId,
+        deleteMode: DeleteMode.forEveryone,
+      ),
       primaryType: AppButtonType.secondary,
       primaryTone: AppButtonTone.danger,
-      // "Delete for me" available for all messages
       secondaryActionText: loc.deleteMessageDialog_forMe,
       onSecondaryAction: (_) => cubit.deleteMessage(
         messageId: messageId,
@@ -1121,6 +1109,29 @@ void _showDeleteMessageDialog({
       ),
       secondaryType: AppButtonType.secondary,
       secondaryTone: AppButtonTone.danger,
+    ),
+  );
+}
+
+void _showDeleteForMeDialog({
+  required BuildContext context,
+  required MessageId messageId,
+}) {
+  final loc = AppLocalizations.of(context);
+  final cubit = context.read<ChatDetailsCubit>();
+
+  showBottomSheetModal(
+    context: context,
+    builder: (sheetContext) => BottomSheetDialogContent(
+      title: loc.deleteMessageForMeDialog_title,
+      description: loc.deleteMessageForMeDialog_description,
+      primaryActionText: loc.deleteMessageForMeDialog_delete,
+      onPrimaryAction: (_) => cubit.deleteMessage(
+        messageId: messageId,
+        deleteMode: DeleteMode.forMe,
+      ),
+      primaryType: AppButtonType.secondary,
+      primaryTone: AppButtonTone.danger,
     ),
   );
 }

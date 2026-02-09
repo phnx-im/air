@@ -692,6 +692,16 @@ class AppLocalizationsSv extends AppLocalizations {
   String get deleteMessageDialog_forMe => 'Radera för mig';
 
   @override
+  String get deleteMessageForMeDialog_title => 'Radera meddelande?';
+
+  @override
+  String get deleteMessageForMeDialog_description =>
+      'Det här meddelandet raderas från alla dina enheter.';
+
+  @override
+  String get deleteMessageForMeDialog_delete => 'Radera';
+
+  @override
   String get reportSpamButton_text => 'Rapportera spam';
 
   @override

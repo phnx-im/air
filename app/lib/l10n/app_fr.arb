@@ -207,6 +207,10 @@
   "deleteMessageDialog_forEveryone": "Supprimer pour tout le monde",
   "deleteMessageDialog_forMe": "Supprimer pour moi",
 
+  "deleteMessageForMeDialog_title": "Supprimer le message ?",
+  "deleteMessageForMeDialog_description": "Ce message sera supprimé de tous vos appareils.",
+  "deleteMessageForMeDialog_delete": "Supprimer",
+
   "reportSpamButton_text": "Signaler comme spam",
   "reportSpamDialog_title": "Signaler comme spam ?",
   "reportSpamDialog_content": "Air sera averti que cette personne peut envoyer des spams. Air ne peut jamais voir le contenu des discussions.",

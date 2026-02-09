@@ -697,6 +697,16 @@ class AppLocalizationsDe extends AppLocalizations {
   String get deleteMessageDialog_forMe => 'Für mich löschen';
 
   @override
+  String get deleteMessageForMeDialog_title => 'Nachricht löschen?';
+
+  @override
+  String get deleteMessageForMeDialog_description =>
+      'Diese Nachricht wird von all deinen Geräten gelöscht.';
+
+  @override
+  String get deleteMessageForMeDialog_delete => 'Löschen';
+
+  @override
   String get reportSpamButton_text => 'Spam melden';
 
   @override

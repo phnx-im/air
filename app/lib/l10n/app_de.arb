@@ -206,6 +206,10 @@
   "deleteMessageDialog_forEveryone": "Für alle löschen",
   "deleteMessageDialog_forMe": "Für mich löschen",
 
+  "deleteMessageForMeDialog_title": "Nachricht löschen?",
+  "deleteMessageForMeDialog_description": "Diese Nachricht wird von all deinen Geräten gelöscht.",
+  "deleteMessageForMeDialog_delete": "Löschen",
+
   "reportSpamButton_text": "Spam melden",
   "reportSpamDialog_title": "Spam melden?",
   "reportSpamDialog_content": "Air wird benachrichtigt, dass diese Person möglicherweise Spam sendet. Air kann niemals den Inhalt von Chats einsehen.",

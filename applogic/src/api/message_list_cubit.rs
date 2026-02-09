@@ -17,7 +17,7 @@ use flutter_rust_bridge::frb;
 use tokio::sync::watch;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, warn};
+use tracing::{debug, error};
 
 use crate::{
     StreamSink,
@@ -277,51 +277,55 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
         notification: &StoreNotification,
     ) -> anyhow::Result<()> {
         for (id, op) in &notification.ops {
-            if let StoreEntityId::Message(message_id) = id
-                && !op.is_disjoint(StoreOperation::Add | StoreOperation::Update)
-                && let Some(message) = self.store.message(*message_id).await?
-            {
-                if message.chat_id() == self.chat_id {
-                    if op.contains(StoreOperation::Add) {
-                        self.notify_neghbors_of_added_message(message);
-                    }
+            if let StoreEntityId::Message(message_id) = id {
+                if op.contains(StoreOperation::Remove) {
+                    // Notify before reload: message is still in the cached state.
+                    self.notify_message_neighbors(*message_id);
                     self.load_and_emit_state(false).await;
+                    return Ok(());
                 }
-                return Ok(());
-            };
+                if !op.is_disjoint(StoreOperation::Add | StoreOperation::Update)
+                    && let Some(message) = self.store.message(*message_id).await?
+                {
+                    if message.chat_id() == self.chat_id {
+                        self.load_and_emit_state(false).await;
+                        if op.contains(StoreOperation::Add) {
+                            // Notify after reload: message is now in the cached state.
+                            self.notify_message_neighbors(message.id());
+                        }
+                    }
+                    return Ok(());
+                }
+            }
         }
         Ok(())
     }
 
-    /// Send update notification to the neighbors of the added message.
+    /// Send update notifications to the neighbors of a message that was added or removed.
     ///
-    /// The neighbors are calculated from the list of loaded messages by looking up the position of
-    /// the `message` in list by timestamp.
-    fn notify_neghbors_of_added_message(&self, message: ChatMessage) {
+    /// The message must be present in the currently loaded state: for additions, call this after
+    /// `load_and_emit_state`; for removals, call this before `load_and_emit_state`.
+    fn notify_message_neighbors(&self, message_id: MessageId) {
         let state = self.state_tx.borrow();
         let messages = &state.inner.messages;
-        match messages.binary_search_by_key(&message.timestamp(), UiChatMessage::timestamp) {
-            Ok(_idx) => {
-                warn!("Added message is already in the list");
-            }
-            Err(idx) => {
-                let prev_message = idx.checked_sub(1).and_then(|idx| messages.get(idx));
-                let next_message = messages.get(idx);
-                let mut notification = StoreNotification::default();
-                if let Some(message) = prev_message {
-                    notification.ops.insert(
-                        StoreEntityId::Message(message.id),
-                        StoreOperation::Update.into(),
-                    );
-                }
-                if let Some(message) = next_message {
-                    notification.ops.insert(
-                        StoreEntityId::Message(message.id),
-                        StoreOperation::Update.into(),
-                    );
-                }
-                self.store.notify(notification);
-            }
+        let Some(idx) = messages.iter().position(|m| m.id == message_id) else {
+            return;
+        };
+        let mut notification = StoreNotification::default();
+        if let Some(prev) = idx.checked_sub(1).and_then(|i| messages.get(i)) {
+            notification.ops.insert(
+                StoreEntityId::Message(prev.id),
+                StoreOperation::Update.into(),
+            );
+        }
+        if let Some(next) = messages.get(idx + 1) {
+            notification.ops.insert(
+                StoreEntityId::Message(next.id),
+                StoreOperation::Update.into(),
+            );
+        }
+        if !notification.ops.is_empty() {
+            self.store.notify(notification);
         }
     }
 }

@@ -207,6 +207,10 @@
   "deleteMessageDialog_forEveryone": "Radera för alla",
   "deleteMessageDialog_forMe": "Radera för mig",
 
+  "deleteMessageForMeDialog_title": "Radera meddelande?",
+  "deleteMessageForMeDialog_description": "Det här meddelandet raderas från alla dina enheter.",
+  "deleteMessageForMeDialog_delete": "Radera",
+
   "reportSpamButton_text": "Rapportera spam",
   "reportSpamDialog_title": "Rapportera spam?",
   "reportSpamDialog_content": "Air kommer att meddelas att den här personen kan skicka spam. Air kan aldrig se innehållet i några chattar.",

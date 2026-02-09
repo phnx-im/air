@@ -250,6 +250,10 @@
   "deleteMessageDialog_forEveryone": "Delete for everyone",
   "deleteMessageDialog_forMe": "Delete for me",
 
+  "deleteMessageForMeDialog_title": "Delete message?",
+  "deleteMessageForMeDialog_description": "This message will be deleted from all your devices.",
+  "deleteMessageForMeDialog_delete": "Delete",
+
   "reportSpamButton_text": "Report spam",
   "reportSpamDialog_title": "Report spam?",
   "reportSpamDialog_content": "Air will be notified that this person may be sending spam. Air is never able to see the contents of any chats.",

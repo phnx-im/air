@@ -1215,6 +1215,24 @@ abstract class AppLocalizations {
   /// **'Delete for me'**
   String get deleteMessageDialog_forMe;
 
+  /// No description provided for @deleteMessageForMeDialog_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete message?'**
+  String get deleteMessageForMeDialog_title;
+
+  /// No description provided for @deleteMessageForMeDialog_description.
+  ///
+  /// In en, this message translates to:
+  /// **'This message will be deleted from all your devices.'**
+  String get deleteMessageForMeDialog_description;
+
+  /// No description provided for @deleteMessageForMeDialog_delete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get deleteMessageForMeDialog_delete;
+
   /// No description provided for @reportSpamButton_text.
   ///
   /// In en, this message translates to:
