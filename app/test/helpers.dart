@@ -4,10 +4,22 @@
 
 import 'dart:io';
 
+import 'package:air/theme/theme.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/core/core.dart';
 import 'package:uuid/uuid.dart';
+
+ThemeData testThemeData(Brightness brightness) {
+  final theme = themeData(brightness);
+  return theme.copyWith(
+    textTheme: theme.textTheme.apply(fontFamilyFallback: const ['NotoEmoji']),
+  );
+}
+
+final ThemeData testLightTheme = testThemeData(Brightness.light);
+final ThemeData testDarkTheme = testThemeData(Brightness.dark);
 
 extension IntTestExtension on int {
   ChatId chatId() => ChatId(uuid: _intToUuidValue(this));

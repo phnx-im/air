@@ -6,7 +6,6 @@ import 'package:air/chat/chat_details.dart';
 import 'package:air/chat/group_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -15,6 +14,7 @@ import 'package:mocktail/mocktail.dart';
 
 import '../chat_list/chat_list_content_test.dart';
 import '../mocks.dart';
+import '../helpers.dart';
 
 void main() {
   group('GroupDetailsScreen', () {
@@ -48,7 +48,7 @@ void main() {
         ],
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
-          theme: lightTheme,
+          theme: testLightTheme,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: const GroupDetailsScreen(),
         ),

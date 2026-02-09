@@ -13,7 +13,6 @@ import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/message_list.dart';
-import 'package:air/theme/theme.dart';
 import 'package:air/user/user.dart';
 
 import '../chat_list/chat_list_content_test.dart';
@@ -204,7 +203,7 @@ void main() {
         ],
         child: Builder(
           builder: (context) {
-            final theme = themeData(
+            final theme = testThemeData(
               MediaQuery.platformBrightnessOf(context),
             ).copyWith(platform: TargetPlatform.android);
             return MaterialApp(

@@ -11,7 +11,6 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/message_list.dart';
 import 'package:air/navigation/navigation.dart';
-import 'package:air/theme/theme.dart';
 import 'package:air/user/user.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
@@ -87,7 +86,7 @@ void main() {
         builder: (context) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
-            theme: themeData(MediaQuery.platformBrightnessOf(context)),
+            theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             home: const Scaffold(
               body: ChatScreenView(createMessageCubit: createMockMessageCubit),

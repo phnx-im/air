@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircommon::identifiers::USER_HANDLE_REFRESH_THRESHOLD;
 use chrono::{DateTime, Utc};
 use openmls::prelude::OpenMlsProvider;
 use openmls_rust_crypto::OpenMlsRustCrypto;
@@ -11,6 +12,7 @@ use uuid::Uuid;
 
 use crate::{
     outbound_service::timed_tasks_queue::{TaskKind, TimedTaskQueue},
+    user_handles::UserHandleRecord,
     utils::connection_ext::StoreExt,
 };
 
@@ -25,6 +27,11 @@ impl OutboundServiceContext {
     ) -> anyhow::Result<()> {
         // Make sure that upload package task always exists
         TimedTaskQueue::new_key_package_upload_task(DateTime::UNIX_EPOCH)
+            .ensure_exists(&self.pool)
+            .await?;
+
+        // Make sure that handle refresh task always exists
+        TimedTaskQueue::new_handle_refresh_task(DateTime::UNIX_EPOCH)
             .ensure_exists(&self.pool)
             .await?;
 
@@ -67,7 +74,34 @@ impl OutboundServiceContext {
 
         match task_kind {
             TaskKind::KeyPackageUpload => self.upload_key_packages().await?,
+            TaskKind::HandleRefresh => self.refresh_handles().await?,
         }
+        Ok(())
+    }
+
+    /// Refresh handles whose `refreshed_at` is older than USER_HANDLE_REFRESH_THRESHOLD`.
+    ///
+    /// This ensures handles are refreshed on the server well before they expire (server sets
+    /// a `USER_HANDLE_VALIDITY_PERIOD` window from creation/refresh time).
+    async fn refresh_handles(&self) -> anyhow::Result<()> {
+        let now = Utc::now();
+        let threshold = now - USER_HANDLE_REFRESH_THRESHOLD;
+        let handles = UserHandleRecord::load_needing_refresh(&self.pool, threshold).await?;
+
+        if handles.is_empty() {
+            debug!("no handles need refreshing");
+            return Ok(());
+        }
+
+        let api_client = self.api_clients.default_client()?;
+        for handle in handles {
+            info!("refreshing handle");
+            api_client
+                .as_refresh_handle(handle.hash, &handle.signing_key)
+                .await?;
+            UserHandleRecord::update_refreshed_at(&self.pool, &handle.hash, now).await?;
+        }
+
         Ok(())
     }
 

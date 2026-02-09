@@ -5,7 +5,6 @@
 import 'package:air/chat/safety_code_screen.dart';
 import 'package:air/core/api/user_cubit.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
 import 'package:air/ui/components/app_scaffold.dart';
 import 'package:air/user/user_cubit.dart';
 import 'package:flutter/material.dart';
@@ -39,7 +38,7 @@ void main() {
           providers: [BlocProvider<UserCubit>.value(value: userCubit)],
           child: MaterialApp(
             debugShowCheckedModeBanner: false,
-            theme: lightTheme,
+            theme: testLightTheme,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             home: AppScaffold(child: SafetyCodeView(profile: userProfiles[1])),
           ),

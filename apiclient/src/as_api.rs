@@ -31,8 +31,9 @@ use airprotos::{
         DeleteHandlePayload, DeleteUserPayload, EnqueueConnectionOfferStep,
         FetchConnectionPackageStep, GetUserProfileRequest, HandleQueueMessage,
         InitListenHandlePayload, InvitationCode, ListenHandleRequest, MergeUserProfilePayload,
-        PublishConnectionPackagesPayload, RegisterUserRequest, ReportSpamPayload,
-        StageUserProfilePayload, connect_request, connect_response, listen_handle_request,
+        PublishConnectionPackagesPayload, RefreshHandlePayload, RegisterUserRequest,
+        ReportSpamPayload, StageUserProfilePayload, connect_request, connect_response,
+        listen_handle_request,
     },
     common::v1::{StatusDetails, StatusDetailsCode},
 };
@@ -449,6 +450,20 @@ impl ApiClient {
             Err(e) if e.code() == tonic::Code::AlreadyExists => Ok(false),
             Err(e) => Err(e.into()),
         }
+    }
+
+    pub async fn as_refresh_handle(
+        &self,
+        hash: UserHandleHash,
+        signing_key: &HandleSigningKey,
+    ) -> Result<(), AsRequestError> {
+        let payload = RefreshHandlePayload {
+            client_metadata: Some(self.metadata().clone()),
+            hash: Some(hash.into()),
+        };
+        let request = payload.sign(signing_key)?;
+        self.as_grpc_client().refresh_handle(request).await?;
+        Ok(())
     }
 
     pub async fn as_delete_handle(

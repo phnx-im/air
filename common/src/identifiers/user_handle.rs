@@ -16,7 +16,8 @@ const MIN_USER_HANDLE_LENGTH: usize = 5;
 const MAX_USER_HANDLE_LENGTH: usize = 63;
 const USER_HANDLE_CHARSET: &[u8] = b"-0123456789abcdefghijklmnopqrstuvwxyz";
 
-pub const USER_HANDLE_VALIDITY_PERIOD: Duration = Duration::days(90);
+pub const USER_HANDLE_VALIDITY_PERIOD: Duration = Duration::days(180);
+pub const USER_HANDLE_REFRESH_THRESHOLD: Duration = Duration::days(90);
 
 /// Validated plaintext user handle
 #[derive(

@@ -6,8 +6,8 @@ import 'package:air/user/contact_us_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
 import 'package:mocktail/mocktail.dart';
+import '../helpers.dart';
 
 class MockUrlLauncher extends Mock implements UrlLauncher {}
 
@@ -28,7 +28,7 @@ void main() {
           builder: (context) {
             return MaterialApp(
               debugShowCheckedModeBanner: false,
-              theme: themeData(MediaQuery.platformBrightnessOf(context)),
+              theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               home: ContactUsScreen(
                 initialSubject: initialSubject,

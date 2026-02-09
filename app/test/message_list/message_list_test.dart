@@ -9,7 +9,6 @@ import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/message_list.dart';
-import 'package:air/theme/theme.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -273,6 +272,114 @@ final richContent = UiMimiContent(
   attachments: [],
 );
 
+final jumboEmojiMessages = [
+  // Jumbo: single emoji from other user
+  UiChatMessage(
+    id: 20.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:10:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 2.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          plainBody: '😀',
+          topicId: Uint8List(0),
+          content: simpleMessage('😀'),
+          attachments: [],
+        ),
+      ),
+    ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.sent,
+  ),
+  // Jumbo: multiple emoji from self
+  UiChatMessage(
+    id: 21.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:11:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 1.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          plainBody: '🎉🥳🎊',
+          topicId: Uint8List(0),
+          content: simpleMessage('🎉🥳🎊'),
+          attachments: [],
+        ),
+      ),
+    ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.sent,
+  ),
+  // Not jumbo: emoji + text (should keep bubble)
+  UiChatMessage(
+    id: 22.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:12:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 2.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          plainBody: '😀 hello',
+          topicId: Uint8List(0),
+          content: simpleMessage('😀 hello'),
+          attachments: [],
+        ),
+      ),
+    ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.sent,
+  ),
+  // Not jumbo: edited emoji-only (should keep bubble)
+  UiChatMessage(
+    id: 23.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:13:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 1.userId(),
+        sent: true,
+        edited: true,
+        content: UiMimiContent(
+          plainBody: '👍',
+          topicId: Uint8List(0),
+          content: simpleMessage('👍'),
+          attachments: [],
+        ),
+      ),
+    ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.sent,
+  ),
+  // Normal text message for contrast
+  UiChatMessage(
+    id: 24.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:14:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 1.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          plainBody: 'Nice!',
+          topicId: Uint8List(0),
+          content: simpleMessage('Nice!'),
+          attachments: [],
+        ),
+      ),
+    ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.sent,
+  ),
+];
+
 final imageAttachment = UiAttachment(
   attachmentId: 2.attachmentId(),
   filename: "image.png",
@@ -437,7 +544,7 @@ void main() {
           builder: (context) {
             return MaterialApp(
               debugShowCheckedModeBanner: false,
-              theme: themeData(MediaQuery.platformBrightnessOf(context)),
+              theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               home: const Scaffold(
                 body: MessageListView(
@@ -592,6 +699,26 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/message_list_blocked_contact_chat.png'),
+      );
+    });
+
+    testWidgets('renders jumbo emoji without bubble', (tester) async {
+      tester.view.physicalSize = testSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      when(
+        () => messageListCubit.state,
+      ).thenReturn(MockMessageListState(jumboEmojiMessages));
+
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+
+      await tester.pumpWidget(buildSubject());
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_list_jumbo_emoji.png'),
       );
     });
 

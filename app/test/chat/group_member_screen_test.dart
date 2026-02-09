@@ -10,7 +10,6 @@ import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
-import 'package:air/theme/theme.dart';
 import 'package:air/user/user.dart';
 
 import '../chat_list/chat_list_content_test.dart';
@@ -74,7 +73,7 @@ void main() {
         builder: (context) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
-            theme: themeData(MediaQuery.platformBrightnessOf(context)),
+            theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             home: const Scaffold(body: GroupMembersView()),
           );

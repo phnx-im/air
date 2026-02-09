@@ -280,6 +280,8 @@ class _SubmitHandler {
       };
       if (errorMessage != null) {
         this.errorMessage.value = errorMessage;
+      } else if (context.mounted) {
+        Navigator.of(context).pop();
       }
     } catch (e) {
       // fatal error
