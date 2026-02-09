@@ -29,7 +29,7 @@ use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpListener,
 };
-use tonic::{service::InterceptorLayer, transport::server::Connected};
+use tonic::{Request, Status, service::InterceptorLayer, transport::server::Connected};
 use tonic_health::pb::health_server::{Health, HealthServer};
 use tower_governor::{
     GovernorLayer, governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor,
@@ -102,6 +102,13 @@ pub async fn run<
         qs_connector,
         rate_limits,
     }: ServerRunParams<Qc, L>,
+    #[cfg(any(feature = "test_utils", test))] interceptor: impl Fn(
+        Request<()>,
+    ) -> Result<Request<()>, Status>
+    + Clone
+    + Send
+    + Sync
+    + 'static,
 ) -> impl Future<Output = Result<(), tonic::transport::Error>> {
     let grpc_addr = listener.local_addr().expect("Could not get local address");
 
@@ -135,6 +142,11 @@ pub async fn run<
 
     let health_service = configure_health_service::<Qc, Np>().await;
 
+    #[cfg(any(feature = "test_utils", test))]
+    let dss = DeliveryServiceServer::with_interceptor(grpc_ds, interceptor);
+    #[cfg(not(any(feature = "test_utils", test)))]
+    let dss = DeliveryServiceServer::new(grpc_ds);
+
     tonic::transport::Server::builder()
         .http2_keepalive_interval(Some(Duration::from_secs(30)))
         .layer(InterceptorLayer::new(ConnectInfoInterceptor))
@@ -156,7 +168,7 @@ pub async fn run<
         .layer(GovernorLayer::new(governor_config))
         .add_service(health_service)
         .add_service(AuthServiceServer::new(grpc_as))
-        .add_service(DeliveryServiceServer::new(grpc_ds))
+        .add_service(dss)
         .add_service(QueueServiceServer::new(grpc_qs))
         .serve_with_incoming(listener.into_stream())
 }

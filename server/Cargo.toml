@@ -19,6 +19,7 @@ name = "airserver"
 
 [features]
 api_docs = []
+test_utils = ["airbackend/test_utils", "aircoreclient/test_utils"]
 
 [[bench]]
 name = "bench"
