@@ -116,7 +116,7 @@ platform :ios do
     sh "flutter pub get"
 
     # Build the app with flutter first to create the necessary ephemeral files
-    sh "flutter build ios --config-only #{skip_signing ? '--debug' : '--release'} --build-number #{build_number}"
+    sh "flutter build ios --config-only #{skip_signing ? '--debug --no-codesign' : '--release'} --build-number #{build_number}"
 
     # Install CocoaPods dependencies
     cocoapods(

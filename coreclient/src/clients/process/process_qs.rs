@@ -10,8 +10,9 @@ use aircommon::{
     messages::{
         QueueMessage,
         client_ds::{
-            AadMessage, AadPayload, ExtractedQsQueueMessage, ExtractedQsQueueMessagePayload,
-            QsQueueTargetedMessage, UserProfileKeyUpdateParams, WelcomeBundle,
+            AadMessage, AadPayload, DsCommitResponse, ExtractedQsQueueMessage,
+            ExtractedQsQueueMessagePayload, QsQueueTargetedMessage, UserProfileKeyUpdateParams,
+            WelcomeBundle,
         },
     },
     time::TimeStamp,
@@ -143,7 +144,69 @@ impl CoreUser {
                 self.handle_targeted_application_message(mls_message, ds_timestamp)
                     .await
             }
+            ExtractedQsQueueMessagePayload::DsCommitResponse(ds_commit_response) => {
+                self.handle_commit_response(ds_commit_response).await
+            }
         }
+    }
+
+    async fn handle_commit_response(
+        &self,
+        commit_response: DsCommitResponse,
+    ) -> Result<ProcessQsMessageResult> {
+        let DsCommitResponse {
+            group_id,
+            epoch,
+            timestamp,
+        } = commit_response;
+
+        // Load the group by group_id
+        self.with_transaction_and_notifier(async |txn, notifier| {
+            let mut group = Group::load(txn, &group_id)
+                .await?
+                .context("Can't find group for commit response")?;
+
+            // Check how the message epoch compares to our group's local epoch.
+            if group.mls_group().epoch() < epoch {
+                error!(
+                    local_epoch=?group.mls_group().epoch(),
+                    confirmation_epoch=?epoch,
+                    "Received commit response for future epoch",
+                );
+                bail!("Received commit response for future epoch");
+            } else if group.mls_group().epoch() > epoch {
+                // It's just a confirmation for an old commit we already merged.
+                return Ok(());
+            }
+
+            // If yes, merge the commit and store the updated group
+            let (mut group_messages, group_data) =
+                group.merge_pending_commit(txn, None, timestamp).await?;
+            group.store_update(&mut **txn).await?;
+
+            let mut chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
+                .await?
+                .context("Can't find chat for commit response")?;
+
+            // Update group data in chat attributes if present
+            if let Some(group_data) = group_data {
+                update_chat_attributes(
+                    txn,
+                    notifier,
+                    &mut chat,
+                    self.user_id().clone(),
+                    group_data,
+                    timestamp,
+                    &mut group_messages,
+                )
+                .await?;
+            }
+            CoreUser::store_new_messages(txn, notifier, chat.id(), group_messages).await?;
+            Ok(())
+        })
+        .await?;
+
+        Ok(ProcessQsMessageResult::None)
     }
 
     async fn handle_welcome_bundle(
