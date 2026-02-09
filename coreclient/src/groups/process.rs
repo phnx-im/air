@@ -29,7 +29,7 @@ use crate::{
 use openmls::{
     group::{ProcessMessageError, QueuedAddProposal, ValidationError},
     prelude::{
-        BasicCredentialError, LeafNodeIndex, ProcessedMessage, ProcessedMessageContent,
+        BasicCredentialError, LeafNodeIndex, ProcessedMessage, ProcessedMessageContent, Proposal,
         ProtocolMessage, Sender, SignaturePublicKey, StagedCommit,
     },
 };
@@ -121,16 +121,6 @@ impl Group {
                 *sender_index
             }
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
-                // Discard any pending commits we have locally and delete any
-                // pending chat operations we may have for this group. We have
-                // to do this here, because `discard_pending_commit` also all
-                // staged changes to `GroupMembership`s and we start staging the
-                // changes for this commit immediately below his. Also, note
-                // that this is all happening in a transaction, so should a late
-                // validation check fail, this is all rolled back.
-                self.discard_pending_commit(txn).await?;
-                PendingChatOperation::delete(txn, &group_id).await?;
-
                 let sender_index = match processed_message.sender() {
                     Sender::Member(index) => index.to_owned(),
                     Sender::NewMemberCommit => {
@@ -140,6 +130,26 @@ impl Group {
                         bail!("Invalid sender type.")
                     }
                 };
+
+                // Discard any pending commits we have locally and delete any
+                // pending non-leave chat operations we may have for this group.
+                // If it's a leave operation, only delete it if it's part of
+                // this commit.
+                self.discard_pending_commit(txn).await?;
+                if let Some(pending_chat_operation) =
+                    PendingChatOperation::load_by_group_id(txn, &group_id).await?
+                {
+                    let commit_contains_our_self_remove = staged_commit
+                        .queued_proposals()
+                        .find(|p| {
+                            matches!(p.proposal(), Proposal::SelfRemove)
+                                && sender_index == self.mls_group().own_leaf_index()
+                        })
+                        .is_some();
+                    if !pending_chat_operation.is_leave() || commit_contains_our_self_remove {
+                        PendingChatOperation::delete(txn, &group_id).await?;
+                    }
+                }
 
                 let sender =
                     VerifiableClientCredential::try_from(processed_message.credential().clone())?;

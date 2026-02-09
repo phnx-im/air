@@ -35,12 +35,12 @@ pub(super) enum OperationType {
     Other(Box<GroupOperationParamsOut>),
 }
 
-impl ToString for OperationType {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for OperationType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OperationType::Leave(_) => "leave".to_string(),
-            OperationType::Delete(_) => "delete".to_string(),
-            OperationType::Other(_) => "other".to_string(),
+            OperationType::Leave(_) => write!(f, "leave"),
+            OperationType::Delete(_) => write!(f, "delete"),
+            OperationType::Other(_) => write!(f, "other"),
         }
     }
 }
@@ -101,6 +101,10 @@ impl PendingChatOperation {
         self.group.group_id()
     }
 
+    pub(crate) fn is_leave(&self) -> bool {
+        matches!(self.operation, OperationType::Leave(_))
+    }
+
     pub async fn execute_internal(
         mut self,
         context: &mut JobContext<'_>,
@@ -157,16 +161,16 @@ impl PendingChatOperation {
             }
         };
 
-        let mut have_left_successfully = true;
+        let mut ds_has_confirmed_leave = true;
         let ds_timestamp = match res {
             Ok(ds_timestamp) => ds_timestamp,
             Err(error) => {
                 self.handle_error(pool, is_leave, error).await?;
 
                 // The only case where we reach here is for leave operations
-                // with a network error, in which case we want to continue
+                // with a "wrong epoch" error, in which case we want to continue
                 // processing as if the operation were successful.
-                have_left_successfully = false;
+                ds_has_confirmed_leave = false;
                 TimeStamp::now()
             }
         };
@@ -216,23 +220,23 @@ impl PendingChatOperation {
                         &own_user_id,
                         RoleIndex::Outsider,
                     )?;
+
                     vec![TimestampedMessage::system_message(
                         SystemMessage::Remove(own_user_id.clone(), own_user_id),
                         ds_timestamp,
                     )]
                 } else {
                     // A leave operation that has already been attempted once so
-                    // post-processing has already happened.
-                    // If we were successful this time, delete the job.
-                    if have_left_successfully {
-                        Self::delete(txn, self.group.group_id()).await?;
-                    }
-
-                    // In either case, just return an empty vec of messages.
-                    return Ok(vec![]);
+                    // post-processing has already happened and there is nothing
+                    // more to do.
+                    vec![]
                 };
 
-                if is_delete {
+                // If the chat isn't already inactive (which can be the case for
+                // leave operations that have already been processed), and this
+                // is either a delete operation or a leave operation, set the
+                // chat to inactive.
+                if !matches!(chat.status(), ChatStatus::Inactive(_)) && (is_delete || is_leave) {
                     chat.set_inactive(txn.as_mut(), notifier, past_members.into_iter().collect())
                         .await?;
                 }
@@ -242,7 +246,12 @@ impl PendingChatOperation {
                     CoreUser::store_new_messages(&mut *txn, notifier, chat.id(), group_messages)
                         .await?;
 
-                Self::delete(txn, self.group.group_id()).await?;
+                // Unless this is a leave operation that hasn't been confirmed
+                // by the DS, we can delete the pending operation now.
+                if !is_leave || ds_has_confirmed_leave {
+                    Self::delete(txn, self.group.group_id()).await?;
+                }
+
                 Ok(messages)
             })
             .await?;
@@ -276,7 +285,7 @@ impl PendingChatOperation {
             .await?;
             // We return a FatalError here to indicate that the job should be
             // considered failed.
-            return Err(JobError::FatalError(anyhow!("WrongEpochError")));
+            Err(JobError::FatalError(anyhow!("WrongEpochError")))
         } else if error.is_network_error() || self.number_of_attempts > 0 {
             // A network error is an error where we don't know whether the
             // server has received and processed the request. If we either get a
@@ -300,7 +309,7 @@ impl PendingChatOperation {
 
             // If we haven't reached the max number of retries leave the job
             // as-is, so it can be retried later.
-            return Err(JobError::NetworkError);
+            Err(JobError::NetworkError)
         } else {
             // For other errors, we consider the operation failed and delete the
             // job.
@@ -310,10 +319,10 @@ impl PendingChatOperation {
                 Ok(())
             })
             .await?;
-            return Err(JobError::FatalError(anyhow!(
+            Err(JobError::FatalError(anyhow!(
                 "Job failed due to an unexpected error: {:?}",
                 error
-            )));
+            )))
         }
     }
 
@@ -624,6 +633,31 @@ mod persistence {
             .await?;
 
             Ok(())
+        }
+
+        pub(crate) async fn load_by_group_id(
+            connection: &mut SqliteConnection,
+            group_id: &GroupId,
+        ) -> sqlx::Result<Option<Self>> {
+            let group_id = group_id.as_slice();
+            let sql_pending_operation = query_as!(
+                SqlPendingChatOperation,
+                r#"SELECT group_id, operation_data, retry_due_at AS "retry_due_at: _", request_status, number_of_attempts
+            FROM pending_chat_operation
+            WHERE group_id = ?"#,
+                group_id
+            )
+            .fetch_optional(&mut *connection)
+            .await?;
+
+            let Some(sql_pending_operation) = sql_pending_operation else {
+                return Ok(None);
+            };
+
+            sql_pending_operation
+                .into_pending_chat_operation(connection)
+                .await
+                .map(Some)
         }
 
         pub(crate) async fn load(
