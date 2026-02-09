@@ -178,7 +178,7 @@ private let kProtectedBlockedCategory = "protected-blocked"
       }
     } else if call.method == "getClipboardImage" {
       if let image = UIPasteboard.general.image,
-         let data = image.pngData() {
+         let data = image.jpegData(compressionQuality: 0.99) {
         result(FlutterStandardTypedData(bytes: data))
       } else {
         result(nil)
