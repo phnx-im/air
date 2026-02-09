@@ -28,7 +28,7 @@ use aircommon::{
     messages::{
         client_ds::{
             AadMessage, AadPayload, AddUsersInfo, DsJoinerInformation, GroupOperationParams,
-            GroupOperationParamsAad, WelcomeBundle,
+            GroupOperationParamsAad, QsQueueMessagePayload, WelcomeBundle,
         },
         welcome_attribution_info::EncryptedWelcomeAttributionInfo,
     },
@@ -64,7 +64,6 @@ impl SenderIndex {
 }
 
 impl DsGroupState {
-    // TODO: Structured logging
     // TODO: Make into a sans-io-style state machine
     pub(crate) async fn group_operation(
         &mut self,
@@ -403,6 +402,36 @@ impl DsGroupState {
             let removed_client_profile_option = self.member_profiles.remove(&client_index);
             debug_assert!(removed_client_profile_option.is_some());
         }
+    }
+
+    pub(super) fn create_commit_response(
+        &self,
+        sender_index: LeafNodeIndex,
+        timestamp: TimeStamp,
+    ) -> Result<DsFanOutMessage, GroupOperationError> {
+        // Fan the response to this commit out into the sender's queue.
+        let commit_response = QsQueueMessagePayload::ds_commit_response(
+            self.group.group_info().group_context().group_id().clone(),
+            (self.group.epoch().as_u64() - 1).into(),
+            timestamp,
+        )
+        .map_err(|e| {
+            warn!(error = %e, "Error serializing commit response");
+            GroupOperationError::LibraryError
+        })?;
+        let payload = DsFanOutPayload::QueueMessage(commit_response);
+        let sender_client_reference = self
+            .member_profiles
+            .get(&sender_index)
+            .ok_or(GroupOperationError::InvalidMessage)?
+            .client_queue_config
+            .clone();
+        let response = DsFanOutMessage {
+            payload,
+            client_reference: sender_client_reference,
+            suppress_notifications: true.into(),
+        };
+        Ok(response)
     }
 }
 

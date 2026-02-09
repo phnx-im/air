@@ -24,12 +24,14 @@ use airprotos::{
 use axum::extract::State;
 use connect_info::ConnectInfoInterceptor;
 use futures_core::Stream;
+#[cfg(target_os = "linux")]
+use metrics::{describe_gauge, gauge};
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpListener,
 };
-use tonic::{service::InterceptorLayer, transport::server::Connected};
+use tonic::{Request, Status, service::InterceptorLayer, transport::server::Connected};
 use tonic_health::pb::health_server::{Health, HealthServer};
 use tower_governor::{
     GovernorLayer, governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor,
@@ -102,6 +104,13 @@ pub async fn run<
         qs_connector,
         rate_limits,
     }: ServerRunParams<Qc, L>,
+    #[cfg(any(feature = "test_utils", test))] interceptor: impl Fn(
+        Request<()>,
+    ) -> Result<Request<()>, Status>
+    + Clone
+    + Send
+    + Sync
+    + 'static,
 ) -> impl Future<Output = Result<(), tonic::transport::Error>> {
     let grpc_addr = listener.local_addr().expect("Could not get local address");
 
@@ -135,6 +144,11 @@ pub async fn run<
 
     let health_service = configure_health_service::<Qc, Np>().await;
 
+    #[cfg(any(feature = "test_utils", test))]
+    let dss = DeliveryServiceServer::with_interceptor(grpc_ds, interceptor);
+    #[cfg(not(any(feature = "test_utils", test)))]
+    let dss = DeliveryServiceServer::new(grpc_ds);
+
     tonic::transport::Server::builder()
         .http2_keepalive_interval(Some(Duration::from_secs(30)))
         .layer(InterceptorLayer::new(ConnectInfoInterceptor))
@@ -156,7 +170,7 @@ pub async fn run<
         .layer(GovernorLayer::new(governor_config))
         .add_service(health_service)
         .add_service(AuthServiceServer::new(grpc_as))
-        .add_service(DeliveryServiceServer::new(grpc_ds))
+        .add_service(dss)
         .add_service(QueueServiceServer::new(grpc_qs))
         .serve_with_incoming(listener.into_stream())
 }
@@ -183,6 +197,28 @@ fn serve_metrics(metrics_listener: Option<TcpListener>) {
             loop {
                 tokio::time::sleep(UPKEEP_TIMEOUT).await;
                 handle.run_upkeep();
+            }
+        });
+
+        #[cfg(target_os = "linux")]
+        tokio::spawn(async move {
+            describe_gauge!(
+                "air_server_memory_used_bytes",
+                "Bytes actively allocated by the application"
+            );
+            describe_gauge!(
+                "air_server_memory_free_bytes",
+                "Bytes held by allocator but not in use"
+            );
+            describe_gauge!("air_server_memory_mmap_bytes", "Bytes allocated via mmap");
+            loop {
+                tokio::time::sleep(Duration::from_secs(10)).await;
+                // Safety: mallinfo2 is always safe to call because it does not
+                // modify any memory.
+                let info = unsafe { libc::mallinfo2() };
+                gauge!("air_server_memory_used_bytes").set(info.uordblks as f64);
+                gauge!("air_server_memory_free_bytes").set(info.fordblks as f64);
+                gauge!("air_server_memory_mmap_bytes").set(info.hblkhd as f64);
             }
         });
 

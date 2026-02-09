@@ -32,6 +32,14 @@ class AppRouter implements RouterConfig<EmptyConfig> {
   final AppBackButtonDispatcher _backButtonDispatcher =
       AppBackButtonDispatcher();
 
+  /// Dismiss any active overlays (pageless routes, context menus).
+  ///
+  /// Called before navigating from a push notification to ensure modals
+  /// and dialogs don't remain on top of the new destination.
+  void dismissOverlays() {
+    _routerDelegate.dismissOverlays();
+  }
+
   @override
   BackButtonDispatcher? get backButtonDispatcher => _backButtonDispatcher;
 
@@ -134,6 +142,11 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
             _navigatorKey.currentContext?.read<NavigationCubit>().pop() ??
                 false,
           );
+  }
+
+  /// Pop all pageless routes from the navigator.
+  void dismissOverlays() {
+    _navigatorKey.currentState?.popUntil((route) => !isPageless(route));
   }
 
   @override
