@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    path::PathBuf,
+};
 
 use chrono::Duration;
 use serde::Deserialize;
@@ -76,14 +79,14 @@ pub struct DatabaseSettings {
 #[derive(Debug, Deserialize, Clone)]
 pub struct FcmSettings {
     // The path to the service account key file.
-    pub path: String,
+    pub path: PathBuf,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct ApnsSettings {
     pub keyid: String,
     pub teamid: String,
-    pub privatekeypath: String,
+    pub privatekeypath: PathBuf,
 }
 
 /// Settings for an external object storage provider
