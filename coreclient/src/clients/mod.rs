@@ -371,11 +371,16 @@ impl CoreUser {
             &user_profile.user_id == self.user_id(),
             "Can't set user profile for users other than the current user"
         );
-        if let Some(profile_picture) = user_profile.profile_picture {
-            let new_image = match profile_picture {
-                Asset::Value(image_bytes) => resize_profile_image(&image_bytes)?,
-            };
-            user_profile.profile_picture = Some(Asset::Value(new_image));
+        if let Some(profile_picture) = &user_profile.profile_picture {
+            // Only resize the profile picture if it has changed, to avoid
+            // needless re-encoding.
+            let current = self.own_user_profile().await?;
+            if current.profile_picture.as_ref() != Some(profile_picture) {
+                let new_image = match profile_picture {
+                    Asset::Value(image_bytes) => resize_profile_image(image_bytes)?,
+                };
+                user_profile.profile_picture = Some(Asset::Value(new_image));
+            }
         }
         self.update_user_profile(user_profile.clone()).await?;
         Ok(user_profile)
