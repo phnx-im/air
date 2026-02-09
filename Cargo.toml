@@ -29,6 +29,7 @@ airserver_test_harness = { path = "test_harness" }
 mls-assist = { path = "mls-assist" }
 
 aes-gcm = "0.10"
+arboard = "3"
 anyhow = { version = "1.0.98", features = ["backtrace"] }
 argon2 = "0.5.3"
 async-trait = "0.1.53"

@@ -37,3 +37,9 @@ Future<void> importClientDatabase({
   dbPath: dbPath,
   tarGzBytes: tarGzBytes,
 );
+
+/// Reads an image from the system clipboard and returns it as JPEG bytes.
+///
+/// Returns `None` if the clipboard does not contain image data.
+Future<Uint8List?> readClipboardImage() =>
+    RustLib.instance.api.crateApiUtilsReadClipboardImage();

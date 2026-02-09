@@ -247,6 +247,17 @@ class _MessageComposerState extends State<MessageComposer>
     if (emojiResult != null) {
       return emojiResult;
     }
+
+    // Intercept Cmd+V / Ctrl+V on desktop to handle image paste
+    if (evt is KeyDownEvent &&
+        evt.logicalKey == LogicalKeyboardKey.keyV &&
+        !HardwareKeyboard.instance.isShiftPressed &&
+        !HardwareKeyboard.instance.isAltPressed &&
+        _isPasteModifierPressed) {
+      _handleKeyboardPaste();
+      return KeyEventResult.handled;
+    }
+
     final modifierKeyPressed =
         HardwareKeyboard.instance.isShiftPressed ||
         HardwareKeyboard.instance.isAltPressed ||
@@ -268,6 +279,41 @@ class _MessageComposerState extends State<MessageComposer>
           : KeyEventResult.ignored;
     } else {
       return KeyEventResult.ignored;
+    }
+  }
+
+  bool get _isPasteModifierPressed {
+    if (Platform.isMacOS) {
+      return HardwareKeyboard.instance.isMetaPressed &&
+          !HardwareKeyboard.instance.isControlPressed;
+    }
+    return HardwareKeyboard.instance.isControlPressed &&
+        !HardwareKeyboard.instance.isMetaPressed;
+  }
+
+  void _handleKeyboardPaste() async {
+    final imageBytes = await getClipboardImage();
+    if (imageBytes != null && imageBytes.isNotEmpty) {
+      _handleImagePaste(imageBytes);
+      return;
+    }
+    // No image — fall back to text paste
+    final clipData = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = clipData?.text;
+    if (text != null && text.isNotEmpty) {
+      final selection = _inputController.selection;
+      final currentText = _inputController.text;
+      final newText = currentText.replaceRange(
+        selection.start,
+        selection.end,
+        text,
+      );
+      _inputController.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(
+          offset: selection.start + text.length,
+        ),
+      );
     }
   }
 
@@ -577,7 +623,7 @@ class _MessageInput extends StatelessWidget {
 
     // When the clipboard has image data but no text, Flutter omits the Paste
     // button on Android & iOS. Add one so the user can paste images.
-    if (!hasPaste && (Platform.isIOS || Platform.isAndroid)) {
+    if (!hasPaste) {
       items.add(
         ContextMenuButtonItem(
           type: ContextMenuButtonType.paste,
