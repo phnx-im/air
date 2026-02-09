@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE user_handle SET refreshed_at = ? WHERE handle = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "821b20127c5e8a266a9cfcd98c51b33b8caeb6a6788a2ae248377e9ef015348b"
+}

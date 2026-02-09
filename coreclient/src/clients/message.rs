@@ -16,7 +16,10 @@ use crate::{
 
 use super::{CoreUser, Group, StoreNotifier};
 
-/// Create a `MimiContent` with `NullPart` that replaces the given message.
+/// Create a `MimiContent` with `NullPart` and `replaces` set to the MIMI ID of
+/// the given message. This is used for message deletions, where the content is
+/// replaced with a NullPart to indicate that the message has been deleted,
+/// while still keeping the message visible as a "deleted" placeholder.
 fn null_part_content(message: &ChatMessage) -> anyhow::Result<MimiContent> {
     let salt: [u8; 16] = RustCrypto::default().random_array()?;
     Ok(MimiContent {
@@ -49,13 +52,9 @@ impl CoreUser {
         message_id: MessageId,
     ) -> anyhow::Result<ChatMessage> {
         // Load the message to get its mimi_id
-        let message = self
-            .with_transaction(async |txn| {
-                ChatMessage::load(txn.as_mut(), message_id)
-                    .await?
-                    .with_context(|| format!("Can't find message with id {message_id:?}"))
-            })
-            .await?;
+        let message = ChatMessage::load(self.pool(), message_id)
+            .await?
+            .with_context(|| format!("Can't find message with id {message_id:?}"))?;
 
         // Create NullPart content
         let null_content = null_part_content(&message)?;

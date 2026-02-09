@@ -283,21 +283,15 @@ class _MessageView extends HookWidget {
         platform == TargetPlatform.linux ||
         platform == TargetPlatform.windows;
 
-    // Get sender display name for deleted message text
-    final senderProfile = context.select(
-      (UsersCubit cubit) => cubit.state.profile(userId: contentMessage.sender),
-    );
-    final senderDisplayName = senderProfile.displayName;
-
     Widget buildMessageBubble({required bool enableSelection, GlobalKey? key}) {
       Widget child = _MessageContent(
         content: contentMessage.content,
         isSender: isSender,
+        senderId: contentMessage.sender,
         flightPosition: flightPosition,
         isEdited: contentMessage.edited,
         isHidden: status == UiMessageStatus.hidden && !isRevealed.value,
         enableSelection: enableSelection,
-        senderDisplayName: senderDisplayName,
       );
       if (key != null) {
         child = KeyedSubtree(key: key, child: child);
@@ -739,20 +733,20 @@ class _MessageContent extends StatelessWidget {
   const _MessageContent({
     required this.content,
     required this.isSender,
+    required this.senderId,
     required this.flightPosition,
     required this.isEdited,
     required this.isHidden,
     required this.enableSelection,
-    required this.senderDisplayName,
   });
 
   final UiMimiContent content;
   final bool isSender;
+  final UiUserId senderId;
   final UiFlightPosition flightPosition;
   final bool isEdited;
   final bool isHidden;
   final bool enableSelection;
-  final String senderDisplayName;
 
   @override
   Widget build(BuildContext context) {
@@ -771,40 +765,13 @@ class _MessageContent extends StatelessWidget {
     );
     final List<Widget> columnChildren = [];
 
-    // For deleted messages, show italic text in bordered bubble
+    // For deleted messages, show a placeholder text instead of the actual
+    // content.
     if (isDeleted) {
-      final deletedText = isSender
-          ? loc.textMessage_deletedBySelf
-          : loc.textMessage_deletedByOther(senderDisplayName);
-      final borderColor = isSender
-          ? colors.message.selfBackground
-          : colors.message.otherBackground;
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 1.5),
-        child: Container(
-          alignment: isSender
-              ? AlignmentDirectional.topEnd
-              : AlignmentDirectional.topStart,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: _messageBorderRadius(isSender, flightPosition),
-              border: Border.all(color: borderColor),
-            ),
-            child: SelectionContainer.disabled(
-              child: Padding(
-                padding: _messagePadding,
-                child: Text(
-                  deletedText,
-                  style: TextStyle(
-                    fontStyle: FontStyle.italic,
-                    fontSize: BodyFontSize.base.size,
-                    color: colors.text.tertiary,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+      return _DeletedMessageContent(
+        isSender: isSender,
+        senderId: senderId,
+        flightPosition: flightPosition,
       );
     }
 
@@ -923,6 +890,65 @@ class _MessageContent extends StatelessWidget {
                   ],
                 ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DeletedMessageContent extends StatelessWidget {
+  const _DeletedMessageContent({
+    required this.isSender,
+    required this.senderId,
+    required this.flightPosition,
+  });
+
+  final bool isSender;
+  final UiUserId senderId;
+  final UiFlightPosition flightPosition;
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final colors = CustomColorScheme.of(context);
+
+    final deletedText = isSender
+        ? loc.textMessage_deletedBySelf
+        : loc.textMessage_deletedByOther(
+            context
+                .select(
+                  (UsersCubit cubit) => cubit.state.profile(userId: senderId),
+                )
+                .displayName,
+          );
+    final borderColor = isSender
+        ? colors.message.selfBackground
+        : colors.message.otherBackground;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 1.5),
+      child: Container(
+        alignment: isSender
+            ? AlignmentDirectional.topEnd
+            : AlignmentDirectional.topStart,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: _messageBorderRadius(isSender, flightPosition),
+            border: Border.all(color: borderColor),
+          ),
+          child: SelectionContainer.disabled(
+            child: Padding(
+              padding: _messagePadding,
+              child: Text(
+                deletedText,
+                style: TextStyle(
+                  fontStyle: FontStyle.italic,
+                  fontSize: BodyFontSize.base.size,
+                  color: colors.text.tertiary,
+                ),
+              ),
             ),
           ),
         ),
