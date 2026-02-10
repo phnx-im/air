@@ -169,8 +169,12 @@ bump-version:
 
 # Install fvm.
 install-fvm:
+    # If this fails, call this to get the new sha256sum:
+    #  curl -fsSL https://fvm.app/install.sh -o install-fvm.sh
+    #  sha256sum install-fvm.sh
+
     curl -fsSL https://fvm.app/install.sh -o install-fvm.sh
     printf "%s  %s\n" \
-        "3a39003bb29531f95f7d5798bbf23737180f29b8c0d886e29327f0bc8cffa8f3" \
+        "f499535ce1f7ddf7948fd055d77e33f5d1aabf738f54844f6d6bc7a037408f5b" \
         "install-fvm.sh" | sha256sum -c -
     bash install-fvm.sh 4.0.5
