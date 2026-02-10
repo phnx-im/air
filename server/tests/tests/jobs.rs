@@ -78,15 +78,11 @@ async fn pending_chat_operation_is_executed_before_chat_operation() {
     let (setup, alice, bob, charlie, chat_id) = setup_group_with_charlie_member().await;
     let alice_user = &setup.get_user(&alice).user;
 
-    setup
-        .listener_control_handle()
-        .unwrap()
-        .set_drop_next_request();
+    setup.listener_control_handle().set_drop_next_request();
     let _ = alice_user
         .remove_users(chat_id, vec![charlie.clone()])
         .await
         .expect_err("expected remove to fail due to network error");
-    setup.listener_control_handle().unwrap().set_normal();
 
     // Re-inviting Charlie should succeed only if the pending remove is executed first.
     alice_user
@@ -105,15 +101,11 @@ async fn chat_operation_fails_if_pending_operation_fails() {
     let (setup, alice, _bob, charlie, chat_id) = setup_group_with_charlie_member().await;
     let alice_user = &setup.get_user(&alice).user;
 
-    setup
-        .listener_control_handle()
-        .unwrap()
-        .set_drop_next_response();
+    setup.listener_control_handle().set_drop_next_response();
     let _ = alice_user
         .remove_users(chat_id, vec![charlie.clone()])
         .await
         .expect_err("expected remove to fail due to network error");
-    setup.listener_control_handle().unwrap().set_normal();
 
     let pending = alice_user
         .pending_chat_operation_info(chat_id)
@@ -123,15 +115,11 @@ async fn chat_operation_fails_if_pending_operation_fails() {
     assert_eq!(pending.0, "other");
     assert_eq!(pending.1, "ready_to_retry");
 
-    setup
-        .listener_control_handle()
-        .unwrap()
-        .set_drop_next_response();
+    setup.listener_control_handle().set_drop_next_response();
     let _ = alice_user
         .update_key(chat_id)
         .await
         .expect_err("expected update to fail because pending operation failed");
-    setup.listener_control_handle().unwrap().set_normal();
 
     let pending_after = alice_user
         .pending_chat_operation_info(chat_id)
@@ -151,15 +139,11 @@ async fn commit_response_merges_pending_commit() {
     let (setup, alice, _bob, charlie, chat_id) = setup_group_with_charlie_member().await;
     let alice_user = &setup.get_user(&alice).user;
 
-    setup
-        .listener_control_handle()
-        .unwrap()
-        .set_drop_next_response();
+    setup.listener_control_handle().set_drop_next_response();
     let _ = alice_user
         .remove_users(chat_id, vec![charlie.clone()])
         .await
         .expect_err("expected remove to fail due to network error");
-    setup.listener_control_handle().unwrap().set_normal();
 
     let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
     let result = alice_user.fully_process_qs_messages(qs_messages).await;
@@ -178,15 +162,11 @@ async fn wrong_epoch_marks_pending_waiting_and_commit_clears_it() {
     let alice_user = &setup.get_user(&alice).user;
     let bob_user = &setup.get_user(&bob).user;
 
-    setup
-        .listener_control_handle()
-        .unwrap()
-        .set_drop_next_request();
+    setup.listener_control_handle().set_drop_next_request();
     let _ = alice_user
         .remove_users(chat_id, vec![charlie.clone()])
         .await
         .expect_err("expected remove to fail due to network error");
-    setup.listener_control_handle().unwrap().set_normal();
 
     // Bob commits first so Alice's pending commit is out of date.
     bob_user.update_key(chat_id).await.unwrap();
@@ -235,15 +215,11 @@ async fn network_errors_eventually_delete_pending_operation() {
     let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
     let alice_user = &setup.get_user(&alice).user;
 
-    setup
-        .listener_control_handle()
-        .unwrap()
-        .set_drop_next_response();
+    setup.listener_control_handle().set_drop_next_response();
     let _ = alice_user
         .update_key(chat_id)
         .await
         .expect_err("expected update to fail due to network error");
-    setup.listener_control_handle().unwrap().set_normal();
 
     let mut pending = alice_user
         .pending_chat_operation_info(chat_id)
@@ -253,15 +229,11 @@ async fn network_errors_eventually_delete_pending_operation() {
     assert_eq!(pending.0, "other");
 
     while pending.2 < 5 {
-        setup
-            .listener_control_handle()
-            .unwrap()
-            .set_drop_next_response();
+        setup.listener_control_handle().set_drop_next_response();
         let _ = alice_user
             .update_key(chat_id)
             .await
             .expect_err("expected retry to fail due to network error");
-        setup.listener_control_handle().unwrap().set_normal();
 
         match alice_user
             .pending_chat_operation_info(chat_id)

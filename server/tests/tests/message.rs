@@ -354,7 +354,7 @@ async fn message_sending_failures() {
     let content = MimiContent::simple_markdown_message("Hello".to_string(), [0; 16]);
 
     // Make server drop messages
-    setup.listener_control_handle().unwrap().set_drop_all();
+    setup.listener_control_handle().set_drop_all();
 
     // Send three messages
     for _ in 0..3 {

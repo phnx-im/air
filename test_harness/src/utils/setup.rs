@@ -211,8 +211,8 @@ impl TestBackend {
         }
     }
 
-    pub fn listener_control_handle(&self) -> Option<&ControlHandle> {
-        self.listener_control_handle.as_ref()
+    pub fn listener_control_handle(&self) -> &ControlHandle {
+        self.listener_control_handle.as_ref().unwrap()
     }
 
     pub fn server_url(&self) -> Url {
