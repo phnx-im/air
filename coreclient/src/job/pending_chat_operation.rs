@@ -137,7 +137,27 @@ impl PendingChatOperation {
 
         let api_client = api_clients.get(qgid.owning_domain())?;
 
+        // If this is a leave operation that has been tried before, we have to
+        // check whether the group is still at the same epoch. If not, we have
+        // to re-create the proposal.
+        if let OperationType::Leave(leave_params) = &mut self.operation
+            // This is always Some, because we know the MlsMessage is a
+            // PublicMessage
+            && let Some(message_epoch) = leave_params.remove_proposal.epoch()
+            && message_epoch != self.group.mls_group().epoch()
+            && self.number_of_attempts > 0
+        {
+            *leave_params = pool
+                .with_transaction(async |connection| {
+                    self.group.stage_leave_group(connection, signer)
+                })
+                .await?;
+        }
+
+        #[cfg(not(any(test, feature = "test_utils")))]
         let retry_due = *now + Duration::seconds(5);
+        #[cfg(any(test, feature = "test_utils"))]
+        let retry_due = *now + Duration::seconds(1);
         pool.with_connection(async |connection| {
             self.update_retry_due_at(connection, retry_due).await
         })
@@ -525,13 +545,27 @@ mod persistence {
         pub actual: String,
     }
 
+    const READY_TO_RETRY: &str = "ready_to_retry";
+    const WAITING_FOR_QUEUE_RESPONSE: &str = "waiting_for_queue_response";
+
+    impl std::fmt::Display for PendingChatOperationStatus {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                PendingChatOperationStatus::ReadyToRetry => write!(f, "{}", READY_TO_RETRY),
+                PendingChatOperationStatus::WaitingForQueueResponse => {
+                    write!(f, "{}", WAITING_FOR_QUEUE_RESPONSE)
+                }
+            }
+        }
+    }
+
     impl FromStr for PendingChatOperationStatus {
         type Err = PendingChatOperationStatusError;
 
         fn from_str(s: &str) -> Result<Self, Self::Err> {
             match s {
-                "ready_to_retry" => Ok(PendingChatOperationStatus::ReadyToRetry),
-                "waiting_for_queue_response" => {
+                READY_TO_RETRY => Ok(PendingChatOperationStatus::ReadyToRetry),
+                WAITING_FOR_QUEUE_RESPONSE => {
                     Ok(PendingChatOperationStatus::WaitingForQueueResponse)
                 }
                 s => Err(PendingChatOperationStatusError {
@@ -587,7 +621,7 @@ mod persistence {
             operation_string,
             operation_data,
             self.retry_due_at,
-            "ready_to_retry"
+            READY_TO_RETRY,
         )
         .execute(connection)
         .await?;
@@ -623,7 +657,7 @@ mod persistence {
             let group_id = self.group.group_id().as_slice();
             query!(
                 "UPDATE pending_chat_operation SET request_status = ? WHERE group_id = ?",
-                "waiting_for_queue_response",
+                WAITING_FOR_QUEUE_RESPONSE,
                 group_id
             )
             .execute(connection)
@@ -713,8 +747,8 @@ mod persistence {
                       SELECT group_id
                       FROM pending_chat_operation
                       WHERE (locked_by IS NULL OR locked_by != ?1)
-                      AND request_status = "ready_to_retry"
-                      AND retry_due_at <= ?2
+                      AND request_status = ?2
+                      AND retry_due_at <= ?3
                       LIMIT 1
                     )
                 RETURNING
@@ -725,6 +759,7 @@ mod persistence {
                     number_of_attempts
                 "#,
                 task_id,
+                READY_TO_RETRY,
                 now
             )
             .fetch_optional(&mut *connection)
@@ -754,6 +789,35 @@ mod persistence {
             .execute(connection)
             .await?;
             Ok(())
+        }
+    }
+}
+
+#[cfg(any(test, feature = "test_utils"))]
+pub mod test_utils {
+
+    use super::*;
+
+    pub struct PendingChatOperationInfo {
+        pub operation_type: String,
+        pub request_status: String,
+        pub number_of_attempts: u32,
+    }
+
+    impl PendingChatOperationInfo {
+        pub async fn load(
+            connection: &mut SqliteConnection,
+            chat_id: &ChatId,
+        ) -> anyhow::Result<Option<Self>> {
+            let pco = PendingChatOperation::load(connection, chat_id)
+                .await?
+                .map(|pco| PendingChatOperationInfo {
+                    operation_type: pco.operation.to_string(),
+                    request_status: pco.status.to_string(),
+                    number_of_attempts: pco.number_of_attempts,
+                });
+
+            Ok(pco)
         }
     }
 }

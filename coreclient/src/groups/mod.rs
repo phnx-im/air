@@ -806,7 +806,7 @@ impl Group {
         &mut self,
         txn: &mut SqliteTransaction<'_>,
     ) -> Result<()> {
-        GroupMembership::delete_staged_changes(txn.as_mut(), self.group_id()).await?;
+        GroupMembership::delete_staged_changes(txn, self.group_id()).await?;
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         self.pending_diff = None;
         self.mls_group.clear_pending_commit(provider.storage())?;

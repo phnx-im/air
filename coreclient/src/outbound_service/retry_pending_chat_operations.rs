@@ -22,12 +22,11 @@ impl OutboundServiceContext {
                 return Ok(()); // the task is being stopped
             }
 
-            let mut connection = self.pool.acquire().await?;
-
             let now = chrono::Utc::now();
 
             let Some(pending_chat_operation) =
-                PendingChatOperation::dequeue(&mut connection, task_id, now).await?
+                PendingChatOperation::dequeue(self.pool.acquire().await?.as_mut(), task_id, now)
+                    .await?
             else {
                 return Ok(());
             };

@@ -110,6 +110,9 @@ pub(crate) enum GroupOperationError {
     /// Invalid assisted message.
     #[error("Invalid assisted message")]
     InvalidMessage,
+    /// Commit message epoch differs from the group's epoch.
+    #[error("Commit message epoch differs from the group's epoch")]
+    WrongEpoch,
     /// Error processing message.
     #[error("Error processing message")]
     ProcessingError,
@@ -121,6 +124,27 @@ pub(crate) enum GroupOperationError {
     IncompleteWelcome,
     #[error("Error merging commit")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
+}
+
+impl From<ProcessAssistedMessageError> for GroupOperationError {
+    fn from(error: ProcessAssistedMessageError) -> Self {
+        match error {
+            ProcessAssistedMessageError::InvalidAssistedMessage
+            | ProcessAssistedMessageError::InvalidGroupInfoSignature
+            | ProcessAssistedMessageError::InvalidGroupInfoMessage
+            | ProcessAssistedMessageError::UnknownSender
+            | ProcessAssistedMessageError::InconsistentGroupContext => Self::InvalidMessage,
+            ProcessAssistedMessageError::LibraryError(_) => Self::ProcessingError,
+            ProcessAssistedMessageError::ProcessMessageError(error) => match error {
+                PublicProcessMessageError::ValidationError(error) => match error {
+                    ValidationError::LibraryError(_) => Self::ProcessingError,
+                    ValidationError::WrongEpoch => Self::WrongEpoch,
+                    _ => Self::InvalidMessage,
+                },
+                _ => Self::ProcessingError,
+            },
+        }
+    }
 }
 
 impl From<GroupOperationError> for Status {
@@ -137,6 +161,7 @@ impl From<GroupOperationError> for Status {
                 error!(%merge_commit_error, "failed merging commit");
                 Status::internal(msg)
             }
+            GroupOperationError::WrongEpoch => wrong_epoch_status(msg),
         }
     }
 }
@@ -235,22 +260,26 @@ impl From<ProcessAssistedMessageError> for ClientSelfRemovalError {
     }
 }
 
+fn wrong_epoch_status(msg: String) -> Status {
+    Status::with_details(
+        Code::InvalidArgument,
+        msg,
+        StatusDetails {
+            code: StatusDetailsCode::WrongEpoch.into(),
+            detail: Some(Detail::WrongEpoch(WrongEpochDetail {})),
+        }
+        .encode_to_vec()
+        .into(),
+    )
+}
+
 impl From<ClientSelfRemovalError> for Status {
     fn from(e: ClientSelfRemovalError) -> Self {
         let msg = e.to_string();
         match e {
             ClientSelfRemovalError::InvalidMessage => Status::invalid_argument(msg),
             ClientSelfRemovalError::ProcessingError => Status::internal(msg),
-            ClientSelfRemovalError::WrongEpoch => Status::with_details(
-                Code::InvalidArgument,
-                msg,
-                StatusDetails {
-                    code: StatusDetailsCode::WrongEpoch.into(),
-                    detail: Some(Detail::WrongEpoch(WrongEpochDetail {})),
-                }
-                .encode_to_vec()
-                .into(),
-            ),
+            ClientSelfRemovalError::WrongEpoch => wrong_epoch_status(msg),
             ClientSelfRemovalError::MergeCommitError(merge_commit_error) => {
                 error!(%merge_commit_error, "failed merging commit");
                 Status::internal(msg)

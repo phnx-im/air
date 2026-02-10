@@ -26,7 +26,8 @@ pub enum Mode {
     Normal = 0,
     DropAll = 1,
     DropNextResponse = 2,
-    DropConnectionOnWrite = 3,
+    DropNextRequest = 3,
+    DropConnectionOnWrite = 4,
 }
 
 impl Mode {
@@ -34,7 +35,8 @@ impl Mode {
         match v {
             1 => Mode::DropAll,
             2 => Mode::DropNextResponse,
-            3 => Mode::DropConnectionOnWrite,
+            3 => Mode::DropNextRequest,
+            4 => Mode::DropConnectionOnWrite,
             _ => Mode::Normal,
         }
     }
@@ -69,6 +71,11 @@ impl ControlHandle {
     pub fn set_drop_next_response(&self) {
         self.mode
             .store(Mode::DropNextResponse as u8, Ordering::Relaxed);
+    }
+
+    pub fn set_drop_next_request(&self) {
+        self.mode
+            .store(Mode::DropNextRequest as u8, Ordering::Relaxed);
     }
 
     pub(super) fn set_drop_connection_on_write(&self) {

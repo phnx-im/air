@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use openmls::group::GroupEpoch;
 use openmls::prelude::tls_codec::{self, TlsDeserialize, TlsSerialize, TlsSize};
 use openmls::{
     framing::{ContentType, MlsMessageBodyOut},
@@ -63,6 +64,16 @@ impl AssistedMessageOut {
         Self {
             mls_message,
             assisted_group_info_option,
+        }
+    }
+
+    /// Get the epoch of the MLS message, if it is a PublicMessage or
+    /// PrivateMessage.
+    pub fn epoch(&self) -> Option<GroupEpoch> {
+        match self.mls_message.body() {
+            MlsMessageBodyOut::PublicMessage(pm) => Some(pm.epoch()),
+            MlsMessageBodyOut::PrivateMessage(pm) => Some(pm.epoch()),
+            _ => None,
         }
     }
 }

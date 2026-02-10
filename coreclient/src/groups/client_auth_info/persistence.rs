@@ -8,7 +8,9 @@ use aircommon::{
 };
 use anyhow::anyhow;
 use openmls::{group::GroupId, prelude::LeafNodeIndex};
-use sqlx::{Row, SqliteConnection, SqliteExecutor, query, query_as, query_scalar};
+use sqlx::{
+    Row, SqliteConnection, SqliteExecutor, SqliteTransaction, query, query_as, query_scalar,
+};
 use tokio_stream::StreamExt;
 use uuid::Uuid;
 
@@ -264,17 +266,30 @@ impl GroupMembership {
     }
 
     pub(crate) async fn delete_staged_changes(
-        executor: impl SqliteExecutor<'_>,
+        txn: &mut SqliteTransaction<'_>,
         group_id: &GroupId,
     ) -> sqlx::Result<()> {
         let group_id = GroupIdRefWrapper::from(group_id);
+
+        // Delete all staged adds and updates
         query!(
             r#"DELETE FROM group_membership
-            WHERE group_id = ? AND NOT status = 'merged'"#,
+            WHERE group_id = ? AND (status = 'staged_update' OR status = 'staged_add')"#,
             group_id,
         )
-        .execute(executor)
+        .execute(txn.as_mut())
         .await?;
+
+        // Delete revert all staged removals (i.e. set them back to merged)
+        query!(
+            r#"UPDATE group_membership
+            SET status = 'merged'
+            WHERE group_id = ? AND status = 'staged_removal'"#,
+            group_id,
+        )
+        .execute(txn.as_mut())
+        .await?;
+
         Ok(())
     }
 

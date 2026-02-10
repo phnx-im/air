@@ -22,6 +22,7 @@ use airserver::{
     enqueue_provider::SimpleEnqueueProvider, network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
 };
+use tonic::Status;
 use uuid::Uuid;
 
 use crate::{
@@ -72,8 +73,13 @@ pub(crate) async fn spawn_app(
     let interceptor_control_handle = control_handle.clone();
 
     let interceptor = move |request| {
-        if interceptor_control_handle.mode() == Mode::DropNextResponse {
-            interceptor_control_handle.set_drop_connection_on_write();
+        match interceptor_control_handle.mode() {
+            Mode::DropNextResponse => interceptor_control_handle.set_drop_connection_on_write(),
+            Mode::DropNextRequest => {
+                interceptor_control_handle.set_normal();
+                return Err(Status::cancelled("cancelled for interop test"));
+            }
+            _ => {}
         }
         Ok(request)
     };
