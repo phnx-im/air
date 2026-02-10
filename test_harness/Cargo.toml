@@ -13,7 +13,7 @@ license = "AGPL-3.0-or-later"
 airbackend = { workspace = true, features = ["test_utils"] }
 aircommon.workspace = true
 aircoreclient = { workspace = true, features = ["test_utils"] }
-airserver.workspace = true
+airserver = { workspace = true, features = ["test_utils"] }
 anyhow.workspace = true
 mimi_content.workspace = true
 png.workspace = true

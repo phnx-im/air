@@ -80,6 +80,11 @@ private let kProtectedBlockedCategory = "protected-blocked"
     withCompletionHandler completionHandler: @escaping () -> Void
   ) {
     NSLog("User opened notification")
+    // Dismiss any presented view controller (e.g. native image picker) so it
+    // doesn't stay on top of the chat we're about to navigate to.
+    if let presented = window?.rootViewController?.presentedViewController {
+      presented.dismiss(animated: false)
+    }
     if let handle = NotificationHandle.init(notification: response.notification) {
       notifyFlutter(method: "openedNotification", arguments: handle.toDict())
     }
