@@ -90,7 +90,7 @@ async fn pending_chat_operation_is_executed_before_chat_operation() {
 
     // Re-inviting Charlie should succeed only if the pending remove is executed first.
     alice_user
-        .invite_users(chat_id, &[charlie.clone()])
+        .invite_users(chat_id, std::slice::from_ref(&charlie))
         .await
         .expect("invite should succeed after pending remove is executed");
 

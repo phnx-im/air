@@ -442,6 +442,8 @@ mod tests {
     use tls_codec::Serialize;
     use uuid::Uuid;
 
+    use crate::utils::connection_ext::ConnectionExt;
+
     use super::*;
 
     const TEST_GROUP_ID: [u8; 32] = [0u8; 32];
@@ -647,7 +649,7 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn group_membership_delete_staged_changes(pool: SqlitePool) -> anyhow::Result<()> {
+    async fn group_membership_delete_staged_changes(mut pool: SqlitePool) -> anyhow::Result<()> {
         store_dummy_group(&pool).await?;
 
         // Persist a merged membership.
@@ -678,7 +680,11 @@ mod tests {
         assert_eq!(staged_add, staged_membership);
 
         // Delete staged rows and keep merged ones.
-        GroupMembership::delete_staged_changes(&pool, &merged_membership.group_id).await?;
+        pool.with_transaction(async |txn| {
+            GroupMembership::delete_staged_changes(txn, &merged_membership.group_id).await?;
+            Ok(())
+        })
+        .await?;
 
         // The merged membership remains.
         let merged_loaded = GroupMembership::load(&pool, &merged_membership.group_id, merged_index)
