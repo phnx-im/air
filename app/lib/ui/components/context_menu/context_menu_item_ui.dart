@@ -37,6 +37,7 @@ class ContextMenuItem extends ContextMenuEntry {
     this.leading,
     this.trailingIcon,
     this.reserveLeadingSpace = false,
+    this.isDestructive = false,
   });
 
   final VoidCallback onPressed;
@@ -46,6 +47,7 @@ class ContextMenuItem extends ContextMenuEntry {
   final IconData? trailingIcon;
   // Reserve a fixed leading column so labels line up across items.
   final bool reserveLeadingSpace;
+  final bool isDestructive;
 
   static const double defaultLeadingWidth = 16.0;
 
@@ -66,11 +68,15 @@ class ContextMenuItem extends ContextMenuEntry {
   @override
   Widget build(BuildContext context) {
     final leadingWidget = buildLeading(context);
+    final colors = CustomColorScheme.of(context);
+    final foregroundColor = isDestructive
+        ? colors.function.danger
+        : colors.text.primary;
     return TextButton(
       onPressed: onPressed,
       style: TextButton.styleFrom(
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        foregroundColor: CustomColorScheme.of(context).text.primary,
+        foregroundColor: foregroundColor,
         padding: const EdgeInsets.symmetric(vertical: Spacings.xxxs),
         alignment: Alignment.centerLeft,
         splashFactory: !Platform.isAndroid ? NoSplash.splashFactory : null,
@@ -108,6 +114,7 @@ class ContextMenuItem extends ContextMenuEntry {
   ContextMenuItem copyWith({
     VoidCallback? onPressed,
     bool? reserveLeadingSpace,
+    bool? isDestructive,
   }) {
     return ContextMenuItem(
       key: key,
@@ -117,6 +124,7 @@ class ContextMenuItem extends ContextMenuEntry {
       leading: leading,
       trailingIcon: trailingIcon,
       reserveLeadingSpace: reserveLeadingSpace ?? this.reserveLeadingSpace,
+      isDestructive: isDestructive ?? this.isDestructive,
     );
   }
 }

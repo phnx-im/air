@@ -55,7 +55,10 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
   Future<void> sendMessage(String messageText) =>
       _impl.sendMessage(messageText: messageText);
 
-  Future<void> deleteMessage() => _impl.deleteMessage();
+  Future<void> deleteMessage({
+    required MessageId messageId,
+    required DeleteMode deleteMode,
+  }) => _impl.deleteMessage(messageId: messageId, deleteMode: deleteMode);
 
   Future<UploadAttachmentError?> uploadAttachment(String path) =>
       _impl.uploadAttachment(path: path);
