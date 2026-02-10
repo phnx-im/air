@@ -139,13 +139,11 @@ impl Group {
                 if let Some(pending_chat_operation) =
                     PendingChatOperation::load_by_group_id(txn, &group_id).await?
                 {
-                    let commit_contains_our_self_remove = staged_commit
-                        .queued_proposals()
-                        .find(|p| {
+                    let commit_contains_our_self_remove =
+                        staged_commit.queued_proposals().any(|p| {
                             matches!(p.proposal(), Proposal::SelfRemove)
                                 && sender_index == self.mls_group().own_leaf_index()
-                        })
-                        .is_some();
+                        });
                     if !pending_chat_operation.is_leave() || commit_contains_our_self_remove {
                         PendingChatOperation::delete(txn, &group_id).await?;
                     }

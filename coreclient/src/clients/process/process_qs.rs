@@ -48,6 +48,7 @@ use crate::{
     },
     contacts::{PartialContact, PartialContactType},
     groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
+    job::pending_chat_operation::PendingChatOperation,
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
     store::{Store, StoreNotifier},
@@ -202,6 +203,10 @@ impl CoreUser {
                 .await?;
             }
             CoreUser::store_new_messages(txn, notifier, chat.id(), group_messages).await?;
+
+            // Delete the pending chat operation
+            PendingChatOperation::delete(txn, &group_id).await?;
+
             Ok(())
         })
         .await?;

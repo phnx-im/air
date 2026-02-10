@@ -165,11 +165,19 @@ impl PendingChatOperation {
         let ds_timestamp = match res {
             Ok(ds_timestamp) => ds_timestamp,
             Err(error) => {
-                self.handle_error(pool, is_leave, error).await?;
+                if !is_leave {
+                    let job_error = self.handle_error(pool, error).await?;
+                    return Err(job_error);
+                }
 
-                // The only case where we reach here is for leave operations
-                // with a "wrong epoch" error, in which case we want to continue
-                // processing as if the operation were successful.
+                // The leave action is special in that we want to consider
+                // it successful regardless of any DS errors and
+                // post-process anyway. If the DS returned an error, we'll
+                // try again later, but that's just for the benefit of the
+                // server and the other chat members.
+                tracing::info!(
+                    group_id = ?self.group.group_id(), "Leave operation failed due to DS error, proceeding with local post-processing"
+                );
                 ds_has_confirmed_leave = false;
                 TimeStamp::now()
             }
@@ -262,20 +270,9 @@ impl PendingChatOperation {
     async fn handle_error(
         &mut self,
         pool: &mut SqlitePool,
-        is_leave: bool,
         error: DsRequestError,
-    ) -> Result<(), JobError> {
-        if error.is_wrong_epoch() && is_leave {
-            // The leave action is special in that we want to consider
-            // it successful regardless of any DS errors and
-            // post-process anyway. If the DS returned an error, we'll
-            // try again later, but that's just for the benefit of the
-            // server and the other chat members.
-            tracing::info!(
-                group_id = ?self.group.group_id(), "Leave operation failed due to WrongEpochError, proceeding with local post-processing"
-            );
-            Ok(())
-        } else if error.is_wrong_epoch() {
+    ) -> Result<JobError, JobError> {
+        if error.is_wrong_epoch() {
             // If we get a WrongEpochError, we know the commit was
             // either accepted on a previous try, or the DS rejected
             // it because another one got there first.
@@ -301,15 +298,15 @@ impl PendingChatOperation {
                     Ok(())
                 })
                 .await?;
-                return Err(JobError::FatalError(anyhow!(
+                Ok(JobError::FatalError(anyhow!(
                     "Job failed after {} attempts due to network errors",
                     MAX_RETRIES
-                )));
+                )))
+            } else {
+                // If we haven't reached the max number of retries leave the job
+                // as-is, so it can be retried later.
+                Ok(JobError::NetworkError)
             }
-
-            // If we haven't reached the max number of retries leave the job
-            // as-is, so it can be retried later.
-            Err(JobError::NetworkError)
         } else {
             // For other errors, we consider the operation failed and delete the
             // job.
@@ -319,7 +316,7 @@ impl PendingChatOperation {
                 Ok(())
             })
             .await?;
-            Err(JobError::FatalError(anyhow!(
+            Ok(JobError::FatalError(anyhow!(
                 "Job failed due to an unexpected error: {:?}",
                 error
             )))
