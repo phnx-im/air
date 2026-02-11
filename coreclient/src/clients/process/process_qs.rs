@@ -40,6 +40,7 @@ use crate::{
     chats::{StatusRecord, messages::edit::MessageEdit},
     clients::{
         QsListenResponder,
+        attachment::AttachmentRecord,
         block_contact::{BlockedContact, BlockedContactError},
         process::process_as::{ConnectionInfoSource, TargetedMessageSource},
         targeted_message::TargetedMessageContent,
@@ -647,7 +648,12 @@ impl CoreUser {
             )
             .await
             .inspect_err(|error| {
-                error!(%error, "Failed to handle message edit; skipping");
+                // We don't have the message to edit in our database, so we
+                // can't apply the edit. This can happen if the original message
+                // was deleted or if the original message was sent before we
+                // joined the group and we don't have the original message in
+                // our database. In this case, we just skip the edit.
+                warn!(%error, "Cannot edit message because original message is missing; skipping");
             })
             .ok();
             if message.is_some() {
@@ -1060,7 +1066,12 @@ async fn handle_message_edit(
         "Only edits and deletes from original users are allowed for now"
     );
 
-    if !is_delete {
+    if is_delete {
+        // Delete edit history when message is deleted
+        MessageEdit::delete_by_message_id(txn.as_mut(), message.id()).await?;
+        // Delete attachments for this message
+        AttachmentRecord::delete_by_message_id(txn.as_mut(), notifier, message.id()).await?;
+    } else {
         // Store message edit
         MessageEdit::new(
             original_mimi_id,
