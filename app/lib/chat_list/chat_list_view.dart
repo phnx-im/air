@@ -23,7 +23,10 @@ class ChatListContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final userId = context.select((UserCubit cubit) => cubit.state.userId);
     return BlocProvider(
+      // Rebuild the cubit when user changes
+      key: ValueKey(userId),
       create: (context) => ChatListCubit(userCubit: context.read<UserCubit>()),
       child: ChatListView(scaffold: isStandalone),
     );

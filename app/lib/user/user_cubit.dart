@@ -14,13 +14,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 // See <https://github.com/phnx-im/air/issues/248>
 class UserCubit implements StateStreamableSource<UiUser> {
   UserCubit({
-    required CoreClient coreClient,
+    required User user,
     required NavigationCubit navigationCubit,
     required Stream<AppState> appStateStream,
-  }) : _impl = UserCubitBase(
-         user: coreClient.user,
-         navigation: navigationCubit.base,
-       ) {
+  }) : _impl = UserCubitBase(user: user, navigation: navigationCubit.base) {
     _appStateSubscription = appStateStream.listen((appState) {
       _appState = appState;
       _impl.setAppState(appState: appState);
