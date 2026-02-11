@@ -205,7 +205,7 @@ impl CoreUser {
             CoreUser::store_new_messages(txn, notifier, chat.id(), group_messages).await?;
 
             // Delete the pending chat operation
-            PendingChatOperation::delete(txn, &group_id).await?;
+            PendingChatOperation::delete(txn.as_mut(), &group_id).await?;
 
             Ok(())
         })

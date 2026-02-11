@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::{
     job::pending_chat_operation::PendingChatOperation, outbound_service::OutboundServiceContext,
+    utils::connection_ext::ConnectionExt,
 };
 
 impl OutboundServiceContext {
@@ -24,10 +25,13 @@ impl OutboundServiceContext {
 
             let now = chrono::Utc::now();
 
-            let Some(pending_chat_operation) =
-                PendingChatOperation::dequeue(self.pool.acquire().await?.as_mut(), task_id, now)
-                    .await?
-            else {
+            let mut pool = self.pool.clone();
+            let pending_chat_operation = pool
+                .with_transaction(async |txn| {
+                    PendingChatOperation::dequeue(txn, task_id, now).await
+                })
+                .await?;
+            let Some(pending_chat_operation) = pending_chat_operation else {
                 return Ok(());
             };
 

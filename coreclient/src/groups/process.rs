@@ -145,7 +145,7 @@ impl Group {
                                 && sender_index == self.mls_group().own_leaf_index()
                         });
                     if !pending_chat_operation.is_leave() || commit_contains_our_self_remove {
-                        PendingChatOperation::delete(txn, &group_id).await?;
+                        PendingChatOperation::delete(txn.as_mut(), &group_id).await?;
                     }
                 }
 

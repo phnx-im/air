@@ -277,7 +277,7 @@ impl PendingChatOperation {
                 // Unless this is a leave operation that hasn't been confirmed
                 // by the DS, we can delete the pending operation now.
                 if !is_leave || ds_has_confirmed_leave {
-                    Self::delete(txn, self.group.group_id()).await?;
+                    Self::delete(txn.as_mut(), self.group.group_id()).await?;
                 }
 
                 Ok(messages)
@@ -314,7 +314,7 @@ impl PendingChatOperation {
             if self.number_of_attempts >= MAX_RETRIES {
                 pool.with_transaction(async |txn| {
                     self.group.discard_pending_commit(txn).await?;
-                    Self::delete(txn, self.group.group_id()).await?;
+                    Self::delete(txn.as_mut(), self.group.group_id()).await?;
                     Ok(())
                 })
                 .await?;
@@ -332,7 +332,7 @@ impl PendingChatOperation {
             // job.
             pool.with_transaction(async |txn| {
                 self.group.discard_pending_commit(txn).await?;
-                Self::delete(txn, self.group.group_id()).await?;
+                Self::delete(txn.as_mut(), self.group.group_id()).await?;
                 Ok(())
             })
             .await?;
@@ -531,8 +531,7 @@ impl PendingChatOperation {
 }
 
 mod persistence {
-    use std::str::FromStr;
-
+    use aircommon::codec::{BlobDecoded, BlobEncoded};
     use sqlx::SqliteExecutor;
     use thiserror::Error;
     use uuid::Uuid;
@@ -548,6 +547,16 @@ mod persistence {
     const READY_TO_RETRY: &str = "ready_to_retry";
     const WAITING_FOR_QUEUE_RESPONSE: &str = "waiting_for_queue_response";
 
+    impl sqlx::Encode<'_, sqlx::Sqlite> for OperationType {
+        fn encode_by_ref(
+            &self,
+            buf: &mut <sqlx::Sqlite as sqlx::Database>::ArgumentBuffer<'_>,
+        ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
+            let s = self.to_string();
+            <String as sqlx::Encode<sqlx::Sqlite>>::encode_by_ref(&s, buf)
+        }
+    }
+
     impl std::fmt::Display for PendingChatOperationStatus {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
@@ -559,27 +568,47 @@ mod persistence {
         }
     }
 
-    impl FromStr for PendingChatOperationStatus {
-        type Err = PendingChatOperationStatusError;
+    impl sqlx::Type<sqlx::Sqlite> for PendingChatOperationStatus {
+        fn type_info() -> sqlx::sqlite::SqliteTypeInfo {
+            <String as sqlx::Type<sqlx::Sqlite>>::type_info()
+        }
+    }
 
-        fn from_str(s: &str) -> Result<Self, Self::Err> {
-            match s {
+    impl sqlx::Decode<'_, sqlx::Sqlite> for PendingChatOperationStatus {
+        fn decode(
+            value: <sqlx::Sqlite as sqlx::Database>::ValueRef<'_>,
+        ) -> Result<Self, sqlx::error::BoxDynError> {
+            let s = <String as sqlx::Decode<sqlx::Sqlite>>::decode(value)?;
+            match s.as_str() {
                 READY_TO_RETRY => Ok(PendingChatOperationStatus::ReadyToRetry),
                 WAITING_FOR_QUEUE_RESPONSE => {
                     Ok(PendingChatOperationStatus::WaitingForQueueResponse)
                 }
-                s => Err(PendingChatOperationStatusError {
-                    actual: s.to_string(),
-                }),
+                s => {
+                    let e = PendingChatOperationStatusError {
+                        actual: s.to_string(),
+                    };
+                    Err(Box::new(e) as _)
+                }
             }
+        }
+    }
+
+    impl sqlx::Encode<'_, sqlx::Sqlite> for PendingChatOperationStatus {
+        fn encode_by_ref(
+            &self,
+            buf: &mut <sqlx::Sqlite as sqlx::Database>::ArgumentBuffer<'_>,
+        ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
+            let s = self.to_string();
+            <String as sqlx::Encode<sqlx::Sqlite>>::encode_by_ref(&s, buf)
         }
     }
 
     struct SqlPendingChatOperation {
         group_id: Vec<u8>,
-        operation_data: Vec<u8>,
+        operation_data: BlobDecoded<OperationType>,
         retry_due_at: Option<DateTime<Utc>>,
-        request_status: String,
+        request_status: PendingChatOperationStatus,
         number_of_attempts: i64,
     }
 
@@ -594,16 +623,11 @@ mod persistence {
                 // This shouldn't happen, as the pending operation references an
                 // existing group inside the database.
                 .ok_or(sqlx::Error::RowNotFound)?;
-            let operation: OperationType = PersistenceCodec::from_slice(&self.operation_data)
-                .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
-            let status = PendingChatOperationStatus::from_str(&self.request_status)
-                .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
-
             Ok(PendingChatOperation {
                 group,
-                operation,
+                operation: self.operation_data.0,
                 retry_due_at: self.retry_due_at,
-                status,
+                status: self.request_status,
                 number_of_attempts: self.number_of_attempts as u32,
             })
         }
@@ -611,20 +635,22 @@ mod persistence {
 
     impl PendingChatOperation {
         pub(super) async fn store(&self, connection: &mut SqliteConnection) -> sqlx::Result<()> {
-            let operation_data = PersistenceCodec::to_vec(&self.operation)
-                .map_err(|e| sqlx::Error::Encode(Box::new(e)))?;
+            let operation_data = BlobEncoded(&self.operation);
             let group_id = self.group.group_id().as_slice();
             let operation_string = self.operation.to_string();
             // Store the pending operation in the database.
-            query!("INSERT INTO pending_chat_operation (group_id, operation_type, operation_data, retry_due_at, request_status) VALUES (?, ?, ?, ?, ?)",
-            group_id,
-            operation_string,
-            operation_data,
-            self.retry_due_at,
-            READY_TO_RETRY,
-        )
-        .execute(connection)
-        .await?;
+            query!(
+                "INSERT INTO pending_chat_operation
+                (group_id, operation_type, operation_data, retry_due_at, request_status)
+                VALUES (?, ?, ?, ?, ?)",
+                group_id,
+                operation_string,
+                operation_data as _,
+                self.retry_due_at,
+                PendingChatOperationStatus::ReadyToRetry as _
+            )
+            .execute(connection)
+            .await?;
 
             Ok(())
         }
@@ -635,32 +661,36 @@ mod persistence {
             retry_due: DateTime<Utc>,
         ) -> sqlx::Result<()> {
             let group_id = self.group.group_id().as_slice();
+            self.number_of_attempts += 1;
+            let number_of_attempts_i64 = self.number_of_attempts as i64;
             // Update the retry due timestamp in the database and increase number_of_attempts.
             query!(
-                "UPDATE pending_chat_operation SET retry_due_at = ?, number_of_attempts = number_of_attempts + 1 WHERE group_id = ?",
+                "UPDATE pending_chat_operation
+                SET retry_due_at = ?, number_of_attempts = ?
+                WHERE group_id = ?",
                 retry_due,
+                number_of_attempts_i64,
                 group_id
             )
             .execute(connection)
             .await?;
 
             self.retry_due_at = Some(retry_due);
-            self.number_of_attempts += 1;
 
             Ok(())
         }
 
         pub(super) async fn mark_as_waiting_for_queue_response(
             &self,
-            connection: &mut SqliteConnection,
+            executor: impl SqliteExecutor<'_>,
         ) -> sqlx::Result<()> {
             let group_id = self.group.group_id().as_slice();
             query!(
                 "UPDATE pending_chat_operation SET request_status = ? WHERE group_id = ?",
-                WAITING_FOR_QUEUE_RESPONSE,
+                PendingChatOperationStatus::WaitingForQueueResponse as _,
                 group_id
             )
-            .execute(connection)
+            .execute(executor)
             .await?;
 
             Ok(())
@@ -673,9 +703,14 @@ mod persistence {
             let group_id = group_id.as_slice();
             let sql_pending_operation = query_as!(
                 SqlPendingChatOperation,
-                r#"SELECT group_id, operation_data, retry_due_at AS "retry_due_at: _", request_status, number_of_attempts
-            FROM pending_chat_operation
-            WHERE group_id = ?"#,
+                r#"SELECT
+                    group_id,
+                    operation_data AS "operation_data: _",
+                    retry_due_at AS "retry_due_at: _",
+                    request_status AS "request_status: _",
+                    number_of_attempts
+                FROM pending_chat_operation
+                WHERE group_id = ?"#,
                 group_id
             )
             .fetch_optional(&mut *connection)
@@ -698,10 +733,15 @@ mod persistence {
             // Get the group id from the chat table and then load the pending operation.
             let sql_pending_operation = query_as!(
                 SqlPendingChatOperation,
-                r#"SELECT pco.group_id, pco.operation_data, pco.retry_due_at AS "retry_due_at: _", pco.request_status, pco.number_of_attempts
-            FROM pending_chat_operation pco
-            JOIN chat c ON pco.group_id = c.group_id
-            WHERE c.chat_id = ?"#,
+                r#"SELECT
+                    pco.group_id,
+                    pco.operation_data AS "operation_data: _",
+                    pco.retry_due_at AS "retry_due_at: _",
+                    pco.request_status AS "request_status: _",
+                    pco.number_of_attempts
+                FROM pending_chat_operation pco
+                JOIN chat c ON pco.group_id = c.group_id
+                WHERE c.chat_id = ?"#,
                 chat_id
             )
             .fetch_optional(&mut *connection)
@@ -735,7 +775,7 @@ mod persistence {
 
         /// Dequeue a PendingChatOperation for retry by the OutboundService.
         pub(crate) async fn dequeue(
-            connection: &mut SqliteConnection,
+            txn: &mut SqliteTransaction<'_>,
             task_id: Uuid,
             now: DateTime<Utc>,
         ) -> anyhow::Result<Option<Self>> {
@@ -753,16 +793,16 @@ mod persistence {
                     )
                 RETURNING
                     group_id,
-                    operation_data,
+                    operation_data AS "operation_data: _",
                     retry_due_at AS "retry_due_at: _",
-                    request_status,
+                    request_status AS "request_status: _",
                     number_of_attempts
                 "#,
                 task_id,
-                READY_TO_RETRY,
+                PendingChatOperationStatus::ReadyToRetry as _,
                 now
             )
-            .fetch_optional(&mut *connection)
+            .fetch_optional(txn.as_mut())
             .await?;
 
             let Some(sql_pending_operation) = sql_pending_operation else {
@@ -770,14 +810,14 @@ mod persistence {
             };
 
             let pending_operation = sql_pending_operation
-                .into_pending_chat_operation(connection)
+                .into_pending_chat_operation(txn)
                 .await?;
 
             Ok(Some(pending_operation))
         }
 
         pub(crate) async fn delete(
-            connection: &mut SqliteConnection,
+            executor: impl SqliteExecutor<'_>,
             group_id: &GroupId,
         ) -> sqlx::Result<()> {
             let group_id = group_id.as_slice();
@@ -786,7 +826,7 @@ mod persistence {
                 "DELETE FROM pending_chat_operation WHERE group_id = ?",
                 group_id
             )
-            .execute(connection)
+            .execute(executor)
             .await?;
             Ok(())
         }

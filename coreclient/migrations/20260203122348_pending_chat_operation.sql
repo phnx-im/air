@@ -7,7 +7,7 @@
 -- proposal
 CREATE TABLE pending_chat_operation (
     group_id BLOB NOT NULL PRIMARY KEY,
-    operation_type TEXT NOT NULL CHECK (operation_type IN ('leave', 'delete', 'other')),
+    operation_type TEXT NOT NULL,
     operation_data BLOB NOT NULL,
     retry_due_at TEXT,
     number_of_attempts INTEGER NOT NULL DEFAULT 0,

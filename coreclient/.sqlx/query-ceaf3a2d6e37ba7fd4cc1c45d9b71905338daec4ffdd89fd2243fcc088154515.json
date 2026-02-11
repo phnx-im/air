@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE pending_chat_operation\n                SET retry_due_at = ?, number_of_attempts = ?\n                WHERE group_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "ceaf3a2d6e37ba7fd4cc1c45d9b71905338daec4ffdd89fd2243fcc088154515"
+}
