@@ -32,6 +32,7 @@
   "addMembersScreen_addMembers": "Add member(s)",
   "addMembersScreen_error_noActiveChat": "an active chat is obligatory",
 
+  "contactDetailsScreen_chat": "Chat",
   "contactDetailsScreen_viewSafetyCode": "View Safety Code",
 
   "safetyCodeScreen_title": "Safety Code",
