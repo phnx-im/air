@@ -14,7 +14,7 @@ import 'package:uuid/uuid.dart';
 import 'types.dart';
 import 'user_cubit.dart';
 
-// These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `new`, `notify_neghbors_of_added_message`, `process_store_notification`, `rebuild_from_messages`, `spawn`, `store_notifications_loop`, `try_process_store_notification`
+// These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `new`, `notify_message_neighbors`, `process_store_notification`, `rebuild_from_messages`, `spawn`, `store_notifications_loop`, `try_process_store_notification`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `MessageListContext`, `MessageListStateInner`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`

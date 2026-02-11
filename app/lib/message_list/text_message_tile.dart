@@ -7,7 +7,6 @@ import 'dart:io';
 
 import 'package:air/attachments/attachments.dart';
 import 'package:air/chat/chat_details.dart';
-import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/main.dart';
@@ -17,8 +16,10 @@ import 'package:air/message_list/timestamp.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/components/button/button.dart';
 import 'package:air/ui/components/context_menu/context_menu.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
+import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
 import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
@@ -45,6 +46,8 @@ const double messageVerticalPadding = Spacings.xxs;
 const double senderAvatarSize = Spacings.l;
 const double senderAvatarVerticalOffset = Spacings.xxxs;
 const double senderLabelBottomGap = Spacings.xxxs / 2;
+const double incomingContentInset =
+    senderAvatarSize + Spacings.xs + messageHorizontalPadding;
 
 const _messagePadding = EdgeInsets.symmetric(
   horizontal: messageHorizontalPadding,
@@ -149,8 +152,6 @@ class _IncomingMessageTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final showSenderLabel = flightPosition.isFirst;
     final showAvatar = flightPosition.isLast;
-    const senderLeftInset =
-        senderAvatarSize + Spacings.xs + messageHorizontalPadding;
     final senderProfile = showSenderLabel
         ? context.select(
             (UsersCubit cubit) =>
@@ -173,7 +174,7 @@ class _IncomingMessageTile extends StatelessWidget {
             padding: const EdgeInsets.only(
               top: Spacings.xs,
               bottom: senderLabelBottomGap,
-              left: senderLeftInset,
+              left: incomingContentInset,
             ),
             child: _SenderHeader(
               displayName: senderProfile!.displayName,
@@ -213,7 +214,7 @@ class _IncomingMessageTile extends StatelessWidget {
         ),
         if (flightPosition.isLast)
           Padding(
-            padding: const EdgeInsets.only(left: senderLeftInset),
+            padding: const EdgeInsets.only(left: incomingContentInset),
             child: _MessageMetadataRow(
               timestamp: timestamp,
               isSender: false,
@@ -286,6 +287,7 @@ class _MessageView extends HookWidget {
       Widget child = _MessageContent(
         content: contentMessage.content,
         isSender: isSender,
+        senderId: contentMessage.sender,
         flightPosition: flightPosition,
         isEdited: contentMessage.edited,
         isHidden: status == UiMessageStatus.hidden && !isRevealed.value,
@@ -298,6 +300,10 @@ class _MessageView extends HookWidget {
     }
 
     final attachments = contentMessage.content.attachments;
+    final colors = CustomColorScheme.of(context);
+    final isDeleted =
+        contentMessage.content.replaces != null &&
+        contentMessage.content.content == null;
 
     const iconSize = 16.0;
 
@@ -310,13 +316,30 @@ class _MessageView extends HookWidget {
             Clipboard.setData(ClipboardData(text: plainBody));
           },
         ),
-      if (isSender && attachments.isEmpty)
+      if (isSender && attachments.isEmpty && !isDeleted)
         MessageAction(
           label: loc.messageContextMenu_edit,
           leading: const AppIcon.pencil(size: iconSize),
           onSelected: () {
             context.read<ChatDetailsCubit>().editMessage(messageId: messageId);
           },
+        ),
+      if (!isDeleted)
+        MessageAction(
+          label: loc.messageContextMenu_delete,
+          leading: AppIcon.trash(size: iconSize, color: colors.function.danger),
+          isDestructive: true,
+          onSelected: () => isSender
+              ? _showDeleteMessageDialog(context: context, messageId: messageId)
+              : _showDeleteForMeDialog(context: context, messageId: messageId),
+        ),
+      if (isDeleted)
+        MessageAction(
+          label: loc.messageContextMenu_delete,
+          leading: AppIcon.trash(size: iconSize, color: colors.function.danger),
+          isDestructive: true,
+          onSelected: () =>
+              _showDeleteForMeDialog(context: context, messageId: messageId),
         ),
       if (attachments.isNotEmpty && !Platform.isIOS)
         MessageAction(
@@ -342,15 +365,19 @@ class _MessageView extends HookWidget {
           label: action.label,
           leading: action.leading,
           onPressed: action.onSelected,
+          isDestructive: action.isDestructive,
         ),
       );
     }
 
-    final metadata = _MessageMetadataRow(
-      timestamp: timestamp,
-      isSender: isSender,
-      flightPosition: flightPosition,
-      status: status,
+    final metadata = Padding(
+      padding: EdgeInsets.only(left: isSender ? 0 : messageHorizontalPadding),
+      child: _MessageMetadataRow(
+        timestamp: timestamp,
+        isSender: isSender,
+        flightPosition: flightPosition,
+        status: status,
+      ),
     );
 
     Widget buildMessageShell({
@@ -699,6 +726,7 @@ class _MessageContent extends StatelessWidget {
   const _MessageContent({
     required this.content,
     required this.isSender,
+    required this.senderId,
     required this.flightPosition,
     required this.isEdited,
     required this.isHidden,
@@ -707,6 +735,7 @@ class _MessageContent extends StatelessWidget {
 
   final UiMimiContent content;
   final bool isSender;
+  final UiUserId senderId;
   final UiFlightPosition flightPosition;
   final bool isEdited;
   final bool isHidden;
@@ -715,10 +744,11 @@ class _MessageContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
+    final colors = CustomColorScheme.of(context);
     final bool isDeleted = content.replaces != null && content.content == null;
     final bool isJumboEmoji =
         !isDeleted && !isHidden && isJumboEmojiMessage(content);
-    // Hide the bubble background and padding
+    // Hide the bubble background and padding for jumbo emoji
     final nakedContent = isJumboEmoji;
     // Adjust padding when sender label is not shown
     const nakedPadding = EdgeInsets.only(
@@ -727,6 +757,16 @@ class _MessageContent extends StatelessWidget {
       bottom: messageVerticalPadding,
     );
     final List<Widget> columnChildren = [];
+
+    // For deleted messages, show a placeholder text instead of the actual
+    // content.
+    if (isDeleted) {
+      return _DeletedMessageContent(
+        isSender: isSender,
+        senderId: senderId,
+        flightPosition: flightPosition,
+      );
+    }
 
     if (isHidden) {
       columnChildren.add(
@@ -738,7 +778,7 @@ class _MessageContent extends StatelessWidget {
               style: TextStyle(
                 fontStyle: FontStyle.italic,
                 fontSize: BodyFontSize.base.size,
-                color: CustomColorScheme.of(context).text.tertiary,
+                color: colors.text.tertiary,
               ),
             ),
           ),
@@ -746,19 +786,6 @@ class _MessageContent extends StatelessWidget {
       );
     } else {
       final List<Widget> selectableBlocks = [];
-
-      if (isDeleted) {
-        selectableBlocks.add(
-          Padding(
-            padding: _messagePadding,
-            child: buildBlockElement(
-              context,
-              BlockElement.error(loc.textMessage_deleted),
-              isSender,
-            ),
-          ),
-        );
-      }
 
       if (content.attachments.firstOrNull case final attachment?) {
         final Widget attachmentWidget = switch (attachment.imageMetadata) {
@@ -781,19 +808,20 @@ class _MessageContent extends StatelessWidget {
 
       selectableBlocks.addAll(
         (content.content?.elements ?? []).map(
-          (inner) => Padding(
-            padding: nakedContent
-                ? nakedPadding.copyWith(bottom: isEdited ? 0 : null)
-                : _messagePadding.copyWith(bottom: isEdited ? 0 : null),
-            child: buildBlockElement(context, inner.element, isSender),
-          ),
+          (inner) => buildBlockElement(context, inner.element, isSender),
         ),
       );
 
       if (selectableBlocks.isNotEmpty) {
-        final textColumn = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: selectableBlocks,
+        final textColumn = Padding(
+          padding: nakedContent
+              ? nakedPadding.copyWith(bottom: isEdited ? 0 : null)
+              : _messagePadding.copyWith(bottom: isEdited ? 0 : null),
+          child: Column(
+            spacing: BodyFontSize.base.size,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: selectableBlocks,
+          ),
         );
         final Widget selectableChild = enableSelection
             ? SelectableRegion(
@@ -818,8 +846,8 @@ class _MessageContent extends StatelessWidget {
             color: nakedContent
                 ? Colors.transparent
                 : isSender
-                ? CustomColorScheme.of(context).message.selfBackground
-                : CustomColorScheme.of(context).message.otherBackground,
+                ? colors.message.selfBackground
+                : colors.message.otherBackground,
           ),
           child: DefaultTextStyle.merge(
             child: Stack(
@@ -833,7 +861,7 @@ class _MessageContent extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: columnChildren,
                     ),
-                    if (!isDeleted && isEdited)
+                    if (isEdited)
                       Padding(
                         padding: const EdgeInsets.only(
                           left: Spacings.s,
@@ -846,12 +874,8 @@ class _MessageContent extends StatelessWidget {
                             style: Theme.of(context).textTheme.bodySmall!
                                 .copyWith(
                                   color: isSender
-                                      ? CustomColorScheme.of(
-                                          context,
-                                        ).message.selfEditedLabel
-                                      : CustomColorScheme.of(
-                                          context,
-                                        ).message.otherEditedLabel,
+                                      ? colors.message.selfEditedLabel
+                                      : colors.message.otherEditedLabel,
                                 ),
                           ),
                         ),
@@ -859,6 +883,65 @@ class _MessageContent extends StatelessWidget {
                   ],
                 ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DeletedMessageContent extends StatelessWidget {
+  const _DeletedMessageContent({
+    required this.isSender,
+    required this.senderId,
+    required this.flightPosition,
+  });
+
+  final bool isSender;
+  final UiUserId senderId;
+  final UiFlightPosition flightPosition;
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final colors = CustomColorScheme.of(context);
+
+    final deletedText = isSender
+        ? loc.textMessage_deletedBySelf
+        : loc.textMessage_deletedByOther(
+            context
+                .select(
+                  (UsersCubit cubit) => cubit.state.profile(userId: senderId),
+                )
+                .displayName,
+          );
+    final borderColor = isSender
+        ? colors.message.selfBackground
+        : colors.message.otherBackground;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 1.5),
+      child: Container(
+        alignment: isSender
+            ? AlignmentDirectional.topEnd
+            : AlignmentDirectional.topStart,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: _messageBorderRadius(isSender, flightPosition),
+            border: Border.all(color: borderColor),
+          ),
+          child: SelectionContainer.disabled(
+            child: Padding(
+              padding: _messagePadding,
+              child: Text(
+                deletedText,
+                style: TextStyle(
+                  fontStyle: FontStyle.italic,
+                  fontSize: BodyFontSize.base.size,
+                  color: colors.text.tertiary,
+                ),
+              ),
             ),
           ),
         ),
@@ -998,6 +1081,59 @@ class _ImageAttachmentContent extends StatelessWidget {
       ),
     );
   }
+}
+
+void _showDeleteMessageDialog({
+  required BuildContext context,
+  required MessageId messageId,
+}) {
+  final loc = AppLocalizations.of(context);
+  final cubit = context.read<ChatDetailsCubit>();
+
+  showBottomSheetModal(
+    context: context,
+    builder: (sheetContext) => BottomSheetDialogContent(
+      title: loc.deleteMessageDialog_title,
+      description: loc.deleteMessageDialog_description,
+      primaryActionText: loc.deleteMessageDialog_forEveryone,
+      onPrimaryAction: (_) => cubit.deleteMessage(
+        messageId: messageId,
+        deleteMode: DeleteMode.forEveryone,
+      ),
+      primaryType: AppButtonType.secondary,
+      primaryTone: AppButtonTone.danger,
+      secondaryActionText: loc.deleteMessageDialog_forMe,
+      onSecondaryAction: (_) => cubit.deleteMessage(
+        messageId: messageId,
+        deleteMode: DeleteMode.forMe,
+      ),
+      secondaryType: AppButtonType.secondary,
+      secondaryTone: AppButtonTone.danger,
+    ),
+  );
+}
+
+void _showDeleteForMeDialog({
+  required BuildContext context,
+  required MessageId messageId,
+}) {
+  final loc = AppLocalizations.of(context);
+  final cubit = context.read<ChatDetailsCubit>();
+
+  showBottomSheetModal(
+    context: context,
+    builder: (sheetContext) => BottomSheetDialogContent(
+      title: loc.deleteMessageForMeDialog_title,
+      description: loc.deleteMessageForMeDialog_description,
+      primaryActionText: loc.deleteMessageForMeDialog_delete,
+      onPrimaryAction: (_) => cubit.deleteMessage(
+        messageId: messageId,
+        deleteMode: DeleteMode.forMe,
+      ),
+      primaryType: AppButtonType.secondary,
+      primaryTone: AppButtonTone.danger,
+    ),
+  );
 }
 
 BorderRadius _messageBorderRadius(

@@ -17,11 +17,13 @@ class MessageAction {
     required this.label,
     this.leading,
     required this.onSelected,
+    this.isDestructive = false,
   });
 
   final String label;
   final Widget? leading;
   final VoidCallback onSelected;
+  final bool isDestructive;
 }
 
 Future<void> showMobileMessageActions({
@@ -253,6 +255,7 @@ class _MobileContextMenu extends StatelessWidget {
         ContextMenuItem(
           label: action.label,
           leading: action.leading,
+          isDestructive: action.isDestructive,
           onPressed: () {
             Navigator.of(context).pop();
             action.onSelected();

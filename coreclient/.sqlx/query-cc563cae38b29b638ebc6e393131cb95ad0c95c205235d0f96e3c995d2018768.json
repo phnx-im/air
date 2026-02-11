@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT attachment_id AS \"attachment_id: AttachmentId\"\n            FROM attachment\n            WHERE message_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "attachment_id: AttachmentId",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "cc563cae38b29b638ebc6e393131cb95ad0c95c205235d0f96e3c995d2018768"
+}

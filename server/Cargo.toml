@@ -19,6 +19,7 @@ name = "airserver"
 
 [features]
 api_docs = []
+test_utils = ["airbackend/test_utils", "aircoreclient/test_utils"]
 
 [[bench]]
 name = "bench"
@@ -54,6 +55,9 @@ tracing-bunyan-formatter.workspace = true
 tracing-log.workspace = true
 tracing-subscriber.workspace = true
 zeroize.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
 
 [dev-dependencies]
 airapiclient.workspace = true
