@@ -21,7 +21,6 @@ multiple-versions = "allow"
 ignore = [
     { id = "RUSTSEC-2023-0071", reason = "no fix yet available; the crate is not used by us" },
     { id = "RUSTSEC-2024-0436", reason = "no fix yet available" },
-    { id = "RUSTSEC-2026-0002", reason = "no fix yet available" },
 ]
 
 [licenses]
@@ -67,7 +66,6 @@ unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = [
-    "https://github.com/boxdot/formats",
     "https://github.com/boxdot/mimi-content",
     "https://github.com/raphaelrobert/privacypass",
     "https://github.com/openmls/openmls",

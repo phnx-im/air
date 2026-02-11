@@ -6316,7 +6316,8 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 [[package]]
 name = "tls_codec"
 version = "0.4.2"
-source = "git+https://github.com/boxdot/formats?rev=9846c69f91e732b493dcccf92f4c163bfc711b7d#9846c69f91e732b493dcccf92f4c163bfc711b7d"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0de2e01245e2bb89d6f05801c564fa27624dbd7b1846859876c7dad82e90bf6b"
 dependencies = [
  "serde",
  "tls_codec_derive",
@@ -6326,7 +6327,8 @@ dependencies = [
 [[package]]
 name = "tls_codec_derive"
 version = "0.4.2"
-source = "git+https://github.com/boxdot/formats?rev=9846c69f91e732b493dcccf92f4c163bfc711b7d#9846c69f91e732b493dcccf92f4c163bfc711b7d"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d2e76690929402faae40aebdda620a2c0e25dd6d3b9afe48867dfd95991f4bd"
 dependencies = [
  "proc-macro2",
  "quote",
