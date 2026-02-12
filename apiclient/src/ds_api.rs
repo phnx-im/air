@@ -90,6 +90,21 @@ impl DsRequestError {
             false
         }
     }
+
+    /// Returns true if the error is likely due to a network issue and we can't
+    /// be sure whether the server received the request.
+    pub fn is_network_error(&self) -> bool {
+        if let Self::Tonic(status) = self
+            && matches!(
+                status.code(),
+                Code::Unavailable | Code::DeadlineExceeded | Code::Unknown
+            )
+        {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 impl ApiClient {

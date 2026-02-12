@@ -534,10 +534,7 @@ async fn confirmation_via_queue() {
     let alice_core = &alice_user.user;
 
     // Make server drop connection instead of sending responses
-    setup
-        .listener_control_handle()
-        .unwrap()
-        .set_drop_next_response();
+    setup.listener_control_handle().set_drop_next_response();
 
     let _ = alice_core
         .invite_users(chat_id, &[bob])
@@ -554,7 +551,7 @@ async fn confirmation_via_queue() {
     assert_eq!(number_of_members, 1);
 
     // Set server to normal networking mode
-    setup.listener_control_handle().unwrap().set_normal();
+    setup.listener_control_handle().set_normal();
 
     // At this point, Alice has a pending commit. Once she receives the
     // confirmation from the queue, she should be able to create another commit.

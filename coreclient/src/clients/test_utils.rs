@@ -3,7 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 use openmls::group::Member;
 
-use crate::outbound_service::timed_tasks_queue::{TaskKind, TimedTaskQueue};
+use crate::{
+    job::pending_chat_operation::test_utils::PendingChatOperationInfo,
+    outbound_service::timed_tasks_queue::{TaskKind, TimedTaskQueue},
+    utils::connection_ext::ConnectionExt as _,
+};
 
 use super::*;
 
@@ -68,5 +72,17 @@ impl CoreUser {
         let task_kind = TaskKind::KeyPackageUpload;
         TimedTaskQueue::set_due_date(&mut *connection, task_kind, due_at).await?;
         Ok(())
+    }
+
+    /// Returns (operation_type, request_status, number_of_attempts) for the
+    /// pending chat operation of the given chat, if any.
+    pub async fn pending_chat_operation_info(
+        &self,
+        chat_id: ChatId,
+    ) -> anyhow::Result<Option<PendingChatOperationInfo>> {
+        self.pool()
+            .clone()
+            .with_transaction(async |txn| PendingChatOperationInfo::load(txn, &chat_id).await)
+            .await
     }
 }

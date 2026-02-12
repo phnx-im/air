@@ -799,6 +799,7 @@ impl CoreUser {
             pool: self.pool().clone(),
             notifier: &mut notifier,
             key_store: &self.inner.key_store,
+            now: Utc::now(),
         };
         let value = job.execute(&mut context).await?;
         notifier.notify();

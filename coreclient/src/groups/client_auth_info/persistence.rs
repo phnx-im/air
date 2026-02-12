@@ -8,7 +8,9 @@ use aircommon::{
 };
 use anyhow::anyhow;
 use openmls::{group::GroupId, prelude::LeafNodeIndex};
-use sqlx::{Row, SqliteConnection, SqliteExecutor, query, query_as, query_scalar};
+use sqlx::{
+    Row, SqliteConnection, SqliteExecutor, SqliteTransaction, query, query_as, query_scalar,
+};
 use tokio_stream::StreamExt;
 use uuid::Uuid;
 
@@ -263,6 +265,34 @@ impl GroupMembership {
         Self::load_internal(executor, group_id, leaf_index, false).await
     }
 
+    pub(crate) async fn delete_staged_changes(
+        txn: &mut SqliteTransaction<'_>,
+        group_id: &GroupId,
+    ) -> sqlx::Result<()> {
+        let group_id = GroupIdRefWrapper::from(group_id);
+
+        // Delete all staged adds and updates
+        query!(
+            r#"DELETE FROM group_membership
+            WHERE group_id = ? AND (status = 'staged_update' OR status = 'staged_add')"#,
+            group_id,
+        )
+        .execute(txn.as_mut())
+        .await?;
+
+        // Delete revert all staged removals (i.e. set them back to merged)
+        query!(
+            r#"UPDATE group_membership
+            SET status = 'merged'
+            WHERE group_id = ? AND status = 'staged_removal'"#,
+            group_id,
+        )
+        .execute(txn.as_mut())
+        .await?;
+
+        Ok(())
+    }
+
     async fn load_internal(
         executor: impl SqliteExecutor<'_>,
         group_id: &GroupId,
@@ -412,6 +442,8 @@ mod tests {
     use tls_codec::Serialize;
     use uuid::Uuid;
 
+    use crate::utils::connection_ext::ConnectionExt;
+
     use super::*;
 
     const TEST_GROUP_ID: [u8; 32] = [0u8; 32];
@@ -435,10 +467,10 @@ mod tests {
         let group_id_wrapper = GroupIdRefWrapper::from(&group_id);
         query(
             r#"INSERT OR IGNORE INTO "group" (
-                group_id, 
-                identity_link_wrapper_key, 
-                group_state_ear_key, 
-                pending_diff, 
+                group_id,
+                identity_link_wrapper_key,
+                group_state_ear_key,
+                pending_diff,
                 room_state
             ) VALUES (?, ?, ?, ?, ?)"#,
         )
@@ -612,6 +644,70 @@ mod tests {
             .await?
             .expect("missing membership");
         assert_eq!(loaded, membership);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn group_membership_delete_staged_changes(mut pool: SqlitePool) -> anyhow::Result<()> {
+        store_dummy_group(&pool).await?;
+
+        // Persist a merged membership.
+        let merged_credential = test_client_credential(Uuid::new_v4());
+        merged_credential.store(&pool).await?;
+        let merged_index = LeafNodeIndex::new(0);
+        let merged_membership = test_group_membership(&merged_credential, merged_index);
+        merged_membership.store(&pool).await?;
+
+        // Stage an update for the merged member (creates an additional staged row).
+        merged_membership.stage_update(&pool).await?;
+        let staged_update =
+            GroupMembership::load_staged(&pool, &merged_membership.group_id, merged_index)
+                .await?
+                .expect("missing staged update");
+        assert_eq!(staged_update, merged_membership);
+
+        // Stage an added member.
+        let staged_credential = test_client_credential(Uuid::new_v4());
+        staged_credential.store(&pool).await?;
+        let staged_index = LeafNodeIndex::new(1);
+        let staged_membership = test_group_membership(&staged_credential, staged_index);
+        staged_membership.stage_add(&pool).await?;
+        let staged_add =
+            GroupMembership::load_staged(&pool, &staged_membership.group_id, staged_index)
+                .await?
+                .expect("missing staged add");
+        assert_eq!(staged_add, staged_membership);
+
+        // Delete staged rows and keep merged ones.
+        pool.with_transaction(async |txn| {
+            GroupMembership::delete_staged_changes(txn, &merged_membership.group_id).await?;
+            Ok(())
+        })
+        .await?;
+
+        // The merged membership remains.
+        let merged_loaded = GroupMembership::load(&pool, &merged_membership.group_id, merged_index)
+            .await?
+            .expect("merged membership missing");
+        assert_eq!(merged_loaded, merged_membership);
+
+        // All staged rows were deleted.
+        assert!(
+            GroupMembership::load_staged(&pool, &merged_membership.group_id, merged_index)
+                .await?
+                .is_none()
+        );
+        assert!(
+            GroupMembership::load_staged(&pool, &merged_membership.group_id, staged_index)
+                .await?
+                .is_none()
+        );
+        assert!(
+            GroupMembership::load(&pool, &merged_membership.group_id, staged_index)
+                .await?
+                .is_none()
+        );
 
         Ok(())
     }

@@ -5,6 +5,7 @@
 mod attachment;
 mod connection;
 mod group;
+mod jobs;
 mod message;
 mod server;
 mod user;

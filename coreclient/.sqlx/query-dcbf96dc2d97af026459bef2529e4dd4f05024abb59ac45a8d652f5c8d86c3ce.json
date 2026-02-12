@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE pending_chat_operation SET request_status = ? WHERE group_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "dcbf96dc2d97af026459bef2529e4dd4f05024abb59ac45a8d652f5c8d86c3ce"
+}

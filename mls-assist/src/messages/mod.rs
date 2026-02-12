@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use openmls::group::GroupEpoch;
 use openmls::prelude::tls_codec::{self, TlsDeserialize, TlsSerialize, TlsSize};
 use openmls::{
     framing::{ContentType, MlsMessageBodyOut},
@@ -14,10 +15,11 @@ use openmls::{
 
 #[cfg(doc)]
 use openmls::prelude::{PrivateMessage, PublicMessage, group_info::GroupInfo};
+use serde::{Deserialize, Serialize};
 
 pub mod codec;
 
-#[derive(Debug, TlsSerialize, TlsSize)]
+#[derive(Clone, Debug, TlsSerialize, TlsSize, Serialize, Deserialize)]
 pub struct AssistedMessageOut {
     mls_message: MlsMessageOut,
     assisted_group_info_option: Option<AssistedGroupInfo>,
@@ -64,6 +66,16 @@ impl AssistedMessageOut {
             assisted_group_info_option,
         }
     }
+
+    /// Get the epoch of the MLS message, if it is a PublicMessage or
+    /// PrivateMessage.
+    pub fn epoch(&self) -> Option<GroupEpoch> {
+        match self.mls_message.body() {
+            MlsMessageBodyOut::PublicMessage(pm) => Some(pm.epoch()),
+            MlsMessageBodyOut::PrivateMessage(pm) => Some(pm.epoch()),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -93,7 +105,7 @@ impl AssistedMessageIn {
     }
 }
 
-#[derive(Debug, TlsSize, Clone, TlsSerialize)]
+#[derive(Debug, TlsSize, Clone, TlsSerialize, Serialize, Deserialize)]
 pub struct AssistedGroupInfo {
     extensions: Extensions,
     signature: Signature,

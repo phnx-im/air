@@ -49,6 +49,7 @@ use crate::{
     },
     contacts::{PartialContact, PartialContactType},
     groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
+    job::pending_chat_operation::PendingChatOperation,
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
     store::{Store, StoreNotifier},
@@ -203,6 +204,10 @@ impl CoreUser {
                 .await?;
             }
             CoreUser::store_new_messages(txn, notifier, chat.id(), group_messages).await?;
+
+            // Delete the pending chat operation
+            PendingChatOperation::delete(txn.as_mut(), &group_id).await?;
+
             Ok(())
         })
         .await?;
@@ -439,7 +444,8 @@ impl CoreUser {
                     .ok_or_else(|| anyhow!("No chat found for group ID {:?}", group_id))?;
                 let chat_id = chat.id();
 
-                let mut group = Group::load_clean(txn, &group_id)
+                // Load the group regardless of whether it has a pending commit or not.
+                let mut group = Group::load(txn, &group_id)
                     .await?
                     .ok_or_else(|| anyhow!("No group found for group ID {:?}", group_id))?;
 

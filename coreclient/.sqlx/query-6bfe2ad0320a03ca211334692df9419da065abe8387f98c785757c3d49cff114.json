@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                    pco.group_id,\n                    pco.operation_data AS \"operation_data: _\",\n                    pco.retry_due_at AS \"retry_due_at: _\",\n                    pco.request_status AS \"request_status: _\",\n                    pco.number_of_attempts\n                FROM pending_chat_operation pco\n                JOIN chat c ON pco.group_id = c.group_id\n                WHERE c.chat_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "group_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "operation_data: _",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "retry_due_at: _",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "request_status: _",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "number_of_attempts",
+        "ordinal": 4,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "6bfe2ad0320a03ca211334692df9419da065abe8387f98c785757c3d49cff114"
+}
