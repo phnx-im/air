@@ -28,6 +28,8 @@ pub(crate) struct JobContext<'a> {
 pub(crate) enum JobError {
     #[error("Network error")]
     NetworkError,
+    #[error("Blocked")]
+    Blocked,
     #[error("Fatal error: {0}")]
     FatalError(#[from] anyhow::Error),
 }

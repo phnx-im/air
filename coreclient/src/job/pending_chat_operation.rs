@@ -27,6 +27,7 @@ use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
 use sqlx::{SqliteConnection, SqlitePool, SqliteTransaction, query, query_as};
 use std::collections::HashSet;
+use tracing::info;
 
 // Having separate retry intervals for test and non-test is a hack until we can
 // pass "now" directly into OutboundService runs.
@@ -98,7 +99,7 @@ impl Job for PendingChatOperation {
                 #[cfg(any(test, feature = "test_utils"))]
                 let retry_due = context.now + RETRY_INTERVAL;
                 self.update_retry_due_at(&context.pool, retry_due).await?;
-                tracing::info!(
+                info!(
                     ?group_id,
                     ?error,
                     next_retry = ?retry_due,
@@ -135,12 +136,12 @@ impl PendingChatOperation {
         context: &mut JobContext<'_>,
     ) -> Result<Vec<ChatMessage>, JobError> {
         if let PendingChatOperationStatus::WaitingForQueueResponse = self.status {
-            tracing::info!(
+            info!(
                 group_id = ?self.group.group_id(),
                 "Failed to execute PendingChatOperation for group because
                 it is still waiting for a queue response",
             );
-            return Err(JobError::NetworkError);
+            return Err(JobError::Blocked);
         }
 
         let JobContext {
@@ -148,7 +149,7 @@ impl PendingChatOperation {
             pool,
             notifier,
             key_store,
-            now,
+            ..
         } = context;
         let signer = &key_store.signing_key;
         let own_user_id = signer.credential().identity().clone();
@@ -177,15 +178,6 @@ impl PendingChatOperation {
                 })
                 .await?;
         }
-
-        #[cfg(not(any(test, feature = "test_utils")))]
-        let retry_due = *now + RETRY_INTERVAL;
-        #[cfg(any(test, feature = "test_utils"))]
-        let retry_due = *now + RETRY_INTERVAL;
-        pool.with_connection(async |connection| {
-            self.update_retry_due_at(connection, retry_due).await
-        })
-        .await?;
 
         let res = match self.operation.clone() {
             OperationType::Leave(params) => {
@@ -219,7 +211,7 @@ impl PendingChatOperation {
                 // post-process anyway. If the DS returned an error, we'll
                 // try again later, but that's just for the benefit of the
                 // server and the other chat members.
-                tracing::info!(
+                info!(
                     group_id = ?self.group.group_id(),
                     "Leave operation failed due to DS error,
                     proceeding with local post-processing"

@@ -3,11 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use tokio_util::sync::CancellationToken;
-use tracing::debug;
+use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{
-    job::pending_chat_operation::PendingChatOperation, outbound_service::OutboundServiceContext,
+    job::{JobError, pending_chat_operation::PendingChatOperation},
+    outbound_service::{OutboundServiceContext, error::OutboundServiceRunError},
     utils::connection_ext::ConnectionExt,
 };
 
@@ -15,7 +16,7 @@ impl OutboundServiceContext {
     pub(super) async fn send_pending_chat_operations(
         &self,
         run_token: &CancellationToken,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), OutboundServiceRunError> {
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
         loop {
@@ -40,7 +41,21 @@ impl OutboundServiceContext {
 
             // The job manages its own retry count and deletion upon success.
             // We're just executing it here.
-            self.execute_job(pending_chat_operation).await?;
+            match self.execute_job(pending_chat_operation).await {
+                Err(JobError::NetworkError) => {
+                    // If we're getting a network error, error out of the loop and wait for the next run.
+                    return Err(OutboundServiceRunError::NetworkError);
+                }
+                Err(JobError::FatalError(error)) => {
+                    error!(%error, ?group_id, "Failed to execute pending chat operation");
+                    // This job has a fatal error. Continue with the next one.
+                    continue;
+                }
+                Err(JobError::Blocked) => {
+                    continue;
+                }
+                Ok(_) => (),
+            }
         }
     }
 }
