@@ -6,6 +6,7 @@ use openmls::group::Member;
 use crate::{
     job::pending_chat_operation::test_utils::PendingChatOperationInfo,
     outbound_service::timed_tasks_queue::{TaskKind, TimedTaskQueue},
+    utils::connection_ext::ConnectionExt as _,
 };
 
 use super::*;
@@ -78,15 +79,10 @@ impl CoreUser {
     pub async fn pending_chat_operation_info(
         &self,
         chat_id: ChatId,
-    ) -> anyhow::Result<Option<(String, String, u32)>> {
-        let mut connection = self.pool().acquire().await?;
-        let pco_info = PendingChatOperationInfo::load(connection.as_mut(), &chat_id).await?;
-        Ok(pco_info.map(|info| {
-            (
-                info.operation_type,
-                info.request_status,
-                info.number_of_attempts,
-            )
-        }))
+    ) -> anyhow::Result<Option<PendingChatOperationInfo>> {
+        self.pool()
+            .clone()
+            .with_transaction(async |txn| PendingChatOperationInfo::load(txn, &chat_id).await)
+            .await
     }
 }

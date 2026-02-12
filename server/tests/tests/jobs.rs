@@ -112,8 +112,8 @@ async fn chat_operation_fails_if_pending_operation_fails() {
         .await
         .unwrap()
         .expect("pending operation should exist");
-    assert_eq!(pending.0, "other");
-    assert_eq!(pending.1, "ready_to_retry");
+    assert_eq!(pending.operation_type, "other");
+    assert_eq!(pending.request_status, "ready_to_retry");
 
     setup.listener_control_handle().set_drop_next_response();
     let _ = alice_user
@@ -126,9 +126,9 @@ async fn chat_operation_fails_if_pending_operation_fails() {
         .await
         .unwrap()
         .expect("pending operation should still exist");
-    assert_eq!(pending_after.0, "other");
-    assert_eq!(pending_after.1, "ready_to_retry");
-    assert!(pending_after.2 >= pending.2);
+    assert_eq!(pending_after.operation_type, "other");
+    assert_eq!(pending_after.request_status, "ready_to_retry");
+    assert!(pending_after.number_of_attempts >= pending.number_of_attempts);
 
     let members = alice_user.chat_participants(chat_id).await.unwrap();
     assert!(members.contains(&charlie));
@@ -181,7 +181,7 @@ async fn wrong_epoch_marks_pending_waiting_and_commit_clears_it() {
         .await
         .unwrap()
         .expect("pending operation should exist");
-    assert_eq!(pending.1, "waiting_for_queue_response");
+    assert_eq!(pending.request_status, "waiting_for_queue_response");
 
     let _ = alice_user
         .update_key(chat_id)
@@ -226,9 +226,9 @@ async fn network_errors_eventually_delete_pending_operation() {
         .await
         .unwrap()
         .expect("pending operation should exist");
-    assert_eq!(pending.0, "other");
+    assert_eq!(pending.operation_type, "other");
 
-    while pending.2 < 5 {
+    while pending.number_of_attempts < 5 {
         setup.listener_control_handle().set_drop_next_response();
         let _ = alice_user
             .update_key(chat_id)
@@ -278,8 +278,9 @@ async fn leave_with_wrong_epoch_applies_locally_and_keeps_pending() {
         .await
         .unwrap()
         .expect("pending leave should remain");
-    assert_eq!(pending.0, "leave");
+    assert_eq!(pending.operation_type, "leave");
 
+    // We have to sleep here until we can input `now` into the operation
     sleep(Duration::from_secs(2)).await;
 
     // Running the outbound service after fetching and processing messages

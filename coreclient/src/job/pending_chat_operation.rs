@@ -28,6 +28,14 @@ use serde::{Deserialize, Serialize};
 use sqlx::{SqliteConnection, SqlitePool, SqliteTransaction, query, query_as};
 use std::collections::HashSet;
 
+// Having separate retry intervals for test and non-test is a hack until we can
+// pass "now" directly into OutboundService runs.
+
+#[cfg(not(any(test, feature = "test_utils")))]
+const RETRY_INTERVAL: Duration = Duration::seconds(5);
+#[cfg(any(test, feature = "test_utils"))]
+const RETRY_INTERVAL: Duration = Duration::seconds(1);
+
 #[derive(Clone, derive_more::From, Serialize, Deserialize)]
 pub(super) enum OperationType {
     Leave(SelfRemoveParamsOut),
@@ -79,10 +87,27 @@ impl Job for PendingChatOperation {
     type Output = Vec<ChatMessage>;
 
     async fn execute_logic(
-        self,
+        mut self,
         context: &mut JobContext<'_>,
     ) -> Result<Vec<ChatMessage>, JobError> {
-        self.execute_internal(context).await
+        let group_id = self.group.group_id().clone();
+        match self.execute_internal(context).await {
+            Err(error) => {
+                #[cfg(not(any(test, feature = "test_utils")))]
+                let retry_due = *context.now + RETRY_INTERVAL;
+                #[cfg(any(test, feature = "test_utils"))]
+                let retry_due = context.now + RETRY_INTERVAL;
+                self.update_retry_due_at(&context.pool, retry_due).await?;
+                tracing::info!(
+                    ?group_id,
+                    ?error,
+                    next_retry = ?retry_due,
+                    "Failed to execute PendingChatOperation, will retry later"
+                );
+                Err(error)
+            }
+            res => res,
+        }
     }
 }
 
@@ -106,15 +131,14 @@ impl PendingChatOperation {
     }
 
     pub async fn execute_internal(
-        mut self,
+        &mut self,
         context: &mut JobContext<'_>,
     ) -> Result<Vec<ChatMessage>, JobError> {
-        if matches!(
-            self.status,
-            PendingChatOperationStatus::WaitingForQueueResponse
-        ) {
+        if let PendingChatOperationStatus::WaitingForQueueResponse = self.status {
             tracing::info!(
-                group_id = ?self.group.group_id(), "Failed to execute PendingChatOperation for group because it is still waiting for a queue response",
+                group_id = ?self.group.group_id(),
+                "Failed to execute PendingChatOperation for group because
+                it is still waiting for a queue response",
             );
             return Err(JobError::NetworkError);
         }
@@ -155,9 +179,9 @@ impl PendingChatOperation {
         }
 
         #[cfg(not(any(test, feature = "test_utils")))]
-        let retry_due = *now + Duration::seconds(5);
+        let retry_due = *now + RETRY_INTERVAL;
         #[cfg(any(test, feature = "test_utils"))]
-        let retry_due = *now + Duration::seconds(1);
+        let retry_due = *now + RETRY_INTERVAL;
         pool.with_connection(async |connection| {
             self.update_retry_due_at(connection, retry_due).await
         })
@@ -196,7 +220,9 @@ impl PendingChatOperation {
                 // try again later, but that's just for the benefit of the
                 // server and the other chat members.
                 tracing::info!(
-                    group_id = ?self.group.group_id(), "Leave operation failed due to DS error, proceeding with local post-processing"
+                    group_id = ?self.group.group_id(),
+                    "Leave operation failed due to DS error,
+                    proceeding with local post-processing"
                 );
                 ds_has_confirmed_leave = false;
                 TimeStamp::now()
@@ -296,10 +322,8 @@ impl PendingChatOperation {
             // If we get a WrongEpochError, we know the commit was
             // either accepted on a previous try, or the DS rejected
             // it because another one got there first.
-            pool.with_connection(async |connection| {
-                self.mark_as_waiting_for_queue_response(connection).await
-            })
-            .await?;
+            self.mark_as_waiting_for_queue_response(&*pool).await?;
+
             // We return a FatalError here to indicate that the job should be
             // considered failed.
             Err(JobError::FatalError(anyhow!("WrongEpochError")))
@@ -657,7 +681,7 @@ mod persistence {
 
         pub(super) async fn update_retry_due_at(
             &mut self,
-            connection: impl SqliteExecutor<'_>,
+            executor: impl SqliteExecutor<'_>,
             retry_due: DateTime<Utc>,
         ) -> sqlx::Result<()> {
             let group_id = self.group.group_id().as_slice();
@@ -672,7 +696,7 @@ mod persistence {
                 number_of_attempts_i64,
                 group_id
             )
-            .execute(connection)
+            .execute(executor)
             .await?;
 
             self.retry_due_at = Some(retry_due);
@@ -727,7 +751,7 @@ mod persistence {
         }
 
         pub(crate) async fn load(
-            connection: &mut SqliteConnection,
+            txn: &mut SqliteTransaction<'_>,
             chat_id: &ChatId,
         ) -> sqlx::Result<Option<Self>> {
             // Get the group id from the chat table and then load the pending operation.
@@ -744,7 +768,7 @@ mod persistence {
                 WHERE c.chat_id = ?"#,
                 chat_id
             )
-            .fetch_optional(&mut *connection)
+            .fetch_optional(txn.as_mut())
             .await?;
 
             let Some(sql_pending_operation) = sql_pending_operation else {
@@ -752,7 +776,7 @@ mod persistence {
             };
 
             sql_pending_operation
-                .into_pending_chat_operation(connection)
+                .into_pending_chat_operation(txn)
                 .await
                 .map(Some)
         }
@@ -846,16 +870,16 @@ pub mod test_utils {
 
     impl PendingChatOperationInfo {
         pub async fn load(
-            connection: &mut SqliteConnection,
+            txn: &mut SqliteTransaction<'_>,
             chat_id: &ChatId,
         ) -> anyhow::Result<Option<Self>> {
-            let pco = PendingChatOperation::load(connection, chat_id)
-                .await?
-                .map(|pco| PendingChatOperationInfo {
+            let pco = PendingChatOperation::load(txn, chat_id).await?.map(|pco| {
+                PendingChatOperationInfo {
                     operation_type: pco.operation.to_string(),
                     request_status: pco.status.to_string(),
                     number_of_attempts: pco.number_of_attempts,
-                });
+                }
+            });
 
             Ok(pco)
         }
@@ -913,9 +937,13 @@ mod tests {
 
         pending.store(&mut connection).await?;
 
-        let loaded = PendingChatOperation::load(&mut connection, &chat_id)
+        let loaded = connection
+            .with_transaction(async |txn| {
+                let loaded = PendingChatOperation::load(txn, &chat_id).await?;
+                Ok(loaded)
+            })
             .await?
-            .expect("should load");
+            .expect("Loading stored operation failed");
 
         assert!(matches!(loaded.operation, OperationType::Leave(_)));
         assert_eq!(loaded.group.group_id(), pending.group.group_id());
@@ -938,7 +966,8 @@ mod tests {
             .update_retry_due_at(connection.as_mut(), new_timestamp)
             .await?;
 
-        let reloaded = PendingChatOperation::load(&mut connection, &chat_id)
+        let reloaded = connection
+            .with_transaction(async |txn| Ok(PendingChatOperation::load(txn, &chat_id).await?))
             .await?
             .expect("should load");
         assert_eq!(reloaded.retry_due_at, Some(new_timestamp));
@@ -958,19 +987,23 @@ mod tests {
         // Initially the job is ready to retry.
         let uuid = Uuid::new_v4();
         let now = Utc::now();
-        let ready = PendingChatOperation::dequeue(&mut connection, uuid, now).await?;
-        assert!(ready.is_some());
+        connection
+            .with_transaction(async |txn| {
+                let ready = PendingChatOperation::dequeue(txn, uuid, now).await?;
+                assert!(ready.is_some());
 
-        pending
-            .mark_as_waiting_for_queue_response(&mut connection)
-            .await?;
+                pending
+                    .mark_as_waiting_for_queue_response(txn.as_mut())
+                    .await?;
 
-        // After marking, it should no longer be returned for retries.
-        let uuid = Uuid::new_v4();
-        let ready = PendingChatOperation::dequeue(&mut connection, uuid, now).await?;
-        assert!(ready.is_none());
+                // After marking, it should no longer be returned for retries.
+                let uuid = Uuid::new_v4();
+                let ready = PendingChatOperation::dequeue(txn, uuid, now).await?;
+                assert!(ready.is_none());
 
-        Ok(())
+                Ok(())
+            })
+            .await
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -983,16 +1016,20 @@ mod tests {
         pending.store(&mut connection).await?;
 
         // Delete and ensure the row is gone.
-        PendingChatOperation::delete(&mut connection, pending.group.group_id()).await?;
+        connection
+            .with_transaction(async |txn| {
+                PendingChatOperation::delete(txn.as_mut(), pending.group.group_id()).await?;
 
-        let loaded = PendingChatOperation::load(&mut connection, &chat_id).await?;
-        assert!(loaded.is_none());
+                let loaded = PendingChatOperation::load(txn, &chat_id).await?;
+                assert!(loaded.is_none());
 
-        let uuid = Uuid::new_v4();
-        let now = Utc::now();
-        let ready = PendingChatOperation::dequeue(&mut connection, uuid, now).await?;
-        assert!(ready.is_none());
+                let uuid = Uuid::new_v4();
+                let now = Utc::now();
+                let ready = PendingChatOperation::dequeue(txn, uuid, now).await?;
+                assert!(ready.is_none());
 
-        Ok(())
+                Ok(())
+            })
+            .await
     }
 }

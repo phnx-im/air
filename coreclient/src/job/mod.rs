@@ -54,10 +54,10 @@ pub(crate) trait Job {
 }
 
 impl From<DsRequestError> for JobError {
-    fn from(err: DsRequestError) -> Self {
+    fn from(error: DsRequestError) -> Self {
         // Network erros can occur without any fault of the job itself, so we
         // only log info here.
-        tracing::info!("Job failed due to network error: {:?}", err);
+        tracing::info!(?error, "Job failed due to network error");
         Self::NetworkError
     }
 }

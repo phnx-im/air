@@ -41,9 +41,7 @@ impl Job for ChatOperation {
         // Execute any pending operation for this chat first.
         let pending_operation = context
             .pool
-            .with_connection(async |connection| {
-                PendingChatOperation::load(connection, &self.chat_id).await
-            })
+            .with_transaction(async |txn| Ok(PendingChatOperation::load(txn, &self.chat_id).await?))
             .await?;
 
         if let Some(pending_operation) = pending_operation {

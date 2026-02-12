@@ -110,11 +110,12 @@ impl OutboundServiceContext {
             };
             debug!(?message_id, "dequeued messages");
 
-            // If a chat operation is pending, we skip sending receipts for this chat
+            // If a chat operation is pending, we skip sending chat messages for
+            // this chat
             if PendingChatOperation::is_pending_for_chat(&self.pool, &chat_id).await? {
                 debug!(
                     ?chat_id,
-                    "Skipping sending receipt due to pending chat operation"
+                    "Skipping sending chat message due to pending chat operation"
                 );
                 continue;
             }
