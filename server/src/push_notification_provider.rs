@@ -2,31 +2,34 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::{
+    fmt, fs,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
 use airbackend::{
     qs::{PushNotificationError, PushNotificationProvider},
     settings::{ApnsSettings, FcmSettings},
 };
 use aircommon::messages::push_token::{PushToken, PushTokenOperator};
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-use reqwest::{Client, StatusCode};
+use reqwest::{
+    Client, StatusCode,
+    header::{AUTHORIZATION, HeaderMap, HeaderValue},
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{
-    fs::File,
-    io::Read,
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
 use tokio::sync::Mutex;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 #[derive(Debug, Serialize)]
-struct FcmClaims {
-    iss: String,
-    scope: String,
-    aud: String,
-    iat: usize,
-    exp: usize,
+struct FcmClaims<'a> {
+    iss: &'a str,
+    scope: &'a str,
+    aud: &'a str,
+    iat: u64,
+    exp: u64,
 }
 
 // Struct for the Google OAuth2 response
@@ -34,7 +37,7 @@ struct FcmClaims {
 struct OauthSuccessResponse {
     access_token: String,
     expires_in: u64,
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     token_type: String,
 }
 
@@ -44,22 +47,41 @@ struct OauthErrorResponse {
     error_description: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct ApnsClaims {
-    iss: String,
-    iat: usize,
+#[derive(Debug, Serialize)]
+struct ApnsClaims<'a> {
+    iss: &'a str,
+    iat: u64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 struct ApnsToken {
     jwt: String,
-    issued_at: u64,
+    issued_at: u64, // Seconds since UNIX_EPOCH
 }
 
-#[derive(Debug, Clone, Zeroize)]
+impl fmt::Debug for ApnsToken {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ApnsToken")
+            .field("jwt", &"[[REDACTED]]")
+            .field("issued_at", &self.issued_at)
+            .finish()
+    }
+}
+
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 struct FcmToken {
     token: String,
     expires_at: u64, // Seconds since UNIX_EPOCH
+}
+
+impl fmt::Debug for FcmToken {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FcmToken")
+            .field("token", &"[[REDACTED]]")
+            .field("expires_at", &self.expires_at)
+            .finish()
+    }
 }
 
 impl FcmToken {
@@ -76,34 +98,58 @@ impl FcmToken {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct FcmState {
-    service_account: ServiceAccount,
+    service_account: Arc<ServiceAccount>,
+    // Note: zeroized in <https://github.com/Keats/jsonwebtoken/issues/337>
+    private_key: EncodingKey,
     token: Arc<Mutex<Option<FcmToken>>>,
 }
 
-#[derive(Debug, Clone)]
-pub struct ApnsState {
-    pub key_id: String,
-    pub team_id: String,
-    pub private_key: Vec<u8>,
+impl fmt::Debug for FcmState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FcmState")
+            .field("service_account", &self.service_account)
+            .field("private_key", &"[[REDACTED]]")
+            .field("token", &self.token)
+            .finish()
+    }
+}
+
+#[derive(Clone)]
+struct ApnsState {
+    key_id: String,
+    team_id: String,
+    // Note: zeroized in <https://github.com/Keats/jsonwebtoken/issues/337>
+    private_key: EncodingKey,
     token: Arc<Mutex<Option<ApnsToken>>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Zeroize)]
-pub struct ServiceAccount {
+impl fmt::Debug for ApnsState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ApnsState")
+            .field("key_id", &self.key_id)
+            .field("team_id", &self.team_id)
+            .field("private_key", &"[[REDACTED]]")
+            .field("token", &self.token)
+            .finish()
+    }
+}
+
+#[derive(Debug, Deserialize, Zeroize, ZeroizeOnDrop)]
+struct ServiceAccount {
     #[serde(rename = "type")]
-    pub key_type: Option<String>,
-    pub project_id: Option<String>,
-    pub private_key_id: Option<String>,
-    pub private_key: String,
-    pub client_email: String,
-    pub client_id: Option<String>,
-    pub auth_uri: Option<String>,
-    pub token_uri: String,
-    pub auth_provider_x509_cert_url: Option<String>,
-    pub client_x509_cert_url: Option<String>,
-    pub universe_domain: Option<String>,
+    key_type: Option<String>,
+    project_id: Option<String>,
+    private_key_id: Option<String>,
+    private_key: String,
+    client_email: String,
+    client_id: Option<String>,
+    auth_uri: Option<String>,
+    token_uri: String,
+    auth_provider_x509_cert_url: Option<String>,
+    client_x509_cert_url: Option<String>,
+    universe_domain: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -123,10 +169,13 @@ impl ProductionPushNotificationProvider {
     ) -> anyhow::Result<Self> {
         // Read the FCN service account file
         let fcm_state = if let Some(fcm_settings) = fcm_settings {
-            let service_account = std::fs::read_to_string(fcm_settings.path)?;
+            let service_account = fs::read_to_string(fcm_settings.path)?;
+            let service_account: ServiceAccount = serde_json::from_str(&service_account)?;
+            let private_key = EncodingKey::from_rsa_pem(service_account.private_key.as_bytes())?;
 
             Some(FcmState {
-                service_account: serde_json::from_str(&service_account)?,
+                service_account: Arc::new(service_account),
+                private_key,
                 token: Arc::new(Mutex::new(None)),
             })
         } else {
@@ -135,15 +184,13 @@ impl ProductionPushNotificationProvider {
 
         // Read the parameters for APNS
         let apns_state = if let Some(apns_settings) = apns_settings {
-            // Read the private key
-            let mut private_key_file = File::open(&apns_settings.privatekeypath)?;
-            let mut private_key_p8 = String::new();
-            private_key_file.read_to_string(&mut private_key_p8)?;
+            let private_key_p8 = fs::read_to_string(&apns_settings.privatekeypath)?;
+            let private_key = EncodingKey::from_ec_pem(private_key_p8.as_bytes())?;
 
             Some(ApnsState {
                 key_id: apns_settings.keyid,
                 team_id: apns_settings.teamid,
-                private_key: private_key_p8.into_bytes(),
+                private_key,
                 token: Arc::new(Mutex::new(None)),
             })
         } else {
@@ -157,7 +204,10 @@ impl ProductionPushNotificationProvider {
         })
     }
 
-    async fn issue_fcm_token(&self) -> Result<FcmToken, Box<dyn std::error::Error + Send + Sync>> {
+    async fn issue_fcm_token(
+        &self,
+        fcm_auth_url: &str,
+    ) -> Result<FcmToken, Box<dyn std::error::Error + Send + Sync>> {
         // TODO #237: Proactively refresh the token before it expires
         let fcm_state = self.fcm_state.as_ref().ok_or("Missing Service Account")?;
 
@@ -169,34 +219,19 @@ impl ProductionPushNotificationProvider {
             return Ok(token.clone());
         }
 
-        let service_account = &fcm_state.service_account;
-
-        // Extract necessary fields from the service account
-        let private_key = &service_account.private_key;
-        let client_email = &service_account.client_email;
-
-        // Generate JWT claims
-        let iat = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as usize;
-        let exp = iat + 3600; // Token valid for 1 hour
-
-        let claims = FcmClaims {
-            iss: client_email.to_string(),
-            scope: "https://www.googleapis.com/auth/firebase.messaging".to_string(),
-            aud: "https://oauth2.googleapis.com/token".to_string(),
-            iat,
-            exp,
-        };
-
         // Create the JWT
-        let header = Header::new(Algorithm::RS256);
-        let encoding_key = EncodingKey::from_rsa_pem(private_key.as_bytes())?;
-        let jwt = encode(&header, &claims, &encoding_key)?;
+        let iat = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+        let jwt = create_google_jwt_token(
+            &fcm_state.private_key,
+            &fcm_state.service_account.client_email,
+            iat,
+        )?;
 
         // Send the JWT to Google's OAuth2 token endpoint and get a bearer token
         // back
         let response = self
             .client
-            .post("https://oauth2.googleapis.com/token")
+            .post(fcm_auth_url)
             .form(&[
                 ("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
                 ("assertion", &jwt),
@@ -236,7 +271,7 @@ impl ProductionPushNotificationProvider {
 
     /// Return a JWT for APNS. If the token is older than 40 minutes, a new
     /// token is issued (as JWTs must be between 20 and 60 minutes old).
-    async fn issue_apns_jwt(&self) -> Result<String, Box<dyn std::error::Error>> {
+    async fn issue_apns_jwt(&self) -> Result<ApnsToken, Box<dyn std::error::Error>> {
         // TODO #237: Proactively refresh the jwt before it expires
         let apns_state = self.apns_state.as_ref().ok_or("Missing ApnsState")?;
 
@@ -247,15 +282,14 @@ impl ProductionPushNotificationProvider {
         if let Some(token) = &*token_option {
             let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
             if now < token.issued_at + 60 * 40 {
-                return Ok(token.jwt.clone());
+                return Ok(token.clone());
             }
         }
-        // Generate the current time in seconds since UNIX_EPOCH
-        let iat = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as usize;
 
         // Create the JWT claims
+        let iat = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
         let claims = ApnsClaims {
-            iss: apns_state.team_id.clone(),
+            iss: &apns_state.team_id,
             iat,
         };
 
@@ -264,17 +298,14 @@ impl ProductionPushNotificationProvider {
         header.kid = Some(apns_state.key_id.clone());
 
         // Encode the JWT
-        let token = encode(
-            &header,
-            &claims,
-            &EncodingKey::from_ec_pem(&apns_state.private_key)?,
-        )?;
+        let jwt = encode(&header, &claims, &apns_state.private_key)?;
+        let token = ApnsToken {
+            jwt,
+            issued_at: iat,
+        };
 
         // Store the JWT and update the last issuance time
-        *token_option = Some(ApnsToken {
-            jwt: token.clone(),
-            issued_at: iat as u64,
-        });
+        *token_option = Some(token.clone());
 
         Ok(token)
     }
@@ -288,7 +319,7 @@ impl ProductionPushNotificationProvider {
         let service_account = &fcm_state.service_account;
 
         let bearer_token = self
-            .issue_fcm_token()
+            .issue_fcm_token("https://oauth2.googleapis.com/token")
             .await
             .map_err(|e| PushNotificationError::OAuthError(e.to_string()))?;
 
@@ -349,24 +380,26 @@ impl ProductionPushNotificationProvider {
         }
 
         // Issue the JWT
-        let jwt = self
+        let token = self
             .issue_apns_jwt()
             .await
             .map_err(|e| PushNotificationError::JwtCreationError(e.to_string()))?;
 
         // Create the URL
-        let url = format!(
-            "https://api.push.apple.com:443/3/device/{}",
-            push_token.token()
-        );
+        let url = format!("https://api.push.apple.com/3/device/{}", push_token.token());
 
         // Create the headers and payload
-        let mut headers = reqwest::header::HeaderMap::new();
-        headers.insert("authorization", format!("bearer {jwt}").parse().unwrap());
-        headers.insert("apns-topic", "ms.air".parse().unwrap());
-        headers.insert("apns-push-type", "alert".parse().unwrap());
-        headers.insert("apns-priority", "10".parse().unwrap());
-        headers.insert("apns-expiration", "0".parse().unwrap());
+        let mut headers = HeaderMap::with_capacity(5);
+        headers.insert(
+            AUTHORIZATION,
+            format!("bearer {}", token.jwt)
+                .parse()
+                .map_err(|_| PushNotificationError::InvalidBearer)?,
+        );
+        headers.insert("apns-topic", HeaderValue::from_static("ms.air"));
+        headers.insert("apns-push-type", HeaderValue::from_static("alert"));
+        headers.insert("apns-priority", HeaderValue::from_static("10"));
+        headers.insert("apns-expiration", HeaderValue::from_static("0"));
 
         let body = r#"
         {
@@ -382,8 +415,8 @@ impl ProductionPushNotificationProvider {
         "#;
 
         // Send the push notification
-        let client = Client::new();
-        let res = client
+        let res = self
+            .client
             .post(url)
             .headers(headers)
             .body(body)
@@ -409,11 +442,274 @@ impl ProductionPushNotificationProvider {
     }
 }
 
+fn create_google_jwt_token(
+    encoding_key: &EncodingKey,
+    client_email: &str,
+    iat: u64,
+) -> jsonwebtoken::errors::Result<String> {
+    let exp = iat + 3600;
+    let claims = FcmClaims {
+        iss: client_email,
+        scope: "https://www.googleapis.com/auth/firebase.messaging",
+        aud: "https://oauth2.googleapis.com/token",
+        iat,
+        exp,
+    };
+    let header = Header::new(Algorithm::RS256);
+    encode(&header, &claims, encoding_key)
+}
+
 impl PushNotificationProvider for ProductionPushNotificationProvider {
     async fn push(&self, push_token: PushToken) -> Result<(), PushNotificationError> {
         match push_token.operator() {
             PushTokenOperator::Apple => self.push_apple(push_token).await,
             PushTokenOperator::Google => self.push_google(push_token).await,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::io::Write;
+
+    use tempfile::NamedTempFile;
+
+    use super::*;
+
+    const TEST_RSA_KEY: &str = r#"-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCMFtzXkOw+XPPg
+VIfbYMw8HTD/Vt38UBse60ssReCbxXWPHaHyiTSeSwDCrck7LxZTbmjGU6qOHlET
+P53XYKqga43I+wL6vTLxiK+6h1UDKHKlqLMmdqVMc0uNkwm2BcZVqq9ScROtV/nX
+e6ZvoLTfIaq2evHRrJYl+1+TX9nDhQp8+X/6gFUxvdEPg31B1SBesclkB7wN3N4s
+bGAvxVnrnL1cQAJzURC//mlE2mCXp5BqQSal1TFvOgx93LeCcHLskX5BELRzDCBA
+g6Fb2b8utg0148xNId/zRgFm1LARh331nXMrsfMFXE7dZB3vZmdNXB6+SZzkC1a1
+u0Ym+aGZAgMBAAECggEADx/kR79JLEn9mAuUT+R9ZGOb78Nti9FLvky1xOHF+Fdr
+I/CVdKGo3Uq4eixIYLQKn2cZF4l+rWGbS/5XMKLKhS+bgxaLqa3N31ssKtGz5VeD
+ejxynB1c5xo/DtnQR3dL5KGdFGPqNZG9Iw1B6MUjZgBE5bb0Hvi4zMC9HsSPVp8g
+feP6E96ihv2ZnObJZjGwfi9XOXPEaaYprtDUulmbkzKNh43wmOx46yeww0X32lXw
+CibDjd0pGaW2pPfjFw0C2x8anm4R+5H2Nj+t2Uee2qlkyaoi2uDCL5m64SxH8k+B
+Sh9W6wR6PVAxN7BAyjjz8LbN03+2nQF+//22WIls8QKBgQDBsilxR7HiUeWtd91A
+YL2dSyKMv2BfGI1GyhvTMScUiRN9ZfLWEf5QUBN3nKErWOF3N9iDUKswaXW8O1SV
+vbmaoMT7kEUhN2UwJq0QpBupjblt9pHRKJsT6eN5CnBf3ga3fWQbqgCT+eQfKxNV
+ow2rOoeDn2YKvBEybcs4WCWp8QKBgQC5JnovHNyuMmiBNaF/DwdlVy2NfLAo7drf
+2+Ydc9TB027TR+mNw9qbOItDUWQOBN6yWJBPxOHAs1FwUqYo3wARlCOIvG3xajo+
+72zHZaeMVzEvaBk1YRkEtaS+aLuO8IC/wObKN7ri8aza453861Cu4TRdh8iywq5i
+S4C7dy4KKQKBgQCCEQkTMHma6DO60IqZ+Fxbi2Cf8sLcGLiFmKImpxL/Dy0vP45Z
+gauscpkf8OWpHf4I+E9Dnp/V2ntc8tpR0x0XYG3mH3LMY05njxEX45tPuAOUe8Zf
+FU1NifleBkx/k7Ae9uyKRxYsR9mPtHU/REahfKQTFq6G9tL1chTMuSRRgQKBgHJQ
+33/XQioL1ZpxkpTwopBfkzCYm+upcEpna10j92j1Mqgg7oMpOgA8mT+nMS+2sglL
+xU57MSfZj57aaN0zUseHv6jdLsSv4eaZzYAPs7Ni4mtyyp26pcfSnzUxVRycQeIj
+KFwSrMESlrdPcmyGnfpb8gkNnU1CBomKNKGKpFKBAoGBAKPdE/bz64LSS4CSUJuR
+VyA49io/gUqSjPpKOiZwvAqiyDrF6Pt1mR67xBfj3SMClDe8NP6x7NgCJbYtjHyf
+OwBzOYWm8dOUD9vBtDyWYw3V46cdk2XAPrzy2wHqD0U9b+fW1p7Pmnrz35R+Nwg6
+ejFLxFZmAuiyBWPlOnrZlyWh
+-----END PRIVATE KEY-----"#;
+
+    const TEST_EC_KEY: &str = r#"-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgHz3Iva44aHgSx7n0
+c5gHRTX9xPNNaAWBZLCP/wIXCn+hRANCAATXcnNCtSV8Qzeep3Ic3vTSyhCowC5G
+44VV2EXhUOa4n5RId2nzLFTbmAONqZm2vdhc5YJMd45b1+5jymRA70yy
+-----END PRIVATE KEY-----"#;
+
+    fn create_temp_fcm_file() -> NamedTempFile {
+        let mut file = NamedTempFile::new().unwrap();
+        let sa = json!({
+            "client_email": "test@example.com",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "private_key": TEST_RSA_KEY,
+            "project_id": "test-project"
+        });
+        writeln!(file.as_file_mut(), "{sa}").unwrap();
+        file
+    }
+
+    #[test]
+    fn test_new_with_fcm_only() {
+        let fcm_file = create_temp_fcm_file();
+        let fcm_settings = Some(FcmSettings {
+            path: fcm_file.path().to_path_buf(),
+        });
+
+        let provider = ProductionPushNotificationProvider::new(fcm_settings, None).unwrap();
+
+        assert!(provider.fcm_state.is_some());
+        assert!(provider.apns_state.is_none());
+
+        let state = provider.fcm_state.unwrap();
+        assert_eq!(
+            state.service_account.project_id.as_deref().unwrap(),
+            "test-project"
+        );
+    }
+
+    #[test]
+    fn test_new_with_apns_only() {
+        let mut apns_file = NamedTempFile::new().unwrap();
+        writeln!(apns_file, "{TEST_EC_KEY}").unwrap();
+
+        let apns_settings = Some(ApnsSettings {
+            privatekeypath: apns_file.path().to_path_buf(),
+            keyid: "KEY123".to_string(),
+            teamid: "TEAM456".to_string(),
+        });
+
+        let provider = ProductionPushNotificationProvider::new(None, apns_settings).unwrap();
+
+        assert!(provider.fcm_state.is_none());
+        assert!(provider.apns_state.is_some());
+
+        let state = provider.apns_state.unwrap();
+        assert_eq!(state.key_id, "KEY123");
+        assert_eq!(state.team_id, "TEAM456");
+    }
+
+    #[test]
+    fn test_new_with_both_providers() {
+        let fcm_file = create_temp_fcm_file();
+        let mut apns_file = NamedTempFile::new().unwrap();
+        writeln!(apns_file, "{TEST_EC_KEY}").unwrap();
+
+        let fcm_settings = Some(FcmSettings {
+            path: fcm_file.path().to_path_buf(),
+        });
+        let apns_settings = Some(ApnsSettings {
+            privatekeypath: apns_file.path().to_path_buf(),
+            keyid: "K".into(),
+            teamid: "T".into(),
+        });
+
+        let provider =
+            ProductionPushNotificationProvider::new(fcm_settings, apns_settings).unwrap();
+        assert!(provider.fcm_state.is_some());
+        assert!(provider.apns_state.is_some());
+    }
+
+    #[test]
+    fn test_new_fails_on_missing_fcm_file() {
+        let fcm_settings = Some(FcmSettings {
+            path: "non_existent_file.json".into(),
+        });
+
+        let result = ProductionPushNotificationProvider::new(fcm_settings, None);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_new_none_settings() {
+        let provider = ProductionPushNotificationProvider::new(None, None).unwrap();
+        assert!(provider.fcm_state.is_none());
+        assert!(provider.apns_state.is_none());
+    }
+
+    async fn setup_fcm_provider() -> ProductionPushNotificationProvider {
+        let mut fcm_file = NamedTempFile::new().unwrap();
+        let sa = json!({
+            "client_email": "test-fcm@example.com",
+            "token_uri": "http://localhost/ignored",
+            "private_key": TEST_RSA_KEY, // Use your existing TEST_KEY const
+            "project_id": "test-project"
+        });
+        writeln!(fcm_file, "{sa}").unwrap();
+
+        ProductionPushNotificationProvider::new(
+            Some(FcmSettings {
+                path: fcm_file.path().to_path_buf(),
+            }),
+            None,
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_issue_fcm_token_success() {
+        let mut server = mockito::Server::new_async().await;
+
+        let google_mock = server
+            .mock("POST", "/")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                json!({
+                    "access_token": "mock-google-bearer-token",
+                    "expires_in": 3600,
+                    "token_type": "Bearer"
+                })
+                .to_string(),
+            )
+            .create();
+
+        let provider = setup_fcm_provider().await;
+
+        let result = provider.issue_fcm_token(&server.url()).await;
+
+        assert!(result.is_ok());
+        let fcm_token = result.unwrap();
+        assert_eq!(fcm_token.token(), "mock-google-bearer-token");
+        google_mock.assert(); // Ensure the HTTP call actually happened
+    }
+
+    #[tokio::test]
+    async fn test_issue_fcm_token_error_handling() {
+        let mut server = mockito::Server::new_async().await;
+
+        let google_mock = server
+            .mock("POST", "/")
+            .with_status(400)
+            .with_header("content-type", "application/json")
+            .with_body(
+                json!({
+                    "error": "invalid_grant",
+                    "error_description": "Invalid JWT Signature"
+                })
+                .to_string(),
+            )
+            .create();
+
+        let provider = setup_fcm_provider().await;
+        let result = provider.issue_fcm_token(&server.url()).await;
+
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("invalid_grant"));
+        assert!(err_msg.contains("Invalid JWT Signature"));
+        google_mock.assert(); // Ensure the HTTP call actually happened
+    }
+
+    fn setup_provider_with_apns() -> ProductionPushNotificationProvider {
+        let mut apns_file = NamedTempFile::new().unwrap();
+        writeln!(apns_file, "{TEST_EC_KEY}").unwrap();
+
+        let apns_settings = Some(ApnsSettings {
+            privatekeypath: apns_file.path().to_path_buf(),
+            keyid: "KEY123".to_string(),
+            teamid: "TEAM456".to_string(),
+        });
+
+        ProductionPushNotificationProvider::new(None, apns_settings).unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_issue_apns_jwt_success() {
+        let provider = setup_provider_with_apns();
+
+        let token = provider.issue_apns_jwt().await.unwrap();
+        assert!(!token.jwt.is_empty());
+
+        // Verify JWT structure (header.payload.signature)
+        let parts = token.jwt.split('.').count();
+        assert_eq!(parts, 3);
+    }
+
+    #[tokio::test]
+    async fn test_issue_apns_jwt_caching() {
+        let provider = setup_provider_with_apns();
+
+        let first_token = provider.issue_apns_jwt().await.unwrap();
+        let second_token = provider.issue_apns_jwt().await.unwrap();
+
+        assert_eq!(
+            first_token, second_token,
+            "Provider should return the cached token if it's not expired"
+        );
     }
 }

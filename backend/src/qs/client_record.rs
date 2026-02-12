@@ -530,6 +530,11 @@ impl QsClientRecord {
                                                 "Push notification failed because of an invalid configuration",
                                             )
                                         }
+                                        PushNotificationError::InvalidBearer => {
+                                            error!(
+                                                "Push notification failed because of an invalid bearer"
+                                            )
+                                        }
                                     }
                                 }
                             }
