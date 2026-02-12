@@ -95,6 +95,9 @@ class AppLocalizationsSv extends AppLocalizations {
   String get addMembersScreen_error_noActiveChat => 'en aktiv chatt krävs';
 
   @override
+  String get contactDetailsScreen_chat => 'Chat';
+
+  @override
   String get contactDetailsScreen_viewSafetyCode => 'Visa säkerhetskod';
 
   @override

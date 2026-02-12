@@ -96,6 +96,9 @@ class AppLocalizationsFr extends AppLocalizations {
       'une discussion active est obligatoire';
 
   @override
+  String get contactDetailsScreen_chat => 'Chat';
+
+  @override
   String get contactDetailsScreen_viewSafetyCode => 'Voir le code de sécurité';
 
   @override
