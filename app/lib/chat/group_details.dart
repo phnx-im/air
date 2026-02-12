@@ -9,7 +9,8 @@ import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/app_scaffold.dart';
-import 'package:air/ui/components/button/button.dart';
+import 'package:air/ui/components/button/button.dart'
+    show AppButton, AppButtonTone;
 import 'package:air/ui/components/desktop/width_constraints.dart';
 import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
 import 'package:air/ui/typography/font_size.dart';
@@ -154,7 +155,7 @@ class GroupDetailsScreen extends StatelessWidget {
               title: loc.deleteChatDialog_title,
               description: loc.deleteChatDialog_content,
               primaryActionText: loc.deleteChatDialog_delete,
-              isPrimaryDanger: true,
+              primaryTone: AppButtonTone.danger,
             );
           },
         ) ??

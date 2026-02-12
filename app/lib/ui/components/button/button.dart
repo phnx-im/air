@@ -50,6 +50,13 @@ class AppButton extends StatelessWidget {
       ),
       (.primary, _, .danger) => colors.function.white,
       (.primary, _, .normal) => colors.function.toggleWhite,
+      (.secondary, .inactive, .danger) => colors.function.danger.withValues(
+        alpha: 0.5,
+      ),
+      (.secondary, .inactive, _) => colors.function.toggleBlack.withValues(
+        alpha: 0.5,
+      ),
+      (.secondary, _, .danger) => colors.function.danger,
       (.secondary, _, _) => colors.function.toggleBlack,
     };
 
@@ -58,6 +65,8 @@ class AppButton extends StatelessWidget {
       (.primary, .normal) => colors.accent.primary,
       (.secondary, _) => colors.accent.quaternary,
     };
+
+    const Border? border = null;
 
     final iconColor = switch ((type, state)) {
       (.secondary, _) => colors.text.primary,
@@ -94,8 +103,14 @@ class AppButton extends StatelessWidget {
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(borderRadius),
+            side: border != null
+                ? BorderSide(color: border.top.color)
+                : BorderSide.none,
           ),
         ),
+        side: border != null
+            ? WidgetStatePropertyAll(BorderSide(color: border.top.color))
+            : null,
       ),
       child: Padding(
         padding: EdgeInsets.symmetric(
