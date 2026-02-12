@@ -38,8 +38,10 @@ Future<void> importClientDatabase({
   tarGzBytes: tarGzBytes,
 );
 
-/// Reads an image from the system clipboard and returns it as JPEG bytes.
+/// Reads an image from the system clipboard and returns it as JPEG bytes. Only
+/// supported on desktop platforms (Linux, Windows, macOS).
 ///
-/// Returns `None` if the clipboard does not contain image data.
+/// Returns `None` if the clipboard does not contain image data, or when called
+/// on unsupported platforms.
 Future<Uint8List?> readClipboardImage() =>
     RustLib.instance.api.crateApiUtilsReadClipboardImage();
