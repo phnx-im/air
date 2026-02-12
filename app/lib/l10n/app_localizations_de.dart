@@ -96,6 +96,9 @@ class AppLocalizationsDe extends AppLocalizations {
       'ein aktiver Chat ist erforderlich';
 
   @override
+  String get contactDetailsScreen_chat => 'Chat';
+
+  @override
   String get contactDetailsScreen_viewSafetyCode => 'Sicherheitscode anzeigen';
 
   @override

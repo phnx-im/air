@@ -258,6 +258,12 @@ abstract class AppLocalizations {
   /// **'an active chat is obligatory'**
   String get addMembersScreen_error_noActiveChat;
 
+  /// No description provided for @contactDetailsScreen_chat.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat'**
+  String get contactDetailsScreen_chat;
+
   /// No description provided for @contactDetailsScreen_viewSafetyCode.
   ///
   /// In en, this message translates to:

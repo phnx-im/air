@@ -16,6 +16,9 @@ on:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+  RUSTFLAGS: -D warnings
   SQLX_OFFLINE: true
 
 jobs:
@@ -30,18 +33,12 @@ jobs:
           filter: blob:none
 
       ## CHECK FRB
-      - uses: dtolnay/rust-toolchain@1.90.0
-
       - uses: extractions/setup-just@v2
+      - uses: cargo-bins/cargo-binstall@main
+      - run: cargo binstall flutter_rust_bridge_codegen@2.11.1 --no-confirm
       - run: just install-fvm
       - run: echo /home/runner/fvm/bin >> $GITHUB_PATH
-
       - run: (cd app && fvm install)
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cargo/bin/flutter_rust_bridge_codegen
-          key: cargo-install-${{ runner.os }}-frb-2.11.1
-      - run: if ! command -v flutter_rust_bridge_codegen; then cargo install flutter_rust_bridge_codegen@2.11.1; fi
       - run: just check-frb
 
   flutter:
@@ -52,11 +49,10 @@ jobs:
           lfs: true
 
       # CHECK FLUTTER
-      - run: curl -fsSL https://fvm.app/install.sh | bash
-      - run: echo /home/runner/fvm/bin >> $GITHUB_PATH
-
-      - run: (cd app && fvm install)
       - uses: extractions/setup-just@v2
+      - run: just install-fvm
+      - run: echo /home/runner/fvm/bin >> $GITHUB_PATH
+      - run: (cd app && fvm install)
       - run: just check-flutter
 
       # TEST FLUTTER
@@ -73,14 +69,17 @@ jobs:
       - uses: actions/checkout@v5
 
       # CHECK RUST
-      - uses: taiki-e/install-action@cargo-machete
-      - uses: dtolnay/rust-toolchain@1.90.0
-      - uses: cargo-bins/cargo-binstall@main
-      - run: cargo binstall cargo-deny@0.18.9 --no-confirm
-      - uses: Swatinem/rust-cache@v2
-      - run: pip3 install --user reuse
-      - run: pip3 install --user podman-compose
       - uses: extractions/setup-just@v2
+      - uses: dtolnay/rust-toolchain@1.92.0
+      # Cache cargo-sqlx: <https://github.com/launchbadge/sqlx/issues/1353>
+      - uses: actions/cache@v3
+        with:
+          path: ~/.cargo/bin
+          key: ${{ runner.os }}-cargo-bin
+      - uses: cargo-bins/cargo-binstall@main
+      - run: cargo binstall cargo-deny@0.19.0 sqlx-cli@0.8.6 cargo-machete@0.9.1 --no-confirm
+      - run: pip3 install --user reuse podman-compose
+      - uses: Swatinem/rust-cache@v2
       - run: just check-rust
 
       # TEST RUST

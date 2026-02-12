@@ -81,7 +81,7 @@ class ContactDetailsView extends StatelessWidget {
         children: [
           const SizedBox(height: Spacings.xs),
 
-          UserAvatar(size: 192, userId: profile.userId, profile: profile),
+          UserAvatar(profile: profile, size: 192),
 
           const SizedBox(height: Spacings.s),
 
@@ -107,7 +107,7 @@ class ContactDetailsView extends StatelessWidget {
                 const AppIcon.messageCircle(size: 16),
                 const SizedBox(width: Spacings.xxs),
                 Text(
-                  "Chat",
+                  loc.contactDetailsScreen_chat,
                   style: TextStyle(fontSize: LabelFontSize.base.size),
                 ),
               ],
