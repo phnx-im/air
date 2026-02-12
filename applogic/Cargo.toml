@@ -25,7 +25,6 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
 aircommon.workspace = true
 aircoreclient.workspace = true
 anyhow.workspace = true
-arboard.workspace = true
 blake3.workspace = true
 bytes.workspace = true
 chrono.workspace = true
@@ -62,9 +61,11 @@ libc = "0.2" # required for stack size in background execution on Android/iOS
 [target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
 notify-rust = "4"
 
-
-# On linx we want the wayland-data-control feature for clipboard support in
-# Wayland sessions
+# arboard is only supported on desktop platforms, so we only include it for
+# those targets. On Linux, we also want the wayland-data-control feature for
+# clipboard support in Wayland sessions.
+[target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
+arboard = { workspace = true }
 [target.'cfg(target_os = "linux")'.dependencies]
 arboard = { workspace = true, features = ["wayland-data-control"] }
 
