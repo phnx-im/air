@@ -104,7 +104,7 @@ impl ChatOperation {
             .await?
             .ok_or(anyhow!("No chat found for ID {}", self.chat_id))?;
 
-        if matches!(chat.status(), ChatStatus::Inactive(_)) {
+        if let ChatStatus::Inactive(_) = chat.status() {
             bail!("Cannot execute operation on inactive chat");
         }
 
