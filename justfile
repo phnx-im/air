@@ -60,11 +60,11 @@ _check-status command:
         just _log-error "{{command}}"
     fi
 
-# This task will run the command and hide stdout. If git diff then reports unstaged changes, the task will fail.
+# This task will run the command. If git diff then reports unstaged changes, the task will fail.
 _check-unstaged-changes command:
     #!/usr/bin/env -S bash -eu
     echo "{{BOLD}}Running {{command}}{{NORMAL}}"
-    {{command}} >/dev/null
+    {{command}}
     if ! git diff --quiet; then
         echo -e "{{RED}}Found unstaged changes.{{NORMAL}}"
         git diff
