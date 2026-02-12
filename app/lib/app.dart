@@ -280,12 +280,12 @@ class LoadableUserCubitProvider extends StatelessWidget {
               loadableUserCubit.finishUnloading();
             });
 
-          case LoadingUser() || NoUser():
+          case LoadingUser() || UnloadedUser():
         }
       },
       builder: (context, loadableUser) {
         return switch (loadableUser) {
-          LoadingUser() || NoUser() => child,
+          LoadingUser() || UnloadedUser() => child,
           LoadedUser(:final user) || UnloadingUser(:final user) => KeyedSubtree(
             key: ValueKey(user.userId),
             child: MultiBlocProvider(
