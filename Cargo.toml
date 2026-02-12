@@ -65,7 +65,7 @@ image = "0.25.1"
 infer = "0.19.0"
 insta = { version = "1.42.1", features = ["json"] }
 jni = "0.21"
-jsonwebtoken = "9"
+jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 lru = "0.16.2"
 memmap2 = "0.9.5"
 metrics = "0.24.2"
@@ -73,6 +73,7 @@ metrics-exporter-prometheus = { version = "0.17.2", default-features = false }
 mimi-room-policy = { git = "https://github.com/phnx-im/mimi-room-policy", rev = "6406e6d84c1219da3afcccb91007f2fdaaf61193" }
 mimi_content = { git = "https://github.com/boxdot/mimi-content", rev = "18af569b6074ed5b63cb2d5086ffea3acfad3f02" }
 mockall = "0.13.1"
+mockito = "1.7.0"
 openmls = { version = "0.7.1" }
 openmls_rust_crypto = { version = "0.4.1" }
 openmls_traits = { version = "0.4.1" }
@@ -124,9 +125,6 @@ zeroize = "1.8.1"
 
 
 [patch.crates-io]
-# PR: <https://github.com/RustCrypto/formats/pull/1656/files>
-tls_codec = { git = "https://github.com/boxdot/formats", rev = "9846c69f91e732b493dcccf92f4c163bfc711b7d" }
-tls_codec_derive = { git = "https://github.com/boxdot/formats", rev = "9846c69f91e732b493dcccf92f4c163bfc711b7d" }
 # Backported fix that allows us to skip lifetime checks temporarily. This can be
 # removed once we adopt the next OpenMLS release.
 openmls = { git = "https://github.com/openmls/openmls", rev = "e00c64ed648df3742fdffe40267b21555dec1bed" }

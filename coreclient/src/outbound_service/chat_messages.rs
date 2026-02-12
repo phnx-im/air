@@ -5,12 +5,14 @@
 use aircommon::identifiers::AttachmentId;
 use anyhow::anyhow;
 use anyhow::{Context, ensure};
+use sqlx::SqliteTransaction;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use tracing::warn;
 use uuid::Uuid;
 
 use crate::outbound_service::resync::Resync;
+use crate::utils::connection_ext::ConnectionExt as _;
 use crate::{
     Chat, ChatMessage, ChatStatus, Message, MessageId,
     outbound_service::chat_message_queue::ChatMessageQueue, utils::connection_ext::StoreExt,
@@ -28,16 +30,28 @@ impl OutboundService {
         message_id: MessageId,
         attachment_id: Option<AttachmentId>,
     ) -> anyhow::Result<()> {
-        let mut connection = self.context.pool.acquire().await?;
+        let mut pool = self.context.pool.clone();
+        pool.with_transaction(async |txn| {
+            self.enqueue_chat_message_in_transaction(txn, message_id, attachment_id)
+                .await
+        })
+        .await
+    }
 
+    pub async fn enqueue_chat_message_in_transaction(
+        &self,
+        txn: &mut SqliteTransaction<'_>,
+        message_id: MessageId,
+        attachment_id: Option<AttachmentId>,
+    ) -> anyhow::Result<()> {
         // Load message to make sure it exists and get chat id
-        let message = ChatMessage::load(&mut *connection, message_id)
+        let message = ChatMessage::load(txn.as_mut(), message_id)
             .await?
             .with_context(|| format!("Can't find message with id {message_id:?}"))?;
         let chat_id = message.chat_id();
 
         // Load chat to check status
-        let chat = Chat::load(&mut connection, &chat_id)
+        let chat = Chat::load(txn, &chat_id)
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
         if let ChatStatus::Blocked = chat.status() {
@@ -45,7 +59,7 @@ impl OutboundService {
         }
 
         let message_queue = ChatMessageQueue::new(chat_id, message_id, attachment_id);
-        message_queue.enqueue(&mut *connection).await?;
+        message_queue.enqueue(txn.as_mut()).await?;
 
         self.notify_work();
 

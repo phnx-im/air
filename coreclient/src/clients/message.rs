@@ -168,7 +168,7 @@ impl CoreUser {
 
         let unsent_group_message = self
             .with_transaction_and_notifier(async |txn, notifier| {
-                UnsentContent {
+                let unsent_message = UnsentContent {
                     chat_id,
                     message_id: MessageId::random(),
                     content,
@@ -176,12 +176,13 @@ impl CoreUser {
                 .store_unsent_message(txn, notifier, self.user_id(), replaces_id)
                 .await?
                 .store_group_update(txn, notifier, self.user_id())
-                .await
-            })
-            .await?;
+                .await?;
 
-        self.outbound_service()
-            .enqueue_chat_message(unsent_group_message.message.id(), None)
+                self.outbound_service()
+                    .enqueue_chat_message_in_transaction(txn, unsent_message.message.id(), None)
+                    .await?;
+                Ok(unsent_message)
+            })
             .await?;
 
         Ok(unsent_group_message.message)
