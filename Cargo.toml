@@ -30,7 +30,7 @@ mls-assist = { path = "mls-assist" }
 
 aes-gcm = "0.10"
 anyhow = { version = "1.0.98", features = ["backtrace"] }
-arboard = { version = "3", features = ["wayland-data-control"] }
+arboard = "3"
 argon2 = "0.5.3"
 async-trait = "0.1.53"
 aws-config = { version = "1.8.0", default-features = false, features = ["behavior-version-latest", "rt-tokio"] }

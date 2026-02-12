@@ -25,7 +25,6 @@ pub async fn import_client_database(db_path: String, tar_gz_bytes: Vec<u8>) -> a
 /// Reads an image from the system clipboard and returns it as JPEG bytes.
 ///
 /// Returns `None` if the clipboard does not contain image data.
-#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 pub fn read_clipboard_image() -> Option<Vec<u8>> {
     use image::codecs::jpeg::JpegEncoder;
     use std::io::Cursor;
