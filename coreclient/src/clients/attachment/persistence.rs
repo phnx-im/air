@@ -120,7 +120,7 @@ impl Type<Sqlite> for AttachmentStatus {
 impl<'q> Encode<'q, Sqlite> for AttachmentStatus {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as Database>::ArgumentBuffer<'q>,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         Encode::<Sqlite>::encode(*self as u32, buf)
     }

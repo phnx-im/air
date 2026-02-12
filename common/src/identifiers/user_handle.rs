@@ -149,7 +149,7 @@ mod sqlx_impls {
     impl Encode<'_, Sqlite> for UserHandle {
         fn encode_by_ref(
             &self,
-            buf: &mut <Sqlite as Database>::ArgumentBuffer<'_>,
+            buf: &mut <Sqlite as Database>::ArgumentBuffer,
         ) -> Result<IsNull, BoxDynError> {
             Encode::<Sqlite>::encode(self.plaintext().to_owned(), buf)
         }
@@ -180,7 +180,7 @@ mod sqlx_impls {
     {
         fn encode_by_ref(
             &self,
-            buf: &mut <DB as Database>::ArgumentBuffer<'q>,
+            buf: &mut <DB as Database>::ArgumentBuffer,
         ) -> Result<IsNull, BoxDynError> {
             let bytes = self.as_bytes().to_vec();
             Encode::<DB>::encode(bytes, buf)

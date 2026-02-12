@@ -6,7 +6,13 @@
       {
         "ordinal": 0,
         "name": "verifying_key: HandleVerifyingKey",
-        "type_info": "Bytea"
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "as_user_handle",
+            "name": "verifying_key"
+          }
+        }
       }
     ],
     "parameters": {

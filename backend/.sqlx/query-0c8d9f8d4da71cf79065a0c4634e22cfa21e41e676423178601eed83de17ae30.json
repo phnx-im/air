@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO key_package (client_id, key_package, is_last_resort)\n            SELECT * FROM UNNEST($1::UUID[], $2::BYTEA[], $3::BOOLEAN[])",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "ByteaArray",
+        "BoolArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0c8d9f8d4da71cf79065a0c4634e22cfa21e41e676423178601eed83de17ae30"
+}

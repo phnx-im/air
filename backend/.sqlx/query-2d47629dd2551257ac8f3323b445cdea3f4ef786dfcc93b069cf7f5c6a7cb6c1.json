@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO handle_connection_package (hash, connection_package, is_last_resort)\n            SELECT * FROM UNNEST($1::BYTEA[], $2::BYTEA[], $3::BOOLEAN[])",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "ByteaArray",
+        "ByteaArray",
+        "BoolArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2d47629dd2551257ac8f3323b445cdea3f4ef786dfcc93b069cf7f5c6a7cb6c1"
+}

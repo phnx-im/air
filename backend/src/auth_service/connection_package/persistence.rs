@@ -7,7 +7,7 @@ use aircommon::{
     identifiers::UserHandleHash,
     messages::connection_package::VersionedConnectionPackage,
 };
-use sqlx::{Arguments, PgExecutor, postgres::PgArguments};
+use sqlx::PgExecutor;
 
 use crate::errors::StorageError;
 
@@ -19,40 +19,25 @@ impl StorableConnectionPackage {
         connection_packages: impl IntoIterator<Item = &VersionedConnectionPackage>,
         hash: &UserHandleHash,
     ) -> Result<(), StorageError> {
-        let mut query_args = PgArguments::default();
-        let mut query_string = String::from(
-            "INSERT INTO handle_connection_package (hash, connection_package, is_last_resort) VALUES",
-        );
+        let mut hashes = Vec::new();
+        let mut packages = Vec::new();
+        let mut last_resorts = Vec::new();
 
-        for (i, connection_package) in connection_packages.into_iter().enumerate() {
-            let is_last_resort = connection_package.is_last_resort();
-            let connection_package: StorableConnectionPackageRef = connection_package.into();
-
-            // Add values to the query arguments. None of these should throw an error.
-            query_args.add(hash.as_bytes())?;
-            query_args.add(BlobEncoded(connection_package))?;
-            query_args.add(is_last_resort)?;
-
-            if i > 0 {
-                query_string.push(',');
-            }
-
-            // Add placeholders for each value
-            query_string.push_str(&format!(
-                " (${}, ${}, ${})",
-                i * 3 + 1,
-                i * 3 + 2,
-                i * 3 + 3
-            ));
+        for cp in connection_packages {
+            hashes.push(hash.as_bytes().to_vec());
+            packages.push(BlobEncoded(StorableConnectionPackageRef::from(cp)));
+            last_resorts.push(cp.is_last_resort());
         }
 
-        // Finalize the query string
-        query_string.push(';');
-
-        // Execute the query
-        sqlx::query_with(&query_string, query_args)
-            .execute(connection)
-            .await?;
+        sqlx::query!(
+            "INSERT INTO handle_connection_package (hash, connection_package, is_last_resort)
+            SELECT * FROM UNNEST($1::BYTEA[], $2::BYTEA[], $3::BOOLEAN[])",
+            &hashes,
+            &packages as &[BlobEncoded<StorableConnectionPackageRef>],
+            &last_resorts as &[Option<bool>]
+        )
+        .execute(connection)
+        .await?;
 
         Ok(())
     }

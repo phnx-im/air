@@ -742,7 +742,7 @@ impl<T: Key<CURRENT_VERSION>> Type<Sqlite> for KeyRefWrapper<'_, T> {
 impl<'q, T: Key<CURRENT_VERSION>> Encode<'q, Sqlite> for KeyRefWrapper<'_, T> {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as sqlx::Database>::ArgumentBuffer<'q>,
+        buf: &mut <Sqlite as sqlx::Database>::ArgumentBuffer,
     ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
         let key_bytes = PersistenceCodec::to_vec(&self.0)?;
         Encode::<Sqlite>::encode(key_bytes, buf)
@@ -758,7 +758,7 @@ impl<T: Entity<CURRENT_VERSION>> Type<Sqlite> for EntityRefWrapper<'_, T> {
 impl<T: Entity<CURRENT_VERSION>> Encode<'_, Sqlite> for EntityRefWrapper<'_, T> {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as Database>::ArgumentBuffer<'_>,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         let entity_bytes = PersistenceCodec::to_vec(&self.0)?;
         Encode::<Sqlite>::encode(entity_bytes, buf)
@@ -835,7 +835,7 @@ impl<T: Entity<CURRENT_VERSION>> Type<Sqlite> for EntitySliceWrapper<'_, T> {
 impl<T: Entity<CURRENT_VERSION>> Encode<'_, Sqlite> for EntitySliceWrapper<'_, T> {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as Database>::ArgumentBuffer<'_>,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         let entity_bytes = PersistenceCodec::to_vec(&self.0)?;
         Encode::<Sqlite>::encode(entity_bytes, buf)

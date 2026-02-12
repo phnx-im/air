@@ -6,7 +6,13 @@
       {
         "name": "task_kind: TaskKind",
         "ordinal": 0,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "timed_tasks_queue",
+            "name": "task_kind"
+          }
+        }
       }
     ],
     "parameters": {

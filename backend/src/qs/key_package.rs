@@ -10,7 +10,7 @@ use aircommon::{
     messages::FriendshipToken,
 };
 use serde::{Serialize, de::DeserializeOwned};
-use sqlx::{Arguments, Connection, PgConnection, PgTransaction, postgres::PgArguments, query};
+use sqlx::{Connection, PgConnection, PgTransaction, query};
 use tonic::async_trait;
 
 use crate::errors::StorageError;
@@ -51,36 +51,25 @@ pub(super) trait StorableKeyPackage:
         .execute(txn.as_mut())
         .await?;
 
-        let mut query_args = PgArguments::default();
-        let mut query_string =
-            String::from("INSERT INTO key_package (client_id, key_package, is_last_resort) VALUES");
+        let mut ids = Vec::new();
+        let mut packages = Vec::new();
+        let mut resorts = Vec::new();
 
-        for (i, key_package) in key_packages.iter().enumerate() {
-            // Add values to the query arguments. None of these should throw an error.
-            query_args.add(client_id)?;
-            query_args.add(BlobEncoded(key_package))?;
-            query_args.add(is_last_resort)?;
-
-            if i > 0 {
-                query_string.push(',');
-            }
-
-            // Add placeholders for each value
-            query_string.push_str(&format!(
-                " (${}, ${}, ${})",
-                i * 3 + 1,
-                i * 3 + 2,
-                i * 3 + 3,
-            ));
+        for key_package in key_packages {
+            ids.push(client_id);
+            packages.push(BlobEncoded(key_package));
+            resorts.push(is_last_resort);
         }
 
-        // Finalize the query string
-        query_string.push(';');
-
-        // Execute the query
-        sqlx::query_with(&query_string, query_args)
-            .execute(txn.as_mut())
-            .await?;
+        sqlx::query!(
+            "INSERT INTO key_package (client_id, key_package, is_last_resort)
+            SELECT * FROM UNNEST($1::UUID[], $2::BYTEA[], $3::BOOLEAN[])",
+            &ids as &[&QsClientId],
+            &packages as &[BlobEncoded<&Self>],
+            &resorts,
+        )
+        .execute(txn.as_mut())
+        .await?;
 
         Ok(())
     }

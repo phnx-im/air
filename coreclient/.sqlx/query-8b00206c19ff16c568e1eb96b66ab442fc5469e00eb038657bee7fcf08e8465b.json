@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT leaf_index FROM group_membership\n            WHERE group_id = ? AND EXISTS (\n                SELECT 1 FROM json_each(?)\n                WHERE user_uuid = json_extract(value, '$[0]')\n                AND user_domain = json_extract(value, '$[1]')\n            )",
+  "describe": {
+    "columns": [
+      {
+        "name": "leaf_index",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "group_membership",
+            "name": "leaf_index"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8b00206c19ff16c568e1eb96b66ab442fc5469e00eb038657bee7fcf08e8465b"
+}

@@ -295,7 +295,7 @@ impl sqlx::Type<Sqlite> for Asset {
 impl<'q> Encode<'q, Sqlite> for Asset {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as Database>::ArgumentBuffer<'q>,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         match self {
             Asset::Value(value) => Encode::<Sqlite>::encode_by_ref(value, buf),

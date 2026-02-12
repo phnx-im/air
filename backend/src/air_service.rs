@@ -4,7 +4,7 @@
 
 use aircommon::identifiers::Fqdn;
 use semver::VersionReq;
-use sqlx::{Executor, PgPool};
+use sqlx::{Executor, PgPool, Postgres, QueryBuilder};
 use thiserror::Error;
 use tracing::info;
 
@@ -51,9 +51,11 @@ pub trait BackendService: Sized {
         .await?;
 
         if !db_exists.exists.unwrap_or(false) {
-            connection
-                .execute(format!(r#"CREATE DATABASE "{db_name}";"#).as_str())
-                .await?;
+            let mut builder = QueryBuilder::<Postgres>::new("CREATE DATABASE \"");
+            builder.push(db_name);
+            builder.push("\"");
+            let sql = builder.into_sql();
+            connection.execute(sql).await?;
         }
 
         info!(db_name, "Successfully created database");

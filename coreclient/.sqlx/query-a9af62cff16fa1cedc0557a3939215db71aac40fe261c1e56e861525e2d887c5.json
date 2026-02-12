@@ -6,7 +6,13 @@
       {
         "name": "credential: _",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "as_credential",
+            "name": "credential"
+          }
+        }
       }
     ],
     "parameters": {

@@ -102,7 +102,7 @@ impl<KT> Eq for DecryptionKey<KT> {}
 impl<KT> DecryptionKey<KT> {
     pub fn new(decryption_key: HpkePrivateKey, encryption_key: EncryptionKey<KT>) -> Self {
         Self {
-            decryption_key: decryption_key.as_ref().to_vec().into(),
+            decryption_key: decryption_key.to_vec().into(),
             encryption_key,
         }
     }

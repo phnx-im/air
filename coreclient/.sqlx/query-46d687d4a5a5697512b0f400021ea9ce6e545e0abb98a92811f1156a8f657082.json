@@ -6,17 +6,35 @@
       {
         "name": "operator: _",
         "ordinal": 0,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "push_token_state",
+            "name": "operator"
+          }
+        }
       },
       {
         "name": "token",
         "ordinal": 1,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "push_token_state",
+            "name": "token"
+          }
+        }
       },
       {
         "name": "pending_update: _",
         "ordinal": 2,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "push_token_state",
+            "name": "pending_update"
+          }
+        }
       }
     ],
     "parameters": {

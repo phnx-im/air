@@ -6,12 +6,24 @@
       {
         "name": "message_id: _",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "message_id"
+          }
+        }
       },
       {
         "name": "mimi_id!: _",
         "ordinal": 1,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "mimi_id"
+          }
+        }
       }
     ],
     "parameters": {

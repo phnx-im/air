@@ -167,7 +167,7 @@ mod persistence {
     impl Encode<'_, Sqlite> for ConnectionInfo {
         fn encode_by_ref(
             &self,
-            buf: &mut <Sqlite as Database>::ArgumentBuffer<'_>,
+            buf: &mut <Sqlite as Database>::ArgumentBuffer,
         ) -> Result<IsNull, BoxDynError> {
             let bytes = self.tls_serialize_detached()?;
             <Vec<u8> as Encode<'_, Sqlite>>::encode(bytes, buf)

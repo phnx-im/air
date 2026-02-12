@@ -6,7 +6,13 @@
       {
         "name": "queue_ratchet: _",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "queue_ratchet",
+            "name": "queue_ratchet"
+          }
+        }
       }
     ],
     "parameters": {

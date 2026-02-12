@@ -6,7 +6,13 @@
       {
         "ordinal": 0,
         "name": "key_package: BlobDecoded<Self>",
-        "type_info": "Bytea"
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "key_package",
+            "name": "key_package"
+          }
+        }
       }
     ],
     "parameters": {

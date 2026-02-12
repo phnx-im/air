@@ -130,10 +130,6 @@ pub(crate) trait PgChannelName: PartialEq + Eq + Send + Clone + 'static {
     fn pg_channel(&self) -> String;
 
     fn from_pg_channel(channel: &str) -> Option<Self>;
-
-    fn notify_query(&self) -> String {
-        format!(r#"NOTIFY "{}""#, self.pg_channel())
-    }
 }
 
 enum Command<C> {

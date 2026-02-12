@@ -3,7 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use serde::{Serialize, de::DeserializeOwned};
-use sqlx::{Database, Decode, Encode, Type, encode::IsNull, error::BoxDynError};
+use sqlx::{
+    Database, Decode, Encode, Type,
+    encode::IsNull,
+    error::BoxDynError,
+    postgres::{PgHasArrayType, PgTypeInfo},
+};
 
 use super::PersistenceCodec;
 
@@ -24,10 +29,16 @@ where
 {
     fn encode_by_ref(
         &self,
-        buf: &mut <DB as Database>::ArgumentBuffer<'q>,
+        buf: &mut <DB as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         let bytes = PersistenceCodec::to_vec(&self.0)?;
         Encode::<DB>::encode(&bytes, buf)
+    }
+}
+
+impl<T: Serialize> PgHasArrayType for BlobEncoded<T> {
+    fn array_type_info() -> PgTypeInfo {
+        PgTypeInfo::array_of("bytea")
     }
 }
 

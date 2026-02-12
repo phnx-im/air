@@ -9,7 +9,8 @@ use aircommon::{
 use anyhow::anyhow;
 use openmls::{group::GroupId, prelude::LeafNodeIndex};
 use sqlx::{
-    Row, SqliteConnection, SqliteExecutor, SqliteTransaction, query, query_as, query_scalar,
+    QueryBuilder, Sqlite, SqliteConnection, SqliteExecutor, SqliteTransaction, query, query_as,
+    query_scalar,
 };
 use tokio_stream::StreamExt;
 use uuid::Uuid;
@@ -365,29 +366,31 @@ impl GroupMembership {
         group_id: &GroupId,
         user_ids: &[UserId],
     ) -> sqlx::Result<Vec<LeafNodeIndex>> {
-        let placeholders = user_ids
-            .iter()
-            .map(|_| "(?, ?)")
-            .collect::<Vec<_>>()
-            .join(",");
-        let query_string = format!(
-            "SELECT leaf_index FROM group_membership
-            WHERE group_id = ? AND (user_uuid, user_domain) IN ({placeholders})"
+        let mut query_builder = QueryBuilder::<Sqlite>::new("WITH user_ids (uuid, domain) AS (");
+        query_builder.push_values(user_ids, |mut b, user_id| {
+            b.push_bind(user_id.uuid());
+            b.push_bind(user_id.domain());
+        });
+        query_builder.push(
+            ")
+            SELECT gm.leaf_index
+            FROM group_membership gm
+            INNER JOIN user_ids ON
+                gm.user_uuid = user_ids.uuid AND
+                gm.user_domain = user_ids.domain
+            WHERE gm.group_id = ",
         );
+        query_builder.push_bind(GroupIdRefWrapper::from(group_id));
 
-        let mut query = sqlx::query(&query_string).bind(GroupIdRefWrapper::from(group_id));
-        for user_id in user_ids {
-            query = query.bind(user_id.uuid()).bind(user_id.domain());
-        }
+        let indices = query_builder
+            .build_query_scalar()
+            .fetch_all(executor)
+            .await?;
 
-        query
-            .fetch(executor)
-            .map(|row| {
-                let leaf_index: u32 = row?.try_get(0)?;
-                Ok(LeafNodeIndex::new(leaf_index))
-            })
-            .collect()
-            .await
+        Ok(indices
+            .into_iter()
+            .map(|index: i64| LeafNodeIndex::new(index as u32))
+            .collect())
     }
 
     pub(in crate::groups) async fn group_members(

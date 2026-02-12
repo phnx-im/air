@@ -562,7 +562,7 @@ mod persistence {
     impl sqlx::Encode<'_, sqlx::Sqlite> for OperationType {
         fn encode_by_ref(
             &self,
-            buf: &mut <sqlx::Sqlite as sqlx::Database>::ArgumentBuffer<'_>,
+            buf: &mut <sqlx::Sqlite as sqlx::Database>::ArgumentBuffer,
         ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
             let s = self.to_string();
             <String as sqlx::Encode<sqlx::Sqlite>>::encode_by_ref(&s, buf)
@@ -609,7 +609,7 @@ mod persistence {
     impl sqlx::Encode<'_, sqlx::Sqlite> for PendingChatOperationStatus {
         fn encode_by_ref(
             &self,
-            buf: &mut <sqlx::Sqlite as sqlx::Database>::ArgumentBuffer<'_>,
+            buf: &mut <sqlx::Sqlite as sqlx::Database>::ArgumentBuffer,
         ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
             let s = self.to_string();
             <String as sqlx::Encode<sqlx::Sqlite>>::encode_by_ref(&s, buf)

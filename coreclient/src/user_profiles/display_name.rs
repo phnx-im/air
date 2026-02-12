@@ -113,7 +113,7 @@ impl sqlx::Type<Sqlite> for DisplayName {
 impl<'q> Encode<'q, Sqlite> for DisplayName {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as Database>::ArgumentBuffer<'q>,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         Encode::<Sqlite>::encode_by_ref(&self.display_name, buf)
     }

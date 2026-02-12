@@ -157,7 +157,7 @@ impl Type<Sqlite> for ClientSigningKey {
 impl<'q> Encode<'q, Sqlite> for ClientSigningKey {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as Database>::ArgumentBuffer<'q>,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         let bytes = PersistenceCodec::to_vec(self)?;
         Encode::<Sqlite>::encode(bytes, buf)

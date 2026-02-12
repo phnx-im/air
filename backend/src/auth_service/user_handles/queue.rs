@@ -96,7 +96,7 @@ impl UserHandleQueues {
         };
 
         HandleQueue::enqueue(txn.as_mut(), hash, message_id, message).await?;
-        sqlx::query(&hash.notify_query())
+        sqlx::query!("SELECT pg_notify($1, '')", hash.pg_channel())
             .execute(txn.as_mut())
             .await?;
 
@@ -275,7 +275,7 @@ mod persistence {
     impl<'q> Encode<'q, Postgres> for SqlHandleQueueMessage {
         fn encode_by_ref(
             &self,
-            buf: &mut <Postgres as Database>::ArgumentBuffer<'q>,
+            buf: &mut <Postgres as Database>::ArgumentBuffer,
         ) -> Result<IsNull, BoxDynError> {
             let buf: &mut Vec<u8> = buf.as_mut();
             self.0.encode(buf)?;
@@ -458,16 +458,6 @@ mod test {
             let hash = UserHandleHash::new(hash_bytes);
             assert!(hash.pg_channel().len() < 64);
         }
-    }
-
-    #[test]
-    fn notify_query() {
-        let hash = UserHandleHash::new([1; 32]);
-        let query = hash.notify_query();
-        assert_eq!(
-            query,
-            "NOTIFY \"as_AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=\""
-        );
     }
 
     #[sqlx::test]

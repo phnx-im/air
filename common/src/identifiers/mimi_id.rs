@@ -96,7 +96,7 @@ mod sqlx_impls {
     impl<'q> Encode<'q, Sqlite> for &'q MimiId {
         fn encode_by_ref(
             &self,
-            buf: &mut <Sqlite as Database>::ArgumentBuffer<'q>,
+            buf: &mut <Sqlite as Database>::ArgumentBuffer,
         ) -> Result<IsNull, BoxDynError> {
             Encode::<Sqlite>::encode(self.0.as_slice(), buf)
         }

@@ -6,7 +6,13 @@
       {
         "ordinal": 0,
         "name": "activity_time",
-        "type_info": "Timestamptz"
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "as_client_record",
+            "name": "activity_time"
+          }
+        }
       },
       {
         "ordinal": 1,
@@ -59,12 +65,24 @@
               ]
             }
           }
+        },
+        "origin": {
+          "Table": {
+            "table": "as_client_record",
+            "name": "credential"
+          }
         }
       },
       {
         "ordinal": 2,
         "name": "remaining_tokens",
-        "type_info": "Int4"
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "as_client_record",
+            "name": "remaining_tokens"
+          }
+        }
       }
     ],
     "parameters": {

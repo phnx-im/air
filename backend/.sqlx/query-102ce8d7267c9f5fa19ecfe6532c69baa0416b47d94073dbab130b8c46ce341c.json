@@ -22,6 +22,12 @@
               ]
             }
           }
+        },
+        "origin": {
+          "Table": {
+            "table": "qs_decryption_key",
+            "name": "decryption_key"
+          }
         }
       }
     ],

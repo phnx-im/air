@@ -54,6 +54,12 @@
               ]
             }
           }
+        },
+        "origin": {
+          "Table": {
+            "table": "as_client_record",
+            "name": "credential"
+          }
         }
       }
     ],

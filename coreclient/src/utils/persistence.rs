@@ -42,11 +42,11 @@ pub(crate) async fn open_air_db(db_path: &str) -> sqlx::Result<SqlitePool> {
 
     // Delete the old migration table if it exists
     const FIRST_MIGRATION: i64 = 20250115104336;
-    if let Ok(Some(_)) = sqlx::query_scalar::<_, i64>(&format!(
-        "SELECT 1 FROM _sqlx_migrations WHERE version = {FIRST_MIGRATION}"
-    ))
-    .fetch_optional(&pool)
-    .await
+    if let Ok(Some(_)) =
+        sqlx::query_scalar::<_, i64>("SELECT 1 FROM _sqlx_migrations WHERE version = ?")
+            .bind(FIRST_MIGRATION)
+            .fetch_optional(&pool)
+            .await
     {
         // The database is based on old migration
         sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations")
@@ -284,7 +284,7 @@ impl Type<Sqlite> for GroupIdRefWrapper<'_> {
 impl<'q> Encode<'q, Sqlite> for GroupIdRefWrapper<'q> {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as Database>::ArgumentBuffer<'q>,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         Encode::<Sqlite>::encode_by_ref(&self.0.as_slice(), buf)
     }

@@ -57,7 +57,7 @@ impl Type<Sqlite> for QueueType {
 impl Encode<'_, Sqlite> for QueueType {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as Database>::ArgumentBuffer<'_>,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         Encode::<Sqlite>::encode(self.as_str(), buf)
     }

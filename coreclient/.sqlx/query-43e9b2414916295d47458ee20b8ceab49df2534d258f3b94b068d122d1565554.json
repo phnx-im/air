@@ -6,7 +6,13 @@
       {
         "name": "state: _",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "user_creation_state",
+            "name": "state"
+          }
+        }
       }
     ],
     "parameters": {

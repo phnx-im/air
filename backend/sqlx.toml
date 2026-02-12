@@ -1,0 +1,5 @@
+[common]
+database-url-var = "SERVER_DATABASE_URL"
+
+[migrate.defaults]
+migration-versioning = "timestamp"

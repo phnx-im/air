@@ -6,12 +6,24 @@
       {
         "ordinal": 0,
         "name": "message_bytes: SqlHandleQueueMessage",
-        "type_info": "Bytea"
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "as_user_handles_queue",
+            "name": "message_bytes"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "created_at: TimeStamp",
-        "type_info": "Timestamptz"
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "as_user_handles_queue",
+            "name": "created_at"
+          }
+        }
       }
     ],
     "parameters": {

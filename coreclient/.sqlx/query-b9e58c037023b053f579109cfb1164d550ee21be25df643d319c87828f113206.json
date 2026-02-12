@@ -6,22 +6,46 @@
       {
         "name": "handle: _",
         "ordinal": 0,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "username_contact",
+            "name": "username"
+          }
+        }
       },
       {
         "name": "chat_id: _",
         "ordinal": 1,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "username_contact",
+            "name": "chat_id"
+          }
+        }
       },
       {
         "name": "friendship_package_ear_key: _",
         "ordinal": 2,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "username_contact",
+            "name": "friendship_package_ear_key"
+          }
+        }
       },
       {
         "name": "connection_offer_hash: _",
         "ordinal": 3,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "username_contact",
+            "name": "connection_offer_hash"
+          }
+        }
       }
     ],
     "parameters": {

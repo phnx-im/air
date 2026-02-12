@@ -35,7 +35,7 @@ use openmls::prelude::Ciphersuite;
 use own_client_info::OwnClientInfo;
 
 use serde::{Deserialize, Serialize};
-use sqlx::{Row, SqliteConnection, SqlitePool, query};
+use sqlx::{SqliteConnection, SqlitePool};
 use store::ClientRecord;
 use tls_codec::DeserializeBytes;
 use tokio_stream::{Stream, StreamExt};
@@ -744,19 +744,23 @@ impl CoreUser {
     }
 
     /// This function goes through all tables of the database and returns all columns that contain the query.
+    #[cfg(feature = "test_utils")]
     pub async fn scan_database(&self, query: &str, strict: bool) -> anyhow::Result<Vec<String>> {
+        use sqlx::{QueryBuilder, Row, Sqlite};
+
         self.with_transaction(async |txn| {
-            let tables = query!("SELECT name FROM sqlite_schema WHERE type='table'")
+            let tables = sqlx::query!("SELECT name FROM sqlite_schema WHERE type='table'")
                 .fetch_all(&mut **txn)
                 .await?;
 
             let mut result = Vec::new();
 
             for table in tables {
-                for row in sqlx::query(&format!("SELECT * FROM '{}'", table.name.unwrap()))
-                    .fetch_all(&mut **txn)
-                    .await?
-                {
+                let mut builder = QueryBuilder::<Sqlite>::new("SELECT * FROM ");
+                builder.push(table.name.unwrap());
+                let sql = builder.into_sql();
+
+                for row in sqlx::query(sql).fetch_all(&mut **txn).await? {
                     for i in 0..row.len() {
                         let string = if let Ok(column) = row.try_get::<String, _>(i) {
                             column

@@ -6,17 +6,35 @@
       {
         "name": "base_secret: _",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "indexed_key",
+            "name": "base_secret"
+          }
+        }
       },
       {
         "name": "key: _",
         "ordinal": 1,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "indexed_key",
+            "name": "key_value"
+          }
+        }
       },
       {
         "name": "index: _",
         "ordinal": 2,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "indexed_key",
+            "name": "key_index"
+          }
+        }
       }
     ],
     "parameters": {

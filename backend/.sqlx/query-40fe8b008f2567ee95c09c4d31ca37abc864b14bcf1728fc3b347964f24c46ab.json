@@ -38,6 +38,12 @@
               ]
             }
           }
+        },
+        "origin": {
+          "Table": {
+            "table": "as_user_record",
+            "name": "encrypted_user_profile"
+          }
         }
       },
       {
@@ -74,6 +80,12 @@
                 ]
               ]
             }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "as_user_record",
+            "name": "staged_user_profile"
           }
         }
       }

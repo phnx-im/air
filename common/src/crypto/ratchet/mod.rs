@@ -147,7 +147,7 @@ mod sqlite {
     impl<CT, Payload: RatchetPayload<CT>> Encode<'_, Sqlite> for QueueRatchet<CT, Payload> {
         fn encode_by_ref(
             &self,
-            buf: &mut <Sqlite as Database>::ArgumentBuffer<'_>,
+            buf: &mut <Sqlite as Database>::ArgumentBuffer,
         ) -> Result<IsNull, BoxDynError> {
             let ratchet_bytes = PersistenceCodec::to_vec(self)?;
             let versioned_ratchet_bytes =

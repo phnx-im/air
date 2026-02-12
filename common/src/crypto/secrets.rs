@@ -93,7 +93,7 @@ where
 {
     fn encode_by_ref(
         &self,
-        buf: &mut <DB as Database>::ArgumentBuffer<'q>,
+        buf: &mut <DB as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         let bytes: Box<[u8]> = self.secret.into();
         Encode::<DB>::encode(bytes, buf)

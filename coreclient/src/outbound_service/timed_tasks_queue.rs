@@ -158,7 +158,7 @@ impl<'r> Decode<'r, Sqlite> for TaskKind {
 impl<'q> Encode<'q, Sqlite> for TaskKind {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as Database>::ArgumentBuffer<'q>,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         let s = match self {
             TaskKind::KeyPackageUpload => "KeyPackageUpload",

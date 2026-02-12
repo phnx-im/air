@@ -6,7 +6,13 @@
       {
         "ordinal": 0,
         "name": "signing_key: BlobDecoded<StorableSigningKey>",
-        "type_info": "Bytea"
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "as_signing_key",
+            "name": "signing_key"
+          }
+        }
       }
     ],
     "parameters": {

@@ -6,27 +6,57 @@
       {
         "name": "group_id: _",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "group",
+            "name": "group_id"
+          }
+        }
       },
       {
         "name": "identity_link_wrapper_key: _",
         "ordinal": 1,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "group",
+            "name": "identity_link_wrapper_key"
+          }
+        }
       },
       {
         "name": "group_state_ear_key: _",
         "ordinal": 2,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "group",
+            "name": "group_state_ear_key"
+          }
+        }
       },
       {
         "name": "pending_diff: _",
         "ordinal": 3,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "group",
+            "name": "pending_diff"
+          }
+        }
       },
       {
         "name": "room_state: _",
         "ordinal": 4,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "group",
+            "name": "room_state"
+          }
+        }
       }
     ],
     "parameters": {

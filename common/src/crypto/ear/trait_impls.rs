@@ -23,7 +23,7 @@ impl<CT> PgHasArrayType for Ciphertext<CT> {
 impl<CT> sqlx::Encode<'_, Postgres> for Ciphertext<CT> {
     fn encode_by_ref(
         &self,
-        buf: &mut <Postgres as sqlx::Database>::ArgumentBuffer<'_>,
+        buf: &mut <Postgres as sqlx::Database>::ArgumentBuffer,
     ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
         sqlx::Encode::<Postgres>::encode(&self.ct, buf)
     }

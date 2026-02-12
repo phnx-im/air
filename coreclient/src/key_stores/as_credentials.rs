@@ -46,7 +46,7 @@ impl Type<Sqlite> for AsCredentialsBodyRef<'_> {
 impl Encode<'_, Sqlite> for AsCredentialsBodyRef<'_> {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as Database>::ArgumentBuffer<'_>,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         match self {
             Self::AsCredential(body) => Encode::<Sqlite>::encode_by_ref(body, buf),

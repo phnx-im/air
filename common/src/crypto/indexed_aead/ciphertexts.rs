@@ -165,7 +165,7 @@ mod trait_impls {
     impl<KT, CT> Encode<'_, Postgres> for IndexedCiphertext<KT, CT> {
         fn encode_by_ref(
             &self,
-            buf: &mut <Postgres as sqlx::Database>::ArgumentBuffer<'_>,
+            buf: &mut <Postgres as sqlx::Database>::ArgumentBuffer,
         ) -> Result<IsNull, BoxDynError> {
             let mut encoder = PgRecordEncoder::new(buf);
             encoder.encode(&self.ciphertext)?;
