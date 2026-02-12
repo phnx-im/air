@@ -181,6 +181,13 @@ private let kProtectedBlockedCategory = "protected-blocked"
             message: "Failed to decode cancelNotifications arguments",
             details: nil))
       }
+    } else if call.method == "getClipboardImage" {
+      if let image = UIPasteboard.general.image,
+         let data = image.jpegData(compressionQuality: 0.99) {
+        result(FlutterStandardTypedData(bytes: data))
+      } else {
+        result(nil)
+      }
     } else if call.method == "beginBackgroundTask" {
       let taskId = self.beginBackgroundTask()
       result(Int(taskId.rawValue))

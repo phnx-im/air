@@ -33,6 +33,7 @@ derive_more.workspace = true
 deunicode.workspace = true
 flate2.workspace = true
 flutter_rust_bridge.workspace = true
+image.workspace = true
 jni.workspace = true
 lru.workspace = true
 memmap2.workspace = true
@@ -59,6 +60,14 @@ libc = "0.2" # required for stack size in background execution on Android/iOS
 
 [target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
 notify-rust = "4"
+
+# arboard is only supported on desktop platforms, so we only include it for
+# those targets. On Linux, we also want the wayland-data-control feature for
+# clipboard support in Wayland sessions.
+[target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
+arboard = { workspace = true }
+[target.'cfg(target_os = "linux")'.dependencies]
+arboard = { workspace = true, features = ["wayland-data-control"] }
 
 [dev-dependencies]
 mockall.workspace = true
