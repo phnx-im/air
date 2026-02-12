@@ -51,12 +51,11 @@ reset-dev:
 # Run all fast and simple lints.
 @check: check-rust check-flutter check-frb
 
-# This task will run the command and hide stdout and stderr. If the command fails, it prints the logs and the task fails.
+# This task will run the command. If the command fails, the task fails.
 _check-status command:
     #!/usr/bin/env -S bash -eu
     echo "{{BOLD}}Running {{command}}{{NORMAL}}"
-    if ! log=$({{command}} 2>&1); then
-        echo "{{RED}}$log{{NORMAL}}" >&2
+    if ! {{command}}; then
         just _log-error "{{command}}"
     fi
 
@@ -104,9 +103,19 @@ regenerate-l10n:
     cd app && fvm flutter gen-l10n
 
 # Regenerate database query metadata.
-regenerate-sqlx:
-    cd coreclient && cargo sqlx prepare --no-dotenv --database-url {{CLIENT_DATABASE_URL}}
-    cd backend && cargo sqlx prepare --no-dotenv --database-url {{SERVER_DATABASE_URL}} -- --tests
+regenerate-sqlx: regenerate-sqlx-client regenerate-sqlx-server
+
+# Regenerate client database query metadata.
+[working-directory: 'coreclient']
+regenerate-sqlx-client:
+    cargo sqlx database setup --no-dotenv --database-url {{CLIENT_DATABASE_URL}}
+    cargo sqlx prepare --no-dotenv --database-url {{CLIENT_DATABASE_URL}}
+
+# Regenerate server database query metadata.
+[working-directory: 'backend']
+regenerate-sqlx-server:
+    cargo sqlx database setup --no-dotenv --database-url {{SERVER_DATABASE_URL}}
+    cargo sqlx prepare --no-dotenv --database-url {{SERVER_DATABASE_URL}} -- --tests
 
 # Recompile svg icons for rendering.
 regenerate-icons:
