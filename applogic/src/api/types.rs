@@ -288,10 +288,10 @@ impl From<ChatMessage> for UiChatMessage {
     fn from(message: ChatMessage) -> Self {
         let status = match message.status() {
             MessageStatus::Error => UiMessageStatus::Error,
-            _ if !message.is_sent() => UiMessageStatus::Sending,
             MessageStatus::Read => UiMessageStatus::Read,
             MessageStatus::Delivered => UiMessageStatus::Delivered,
             MessageStatus::Hidden => UiMessageStatus::Hidden,
+            _ if !message.is_sent() => UiMessageStatus::Sending,
             _ => UiMessageStatus::Sent,
         };
 
