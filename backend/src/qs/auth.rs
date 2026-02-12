@@ -54,17 +54,14 @@ impl GrpcQs {
             // Support for legacy clients which don't use authentication.
             None => Ok(request.into_unverified_payload()),
             Some(client_id) => {
-                let client_id = client_id?;
-                dbg!(&client_id);
-                let verifying_key = dbg!(
-                    QsClientRecord::load_verifying_key(&self.qs.db_pool, &client_id)
+                let verifying_key =
+                    QsClientRecord::load_verifying_key(&self.qs.db_pool, &client_id?)
                         .await
                         .map_err(|error| {
                             error!(%error, "failed to load client verifying key");
                             Status::internal("database error")
                         })?
-                        .ok_or_else(|| Status::not_found("unknown QS client"))?
-                );
+                        .ok_or_else(|| Status::not_found("unknown QS client"))?;
                 self.verify_request(request, &verifying_key)
             }
         }

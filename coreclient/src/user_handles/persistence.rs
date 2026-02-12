@@ -267,7 +267,7 @@ mod test {
         let old_time = Utc::now() - Duration::days(100);
         sqlx::query("UPDATE user_handle SET refreshed_at = ? WHERE handle = ?")
             .bind(old_time)
-            .bind(handle_old)
+            .bind(&handle_old)
             .execute(&pool)
             .await?;
 
