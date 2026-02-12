@@ -13,10 +13,13 @@ build_number := `git rev-list --count HEAD`
 _default:
     just --list
 
+SERVER_DATABASE_URL := "postgres://postgres:password@localhost:5432/air_db"
+CLIENT_DATABASE_URL := f"sqlite:{{justfile_directory()}}/coreclient/client.db"
+
 # Reset and migrate databases.
 reset-dev:
-    cd coreclient && cargo sqlx database reset -y --database-url sqlite:client.db
-    cd backend && cargo sqlx database reset -y
+    cd coreclient && cargo sqlx database reset -y --database-url {{CLIENT_DATABASE_URL}}
+    cd backend && cargo sqlx database reset -y --database-url {{SERVER_DATABASE_URL}}
 
 # Run fast and simple Rust lints.
 @check-rust:
@@ -26,11 +29,8 @@ reset-dev:
     just _check-status "cargo fmt -- --check"
     just _check-status "cargo deny check"
     just _check-unstaged-changes "git diff"
-
-    # It's fine if this fails on CI, but this is useful for devs
-    just _check-unstaged-changes "just regenerate-sqlx || echo 'Database not configured?'"
-
-    echo "{{BOLD}}check-rust done{{NORMAL}}"
+    just _check-unstaged-changes "just regenerate-sqlx"
+    echo "✅ {{BOLD}}check-rust done{{NORMAL}}"
 
 # Run fast and simple Flutter lints.
 @check-flutter:
@@ -42,7 +42,7 @@ reset-dev:
     just _check-status "cd app && fvm flutter analyze --no-pub"
     just _check-unstaged-changes "just regenerate-l10n"
     just _check-unstaged-changes "just regenerate-icons"
-    echo "{{BOLD}}check-flutter done{{NORMAL}}"
+    echo "✅ {{BOLD}}check-flutter done{{NORMAL}}"
 
 # Run flutter rust bridge lint.
 @check-frb:
@@ -105,8 +105,8 @@ regenerate-l10n:
 
 # Regenerate database query metadata.
 regenerate-sqlx:
-    cd coreclient && cargo sqlx prepare --database-url sqlite:client.db
-    cd backend && cargo sqlx prepare
+    cd coreclient && cargo sqlx prepare --no-dotenv --database-url {{CLIENT_DATABASE_URL}}
+    cd backend && cargo sqlx prepare --no-dotenv --database-url {{SERVER_DATABASE_URL}} -- --tests
 
 # Recompile svg icons for rendering.
 regenerate-icons:
