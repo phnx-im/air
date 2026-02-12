@@ -95,7 +95,7 @@ impl Job for PendingChatOperation {
         match self.execute_internal(context).await {
             Err(error) => {
                 #[cfg(not(any(test, feature = "test_utils")))]
-                let retry_due = *context.now + RETRY_INTERVAL;
+                let retry_due = context.now + RETRY_INTERVAL;
                 #[cfg(any(test, feature = "test_utils"))]
                 let retry_due = context.now + RETRY_INTERVAL;
                 self.update_retry_due_at(&context.pool, retry_due).await?;
