@@ -113,7 +113,7 @@ regenerate-sqlx-client:
 
 # Regenerate server database query metadata.
 [working-directory: 'backend']
-regenerate-sqlx-server:
+regenerate-sqlx-server: start-docker-compose
     cargo sqlx database setup --no-dotenv --database-url {{SERVER_DATABASE_URL}}
     cargo sqlx prepare --no-dotenv --database-url {{SERVER_DATABASE_URL}} -- --tests
 
