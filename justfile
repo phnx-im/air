@@ -25,7 +25,7 @@ reset-dev:
 @check-rust:
     just _check-status "cargo machete"
     just _check-status "reuse lint -l"
-    just _check-status "cargo metadata --frozen > /dev/null"
+    just _check-status "cargo metadata --format-version=1 --frozen > /dev/null"
     just _check-status "cargo fmt -- --check"
     just _check-status "cargo deny check"
     just _check-unstaged-changes "git diff"

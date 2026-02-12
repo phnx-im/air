@@ -74,7 +74,8 @@ jobs:
       # Cache cargo-sqlx: <https://github.com/launchbadge/sqlx/issues/1353>
       - uses: actions/cache@v3
         with:
-          path: ~/.cargo/bin
+          path: ~/.cargo/bin/
+          save-always: true
           key: ${{ runner.os }}-cargo-bin
       - uses: cargo-bins/cargo-binstall@main
       - run: cargo binstall cargo-deny@0.19.0 sqlx-cli@0.8.6 cargo-machete@0.9.1 --no-confirm
@@ -83,5 +84,4 @@ jobs:
       - run: just check-rust
 
       # TEST RUST
-      - run: just start-docker-compose
       - run: just test-rust
