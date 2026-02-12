@@ -120,8 +120,15 @@ class _UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final profile = context.select(
+      (UsersCubit cubit) => cubit.state.profile(userId: null),
+    );
     return Center(
-      child: UserAvatar(size: 96, onPressed: () => _pickAvatar(context)),
+      child: UserAvatar(
+        profile: profile,
+        size: 96,
+        onPressed: () => _pickAvatar(context),
+      ),
     );
   }
 

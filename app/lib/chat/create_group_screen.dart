@@ -479,7 +479,7 @@ class _SelectedParticipant extends StatelessWidget {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              UserAvatar(userId: profile.userId, size: 48),
+              UserAvatar(profile: profile, size: 48),
               Positioned(
                 top: -2,
                 right: -2,
