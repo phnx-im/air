@@ -16,6 +16,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
+  SQLX_OFFLINE: true
 
 jobs:
   linux-build:
@@ -32,14 +33,9 @@ jobs:
 
       - run: git lfs install && git lfs pull
 
-      - name: Set up Just
-        uses: extractions/setup-just@v2
-
-      - name: Set up Flutter FVM
-        uses: kuhnroyal/flutter-fvm-config-action/setup@v3
-        with:
-          path: 'app/.fvmrc'
-          cache: false
+      - uses: extractions/setup-just@v2
+      - run: just install-fvm
+      - run: echo /home/runner/fvm/bin >> $GITHUB_PATH
 
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@1.92.0
@@ -52,7 +48,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ninja-build gtk+-3.0 gtk+-3.0-dev glib-2.0-dev gio-2.0-dev
 
       - name: Build Linux app
-        run: just build-linux
+        run: cd app && fvm flutter build linux -v --build-number=$(git rev-list --count HEAD)
 
       - name: Upload Linux app
         uses: actions/upload-artifact@v4

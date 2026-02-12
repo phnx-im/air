@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     net::SocketAddr,
     path::Path,
     time::Duration,
@@ -18,7 +18,7 @@ use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, store::Stor
 use airserver::network_provider::MockNetworkProvider;
 use anyhow::Context;
 use mimi_content::{
-    ByteBuf, Disposition, MimiContent, NestedPart,
+    ByteBuf, MimiContent,
     content_container::{EncryptionAlgorithm, HashAlgorithm, NestedPartContent},
 };
 use rand::{Rng, RngCore, distributions::Alphanumeric, seq::IteratorRandom};
@@ -827,61 +827,25 @@ impl TestBackend {
         let last_messages = sender.messages(chat_id, 1).await.unwrap();
         assert_eq!(last_messages.len(), 1);
         let last_message = &last_messages[0];
-
-        let salt: [u8; 16] = RustCrypto::default().random_array().unwrap();
-        let orig_message = MimiContent {
-            salt: ByteBuf::from(salt),
-            replaces: Some(ByteBuf::from(
-                last_message.message().mimi_id().unwrap().as_slice(),
-            )),
-            topic_id: ByteBuf::from(b""),
-            expires: None,
-            in_reply_to: None,
-            extensions: BTreeMap::new(),
-            nested_part: NestedPart {
-                disposition: Disposition::Render,
-                language: "".to_owned(),
-                part: NestedPartContent::NullPart,
-            },
-        };
+        let message_id = last_message.id();
 
         // Before sending a message, the sender must first fetch and process its QS messages.
-
         let sender_qs_messages = sender.qs_fetch_messages().await.unwrap();
-
         sender.fully_process_qs_messages(sender_qs_messages).await;
 
         test_sender
             .user
-            .send_message(chat_id, orig_message.clone(), Some(last_message.id()))
+            .delete_message(chat_id, message_id)
             .await
             .unwrap();
         test_sender.user.outbound_service().run_once().await;
+
         let message = test_sender
             .user
             .last_message(chat_id)
             .await
             .unwrap()
             .unwrap();
-
-        let sender_user_id = test_sender.user.user_id().clone();
-
-        let chat = test_sender.user.chat(&chat_id).await.unwrap();
-
-        let group_id = chat.group_id();
-
-        let mut target_message = ChatMessage::new_for_test(
-            chat_id,
-            last_message.id(),
-            last_message.timestamp().into(),
-            Message::Content(Box::new(ContentMessage::new(
-                sender_user_id.clone(),
-                true,
-                orig_message.clone(),
-                group_id,
-            ))),
-        );
-        target_message.set_edited_at(message.edited_at().unwrap());
 
         for recipient_id in &recipients {
             let recipient = self.users.get_mut(recipient_id).unwrap();
@@ -893,11 +857,17 @@ impl TestBackend {
                 .fully_process_qs_messages(recipient_qs_messages)
                 .await;
 
-            let message = messages.new_messages.last().unwrap();
-            let chat = recipient_user.chat(&message.chat_id()).await.unwrap();
-            let _group_id = chat.group_id();
-
-            assert_eq!(message.message(), target_message.message());
+            let received_message = messages.new_messages.last().unwrap();
+            // Verify the message was deleted (has NullPart content)
+            assert_eq!(
+                received_message
+                    .message()
+                    .mimi_content()
+                    .unwrap()
+                    .nested_part
+                    .part,
+                NestedPartContent::NullPart
+            );
         }
         message.id()
     }

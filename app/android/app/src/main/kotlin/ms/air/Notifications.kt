@@ -149,7 +149,7 @@ class Notifications {
                 NotificationCompat.Builder(context, CHANNEL_ID)
                     .setContentTitle(content.title)
                     .setContentText(content.body)
-                    .setSmallIcon(android.R.drawable.ic_notification_overlay)
+                    .setSmallIcon(R.drawable.ic_notification)
                     .setContentIntent(pendingIntent)
                     .setDefaults(Notification.DEFAULT_ALL)
                     .setPriority(NotificationManagerCompat.IMPORTANCE_HIGH)

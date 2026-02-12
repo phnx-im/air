@@ -386,6 +386,24 @@ impl ChatMessage {
         Ok(())
     }
 
+    /// Delete a message from the database.
+    ///
+    /// This removes the message row entirely. This will also remove associated
+    /// edit history and status records via foreign key cascade.
+    pub(crate) async fn delete(
+        executor: impl SqliteExecutor<'_>,
+        notifier: &mut StoreNotifier,
+        message_id: MessageId,
+        chat_id: ChatId,
+    ) -> sqlx::Result<()> {
+        query!("DELETE FROM message WHERE message_id = ?", message_id)
+            .execute(executor)
+            .await?;
+        notifier.remove(message_id);
+        notifier.update(chat_id);
+        Ok(())
+    }
+
     /// Set the message's sent status in the database and update the message's timestamp.
     pub(super) async fn update_sent_status(
         executor: impl SqliteExecutor<'_>,
@@ -808,5 +826,174 @@ pub(crate) mod tests {
     #[test]
     fn versioned_message_serde_json() {
         insta::assert_json_snapshot!(&*VERSIONED_MESSAGE);
+    }
+
+    #[sqlx::test]
+    async fn delete_message(pool: SqlitePool) -> anyhow::Result<()> {
+        let mut store_notifier = StoreNotifier::noop();
+
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
+            .await?;
+
+        let message = test_chat_message(chat.id());
+        message.store(&pool, &mut store_notifier).await?;
+
+        // Verify message exists
+        let loaded = ChatMessage::load(&pool, message.id()).await?;
+        assert!(loaded.is_some());
+
+        // Delete message
+        ChatMessage::delete(&pool, &mut store_notifier, message.id(), chat.id()).await?;
+
+        // Verify message is gone
+        let loaded = ChatMessage::load(&pool, message.id()).await?;
+        assert!(loaded.is_none());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn delete_message_cascade_edit_history(pool: SqlitePool) -> anyhow::Result<()> {
+        use crate::chats::messages::edit::MessageEdit;
+        use aircommon::identifiers::MimiId;
+
+        let mut store_notifier = StoreNotifier::noop();
+
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
+            .await?;
+
+        let message = test_chat_message(chat.id());
+        message.store(&pool, &mut store_notifier).await?;
+
+        // Create edit history entry
+        let mimi_id = MimiId::from_slice(&[1u8; 32])?;
+        let edit_content = MimiContent::simple_markdown_message("Edited!".to_string(), [1; 16]);
+        let edit = MessageEdit::new(&mimi_id, message.id(), TimeStamp::now(), &edit_content);
+        edit.store(&pool).await?;
+
+        // Verify edit history exists
+        let found = MessageEdit::find_message_id(&pool, &mimi_id).await?;
+        assert_eq!(found, Some(message.id()));
+
+        // Delete message - should cascade to edit history
+        ChatMessage::delete(&pool, &mut store_notifier, message.id(), chat.id()).await?;
+
+        // Verify message is gone
+        let loaded = ChatMessage::load(&pool, message.id()).await?;
+        assert!(loaded.is_none());
+
+        // Verify edit history is also gone (FK cascade)
+        let found = MessageEdit::find_message_id(&pool, &mimi_id).await?;
+        assert!(found.is_none());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn delete_message_cascade_status_records(pool: SqlitePool) -> anyhow::Result<()> {
+        use crate::chats::status::StatusRecord;
+        use mimi_content::{MessageStatusReport, PerMessageStatus};
+        use sqlx::query_scalar;
+
+        let mut store_notifier = StoreNotifier::noop();
+
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
+            .await?;
+
+        let message = test_chat_message_with_salt(chat.id(), [0; 16]);
+        message.store(&pool, &mut store_notifier).await?;
+
+        let mimi_id = message.message().mimi_id().unwrap();
+
+        // Create status record
+        let sender = UserId::random("localhost".parse().unwrap());
+        let report = MessageStatusReport {
+            statuses: vec![PerMessageStatus {
+                mimi_id: mimi_id.as_ref().to_vec().into(),
+                status: mimi_content::MessageStatus::Delivered,
+            }],
+        };
+        let mut txn = pool.begin().await?;
+        StatusRecord::borrowed(&sender, report, TimeStamp::now())
+            .store_report(&mut txn, &mut store_notifier)
+            .await?;
+        txn.commit().await?;
+
+        // Verify status record exists
+        let count: i64 = query_scalar("SELECT COUNT(*) FROM message_status WHERE message_id = ?")
+            .bind(message.id())
+            .fetch_one(&pool)
+            .await?;
+        assert_eq!(count, 1);
+
+        // Delete message - should cascade to status records
+        ChatMessage::delete(&pool, &mut store_notifier, message.id(), chat.id()).await?;
+
+        // Verify message is gone
+        let loaded = ChatMessage::load(&pool, message.id()).await?;
+        assert!(loaded.is_none());
+
+        // Verify status records are also gone (FK cascade)
+        let count: i64 = query_scalar("SELECT COUNT(*) FROM message_status WHERE message_id = ?")
+            .bind(message.id())
+            .fetch_one(&pool)
+            .await?;
+        assert_eq!(count, 0);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn delete_preserves_other_messages(pool: SqlitePool) -> anyhow::Result<()> {
+        let mut store_notifier = StoreNotifier::noop();
+
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
+            .await?;
+
+        let message_a = test_chat_message_with_salt(chat.id(), [0; 16]);
+        let message_b = test_chat_message_with_salt(chat.id(), [1; 16]);
+        let message_c = test_chat_message_with_salt(chat.id(), [2; 16]);
+
+        message_a.store(&pool, &mut store_notifier).await?;
+        message_b.store(&pool, &mut store_notifier).await?;
+        message_c.store(&pool, &mut store_notifier).await?;
+
+        // Delete only message_b
+        ChatMessage::delete(&pool, &mut store_notifier, message_b.id(), chat.id()).await?;
+
+        // Verify message_b is gone
+        let loaded_b = ChatMessage::load(&pool, message_b.id()).await?;
+        assert!(loaded_b.is_none());
+
+        // Verify message_a and message_c still exist
+        let loaded_a = ChatMessage::load(&pool, message_a.id()).await?;
+        let loaded_c = ChatMessage::load(&pool, message_c.id()).await?;
+        assert_eq!(loaded_a, Some(message_a));
+        assert_eq!(loaded_c, Some(message_c));
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn delete_nonexistent_message(pool: SqlitePool) -> anyhow::Result<()> {
+        let mut store_notifier = StoreNotifier::noop();
+
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
+            .await?;
+
+        // Try to delete a message that doesn't exist
+        let fake_message_id = MessageId::random();
+        let result =
+            ChatMessage::delete(&pool, &mut store_notifier, fake_message_id, chat.id()).await;
+
+        // Should succeed without error (no-op)
+        assert!(result.is_ok());
+
+        Ok(())
     }
 }
