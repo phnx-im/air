@@ -95,7 +95,10 @@ impl DsRequestError {
     /// be sure whether the server received the request.
     pub fn is_network_error(&self) -> bool {
         if let Self::Tonic(status) = self
-            && (status.code() == Code::Unavailable || status.code() == Code::DeadlineExceeded)
+            && matches!(
+                status.code(),
+                Code::Unavailable | Code::DeadlineExceeded | Code::Unknown
+            )
         {
             true
         } else {

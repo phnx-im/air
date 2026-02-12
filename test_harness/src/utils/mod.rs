@@ -77,7 +77,7 @@ pub(crate) async fn spawn_app(
             Mode::DropNextResponse => interceptor_control_handle.set_drop_connection_on_write(),
             Mode::DropNextRequest => {
                 interceptor_control_handle.set_normal();
-                return Err(Status::cancelled("cancelled for interop test"));
+                return Err(Status::unavailable("cancelled for interop test"));
             }
             _ => {}
         }

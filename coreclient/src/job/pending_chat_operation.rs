@@ -93,7 +93,8 @@ impl Job for PendingChatOperation {
     ) -> Result<Vec<ChatMessage>, JobError> {
         let group_id = self.group.group_id().clone();
         match self.execute_internal(context).await {
-            Err(error) => {
+            // Update retry_due at on network errors
+            Err(JobError::NetworkError) => {
                 #[cfg(not(any(test, feature = "test_utils")))]
                 let retry_due = context.now + RETRY_INTERVAL;
                 #[cfg(any(test, feature = "test_utils"))]
@@ -101,11 +102,10 @@ impl Job for PendingChatOperation {
                 self.update_retry_due_at(&context.pool, retry_due).await?;
                 info!(
                     ?group_id,
-                    ?error,
                     next_retry = ?retry_due,
                     "Failed to execute PendingChatOperation, will retry later"
                 );
-                Err(error)
+                Err(JobError::NetworkError)
             }
             res => res,
         }
@@ -149,7 +149,7 @@ impl PendingChatOperation {
             pool,
             notifier,
             key_store,
-            ..
+            now,
         } = context;
         let signer = &key_store.signing_key;
         let own_user_id = signer.credential().identity().clone();
@@ -201,6 +201,7 @@ impl PendingChatOperation {
         let ds_timestamp = match res {
             Ok(ds_timestamp) => ds_timestamp,
             Err(error) => {
+                self.number_of_attempts += 1;
                 if !is_leave {
                     let job_error = self.handle_error(pool, error).await?;
                     return Err(job_error);
@@ -296,6 +297,11 @@ impl PendingChatOperation {
                 // by the DS, we can delete the pending operation now.
                 if !is_leave || ds_has_confirmed_leave {
                     Self::delete(txn.as_mut(), self.group.group_id()).await?;
+                } else {
+                    // If it's a leave operation that hasn't been confirmed by
+                    // the DS, we want to set a due date for retrying
+                    let retry_due = *now + RETRY_INTERVAL;
+                    self.update_retry_due_at(txn.as_mut(), retry_due).await?;
                 }
 
                 Ok(messages)
@@ -310,52 +316,42 @@ impl PendingChatOperation {
         pool: &mut SqlitePool,
         error: DsRequestError,
     ) -> Result<JobError, JobError> {
+        const MAX_RETRIES: u32 = 5;
         if error.is_wrong_epoch() {
             // If we get a WrongEpochError, we know the commit was
             // either accepted on a previous try, or the DS rejected
             // it because another one got there first.
             self.mark_as_waiting_for_queue_response(&*pool).await?;
 
-            // We return a FatalError here to indicate that the job should be
-            // considered failed.
-            Err(JobError::FatalError(anyhow!("WrongEpochError")))
-        } else if error.is_network_error() || self.number_of_attempts > 0 {
-            // A network error is an error where we don't know whether the
-            // server has received and processed the request. If we either get a
-            // network error, or if we've gotten a network error in the past, we
-            // want to try again until we've either succeeded or reached a max
-            // number of retries.
-
-            const MAX_RETRIES: u32 = 5;
-            if self.number_of_attempts >= MAX_RETRIES {
-                pool.with_transaction(async |txn| {
-                    self.group.discard_pending_commit(txn).await?;
-                    Self::delete(txn.as_mut(), self.group.group_id()).await?;
-                    Ok(())
-                })
-                .await?;
-                Ok(JobError::FatalError(anyhow!(
-                    "Job failed after {} attempts due to network errors",
-                    MAX_RETRIES
-                )))
-            } else {
-                // If we haven't reached the max number of retries leave the job
-                // as-is, so it can be retried later.
-                Ok(JobError::NetworkError)
-            }
+            Err(JobError::Blocked)
+        } else if (error.is_network_error() || self.number_of_attempts > 0)
+            && self.number_of_attempts < MAX_RETRIES
+        {
+            // If we either get a network error (which means we don't know
+            // whether the request has been processed by the DS), or if we've
+            // gotten a network error in the past, we want to try again until
+            // we've either succeeded or reached a max number of retries.
+            Ok(JobError::NetworkError)
         } else {
-            // For other errors, we consider the operation failed and delete the
-            // job.
+            // For other errors or if the max number of retries has been
+            // reached, we consider the operation failed and delete the job.
             pool.with_transaction(async |txn| {
                 self.group.discard_pending_commit(txn).await?;
                 Self::delete(txn.as_mut(), self.group.group_id()).await?;
                 Ok(())
             })
             .await?;
-            Ok(JobError::FatalError(anyhow!(
-                "Job failed due to an unexpected error: {:?}",
-                error
-            )))
+
+            let error = if self.number_of_attempts >= MAX_RETRIES {
+                anyhow!(
+                    "Job failed after {} attempts due to DS errors: {:?}",
+                    MAX_RETRIES,
+                    error
+                )
+            } else {
+                anyhow!("Job failed due to DS error: {:?}", error)
+            };
+            Ok(JobError::FatalError(error))
         }
     }
 
@@ -677,7 +673,6 @@ mod persistence {
             retry_due: DateTime<Utc>,
         ) -> sqlx::Result<()> {
             let group_id = self.group.group_id().as_slice();
-            self.number_of_attempts += 1;
             let number_of_attempts_i64 = self.number_of_attempts as i64;
             // Update the retry due timestamp in the database and increase number_of_attempts.
             query!(
