@@ -982,12 +982,15 @@ class _SenderAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final profile = context.select(
+      (UsersCubit cubit) => cubit.state.profile(userId: sender),
+    );
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: UserAvatar(userId: sender, size: size),
+        child: UserAvatar(profile: profile, size: size),
       ),
     );
   }

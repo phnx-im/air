@@ -35,7 +35,7 @@ class MemberListItem extends StatelessWidget {
       minVerticalPadding: Spacings.xs,
       enabled: enabled,
       onTap: onTap,
-      leading: UserAvatar(userId: profile.userId, size: Spacings.l),
+      leading: UserAvatar(profile: profile, size: Spacings.l),
       title: Text(
         displayName,
         style: TextStyle(

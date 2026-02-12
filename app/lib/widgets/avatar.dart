@@ -6,7 +6,6 @@ import 'package:air/ui/colors/palette.dart';
 import 'package:flutter/material.dart';
 import 'package:air/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
-import 'package:air/user/user.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/util/cached_memory_image.dart';
@@ -16,16 +15,14 @@ import 'package:uuid/uuid.dart';
 class UserAvatar extends StatelessWidget {
   const UserAvatar({
     super.key,
-    this.userId,
-    this.profile,
+    required this.profile,
     this.size = 24.0,
     this.onPressed,
     this.showInitials = true,
     this.showImage = true,
   });
 
-  final UiUserId? userId;
-  final UiUserProfile? profile;
+  final UiUserProfile profile;
   final double size;
   final VoidCallback? onPressed;
   final bool showInitials;
@@ -33,22 +30,12 @@ class UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final profile = this.profile != null
-        ? this.profile!
-        : context.select(
-            (UsersCubit cubit) => cubit.state.profile(userId: userId),
-          );
-
-    final displayName = profile.displayName;
-    final image = profile.profilePicture;
-    final gradientKey = userId?.uuid ?? profile.userId.uuid;
-
     return _Avatar(
-      displayName: showInitials ? displayName : "",
-      image: showImage ? image : null,
+      displayName: showInitials ? profile.displayName : "",
+      image: showImage ? profile.profilePicture : null,
       size: size,
       onPressed: onPressed,
-      gradientKey: gradientKey,
+      gradientKey: profile.userId.uuid,
     );
   }
 }
