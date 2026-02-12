@@ -101,8 +101,7 @@ impl FcmToken {
 #[derive(Clone)]
 struct FcmState {
     service_account: Arc<ServiceAccount>,
-    // TODO: This field should be a zeroized type. It needs to be implemented in the jsonwebtoken
-    // crate.
+    // Note: zeroized in <https://github.com/Keats/jsonwebtoken/issues/337>
     private_key: EncodingKey,
     token: Arc<Mutex<Option<FcmToken>>>,
 }
@@ -121,8 +120,7 @@ impl fmt::Debug for FcmState {
 struct ApnsState {
     key_id: String,
     team_id: String,
-    // TODO: This field should be a zeroized type. It needs to be implemented in the jsonwebtoken
-    // crate.
+    // Note: zeroized in <https://github.com/Keats/jsonwebtoken/issues/337>
     private_key: EncodingKey,
     token: Arc<Mutex<Option<ApnsToken>>>,
 }
