@@ -52,7 +52,7 @@ class SafetyCodeView extends StatelessWidget {
         children: [
           const SizedBox(height: Spacings.xs),
 
-          UserAvatar(size: 192, userId: profile.userId, profile: profile),
+          UserAvatar(profile: profile, size: 192),
 
           const SizedBox(height: Spacings.s),
 
