@@ -9,7 +9,7 @@ use crate::{
         MemoryUserKeyStoreBase, as_credentials::AsCredentials, indexed_keys::StorableIndexedKey,
         queue_ratchets::StorableQsQueueRatchet,
     },
-    outbound_service::{self, timed_tasks_queue::TimedTaskQueue},
+    outbound_service,
     user_profiles::generate::NewUserProfile,
     utils::global_lock::GlobalLock,
 };
@@ -347,18 +347,8 @@ pub(crate) struct QsRegisteredUserState {
 }
 
 impl QsRegisteredUserState {
-    pub(super) async fn upload_key_packages(self, pool: &SqlitePool) -> Result<PersistedUserState> {
-        let now = Utc::now();
-        // Ensure the task is picked up immediately
-        let due_at = now - chrono::Duration::minutes(5);
-
-        TimedTaskQueue::new_key_package_upload_task(due_at)
-            .enqueue(pool)
-            .await?;
-
-        let state = PersistedUserState { state: self };
-
-        Ok(state)
+    pub(super) async fn persist(self) -> Result<PersistedUserState> {
+        Ok(PersistedUserState { state: self })
     }
 
     pub(super) fn user_id(&self) -> &UserId {

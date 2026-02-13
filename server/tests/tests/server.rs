@@ -584,6 +584,7 @@ async fn key_package_upload() {
     let bob_user = &setup.get_user(&bob).user;
     let now = Utc::now();
     bob_user
+        .outbound_service()
         .schedule_key_package_upload(now - chrono::Duration::minutes(5))
         .await
         .unwrap();

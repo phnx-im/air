@@ -5,7 +5,6 @@ use openmls::group::Member;
 
 use crate::{
     job::pending_chat_operation::test_utils::PendingChatOperationInfo,
-    outbound_service::timed_tasks_queue::{TaskKind, TimedTaskQueue},
     utils::connection_ext::ConnectionExt as _,
 };
 
@@ -62,16 +61,6 @@ impl CoreUser {
         let chat = Chat::load(&mut connection, &chat_id).await.ok()??;
         let group = Group::load(&mut connection, chat.group_id()).await.ok()??;
         Some(group.members(&mut *connection).await.into_iter().collect())
-    }
-
-    pub async fn schedule_key_package_upload(
-        &self,
-        due_at: chrono::DateTime<chrono::Utc>,
-    ) -> Result<()> {
-        let mut connection = self.pool().acquire().await?;
-        let task_kind = TaskKind::KeyPackageUpload;
-        TimedTaskQueue::set_due_date(&mut *connection, task_kind, due_at).await?;
-        Ok(())
     }
 
     /// Returns (operation_type, request_status, number_of_attempts) for the

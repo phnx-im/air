@@ -40,7 +40,6 @@ mod receipts;
 pub(crate) mod resync;
 mod retry_pending_chat_operations;
 mod timed_tasks;
-pub(crate) mod timed_tasks_queue;
 
 /// A service which is responsible for processing outbound messages.
 ///
@@ -233,6 +232,7 @@ impl OutboundServiceContext {
     }
 
     async fn work(&self, run_token: CancellationToken) {
+        // Profiles are fetched concurrently to other tasks.
         let fetch_profiles = self.spawn_fetch_profiles(&run_token);
 
         if let Err(error) = self.perform_queued_resyncs(&run_token).await {

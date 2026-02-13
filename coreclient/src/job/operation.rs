@@ -9,13 +9,25 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 /// A type which can be persisted as an operation
+///
+/// Operations with the same kind form a queue. They can be enqueued, dequeued, retried and
+/// deleted.
 pub(crate) trait OperationData {
+    /// Unique kind of the associated operation
     fn kind() -> OperationKind;
 
     /// Generates an identifier for the operation
     ///
     /// It can be random or determined by the operation data.
     fn generate_id(&self) -> OperationId;
+
+    /// Converts the operation data into an [`Operation`]
+    fn into_operation(self) -> Operation<Self>
+    where
+        Self: Sized,
+    {
+        Operation::new(self)
+    }
 }
 
 /// Identifier of an operation
@@ -47,6 +59,7 @@ pub(crate) struct Operation<T> {
 #[derive(Debug)]
 pub(crate) enum OperationKind {
     FetchProfile,
+    TimedTask,
 }
 
 impl<T: OperationData> Operation<T> {
@@ -59,12 +72,18 @@ impl<T: OperationData> Operation<T> {
             retries: 0,
         }
     }
+
+    pub(crate) fn schedule_at(mut self, due_at: DateTime<Utc>) -> Self {
+        self.scheduled_at = Some(due_at);
+        self
+    }
 }
 
 impl OperationKind {
     fn as_str(&self) -> &'static str {
         match self {
             Self::FetchProfile => "fetch_profile",
+            Self::TimedTask => "timed_task",
         }
     }
 }
@@ -75,6 +94,7 @@ impl FromStr for OperationKind {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             "fetch_profile" => Self::FetchProfile,
+            "timed_task" => Self::TimedTask,
             _ => bail!("Invalid operation type: {s}"),
         })
     }
@@ -150,7 +170,7 @@ mod persistence {
             let data = BlobEncoded(&self.data);
             let retries = self.retries as i64;
             query!(
-                "INSERT OR REPLACE INTO operation (
+                "INSERT INTO operation (
                     operation_id,
                     kind,
                     data,
@@ -159,6 +179,44 @@ mod persistence {
                     retries
                 )
                 VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT (operation_id) DO UPDATE SET
+                    kind = excluded.kind,
+                    data = excluded.data,
+                    created_at = excluded.created_at,
+                    scheduled_at = excluded.scheduled_at,
+                    retries = excluded.retries
+                ",
+                self.operation_id.0,
+                kind,
+                data,
+                self.created_at,
+                self.scheduled_at,
+                retries,
+            )
+            .execute(executor)
+            .await?;
+            Ok(())
+        }
+
+        /// Enqueue an operation if it doesn't exist
+        pub(crate) async fn enqueue_if_not_exists(
+            &self,
+            executor: impl SqliteExecutor<'_>,
+        ) -> sqlx::Result<()> {
+            let kind = T::kind();
+            let data = BlobEncoded(&self.data);
+            let retries = self.retries as i64;
+            query!(
+                "INSERT INTO operation (
+                    operation_id,
+                    kind,
+                    data,
+                    created_at,
+                    scheduled_at,
+                    retries
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT (operation_id) DO NOTHING
                 ",
                 self.operation_id.0,
                 kind,
