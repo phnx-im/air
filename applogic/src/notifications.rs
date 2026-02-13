@@ -73,13 +73,24 @@ impl User {
         notifications: &mut Vec<NotificationContent>,
     ) {
         for chat_id in connection_chats {
-            if let Some(chat) = self.user.chat(chat_id).await
-                && let ChatType::Connection(client_id) = chat.chat_type()
-            {
-                let contact_name = self.user.user_profile(client_id).await.display_name;
-                let title = format!("New connection with {contact_name}");
-                let body = "Say hi".to_owned();
-
+            if let Some(chat) = self.user.chat(chat_id).await {
+                let (title, body) = match chat.chat_type() {
+                    ChatType::Connection(user_id) => {
+                        let contact_name = self.user.user_profile(user_id).await.display_name;
+                        (
+                            format!("New connection with {contact_name}"),
+                            "Say hi".to_owned(),
+                        )
+                    }
+                    ChatType::PendingConnection(user_id) => {
+                        let contact_name = self.user.user_profile(user_id).await.display_name;
+                        (
+                            format!("New contact request from {contact_name}"),
+                            "Tap to respond".to_owned(),
+                        )
+                    }
+                    _ => continue,
+                };
                 notifications.push(NotificationContent {
                     identifier: NotificationId::random(),
                     title,
