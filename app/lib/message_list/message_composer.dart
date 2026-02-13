@@ -29,7 +29,8 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:provider/provider.dart';
 
-import 'package:air/util/platform.dart' show getClipboardImage;
+import 'package:air/util/platform.dart'
+    show getClipboardFilePaths, getClipboardImage;
 
 import 'message_renderer.dart';
 
@@ -188,6 +189,7 @@ class _MessageComposerState extends State<MessageComposer>
                   onSubmitMessage: () =>
                       _submitMessage(context.read<ChatDetailsCubit>()),
                   onImagePasted: _handleImagePaste,
+                  onFilePasted: _handleFilePaste,
                 ),
               ),
             ),
@@ -289,6 +291,14 @@ class _MessageComposerState extends State<MessageComposer>
             !HardwareKeyboard.instance.isMetaPressed;
 
   void _handleKeyboardPaste() async {
+    // Check for file paths first (desktop only) — prevents macOS from
+    // treating a copied file's icon as a pasted image.
+    final filePaths = await getClipboardFilePaths();
+    if (filePaths != null && filePaths.isNotEmpty) {
+      _handleFilePaste(filePaths.first);
+      return;
+    }
+
     final imageBytes = await getClipboardImage();
     if (imageBytes != null && imageBytes.isNotEmpty) {
       _handleImagePaste(imageBytes);
@@ -377,6 +387,14 @@ class _MessageComposerState extends State<MessageComposer>
       return;
     }
 
+    _navigateToUploadPreview(context, file, chatTitle: chatTitle);
+  }
+
+  void _handleFilePaste(String filePath) {
+    final chatTitle = _chatDetailsCubit.state.chat?.title;
+    if (chatTitle == null) return;
+
+    final file = XFile(filePath);
     _navigateToUploadPreview(context, file, chatTitle: chatTitle);
   }
 
@@ -506,6 +524,7 @@ class _MessageInput extends StatelessWidget {
     required this.inputKey,
     required this.onSubmitMessage,
     required this.onImagePasted,
+    required this.onFilePasted,
   }) : _focusNode = focusNode,
        _controller = controller;
 
@@ -517,6 +536,7 @@ class _MessageInput extends StatelessWidget {
   final GlobalKey inputKey;
   final VoidCallback onSubmitMessage;
   final ValueChanged<Uint8List> onImagePasted;
+  final ValueChanged<String> onFilePasted;
 
   @override
   Widget build(BuildContext context) {
@@ -613,6 +633,13 @@ class _MessageInput extends StatelessWidget {
           label: item.label,
           type: item.type,
           onPressed: () async {
+            // Check for file paths first (desktop only)
+            final filePaths = await getClipboardFilePaths();
+            if (filePaths != null && filePaths.isNotEmpty) {
+              editableTextState.hideToolbar();
+              onFilePasted(filePaths.first);
+              return;
+            }
             final imageBytes = await getClipboardImage();
             if (imageBytes != null && imageBytes.isNotEmpty) {
               editableTextState.hideToolbar();
@@ -628,12 +655,18 @@ class _MessageInput extends StatelessWidget {
     }).toList();
 
     // When the clipboard has image data but no text, Flutter omits the Paste
-    // button on Android & iOS. Add one so the user can paste images.
+    // button on Android & iOS. Add one so the user can paste images or files.
     if (!hasPaste) {
       items.add(
         ContextMenuButtonItem(
           type: ContextMenuButtonType.paste,
           onPressed: () async {
+            final filePaths = await getClipboardFilePaths();
+            if (filePaths != null && filePaths.isNotEmpty) {
+              editableTextState.hideToolbar();
+              onFilePasted(filePaths.first);
+              return;
+            }
             final imageBytes = await getClipboardImage();
             if (imageBytes != null && imageBytes.isNotEmpty) {
               editableTextState.hideToolbar();

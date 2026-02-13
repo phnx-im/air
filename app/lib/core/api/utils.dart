@@ -38,6 +38,19 @@ Future<void> importClientDatabase({
   tarGzBytes: tarGzBytes,
 );
 
+/// Returns whether the file at the given path is a recognized image format.
+/// Uses the same detection as `load_attachment_image()` (magic bytes via the `image` crate).
+Future<bool> isImageFile({required String path}) =>
+    RustLib.instance.api.crateApiUtilsIsImageFile(path: path);
+
+/// Reads file paths from the system clipboard. Only supported on desktop
+/// platforms (Linux, Windows, macOS).
+///
+/// Returns `None` if the clipboard does not contain file paths, or when called
+/// on unsupported platforms.
+Future<List<String>?> readClipboardFilePaths() =>
+    RustLib.instance.api.crateApiUtilsReadClipboardFilePaths();
+
 /// Reads an image from the system clipboard and returns it as JPEG bytes. Only
 /// supported on desktop platforms (Linux, Windows, macOS).
 ///

@@ -781,6 +781,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<int> dco_decode_list_CastedPrimitive_u_64(dynamic raw);
 
   @protected
+  List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
   List<ChatId> dco_decode_list_chat_id(dynamic raw);
 
   @protected
@@ -949,6 +952,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   UserHandleValidationError?
   dco_decode_opt_box_autoadd_user_handle_validation_error(dynamic raw);
+
+  @protected
+  List<String>? dco_decode_opt_list_String(dynamic raw);
 
   @protected
   Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
@@ -1741,6 +1747,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<int> sse_decode_list_CastedPrimitive_u_64(SseDeserializer deserializer);
 
   @protected
+  List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
   List<ChatId> sse_decode_list_chat_id(SseDeserializer deserializer);
 
   @protected
@@ -1955,6 +1964,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   sse_decode_opt_box_autoadd_user_handle_validation_error(
     SseDeserializer deserializer,
   );
+
+  @protected
+  List<String>? sse_decode_opt_list_String(SseDeserializer deserializer);
 
   @protected
   Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
@@ -2913,6 +2925,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_chat_id(List<ChatId> self, SseSerializer serializer);
 
   @protected
@@ -3184,6 +3199,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     UserHandleValidationError? self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_opt_list_String(List<String>? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_list_prim_u_8_strict(
