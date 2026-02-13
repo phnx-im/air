@@ -348,9 +348,12 @@ impl UnsentMessage<GroupUpdateNeeded> {
         // confirm as this is just an application message.
         group.store_update(txn.as_mut()).await?;
 
-        // Also, mark the message (and all messages preceeding it) as read.
-        Chat::mark_as_read_until_message_id(txn, notifier, chat.id(), message.id(), own_user)
-            .await?;
+        // Also, mark the message (and all messages preceeding it) as read, but
+        // skip for deletions.
+        if message.status() != MessageStatus::Deleted {
+            Chat::mark_as_read_until_message_id(txn, notifier, chat.id(), message.id(), own_user)
+                .await?;
+        }
 
         Ok(UnsentMessage {
             chat,
