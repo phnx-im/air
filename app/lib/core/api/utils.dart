@@ -39,7 +39,7 @@ Future<void> importClientDatabase({
 );
 
 /// Returns whether the file at the given path is a recognized image format.
-/// Uses the same detection as `load_attachment_image()` (magic bytes via the `image` crate).
+/// Uses the same detection as `load_attachment_image()`.
 Future<bool> isImageFile({required String path}) =>
     RustLib.instance.api.crateApiUtilsIsImageFile(path: path);
 
