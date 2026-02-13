@@ -390,13 +390,18 @@ class _MessageComposerState extends State<MessageComposer>
     final file = XFile(tempFile.path);
 
     if (!mounted) return;
-    await _navigateToUploadPreview(context, file, chatTitle: chatTitle);
-    tempFile.delete().ignore();
+    await _navigateToUploadPreview(
+      context,
+      file,
+      chatTitle: chatTitle,
+      isTempFile: true,
+    );
   }
 
   Future<void> _navigateToUploadPreview(
     BuildContext context,
     XFile file, {
+    bool isTempFile = false,
     required String chatTitle,
   }) {
     final cubit = context.read<ChatDetailsCubit>();
@@ -433,6 +438,14 @@ class _MessageComposerState extends State<MessageComposer>
               if (!context.mounted) return;
               final loc = AppLocalizations.of(context);
               showErrorBanner(context, loc.composer_error_attachment);
+            } finally {
+              if (isTempFile) {
+                try {
+                  await File(file.path).delete();
+                } catch (e) {
+                  _log.warning("Failed to delete temp file: $e", e);
+                }
+              }
             }
           },
         ),
