@@ -49,7 +49,7 @@ use crate::{
     },
     contacts::{PartialContact, PartialContactType},
     groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
-    job::pending_chat_operation::PendingChatOperation,
+    job::{pending_chat_operation::PendingChatOperation, profile::FetchProfileOperation},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
     store::{Store, StoreNotifier},
@@ -247,13 +247,7 @@ impl CoreUser {
                         own_profile_key_in_group = Some(profile_info.user_profile_key);
                         continue;
                     }
-                    Self::fetch_and_store_user_profile(
-                        txn,
-                        notifier,
-                        self.api_clients(),
-                        profile_info,
-                    )
-                    .await?;
+                    Self::schedule_fetch_profile(txn.as_mut(), profile_info).await?;
                 }
 
                 let Some(own_profile_key_in_group) = own_profile_key_in_group else {
@@ -583,10 +577,9 @@ impl CoreUser {
         };
 
         // MLSMessage Phase 4: Fetch user profiles of new clients and store them.
-        self.with_transaction_and_notifier(async |txn, notifier| {
-            for client in profile_infos {
-                Self::fetch_and_store_user_profile(&mut *txn, notifier, self.api_clients(), client)
-                    .await?;
+        self.with_transaction(async |txn| {
+            for profile_info in profile_infos {
+                Self::schedule_fetch_profile(txn.as_mut(), profile_info).await?;
             }
             Ok(())
         })
@@ -865,13 +858,9 @@ impl CoreUser {
         )?;
 
         // UnconfirmedConnection Phase 2: Fetch the user profile.
-        Self::fetch_and_store_user_profile(
-            txn,
-            notifier,
-            self.api_clients(),
-            (sender_client_credential.clone(), user_profile_key),
-        )
-        .await?;
+        FetchProfileOperation::new(sender_client_credential.clone(), user_profile_key)
+            .enqueue(txn.as_mut())
+            .await?;
 
         // Now we can turn the partial contact into a full one.
         let contact = contact
@@ -932,15 +921,10 @@ impl CoreUser {
         )?;
 
         // Phase 3: Fetch and store the (new) user profile and key
-        self.with_notifier(async |notifier| {
-            Self::fetch_and_store_user_profile(
-                &mut connection,
-                notifier,
-                self.api_clients(),
-                (sender_credential.into(), new_user_profile_key),
-            )
-            .await
-        })
+        Self::schedule_fetch_profile(
+            connection.as_mut(),
+            (sender_credential.into(), new_user_profile_key),
+        )
         .await?;
 
         Ok(ProcessQsMessageResult::None)

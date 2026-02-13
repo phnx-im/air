@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                    operation_id,\n                    kind,\n                    created_at AS \"created_at: _\",\n                    scheduled_at AS \"scheduled_at: _\",\n                    retries AS \"retries: _\"\n                FROM operation\n                ORDER BY scheduled_at ASC, created_at ASC\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "operation_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "kind",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at: _",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "scheduled_at: _",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "retries: _",
+        "ordinal": 4,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "47869e9f59e9c4be3707dcd1a7b5c0c0fb903adf55ca90fb7b1605070d9ca261"
+}

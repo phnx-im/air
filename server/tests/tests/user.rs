@@ -101,6 +101,8 @@ async fn exchange_user_profiles() {
     let bob_user = &setup.get_user(&bob).user;
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     bob_user.fully_process_qs_messages(qs_messages).await;
+    bob_user.outbound_service().run_once().await;
+
     let alice_user_profile = bob_user.user_profile(&alice).await;
 
     assert_eq!(alice_user_profile, new_user_profile);

@@ -2,11 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airapiclient::{ApiClientInitError, ds_api::DsRequestError};
+use airapiclient::{ApiClientInitError, as_api::AsRequestError, ds_api::DsRequestError};
 use aircommon::codec;
 use chrono::{DateTime, Utc};
 use sqlx::SqlitePool;
 use thiserror::Error;
+use tracing::info;
 
 use crate::{
     clients::api_clients::ApiClients, key_stores::MemoryUserKeyStore, store::StoreNotifier,
@@ -14,7 +15,9 @@ use crate::{
 
 pub(crate) mod chat_operation;
 pub(crate) mod create_chat;
+pub(crate) mod operation;
 pub(crate) mod pending_chat_operation;
+pub(crate) mod profile;
 
 pub(crate) struct JobContext<'a> {
     pub api_clients: &'a ApiClients,
@@ -32,6 +35,12 @@ pub(crate) enum JobError {
     Blocked,
     #[error("Fatal error: {0}")]
     FatalError(#[from] anyhow::Error),
+}
+
+impl JobError {
+    pub(crate) fn fatal(error: impl Into<anyhow::Error>) -> Self {
+        Self::FatalError(error.into())
+    }
 }
 
 pub(crate) trait Job {
@@ -55,11 +64,22 @@ pub(crate) trait Job {
     }
 }
 
+impl From<AsRequestError> for JobError {
+    fn from(error: AsRequestError) -> Self {
+        if error.is_network_error() {
+            info!(?error, "Job failed due to network error");
+            Self::NetworkError
+        } else {
+            Self::FatalError(error.into())
+        }
+    }
+}
+
 impl From<DsRequestError> for JobError {
     fn from(error: DsRequestError) -> Self {
         // Network erros can occur without any fault of the job itself, so we
         // only log info here.
-        tracing::info!(?error, "Job failed due to network error");
+        info!(?error, "Job failed due to network error");
         Self::NetworkError
     }
 }

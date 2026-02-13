@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO operation (\n                    operation_id,\n                    kind,\n                    data,\n                    created_at,\n                    scheduled_at,\n                    retries\n                )\n                VALUES (?, ?, ?, ?, ?, ?)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "c009f570854bf6bfaf7f0978f51e9d3650d616ff124b8e2a8f07d6b4f5de5743"
+}
