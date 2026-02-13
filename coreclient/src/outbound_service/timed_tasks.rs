@@ -13,7 +13,6 @@ use uuid::Uuid;
 
 use crate::{
     job::operation::{Operation, OperationData, OperationId, OperationKind},
-    outbound_service::OutboundService,
     user_handles::UserHandleRecord,
     utils::connection_ext::StoreExt,
 };
@@ -72,6 +71,8 @@ impl TimedTaskKind {
 #[cfg(feature = "test_utils")]
 mod test_utils {
     use chrono::DateTime;
+
+    use crate::outbound_service::OutboundService;
 
     use super::*;
 

@@ -10,7 +10,7 @@ use aircommon::{
 use serde::{Deserialize, Serialize};
 use sqlx::SqliteExecutor;
 use tls_codec::Serialize as _;
-use tracing::{debug, error};
+use tracing::error;
 
 use crate::{
     clients::CoreUser,
@@ -38,8 +38,6 @@ impl CoreUser {
             client_credential,
             user_profile_key,
         } = profile_info.into();
-        let user_id = client_credential.identity();
-        debug!(?user_id, "##### scheduling fetch profile");
         FetchProfileOperation::new(client_credential, user_profile_key)
             .enqueue(executor)
             .await
