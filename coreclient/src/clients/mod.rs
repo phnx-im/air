@@ -446,6 +446,11 @@ impl CoreUser {
                 // ack the message independently of the result of processing the message
                 responder.ack(message_id.into()).await;
             }
+            // Drop the responder to close the ack MPSC channel, signaling
+            // the server that no more acks will come. Then drain the response
+            // stream to wait for the gRPC transport to flush the ack.
+            drop(responder);
+            while stream.next().await.is_some() {}
         }
         Ok(chat_ids)
     }
