@@ -73,6 +73,7 @@ impl<T: OperationData> Operation<T> {
         }
     }
 
+    #[cfg(any(feature = "test_utils", test))]
     pub(crate) fn schedule_at(mut self, due_at: DateTime<Utc>) -> Self {
         self.scheduled_at = Some(due_at);
         self
