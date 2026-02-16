@@ -81,7 +81,7 @@ openmls_traits = { version = "0.4.1" }
 parking_lot = "0.12"
 pin-project = "1.1.10"
 png = "0.17"
-privacypass = { git = "https://github.com/raphaelrobert/privacypass" }
+privacypass = { git = "https://github.com/raphaelrobert/privacypass", rev = "4f2dabad05f022a1096aee7f49ba950e42387a20" }
 prost = "0.14.0"
 protoc-bin-vendored = "3.1.0"
 pulldown-cmark = "0.13.0"

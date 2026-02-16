@@ -5150,7 +5150,7 @@ dependencies = [
 [[package]]
 name = "privacypass"
 version = "0.2.0-pre.0"
-source = "git+https://github.com/raphaelrobert/privacypass#4f2dabad05f022a1096aee7f49ba950e42387a20"
+source = "git+https://github.com/raphaelrobert/privacypass?rev=4f2dabad05f022a1096aee7f49ba950e42387a20#4f2dabad05f022a1096aee7f49ba950e42387a20"
 dependencies = [
  "async-trait",
  "base64",
