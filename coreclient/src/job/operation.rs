@@ -78,6 +78,17 @@ impl<T: OperationData> Operation<T> {
         self.scheduled_at = Some(due_at);
         self
     }
+
+    pub(crate) fn take_data(self) -> (Operation<()>, T) {
+        let op = Operation {
+            operation_id: self.operation_id,
+            data: (),
+            created_at: self.created_at,
+            scheduled_at: self.scheduled_at,
+            retries: self.retries,
+        };
+        (op, self.data)
+    }
 }
 
 impl OperationKind {
@@ -111,62 +122,17 @@ mod persistence {
 
     use super::*;
 
-    impl<T: OperationData + Serialize> Operation<T> {
-        pub(crate) async fn stats(
-            executor: impl SqliteExecutor<'_>,
-        ) -> sqlx::Result<
-            Vec<(
-                OperationId,
-                String,
-                DateTime<Utc>,
-                Option<DateTime<Utc>>,
-                usize,
-            )>,
-        > {
-            struct Record {
-                operation_id: Vec<u8>,
-                kind: String,
-                created_at: DateTime<Utc>,
-                scheduled_at: Option<DateTime<Utc>>,
-                retries: i64,
-            }
-            query_as!(
-                Record,
-                r#"SELECT
-                    operation_id,
-                    kind,
-                    created_at AS "created_at: _",
-                    scheduled_at AS "scheduled_at: _",
-                    retries AS "retries: _"
-                FROM operation
-                ORDER BY scheduled_at ASC, created_at ASC
-                "#,
-            )
-            .fetch_all(executor)
-            .await
-            .map(|records| {
-                records
-                    .into_iter()
-                    .map(|record| {
-                        (
-                            OperationId(record.operation_id),
-                            record.kind,
-                            record.created_at,
-                            record.scheduled_at,
-                            record.retries as usize,
-                        )
-                    })
-                    .collect()
-            })
-        }
-
+    impl<T> Operation<T> {
         /// Enqueue an operation
         ///
         /// If an operation with the same id is already enqueued, it is overwritten.
         pub(crate) async fn enqueue<'a>(
             &self,
             executor: impl SqliteExecutor<'a>,
-        ) -> sqlx::Result<()> {
+        ) -> sqlx::Result<()>
+        where
+            T: OperationData + Serialize,
+        {
             let kind = T::kind();
             let data = BlobEncoded(&self.data);
             let retries = self.retries as i64;
@@ -203,7 +169,10 @@ mod persistence {
         pub(crate) async fn enqueue_if_not_exists(
             &self,
             executor: impl SqliteExecutor<'_>,
-        ) -> sqlx::Result<()> {
+        ) -> sqlx::Result<()>
+        where
+            T: OperationData + Serialize,
+        {
             let kind = T::kind();
             let data = BlobEncoded(&self.data);
             let retries = self.retries as i64;

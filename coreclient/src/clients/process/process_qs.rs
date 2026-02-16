@@ -49,7 +49,7 @@ use crate::{
     },
     contacts::{PartialContact, PartialContactType},
     groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
-    job::{pending_chat_operation::PendingChatOperation, profile::FetchProfileOperation},
+    job::pending_chat_operation::PendingChatOperation,
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
     store::{Store, StoreNotifier},
@@ -858,9 +858,11 @@ impl CoreUser {
         )?;
 
         // UnconfirmedConnection Phase 2: Fetch the user profile.
-        FetchProfileOperation::new(sender_client_credential.clone(), user_profile_key)
-            .enqueue(txn.as_mut())
-            .await?;
+        Self::schedule_fetch_profile(
+            txn.as_mut(),
+            (sender_client_credential.clone(), user_profile_key),
+        )
+        .await?;
 
         // Now we can turn the partial contact into a full one.
         let contact = contact
