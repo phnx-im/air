@@ -94,7 +94,7 @@ class _ClientRecordsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ownClientId = context.select(
-      (LoadableUserCubit cubit) => cubit.state.user?.userId,
+      (LoadableUserCubit cubit) => cubit.state.loadedUser?.userId,
     );
 
     return Center(

@@ -92,7 +92,9 @@ class DeveloperSettingsScreenView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.select((LoadableUserCubit cubit) => cubit.state.user);
+    final user = context.select(
+      (LoadableUserCubit cubit) => cubit.state.loadedUser,
+    );
     final profile = user != null
         ? context.select(
             (UsersCubit cubit) => cubit.state.profile(userId: user.userId),

@@ -77,11 +77,43 @@ String toString() {
 /// @nodoc
 
 
+class UnloadedUser extends LoadableUser {
+  const UnloadedUser(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UnloadedUser);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'LoadableUser.unloaded()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
 class LoadedUser extends LoadableUser {
   const LoadedUser(this.user): super._();
   
 
- final  User? user;
+ final  User user;
 
 /// Create a copy of LoadableUser
 /// with the given fields replaced by the non-null parameter values.
@@ -113,7 +145,7 @@ abstract mixin class $LoadedUserCopyWith<$Res> implements $LoadableUserCopyWith<
   factory $LoadedUserCopyWith(LoadedUser value, $Res Function(LoadedUser) _then) = _$LoadedUserCopyWithImpl;
 @useResult
 $Res call({
- User? user
+ User user
 });
 
 
@@ -130,10 +162,76 @@ class _$LoadedUserCopyWithImpl<$Res>
 
 /// Create a copy of LoadableUser
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? user = freezed,}) {
+@pragma('vm:prefer-inline') $Res call({Object? user = null,}) {
   return _then(LoadedUser(
-freezed == user ? _self.user : user // ignore: cast_nullable_to_non_nullable
-as User?,
+null == user ? _self.user : user // ignore: cast_nullable_to_non_nullable
+as User,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class UnloadingUser extends LoadableUser {
+  const UnloadingUser(this.user): super._();
+  
+
+ final  User user;
+
+/// Create a copy of LoadableUser
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UnloadingUserCopyWith<UnloadingUser> get copyWith => _$UnloadingUserCopyWithImpl<UnloadingUser>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UnloadingUser&&(identical(other.user, user) || other.user == user));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,user);
+
+@override
+String toString() {
+  return 'LoadableUser.unloading(user: $user)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UnloadingUserCopyWith<$Res> implements $LoadableUserCopyWith<$Res> {
+  factory $UnloadingUserCopyWith(UnloadingUser value, $Res Function(UnloadingUser) _then) = _$UnloadingUserCopyWithImpl;
+@useResult
+$Res call({
+ User user
+});
+
+
+
+
+}
+/// @nodoc
+class _$UnloadingUserCopyWithImpl<$Res>
+    implements $UnloadingUserCopyWith<$Res> {
+  _$UnloadingUserCopyWithImpl(this._self, this._then);
+
+  final UnloadingUser _self;
+  final $Res Function(UnloadingUser) _then;
+
+/// Create a copy of LoadableUser
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? user = null,}) {
+  return _then(UnloadingUser(
+null == user ? _self.user : user // ignore: cast_nullable_to_non_nullable
+as User,
   ));
 }
 
