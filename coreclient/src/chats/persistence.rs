@@ -619,7 +619,8 @@ impl Chat {
     pub(crate) async fn global_unread_message_count(
         executor: impl SqliteExecutor<'_>,
     ) -> sqlx::Result<usize> {
-        // We exclude deleted messages (status = 4) from the unread count.
+        // We exclude deleted messages from the unread count.
+        let excluded_status = MessageStatus::Deleted.repr();
         query_scalar!(
             r#"SELECT
                 COUNT(m.chat_id) AS "count: _"
@@ -632,7 +633,8 @@ impl Chat {
                 AND m.sender_user_uuid IS NOT NULL
                 AND m.sender_user_domain IS NOT NULL
                 AND m.timestamp > c.last_read
-                AND m.status != 4"#
+                AND m.status != ?1"#,
+            excluded_status
         )
         .fetch_one(executor)
         .await
@@ -663,7 +665,8 @@ impl Chat {
         executor: impl SqliteExecutor<'_>,
         chat_id: ChatId,
     ) -> sqlx::Result<usize> {
-        // We exclude deleted messages (status = 4) from the unread count.
+        // We exclude deleted messages from the unread count.
+        let excluded_status = MessageStatus::Deleted.repr();
         query_scalar!(
             r#"SELECT
                 COUNT(*) AS "count: _"
@@ -673,7 +676,7 @@ impl Chat {
                 chat_id = ?1
                 AND sender_user_uuid IS NOT NULL
                 AND sender_user_domain IS NOT NULL
-                AND status != 4
+                AND status != ?2
                 AND timestamp >
                 (
                     SELECT
@@ -683,7 +686,8 @@ impl Chat {
                     WHERE
                         chat_id = ?1
                 )"#,
-            chat_id
+            chat_id,
+            excluded_status
         )
         .fetch_one(executor)
         .await
