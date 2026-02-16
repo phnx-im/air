@@ -131,8 +131,6 @@ zeroize = "1.8.1"
 openmls = { git = "https://github.com/openmls/openmls", rev = "739cefe740b959f0f09945d438b146c1a1c9734f" }
 openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "739cefe740b959f0f09945d438b146c1a1c9734f" }
 openmls_traits = { git = "https://github.com/openmls/openmls", rev = "739cefe740b959f0f09945d438b146c1a1c9734f" }
-# Unrealeased version with updated dependencies
-blind-rsa-signatures = { git = "https://github.com/jedisct1/rust-blind-rsa-signatures", rev = "5902c657fa46c663cda224afbe8ee6493d45c9b8" }
 
 [profile.release]
 strip = true
