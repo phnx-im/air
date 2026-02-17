@@ -29,6 +29,7 @@ use crate::{
 };
 
 pub use timed_tasks::KEY_PACKAGES;
+pub(crate) use timed_tasks::SELF_UPDATE_INTERVAL;
 
 mod chat_message_queue;
 mod chat_messages;

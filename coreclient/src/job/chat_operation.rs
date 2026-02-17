@@ -3,13 +3,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::UserId;
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, ensure};
+use chrono::Utc;
 use sqlx::SqliteConnection;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
     groups::Group,
     job::{Job, JobContext, JobError, pending_chat_operation::PendingChatOperation},
+    outbound_service::SELF_UPDATE_INTERVAL,
     utils::connection_ext::ConnectionExt,
 };
 
@@ -20,6 +22,7 @@ enum ChatOperationType {
     Leave,
     Delete,
     Update(Option<ChatAttributes>),
+    SelfUpdate,
 }
 
 pub(crate) struct ChatOperation {
@@ -90,6 +93,13 @@ impl ChatOperation {
         }
     }
 
+    pub(crate) fn self_update(chat_id: ChatId) -> Self {
+        ChatOperation {
+            chat_id,
+            operation: ChatOperationType::SelfUpdate,
+        }
+    }
+
     /// Check whether the operation is still valid given the current state of
     /// the group. If the operation is partially valid (e.g. one of the users to
     /// add is already a member), refine the operation to only include the valid
@@ -129,6 +139,14 @@ impl ChatOperation {
                     bail!("None of the users to remove are members of the group");
                 }
             }
+            ChatOperationType::SelfUpdate => {
+                let now = Utc::now();
+                let next_self_update_at = group
+                    .self_updated_at
+                    .map(|t| *t + SELF_UPDATE_INTERVAL)
+                    .unwrap_or(now);
+                ensure!(next_self_update_at <= now, "Last self update is too recent");
+            }
             // The following operations are always valid as long as the
             // group is active.
             ChatOperationType::Leave | ChatOperationType::Delete | ChatOperationType::Update(_) => {
@@ -162,6 +180,7 @@ impl ChatOperation {
             ChatOperationType::Update(chat_attributes) => {
                 self.execute_update(context, chat_attributes.as_ref()).await
             }
+            ChatOperationType::SelfUpdate => self.execute_self_update(context).await,
         }
     }
 
@@ -192,7 +211,7 @@ impl ChatOperation {
         job.execute(context).await
     }
 
-    /// Remove users from the chat with the given [`ChatId`].
+    /// Remove users from the chat
     async fn execute_remove_members(
         &mut self,
         context: &mut JobContext<'_>,
@@ -216,7 +235,7 @@ impl ChatOperation {
         job.execute(context).await
     }
 
-    /// Leave the chat with the given [`ChatId`].
+    /// Leave the chat
     async fn execute_leave_chat(
         &mut self,
         context: &mut JobContext<'_>,
@@ -233,7 +252,7 @@ impl ChatOperation {
         job.execute(context).await
     }
 
-    /// Leave the chat with the given [`ChatId`].
+    /// Update the chat
     async fn execute_update(
         self,
         context: &mut JobContext<'_>,
@@ -254,6 +273,22 @@ impl ChatOperation {
             })
             .await?;
 
+        job.execute(context).await
+    }
+
+    async fn execute_self_update(
+        self,
+        context: &mut JobContext<'_>,
+    ) -> Result<Vec<ChatMessage>, JobError> {
+        let JobContext {
+            pool, key_store, ..
+        } = context;
+        let job = pool
+            .with_transaction(async |txn| {
+                PendingChatOperation::create_self_update(txn, &key_store.signing_key, self.chat_id)
+                    .await
+            })
+            .await?;
         job.execute(context).await
     }
 

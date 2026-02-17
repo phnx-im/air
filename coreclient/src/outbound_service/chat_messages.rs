@@ -126,7 +126,7 @@ impl OutboundServiceContext {
 
             // If a chat operation is pending, we skip sending chat messages for
             // this chat
-            if PendingChatOperation::is_pending_for_chat(&self.pool, &chat_id).await? {
+            if PendingChatOperation::is_pending_for_chat(&self.pool, chat_id).await? {
                 debug!(
                     ?chat_id,
                     "Skipping sending chat message due to pending chat operation"

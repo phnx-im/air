@@ -52,7 +52,7 @@ use aircommon::{
     time::TimeStamp,
     utils::removed_client,
 };
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use mimi_content::MimiContent;
 use mimi_room_policy::{MimiProposal, RoleIndex, RoomPolicy, VerifiedRoomState};
 use mls_assist::messages::AssistedMessageOut;
@@ -171,6 +171,8 @@ pub(crate) struct Group {
     mls_group: MlsGroup,
     pub room_state: VerifiedRoomState,
     pending_diff: Option<StagedGroupDiff>, // Currently unused, but we're keeping it for later
+    /// The time at which the user self-updated their key material in this group the last time
+    pub self_updated_at: Option<TimeStamp>,
 }
 
 impl Group {
@@ -242,6 +244,7 @@ impl Group {
             room_state,
             group_state_ear_key: group_state_ear_key.clone(),
             pending_diff: None,
+            self_updated_at: Some(TimeStamp::now()),
         };
 
         Ok((group, group_membership, params))
@@ -402,6 +405,7 @@ impl Group {
             group_state_ear_key: joiner_info.group_state_ear_key,
             pending_diff: None,
             room_state,
+            self_updated_at: Some(TimeStamp::now()),
         };
 
         // Phase 7: Store the group and client credentials.
@@ -591,6 +595,7 @@ impl Group {
             group_state_ear_key,
             pending_diff: None,
             room_state,
+            self_updated_at: Some(TimeStamp::now()),
         };
 
         // Phase 4: Store the group and client auth info.
@@ -1078,6 +1083,44 @@ impl Group {
         })
     }
 
+    pub(super) fn self_update(
+        &mut self,
+        txn: &mut SqliteTransaction<'_>,
+        signer: &ClientSigningKey,
+    ) -> Result<GroupOperationParamsOut> {
+        // We don't expect there to be a welcome.
+        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
+            new_encrypted_user_profile_keys: Vec::new(),
+        }))
+        .tls_serialize_detached()?;
+
+        self.mls_group.set_aad(aad);
+
+        let provider = AirOpenMlsProvider::new(txn.as_mut());
+
+        let leaf_node_parameters = LeafNodeParameters::builder()
+            .with_capabilities(default_capabilities())
+            .build();
+
+        let (commit, _welcome, group_info) = self
+            .mls_group
+            .commit_builder()
+            .create_group_info(true)
+            .leaf_node_parameters(leaf_node_parameters)
+            .consume_proposal_store(true)
+            .load_psks(provider.storage())?
+            .build(provider.rand(), provider.crypto(), signer, |_| true)?
+            .stage_commit(&provider)?
+            .into_messages();
+        ensure!(group_info.is_some(), "No group info after self-update");
+
+        let commit = AssistedMessageOut::new(commit, group_info);
+        Ok(GroupOperationParamsOut {
+            commit,
+            add_users_info_option: None,
+        })
+    }
+
     pub(super) fn stage_leave_group(
         &mut self,
         connection: &mut sqlx::SqliteConnection,
@@ -1257,6 +1300,34 @@ impl Group {
         )?
         .store(&provider, &psk_value)?;
         Ok(())
+    }
+}
+
+#[cfg(feature = "test_utils")]
+mod test_utils {
+    use chrono::{DateTime, Utc};
+    use tracing::error;
+
+    use crate::{Chat, ChatId, clients::CoreUser};
+
+    impl CoreUser {
+        pub async fn self_updated_at(&self, chat_id: ChatId) -> Option<DateTime<Utc>> {
+            Chat::self_updated_at(self.pool(), chat_id)
+                .await
+                .inspect_err(|error| {
+                    error!(%error, "Failed to get self_updated_at");
+                })
+                .ok()
+                .flatten()
+        }
+
+        pub async fn set_self_updated_at(&self, chat_id: ChatId, self_updated_at: DateTime<Utc>) {
+            if let Err(error) =
+                Chat::set_self_updated_at(self.pool(), chat_id, self_updated_at).await
+            {
+                error!(%error, "Failed to set self_updated_at");
+            }
+        }
     }
 }
 

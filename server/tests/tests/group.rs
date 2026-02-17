@@ -6,6 +6,7 @@ use std::slice;
 
 use aircoreclient::{DisplayName, UserProfile, clients::queue_event, store::Store};
 use airserver_test_harness::utils::setup::TestBackend;
+use chrono::{DateTime, Duration, Utc};
 use tokio_stream::StreamExt;
 use tracing::info;
 
@@ -568,4 +569,77 @@ async fn confirmation_via_queue() {
         .update_key(chat_id)
         .await
         .expect("No error despite server dropping messages");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn self_update() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+
+    let created_at = Utc::now();
+
+    // Outbound service updates chats in batches of 5
+    const BATCH_SIZE: usize = 5;
+
+    let mut chat_ids = Vec::new();
+    for _ in 0..BATCH_SIZE + 1 {
+        chat_ids.push(setup.create_group(&alice).await);
+    }
+
+    let alice_user = setup.get_user(&alice);
+    let alice_core = &alice_user.user;
+
+    // Initially, all chats are self-updated at creation time
+    let mut self_updated_at = Vec::new();
+    for chat_id in &chat_ids {
+        let at = alice_core.self_updated_at(*chat_id).await.unwrap();
+        assert!(
+            created_at <= at && at <= created_at + Duration::seconds(10),
+            "Self update is not within 10 seconds of now",
+        );
+        self_updated_at.push(at);
+    }
+
+    // Set self_updated_at to the past and schedule a self update
+    for chat_id in &chat_ids {
+        alice_core
+            .set_self_updated_at(*chat_id, DateTime::UNIX_EPOCH)
+            .await;
+    }
+    // Run the outbound service to update the chats
+    alice_core
+        .outbound_service()
+        .schedule_self_update(DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    alice_core.outbound_service().run_once().await;
+
+    // The outbound service updates the chats in batches of 5
+    for (idx, chat_id) in chat_ids.iter().take(BATCH_SIZE).enumerate() {
+        let at = alice_core.self_updated_at(*chat_id).await.unwrap();
+        assert!(self_updated_at[idx] < at, "Self update not happened",);
+    }
+    assert_eq!(
+        alice_core
+            .self_updated_at(chat_ids[BATCH_SIZE])
+            .await
+            .unwrap(),
+        DateTime::UNIX_EPOCH,
+        "Last chat self-updated even though it should not have been"
+    );
+
+    // Another run should update the remaining chat
+    alice_core
+        .outbound_service()
+        .schedule_self_update(DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    alice_core.outbound_service().run_once().await;
+
+    let at = alice_core
+        .self_updated_at(chat_ids[BATCH_SIZE])
+        .await
+        .unwrap();
+    assert!(self_updated_at[BATCH_SIZE] < at, "Self update not happened");
 }

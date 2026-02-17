@@ -6,6 +6,7 @@ use aircommon::{
     codec::{BlobDecoded, BlobEncoded, PersistenceCodec},
     credentials::VerifiableClientCredential,
     crypto::ear::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
+    time::TimeStamp,
 };
 use anyhow::ensure;
 use mimi_room_policy::{RoomState, VerifiedRoomState};
@@ -28,6 +29,7 @@ struct SqlGroup {
     group_state_ear_key: GroupStateEarKey,
     pending_diff: Option<BlobDecoded<StagedGroupDiff>>,
     room_state: Vec<u8>,
+    self_updated_at: Option<TimeStamp>,
 }
 
 impl SqlGroup {
@@ -38,6 +40,7 @@ impl SqlGroup {
             group_state_ear_key,
             pending_diff,
             room_state,
+            self_updated_at,
         } = self;
 
         let room_state = if let Some(state) = PersistenceCodec::from_slice::<RoomState>(&room_state)
@@ -75,6 +78,7 @@ impl SqlGroup {
             mls_group,
             pending_diff: pending_diff.map(|BlobDecoded(diff)| diff),
             room_state,
+            self_updated_at,
         }
     }
 }
@@ -91,14 +95,16 @@ impl Group {
                 identity_link_wrapper_key,
                 group_state_ear_key,
                 pending_diff,
-                room_state
+                room_state,
+                self_updated_at
             )
-            VALUES (?, ?, ?, ?, ?)"#,
+            VALUES (?, ?, ?, ?, ?, ?)"#,
             group_id,
             self.identity_link_wrapper_key,
             self.group_state_ear_key,
             pending_diff,
             room_state,
+            self.self_updated_at,
         )
         .execute(executor)
         .await?;
@@ -154,7 +160,8 @@ impl Group {
                 identity_link_wrapper_key AS "identity_link_wrapper_key: _",
                 group_state_ear_key AS "group_state_ear_key: _",
                 pending_diff AS "pending_diff: _",
-                room_state AS "room_state: _"
+                room_state AS "room_state: _",
+                self_updated_at AS "self_updated_at: _"
             FROM "group" WHERE group_id = ?"#,
             group_id
         )
@@ -175,7 +182,8 @@ impl Group {
                 g.identity_link_wrapper_key AS "identity_link_wrapper_key: _",
                 g.group_state_ear_key AS "group_state_ear_key: _",
                 g.pending_diff AS "pending_diff: _",
-                g.room_state AS "room_state: _"
+                g.room_state AS "room_state: _",
+                g.self_updated_at AS "self_updated_at: _"
             FROM "group" g
             INNER JOIN chat c ON c.group_id = g.group_id
             WHERE c.chat_id = ?
@@ -197,7 +205,15 @@ impl Group {
         Ok(Some(SqlGroup::into_group(sql_group, mls_group)))
     }
 
-    pub(crate) async fn store_update(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+    /// Stores a group update.
+    ///
+    /// The parameter `self_updated_at` specifies whether the key material of the current user was
+    /// updated in the group and if so, at what time.
+    pub(crate) async fn store_update(
+        &mut self,
+        executor: impl SqliteExecutor<'_>,
+        self_updated_at: Option<TimeStamp>,
+    ) -> sqlx::Result<()> {
         let group_id = GroupIdRefWrapper::from(&self.group_id);
         let pending_diff = self.pending_diff.as_ref().map(BlobEncoded);
         let room_state = BlobEncoded(&self.room_state);
@@ -206,12 +222,14 @@ impl Group {
                 identity_link_wrapper_key = ?,
                 group_state_ear_key = ?,
                 pending_diff = ?,
-                room_state = ?
+                room_state = ?,
+                self_updated_at = COALESCE(?, self_updated_at)
             WHERE group_id = ?"#,
             self.identity_link_wrapper_key,
             self.group_state_ear_key,
             pending_diff,
             room_state,
+            self_updated_at,
             group_id,
         )
         .execute(executor)

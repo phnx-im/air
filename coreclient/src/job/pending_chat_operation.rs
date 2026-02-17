@@ -1,5 +1,3 @@
-// SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
-//
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use crate::{
@@ -26,7 +24,7 @@ use mimi_room_policy::RoleIndex;
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
 use sqlx::{SqliteConnection, SqlitePool, SqliteTransaction, query, query_as};
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt};
 use tracing::info;
 
 // Having separate retry intervals for test and non-test is a hack until we can
@@ -37,15 +35,15 @@ const RETRY_INTERVAL: Duration = Duration::seconds(5);
 #[cfg(any(test, feature = "test_utils"))]
 const RETRY_INTERVAL: Duration = Duration::seconds(1);
 
-#[derive(Clone, derive_more::From, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub(super) enum OperationType {
     Leave(SelfRemoveParamsOut),
     Delete(DeleteGroupParamsOut),
     Other(Box<GroupOperationParamsOut>),
 }
 
-impl std::fmt::Display for OperationType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for OperationType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             OperationType::Leave(_) => write!(f, "leave"),
             OperationType::Delete(_) => write!(f, "delete"),
@@ -60,10 +58,6 @@ impl OperationType {
             OperationType::Leave(_) => false,
             OperationType::Delete(_) | OperationType::Other(_) => true,
         }
-    }
-
-    fn is_delete(&self) -> bool {
-        matches!(self, OperationType::Delete(_))
     }
 }
 
@@ -113,10 +107,10 @@ impl Job for PendingChatOperation {
 }
 
 impl PendingChatOperation {
-    pub(super) fn new(group: Group, message: impl Into<OperationType>) -> Self {
+    pub(super) fn new(group: Group, operation: OperationType) -> Self {
         Self {
             group,
-            operation: message.into(),
+            operation,
             retry_due_at: Utc::now().into(),
             status: PendingChatOperationStatus::ReadyToRetry,
             number_of_attempts: 0,
@@ -157,7 +151,7 @@ impl PendingChatOperation {
         let qgid = QualifiedGroupId::try_from(self.group.group_id())?;
 
         let is_commit = self.operation.is_commit();
-        let is_delete = self.operation.is_delete();
+        let is_delete = matches!(self.operation, OperationType::Delete(_));
         let is_leave = matches!(self.operation, OperationType::Leave(_));
 
         let api_client = api_clients.get(qgid.owning_domain())?;
@@ -288,7 +282,9 @@ impl PendingChatOperation {
                         .await?;
                 }
 
-                self.group.store_update(txn.as_mut()).await?;
+                self.group
+                    .store_update(txn.as_mut(), Some(ds_timestamp))
+                    .await?;
                 let messages =
                     CoreUser::store_new_messages(&mut *txn, notifier, chat.id(), group_messages)
                         .await?;
@@ -381,10 +377,11 @@ impl PendingChatOperation {
             .stage_remove(txn.as_mut(), signer, target_users)
             .await?;
 
-        let job = Self::new(group, Box::new(params));
+        let job = Self::new(group, OperationType::Other(Box::new(params)));
         job.store(txn.as_mut()).await?;
         Ok(job)
     }
+
     pub(super) async fn create_leave(
         txn: &mut SqliteTransaction<'_>,
         signer: &ClientSigningKey,
@@ -402,7 +399,7 @@ impl PendingChatOperation {
 
         let params = group.stage_leave_group(txn, signer)?;
 
-        let job = Self::new(group, params);
+        let job = Self::new(group, OperationType::Leave(params));
         job.store(txn.as_mut()).await?;
         Ok(job)
     }
@@ -427,7 +424,7 @@ impl PendingChatOperation {
 
         let params = group.update(txn, signer, group_data).await?;
 
-        let job = Self::new(group, Box::new(params));
+        let job = Self::new(group, OperationType::Other(Box::new(params)));
         job.store(txn.as_mut()).await?;
 
         Ok(job)
@@ -460,7 +457,7 @@ impl PendingChatOperation {
         } else {
             let message = group.stage_delete(txn, signer).await?;
 
-            let job = Self::new(group, message);
+            let job = Self::new(group, OperationType::Delete(message));
             job.store(txn.as_mut()).await?;
             Ok(Some(job))
         }
@@ -531,12 +528,34 @@ impl PendingChatOperation {
                     .await?;
 
                 // Create PendingChatOperation job
-                let pending_chat_operation = PendingChatOperation::new(group, Box::new(params));
+                let pending_chat_operation =
+                    PendingChatOperation::new(group, OperationType::Other(Box::new(params)));
                 pending_chat_operation.store(txn).await?;
 
                 Ok(pending_chat_operation)
             })
             .await?;
+
+        Ok(job)
+    }
+
+    pub(crate) async fn create_self_update(
+        txn: &mut SqliteTransaction<'_>,
+        signing_key: &ClientSigningKey,
+        chat_id: ChatId,
+    ) -> Result<Self, anyhow::Error> {
+        let chat = Chat::load(txn.as_mut(), &chat_id)
+            .await?
+            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+        let group_id = chat.group_id();
+        let mut group = Group::load_clean(txn, group_id)
+            .await?
+            .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+
+        let params = group.self_update(txn, signing_key)?;
+
+        let job = Self::new(group, OperationType::Other(Box::new(params)));
+        job.store(txn.as_mut()).await?;
 
         Ok(job)
     }
@@ -770,7 +789,7 @@ mod persistence {
 
         pub(crate) async fn is_pending_for_chat(
             executor: impl SqliteExecutor<'_>,
-            chat_id: &ChatId,
+            chat_id: ChatId,
         ) -> sqlx::Result<bool> {
             let record = query!(
                 "SELECT EXISTS(SELECT 1
@@ -920,7 +939,7 @@ mod tests {
         let mut connection = pool.acquire().await?;
 
         let leave_params = group.stage_leave_group(&mut connection, &signing_key)?;
-        let pending = PendingChatOperation::new(group, leave_params);
+        let pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
 
         pending.store(&mut connection).await?;
 
@@ -945,7 +964,7 @@ mod tests {
         let mut connection = pool.acquire().await?;
 
         let leave_params = group.stage_leave_group(&mut connection, &signing_key)?;
-        let mut pending = PendingChatOperation::new(group, leave_params);
+        let mut pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
         pending.store(&mut connection).await?;
 
         let new_timestamp = Utc::now() + Duration::seconds(30);
@@ -968,7 +987,7 @@ mod tests {
         let mut connection = pool.acquire().await?;
 
         let leave_params = group.stage_leave_group(&mut connection, &signing_key)?;
-        let pending = PendingChatOperation::new(group, leave_params);
+        let pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
         pending.store(&mut connection).await?;
 
         // Initially the job is ready to retry.
@@ -999,7 +1018,7 @@ mod tests {
         let mut connection = pool.acquire().await?;
 
         let leave_params = group.stage_leave_group(&mut connection, &signing_key)?;
-        let pending = PendingChatOperation::new(group, leave_params);
+        let pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
         pending.store(&mut connection).await?;
 
         // Delete and ensure the row is gone.
