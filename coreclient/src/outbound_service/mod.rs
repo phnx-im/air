@@ -33,13 +33,13 @@ pub use timed_tasks::KEY_PACKAGES;
 mod chat_message_queue;
 mod chat_messages;
 mod error;
+mod profile;
 mod push_tokens;
 mod receipt_queue;
 mod receipts;
 pub(crate) mod resync;
 mod retry_pending_chat_operations;
 mod timed_tasks;
-pub(crate) mod timed_tasks_queue;
 
 /// A service which is responsible for processing outbound messages.
 ///
@@ -232,6 +232,9 @@ impl OutboundServiceContext {
     }
 
     async fn work(&self, run_token: CancellationToken) {
+        // Profiles are fetched concurrently to other tasks.
+        let fetch_profiles = self.spawn_fetch_profiles(&run_token);
+
         if let Err(error) = self.perform_queued_resyncs(&run_token).await {
             error!(%error, "Failed to perform queued resyncs");
         }
@@ -257,6 +260,8 @@ impl OutboundServiceContext {
         if let Err(error) = self.execute_timed_tasks(&run_token).await {
             error!(%error, "Failed to execute timed tasks");
         }
+
+        fetch_profiles.await;
     }
 
     fn signing_key(&self) -> &ClientSigningKey {

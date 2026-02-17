@@ -229,7 +229,7 @@ impl<KT> EarKey for IndexedAeadKey<KT> {}
 
 // User profile key
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UserProfileKeyType;
 
 impl IndexedKeyType for UserProfileKeyType {

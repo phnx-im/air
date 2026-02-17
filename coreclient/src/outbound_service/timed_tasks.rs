@@ -3,15 +3,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::USER_HANDLE_REFRESH_THRESHOLD;
-use chrono::{DateTime, Utc};
+use chrono::{Duration, Utc};
 use openmls::prelude::OpenMlsProvider;
 use openmls_rust_crypto::OpenMlsRustCrypto;
+use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::{
-    outbound_service::timed_tasks_queue::{TaskKind, TimedTaskQueue},
+    job::operation::{Operation, OperationData, OperationId, OperationKind},
     user_handles::UserHandleRecord,
     utils::connection_ext::StoreExt,
 };
@@ -20,19 +21,88 @@ use super::OutboundServiceContext;
 
 pub const KEY_PACKAGES: usize = 100;
 
+/// A task to be executed at some point in the future
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct TimedTask {
+    pub(crate) kind: TimedTaskKind,
+}
+
+impl TimedTask {
+    pub(crate) fn new(kind: TimedTaskKind) -> Self {
+        Self { kind }
+    }
+}
+
+impl OperationData for TimedTask {
+    fn kind() -> OperationKind {
+        OperationKind::TimedTask
+    }
+
+    fn generate_id(&self) -> OperationId {
+        let mut id = Vec::new();
+        id.extend_from_slice(b"timed_task");
+        id.push(self.kind as u8);
+        OperationId(id)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum TimedTaskKind {
+    KeyPackageUpload,
+    HandleRefresh,
+}
+
+impl TimedTaskKind {
+    pub(super) fn default_interval(&self) -> Duration {
+        match self {
+            TimedTaskKind::KeyPackageUpload => Duration::weeks(1),
+            TimedTaskKind::HandleRefresh => Duration::weeks(1),
+        }
+    }
+
+    pub(super) fn default_retry_interval(&self) -> Duration {
+        match self {
+            TimedTaskKind::KeyPackageUpload => Duration::minutes(5),
+            TimedTaskKind::HandleRefresh => Duration::minutes(5),
+        }
+    }
+}
+
+#[cfg(feature = "test_utils")]
+mod test_utils {
+    use chrono::DateTime;
+
+    use crate::outbound_service::OutboundService;
+
+    use super::*;
+
+    impl OutboundService {
+        #[cfg(any(feature = "test_utils", test))]
+        pub async fn schedule_key_package_upload(&self, due_at: DateTime<Utc>) -> sqlx::Result<()> {
+            TimedTask::new(TimedTaskKind::KeyPackageUpload)
+                .into_operation()
+                .schedule_at(due_at)
+                .enqueue(&self.context.pool)
+                .await
+        }
+    }
+}
+
 impl OutboundServiceContext {
     pub(super) async fn execute_timed_tasks(
         &self,
         run_token: &CancellationToken,
     ) -> anyhow::Result<()> {
         // Make sure that upload package task always exists
-        TimedTaskQueue::new_key_package_upload_task(DateTime::UNIX_EPOCH)
-            .ensure_exists(&self.pool)
+        TimedTask::new(TimedTaskKind::KeyPackageUpload)
+            .into_operation()
+            .enqueue_if_not_exists(&self.pool)
             .await?;
 
         // Make sure that handle refresh task always exists
-        TimedTaskQueue::new_handle_refresh_task(DateTime::UNIX_EPOCH)
-            .ensure_exists(&self.pool)
+        TimedTask::new(TimedTaskKind::HandleRefresh)
+            .into_operation()
+            .enqueue_if_not_exists(&self.pool)
             .await?;
 
         // Used to identify locked receipts by this task
@@ -44,9 +114,11 @@ impl OutboundServiceContext {
 
             let now = Utc::now();
 
-            let Some(task_kind) = TimedTaskQueue::dequeue(&self.pool, task_id, now).await? else {
+            let Some(mut op) = Operation::<TimedTask>::dequeue(&self.pool, task_id, now).await?
+            else {
                 return Ok(());
             };
+            let task_kind = op.data.kind;
             debug!(?task_kind, "dequeued task");
 
             let res = self.handle_task(task_kind).await;
@@ -63,18 +135,16 @@ impl OutboundServiceContext {
             };
 
             // Schedule next run
-            let now = Utc::now();
-            let due_at = now + interval;
-            TimedTaskQueue::set_due_date(&self.pool, task_kind, due_at).await?;
+            op.reschedule(&self.pool, Utc::now() + interval).await?;
         }
     }
 
-    async fn handle_task(&self, task_kind: TaskKind) -> Result<(), anyhow::Error> {
+    async fn handle_task(&self, task_kind: TimedTaskKind) -> Result<(), anyhow::Error> {
         debug!(?task_kind, "handling task");
 
         match task_kind {
-            TaskKind::KeyPackageUpload => self.upload_key_packages().await?,
-            TaskKind::HandleRefresh => self.refresh_handles().await?,
+            TimedTaskKind::KeyPackageUpload => self.upload_key_packages().await?,
+            TimedTaskKind::HandleRefresh => self.refresh_handles().await?,
         }
         Ok(())
     }

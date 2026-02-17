@@ -182,70 +182,53 @@ impl CoreUser {
             return Ok(chat_id);
         }
 
-        // Load user profile => creates or updates a `User` record
-        self.with_notifier(async |notifier| {
-            let sender_profile_key = UserProfileKey::from_base_secret(
-                connection_info
-                    .friendship_package
-                    .user_profile_base_secret
-                    .clone(),
-                sender_client_credential.identity(),
+        // Immediately fetch the user profile. This might fail if the user updated their
+        // profile in the meantime => fallback to fetching group info.
+        let sender_profile_key = UserProfileKey::from_base_secret(
+            connection_info
+                .friendship_package
+                .user_profile_base_secret
+                .clone(),
+            sender_client_credential.identity(),
+        )?;
+        if let Err(error) = self
+            .fetch_profile((sender_client_credential.clone(), sender_profile_key))
+            .await
+        {
+            warn!(%error, "Failed to fetch user profile; falling back to fetching group info");
+
+            // Fetch external commit info
+            let qgid = QualifiedGroupId::tls_deserialize_exact_bytes(
+                connection_info.connection_group_id.as_slice(),
             )?;
-            let profile_info = ProfileInfo {
-                client_credential: sender_client_credential.clone(),
-                user_profile_key: sender_profile_key,
-            };
-            let res = Self::fetch_and_store_user_profile(
-                self.pool().acquire().await?.as_mut(),
-                notifier,
-                self.api_clients(),
-                profile_info,
-            )
-            .await;
-            if let Err(error) = res {
-                warn!(%error, "Failed to fetch user profile; falling back to fetching group info");
-
-                // Fetch external commit info
-                let qgid = QualifiedGroupId::tls_deserialize_exact_bytes(
-                    connection_info.connection_group_id.as_slice(),
-                )?;
-                let eci = self
-                    .api_clients()
-                    .get(qgid.owning_domain())?
-                    .ds_connection_group_info(
-                        connection_info.connection_group_id.clone(),
-                        &connection_info.connection_group_ear_key,
-                    )
-                    .await?;
-                ensure!(
-                    eci.encrypted_user_profile_keys.len() == 1,
-                    "Unjoined connection group must have exactly one user profile key"
-                );
-
-                // Decrypt user profile key
-                let encrypted_user_profile_key = &eci.encrypted_user_profile_keys[0];
-                let user_profile_key = UserProfileKey::decrypt(
-                    &connection_info.connection_group_identity_link_wrapper_key,
-                    encrypted_user_profile_key,
-                    sender_client_credential.identity(),
-                )?;
-
-                // Fetch and store user profile (it also creates a new contact)
-                let profile_info = ProfileInfo {
-                    client_credential: sender_client_credential.clone(),
-                    user_profile_key,
-                };
-                Self::fetch_and_store_user_profile(
-                    self.pool().acquire().await?.as_mut(),
-                    notifier,
-                    self.api_clients(),
-                    profile_info,
+            let eci = self
+                .api_clients()
+                .get(qgid.owning_domain())?
+                .ds_connection_group_info(
+                    connection_info.connection_group_id.clone(),
+                    &connection_info.connection_group_ear_key,
                 )
                 .await?;
-            }
-            Ok(())
-        })
-        .await?;
+            ensure!(
+                eci.encrypted_user_profile_keys.len() == 1,
+                "Unjoined connection group must have exactly one user profile key"
+            );
+
+            // Decrypt user profile key
+            let encrypted_user_profile_key = &eci.encrypted_user_profile_keys[0];
+            let user_profile_key = UserProfileKey::decrypt(
+                &connection_info.connection_group_identity_link_wrapper_key,
+                encrypted_user_profile_key,
+                sender_client_credential.identity(),
+            )?;
+
+            // Fetch and store user profile (it also creates a new contact)
+            let profile_info = ProfileInfo {
+                client_credential: sender_client_credential.clone(),
+                user_profile_key,
+            };
+            self.fetch_profile(profile_info).await?;
+        }
 
         self.with_transaction_and_notifier(async |txn, notifier| {
             let sender_user_id = sender_client_credential.identity();
