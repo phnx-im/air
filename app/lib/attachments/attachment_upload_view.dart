@@ -7,11 +7,14 @@ import 'dart:io';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/icons/app_icons.dart';
+import 'package:air/ui/typography/font_size.dart';
+import 'package:air/util/platform.dart' as platform_utils;
 import 'package:air/widgets/app_bar_x_button.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:path/path.dart' as p;
 import 'package:photo_view/photo_view.dart';
 
 class AttachmentUploadView extends HookWidget {
@@ -29,6 +32,11 @@ class AttachmentUploadView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loadedFile = useMemoized(() => File(file.path), [file]);
+    final isImageFut = useMemoized(
+      () => platform_utils.isImageFile(file.path),
+      [file],
+    );
+    final isImage = useFuture(isImageFut);
 
     final colors = darkCustomColorScheme;
 
@@ -49,7 +57,25 @@ class AttachmentUploadView extends HookWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              PhotoView(imageProvider: FileImage(loadedFile)),
+              if (isImage.data == true)
+                PhotoView(imageProvider: FileImage(loadedFile))
+              else if (isImage.data == false)
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const AppIcon.paperclip(size: 64, color: Colors.white),
+                      const SizedBox(height: Spacings.xs),
+                      Text(
+                        p.basename(file.path),
+                        style: TextStyle(
+                          color: colors.text.primary,
+                          fontSize: FontSizes.base.size,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
               Positioned(
                 bottom: Spacings.s,

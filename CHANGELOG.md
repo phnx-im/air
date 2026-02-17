@@ -1,3 +1,49 @@
+## [0.11.0] - 2026-02-16
+
+### 🚀 Features
+
+- *(app)* Basic chat operation jobs (#985)
+- *(app)* Longer client db connections (#999)
+- *(server)* Deliver commit confirmation responses via QS queue (#1003)
+- *(server)* More memory stats (#1005)
+- *(app)* Set Android tray icon (#995)
+- *(app)* Message deletion (#1006)
+- *(app)* Better image support (#1013)
+- *(app)* Paste files (#1030)
+- *(app)* More iOS l10n (#1004)
+
+### 🐛 Bug Fixes
+
+- *(app)* Heading color and paragraph spacing (#991)
+- *(app)* Ux glitches when opening the app from a notification (#1014)
+- *(app)* Fix switch user screen when user is not logged in (#1021)
+- *(app)* Enqueue application message sending within transaction (#1017)
+- *(app)* Delete temp file later (#1026)
+- *(app)* Support self remove proposals (#1025)
+- *(app)* No maximum screen fraction height for bottom sheet (#1029)
+- *(app)* Contact request improvements (#1031)
+- *(app)* Missing pieces for message deletion (#1027)
+- *(app)* Provider not found error when switching users/logout (#1022)
+
+### 🧪 Testing
+
+- Upgrade postgres in tests (#1020)
+- *(ci)* Prepare sqlx queries in server tests (#1023)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(ci)* No ios code signing in config phase (#1009)
+- Bump openmls to include v0.7.2 patches (#1010)
+- Update time dep in Cargo.lock (#1012)
+- *(ci)* Install CI dependencies via cargo-binstall (#1018)
+- Remove tls_codec patch (#1019)
+- Update privacypass and remove blind rsa signatures patch (#1032)
+
+### 🛡️ Security
+
+- *(deps)* Bump jsonwebtoken from 9.3.1 to 10.3.0 (#1008)
+- *(deps)* Bump aws-sdk-s3 from 1.196.1 to 1.208.0 in /app/fastlane (#1002)
+
 ## [0.10.0] - 2026-02-02
 
 ### 🚀 Features

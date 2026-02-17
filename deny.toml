@@ -70,7 +70,6 @@ allow-git = [
     "https://github.com/boxdot/mimi-content",
     "https://github.com/raphaelrobert/privacypass",
     "https://github.com/openmls/openmls",
-    "https://github.com/jedisct1/rust-blind-rsa-signatures",
 ]
 
 [sources.allow-org]

@@ -129,6 +129,28 @@ Future<String?> _getSharedCacheDirectoryIOS() async {
   return null;
 }
 
+Future<bool> isImageFile(String path) async {
+  if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+    try {
+      return await rust_utils.isImageFile(path: path);
+    } catch (e, stacktrace) {
+      _log.severe("Failed to check if file is image: '$e'.", e, stacktrace);
+    }
+  }
+  return false;
+}
+
+Future<List<String>?> getClipboardFilePaths() async {
+  if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+    try {
+      return await rust_utils.readClipboardFilePaths();
+    } catch (e, stacktrace) {
+      _log.severe("Failed to get clipboard file paths: '$e'.", e, stacktrace);
+    }
+  }
+  return null;
+}
+
 Future<Uint8List?> getClipboardImage() async {
   if (Platform.isIOS || Platform.isAndroid) {
     try {

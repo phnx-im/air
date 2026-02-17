@@ -7,7 +7,6 @@ import 'dart:io';
 
 import 'package:air/background_service.dart';
 import 'package:air/core/core.dart';
-import 'package:air/l10n/app_locale_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/l10n/supported_locales.dart';
 import 'package:air/navigation/navigation.dart';
@@ -232,14 +231,16 @@ class LoadableUserCubitProvider extends StatelessWidget {
       buildWhen: _isUserLoadedOrUnloaded,
       listener: (context, loadableUser) async {
         final navigationCubit = context.read<NavigationCubit>();
-        final registrationCubit = context.read<RegistrationCubit>();
         final userSettingsCubit = context.read<UserSettingsCubit>();
-        final appLocaleCubit = context.read<AppLocaleCubit>();
-        final coreClient = context.read<CoreClient>();
+
         // Side Effect: navigate to the home screen or away to the intro
         // screen, depending on whether the user was loaded or unloaded.
         switch (loadableUser) {
-          case LoadedUser(user: final user?):
+          case LoadedUser(:final user):
+            final registrationCubit = context.read<RegistrationCubit>();
+            final coreClient = context.read<CoreClient>();
+            final appLocaleCubit = context.read<AppLocaleCubit>();
+
             final registrationState = registrationCubit.state;
             if (registrationState.needsUsernameOnboarding) {
               navigationCubit.openIntroScreen(
@@ -265,20 +266,35 @@ class LoadableUserCubitProvider extends StatelessWidget {
               );
             }
             unawaited(coreClient.refreshPushToken());
-          case LoadingUser() || LoadedUser(user: null):
+
+          case UnloadingUser():
+            final loadableUserCubit = context.read<LoadableUserCubit>();
+
             navigationCubit.openIntro();
             await userSettingsCubit.reset();
+
+            // Fully unload the user to dispose all user related providers, but
+            // only after enough time to finish the transition to the intro
+            // screen.
+            Future.delayed(const Duration(milliseconds: 500), () {
+              loadableUserCubit.finishUnloading();
+            });
+
+          case LoadingUser() || UnloadedUser():
         }
       },
-      builder: (context, loadableUser) => loadableUser.user == null
-          ? child
-          : MultiBlocProvider(
+      builder: (context, loadableUser) {
+        return switch (loadableUser) {
+          LoadingUser() || UnloadedUser() => child,
+          LoadedUser(:final user) || UnloadingUser(:final user) => KeyedSubtree(
+            key: ValueKey(user.userId),
+            child: MultiBlocProvider(
               providers: [
-                // Logged-in user and contacts are accessible everywhere inside the app after
-                // the user is loaded.
+                // Logged-in user and contacts are accessible everywhere inside
+                // the app after the user is loaded.
                 BlocProvider<UserCubit>(
                   create: (context) => UserCubit(
-                    coreClient: context.read<CoreClient>(),
+                    user: user,
                     navigationCubit: context.read<NavigationCubit>(),
                     appStateStream: appStateController.stream,
                   ),
@@ -308,11 +324,15 @@ class LoadableUserCubitProvider extends StatelessWidget {
                 child: UpdateRequiredScreen(child: child),
               ),
             ),
+          ),
+        };
+      },
     );
   }
-}
 
-/// Checks if [LoadableUser.user] transitioned from loaded to null or vice versa
-bool _isUserLoadedOrUnloaded(LoadableUser previous, LoadableUser current) =>
-    (previous.user != null || current.user != null) &&
-    previous.user != current.user;
+  /// Checks if [LoadableUser] was loaded or unloaded
+  bool _isUserLoadedOrUnloaded(LoadableUser previous, LoadableUser current) {
+    return (previous is LoadedUser || current is LoadedUser) &&
+        previous != current;
+  }
+}

@@ -5,7 +5,6 @@
 import 'dart:io';
 
 import 'package:air/core/core.dart';
-import 'package:air/l10n/app_locale_cubit.dart';
 import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
@@ -310,7 +309,7 @@ class _LanguageSetting extends StatelessWidget {
     return LanguagePickerMenu(
       onLocaleSelected: (locale) async {
         context.read<AppLocaleCubit>().setLocale(locale);
-        final user = context.read<LoadableUserCubit>().state.user;
+        final user = context.read<LoadableUserCubit>().state.loadedUser;
         if (user == null) {
           return;
         }
