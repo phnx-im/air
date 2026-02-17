@@ -33,6 +33,7 @@ allow = [
     "Apache-2.0",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    "BSL-1.0",
     "CDLA-Permissive-2.0",
     "ISC",
     "MIT",
@@ -67,11 +68,9 @@ unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = [
-    "https://github.com/boxdot/formats",
     "https://github.com/boxdot/mimi-content",
     "https://github.com/raphaelrobert/privacypass",
     "https://github.com/openmls/openmls",
-    "https://github.com/jedisct1/rust-blind-rsa-signatures",
 ]
 
 [sources.allow-org]

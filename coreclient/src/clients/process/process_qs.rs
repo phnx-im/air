@@ -49,6 +49,7 @@ use crate::{
     },
     contacts::{PartialContact, PartialContactType},
     groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
+    job::pending_chat_operation::PendingChatOperation,
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
     store::{Store, StoreNotifier},
@@ -203,6 +204,10 @@ impl CoreUser {
                 .await?;
             }
             CoreUser::store_new_messages(txn, notifier, chat.id(), group_messages).await?;
+
+            // Delete the pending chat operation
+            PendingChatOperation::delete(txn.as_mut(), &group_id).await?;
+
             Ok(())
         })
         .await?;
@@ -242,13 +247,7 @@ impl CoreUser {
                         own_profile_key_in_group = Some(profile_info.user_profile_key);
                         continue;
                     }
-                    Self::fetch_and_store_user_profile(
-                        txn,
-                        notifier,
-                        self.api_clients(),
-                        profile_info,
-                    )
-                    .await?;
+                    Self::schedule_fetch_profile(txn.as_mut(), profile_info).await?;
                 }
 
                 let Some(own_profile_key_in_group) = own_profile_key_in_group else {
@@ -439,7 +438,8 @@ impl CoreUser {
                     .ok_or_else(|| anyhow!("No chat found for group ID {:?}", group_id))?;
                 let chat_id = chat.id();
 
-                let mut group = Group::load_clean(txn, &group_id)
+                // Load the group regardless of whether it has a pending commit or not.
+                let mut group = Group::load(txn, &group_id)
                     .await?
                     .ok_or_else(|| anyhow!("No group found for group ID {:?}", group_id))?;
 
@@ -577,10 +577,9 @@ impl CoreUser {
         };
 
         // MLSMessage Phase 4: Fetch user profiles of new clients and store them.
-        self.with_transaction_and_notifier(async |txn, notifier| {
-            for client in profile_infos {
-                Self::fetch_and_store_user_profile(&mut *txn, notifier, self.api_clients(), client)
-                    .await?;
+        self.with_transaction(async |txn| {
+            for profile_info in profile_infos {
+                Self::schedule_fetch_profile(txn.as_mut(), profile_info).await?;
             }
             Ok(())
         })
@@ -859,10 +858,8 @@ impl CoreUser {
         )?;
 
         // UnconfirmedConnection Phase 2: Fetch the user profile.
-        Self::fetch_and_store_user_profile(
-            txn,
-            notifier,
-            self.api_clients(),
+        Self::schedule_fetch_profile(
+            txn.as_mut(),
             (sender_client_credential.clone(), user_profile_key),
         )
         .await?;
@@ -926,15 +923,10 @@ impl CoreUser {
         )?;
 
         // Phase 3: Fetch and store the (new) user profile and key
-        self.with_notifier(async |notifier| {
-            Self::fetch_and_store_user_profile(
-                &mut connection,
-                notifier,
-                self.api_clients(),
-                (sender_credential.into(), new_user_profile_key),
-            )
-            .await
-        })
+        Self::schedule_fetch_profile(
+            connection.as_mut(),
+            (sender_credential.into(), new_user_profile_key),
+        )
         .await?;
 
         Ok(ProcessQsMessageResult::None)
@@ -1092,12 +1084,19 @@ async fn handle_message_edit(
         group.group_id(),
     ));
     message.set_edited_at(ds_timestamp);
-    message.set_status(MessageStatus::Unread);
+    if is_delete {
+        message.set_status(MessageStatus::Deleted);
+    } else {
+        message.set_status(MessageStatus::Unread);
+    }
 
     // Clear the status of the message
     StatusRecord::clear(txn.as_mut(), notifier, message.id()).await?;
 
-    Chat::mark_as_unread(txn, notifier, message.chat_id(), message.id()).await?;
+    // Only mark as unread for edits, not deletions
+    if !is_delete {
+        Chat::mark_as_unread(txn, notifier, message.chat_id(), message.id()).await?;
+    }
 
     Ok(message)
 }

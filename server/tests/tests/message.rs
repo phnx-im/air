@@ -41,19 +41,20 @@ async fn delete_message() {
 
     setup.send_message(chat_alice_bob, &alice, vec![&bob]).await;
 
-    let alice_user = &setup.get_user(&alice).user;
-    let last_message = alice_user
-        .last_message(chat_alice_bob)
-        .await
-        .unwrap()
-        .unwrap();
-
-    let string = last_message
-        .message()
-        .mimi_content()
-        .unwrap()
-        .string_rendering()
-        .unwrap();
+    let string = {
+        let alice_user = &setup.get_user(&alice).user;
+        let last_message = alice_user
+            .last_message(chat_alice_bob)
+            .await
+            .unwrap()
+            .unwrap();
+        last_message
+            .message()
+            .mimi_content()
+            .unwrap()
+            .string_rendering()
+            .unwrap()
+    };
 
     assert!(
         !setup
@@ -62,9 +63,19 @@ async fn delete_message() {
             .is_empty(),
     );
 
+    // Alice (sender) should have 0 unread messages
+    let alice_user = &setup.get_user(&alice).user;
+    assert_eq!(alice_user.unread_messages_count(chat_alice_bob).await, 0);
+    assert_eq!(alice_user.global_unread_messages_count().await.unwrap(), 0);
+
     setup
         .delete_message(chat_alice_bob, &alice, vec![&bob])
         .await;
+
+    // After delete-for-everyone, Alice should still have 0 unread messages
+    let alice_user = &setup.get_user(&alice).user;
+    assert_eq!(alice_user.unread_messages_count(chat_alice_bob).await, 0);
+    assert_eq!(alice_user.global_unread_messages_count().await.unwrap(), 0);
 
     assert_eq!(
         setup
@@ -631,7 +642,7 @@ async fn message_sending_failures() {
     let content = MimiContent::simple_markdown_message("Hello".to_string(), [0; 16]);
 
     // Make server drop messages
-    setup.listener_control_handle().unwrap().set_drop_all();
+    setup.listener_control_handle().set_drop_all();
 
     // Send three messages
     for _ in 0..3 {

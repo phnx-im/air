@@ -17,6 +17,7 @@ use mls_assist::{
         treesync::RatchetTree,
     },
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{crypto::ear::keys::EncryptedUserProfileKey, identifiers::QsReference};
 
@@ -47,19 +48,19 @@ pub struct CreateGroupParamsOut {
     pub room_state: VerifiedRoomState,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AddUsersInfoOut {
     pub welcome: MlsMessageOut,
     pub encrypted_welcome_attribution_infos: Vec<EncryptedWelcomeAttributionInfo>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GroupOperationParamsOut {
     pub commit: AssistedMessageOut,
     pub add_users_info_option: Option<AddUsersInfoOut>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SelfRemoveParamsOut {
     pub remove_proposal: AssistedMessageOut,
 }
@@ -85,7 +86,7 @@ pub struct TargetedMessageParamsOut {
     pub message_type: TargetedMessageType,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DeleteGroupParamsOut {
     pub commit: AssistedMessageOut,
 }

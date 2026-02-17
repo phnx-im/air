@@ -33,15 +33,11 @@ jobs:
 
       - run: git lfs install && git lfs pull
 
-      - uses: cargo-bins/cargo-binstall@main
-
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
           bundler-cache: true
-
-      - run: curl -fsSL https://fvm.app/install.sh | bash
 
       - uses: extractions/setup-just@v2
       - run: just install-fvm
@@ -72,7 +68,9 @@ jobs:
         with:
           cache-directories: app/build/airapplogic/build
 
+      - uses: cargo-bins/cargo-binstall@main
       - run: cargo binstall cargo-ndk --no-confirm
+
       - name: Set up Android CI
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

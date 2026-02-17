@@ -321,7 +321,11 @@ class _CreateGroupDetailsStep extends HookWidget {
 
   void _pickImage(ValueNotifier<Uint8List?> picture) async {
     final picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    // Reduce image quality to re-encode the image.
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 99,
+    );
     if (image == null) {
       return;
     }
@@ -479,7 +483,7 @@ class _SelectedParticipant extends StatelessWidget {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              UserAvatar(userId: profile.userId, size: 48),
+              UserAvatar(profile: profile, size: 48),
               Positioned(
                 top: -2,
                 right: -2,

@@ -17,16 +17,19 @@ use aircommon::{
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use mimi_room_policy::RoleIndex;
-use sqlx::SqliteConnection;
+use sqlx::{SqliteConnection, SqliteTransaction};
 use tls_codec::DeserializeBytes as TlsDeserializeBytes;
 use tracing::debug;
 
-use crate::{clients::api_clients::ApiClients, key_stores::as_credentials::AsCredentials};
+use crate::{
+    clients::api_clients::ApiClients, job::pending_chat_operation::PendingChatOperation,
+    key_stores::as_credentials::AsCredentials,
+};
 
 use openmls::{
     group::{ProcessMessageError, QueuedAddProposal, ValidationError},
     prelude::{
-        BasicCredentialError, LeafNodeIndex, ProcessedMessage, ProcessedMessageContent,
+        BasicCredentialError, LeafNodeIndex, ProcessedMessage, ProcessedMessageContent, Proposal,
         ProtocolMessage, Sender, SignaturePublicKey, StagedCommit,
     },
 };
@@ -47,13 +50,13 @@ impl Group {
     /// the sender's client credential.
     pub(crate) async fn process_message(
         &mut self,
-        connection: &mut SqliteConnection,
+        txn: &mut SqliteTransaction<'_>,
         api_clients: &ApiClients,
         message: impl Into<ProtocolMessage>,
     ) -> Result<Option<ProcessMessageResult>> {
         // Phase 1: Process the message.
         let processed_message = {
-            let provider = AirOpenMlsProvider::new(&mut *connection);
+            let provider = AirOpenMlsProvider::new(&mut *txn);
             let message = message.into();
             let message_epoch = message.epoch();
             match self.mls_group.process_message(&provider, message) {
@@ -92,7 +95,7 @@ impl Group {
                 debug!("process application message");
                 let sender_client_credential =
                     if let Sender::Member(index) = processed_message.sender() {
-                        ClientAuthInfo::load(&mut *connection, &group_id, *index)
+                        ClientAuthInfo::load(&mut *txn, &group_id, *index)
                             .await?
                             .map(|info| info.into_client_credential())
                             .context("Could not find client credential of message sender")?
@@ -128,6 +131,24 @@ impl Group {
                     }
                 };
 
+                // Discard any pending commits we have locally and delete any
+                // pending non-leave chat operations we may have for this group.
+                // If it's a leave operation, only delete it if it's part of
+                // this commit.
+                self.discard_pending_commit(txn).await?;
+                if let Some(pending_chat_operation) =
+                    PendingChatOperation::load_by_group_id(txn, &group_id).await?
+                {
+                    let commit_contains_our_self_remove =
+                        staged_commit.queued_proposals().any(|p| {
+                            matches!(p.proposal(), Proposal::SelfRemove)
+                                && sender_index == self.mls_group().own_leaf_index()
+                        });
+                    if !pending_chat_operation.is_leave() || commit_contains_our_self_remove {
+                        PendingChatOperation::delete(txn.as_mut(), &group_id).await?;
+                    }
+                }
+
                 let sender =
                     VerifiableClientCredential::try_from(processed_message.credential().clone())?;
 
@@ -148,15 +169,14 @@ impl Group {
                     };
 
                     let removed_id = self
-                        .client_by_index(connection, removed_index)
+                        .client_by_index(txn, removed_index)
                         .await
                         .context("Unknown removed_id")?;
 
                     // Room policy checks
                     self.verify_role_change(sender.user_id(), &removed_id, RoleIndex::Outsider)?;
 
-                    GroupMembership::stage_removal(&mut *connection, &group_id, removed_index)
-                        .await?;
+                    GroupMembership::stage_removal(txn.as_mut(), &group_id, removed_index).await?;
                     if removed_index == self.mls_group().own_leaf_index() {
                         we_were_removed = true;
                     }
@@ -195,7 +215,7 @@ impl Group {
                                 })
                                 .collect::<Result<Vec<_>, _>>()?;
                             let as_credentials = AsCredentials::fetch_for_verification(
-                                &mut *connection,
+                                &mut *txn,
                                 api_clients,
                                 verifiable_credentials.iter(),
                             )
@@ -204,7 +224,7 @@ impl Group {
                                 .process_adds(
                                     sender.user_id(),
                                     staged_commit,
-                                    &mut *connection,
+                                    &mut *txn,
                                     staged_commit.add_proposals(),
                                     &as_credentials,
                                 )
@@ -228,7 +248,7 @@ impl Group {
                             update_path_leaf_node_info(staged_commit)?;
 
                         let as_credentials = AsCredentials::fetch_for_verification(
-                            &mut *connection,
+                            &mut *txn,
                             api_clients,
                             iter::once(&new_sender_credential),
                         )
@@ -238,7 +258,7 @@ impl Group {
 
                         if new_sender_credential != old_credential {
                             self.process_update(
-                                &mut *connection,
+                                &mut *txn,
                                 old_credential,
                                 new_sender_credential,
                                 sender_index,
@@ -253,7 +273,7 @@ impl Group {
                             self.process_resync(
                                 &processed_message,
                                 staged_commit,
-                                &mut *connection,
+                                &mut *txn,
                                 sender_index,
                             )
                             .await?;
@@ -266,7 +286,7 @@ impl Group {
                             update_path_leaf_node_info(staged_commit)?;
 
                         let as_credentials = AsCredentials::fetch_for_verification(
-                            &mut *connection,
+                            &mut *txn,
                             api_clients,
                             iter::once(&sender_credential),
                         )
@@ -288,7 +308,7 @@ impl Group {
                         // * Check that this group is indeed a connection group.
 
                         // JoinConnectionGroup Phase 2: Persist the client auth info.
-                        client_auth_info.stage_add(&mut *connection).await?;
+                        client_auth_info.stage_add(&mut *txn).await?;
                         encrypted_profile_infos.push((
                             client_auth_info.into_client_credential(),
                             join_connection_group_payload.encrypted_user_profile_key,
@@ -318,7 +338,7 @@ impl Group {
                             .ok_or(anyhow!("Could not find removed member in group"))?;
 
                         let as_credentials = AsCredentials::fetch_for_verification(
-                            &mut *connection,
+                            &mut *txn,
                             api_clients,
                             iter::once(&sender_credential),
                         )
@@ -337,7 +357,7 @@ impl Group {
                         client_auth_info
                             .group_membership_mut()
                             .set_leaf_index(sender_index);
-                        client_auth_info.stage_update(&mut *connection).await?;
+                        client_auth_info.stage_update(&mut *txn).await?;
                     }
                     AadPayload::DeleteGroup => {
                         we_were_removed = true;
@@ -354,9 +374,9 @@ impl Group {
         // Phase 2: Load the sender's client credential.
         let sender_client_credential =
             if matches!(processed_message.sender(), Sender::NewMemberCommit) {
-                ClientAuthInfo::load_staged(&mut *connection, &group_id, sender_index).await?
+                ClientAuthInfo::load_staged(&mut *txn, &group_id, sender_index).await?
             } else {
-                ClientAuthInfo::load(&mut *connection, &group_id, sender_index).await?
+                ClientAuthInfo::load(&mut *txn, &group_id, sender_index).await?
             }
             .context("Could not find client credential of message sender")?
             .client_credential()

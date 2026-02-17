@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::UserId;
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use sqlx::SqliteConnection;
 
 use crate::{
-    ChatAttributes, ChatId, ChatMessage,
+    Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
     groups::Group,
-    job::{Job, JobContext, pending_chat_operation::PendingChatOperation},
+    job::{Job, JobContext, JobError, pending_chat_operation::PendingChatOperation},
     utils::connection_ext::ConnectionExt,
 };
 
@@ -30,31 +30,25 @@ pub(crate) struct ChatOperation {
 impl Job for ChatOperation {
     type Output = Vec<ChatMessage>;
 
-    async fn execute_logic(self, context: &mut JobContext<'_>) -> anyhow::Result<Vec<ChatMessage>> {
+    async fn execute_logic(
+        self,
+        context: &mut JobContext<'_>,
+    ) -> Result<Vec<ChatMessage>, JobError> {
         self.execute_internal(context).await
     }
 
-    async fn execute_dependencies(&mut self, context: &mut JobContext<'_>) -> anyhow::Result<()> {
+    async fn execute_dependencies(&mut self, context: &mut JobContext<'_>) -> Result<(), JobError> {
         // Execute any pending operation for this chat first.
         let pending_operation = context
             .pool
-            .with_connection(async |connection| {
-                let pending_operation =
-                    PendingChatOperation::load(connection, &self.chat_id).await?;
-                Ok(pending_operation)
-            })
+            .with_transaction(async |txn| Ok(PendingChatOperation::load(txn, &self.chat_id).await?))
             .await?;
 
         if let Some(pending_operation) = pending_operation {
+            // We can just propagate any error here, as the this job isn't
+            // persisted and doesn't need to be cleaned up.
             pending_operation.execute(context).await?;
         }
-
-        // Check whether our operation is still valid after the pending
-        // operation was been executed.
-        context
-            .pool
-            .with_connection(async |connection| self.check_validity_and_refine(connection).await)
-            .await?;
 
         Ok(())
     }
@@ -106,13 +100,17 @@ impl ChatOperation {
         &mut self,
         connection: &mut SqliteConnection,
     ) -> anyhow::Result<()> {
-        let group = Group::load_with_chat_id_clean(connection, self.chat_id)
+        let chat = Chat::load(connection, &self.chat_id)
+            .await?
+            .ok_or(anyhow!("No chat found for ID {}", self.chat_id))?;
+
+        if let ChatStatus::Inactive(_) = chat.status() {
+            bail!("Cannot execute operation on inactive chat");
+        }
+
+        let group = Group::load_clean(connection, chat.group_id())
             .await?
             .ok_or_else(|| anyhow::anyhow!("No group found for chat {}", self.chat_id))?;
-
-        if !group.mls_group().is_active() {
-            bail!("Cannot execute operation on inactive group");
-        }
 
         match &mut self.operation {
             ChatOperationType::AddMembers(user_ids) => {
@@ -142,7 +140,16 @@ impl ChatOperation {
     async fn execute_internal(
         mut self,
         context: &mut JobContext<'_>,
-    ) -> anyhow::Result<Vec<ChatMessage>> {
+    ) -> Result<Vec<ChatMessage>, JobError> {
+        // Check whether our operation is still. It may be refined in case the
+        // group state has changed, either due to a PendingChatOperation
+        // executed as a dependency, or one or more commits arriving from the
+        // QS.
+        context
+            .pool
+            .with_connection(async |connection| self.check_validity_and_refine(connection).await)
+            .await?;
+
         match self.operation.clone() {
             ChatOperationType::AddMembers(user_ids) => {
                 self.execute_add_members(context, user_ids).await
@@ -162,7 +169,7 @@ impl ChatOperation {
         &mut self,
         context: &mut JobContext<'_>,
         users: Vec<UserId>,
-    ) -> anyhow::Result<Vec<ChatMessage>> {
+    ) -> Result<Vec<ChatMessage>, JobError> {
         let JobContext {
             api_clients,
             pool,
@@ -190,7 +197,7 @@ impl ChatOperation {
         &mut self,
         context: &mut JobContext<'_>,
         users: Vec<UserId>,
-    ) -> anyhow::Result<Vec<ChatMessage>> {
+    ) -> Result<Vec<ChatMessage>, JobError> {
         let JobContext {
             pool, key_store, ..
         } = context;
@@ -213,7 +220,7 @@ impl ChatOperation {
     async fn execute_leave_chat(
         &mut self,
         context: &mut JobContext<'_>,
-    ) -> anyhow::Result<Vec<ChatMessage>> {
+    ) -> Result<Vec<ChatMessage>, JobError> {
         let JobContext {
             pool, key_store, ..
         } = context;
@@ -231,7 +238,7 @@ impl ChatOperation {
         self,
         context: &mut JobContext<'_>,
         chat_attributes: Option<&ChatAttributes>,
-    ) -> anyhow::Result<Vec<ChatMessage>> {
+    ) -> Result<Vec<ChatMessage>, JobError> {
         let JobContext {
             pool, key_store, ..
         } = context;
@@ -253,7 +260,7 @@ impl ChatOperation {
     async fn execute_delete(
         self,
         context: &mut JobContext<'_>,
-    ) -> anyhow::Result<Vec<ChatMessage>> {
+    ) -> Result<Vec<ChatMessage>, JobError> {
         let JobContext {
             pool,
             notifier,

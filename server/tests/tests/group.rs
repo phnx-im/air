@@ -4,7 +4,6 @@
 
 use std::slice;
 
-use airapiclient::as_api::AsRequestError;
 use aircoreclient::{DisplayName, UserProfile, clients::queue_event, store::Store};
 use airserver_test_harness::utils::setup::TestBackend;
 use tokio_stream::StreamExt;
@@ -227,23 +226,18 @@ async fn update_user_profile_on_group_join() {
         .await
         .unwrap();
 
-    // Charlie processes his messages again, this will fail, because he will
-    // unsuccessfully try to download Alice's old profile.
+    // Charlie processes his messages again, fetching Alice's profile will fail because it tries to
+    // download Alice's old profile.
     let charlie_user = &setup.get_user(&charlie).user;
-    let charlie_qs_messages = charlie_user.qs_fetch_messages().await.unwrap();
-    let result = charlie_user
-        .fully_process_qs_messages(charlie_qs_messages)
-        .await;
+    charlie_user.qs_fetch_messages().await.unwrap();
+    charlie_user.outbound_service().run_once().await;
 
-    assert!(result.changed_chats.is_empty());
-    assert!(result.new_chats.is_empty());
-    assert!(result.new_messages.is_empty());
-    let err = &result.errors[0];
-    let AsRequestError::Tonic(tonic_err) = err.downcast_ref().unwrap() else {
-        panic!("Unexpected error type");
-    };
-    assert_eq!(tonic_err.code(), tonic::Code::InvalidArgument);
-    assert_eq!(tonic_err.message(), "No ciphertext matching index");
+    let alice_profile = charlie_user.user_profile(&alice).await;
+    assert_eq!(
+        alice_profile,
+        UserProfile::from_user_id(&alice),
+        "Fetching Alice's profile should have failed"
+    );
 
     // Alice accepts the invitation.
     let alice_user = &setup.get_user(&alice).user;
@@ -260,6 +254,8 @@ async fn update_user_profile_on_group_join() {
     charlie_user
         .fully_process_qs_messages(charlie_qs_messages)
         .await;
+    charlie_user.outbound_service().run_once().await;
+
     // Charlie should now have Alice's new profile.
     let charlie_user_profile = charlie_user.user_profile(&alice).await;
     assert_eq!(charlie_user_profile.display_name, alice_display_name);
@@ -534,10 +530,7 @@ async fn confirmation_via_queue() {
     let alice_core = &alice_user.user;
 
     // Make server drop connection instead of sending responses
-    setup
-        .listener_control_handle()
-        .unwrap()
-        .set_drop_next_response();
+    setup.listener_control_handle().set_drop_next_response();
 
     let _ = alice_core
         .invite_users(chat_id, &[bob])
@@ -554,7 +547,7 @@ async fn confirmation_via_queue() {
     assert_eq!(number_of_members, 1);
 
     // Set server to normal networking mode
-    setup.listener_control_handle().unwrap().set_normal();
+    setup.listener_control_handle().set_normal();
 
     // At this point, Alice has a pending commit. Once she receives the
     // confirmation from the queue, she should be able to create another commit.

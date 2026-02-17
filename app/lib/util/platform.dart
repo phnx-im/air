@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:air/core/core.dart';
+import 'package:air/core/api/utils.dart' as rust_utils;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -123,6 +124,50 @@ Future<String?> _getSharedCacheDirectoryIOS() async {
         stacktrace,
       );
       throw PlatformException(code: 'failed_to_get_shared_cache_directory');
+    }
+  }
+  return null;
+}
+
+Future<bool> isImageFile(String path) async {
+  if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+    try {
+      return await rust_utils.isImageFile(path: path);
+    } catch (e, stacktrace) {
+      _log.severe("Failed to check if file is image: '$e'.", e, stacktrace);
+    }
+  }
+  return false;
+}
+
+Future<List<String>?> getClipboardFilePaths() async {
+  if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+    try {
+      return await rust_utils.readClipboardFilePaths();
+    } catch (e, stacktrace) {
+      _log.severe("Failed to get clipboard file paths: '$e'.", e, stacktrace);
+    }
+  }
+  return null;
+}
+
+Future<Uint8List?> getClipboardImage() async {
+  if (Platform.isIOS || Platform.isAndroid) {
+    try {
+      final bytes = await platform.invokeMethod<Uint8List>('getClipboardImage');
+      return bytes;
+    } on PlatformException catch (e, stacktrace) {
+      _log.severe(
+        "Failed to get clipboard image: '${e.message}'.",
+        e,
+        stacktrace,
+      );
+    }
+  } else if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+    try {
+      return await rust_utils.readClipboardImage();
+    } catch (e, stacktrace) {
+      _log.severe("Failed to get clipboard image: '$e'.", e, stacktrace);
     }
   }
   return null;

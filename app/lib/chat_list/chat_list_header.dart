@@ -11,6 +11,7 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/components/context_menu/context_menu.dart';
 import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
+import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -49,7 +50,14 @@ class _Avatar extends StatelessWidget {
             onLongPress: () {
               context.read<NavigationCubit>().openDeveloperSettings();
             },
-            child: const UserAvatar(size: Spacings.l),
+            child: Builder(
+              builder: (context) {
+                final profile = context.select(
+                  (UsersCubit cubit) => cubit.state.profile(userId: null),
+                );
+                return UserAvatar(profile: profile, size: Spacings.l);
+              },
+            ),
           ),
         ],
       ),

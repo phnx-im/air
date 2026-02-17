@@ -5,7 +5,6 @@
 import 'dart:io';
 
 import 'package:air/core/core.dart';
-import 'package:air/l10n/app_locale_cubit.dart';
 import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
@@ -120,8 +119,15 @@ class _UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final profile = context.select(
+      (UsersCubit cubit) => cubit.state.profile(userId: null),
+    );
     return Center(
-      child: UserAvatar(size: 96, onPressed: () => _pickAvatar(context)),
+      child: UserAvatar(
+        profile: profile,
+        size: 96,
+        onPressed: () => _pickAvatar(context),
+      ),
     );
   }
 
@@ -129,7 +135,11 @@ class _UserAvatar extends StatelessWidget {
     final user = context.read<UserCubit>();
 
     final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    // Reduce image quality to re-encode the image.
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 99,
+    );
     final bytes = await image?.readAsBytes();
 
     if (bytes != null) {
@@ -299,7 +309,7 @@ class _LanguageSetting extends StatelessWidget {
     return LanguagePickerMenu(
       onLocaleSelected: (locale) async {
         context.read<AppLocaleCubit>().setLocale(locale);
-        final user = context.read<LoadableUserCubit>().state.user;
+        final user = context.read<LoadableUserCubit>().state.loadedUser;
         if (user == null) {
           return;
         }

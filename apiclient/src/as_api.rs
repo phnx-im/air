@@ -41,7 +41,7 @@ use futures_util::{FutureExt, future::BoxFuture};
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
 use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
-use tonic::Request;
+use tonic::{Code, Request};
 use tracing::error;
 use uuid::Uuid;
 
@@ -62,7 +62,7 @@ impl AsRequestError {
     /// Returns whether the error is a gRPC not found error.
     pub fn is_not_found(&self) -> bool {
         match self {
-            AsRequestError::Tonic(status) => status.code() == tonic::Code::NotFound,
+            AsRequestError::Tonic(status) => status.code() == Code::NotFound,
             _ => false,
         }
     }
@@ -72,12 +72,23 @@ impl AsRequestError {
     pub fn is_unsupported_version(&self) -> bool {
         match self {
             AsRequestError::Tonic(status) => {
-                status.code() == tonic::Code::FailedPrecondition
+                status.code() == Code::FailedPrecondition
                     && StatusDetails::from_status(status)
                         .map(|details| details.code() == StatusDetailsCode::VersionUnsupported)
                         .unwrap_or(false)
             }
             _ => false,
+        }
+    }
+
+    /// Returns true if the error is likely due to a network issue and we can't
+    /// be sure whether the server received the request.
+    pub fn is_network_error(&self) -> bool {
+        if let Self::Tonic(status) = self {
+            // TODO: Also handle unknown errors here but downcast them to io::Error
+            matches!(status.code(), Code::Unavailable | Code::DeadlineExceeded)
+        } else {
+            false
         }
     }
 }
@@ -447,7 +458,7 @@ impl ApiClient {
         let request = payload.sign(signing_key)?;
         match self.as_grpc_client().create_handle(request).await {
             Ok(_) => Ok(true),
-            Err(e) if e.code() == tonic::Code::AlreadyExists => Ok(false),
+            Err(e) if e.code() == Code::AlreadyExists => Ok(false),
             Err(e) => Err(e.into()),
         }
     }
@@ -480,7 +491,7 @@ impl ApiClient {
         match res {
             Ok(_) => Ok(UserHandleDeleteResponse::Success),
             Err(status) => match status.code() {
-                tonic::Code::NotFound => Ok(UserHandleDeleteResponse::NotFound),
+                Code::NotFound => Ok(UserHandleDeleteResponse::NotFound),
                 _ => Err(status.into()),
             },
         }

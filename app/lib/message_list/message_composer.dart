@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:air/attachments/attachments.dart';
 import 'package:air/l10n/app_localizations_extension.dart';
@@ -19,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
@@ -26,6 +28,9 @@ import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:provider/provider.dart';
+
+import 'package:air/util/platform.dart'
+    show getClipboardFilePaths, getClipboardImage;
 
 import 'message_renderer.dart';
 
@@ -183,6 +188,8 @@ class _MessageComposerState extends State<MessageComposer>
                   inputKey: _inputFieldKey,
                   onSubmitMessage: () =>
                       _submitMessage(context.read<ChatDetailsCubit>()),
+                  onImagePasted: _handleImagePaste,
+                  onFilePasted: _handleFilePaste,
                 ),
               ),
             ),
@@ -242,6 +249,17 @@ class _MessageComposerState extends State<MessageComposer>
     if (emojiResult != null) {
       return emojiResult;
     }
+
+    // Intercept Cmd+V / Ctrl+V on desktop to handle image paste
+    if (evt is KeyDownEvent &&
+        evt.logicalKey == LogicalKeyboardKey.keyV &&
+        !HardwareKeyboard.instance.isShiftPressed &&
+        !HardwareKeyboard.instance.isAltPressed &&
+        _isPasteModifierPressed) {
+      _handleKeyboardPaste();
+      return KeyEventResult.handled;
+    }
+
     final modifierKeyPressed =
         HardwareKeyboard.instance.isShiftPressed ||
         HardwareKeyboard.instance.isAltPressed ||
@@ -263,6 +281,46 @@ class _MessageComposerState extends State<MessageComposer>
           : KeyEventResult.ignored;
     } else {
       return KeyEventResult.ignored;
+    }
+  }
+
+  bool get _isPasteModifierPressed => Platform.isMacOS
+      ? HardwareKeyboard.instance.isMetaPressed &&
+            !HardwareKeyboard.instance.isControlPressed
+      : HardwareKeyboard.instance.isControlPressed &&
+            !HardwareKeyboard.instance.isMetaPressed;
+
+  void _handleKeyboardPaste() async {
+    // Check for file paths first (desktop only) — prevents macOS from
+    // treating a copied file's icon as a pasted image.
+    final filePaths = await getClipboardFilePaths();
+    if (filePaths != null && filePaths.isNotEmpty) {
+      _handleFilePaste(filePaths.first);
+      return;
+    }
+
+    final imageBytes = await getClipboardImage();
+    if (imageBytes != null && imageBytes.isNotEmpty) {
+      _handleImagePaste(imageBytes);
+      return;
+    }
+    // No image — fall back to text paste
+    final clipData = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = clipData?.text;
+    if (text != null && text.isNotEmpty) {
+      final selection = _inputController.selection;
+      final currentText = _inputController.text;
+      final newText = currentText.replaceRange(
+        selection.start,
+        selection.end,
+        text,
+      );
+      _inputController.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(
+          offset: selection.start + text.length,
+        ),
+      );
     }
   }
 
@@ -307,9 +365,16 @@ class _MessageComposerState extends State<MessageComposer>
       ),
     );
 
+    // Reduce image quality to re-encode the image.
     final XFile? file = switch (selectedCategory) {
-      .gallery => await ImagePicker().pickImage(source: .gallery),
-      .camera => await ImagePicker().pickImage(source: .camera),
+      .gallery => await ImagePicker().pickImage(
+        source: .gallery,
+        imageQuality: 99,
+      ),
+      .camera => await ImagePicker().pickImage(
+        source: .camera,
+        imageQuality: 99,
+      ),
       .file => await openFile(),
       null => null,
     };
@@ -322,9 +387,44 @@ class _MessageComposerState extends State<MessageComposer>
       return;
     }
 
+    _navigateToUploadPreview(context, file, chatTitle: chatTitle);
+  }
+
+  void _handleFilePaste(String filePath) {
+    final chatTitle = _chatDetailsCubit.state.chat?.title;
+    if (chatTitle == null) return;
+
+    final file = XFile(filePath);
+    _navigateToUploadPreview(context, file, chatTitle: chatTitle);
+  }
+
+  void _handleImagePaste(Uint8List imageBytes) async {
+    final chatTitle = _chatDetailsCubit.state.chat?.title;
+    if (chatTitle == null) return;
+
+    final tempDir = await getTemporaryDirectory();
+    final tempFile = File('${tempDir.path}/clipboard_paste.jpg');
+    await tempFile.writeAsBytes(imageBytes);
+    final file = XFile(tempFile.path);
+
+    if (!mounted) return;
+    await _navigateToUploadPreview(
+      context,
+      file,
+      chatTitle: chatTitle,
+      isTempFile: true,
+    );
+  }
+
+  Future<void> _navigateToUploadPreview(
+    BuildContext context,
+    XFile file, {
+    bool isTempFile = false,
+    required String chatTitle,
+  }) {
     final cubit = context.read<ChatDetailsCubit>();
 
-    Navigator.of(context).push(
+    return Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => AttachmentUploadView(
           title: chatTitle,
@@ -356,6 +456,14 @@ class _MessageComposerState extends State<MessageComposer>
               if (!context.mounted) return;
               final loc = AppLocalizations.of(context);
               showErrorBanner(context, loc.composer_error_attachment);
+            } finally {
+              if (isTempFile) {
+                try {
+                  await File(file.path).delete();
+                } catch (e) {
+                  _log.warning("Failed to delete temp file: $e", e);
+                }
+              }
             }
           },
         ),
@@ -415,6 +523,8 @@ class _MessageInput extends StatelessWidget {
     required this.layerLink,
     required this.inputKey,
     required this.onSubmitMessage,
+    required this.onImagePasted,
+    required this.onFilePasted,
   }) : _focusNode = focusNode,
        _controller = controller;
 
@@ -425,6 +535,8 @@ class _MessageInput extends StatelessWidget {
   final LayerLink layerLink;
   final GlobalKey inputKey;
   final VoidCallback onSubmitMessage;
+  final ValueChanged<Uint8List> onImagePasted;
+  final ValueChanged<String> onFilePasted;
 
   @override
   Widget build(BuildContext context) {
@@ -489,6 +601,7 @@ class _MessageInput extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ).copyWith(filled: false),
+            contextMenuBuilder: _contextMenuBuilder,
             textInputAction: sendOnEnter
                 ? TextInputAction.send
                 : TextInputAction.newline,
@@ -500,6 +613,73 @@ class _MessageInput extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  // Custom context menu to handle image pasting from the clipboard. When the user
+  // taps "Paste", we check if the clipboard contains image data.
+  Widget _contextMenuBuilder(
+    BuildContext context,
+    EditableTextState editableTextState,
+  ) {
+    final existingItems = editableTextState.contextMenuButtonItems;
+    final hasPaste = existingItems.any(
+      (item) => item.type == ContextMenuButtonType.paste,
+    );
+
+    final items = existingItems.map((item) {
+      if (item.type == ContextMenuButtonType.paste) {
+        return ContextMenuButtonItem(
+          label: item.label,
+          type: item.type,
+          onPressed: () async {
+            // Check for file paths first (desktop only)
+            final filePaths = await getClipboardFilePaths();
+            if (filePaths != null && filePaths.isNotEmpty) {
+              editableTextState.hideToolbar();
+              onFilePasted(filePaths.first);
+              return;
+            }
+            final imageBytes = await getClipboardImage();
+            if (imageBytes != null && imageBytes.isNotEmpty) {
+              editableTextState.hideToolbar();
+              onImagePasted(imageBytes);
+              return;
+            }
+            // No image — default text paste
+            item.onPressed?.call();
+          },
+        );
+      }
+      return item;
+    }).toList();
+
+    // When the clipboard has image data but no text, Flutter omits the Paste
+    // button on Android & iOS. Add one so the user can paste images or files.
+    if (!hasPaste) {
+      items.add(
+        ContextMenuButtonItem(
+          type: ContextMenuButtonType.paste,
+          onPressed: () async {
+            final filePaths = await getClipboardFilePaths();
+            if (filePaths != null && filePaths.isNotEmpty) {
+              editableTextState.hideToolbar();
+              onFilePasted(filePaths.first);
+              return;
+            }
+            final imageBytes = await getClipboardImage();
+            if (imageBytes != null && imageBytes.isNotEmpty) {
+              editableTextState.hideToolbar();
+              onImagePasted(imageBytes);
+            }
+          },
+        ),
+      );
+    }
+
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: editableTextState.contextMenuAnchors,
+      buttonItems: items,
     );
   }
 }

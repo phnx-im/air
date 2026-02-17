@@ -186,6 +186,8 @@ pub enum PushNotificationError {
     Other(String),
     /// The push token is invalid.
     InvalidToken(String),
+    /// The authorization header is invalid.
+    InvalidBearer,
     /// Network error.
     NetworkError(String),
     /// Unsupported type of push token.

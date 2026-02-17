@@ -13,36 +13,41 @@ build_number := `git rev-list --count HEAD`
 _default:
     just --list
 
+SERVER_DATABASE_URL := "postgres://postgres:password@localhost:5432/air_db"
+CLIENT_DATABASE_URL := if os() == "windows" {
+    "sqlite:///" + replace(justfile_directory(), "\\", "/") + "/coreclient/client.db"
+} else {
+    "sqlite://" + justfile_directory() + "/coreclient/client.db"
+}
+
+
 # Reset and migrate databases.
 reset-dev:
-    cd coreclient && cargo sqlx database reset -y --database-url sqlite:client.db
-    cd backend && cargo sqlx database reset -y
+    cargo sqlx database reset -y --database-url {{CLIENT_DATABASE_URL}}
+    cargo sqlx database reset -y --database-url {{SERVER_DATABASE_URL}}
 
 # Run fast and simple Rust lints.
 @check-rust:
     just _check-status "cargo machete"
     just _check-status "reuse lint -l"
-    just _check-status "cargo metadata --format-version 1 --locked > /dev/null"
+    just _check-status "cargo metadata --format-version=1 --locked > /dev/null"
     just _check-status "cargo fmt -- --check"
-    just _check-status "cargo deny check"
-    just _check-unstaged-changes "git diff"
-
-    # It's fine if this fails on CI, but this is useful for devs
-    just _check-unstaged-changes "just regenerate-sqlx || echo 'Database not configured?'"
-
-    echo "{{BOLD}}check-rust done{{NORMAL}}"
+    just _check-status "cargo deny fetch && cargo deny check"
+    just _check-unstaged-changes "git --no-pager diff"
+    just _check-unstaged-changes "just regenerate-sqlx"
+    echo "✅ {{BOLD}}check-rust done{{NORMAL}}"
 
 # Run fast and simple Flutter lints.
 @check-flutter:
     just _check-status "git lfs --version"
-    just _check-unstaged-changes "git diff"
+    just _check-unstaged-changes "git --no-pager diff"
     just _check-unstaged-changes "cd app && fvm flutter pub get"
     just _check-unstaged-changes "cd app/rust_builder/cargokit/build_tool && fvm flutter pub get"
     just _check-unstaged-changes "cd app && fvm dart format ."
     just _check-status "cd app && fvm flutter analyze --no-pub"
     just _check-unstaged-changes "just regenerate-l10n"
     just _check-unstaged-changes "just regenerate-icons"
-    echo "{{BOLD}}check-flutter done{{NORMAL}}"
+    echo "✅ {{BOLD}}check-flutter done{{NORMAL}}"
 
 # Run flutter rust bridge lint.
 @check-frb:
@@ -51,23 +56,22 @@ reset-dev:
 # Run all fast and simple lints.
 @check: check-rust check-flutter check-frb
 
-# This task will run the command and hide stdout and stderr. If the command fails, it prints the logs and the task fails.
+# This task will run the command. If the command fails, the task fails.
 _check-status command:
     #!/usr/bin/env -S bash -eu
     echo "{{BOLD}}Running {{command}}{{NORMAL}}"
-    if ! log=$({{command}} 2>&1); then
-        echo "{{RED}}$log{{NORMAL}}" >&2
+    if ! {{command}}; then
         just _log-error "{{command}}"
     fi
 
-# This task will run the command and hide stdout. If git diff then reports unstaged changes, the task will fail.
+# This task will run the command. If git diff then reports unstaged changes, the task will fail.
 _check-unstaged-changes command:
     #!/usr/bin/env -S bash -eu
     echo "{{BOLD}}Running {{command}}{{NORMAL}}"
-    {{command}} >/dev/null
+    {{command}}
     if ! git diff --quiet; then
         echo -e "{{RED}}Found unstaged changes.{{NORMAL}}"
-        git diff
+        git --no-pager diff
         just _log-error "{{command}}"
     fi
 
@@ -104,9 +108,19 @@ regenerate-l10n:
     cd app && fvm flutter gen-l10n
 
 # Regenerate database query metadata.
-regenerate-sqlx:
-    cd coreclient && cargo sqlx prepare --database-url sqlite:client.db
-    cd backend && cargo sqlx prepare
+regenerate-sqlx: regenerate-sqlx-client regenerate-sqlx-server
+
+# Regenerate client database query metadata.
+[working-directory: 'coreclient']
+regenerate-sqlx-client:
+    cargo sqlx database setup --no-dotenv --database-url {{CLIENT_DATABASE_URL}}
+    cargo sqlx prepare --no-dotenv --database-url {{CLIENT_DATABASE_URL}}
+
+# Regenerate server database query metadata.
+[working-directory: 'backend']
+regenerate-sqlx-server: start-docker-compose
+    cargo sqlx database setup --no-dotenv --database-url {{SERVER_DATABASE_URL}}
+    cargo sqlx prepare --no-dotenv --database-url {{SERVER_DATABASE_URL}} -- --tests
 
 # Recompile svg icons for rendering.
 regenerate-icons:
@@ -115,7 +129,7 @@ regenerate-icons:
 # Run cargo build, clippy and test.
 @test-rust: start-docker-compose
     just _check-status "cargo clippy --locked --all-targets"
-    just _check-status "cargo test --locked -q"
+    just _check-status "cargo test --locked"
     echo "{{BOLD}}test-rust done{{NORMAL}}"
 
 # Run flutter test.
@@ -155,9 +169,12 @@ run-app *args='':
     cd app && fvm flutter run {{args}}
 
 # Start the app from the last debug build.
-run-app-cached device="macos":
-    #!/usr/bin/env -S bash -eu
-    app/build/{{device}}/Build/Products/Debug/Air.app/Contents/*/Air
+run-app-cached:
+    if [ "{{os()}}" = "windows" ]; then \
+        app/build/windows/x64/runner/Debug/air.exe; \
+    else \
+        app/build/macos/Build/Products/Debug/Air.app/Contents/MacOS/Air; \
+    fi
 
 # Start the server.
 run-server:

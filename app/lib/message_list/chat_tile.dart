@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/user/user.dart';
-import 'package:flutter/material.dart';
 import 'package:air/core/core.dart';
 import 'package:air/theme/theme.dart';
+import 'package:air/user/user.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'display_message_tile.dart';

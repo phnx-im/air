@@ -19,6 +19,7 @@ use crate::{
     Chat, ChatId, ChatStatus, MessageId,
     chats::StatusRecord,
     groups::{Group, openmls_provider::AirOpenMlsProvider},
+    job::pending_chat_operation::PendingChatOperation,
     outbound_service::{error::OutboundServiceError, resync::Resync},
     utils::connection_ext::StoreExt,
 };
@@ -73,6 +74,15 @@ impl OutboundServiceContext {
             // If a resync is pending, we skip sending receipts for this chat
             if Resync::is_pending_for_chat(&self.pool, &chat_id).await? {
                 debug!(?chat_id, "Skipping sending receipt due to pending resync");
+                continue;
+            }
+
+            // If a chat operation is pending, we skip sending receipts for this chat
+            if PendingChatOperation::is_pending_for_chat(&self.pool, &chat_id).await? {
+                debug!(
+                    ?chat_id,
+                    "Skipping sending receipt due to pending chat operation"
+                );
                 continue;
             }
 

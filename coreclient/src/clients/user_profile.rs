@@ -7,15 +7,13 @@ use aircommon::{
     messages::client_ds::UserProfileKeyUpdateParams,
 };
 use anyhow::Context;
-use sqlx::SqliteConnection;
 use tracing::warn;
 
 use crate::{
     Chat, ChatId,
-    clients::{api_clients::ApiClients, block_contact::BlockedContact},
-    groups::{Group, ProfileInfo},
+    clients::block_contact::BlockedContact,
+    groups::Group,
     key_stores::indexed_keys::StorableIndexedKey,
-    store::StoreNotifier,
     user_profiles::{IndexedUserProfile, UserProfile, update::UserProfileUpdate},
     utils::connection_ext::StoreExt,
 };
@@ -109,14 +107,5 @@ impl CoreUser {
             .await?;
 
         Ok(())
-    }
-
-    pub(crate) async fn fetch_and_store_user_profile(
-        connection: &mut SqliteConnection,
-        notifier: &mut StoreNotifier,
-        api_clients: &ApiClients,
-        profile_info: impl Into<ProfileInfo>,
-    ) -> anyhow::Result<()> {
-        UserProfile::fetch_and_store(connection, notifier, api_clients, profile_info).await
     }
 }

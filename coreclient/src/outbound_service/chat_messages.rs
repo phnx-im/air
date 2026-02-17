@@ -5,12 +5,16 @@
 use aircommon::identifiers::AttachmentId;
 use anyhow::anyhow;
 use anyhow::{Context, ensure};
+use mimi_content::MessageStatus;
+use sqlx::SqliteTransaction;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use tracing::warn;
 use uuid::Uuid;
 
+use crate::job::pending_chat_operation::PendingChatOperation;
 use crate::outbound_service::resync::Resync;
+use crate::utils::connection_ext::ConnectionExt as _;
 use crate::{
     Chat, ChatMessage, ChatStatus, Message, MessageId,
     outbound_service::chat_message_queue::ChatMessageQueue, utils::connection_ext::StoreExt,
@@ -28,16 +32,28 @@ impl OutboundService {
         message_id: MessageId,
         attachment_id: Option<AttachmentId>,
     ) -> anyhow::Result<()> {
-        let mut connection = self.context.pool.acquire().await?;
+        let mut pool = self.context.pool.clone();
+        pool.with_transaction(async |txn| {
+            self.enqueue_chat_message_in_transaction(txn, message_id, attachment_id)
+                .await
+        })
+        .await
+    }
 
+    pub async fn enqueue_chat_message_in_transaction(
+        &self,
+        txn: &mut SqliteTransaction<'_>,
+        message_id: MessageId,
+        attachment_id: Option<AttachmentId>,
+    ) -> anyhow::Result<()> {
         // Load message to make sure it exists and get chat id
-        let message = ChatMessage::load(&mut *connection, message_id)
+        let message = ChatMessage::load(txn.as_mut(), message_id)
             .await?
             .with_context(|| format!("Can't find message with id {message_id:?}"))?;
         let chat_id = message.chat_id();
 
         // Load chat to check status
-        let chat = Chat::load(&mut connection, &chat_id)
+        let chat = Chat::load(txn, &chat_id)
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
         if let ChatStatus::Blocked = chat.status() {
@@ -45,7 +61,7 @@ impl OutboundService {
         }
 
         let message_queue = ChatMessageQueue::new(chat_id, message_id, attachment_id);
-        message_queue.enqueue(&mut *connection).await?;
+        message_queue.enqueue(txn.as_mut()).await?;
 
         self.notify_work();
 
@@ -102,10 +118,22 @@ impl OutboundServiceContext {
                 return Ok(()); // the task is being stopped
             }
 
-            let Some(message_id) = ChatMessageQueue::dequeue(&self.pool, task_id).await? else {
+            let Some((chat_id, message_id)) =
+                ChatMessageQueue::dequeue(&self.pool, task_id).await?
+            else {
                 return Ok(());
             };
             debug!(?message_id, "dequeued messages");
+
+            // If a chat operation is pending, we skip sending chat messages for
+            // this chat
+            if PendingChatOperation::is_pending_for_chat(&self.pool, &chat_id).await? {
+                debug!(
+                    ?chat_id,
+                    "Skipping sending chat message due to pending chat operation"
+                );
+                continue;
+            }
 
             if let Err(e) = self.send_chat_message(message_id).await {
                 warn!(%e, ?message_id, "Failed to send chat message");
@@ -192,15 +220,17 @@ impl OutboundServiceContext {
             }
             message.update(txn.as_mut(), notifier).await?;
 
-            // mark message as sent
-            Chat::mark_as_read_until_message_id(
-                txn,
-                notifier,
-                message.chat_id(),
-                message.id(),
-                self.user_id(),
-            )
-            .await?;
+            // Mark message as read, but only if it's not a deletion.
+            if message.status() != MessageStatus::Deleted {
+                Chat::mark_as_read_until_message_id(
+                    txn,
+                    notifier,
+                    message.chat_id(),
+                    message.id(),
+                    self.user_id(),
+                )
+                .await?;
+            }
 
             Ok(())
         })

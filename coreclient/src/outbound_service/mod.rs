@@ -12,15 +12,18 @@ use aircommon::{
     credentials::keys::ClientSigningKey,
     identifiers::{QsClientId, UserId},
 };
+use chrono::Utc;
 use pin_project::pin_project;
 use sqlx::SqlitePool;
 use tokio::sync::watch;
 use tokio_util::sync::{CancellationToken, WaitForCancellationFutureOwned};
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use crate::{
     clients::api_clients::ApiClients,
+    job::{Job, JobContext, JobError},
     key_stores::MemoryUserKeyStore,
+    outbound_service::error::OutboundServiceRunError,
     store::{StoreNotificationsSender, StoreNotifier},
     utils::{connection_ext::StoreExt, global_lock::GlobalLock},
 };
@@ -30,12 +33,13 @@ pub use timed_tasks::KEY_PACKAGES;
 mod chat_message_queue;
 mod chat_messages;
 mod error;
+mod profile;
 mod push_tokens;
 mod receipt_queue;
 mod receipts;
 pub(crate) mod resync;
+mod retry_pending_chat_operations;
 mod timed_tasks;
-pub(crate) mod timed_tasks_queue;
 
 /// A service which is responsible for processing outbound messages.
 ///
@@ -210,9 +214,39 @@ pub struct OutboundServiceContext {
 }
 
 impl OutboundServiceContext {
+    async fn execute_job<T: Send, JobType: Job<Output = T>>(
+        &self,
+        job: JobType,
+    ) -> Result<T, JobError> {
+        let mut notifier = self.notifier();
+        let mut context = JobContext {
+            api_clients: &self.api_clients,
+            pool: self.pool().clone(),
+            notifier: &mut notifier,
+            key_store: &self.key_store,
+            now: Utc::now(),
+        };
+        let value = job.execute(&mut context).await?;
+        notifier.notify();
+        Ok(value)
+    }
+
     async fn work(&self, run_token: CancellationToken) {
+        // Profiles are fetched concurrently to other tasks.
+        let fetch_profiles = self.spawn_fetch_profiles(&run_token);
+
         if let Err(error) = self.perform_queued_resyncs(&run_token).await {
             error!(%error, "Failed to perform queued resyncs");
+        }
+        match self.send_pending_chat_operations(&run_token).await {
+            Err(OutboundServiceRunError::NetworkError) => {
+                info!("Network appears unavailable, terminating outbound service run");
+                return;
+            }
+            Err(OutboundServiceRunError::Fatal(error)) => {
+                error!(%error, "Failed to retry pending chat operations");
+            }
+            Ok(_) => (),
         }
         if let Err(error) = self.send_queued_receipts(&run_token).await {
             error!(%error, "Failed to send queued receipts");
@@ -226,6 +260,8 @@ impl OutboundServiceContext {
         if let Err(error) = self.execute_timed_tasks(&run_token).await {
             error!(%error, "Failed to execute timed tasks");
         }
+
+        fetch_profiles.await;
     }
 
     fn signing_key(&self) -> &ClientSigningKey {

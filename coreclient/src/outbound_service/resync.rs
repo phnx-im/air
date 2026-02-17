@@ -19,11 +19,11 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{
-    ChatId, UserProfile,
+    ChatId,
     clients::api_clients::ApiClients,
     groups::{Group, ProfileInfo},
+    job::{operation::OperationData, profile::FetchProfileOperation},
     outbound_service::{OutboundService, OutboundServiceContext, error::OutboundServiceError},
-    utils::connection_ext::StoreExt,
 };
 
 pub(crate) struct Resync {
@@ -76,17 +76,18 @@ impl OutboundServiceContext {
                 }
             };
 
-            for profile_info in profile_infos {
-                if let Err(e) = UserProfile::fetch_and_store(
-                    &mut connection,
-                    &mut self.notifier(),
-                    &self.api_clients,
-                    profile_info,
-                )
-                .await
+            for ProfileInfo {
+                client_credential,
+                user_profile_key,
+            } in profile_infos
+            {
+                if let Err(error) = FetchProfileOperation::new(client_credential, user_profile_key)
+                    .into_operation()
+                    .enqueue(connection.as_mut())
+                    .await
                 {
-                    error!(%e, "Failed to fetch and store user profile info during resync");
-                };
+                    error!(%error, "Failed to enqueue fetch profile operation");
+                }
             }
         }
     }

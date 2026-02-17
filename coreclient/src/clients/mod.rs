@@ -4,6 +4,7 @@
 
 use std::{
     collections::HashSet,
+    mem,
     sync::{Arc, Weak},
 };
 
@@ -38,6 +39,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqliteConnection, SqlitePool, query};
 use store::ClientRecord;
 use tls_codec::DeserializeBytes;
+use tokio::task::spawn_blocking;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::DropGuard;
 use tracing::{error, info, warn};
@@ -371,11 +373,19 @@ impl CoreUser {
             &user_profile.user_id == self.user_id(),
             "Can't set user profile for users other than the current user"
         );
-        if let Some(profile_picture) = user_profile.profile_picture {
-            let new_image = match profile_picture {
-                Asset::Value(image_bytes) => resize_profile_image(&image_bytes)?,
-            };
-            user_profile.profile_picture = Some(Asset::Value(new_image));
+        if let Some(profile_picture) = &mut user_profile.profile_picture {
+            // Only resize the profile picture if it has changed, to avoid
+            // needless re-encoding.
+            let current = self.own_user_profile().await?;
+            if current.profile_picture.as_ref() != Some(profile_picture) {
+                match profile_picture {
+                    Asset::Value(image_bytes) => {
+                        let bytes = mem::take(image_bytes);
+                        *image_bytes =
+                            spawn_blocking(move || resize_profile_image(&bytes)).await??;
+                    }
+                }
+            }
         }
         self.update_user_profile(user_profile.clone()).await?;
         Ok(user_profile)
@@ -789,7 +799,7 @@ impl CoreUser {
         .await
     }
 
-    async fn execute_job<T: Send, JobType: Job<Output = T>>(
+    pub(crate) async fn execute_job<T: Send, JobType: Job<Output = T>>(
         &self,
         job: JobType,
     ) -> anyhow::Result<T> {
@@ -799,6 +809,7 @@ impl CoreUser {
             pool: self.pool().clone(),
             notifier: &mut notifier,
             key_store: &self.inner.key_store,
+            now: Utc::now(),
         };
         let value = job.execute(&mut context).await?;
         notifier.notify();
