@@ -14,12 +14,17 @@ _default:
     just --list
 
 SERVER_DATABASE_URL := "postgres://postgres:password@localhost:5432/air_db"
-CLIENT_DATABASE_URL := f"sqlite:{{justfile_directory()}}/coreclient/client.db"
+CLIENT_DATABASE_URL := if os() == "windows" {
+    "sqlite:///" + replace(justfile_directory(), "\\", "/") + "/coreclient/client.db"
+} else {
+    "sqlite://" + justfile_directory() + "/coreclient/client.db"
+}
+
 
 # Reset and migrate databases.
 reset-dev:
-    cd coreclient && cargo sqlx database reset -y --database-url {{CLIENT_DATABASE_URL}}
-    cd backend && cargo sqlx database reset -y --database-url {{SERVER_DATABASE_URL}}
+    cargo sqlx database reset -y --database-url {{CLIENT_DATABASE_URL}}
+    cargo sqlx database reset -y --database-url {{SERVER_DATABASE_URL}}
 
 # Run fast and simple Rust lints.
 @check-rust:
@@ -27,15 +32,15 @@ reset-dev:
     just _check-status "reuse lint -l"
     just _check-status "cargo metadata --format-version=1 --locked > /dev/null"
     just _check-status "cargo fmt -- --check"
-    just _check-status "cargo deny check"
-    just _check-unstaged-changes "git diff"
+    just _check-status "cargo deny fetch && cargo deny check"
+    just _check-unstaged-changes "git --no-pager diff"
     just _check-unstaged-changes "just regenerate-sqlx"
     echo "✅ {{BOLD}}check-rust done{{NORMAL}}"
 
 # Run fast and simple Flutter lints.
 @check-flutter:
     just _check-status "git lfs --version"
-    just _check-unstaged-changes "git diff"
+    just _check-unstaged-changes "git --no-pager diff"
     just _check-unstaged-changes "cd app && fvm flutter pub get"
     just _check-unstaged-changes "cd app/rust_builder/cargokit/build_tool && fvm flutter pub get"
     just _check-unstaged-changes "cd app && fvm dart format ."
@@ -66,7 +71,7 @@ _check-unstaged-changes command:
     {{command}}
     if ! git diff --quiet; then
         echo -e "{{RED}}Found unstaged changes.{{NORMAL}}"
-        git diff
+        git --no-pager diff
         just _log-error "{{command}}"
     fi
 
@@ -164,9 +169,12 @@ run-app *args='':
     cd app && fvm flutter run {{args}}
 
 # Start the app from the last debug build.
-run-app-cached device="macos":
-    #!/usr/bin/env -S bash -eu
-    app/build/{{device}}/Build/Products/Debug/Air.app/Contents/*/Air
+run-app-cached:
+    if [ "{{os()}}" = "windows" ]; then \
+        app/build/windows/x64/runner/Debug/air.exe; \
+    else \
+        app/build/macos/Build/Products/Debug/Air.app/Contents/MacOS/Air; \
+    fi
 
 # Start the server.
 run-server:
