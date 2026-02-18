@@ -5,6 +5,7 @@
 use aircommon::identifiers::AttachmentId;
 use anyhow::anyhow;
 use anyhow::{Context, ensure};
+use mimi_content::MessageStatus;
 use sqlx::SqliteTransaction;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
@@ -219,15 +220,17 @@ impl OutboundServiceContext {
             }
             message.update(txn.as_mut(), notifier).await?;
 
-            // mark message as sent
-            Chat::mark_as_read_until_message_id(
-                txn,
-                notifier,
-                message.chat_id(),
-                message.id(),
-                self.user_id(),
-            )
-            .await?;
+            // Mark message as read, but only if it's not a deletion.
+            if message.status() != MessageStatus::Deleted {
+                Chat::mark_as_read_until_message_id(
+                    txn,
+                    notifier,
+                    message.chat_id(),
+                    message.id(),
+                    self.user_id(),
+                )
+                .await?;
+            }
 
             Ok(())
         })

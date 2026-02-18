@@ -289,6 +289,7 @@ class _LastMessage extends StatelessWidget {
     );
 
     final color = CustomColorScheme.of(context);
+    final loc = AppLocalizations.of(context);
 
     final lastMessage = chat.lastMessage;
     final draftMessage = chat.draft?.message.trim();
@@ -303,12 +304,30 @@ class _LastMessage extends StatelessWidget {
           );
     final isGroupChat = chat.chatType is UiChatType_Group;
 
+    // === Hidden messages ===
     final isHidden = lastMessage?.status == UiMessageStatus.hidden;
     if (isHidden) {
-      final loc = AppLocalizations.of(context);
       return Text(
         loc.textMessage_hiddenPlaceholder,
         style: TextStyle(
+          fontSize: BodyFontSize.small1.size,
+          fontStyle: FontStyle.italic,
+          color: color.text.tertiary,
+        ),
+      );
+    }
+
+    // === Deleted messages ===
+    final isDeleted = switch (lastMessage?.message) {
+      UiMessage_Content(field0: final content) =>
+        content.content.replaces != null && content.content.content == null,
+      _ => false,
+    };
+    if (isDeleted) {
+      return Text(
+        loc.textMessage_deleted,
+        style: TextStyle(
+          fontSize: BodyFontSize.small1.size,
           fontStyle: FontStyle.italic,
           color: color.text.tertiary,
         ),
@@ -333,8 +352,6 @@ class _LastMessage extends StatelessWidget {
         : readStyle.copyWith(fontWeight: .bold);
 
     final suffixStyle = chat.unreadMessages > 0 ? unreadStyle : readStyle;
-
-    final loc = AppLocalizations.of(context);
 
     final prefix = showDraft
         ? "${loc.chatList_draft}: "

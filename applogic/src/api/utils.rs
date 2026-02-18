@@ -22,6 +22,42 @@ pub async fn import_client_database(db_path: String, tar_gz_bytes: Vec<u8>) -> a
     aircoreclient::import_client_database(&db_path, &tar_gz_bytes).await
 }
 
+/// Returns whether the file at the given path is a recognized image format.
+/// Uses the same detection as `load_attachment_image()`.
+pub fn is_image_file(path: String) -> bool {
+    image::ImageReader::open(&path)
+        .ok()
+        .and_then(|r| r.with_guessed_format().ok())
+        .and_then(|r| r.format())
+        .is_some()
+}
+
+/// Reads file paths from the system clipboard. Only supported on desktop
+/// platforms (Linux, Windows, macOS).
+///
+/// Returns `None` if the clipboard does not contain file paths, or when called
+/// on unsupported platforms.
+pub fn read_clipboard_file_paths() -> Option<Vec<String>> {
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+    {
+        let mut clipboard = arboard::Clipboard::new().ok()?;
+        let paths = clipboard.get().file_list().ok()?;
+        if paths.is_empty() {
+            return None;
+        }
+        Some(
+            paths
+                .into_iter()
+                .filter_map(|p| p.to_str().map(String::from))
+                .collect(),
+        )
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
+    {
+        None
+    }
+}
+
 /// Reads an image from the system clipboard and returns it as JPEG bytes. Only
 /// supported on desktop platforms (Linux, Windows, macOS).
 ///

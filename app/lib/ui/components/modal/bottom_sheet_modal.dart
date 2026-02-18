@@ -12,14 +12,12 @@ import 'package:flutter/material.dart';
 
 /// Displays a custom bottom sheet modal that slides and fades into view.
 ///
-/// The sheet adapts to its content up to a configurable `maxHeight` (or
-/// `maxHeightFraction` of the available screen height) and can be dismissed by
-/// tapping the barrier or dragging the handle downward.
+/// The sheet adapts to its content up to a configurable `maxHeight` and can be
+/// dismissed by tapping the barrier or dragging the handle downward.
 Future<T?> showBottomSheetModal<T>({
   required BuildContext context,
   required WidgetBuilder builder,
   double? maxHeight,
-  double maxHeightFraction = 0.4,
   EdgeInsetsGeometry? contentPadding,
   EdgeInsetsGeometry? margin,
   bool isDismissible = true,
@@ -47,7 +45,6 @@ Future<T?> showBottomSheetModal<T>({
         enableDrag: enableDrag,
         isDismissible: isDismissible,
         maxHeight: maxHeight,
-        maxHeightFraction: maxHeightFraction,
         contentPadding: contentPadding,
         margin: margin,
       );
@@ -62,7 +59,6 @@ class _BottomSheetModal extends StatefulWidget {
     required this.enableDrag,
     required this.isDismissible,
     required this.maxHeight,
-    required this.maxHeightFraction,
     this.contentPadding,
     this.margin,
   });
@@ -72,7 +68,6 @@ class _BottomSheetModal extends StatefulWidget {
   final bool enableDrag;
   final bool isDismissible;
   final double? maxHeight;
-  final double maxHeightFraction;
   final EdgeInsetsGeometry? contentPadding;
   final EdgeInsetsGeometry? margin;
 
@@ -188,10 +183,8 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    final availableHeight =
-        widget.maxHeight ?? mediaQuery.size.height * widget.maxHeightFraction;
     final maxSheetHeight = math.min(
-      availableHeight,
+      widget.maxHeight ?? double.infinity,
       mediaQuery.size.height - mediaQuery.viewPadding.top,
     );
     final bottomPadding = math.max(
@@ -417,7 +410,6 @@ Future<bool> showBottomSheetDialog({
   FutureOr<void> Function(BuildContext context)? onPrimaryAction,
   AppButtonTone primaryTone = AppButtonTone.normal,
   double? maxHeight,
-  double maxHeightFraction = 0.4,
   EdgeInsetsGeometry? contentPadding,
   EdgeInsetsGeometry? margin,
   bool isDismissible = true,
@@ -439,7 +431,6 @@ Future<bool> showBottomSheetDialog({
       primaryTone: primaryTone,
     ),
     maxHeight: maxHeight,
-    maxHeightFraction: maxHeightFraction,
     contentPadding: contentPadding,
     margin: margin,
     isDismissible: isDismissible,

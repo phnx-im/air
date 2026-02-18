@@ -1080,12 +1080,19 @@ async fn handle_message_edit(
         group.group_id(),
     ));
     message.set_edited_at(ds_timestamp);
-    message.set_status(MessageStatus::Unread);
+    if is_delete {
+        message.set_status(MessageStatus::Deleted);
+    } else {
+        message.set_status(MessageStatus::Unread);
+    }
 
     // Clear the status of the message
     StatusRecord::clear(txn.as_mut(), notifier, message.id()).await?;
 
-    Chat::mark_as_unread(txn, notifier, message.chat_id(), message.id()).await?;
+    // Only mark as unread for edits, not deletions
+    if !is_delete {
+        Chat::mark_as_unread(txn, notifier, message.chat_id(), message.id()).await?;
+    }
 
     Ok(message)
 }

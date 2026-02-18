@@ -171,6 +171,17 @@ impl CoreUser {
             bail!(BlockedContactError);
         }
 
+        // Idempotency: skip if the chat for this connection offer already exists.
+        // ChatId is deterministic from the group_id, so a duplicate offer will
+        // produce the same chat_id and we can safely return early.
+        let chat_id = ChatId::try_from(&connection_info.connection_group_id)?;
+        if Chat::load(self.pool().acquire().await?.as_mut(), &chat_id)
+            .await?
+            .is_some()
+        {
+            return Ok(chat_id);
+        }
+
         // Immediately fetch the user profile. This might fail if the user updated their
         // profile in the meantime => fallback to fetching group info.
         let sender_profile_key = UserProfileKey::from_base_secret(
