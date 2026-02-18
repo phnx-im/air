@@ -2,16 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use crate::{
-    Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
-    chats::messages::TimestampedMessage,
-    clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
-    contacts::ContactAddInfos,
-    groups::{Group, GroupData, client_auth_info::StorableClientCredential},
-    job::{Job, JobContext, JobError},
-    store::StoreNotifier,
-    utils::connection_ext::ConnectionExt,
-};
+use std::{collections::HashSet, fmt};
+
 use airapiclient::ds_api::DsRequestError;
 use aircommon::{
     codec::PersistenceCodec,
@@ -26,8 +18,18 @@ use mimi_room_policy::RoleIndex;
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
 use sqlx::{SqliteConnection, SqlitePool, SqliteTransaction, query, query_as};
-use std::{collections::HashSet, fmt};
 use tracing::info;
+
+use crate::{
+    Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
+    chats::messages::TimestampedMessage,
+    clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
+    contacts::ContactAddInfos,
+    groups::{Group, GroupData, client_auth_info::StorableClientCredential},
+    job::{Job, JobContext, JobError},
+    store::StoreNotifier,
+    utils::connection_ext::ConnectionExt,
+};
 
 // Having separate retry intervals for test and non-test is a hack until we can
 // pass "now" directly into OutboundService runs.
