@@ -39,7 +39,7 @@ const RETRY_INTERVAL: Duration = Duration::seconds(5);
 #[cfg(any(test, feature = "test_utils"))]
 const RETRY_INTERVAL: Duration = Duration::seconds(1);
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, derive_more::From, Serialize, Deserialize)]
 pub(super) enum OperationType {
     Leave(SelfRemoveParamsOut),
     Delete(DeleteGroupParamsOut),
@@ -111,10 +111,10 @@ impl Job for PendingChatOperation {
 }
 
 impl PendingChatOperation {
-    pub(super) fn new(group: Group, operation: OperationType) -> Self {
+    pub(super) fn new(group: Group, message: impl Into<OperationType>) -> Self {
         Self {
             group,
-            operation,
+            operation: message.into(),
             retry_due_at: Utc::now().into(),
             status: PendingChatOperationStatus::ReadyToRetry,
             number_of_attempts: 0,
@@ -381,7 +381,7 @@ impl PendingChatOperation {
             .stage_remove(txn.as_mut(), signer, target_users)
             .await?;
 
-        let job = Self::new(group, OperationType::Other(Box::new(params)));
+        let job = Self::new(group, Box::new(params));
         job.store(txn.as_mut()).await?;
         Ok(job)
     }
@@ -403,7 +403,7 @@ impl PendingChatOperation {
 
         let params = group.stage_leave_group(txn, signer)?;
 
-        let job = Self::new(group, OperationType::Leave(params));
+        let job = Self::new(group, params);
         job.store(txn.as_mut()).await?;
         Ok(job)
     }
@@ -428,7 +428,7 @@ impl PendingChatOperation {
 
         let params = group.update(txn, signer, group_data).await?;
 
-        let job = Self::new(group, OperationType::Other(Box::new(params)));
+        let job = Self::new(group, Box::new(params));
         job.store(txn.as_mut()).await?;
 
         Ok(job)
@@ -461,7 +461,7 @@ impl PendingChatOperation {
         } else {
             let message = group.stage_delete(txn, signer).await?;
 
-            let job = Self::new(group, OperationType::Delete(message));
+            let job = Self::new(group, message);
             job.store(txn.as_mut()).await?;
             Ok(Some(job))
         }
@@ -532,8 +532,7 @@ impl PendingChatOperation {
                     .await?;
 
                 // Create PendingChatOperation job
-                let pending_chat_operation =
-                    PendingChatOperation::new(group, OperationType::Other(Box::new(params)));
+                let pending_chat_operation = PendingChatOperation::new(group, Box::new(params));
                 pending_chat_operation.store(txn).await?;
 
                 Ok(pending_chat_operation)
@@ -558,7 +557,7 @@ impl PendingChatOperation {
 
         let params = group.self_update(txn, signing_key)?;
 
-        let job = Self::new(group, OperationType::Other(Box::new(params)));
+        let job = Self::new(group, Box::new(params));
         job.store(txn.as_mut()).await?;
 
         Ok(job)
@@ -943,7 +942,7 @@ mod tests {
         let mut connection = pool.acquire().await?;
 
         let leave_params = group.stage_leave_group(&mut connection, &signing_key)?;
-        let pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
+        let pending = PendingChatOperation::new(group, leave_params);
 
         pending.store(&mut connection).await?;
 
@@ -968,7 +967,7 @@ mod tests {
         let mut connection = pool.acquire().await?;
 
         let leave_params = group.stage_leave_group(&mut connection, &signing_key)?;
-        let mut pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
+        let mut pending = PendingChatOperation::new(group, leave_params);
         pending.store(&mut connection).await?;
 
         let new_timestamp = Utc::now() + Duration::seconds(30);
@@ -991,7 +990,7 @@ mod tests {
         let mut connection = pool.acquire().await?;
 
         let leave_params = group.stage_leave_group(&mut connection, &signing_key)?;
-        let pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
+        let pending = PendingChatOperation::new(group, leave_params);
         pending.store(&mut connection).await?;
 
         // Initially the job is ready to retry.
@@ -1022,7 +1021,7 @@ mod tests {
         let mut connection = pool.acquire().await?;
 
         let leave_params = group.stage_leave_group(&mut connection, &signing_key)?;
-        let pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
+        let pending = PendingChatOperation::new(group, leave_params);
         pending.store(&mut connection).await?;
 
         // Delete and ensure the row is gone.
