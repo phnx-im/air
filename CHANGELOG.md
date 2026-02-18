@@ -1,3 +1,23 @@
+## [0.11.1] - 2026-02-18
+
+### 🚀 Features
+
+- *(app)* Schedule fetch profiles (#1028)
+
+### 🐛 Bug Fixes
+
+- *(app)* Missing  signup button on clean installation (#1041)
+
+### ⚙️ Miscellaneous Tasks
+
+- Bump openmls version to 0.7.3 (#1037)
+- Justfile works on windows again (#1035)
+- Bump OpenMLS to 0.7.4 (#1038)
+
+### 🛡️ Security
+
+- *(deps)* Bump faraday from 1.10.4 to 1.10.5 in /app/fastlane (#1036)
+
 ## [0.11.0] - 2026-02-16
 
 ### 🚀 Features
