@@ -59,6 +59,7 @@ platform :android do
             json_key: "fastlane/" + playstore_key_path,
             package_name: package_name,
             metadata_path: metadata_path,
+            sync_image_upload: true,
           )
         end
 
