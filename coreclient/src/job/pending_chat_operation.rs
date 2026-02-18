@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::HashSet, fmt};
+use std::collections::HashSet;
 
 use airapiclient::ds_api::DsRequestError;
 use aircommon::{
@@ -46,8 +46,8 @@ pub(super) enum OperationType {
     Other(Box<GroupOperationParamsOut>),
 }
 
-impl fmt::Display for OperationType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for OperationType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OperationType::Leave(_) => write!(f, "leave"),
             OperationType::Delete(_) => write!(f, "delete"),
@@ -62,6 +62,10 @@ impl OperationType {
             OperationType::Leave(_) => false,
             OperationType::Delete(_) | OperationType::Other(_) => true,
         }
+    }
+
+    fn is_delete(&self) -> bool {
+        matches!(self, OperationType::Delete(_))
     }
 }
 
@@ -155,7 +159,7 @@ impl PendingChatOperation {
         let qgid = QualifiedGroupId::try_from(self.group.group_id())?;
 
         let is_commit = self.operation.is_commit();
-        let is_delete = matches!(self.operation, OperationType::Delete(_));
+        let is_delete = self.operation.is_delete();
         let is_leave = matches!(self.operation, OperationType::Leave(_));
 
         let api_client = api_clients.get(qgid.owning_domain())?;
