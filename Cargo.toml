@@ -75,8 +75,8 @@ mimi-room-policy = { git = "https://github.com/phnx-im/mimi-room-policy", rev = 
 mimi_content = { git = "https://github.com/boxdot/mimi-content", rev = "18af569b6074ed5b63cb2d5086ffea3acfad3f02" }
 mockall = "0.13.1"
 mockito = "1.7.0"
-openmls = { version = "0.7.3" }
-openmls_rust_crypto = { version = "0.4.3" }
+openmls = { version = "0.7.4" }
+openmls_rust_crypto = { version = "0.4.4" }
 openmls_traits = { version = "0.4.1" }
 parking_lot = "0.12"
 pin-project = "1.1.10"
@@ -128,9 +128,9 @@ zeroize = "1.8.1"
 [patch.crates-io]
 # Backported fix that allows us to skip lifetime checks temporarily. This can be
 # removed once we adopt the next OpenMLS release.
-openmls = { git = "https://github.com/openmls/openmls", rev = "6b17ae78fa0f71ff92cef8dd8298749e7551f7b5" }
-openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "6b17ae78fa0f71ff92cef8dd8298749e7551f7b5" }
-openmls_traits = { git = "https://github.com/openmls/openmls", rev = "6b17ae78fa0f71ff92cef8dd8298749e7551f7b5" }
+openmls = { git = "https://github.com/openmls/openmls", rev = "a1b5216cc05d77c25e5daaaa7386261f31dac563" }
+openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "a1b5216cc05d77c25e5daaaa7386261f31dac563" }
+openmls_traits = { git = "https://github.com/openmls/openmls", rev = "a1b5216cc05d77c25e5daaaa7386261f31dac563" }
 
 [profile.release]
 strip = true
