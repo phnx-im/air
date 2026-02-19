@@ -12,10 +12,7 @@ use aircommon::{
     crypto::{hash::Hash, signatures::signable::Verifiable},
 };
 use anyhow::{Context, Result, ensure};
-use openmls::{
-    group::MlsGroup,
-    prelude::{BasicCredentialError, LeafNodeIndex, SignaturePublicKey},
-};
+use openmls::prelude::SignaturePublicKey;
 
 pub(crate) mod persistence;
 
@@ -100,23 +97,5 @@ impl VerifiableClientCredentialExt for VerifiableClientCredential {
         }
 
         Ok(StorableClientCredential::from(client_credential))
-    }
-}
-
-pub(crate) trait MlsGroupExt {
-    fn unverified_credential_at(
-        &self,
-        index: LeafNodeIndex,
-    ) -> Result<Option<VerifiableClientCredential>, BasicCredentialError>;
-}
-
-impl MlsGroupExt for MlsGroup {
-    fn unverified_credential_at(
-        &self,
-        index: LeafNodeIndex,
-    ) -> Result<Option<VerifiableClientCredential>, BasicCredentialError> {
-        self.member_at(index)
-            .map(|m| VerifiableClientCredential::from_basic_credential(&m.credential))
-            .transpose()
     }
 }

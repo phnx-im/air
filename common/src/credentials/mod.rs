@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use chrono::Duration;
-use mls_assist::openmls::prelude::{
-    BasicCredentialError, Credential, CredentialType, SignatureScheme,
+use mls_assist::openmls::{
+    group::GroupId,
+    prelude::{BasicCredentialError, Credential, CredentialType, SignatureScheme},
 };
 
 use serde::{Deserialize, Serialize};
@@ -473,6 +474,16 @@ impl Labeled for ClientCredential {
 
 impl Hashable for ClientCredential {}
 
+/// # Safety
+///
+/// The implementor must guarantee that any credential obtained through this witness was previously
+/// verified against an AS intermediate credential, e.g. it came from a locally-stored MLS group
+/// that was verified on join.
+pub unsafe trait VerifiedByLocalStorage {
+    /// Returns the group ID of the group that this credential was verified against.
+    fn group_id(&self) -> &GroupId;
+}
+
 // WARNING: If this type is changed, a new variant of the
 // VersionedClientCredential(Ref) must be created and the `FromSql` and `ToSql`
 // implementations of `ClientCredential` must be updated accordingly.
@@ -488,6 +499,16 @@ impl ClientCredential {
     #[cfg(feature = "test_utils")]
     pub fn new(payload: ClientCredentialPayload, signature: AsIntermediateSignature) -> Self {
         Self { payload, signature }
+    }
+
+    pub fn from_leaf_credential(
+        credential: VerifiableClientCredential,
+        _: &impl VerifiedByLocalStorage,
+    ) -> Self {
+        Self {
+            payload: credential.payload,
+            signature: credential.signature,
+        }
     }
 
     pub fn signature_scheme(&self) -> SignatureScheme {

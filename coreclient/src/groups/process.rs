@@ -28,10 +28,8 @@ use tls_codec::DeserializeBytes as TlsDeserializeBytes;
 use tracing::debug;
 
 use crate::{
-    clients::api_clients::ApiClients,
-    groups::client_auth_info::{MlsGroupExt, VerifiableClientCredentialExt},
-    job::pending_chat_operation::PendingChatOperation,
-    key_stores::as_credentials::AsCredentials,
+    clients::api_clients::ApiClients, groups::client_auth_info::VerifiableClientCredentialExt,
+    job::pending_chat_operation::PendingChatOperation, key_stores::as_credentials::AsCredentials,
 };
 
 use super::{Group, openmls_provider::AirOpenMlsProvider};
@@ -159,7 +157,6 @@ impl Group {
                     };
 
                     let removed_credential = self
-                        .mls_group
                         .unverified_credential_at(removed_index)?
                         .context("Removed user credential not found")?;
                     let removed_id = removed_credential.user_id();

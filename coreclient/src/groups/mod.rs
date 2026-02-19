@@ -15,7 +15,10 @@ pub(crate) mod process;
 pub(crate) use error::*;
 
 use aircommon::{
-    credentials::{ClientCredential, VerifiableClientCredential, keys::ClientSigningKey},
+    credentials::{
+        ClientCredential, VerifiableClientCredential, VerifiedByLocalStorage,
+        keys::ClientSigningKey,
+    },
     crypto::{
         ear::{
             EarDecryptable, EarEncryptable,
@@ -71,7 +74,7 @@ use crate::{
         targeted_message::TargetedMessageContent,
     },
     contacts::ContactAddInfos,
-    groups::client_auth_info::{MlsGroupExt, VerifiableClientCredentialExt},
+    groups::client_auth_info::VerifiableClientCredentialExt,
     key_stores::as_credentials::AsCredentials,
 };
 use std::collections::HashSet;
@@ -80,8 +83,8 @@ use openmls::{
     group::{ExternalCommitBuilder, JoinBuilder, ProcessedWelcome},
     key_packages::KeyPackageBundle,
     prelude::{
-        CredentialWithKey, Extension, Extensions, GroupId, KeyPackage, LeafNodeIndex,
-        LeafNodeParameters, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
+        BasicCredentialError, CredentialWithKey, Extension, Extensions, GroupId, KeyPackage,
+        LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
         OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal,
         ProposalType, ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
         UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
@@ -1150,6 +1153,34 @@ impl Group {
         .store(&provider, &psk_value)?;
         Ok(())
     }
+
+    /// Deserializes client credentials from the corresponding leaf node.
+    ///
+    /// Does not guarantee that the credential was verified and is valid.
+    pub(crate) fn unverified_credential_at(
+        &self,
+        index: LeafNodeIndex,
+    ) -> Result<Option<VerifiableClientCredential>, BasicCredentialError> {
+        self.mls_group
+            .member_at(index)
+            .map(|m| VerifiableClientCredential::from_basic_credential(&m.credential))
+            .transpose()
+    }
+
+    /// Same as [`Self::unverified_credential_at()`] but guarantees that the credential was
+    /// verified and is valid (if leaf contains valid data).
+    ///
+    /// The guarantee is given by the presence of the `witness` argument.
+    pub(crate) fn credential_at(
+        &self,
+        index: LeafNodeIndex,
+        witness: &impl VerifiedByLocalStorage,
+    ) -> anyhow::Result<Option<ClientCredential>> {
+        ensure!(self.group_id() == witness.group_id(), "Group ID mismatch");
+        Ok(self
+            .unverified_credential_at(index)?
+            .map(|credential| ClientCredential::from_leaf_credential(credential, witness)))
+    }
 }
 
 /// Verify credentials of *all* members of the group.
@@ -1202,7 +1233,7 @@ impl TimestampedMessage {
         staged_commit: &StagedCommit,
         ds_timestamp: TimeStamp,
     ) -> Result<Vec<Self>> {
-        let group = Group::load(connection, group_id)
+        let (group, verified) = Group::load_verified(connection, group_id)
             .await?
             .context("No group found")?;
 
@@ -1228,10 +1259,9 @@ impl TimestampedMessage {
             };
 
             let remover = group
-                .mls_group()
-                .unverified_credential_at(*sender_index)?
+                .credential_at(*sender_index, &verified)?
                 .context("Could not find client credential of message sender")?
-                .user_id()
+                .identity()
                 .clone();
 
             let Some(removed_index) = removed_client(remove_proposal) else {
@@ -1240,10 +1270,9 @@ impl TimestampedMessage {
             };
 
             let removed = group
-                .mls_group()
-                .unverified_credential_at(removed_index)?
+                .credential_at(removed_index, &verified)?
                 .context("Could not find client credential of removed")?
-                .user_id()
+                .identity()
                 .clone();
 
             if remover == removed {
@@ -1269,10 +1298,9 @@ impl TimestampedMessage {
             };
             // Get the user id of the sender from the MLS group member credential
             let sender_id = group
-                .mls_group
-                .unverified_credential_at(*sender_index)?
+                .credential_at(*sender_index, &verified)?
                 .context("Could not find client credential of sender")?
-                .user_id()
+                .identity()
                 .clone();
 
             // Get the user id of the added member from the proposal key package
@@ -1300,10 +1328,9 @@ impl TimestampedMessage {
             };
             if enabled!(Level::DEBUG) {
                 let credential = group
-                    .mls_group
-                    .unverified_credential_at(*sender_index)?
+                    .credential_at(*sender_index, &verified)?
                     .context("Could not find client credential of sender")?;
-                let user_id = credential.user_id();
+                let user_id = credential.identity();
                 debug!(
                     ?user_id,
                     %sender_index, "Client has updated their key material",

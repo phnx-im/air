@@ -4,7 +4,7 @@
 
 use aircommon::{
     codec::PersistenceCodec,
-    credentials::{ClientCredential, VerifiableClientCredential},
+    credentials::{ClientCredential, VerifiableClientCredential, VerifiedByLocalStorage},
     crypto::{ear::EarDecryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{MimiId, QualifiedGroupId, UserId},
     messages::{
@@ -48,11 +48,7 @@ use crate::{
         user_settings::ReadReceiptsSetting,
     },
     contacts::{PartialContact, PartialContactType},
-    groups::{
-        Group,
-        client_auth_info::{MlsGroupExt, StorableClientCredential},
-        process::ProcessMessageResult,
-    },
+    groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
     job::pending_chat_operation::PendingChatOperation,
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
@@ -339,7 +335,7 @@ impl CoreUser {
                 let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
                     .await?
                     .ok_or_else(|| anyhow!("No chat found for group ID {:?}", group_id))?;
-                let mut group = Group::load_clean(txn, &group_id)
+                let (mut group, verified) = Group::load_clean_verified(txn, &group_id)
                     .await?
                     .ok_or_else(|| anyhow!("No group found for group ID {:?}", group_id))?;
 
@@ -360,16 +356,12 @@ impl CoreUser {
                     return Ok(TransactionResult::NeedsResync(resync));
                 };
 
-                let sender_user_id = VerifiableClientCredential::from_basic_credential(
-                    processed_message.credential(),
-                )?
-                .user_id()
-                .clone();
-                let sender_client_credential =
-                    StorableClientCredential::load_by_user_id(txn.as_mut(), &sender_user_id)
-                        .await?
-                        .context("No sender client credential found")?
-                        .into();
+                let Sender::Member(sender_index) = processed_message.sender() else {
+                    bail!("Sender is not a member");
+                };
+                let sender_client_credential = group
+                    .credential_at(*sender_index, &verified)?
+                    .context("No sender client credential found")?;
 
                 let ProcessedMessageContent::ApplicationMessage(application_message) =
                     processed_message.into_content()
@@ -452,9 +444,9 @@ impl CoreUser {
                 let chat_id = chat.id();
 
                 // Load the group regardless of whether it has a pending commit or not.
-                let mut group = Group::load(txn, &group_id)
+                let (mut group, verified) = Group::load_verified(txn, &group_id)
                     .await?
-                    .ok_or_else(|| anyhow!("No group found for group ID {:?}", group_id))?;
+                    .with_context(|| format!("No group found for group ID {group_id:?}"))?;
 
                 // MLSMessage Phase 2: Process the message
 
@@ -514,7 +506,13 @@ impl CoreUser {
                     }
                     ProcessedMessageContent::ProposalMessage(proposal) => {
                         let (new_messages, updated) = self
-                            .handle_proposal_message(txn, &mut group, *proposal, ds_timestamp)
+                            .handle_proposal_message(
+                                txn,
+                                &mut group,
+                                &verified,
+                                *proposal,
+                                ds_timestamp,
+                            )
                             .await?;
                         (new_messages, Vec::new(), updated)
                     }
@@ -713,6 +711,7 @@ impl CoreUser {
         &self,
         txn: &mut SqliteTransaction<'_>,
         group: &mut Group,
+        verified: &impl VerifiedByLocalStorage,
         proposal: QueuedProposal,
         ds_timestamp: TimeStamp,
     ) -> anyhow::Result<(Vec<TimestampedMessage>, bool)> {
@@ -725,19 +724,17 @@ impl CoreUser {
         let removed_index = removed_client(&proposal)
             .context("Only Removes and SelfRemoves are supported for now")?;
 
-        let Some(removed_credential) = group.mls_group().unverified_credential_at(removed_index)?
-        else {
+        let Some(removed_credential) = group.credential_at(removed_index, verified)? else {
             warn!("Removed user credential not found");
             return Ok((vec![], false));
         };
-        let removed = removed_credential.user_id();
+        let removed = removed_credential.identity();
 
-        let Some(sender_credential) = group.mls_group().unverified_credential_at(*sender_index)?
-        else {
+        let Some(sender_credential) = group.credential_at(*sender_index, verified)? else {
             warn!("Sender credential not found");
             return Ok((vec![], false));
         };
-        let sender = sender_credential.user_id();
+        let sender = sender_credential.identity();
 
         ensure!(
             sender == removed,
@@ -934,15 +931,13 @@ impl CoreUser {
             }
 
             // Phase 1: Load the group and the sender.
-            let group = Group::load(txn.as_mut(), &params.group_id)
+            let (group, verified) = Group::load_verified(txn.as_mut(), &params.group_id)
                 .await?
                 .context("No group found")?;
-            // TODO: Can we use this credential instead of loading it from the DB?
             let sender_credential = group
-                .mls_group()
-                .unverified_credential_at(params.sender_index)?
+                .credential_at(params.sender_index, &verified)?
                 .context("No sender credential found")?;
-            let sender_id = sender_credential.user_id();
+            let sender_id = sender_credential.identity();
 
             // Phase 2: Decrypt the new user profile key
             let new_user_profile_key = UserProfileKey::decrypt(
@@ -952,15 +947,8 @@ impl CoreUser {
             )?;
 
             // Phase 3: Schedule new profile fetch
-            let sender_credential =
-                StorableClientCredential::load_by_user_id(txn.as_mut(), sender_id)
-                    .await?
-                    .context("No sender credential found")?;
-            Self::schedule_fetch_profile(
-                txn.as_mut(),
-                (sender_credential.into(), new_user_profile_key),
-            )
-            .await?;
+            Self::schedule_fetch_profile(txn.as_mut(), (sender_credential, new_user_profile_key))
+                .await?;
 
             Ok(ProcessQsMessageResult::None)
         })

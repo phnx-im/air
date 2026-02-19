@@ -4,7 +4,7 @@
 
 use aircommon::{
     codec::{BlobDecoded, BlobEncoded, PersistenceCodec},
-    credentials::VerifiableClientCredential,
+    credentials::{VerifiableClientCredential, VerifiedByLocalStorage},
     crypto::ear::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
 };
 use anyhow::ensure;
@@ -76,6 +76,16 @@ impl SqlGroup {
     }
 }
 
+struct LocalGroupStorage(GroupId);
+
+// SAFETY: MLS groups are only written to local storage after all leaf credentials have been
+// verified against an AS intermediate credential.
+unsafe impl VerifiedByLocalStorage for LocalGroupStorage {
+    fn group_id(&self) -> &GroupId {
+        &self.0
+    }
+}
+
 impl Group {
     pub(crate) async fn store(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
         let group_id = GroupIdRefWrapper::from(&self.group_id);
@@ -118,6 +128,15 @@ impl Group {
         Ok(Some(group))
     }
 
+    pub async fn load_clean_verified(
+        connection: &mut sqlx::SqliteConnection,
+        group_id: &GroupId,
+    ) -> anyhow::Result<Option<(Self, impl VerifiedByLocalStorage + use<>)>> {
+        Ok(Self::load_clean(connection, group_id)
+            .await?
+            .map(|group| (group, LocalGroupStorage(group_id.clone()))))
+    }
+
     pub async fn load_with_chat_id_clean(
         connection: &mut sqlx::SqliteConnection,
         chat_id: ChatId,
@@ -132,6 +151,15 @@ impl Group {
         );
 
         Ok(Some(group))
+    }
+
+    pub(crate) async fn load_verified(
+        connection: &mut sqlx::SqliteConnection,
+        group_id: &GroupId,
+    ) -> sqlx::Result<Option<(Self, impl VerifiedByLocalStorage + use<>)>> {
+        Ok(Self::load(connection, group_id)
+            .await?
+            .map(|group| (group, LocalGroupStorage(group_id.clone()))))
     }
 
     pub(crate) async fn load(
