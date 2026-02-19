@@ -4,7 +4,7 @@
 
 use aircommon::{
     codec::PersistenceCodec,
-    credentials::ClientCredential,
+    credentials::{ClientCredential, VerifiableClientCredential},
     crypto::{ear::EarDecryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{MimiId, QualifiedGroupId, UserId},
     messages::{
@@ -28,7 +28,7 @@ use openmls::{
     group::QueuedProposal,
     prelude::{
         ApplicationMessage, MlsMessageBodyIn, MlsMessageIn, ProcessedMessageContent,
-        ProtocolMessage, Sender,
+        ProtocolMessage, Sender, StagedCommit,
     },
 };
 use sqlx::{Acquire, SqliteTransaction};
@@ -48,7 +48,11 @@ use crate::{
         user_settings::ReadReceiptsSetting,
     },
     contacts::{PartialContact, PartialContactType},
-    groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
+    groups::{
+        Group,
+        client_auth_info::{MlsGroupExt, StorableClientCredential},
+        process::ProcessMessageResult,
+    },
     job::pending_chat_operation::PendingChatOperation,
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
@@ -341,9 +345,7 @@ impl CoreUser {
 
                 // MLSMessage Phase 2: Process the message
                 let Some(ProcessMessageResult {
-                    processed_message,
-                    sender_client_credential,
-                    ..
+                    processed_message, ..
                 }) = group
                     .process_message(txn, &self.inner.api_clients, protocol_message)
                     .await?
@@ -357,6 +359,17 @@ impl CoreUser {
                     };
                     return Ok(TransactionResult::NeedsResync(resync));
                 };
+
+                let sender_user_id = VerifiableClientCredential::from_basic_credential(
+                    processed_message.credential(),
+                )?
+                .user_id()
+                .clone();
+                let sender_client_credential =
+                    StorableClientCredential::load_by_user_id(txn.as_mut(), &sender_user_id)
+                        .await?
+                        .context("No sender client credential found")?
+                        .into();
 
                 let ProcessedMessageContent::ApplicationMessage(application_message) =
                     processed_message.into_content()
@@ -448,7 +461,6 @@ impl CoreUser {
                 let Some(ProcessMessageResult {
                     processed_message,
                     we_were_removed,
-                    sender_client_credential,
                     profile_infos,
                 }) = group
                     .process_message(txn, &self.inner.api_clients, protocol_message)
@@ -465,62 +477,77 @@ impl CoreUser {
                 };
 
                 let sender = processed_message.sender().clone();
+                let sender_user_id = VerifiableClientCredential::from_basic_credential(
+                    processed_message.credential(),
+                )?
+                .user_id()
+                .clone();
+
                 let aad = processed_message.aad().to_vec();
 
                 // `chat_changed` indicates whether the state of the chat was updated
-                let (new_messages, updated_messages, chat_changed) =
-                    match processed_message.into_content() {
-                        ProcessedMessageContent::ApplicationMessage(application_message) => {
-                            // Drop messages in 1:1 blocked chats Note: In group chats, messages
-                            // from blocked users are still received and processed.
-                            if chat.status() == &ChatStatus::Blocked {
-                                bail!(BlockedContactError);
-                            }
-                            let ApplicationMessagesHandlerResult {
-                                new_messages,
-                                updated_messages,
-                                chat_changed,
-                            } = self
-                                .handle_application_message(
-                                    txn,
-                                    notifier,
-                                    &group,
-                                    application_message,
-                                    ds_timestamp,
-                                    sender_client_credential.identity(),
-                                    read_receipts_enabled,
-                                )
-                                .await?;
-                            (new_messages, updated_messages, chat_changed)
+                let (new_messages, updated_messages, chat_changed) = match processed_message
+                    .into_content()
+                {
+                    ProcessedMessageContent::ApplicationMessage(application_message) => {
+                        // Drop messages in 1:1 blocked chats Note: In group chats, messages
+                        // from blocked users are still received and processed.
+                        if chat.status() == &ChatStatus::Blocked {
+                            bail!(BlockedContactError);
                         }
-                        ProcessedMessageContent::ProposalMessage(proposal) => {
-                            let (new_messages, updated) = self
-                                .handle_proposal_message(txn, &mut group, *proposal, ds_timestamp)
-                                .await?;
-                            (new_messages, Vec::new(), updated)
-                        }
-                        ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
-                            let (new_messages, updated) = self
-                                .handle_staged_commit_message(
-                                    txn,
-                                    &mut group,
-                                    chat,
-                                    *staged_commit,
-                                    aad,
-                                    ds_timestamp,
-                                    &sender,
-                                    &sender_client_credential,
-                                    we_were_removed,
-                                )
-                                .await?;
-                            (new_messages, Vec::new(), updated)
-                        }
-                        ProcessedMessageContent::ExternalJoinProposalMessage(_) => {
-                            let (new_messages, updated) =
-                                self.handle_external_join_proposal_message()?;
-                            (new_messages, Vec::new(), updated)
-                        }
-                    };
+                        let ApplicationMessagesHandlerResult {
+                            new_messages,
+                            updated_messages,
+                            chat_changed,
+                        } = self
+                            .handle_application_message(
+                                txn,
+                                notifier,
+                                &group,
+                                application_message,
+                                ds_timestamp,
+                                &sender_user_id,
+                                read_receipts_enabled,
+                            )
+                            .await?;
+                        (new_messages, updated_messages, chat_changed)
+                    }
+                    ProcessedMessageContent::ProposalMessage(proposal) => {
+                        let (new_messages, updated) = self
+                            .handle_proposal_message(txn, &mut group, *proposal, ds_timestamp)
+                            .await?;
+                        (new_messages, Vec::new(), updated)
+                    }
+                    ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
+                        let sender_client_credential = StorableClientCredential::load_by_user_id(
+                            txn.as_mut(),
+                            &sender_user_id,
+                        )
+                        .await?
+                        .context("No sender client credential found")?
+                        .into();
+
+                        let (new_messages, updated) = self
+                            .handle_staged_commit_message(
+                                txn,
+                                &mut group,
+                                chat,
+                                *staged_commit,
+                                aad,
+                                ds_timestamp,
+                                &sender,
+                                &sender_client_credential,
+                                we_were_removed,
+                            )
+                            .await?;
+                        (new_messages, Vec::new(), updated)
+                    }
+                    ProcessedMessageContent::ExternalJoinProposalMessage(_) => {
+                        let (new_messages, updated) =
+                            self.handle_external_join_proposal_message()?;
+                        (new_messages, Vec::new(), updated)
+                    }
+                };
 
                 // MLSMessage Phase 3: Store the updated group and the messages.
                 group.store_update(txn.as_mut()).await?;
@@ -698,25 +725,29 @@ impl CoreUser {
         let removed_index = removed_client(&proposal)
             .context("Only Removes and SelfRemoves are supported for now")?;
 
-        let Some(removed) = group.client_by_index(txn, removed_index).await else {
-            warn!("removed client not found");
+        let Some(removed_credential) = group.mls_group().unverified_credential_at(removed_index)?
+        else {
+            warn!("Removed user credential not found");
             return Ok((vec![], false));
         };
+        let removed = removed_credential.user_id();
 
-        let Some(sender) = group.client_by_index(txn, *sender_index).await else {
-            warn!("sending client not found");
+        let Some(sender_credential) = group.mls_group().unverified_credential_at(*sender_index)?
+        else {
+            warn!("Sender credential not found");
             return Ok((vec![], false));
         };
+        let sender = sender_credential.user_id();
 
         ensure!(
             sender == removed,
             "A user should not send remove proposals for other users"
         );
 
-        group.room_state_change_role(&sender, &sender, RoleIndex::Outsider)?;
+        group.room_state_change_role(sender, sender, RoleIndex::Outsider)?;
 
         messages.push(TimestampedMessage::system_message(
-            SystemMessage::Remove(sender, removed),
+            SystemMessage::Remove(sender.clone(), removed.clone()),
             ds_timestamp,
         ));
 
@@ -725,7 +756,7 @@ impl CoreUser {
         // committed with the next commit.
         group.store_proposal(txn.as_mut(), proposal)?;
 
-        Ok((messages, false))
+        Ok((messages, true))
     }
 
     #[expect(clippy::too_many_arguments)]
@@ -734,10 +765,10 @@ impl CoreUser {
         txn: &mut SqliteTransaction<'_>,
         group: &mut Group,
         mut chat: Chat,
-        staged_commit: openmls::prelude::StagedCommit,
+        staged_commit: StagedCommit,
         aad: Vec<u8>,
         ds_timestamp: TimeStamp,
-        sender: &openmls::prelude::Sender,
+        sender: &Sender,
         sender_client_credential: &ClientCredential,
         we_were_removed: bool,
     ) -> anyhow::Result<(Vec<TimestampedMessage>, bool)> {
@@ -769,7 +800,7 @@ impl CoreUser {
 
         // If we were removed, we set the group to inactive.
         if we_were_removed {
-            let past_members = group.members(txn.as_mut()).await.into_iter().collect();
+            let past_members = group.members().collect();
             chat.set_inactive(txn.as_mut(), &mut notifier, past_members)
                 .await?;
         }
@@ -895,41 +926,45 @@ impl CoreUser {
         &self,
         params: UserProfileKeyUpdateParams,
     ) -> anyhow::Result<ProcessQsMessageResult> {
-        let mut connection = self.pool().acquire().await?;
+        self.with_transaction(async |txn| {
+            // Don't update the profile if the chat is blocked.
+            let chat_id = ChatId::try_from(&params.group_id)?;
+            if BlockedContact::check_blocked_chat(txn.as_mut(), chat_id).await? {
+                bail!(BlockedContactError);
+            }
 
-        // Phase 1: Load the group and the sender.
-        let group = Group::load(&mut connection, &params.group_id)
-            .await?
-            .context("No group found")?;
-        let sender = group
-            .client_by_index(&mut connection, params.sender_index)
-            .await
-            .context("No sender found")?;
-        let sender_credential =
-            StorableClientCredential::load_by_user_id(&mut *connection, &sender)
+            // Phase 1: Load the group and the sender.
+            let group = Group::load(txn.as_mut(), &params.group_id)
                 .await?
+                .context("No group found")?;
+            // TODO: Can we use this credential instead of loading it from the DB?
+            let sender_credential = group
+                .mls_group()
+                .unverified_credential_at(params.sender_index)?
                 .context("No sender credential found")?;
+            let sender_id = sender_credential.user_id();
 
-        let chat_id = ChatId::try_from(group.group_id())?;
-        if BlockedContact::check_blocked_chat(&mut *connection, chat_id).await? {
-            bail!(BlockedContactError);
-        }
+            // Phase 2: Decrypt the new user profile key
+            let new_user_profile_key = UserProfileKey::decrypt(
+                group.identity_link_wrapper_key(),
+                &params.user_profile_key,
+                sender_id,
+            )?;
 
-        // Phase 2: Decrypt the new user profile key
-        let new_user_profile_key = UserProfileKey::decrypt(
-            group.identity_link_wrapper_key(),
-            &params.user_profile_key,
-            &sender,
-        )?;
+            // Phase 3: Schedule new profile fetch
+            let sender_credential =
+                StorableClientCredential::load_by_user_id(txn.as_mut(), sender_id)
+                    .await?
+                    .context("No sender credential found")?;
+            Self::schedule_fetch_profile(
+                txn.as_mut(),
+                (sender_credential.into(), new_user_profile_key),
+            )
+            .await?;
 
-        // Phase 3: Fetch and store the (new) user profile and key
-        Self::schedule_fetch_profile(
-            connection.as_mut(),
-            (sender_credential.into(), new_user_profile_key),
-        )
-        .await?;
-
-        Ok(ProcessQsMessageResult::None)
+            Ok(ProcessQsMessageResult::None)
+        })
+        .await
     }
 
     fn handle_external_join_proposal_message(

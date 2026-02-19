@@ -2,16 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use crate::{
-    Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
-    chats::messages::TimestampedMessage,
-    clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
-    contacts::ContactAddInfos,
-    groups::{Group, GroupData, client_auth_info::StorableClientCredential},
-    job::{Job, JobContext, JobError},
-    store::StoreNotifier,
-    utils::connection_ext::ConnectionExt,
-};
 use airapiclient::ds_api::DsRequestError;
 use aircommon::{
     codec::PersistenceCodec,
@@ -26,8 +16,18 @@ use mimi_room_policy::RoleIndex;
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
 use sqlx::{SqliteConnection, SqlitePool, SqliteTransaction, query, query_as};
-use std::collections::HashSet;
 use tracing::info;
+
+use crate::{
+    Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
+    chats::messages::TimestampedMessage,
+    clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
+    contacts::ContactAddInfos,
+    groups::{Group, GroupData, client_auth_info::StorableClientCredential},
+    job::{Job, JobContext, JobError},
+    store::StoreNotifier,
+    utils::connection_ext::ConnectionExt,
+};
 
 // Having separate retry intervals for test and non-test is a hack until we can
 // pass "now" directly into OutboundService runs.
@@ -231,10 +231,10 @@ impl PendingChatOperation {
                 };
 
                 // Get the past members before merging the commit
-                let past_members = if is_delete {
-                    self.group.members(txn.as_mut()).await
+                let past_members: Vec<_> = if is_delete {
+                    self.group.members().collect()
                 } else {
-                    HashSet::new()
+                    Vec::new()
                 };
 
                 let group_messages = if is_commit {
@@ -284,7 +284,7 @@ impl PendingChatOperation {
                 // is either a delete operation or a leave operation, set the
                 // chat to inactive.
                 if !matches!(chat.status(), ChatStatus::Inactive(_)) && (is_delete || is_leave) {
-                    chat.set_inactive(txn.as_mut(), notifier, past_members.into_iter().collect())
+                    chat.set_inactive(txn.as_mut(), notifier, past_members)
                         .await?;
                 }
 
@@ -451,7 +451,7 @@ impl PendingChatOperation {
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
 
-        let past_members = group.members(txn.as_mut()).await;
+        let past_members: Vec<_> = group.members().collect();
 
         if past_members.len() == 1 {
             chat.set_inactive(txn.as_mut(), notifier, past_members.into_iter().collect())
@@ -898,10 +898,9 @@ mod tests {
         let group_id = GroupId::from(qgid);
         let group_data = GroupData::from(b"test-group-data".to_vec());
 
-        let (group, membership, _) =
+        let (group, _) =
             Group::create_group(&mut connection, &signing_key, group_id.clone(), group_data)?;
         group.store(&mut *connection).await?;
-        membership.store(&mut *connection).await?;
 
         let mut notifier = StoreNotifier::noop();
         let chat = Chat::new_group_chat(

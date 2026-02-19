@@ -4,7 +4,7 @@
 
 use chrono::Duration;
 use mls_assist::openmls::prelude::{
-    BasicCredential, BasicCredentialError, Credential, SignatureScheme,
+    BasicCredential, BasicCredentialError, Credential, CredentialType, SignatureScheme,
 };
 
 use serde::{Deserialize, Serialize};
@@ -583,6 +583,17 @@ pub struct VerifiableClientCredential {
 impl VerifiableClientCredential {
     pub fn new(payload: ClientCredentialPayload, signature: AsIntermediateSignature) -> Self {
         Self { payload, signature }
+    }
+
+    pub fn from_basic_credential(credential: &Credential) -> Result<Self, BasicCredentialError> {
+        // This impl does not construct a `BasicCredential` to avoid cloning the data.
+        let CredentialType::Basic = credential.credential_type() else {
+            return Err(BasicCredentialError::WrongCredentialType);
+        };
+        let credential = VerifiableClientCredential::tls_deserialize_exact_bytes(
+            credential.serialized_content(),
+        )?;
+        Ok(credential)
     }
 
     pub fn domain(&self) -> &Fqdn {

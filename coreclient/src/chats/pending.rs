@@ -137,7 +137,7 @@ impl CoreUser {
 
                 // Verify that the group has only one other member and that it's
                 // the sender of the CEP.
-                let members = group.members(txn.as_mut()).await;
+                let members: Vec<_> = group.members().collect();
 
                 ensure!(
                     members.len() == 2,
