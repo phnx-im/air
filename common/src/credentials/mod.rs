@@ -4,7 +4,7 @@
 
 use chrono::Duration;
 use mls_assist::openmls::prelude::{
-    BasicCredential, BasicCredentialError, Credential, CredentialType, SignatureScheme,
+    BasicCredentialError, Credential, CredentialType, SignatureScheme,
 };
 
 use serde::{Deserialize, Serialize};
@@ -485,6 +485,7 @@ pub struct ClientCredential {
 }
 
 impl ClientCredential {
+    #[cfg(feature = "test_utils")]
     pub fn new(payload: ClientCredentialPayload, signature: AsIntermediateSignature) -> Self {
         Self { payload, signature }
     }
@@ -585,6 +586,9 @@ impl VerifiableClientCredential {
         Self { payload, signature }
     }
 
+    /// Deserializes a [`VerifiableClientCredential`] from a [`Credential`].
+    ///
+    /// If the credential is not a [`CredentialType::Basic`], an error is returned.
     pub fn from_basic_credential(credential: &Credential) -> Result<Self, BasicCredentialError> {
         // This impl does not construct a `BasicCredential` to avoid cloning the data.
         let CredentialType::Basic = credential.credential_type() else {
@@ -620,17 +624,6 @@ impl Verifiable for VerifiableClientCredential {
 
     fn label(&self) -> &str {
         CLIENT_CREDENTIAL_LABEL
-    }
-}
-
-impl TryFrom<Credential> for VerifiableClientCredential {
-    type Error = BasicCredentialError;
-
-    fn try_from(value: Credential) -> Result<Self, Self::Error> {
-        let basic_credential = BasicCredential::try_from(value)?;
-        let credential =
-            VerifiableClientCredential::tls_deserialize_exact_bytes(basic_credential.identity())?;
-        Ok(credential)
     }
 }
 

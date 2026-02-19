@@ -47,23 +47,20 @@ impl SqlGroup {
             state
         } else {
             error!("Failed to load room state. Falling back to default room state.");
-            let members = mls_group
+            let members: Vec<_> = mls_group
                 .members()
-                .map(|m| {
-                    VerifiableClientCredential::try_from(m.credential)
-                        .unwrap()
-                        .user_id()
-                        .clone()
-                        .tls_serialize_detached()
+                .map(|m| -> anyhow::Result<_> {
+                    let credential =
+                        VerifiableClientCredential::from_basic_credential(&m.credential)?;
+                    Ok(credential.user_id().tls_serialize_detached()?)
                 })
-                .filter_map(|r| match r {
-                    Ok(user) => Some(user),
-                    Err(e) => {
-                        error!(%e, "Failed to serialize user id for fallback room");
-                        None
-                    }
+                .filter_map(|res| {
+                    res.inspect_err(|error| {
+                        error!(%error, "Failed to serialize user id for fallback room");
+                    })
+                    .ok()
                 })
-                .collect::<Vec<_>>();
+                .collect();
 
             VerifiedRoomState::fallback_room(members)
         };

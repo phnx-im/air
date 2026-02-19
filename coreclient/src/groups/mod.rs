@@ -875,7 +875,8 @@ impl Group {
             .mls_group()
             .members()
             .find_map(|m| {
-                let client_credential = VerifiableClientCredential::try_from(m.credential).ok()?;
+                let client_credential =
+                    VerifiableClientCredential::from_basic_credential(&m.credential).ok()?;
                 if client_credential.user_id() == &recipient {
                     Some(m.index)
                 } else {
@@ -1047,7 +1048,7 @@ impl Group {
 
     fn user_id_at_index(&self, index: LeafNodeIndex) -> Option<UserId> {
         self.mls_group().member_at(index).and_then(|m| {
-            VerifiableClientCredential::try_from(m.credential.clone())
+            VerifiableClientCredential::from_basic_credential(&m.credential)
                 .map(|c| c.user_id().clone())
                 .ok()
         })
@@ -1072,13 +1073,12 @@ impl Group {
                 Some(user_id) => user_id,
                 None => continue,
             };
-            let Ok(added_user) = VerifiableClientCredential::try_from(
+            let Ok(added_user) = VerifiableClientCredential::from_basic_credential(
                 proposal
                     .add_proposal()
                     .key_package()
                     .leaf_node()
-                    .credential()
-                    .clone(),
+                    .credential(),
             )
             .map(|c| c.user_id().clone()) else {
                 continue;

@@ -92,15 +92,6 @@ impl Group {
             }
             ProcessedMessageContent::ApplicationMessage(_) => {
                 debug!("process application message");
-                // let sender_client_credential =
-                //     if let Sender::Member(index) = processed_message.sender() {
-                //         ClientAuthInfo::load(&mut *txn, &group_id, *index)
-                //             .await?
-                //             .map(|info| info.into_client_credential())
-                //             .context("Could not find client credential of message sender")?
-                //     } else {
-                //         bail!("Invalid sender type.")
-                //     };
                 return Ok(Some(ProcessMessageResult {
                     processed_message,
                     we_were_removed,
@@ -208,13 +199,9 @@ impl Group {
                             let verifiable_credentials = staged_commit
                                 .add_proposals()
                                 .map(|ap| {
-                                    let credential = ap
-                                        .add_proposal()
-                                        .key_package()
-                                        .leaf_node()
-                                        .credential()
-                                        .clone();
-                                    VerifiableClientCredential::try_from(credential)
+                                    let credential =
+                                        ap.add_proposal().key_package().leaf_node().credential();
+                                    VerifiableClientCredential::from_basic_credential(credential)
                                 })
                                 .collect::<Result<Vec<_>, _>>()?;
                             let as_credentials = AsCredentials::fetch_for_verification(
@@ -350,21 +337,6 @@ impl Group {
                 sender_index
             }
         };
-        // Get the sender's credential
-        // If the sender is added to the group with this commit, we have to load
-        // it from the DB with status "staged".
-
-        // Phase 2: Load the sender's client credential.
-        // let sender_client_credential =
-        //     if matches!(processed_message.sender(), Sender::NewMemberCommit) {
-        //         ClientAuthInfo::load_staged(&mut *txn, &group_id, sender_index).await?
-        //     } else {
-        //         ClientAuthInfo::load(&mut *txn, &group_id, sender_index).await?
-        //     }
-        //     .context("Could not find client credential of message sender")?
-        //     .client_credential()
-        //     .clone()
-        //     .into();
 
         // Decrypt any user profile keys
         let profile_infos = encrypted_profile_infos
