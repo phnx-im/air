@@ -130,12 +130,10 @@ Future<String?> _getSharedCacheDirectoryIOS() async {
 }
 
 Future<bool> isImageFile(String path) async {
-  if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
-    try {
-      return await rust_utils.isImageFile(path: path);
-    } catch (e, stacktrace) {
-      _log.severe("Failed to check if file is image: '$e'.", e, stacktrace);
-    }
+  try {
+    return await rust_utils.isImageFile(path: path);
+  } catch (e, stacktrace) {
+    _log.severe("Failed to check if file is image: '$e'.", e, stacktrace);
   }
   return false;
 }
