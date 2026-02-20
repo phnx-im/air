@@ -17,7 +17,7 @@ use aircommon::{
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use mimi_room_policy::RoleIndex;
 use openmls::{
-    group::{ProcessMessageError, QueuedAddProposal, ValidationError},
+    group::{ProcessMessageError, ValidationError},
     prelude::{
         ProcessedMessage, ProcessedMessageContent, Proposal, ProtocolMessage, Sender,
         SignaturePublicKey, StagedCommit,
@@ -212,7 +212,6 @@ impl Group {
                                     sender_credential.user_id(),
                                     staged_commit,
                                     &mut *txn,
-                                    staged_commit.add_proposals(),
                                     &as_credentials,
                                 )
                                 .await?;
@@ -355,17 +354,16 @@ impl Group {
         }))
     }
 
-    async fn process_adds<'a>(
+    async fn process_adds(
         &mut self,
         sender_user: &UserId,
         staged_commit: &StagedCommit,
         txn: &mut SqliteTransaction<'_>,
-        added_clients: impl Iterator<Item = QueuedAddProposal<'a>>,
         as_credentials: &HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>,
     ) -> Result<Vec<ClientCredential>> {
         let mut credentials = Vec::new();
 
-        for proposal in added_clients {
+        for proposal in staged_commit.add_proposals() {
             let leaf_node = proposal.add_proposal().key_package().leaf_node();
 
             // Verify the credential
@@ -387,11 +385,6 @@ impl Group {
         // * Client IDs MUST be unique within the group (only need to
         //   check new credentials, as client IDs are scoped to user
         //   names).
-
-        ensure!(
-            staged_commit.add_proposals().count() == credentials.len(),
-            "Number of add proposals and client credentials don't match."
-        );
 
         Ok(credentials)
     }
