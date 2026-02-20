@@ -464,7 +464,7 @@ impl PendingChatOperation {
         let past_members: Vec<_> = group.members().collect();
 
         if past_members.len() == 1 {
-            chat.set_inactive(txn.as_mut(), notifier, past_members.into_iter().collect())
+            chat.set_inactive(txn.as_mut(), notifier, past_members)
                 .await?;
             Ok(None)
         } else {

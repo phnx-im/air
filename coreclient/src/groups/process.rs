@@ -388,10 +388,10 @@ impl Group {
         //   check new credentials, as client IDs are scoped to user
         //   names).
 
-        // AddUsers Phase 3: Verify and store the client auth infos.
-        if staged_commit.add_proposals().count() != credentials.len() {
-            bail!("Number of add proposals and client credentials don't match.")
-        }
+        ensure!(
+            staged_commit.add_proposals().count() == credentials.len(),
+            "Number of add proposals and client credentials don't match."
+        );
 
         Ok(credentials)
     }
