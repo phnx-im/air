@@ -2,25 +2,30 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::ops::Deref;
+
 use aircommon::{
     codec::{BlobDecoded, BlobEncoded, PersistenceCodec},
-    credentials::{GroupStorageWitness, VerifiableClientCredential},
+    credentials::{ClientCredential, GroupStorageWitness, VerifiableClientCredential},
     crypto::ear::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
+    time::TimeStamp,
 };
-use anyhow::ensure;
+use anyhow::{Result, ensure};
 use mimi_room_policy::{RoomState, VerifiedRoomState};
 use openmls::group::{GroupId, MlsGroup};
+use openmls::prelude::{LeafNodeIndex, StagedCommit};
 use openmls_traits::OpenMlsProvider;
-use sqlx::{SqliteExecutor, query, query_as};
+use sqlx::{SqliteExecutor, SqliteTransaction, query, query_as};
 use tls_codec::Serialize as _;
 use tracing::error;
 
 use crate::{
     ChatId,
+    chats::messages::TimestampedMessage,
     utils::persistence::{GroupIdRefWrapper, GroupIdWrapper},
 };
 
-use super::{Group, diff::StagedGroupDiff, openmls_provider::AirOpenMlsProvider};
+use super::{Group, GroupData, diff::StagedGroupDiff, openmls_provider::AirOpenMlsProvider};
 
 struct SqlGroup {
     group_id: GroupIdWrapper,
@@ -77,20 +82,68 @@ impl SqlGroup {
 }
 
 /// Verification that a group was loaded from the local storage.
-pub(crate) struct LocalGroupStorage(GroupId);
-
-impl LocalGroupStorage {
-    #[cfg(test)]
-    pub(crate) fn new_for_test(group_id: GroupId) -> Self {
-        Self(group_id)
-    }
-}
+struct LocalGroupStorage(GroupId);
 
 // SAFETY: MLS groups are only written to local storage after all leaf credentials have been
 // verified against an AS intermediate credential.
 unsafe impl GroupStorageWitness for LocalGroupStorage {
     fn group_id(&self) -> &GroupId {
         &self.0
+    }
+}
+
+/// A [`Group`] loaded from local storage, with the guarantee that all
+/// leaf credentials have been previously verified against AS credentials.
+pub(crate) struct VerifiedGroup(Group);
+
+impl VerifiedGroup {
+    pub(crate) fn group_mut(&mut self) -> &mut Group {
+        &mut self.0
+    }
+
+    /// Like [`Group::credential_at`] but without requiring an explicit witness argument.
+    pub(crate) fn credential_at(
+        &self,
+        index: LeafNodeIndex,
+    ) -> anyhow::Result<Option<ClientCredential>> {
+        self.0.credential_at(index, self)
+    }
+
+    /// Delegates to [`Group::merge_pending_commit`] using a temporary witness.
+    ///
+    /// A temporary `LocalGroupStorage` is created to avoid a simultaneous
+    /// `&mut self` (for the group) and `&self` (for the witness) borrow conflict.
+    pub(crate) async fn merge_pending_commit(
+        &mut self,
+        txn: &mut SqliteTransaction<'_>,
+        staged_commit_option: impl Into<Option<StagedCommit>>,
+        ds_timestamp: TimeStamp,
+    ) -> Result<(Vec<TimestampedMessage>, Option<GroupData>)> {
+        let witness = LocalGroupStorage(self.0.group_id().clone());
+        self.0
+            .merge_pending_commit(txn, &witness, staged_commit_option, ds_timestamp)
+            .await
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_for_test(group: Group) -> Self {
+        Self(group)
+    }
+}
+
+impl Deref for VerifiedGroup {
+    type Target = Group;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+// SAFETY: VerifiedGroup can only be constructed via `load_verified` /
+// `load_clean_verified`, which load groups from local storage after all
+// leaf credentials have been verified against AS intermediate credentials.
+unsafe impl GroupStorageWitness for VerifiedGroup {
+    fn group_id(&self) -> &GroupId {
+        self.0.group_id()
     }
 }
 
@@ -139,10 +192,10 @@ impl Group {
     pub(crate) async fn load_clean_verified(
         connection: &mut sqlx::SqliteConnection,
         group_id: &GroupId,
-    ) -> anyhow::Result<Option<(Self, LocalGroupStorage)>> {
+    ) -> anyhow::Result<Option<VerifiedGroup>> {
         Ok(Self::load_clean(connection, group_id)
             .await?
-            .map(|group| (group, LocalGroupStorage(group_id.clone()))))
+            .map(VerifiedGroup))
     }
 
     pub(crate) async fn load_with_chat_id_clean(
@@ -164,10 +217,8 @@ impl Group {
     pub(crate) async fn load_verified(
         connection: &mut sqlx::SqliteConnection,
         group_id: &GroupId,
-    ) -> sqlx::Result<Option<(Self, LocalGroupStorage)>> {
-        Ok(Self::load(connection, group_id)
-            .await?
-            .map(|group| (group, LocalGroupStorage(group_id.clone()))))
+    ) -> sqlx::Result<Option<VerifiedGroup>> {
+        Ok(Self::load(connection, group_id).await?.map(VerifiedGroup))
     }
 
     pub(crate) async fn load(

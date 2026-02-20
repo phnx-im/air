@@ -4,7 +4,7 @@
 
 use aircommon::{
     codec::PersistenceCodec,
-    credentials::{ClientCredential, GroupStorageWitness, VerifiableClientCredential},
+    credentials::{ClientCredential, VerifiableClientCredential},
     crypto::{ear::EarDecryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{MimiId, QualifiedGroupId, UserId},
     messages::{
@@ -48,7 +48,10 @@ use crate::{
         user_settings::ReadReceiptsSetting,
     },
     contacts::{PartialContact, PartialContactType},
-    groups::{Group, client_auth_info::StorableClientCredential, process::ProcessMessageResult},
+    groups::{
+        Group, VerifiedGroup, client_auth_info::StorableClientCredential,
+        process::ProcessMessageResult,
+    },
     job::pending_chat_operation::PendingChatOperation,
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
@@ -164,7 +167,7 @@ impl CoreUser {
 
         // Load the group by group_id
         self.with_transaction_and_notifier(async |txn, notifier| {
-            let (mut group, verified) = Group::load_verified(txn, &group_id)
+            let mut group = Group::load_verified(txn, &group_id)
                 .await?
                 .context("Can't find group for commit response")?;
 
@@ -182,9 +185,8 @@ impl CoreUser {
             }
 
             // If yes, merge the commit and store the updated group
-            let (mut group_messages, group_data) = group
-                .merge_pending_commit(txn, &verified, None, timestamp)
-                .await?;
+            let (mut group_messages, group_data) =
+                group.merge_pending_commit(txn, None, timestamp).await?;
             group.store_update(&mut **txn).await?;
 
             let mut chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
@@ -336,7 +338,7 @@ impl CoreUser {
                 let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
                     .await?
                     .ok_or_else(|| anyhow!("No chat found for group ID {:?}", group_id))?;
-                let (mut group, verified) = Group::load_clean_verified(txn, &group_id)
+                let mut group = Group::load_clean_verified(txn, &group_id)
                     .await?
                     .ok_or_else(|| anyhow!("No group found for group ID {:?}", group_id))?;
 
@@ -344,6 +346,7 @@ impl CoreUser {
                 let Some(ProcessMessageResult {
                     processed_message, ..
                 }) = group
+                    .group_mut()
                     .process_message(txn, &self.inner.api_clients, protocol_message)
                     .await?
                 else {
@@ -361,7 +364,7 @@ impl CoreUser {
                     bail!("Sender is not a member");
                 };
                 let sender_client_credential = group
-                    .credential_at(*sender_index, &verified)?
+                    .credential_at(*sender_index)?
                     .context("No sender client credential found")?;
 
                 let ProcessedMessageContent::ApplicationMessage(application_message) =
@@ -445,7 +448,7 @@ impl CoreUser {
                 let chat_id = chat.id();
 
                 // Load the group regardless of whether it has a pending commit or not.
-                let (mut group, verified) = Group::load_verified(txn, &group_id)
+                let mut group = Group::load_verified(txn, &group_id)
                     .await?
                     .with_context(|| format!("No group found for group ID {group_id:?}"))?;
 
@@ -456,6 +459,7 @@ impl CoreUser {
                     we_were_removed,
                     profile_infos,
                 }) = group
+                    .group_mut()
                     .process_message(txn, &self.inner.api_clients, protocol_message)
                     .await?
                 else {
@@ -507,13 +511,7 @@ impl CoreUser {
                     }
                     ProcessedMessageContent::ProposalMessage(proposal) => {
                         let (new_messages, updated) = self
-                            .handle_proposal_message(
-                                txn,
-                                &mut group,
-                                &verified,
-                                *proposal,
-                                ds_timestamp,
-                            )
+                            .handle_proposal_message(txn, &mut group, *proposal, ds_timestamp)
                             .await?;
                         (new_messages, Vec::new(), updated)
                     }
@@ -530,7 +528,6 @@ impl CoreUser {
                             .handle_staged_commit_message(
                                 txn,
                                 &mut group,
-                                &verified,
                                 chat,
                                 *staged_commit,
                                 aad,
@@ -712,8 +709,7 @@ impl CoreUser {
     async fn handle_proposal_message(
         &self,
         txn: &mut SqliteTransaction<'_>,
-        group: &mut Group,
-        verified: &impl GroupStorageWitness,
+        group: &mut VerifiedGroup,
         proposal: QueuedProposal,
         ds_timestamp: TimeStamp,
     ) -> anyhow::Result<(Vec<TimestampedMessage>, bool)> {
@@ -726,13 +722,13 @@ impl CoreUser {
         let removed_index = removed_client(&proposal)
             .context("Only Removes and SelfRemoves are supported for now")?;
 
-        let Some(removed_credential) = group.credential_at(removed_index, verified)? else {
+        let Some(removed_credential) = group.credential_at(removed_index)? else {
             warn!("Removed user credential not found");
             return Ok((vec![], false));
         };
         let removed = removed_credential.identity();
 
-        let Some(sender_credential) = group.credential_at(*sender_index, verified)? else {
+        let Some(sender_credential) = group.credential_at(*sender_index)? else {
             warn!("Sender credential not found");
             return Ok((vec![], false));
         };
@@ -743,7 +739,9 @@ impl CoreUser {
             "A user should not send remove proposals for other users"
         );
 
-        group.room_state_change_role(sender, sender, RoleIndex::Outsider)?;
+        group
+            .group_mut()
+            .room_state_change_role(sender, sender, RoleIndex::Outsider)?;
 
         messages.push(TimestampedMessage::system_message(
             SystemMessage::Remove(sender.clone(), removed.clone()),
@@ -753,7 +751,7 @@ impl CoreUser {
         // For now, we don't to anything here. The proposal
         // was processed by the MLS group and will be
         // committed with the next commit.
-        group.store_proposal(txn.as_mut(), proposal)?;
+        group.group_mut().store_proposal(txn.as_mut(), proposal)?;
 
         Ok((messages, false))
     }
@@ -762,8 +760,7 @@ impl CoreUser {
     async fn handle_staged_commit_message(
         &self,
         txn: &mut SqliteTransaction<'_>,
-        group: &mut Group,
-        verified: &impl GroupStorageWitness,
+        group: &mut VerifiedGroup,
         mut chat: Chat,
         staged_commit: StagedCommit,
         aad: Vec<u8>,
@@ -805,7 +802,7 @@ impl CoreUser {
                 .await?;
         }
         let (messages_from_commit, group_data) = group
-            .merge_pending_commit(txn, verified, staged_commit, ds_timestamp)
+            .merge_pending_commit(txn, staged_commit, ds_timestamp)
             .await?;
 
         group_messages.extend(messages_from_commit);
@@ -839,7 +836,7 @@ impl CoreUser {
         sender: &Sender,
         sender_client_credential: &ClientCredential,
         chat: &mut Chat,
-        group: &mut Group,
+        group: &mut VerifiedGroup,
     ) -> Result<TimestampedMessage, anyhow::Error> {
         let Some(contact_type) = chat.chat_type().unconfirmed_contact() else {
             bail!("Chat is not unconfirmed");
@@ -902,7 +899,11 @@ impl CoreUser {
 
         // Room state update: Pretend that we just invited that user
         // We do that now, because we didn't know that user id when we created the room.
-        group.room_state_change_role(self.user_id(), sender_user_id, RoleIndex::Regular)?;
+        group.group_mut().room_state_change_role(
+            self.user_id(),
+            sender_user_id,
+            RoleIndex::Regular,
+        )?;
 
         chat.confirm(txn.as_mut(), notifier, contact.user_id)
             .await?;
@@ -934,11 +935,11 @@ impl CoreUser {
             }
 
             // Phase 1: Load the group and the sender.
-            let (group, verified) = Group::load_verified(txn.as_mut(), &params.group_id)
+            let group = Group::load_verified(txn.as_mut(), &params.group_id)
                 .await?
                 .context("No group found")?;
             let sender_credential = group
-                .credential_at(params.sender_index, &verified)?
+                .credential_at(params.sender_index)?
                 .context("No sender credential found")?;
             let sender_id = sender_credential.identity();
 

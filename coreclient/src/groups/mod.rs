@@ -13,6 +13,7 @@ pub(crate) mod persistence;
 pub(crate) mod process;
 
 pub(crate) use error::*;
+pub(crate) use persistence::VerifiedGroup;
 
 use aircommon::{
     credentials::{
@@ -770,7 +771,7 @@ impl Group {
     ///
     /// Returns the messages resulting from the commit and any group data
     /// extracted from the staged commit.
-    pub(super) async fn merge_pending_commit(
+    pub(in crate::groups) async fn merge_pending_commit(
         &mut self,
         txn: &mut SqliteTransaction<'_>,
         verified: &impl GroupStorageWitness,
