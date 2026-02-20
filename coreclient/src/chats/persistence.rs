@@ -832,14 +832,14 @@ impl Chat {
         executor: impl SqliteExecutor<'_>,
         chat_id: ChatId,
     ) -> sqlx::Result<Option<DateTime<Utc>>> {
-        query_scalar!(
+        sqlx::query_scalar(
             r#"SELECT
                 g.self_updated_at AS "self_updated_at: _"
             FROM chat c
             INNER JOIN "group" g ON g.group_id = c.group_id
             WHERE c.chat_id = ?"#,
-            chat_id
         )
+        .bind(chat_id)
         .fetch_optional(executor)
         .await
         .map(Option::flatten)
@@ -851,16 +851,16 @@ impl Chat {
         chat_id: ChatId,
         self_updated_at: DateTime<Utc>,
     ) -> sqlx::Result<()> {
-        query_scalar!(
+        sqlx::query(
             r#"UPDATE "group"
             SET self_updated_at = ?1
             WHERE group_id = (
                 SELECT group_id FROM chat WHERE chat_id = ?2
             )
             "#,
-            self_updated_at,
-            chat_id,
         )
+        .bind(self_updated_at)
+        .bind(chat_id)
         .execute(executor)
         .await?;
         Ok(())
