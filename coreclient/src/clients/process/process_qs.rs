@@ -183,7 +183,7 @@ impl CoreUser {
 
             // If yes, merge the commit and store the updated group
             let (mut group_messages, group_data) = group
-                .merge_pending_commit(&verified, txn, None, timestamp)
+                .merge_pending_commit(txn, &verified, None, timestamp)
                 .await?;
             group.store_update(&mut **txn).await?;
 
@@ -805,7 +805,7 @@ impl CoreUser {
                 .await?;
         }
         let (messages_from_commit, group_data) = group
-            .merge_pending_commit(verified, txn, staged_commit, ds_timestamp)
+            .merge_pending_commit(txn, verified, staged_commit, ds_timestamp)
             .await?;
 
         group_messages.extend(messages_from_commit);

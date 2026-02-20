@@ -772,8 +772,8 @@ impl Group {
     /// extracted from the staged commit.
     pub(super) async fn merge_pending_commit(
         &mut self,
-        verified: &impl GroupStorageWitness,
         txn: &mut SqliteTransaction<'_>,
+        verified: &impl GroupStorageWitness,
         staged_commit_option: impl Into<Option<StagedCommit>>,
         ds_timestamp: TimeStamp,
     ) -> Result<(Vec<TimestampedMessage>, Option<GroupData>)> {

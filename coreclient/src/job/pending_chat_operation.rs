@@ -249,7 +249,7 @@ impl PendingChatOperation {
                 let group_messages = if is_commit {
                     let (mut group_messages, group_data) = self
                         .group
-                        .merge_pending_commit(&self.verified, txn, None, ds_timestamp)
+                        .merge_pending_commit(txn, &self.verified, None, ds_timestamp)
                         .await?;
 
                     if let Some(group_data) = group_data {
