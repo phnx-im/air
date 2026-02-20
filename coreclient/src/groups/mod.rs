@@ -789,8 +789,7 @@ impl Group {
                 verified,
                 &staged_commit,
                 ds_timestamp,
-            )
-            .await?;
+            )?;
 
             let group_data = GroupData::from_staged_commit(&staged_commit);
 
@@ -810,8 +809,7 @@ impl Group {
                         verified,
                         staged_commit,
                         ds_timestamp,
-                    )
-                    .await?;
+                    )?;
                     (messages, group_data)
                 } else {
                     (vec![], None)
@@ -1227,7 +1225,7 @@ async fn verify_member_credentials(
 impl TimestampedMessage {
     /// Turn a staged commit into a list of messages based on the proposals it
     /// includes.
-    async fn from_staged_commit(
+    fn from_staged_commit(
         group: &Group,
         verified: &impl GroupStorageWitness,
         staged_commit: &StagedCommit,
