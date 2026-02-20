@@ -44,7 +44,10 @@ sealed class LoadableUser with _$LoadableUser {
   bool get isLoading => this is LoadingUser;
 
   LoadableUser apply(User? newUser) => switch (this) {
-    LoadingUser() => newUser == null ? this : LoadableUser.loaded(newUser),
+    LoadingUser() =>
+      newUser == null
+          ? const LoadableUser.unloaded()
+          : LoadableUser.loaded(newUser),
     UnloadedUser() => newUser == null ? this : LoadedUser(newUser),
     LoadedUser(user: final previousUser) =>
       newUser == null ? UnloadingUser(previousUser) : LoadedUser(newUser),
