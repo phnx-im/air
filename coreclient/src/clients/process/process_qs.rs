@@ -4,7 +4,7 @@
 
 use aircommon::{
     codec::PersistenceCodec,
-    credentials::{ClientCredential, VerifiableClientCredential, VerifiedByLocalStorage},
+    credentials::{ClientCredential, GroupStorageWitness, VerifiableClientCredential},
     crypto::{ear::EarDecryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{MimiId, QualifiedGroupId, UserId},
     messages::{
@@ -164,7 +164,7 @@ impl CoreUser {
 
         // Load the group by group_id
         self.with_transaction_and_notifier(async |txn, notifier| {
-            let mut group = Group::load(txn, &group_id)
+            let (mut group, verified) = Group::load_verified(txn, &group_id)
                 .await?
                 .context("Can't find group for commit response")?;
 
@@ -182,8 +182,9 @@ impl CoreUser {
             }
 
             // If yes, merge the commit and store the updated group
-            let (mut group_messages, group_data) =
-                group.merge_pending_commit(txn, None, timestamp).await?;
+            let (mut group_messages, group_data) = group
+                .merge_pending_commit(&verified, txn, None, timestamp)
+                .await?;
             group.store_update(&mut **txn).await?;
 
             let mut chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
@@ -529,6 +530,7 @@ impl CoreUser {
                             .handle_staged_commit_message(
                                 txn,
                                 &mut group,
+                                &verified,
                                 chat,
                                 *staged_commit,
                                 aad,
@@ -711,7 +713,7 @@ impl CoreUser {
         &self,
         txn: &mut SqliteTransaction<'_>,
         group: &mut Group,
-        verified: &impl VerifiedByLocalStorage,
+        verified: &impl GroupStorageWitness,
         proposal: QueuedProposal,
         ds_timestamp: TimeStamp,
     ) -> anyhow::Result<(Vec<TimestampedMessage>, bool)> {
@@ -753,7 +755,7 @@ impl CoreUser {
         // committed with the next commit.
         group.store_proposal(txn.as_mut(), proposal)?;
 
-        Ok((messages, true))
+        Ok((messages, false))
     }
 
     #[expect(clippy::too_many_arguments)]
@@ -761,6 +763,7 @@ impl CoreUser {
         &self,
         txn: &mut SqliteTransaction<'_>,
         group: &mut Group,
+        verified: &impl GroupStorageWitness,
         mut chat: Chat,
         staged_commit: StagedCommit,
         aad: Vec<u8>,
@@ -802,7 +805,7 @@ impl CoreUser {
                 .await?;
         }
         let (messages_from_commit, group_data) = group
-            .merge_pending_commit(txn, staged_commit, ds_timestamp)
+            .merge_pending_commit(verified, txn, staged_commit, ds_timestamp)
             .await?;
 
         group_messages.extend(messages_from_commit);

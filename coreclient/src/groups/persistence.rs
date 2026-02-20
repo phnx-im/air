@@ -4,7 +4,7 @@
 
 use aircommon::{
     codec::{BlobDecoded, BlobEncoded, PersistenceCodec},
-    credentials::{VerifiableClientCredential, VerifiedByLocalStorage},
+    credentials::{GroupStorageWitness, VerifiableClientCredential},
     crypto::ear::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
 };
 use anyhow::ensure;
@@ -76,11 +76,19 @@ impl SqlGroup {
     }
 }
 
-struct LocalGroupStorage(GroupId);
+/// Verification that a group was loaded from the local storage.
+pub(crate) struct LocalGroupStorage(GroupId);
+
+impl LocalGroupStorage {
+    #[cfg(test)]
+    pub(crate) fn new_for_test(group_id: GroupId) -> Self {
+        Self(group_id)
+    }
+}
 
 // SAFETY: MLS groups are only written to local storage after all leaf credentials have been
 // verified against an AS intermediate credential.
-unsafe impl VerifiedByLocalStorage for LocalGroupStorage {
+unsafe impl GroupStorageWitness for LocalGroupStorage {
     fn group_id(&self) -> &GroupId {
         &self.0
     }
@@ -112,7 +120,7 @@ impl Group {
         Ok(())
     }
 
-    pub async fn load_clean(
+    pub(crate) async fn load_clean(
         connection: &mut sqlx::SqliteConnection,
         group_id: &GroupId,
     ) -> anyhow::Result<Option<Self>> {
@@ -128,16 +136,16 @@ impl Group {
         Ok(Some(group))
     }
 
-    pub async fn load_clean_verified(
+    pub(crate) async fn load_clean_verified(
         connection: &mut sqlx::SqliteConnection,
         group_id: &GroupId,
-    ) -> anyhow::Result<Option<(Self, impl VerifiedByLocalStorage + use<>)>> {
+    ) -> anyhow::Result<Option<(Self, LocalGroupStorage)>> {
         Ok(Self::load_clean(connection, group_id)
             .await?
             .map(|group| (group, LocalGroupStorage(group_id.clone()))))
     }
 
-    pub async fn load_with_chat_id_clean(
+    pub(crate) async fn load_with_chat_id_clean(
         connection: &mut sqlx::SqliteConnection,
         chat_id: ChatId,
     ) -> anyhow::Result<Option<Self>> {
@@ -156,7 +164,7 @@ impl Group {
     pub(crate) async fn load_verified(
         connection: &mut sqlx::SqliteConnection,
         group_id: &GroupId,
-    ) -> sqlx::Result<Option<(Self, impl VerifiedByLocalStorage + use<>)>> {
+    ) -> sqlx::Result<Option<(Self, LocalGroupStorage)>> {
         Ok(Self::load(connection, group_id)
             .await?
             .map(|group| (group, LocalGroupStorage(group_id.clone()))))

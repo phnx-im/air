@@ -479,7 +479,7 @@ impl Hashable for ClientCredential {}
 /// The implementor must guarantee that any credential obtained through this witness was previously
 /// verified against an AS intermediate credential, e.g. it came from a locally-stored MLS group
 /// that was verified on join.
-pub unsafe trait VerifiedByLocalStorage {
+pub unsafe trait GroupStorageWitness {
     /// Returns the group ID of the group that this credential was verified against.
     fn group_id(&self) -> &GroupId;
 }
@@ -501,9 +501,9 @@ impl ClientCredential {
         Self { payload, signature }
     }
 
-    pub fn from_leaf_credential(
+    pub fn assume_verified(
         credential: VerifiableClientCredential,
-        _: &impl VerifiedByLocalStorage,
+        _: &impl GroupStorageWitness,
     ) -> Self {
         Self {
             payload: credential.payload,

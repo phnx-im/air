@@ -23,7 +23,10 @@ use crate::{
     chats::messages::TimestampedMessage,
     clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
     contacts::ContactAddInfos,
-    groups::{Group, GroupData, client_auth_info::StorableClientCredential},
+    groups::{
+        Group, GroupData, client_auth_info::StorableClientCredential,
+        persistence::LocalGroupStorage,
+    },
     job::{Job, JobContext, JobError},
     store::StoreNotifier,
     utils::connection_ext::ConnectionExt,
@@ -76,6 +79,7 @@ enum PendingChatOperationStatus {
 /// Represents a pending chat operation to be retried.
 pub(crate) struct PendingChatOperation {
     group: Group,
+    verified: LocalGroupStorage,
     operation: OperationType,
     // The time at which the operation should be retried. If None, it can be
     // retried immediately.
@@ -113,9 +117,14 @@ impl Job for PendingChatOperation {
 }
 
 impl PendingChatOperation {
-    pub(super) fn new(group: Group, message: impl Into<OperationType>) -> Self {
+    pub(super) fn new(
+        group: Group,
+        verified: LocalGroupStorage,
+        message: impl Into<OperationType>,
+    ) -> Self {
         Self {
             group,
+            verified,
             operation: message.into(),
             retry_due_at: Utc::now().into(),
             status: PendingChatOperationStatus::ReadyToRetry,
@@ -240,7 +249,7 @@ impl PendingChatOperation {
                 let group_messages = if is_commit {
                     let (mut group_messages, group_data) = self
                         .group
-                        .merge_pending_commit(txn, None, ds_timestamp)
+                        .merge_pending_commit(&self.verified, txn, None, ds_timestamp)
                         .await?;
 
                     if let Some(group_data) = group_data {
@@ -366,7 +375,7 @@ impl PendingChatOperation {
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
         let group_id = chat.group_id();
-        let mut group = Group::load_clean(txn, group_id)
+        let (mut group, verified) = Group::load_clean_verified(txn, group_id)
             .await?
             .with_context(|| format!("No group found for group ID {group_id:?}"))?;
 
@@ -381,10 +390,11 @@ impl PendingChatOperation {
             .stage_remove(txn.as_mut(), signer, target_users)
             .await?;
 
-        let job = Self::new(group, Box::new(params));
+        let job = Self::new(group, verified, Box::new(params));
         job.store(txn.as_mut()).await?;
         Ok(job)
     }
+
     pub(super) async fn create_leave(
         txn: &mut SqliteTransaction<'_>,
         signer: &ClientSigningKey,
@@ -394,7 +404,7 @@ impl PendingChatOperation {
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}",))?;
         let group_id = chat.group_id();
-        let mut group = Group::load_clean(txn, group_id)
+        let (mut group, verified) = Group::load_clean_verified(txn, group_id)
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
         let own_id = signer.credential().identity();
@@ -402,7 +412,7 @@ impl PendingChatOperation {
 
         let params = group.stage_leave_group(txn, signer)?;
 
-        let job = Self::new(group, params);
+        let job = Self::new(group, verified, params);
         job.store(txn.as_mut()).await?;
         Ok(job)
     }
@@ -417,7 +427,7 @@ impl PendingChatOperation {
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
         let group_id = chat.group_id();
-        let mut group = Group::load_clean(txn, group_id)
+        let (mut group, verified) = Group::load_clean_verified(txn, group_id)
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
         let group_data = match new_chat_attributes {
@@ -427,7 +437,7 @@ impl PendingChatOperation {
 
         let params = group.update(txn, signer, group_data).await?;
 
-        let job = Self::new(group, Box::new(params));
+        let job = Self::new(group, verified, Box::new(params));
         job.store(txn.as_mut()).await?;
 
         Ok(job)
@@ -447,7 +457,7 @@ impl PendingChatOperation {
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
 
         let group_id = chat.group_id();
-        let mut group = Group::load_clean(txn, group_id)
+        let (mut group, verified) = Group::load_clean_verified(txn, group_id)
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
 
@@ -460,7 +470,7 @@ impl PendingChatOperation {
         } else {
             let message = group.stage_delete(txn, signer).await?;
 
-            let job = Self::new(group, message);
+            let job = Self::new(group, verified, message);
             job.store(txn.as_mut()).await?;
             Ok(Some(job))
         }
@@ -508,7 +518,7 @@ impl PendingChatOperation {
         let group_id = chat.group_id();
         let job = connection
             .with_transaction(async |txn| {
-                let mut group = Group::load_clean(txn, group_id)
+                let (mut group, verified) = Group::load_clean_verified(txn, group_id)
                     .await?
                     .with_context(|| format!("Can't find group with id {group_id:?}"))?;
 
@@ -531,7 +541,8 @@ impl PendingChatOperation {
                     .await?;
 
                 // Create PendingChatOperation job
-                let pending_chat_operation = PendingChatOperation::new(group, Box::new(params));
+                let pending_chat_operation =
+                    PendingChatOperation::new(group, verified, Box::new(params));
                 pending_chat_operation.store(txn).await?;
 
                 Ok(pending_chat_operation)
@@ -630,13 +641,14 @@ mod persistence {
             connection: &mut SqliteConnection,
         ) -> sqlx::Result<PendingChatOperation> {
             let group_id = GroupId::from_slice(&self.group_id);
-            let group = Group::load(connection, &group_id)
+            let (group, verified) = Group::load_verified(connection, &group_id)
                 .await?
                 // This shouldn't happen, as the pending operation references an
                 // existing group inside the database.
                 .ok_or(sqlx::Error::RowNotFound)?;
             Ok(PendingChatOperation {
                 group,
+                verified,
                 operation: self.operation_data.0,
                 retry_due_at: self.retry_due_at,
                 status: self.request_status,
@@ -886,8 +898,13 @@ mod tests {
 
     use crate::{store::StoreNotifier, utils::persistence::open_db_in_memory};
 
-    async fn setup_group_and_chat() -> anyhow::Result<(SqlitePool, Group, ChatId, ClientSigningKey)>
-    {
+    async fn setup_group_and_chat() -> anyhow::Result<(
+        SqlitePool,
+        Group,
+        LocalGroupStorage,
+        ChatId,
+        ClientSigningKey,
+    )> {
         let pool = open_db_in_memory().await?;
         let mut connection = pool.acquire().await?;
 
@@ -901,6 +918,7 @@ mod tests {
         let (group, _) =
             Group::create_group(&mut connection, &signing_key, group_id.clone(), group_data)?;
         group.store(&mut *connection).await?;
+        let verified = LocalGroupStorage::new_for_test(group_id.clone());
 
         let mut notifier = StoreNotifier::noop();
         let chat = Chat::new_group_chat(
@@ -910,16 +928,16 @@ mod tests {
         let chat_id = chat.id();
         chat.store(&mut connection, &mut notifier).await?;
 
-        Ok((pool, group, chat_id, signing_key))
+        Ok((pool, group, verified, chat_id, signing_key))
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn store_and_load_roundtrip() -> anyhow::Result<()> {
-        let (pool, mut group, chat_id, signing_key) = setup_group_and_chat().await?;
+        let (pool, mut group, verified, chat_id, signing_key) = setup_group_and_chat().await?;
         let mut connection = pool.acquire().await?;
 
         let leave_params = group.stage_leave_group(&mut connection, &signing_key)?;
-        let pending = PendingChatOperation::new(group, leave_params);
+        let pending = PendingChatOperation::new(group, verified, leave_params);
 
         pending.store(&mut connection).await?;
 
@@ -940,11 +958,11 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn update_retry_due_at_persists() -> anyhow::Result<()> {
-        let (pool, mut group, chat_id, signing_key) = setup_group_and_chat().await?;
+        let (pool, mut group, verified, chat_id, signing_key) = setup_group_and_chat().await?;
         let mut connection = pool.acquire().await?;
 
         let leave_params = group.stage_leave_group(&mut connection, &signing_key)?;
-        let mut pending = PendingChatOperation::new(group, leave_params);
+        let mut pending = PendingChatOperation::new(group, verified, leave_params);
         pending.store(&mut connection).await?;
 
         let new_timestamp = Utc::now() + Duration::seconds(30);
@@ -963,11 +981,11 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn mark_as_waiting_for_queue_response_updates_status() -> anyhow::Result<()> {
-        let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
+        let (pool, mut group, verified, _chat_id, signing_key) = setup_group_and_chat().await?;
         let mut connection = pool.acquire().await?;
 
         let leave_params = group.stage_leave_group(&mut connection, &signing_key)?;
-        let pending = PendingChatOperation::new(group, leave_params);
+        let pending = PendingChatOperation::new(group, verified, leave_params);
         pending.store(&mut connection).await?;
 
         // Initially the job is ready to retry.
@@ -994,11 +1012,11 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn delete_removes_pending_operation() -> anyhow::Result<()> {
-        let (pool, mut group, chat_id, signing_key) = setup_group_and_chat().await?;
+        let (pool, mut group, verified, chat_id, signing_key) = setup_group_and_chat().await?;
         let mut connection = pool.acquire().await?;
 
         let leave_params = group.stage_leave_group(&mut connection, &signing_key)?;
-        let pending = PendingChatOperation::new(group, leave_params);
+        let pending = PendingChatOperation::new(group, verified, leave_params);
         pending.store(&mut connection).await?;
 
         // Delete and ensure the row is gone.

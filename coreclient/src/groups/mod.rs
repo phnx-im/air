@@ -16,8 +16,7 @@ pub(crate) use error::*;
 
 use aircommon::{
     credentials::{
-        ClientCredential, VerifiableClientCredential, VerifiedByLocalStorage,
-        keys::ClientSigningKey,
+        ClientCredential, GroupStorageWitness, VerifiableClientCredential, keys::ClientSigningKey,
     },
     crypto::{
         ear::{
@@ -773,6 +772,7 @@ impl Group {
     /// extracted from the staged commit.
     pub(super) async fn merge_pending_commit(
         &mut self,
+        verified: &impl GroupStorageWitness,
         txn: &mut SqliteTransaction<'_>,
         staged_commit_option: impl Into<Option<StagedCommit>>,
         ds_timestamp: TimeStamp,
@@ -785,8 +785,8 @@ impl Group {
             // Compute the messages we want to emit from the staged commit and the
             // client info diff.
             let staged_commit_messages = TimestampedMessage::from_staged_commit(
-                txn.as_mut(),
-                self.group_id(),
+                self,
+                verified,
                 &staged_commit,
                 ds_timestamp,
             )
@@ -806,8 +806,8 @@ impl Group {
                 if let Some(staged_commit) = self.mls_group.pending_commit() {
                     let group_data = GroupData::from_staged_commit(staged_commit);
                     let messages = TimestampedMessage::from_staged_commit(
-                        &mut *txn,
-                        self.group_id(),
+                        self,
+                        verified,
                         staged_commit,
                         ds_timestamp,
                     )
@@ -912,7 +912,7 @@ impl Group {
         &self.identity_link_wrapper_key
     }
 
-    /// Returns the list of [`UserId`] of the members of the group.
+    /// Returns an iterator over [`UserId`]s of the members of the group.
     pub(crate) fn members(&self) -> impl Iterator<Item = UserId> {
         self.mls_group.members().filter_map(|m| {
             let credential = VerifiableClientCredential::from_basic_credential(&m.credential)
@@ -1174,12 +1174,12 @@ impl Group {
     pub(crate) fn credential_at(
         &self,
         index: LeafNodeIndex,
-        witness: &impl VerifiedByLocalStorage,
+        witness: &impl GroupStorageWitness,
     ) -> anyhow::Result<Option<ClientCredential>> {
         ensure!(self.group_id() == witness.group_id(), "Group ID mismatch");
         Ok(self
             .unverified_credential_at(index)?
-            .map(|credential| ClientCredential::from_leaf_credential(credential, witness)))
+            .map(|credential| ClientCredential::assume_verified(credential, witness)))
     }
 }
 
@@ -1228,15 +1228,11 @@ impl TimestampedMessage {
     /// Turn a staged commit into a list of messages based on the proposals it
     /// includes.
     async fn from_staged_commit(
-        connection: &mut sqlx::SqliteConnection,
-        group_id: &GroupId,
+        group: &Group,
+        verified: &impl GroupStorageWitness,
         staged_commit: &StagedCommit,
         ds_timestamp: TimeStamp,
     ) -> Result<Vec<Self>> {
-        let (group, verified) = Group::load_verified(connection, group_id)
-            .await?
-            .context("No group found")?;
-
         // Collect the remover/removed pairs into a set to avoid duplicates.
         let mut removed_set = HashSet::new();
         let remove_proposals = staged_commit.queued_proposals().filter(|&p| {
@@ -1259,7 +1255,7 @@ impl TimestampedMessage {
             };
 
             let remover = group
-                .credential_at(*sender_index, &verified)?
+                .credential_at(*sender_index, verified)?
                 .context("Could not find client credential of message sender")?
                 .identity()
                 .clone();
@@ -1270,7 +1266,7 @@ impl TimestampedMessage {
             };
 
             let removed = group
-                .credential_at(removed_index, &verified)?
+                .credential_at(removed_index, verified)?
                 .context("Could not find client credential of removed")?
                 .identity()
                 .clone();
@@ -1298,7 +1294,7 @@ impl TimestampedMessage {
             };
             // Get the user id of the sender from the MLS group member credential
             let sender_id = group
-                .credential_at(*sender_index, &verified)?
+                .credential_at(*sender_index, verified)?
                 .context("Could not find client credential of sender")?
                 .identity()
                 .clone();
@@ -1328,7 +1324,7 @@ impl TimestampedMessage {
             };
             if enabled!(Level::DEBUG) {
                 let credential = group
-                    .credential_at(*sender_index, &verified)?
+                    .credential_at(*sender_index, verified)?
                     .context("Could not find client credential of sender")?;
                 let user_id = credential.identity();
                 debug!(
