@@ -488,6 +488,10 @@ class CustomTextEditingController extends TextEditingController {
   int previousCursorPosition = 0;
   Uint8List raw = Uint8List(0);
 
+  // Cache for buildTextSpan to avoid re-parsing on selection-only changes
+  String? _cachedText;
+  TextSpan? _cachedTextSpan;
+
   CustomTextEditingController() {
     addListener(_handleCursorMovement);
   }
@@ -557,7 +561,7 @@ class CustomTextEditingController extends TextEditingController {
     }
 
     for (var range in widgetRanges) {
-      // If the cursor is inside a widget range, push it to the end
+      // If the cursor is inside a widget range, push it to the edge
       if (cursorPositionUtf8 > range.start && cursorPositionUtf8 < range.end) {
         if (cursorPosition < previousCursorPosition) {
           int startUtf16 = utf8.decode(raw.sublist(0, range.start)).length;
@@ -573,27 +577,27 @@ class CustomTextEditingController extends TextEditingController {
     previousCursorPosition = cursorPosition;
   }
 
+  /// Move cursor/extent to [newPosition], avoiding re-entrant listener calls
+  /// by temporarily removing the listener before setting the selection.
   void moveCursorTo(int newPosition) {
-    Future.delayed(Duration.zero, () {
-      previousCursorPosition = newPosition;
-      if (selection.baseOffset == selection.extentOffset) {
-        // Move cursor, don't start selection
-        selection = TextSelection(
-          extentOffset: newPosition,
-          baseOffset: newPosition,
-          affinity: selection.affinity,
-          isDirectional: selection.isDirectional,
-        );
-      } else {
-        // Keep baseOffset the same to continue selection
-        selection = TextSelection(
-          extentOffset: newPosition,
-          baseOffset: selection.baseOffset,
-          affinity: selection.affinity,
-          isDirectional: selection.isDirectional,
-        );
-      }
-    });
+    removeListener(_handleCursorMovement);
+    previousCursorPosition = newPosition;
+    if (selection.baseOffset == selection.extentOffset) {
+      selection = TextSelection(
+        extentOffset: newPosition,
+        baseOffset: newPosition,
+        affinity: selection.affinity,
+        isDirectional: selection.isDirectional,
+      );
+    } else {
+      selection = TextSelection(
+        extentOffset: newPosition,
+        baseOffset: selection.baseOffset,
+        affinity: selection.affinity,
+        isDirectional: selection.isDirectional,
+      );
+    }
+    addListener(_handleCursorMovement);
   }
 
   @override
@@ -602,6 +606,11 @@ class CustomTextEditingController extends TextEditingController {
     TextStyle? style,
     required bool withComposing,
   }) {
+    // Return cached span when text hasn't changed (e.g. selection-only updates)
+    if (text == _cachedText && _cachedTextSpan != null) {
+      return TextSpan(style: style, children: _cachedTextSpan!.children);
+    }
+
     // Regenerating this data
     widgetRanges.clear();
     lastKnownRawTextLength = text.length;
@@ -615,10 +624,13 @@ class CustomTextEditingController extends TextEditingController {
       parsed = MessageContent.parseMarkdownRaw(string: raw);
     }
 
-    return TextSpan(
+    _cachedText = text;
+    _cachedTextSpan = TextSpan(
       style: style,
       children: buildWrappedBlock(context, 0, raw.length, parsed.elements),
     );
+
+    return TextSpan(style: style, children: _cachedTextSpan!.children);
   }
 
   InlineSpan buildFormattedTextSpanBlock(

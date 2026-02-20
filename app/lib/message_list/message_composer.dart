@@ -55,6 +55,7 @@ class _MessageComposerState extends State<MessageComposer>
   final _focusNode = FocusNode();
   late ChatDetailsCubit _chatDetailsCubit;
   bool _inputIsEmpty = true;
+  String _inputTextCache = '';
   final LayerLink _inputFieldLink = LayerLink();
   final GlobalKey _inputFieldKey = GlobalKey();
   late final TextAutocompleteController<EmojiEntry> _emojiAutocomplete;
@@ -472,12 +473,19 @@ class _MessageComposerState extends State<MessageComposer>
   }
 
   void _onTextChanged() {
+    final currentText = _inputController.text;
+    if (currentText == _inputTextCache) {
+      // Likely a selection or cursor position change, ignore.
+      return;
+    }
+    _inputTextCache = currentText;
+
     setState(() {
-      _inputIsEmpty = _inputController.text.trim().isEmpty;
+      _inputIsEmpty = currentText.trim().isEmpty;
     });
     _storeDraftDebouncer.run(() {
       _chatDetailsCubit.storeDraft(
-        draftMessage: _inputController.text,
+        draftMessage: currentText,
         isCommitted: false,
       );
     });
