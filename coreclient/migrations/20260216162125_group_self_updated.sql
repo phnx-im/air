@@ -3,7 +3,7 @@
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 --
 --
--- Add self_update_at column to group table
+-- Add self_updated_at column to group table
 ALTER TABLE "group"
 ADD COLUMN self_updated_at TEXT;
 

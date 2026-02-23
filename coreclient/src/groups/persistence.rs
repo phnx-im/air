@@ -234,6 +234,9 @@ impl Group {
         )
         .execute(executor)
         .await?;
+        if let Some(self_updated_at) = self_updated_at {
+            self.self_updated_at = Some(self_updated_at);
+        }
         Ok(())
     }
 

@@ -311,7 +311,7 @@ impl OutboundServiceContext {
 
         let self_update_at: DateTime<Utc> =
             group.self_updated_at.map(From::from).unwrap_or_default();
-        if Utc::now() <= self_update_at + Duration::days(1) {
+        if Utc::now() <= self_update_at + SELF_UPDATE_INTERVAL {
             return Ok(false);
         }
 
@@ -326,6 +326,7 @@ impl OutboundServiceContext {
         match res {
             Ok(_messages) => Ok(true),
             Err(JobError::Blocked) => Ok(false),
+            // Fatal or network errors abort the whole batch.
             Err(error @ (JobError::FatalError(_) | JobError::NetworkError)) => Err(error.into()),
         }
     }

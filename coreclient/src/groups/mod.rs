@@ -172,7 +172,7 @@ pub(crate) struct Group {
     pub room_state: VerifiedRoomState,
     pending_diff: Option<StagedGroupDiff>, // Currently unused, but we're keeping it for later
     /// The time at which the user self-updated their key material in this group the last time
-    pub self_updated_at: Option<TimeStamp>,
+    pub(crate) self_updated_at: Option<TimeStamp>,
 }
 
 impl Group {
