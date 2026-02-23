@@ -309,6 +309,27 @@ impl Chat {
         .await
     }
 
+    /// Load chat ids for self-update
+    ///
+    /// Returns all chat ids that have a group attached with `self_updated_at` < `until_due_at`
+    /// ordered by `self_updated_at`.
+    pub(crate) async fn load_ids_for_self_update(
+        executor: impl SqliteExecutor<'_>,
+        until_due_at: DateTime<Utc>,
+    ) -> sqlx::Result<Vec<ChatId>> {
+        query_scalar!(
+            r#"SELECT
+                c.chat_id AS "chat_id: _"
+            FROM chat c
+            INNER JOIN "group" g ON g.group_id = c.group_id
+            WHERE g.self_updated_at IS NULL OR g.self_updated_at < ?1
+            ORDER BY g.self_updated_at ASC"#,
+            until_due_at as _,
+        )
+        .fetch_all(executor)
+        .await
+    }
+
     pub(crate) async fn load_by_group_id(
         connection: &mut SqliteConnection,
         group_id: &GroupId,
@@ -804,6 +825,45 @@ impl Chat {
                 .then(a.member_user_domain.cmp(&b.member_user_domain))
         });
         Ok(members)
+    }
+
+    #[cfg(feature = "test_utils")]
+    pub async fn self_updated_at(
+        executor: impl SqliteExecutor<'_>,
+        chat_id: ChatId,
+    ) -> sqlx::Result<Option<DateTime<Utc>>> {
+        sqlx::query_scalar(
+            r#"SELECT
+                g.self_updated_at AS "self_updated_at: _"
+            FROM chat c
+            INNER JOIN "group" g ON g.group_id = c.group_id
+            WHERE c.chat_id = ?"#,
+        )
+        .bind(chat_id)
+        .fetch_optional(executor)
+        .await
+        .map(Option::flatten)
+    }
+
+    #[cfg(feature = "test_utils")]
+    pub async fn set_self_updated_at(
+        executor: impl SqliteExecutor<'_>,
+        chat_id: ChatId,
+        self_updated_at: DateTime<Utc>,
+    ) -> sqlx::Result<()> {
+        sqlx::query(
+            r#"UPDATE "group"
+            SET self_updated_at = ?1
+            WHERE group_id = (
+                SELECT group_id FROM chat WHERE chat_id = ?2
+            )
+            "#,
+        )
+        .bind(self_updated_at)
+        .bind(chat_id)
+        .execute(executor)
+        .await?;
+        Ok(())
     }
 }
 

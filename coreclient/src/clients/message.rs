@@ -344,10 +344,6 @@ impl UnsentMessage<GroupUpdateNeeded> {
             group_update: GroupUpdateNeeded,
         } = self;
 
-        // Immediately write the group back. No need to wait for the DS to
-        // confirm as this is just an application message.
-        group.store_update(txn.as_mut()).await?;
-
         // Also, mark the message (and all messages preceeding it) as read, but
         // skip for deletions.
         if message.status() != MessageStatus::Deleted {

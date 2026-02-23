@@ -227,6 +227,7 @@ impl CoreUser {
                 client_credential: sender_client_credential.clone(),
                 user_profile_key,
             };
+
             self.fetch_profile(profile_info).await?;
         }
 
