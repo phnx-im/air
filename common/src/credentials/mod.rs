@@ -474,12 +474,13 @@ impl Labeled for ClientCredential {
 
 impl Hashable for ClientCredential {}
 
-/// # Safety
+/// A witness trait which guarantees that a leaf node credential was verified against an AS
+/// intermediate credential.
 ///
 /// The implementor must guarantee that any credential obtained through this witness was previously
 /// verified against an AS intermediate credential, e.g. it came from a locally-stored MLS group
 /// that was verified on join.
-pub unsafe trait GroupStorageWitness {
+pub trait GroupStorageWitness {
     /// Returns the group ID of the group that this credential was verified against.
     fn group_id(&self) -> &GroupId;
 }

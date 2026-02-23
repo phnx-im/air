@@ -84,9 +84,9 @@ impl SqlGroup {
 /// Verification that a group was loaded from the local storage.
 struct LocalGroupStorage(GroupId);
 
-// SAFETY: MLS groups are only written to local storage after all leaf credentials have been
-// verified against an AS intermediate credential.
-unsafe impl GroupStorageWitness for LocalGroupStorage {
+// MLS groups are only written to local storage after all leaf credentials have been verified
+// against an AS intermediate credential.
+impl GroupStorageWitness for LocalGroupStorage {
     fn group_id(&self) -> &GroupId {
         &self.0
     }
@@ -138,10 +138,10 @@ impl Deref for VerifiedGroup {
     }
 }
 
-// SAFETY: VerifiedGroup can only be constructed via `load_verified` /
-// `load_clean_verified`, which load groups from local storage after all
-// leaf credentials have been verified against AS intermediate credentials.
-unsafe impl GroupStorageWitness for VerifiedGroup {
+// VerifiedGroup can only be constructed via `load_verified` / `load_clean_verified`, which load
+// groups from local storage after all leaf credentials have been verified against AS intermediate
+// credentials.
+impl GroupStorageWitness for VerifiedGroup {
     fn group_id(&self) -> &GroupId {
         self.0.group_id()
     }
