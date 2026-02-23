@@ -19,8 +19,11 @@ import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:system_date_time_format/system_date_time_format.dart';
 
 import 'chat_list_cubit.dart';
+
+const _previewLineHeight = 1.28;
 
 typedef ChatDetailsCubitCreate =
     ChatDetailsCubit Function({
@@ -56,7 +59,7 @@ class ChatListContent extends StatelessWidget {
       separatorBuilder: (context, index) => Divider(
         height: 1,
         thickness: 1,
-        indent: Spacings.xl + Spacings.l,
+        indent: Spacings.s + Spacings.xl + Spacings.xs,
         color: CustomColorScheme.of(context).separator.secondary,
       ),
       itemBuilder: (BuildContext context, int index) {
@@ -112,9 +115,11 @@ class _ListTile extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
       minVerticalPadding: 0,
       title: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacings.s,
-          vertical: Spacings.s,
+        padding: const EdgeInsets.fromLTRB(
+          Spacings.s,
+          Spacings.s,
+          Spacings.s,
+          Spacings.xs,
         ),
         decoration: BoxDecoration(
           color: isSelected
@@ -143,7 +148,7 @@ class _ListTile extends StatelessWidget {
                     mainAxisSize: .min,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     mainAxisAlignment: MainAxisAlignment.start,
-                    spacing: Spacings.xxxs,
+                    spacing: 0,
                     children: [
                       _ListTileTop(chat: chat),
                       _ListTileBottom(chat: chat),
@@ -170,7 +175,7 @@ class _ListTileTop extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      spacing: Spacings.xxs,
+      spacing: Spacings.xs,
       children: [
         Expanded(child: _ChatTitle(title: chat.title)),
         _LastUpdated(chat: chat),
@@ -194,23 +199,37 @@ class _ListTileBottom extends StatelessWidget {
     }
     final isBlocked = chat.status == const UiChatStatus.blocked();
 
+    // Measure actual rendered line height to account for
+    // platform font metrics and text scaling.
+    final previewStyle = TextStyle(
+      fontSize: BodyFontSize.base.size,
+      height: _previewLineHeight,
+    );
+    final tp = TextPainter(
+      text: TextSpan(text: ' ', style: previewStyle),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final twoLineHeight = tp.height * 2;
+    tp.dispose();
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: .center,
-      spacing: Spacings.s,
+      spacing: Spacings.xs,
       children: [
         if (!isBlocked)
           Expanded(
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: _LastMessage(chat: chat, ownClientId: ownClientId),
+            child: SizedBox(
+              height: twoLineHeight,
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: _LastMessage(chat: chat, ownClientId: ownClientId),
+              ),
             ),
           ),
-        if (!isBlocked)
-          Align(
-            alignment: Alignment.center,
-            child: _UnreadBadge(chatId: chat.id, count: chat.unreadMessages),
-          ),
+        if (!isBlocked) _TrailingIndicator(ownClientId: ownClientId),
         if (isBlocked)
           const Align(alignment: Alignment.topLeft, child: _BlockedBadge()),
       ],
@@ -242,10 +261,39 @@ class _BlockedBadge extends StatelessWidget {
   }
 }
 
-class _UnreadBadge extends StatelessWidget {
-  const _UnreadBadge({required this.chatId, required this.count});
+class _TrailingIndicator extends StatelessWidget {
+  const _TrailingIndicator({required this.ownClientId});
 
-  final ChatId chatId;
+  final UiUserId ownClientId;
+
+  @override
+  Widget build(BuildContext context) {
+    final chat = context.watch<ChatDetailsCubit>().state.chat;
+    if (chat == null) return const SizedBox.shrink();
+
+    if (chat.unreadMessages > 0) {
+      return _UnreadBadge(count: chat.unreadMessages);
+    }
+
+    final lastMessage = chat.lastMessage;
+    if (lastMessage == null) return const SizedBox.shrink();
+
+    final lastSender = switch (lastMessage.message) {
+      UiMessage_Content(field0: final content) => content.sender,
+      _ => null,
+    };
+    if (lastSender != ownClientId) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(right: Spacings.xxs),
+      child: MessageStatusIndicator(status: lastMessage.status),
+    );
+  }
+}
+
+class _UnreadBadge extends StatelessWidget {
+  const _UnreadBadge({required this.count});
+
   final int count;
 
   @override
@@ -254,12 +302,13 @@ class _UnreadBadge extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final backgroundColor = CustomColorScheme.of(context).function.toggleWhite;
+    final backgroundColor = CustomColorScheme.of(context).function.toggleBlack;
 
     final badgeText = count <= 100 ? "$count" : "100+";
     return Container(
       alignment: AlignmentDirectional.center,
-      padding: const EdgeInsets.symmetric(horizontal: Spacings.xs, vertical: 6),
+      constraints: const BoxConstraints(minHeight: 24, minWidth: 40),
+      padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(1000),
@@ -267,8 +316,8 @@ class _UnreadBadge extends StatelessWidget {
       child: Text(
         badgeText,
         style: TextStyle(
-          color: CustomColorScheme.of(context).function.toggleBlack,
-          fontSize: LabelFontSize.small2.size,
+          color: CustomColorScheme.of(context).function.toggleWhite,
+          fontSize: LabelFontSize.small3.size,
           height: 1,
         ),
       ),
@@ -310,7 +359,8 @@ class _LastMessage extends StatelessWidget {
       return Text(
         loc.textMessage_hiddenPlaceholder,
         style: TextStyle(
-          fontSize: BodyFontSize.small1.size,
+          fontSize: BodyFontSize.base.size,
+          height: _previewLineHeight,
           fontStyle: FontStyle.italic,
           color: color.text.tertiary,
         ),
@@ -327,7 +377,8 @@ class _LastMessage extends StatelessWidget {
       return Text(
         loc.textMessage_deleted,
         style: TextStyle(
-          fontSize: BodyFontSize.small1.size,
+          fontSize: BodyFontSize.base.size,
+          height: _previewLineHeight,
           fontStyle: FontStyle.italic,
           color: color.text.tertiary,
         ),
@@ -335,12 +386,12 @@ class _LastMessage extends StatelessWidget {
     }
 
     final readStyle = TextStyle(
-      fontSize: BodyFontSize.small1.size,
+      fontSize: BodyFontSize.base.size,
+      height: _previewLineHeight,
       color: Color.alphaBlend(
         color.text.tertiary,
         ChatListContainer.backgroundColor(context),
       ),
-      height: 1.28,
     );
     final unreadStyle = readStyle;
     final draftStyle = readStyle.copyWith(fontStyle: FontStyle.italic);
@@ -387,29 +438,16 @@ class _LastMessage extends StatelessWidget {
             _ => null,
           };
 
-    final baseFontSize =
-        readStyle.fontSize ?? DefaultTextStyle.of(context).style.fontSize ?? 14;
-    final lineHeight = baseFontSize * (readStyle.height ?? 1.0);
-    const maxLines = 2;
-
-    return SizedBox(
-      height: lineHeight * maxLines,
-      child: Text.rich(
-        TextSpan(
-          children: [
-            TextSpan(text: prefix, style: prefixStyle),
-            TextSpan(text: suffix, style: suffixStyle),
-          ],
-        ),
-        maxLines: maxLines,
-        softWrap: true,
-        overflow: TextOverflow.ellipsis,
-        strutStyle: StrutStyle(
-          forceStrutHeight: true,
-          fontSize: baseFontSize,
-          height: readStyle.height,
-        ),
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: prefix, style: prefixStyle),
+          TextSpan(text: suffix, style: suffixStyle),
+        ],
       ),
+      maxLines: 2,
+      softWrap: true,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }
@@ -425,30 +463,66 @@ class _LastUpdated extends StatefulWidget {
 
 class _LastUpdatedState extends State<_LastUpdated> {
   String _displayTimestamp = '';
+  TimestampCategory? _category;
+  int? _minutesAgo;
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    _displayTimestamp = formatTimestamp(widget.chat.lastUsed);
-    _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      final newDisplayTimestamp = formatTimestamp(widget.chat.lastUsed);
-      if (newDisplayTimestamp != _displayTimestamp) {
-        setState(() {
-          _displayTimestamp = newDisplayTimestamp;
-        });
-      }
-    });
+    _timer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _refreshTimestamp(),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _category = classifyTimestamp(widget.chat.lastUsed);
+    _minutesAgo = DateTime.now().difference(widget.chat.lastUsed).inMinutes;
+    _displayTimestamp = _format(_category!);
   }
 
   @override
   void didUpdateWidget(covariant _LastUpdated oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.chat.lastUsed != widget.chat.lastUsed) {
-      setState(() {
-        _displayTimestamp = formatTimestamp(widget.chat.lastUsed);
-      });
+      _refreshTimestamp();
     }
+  }
+
+  void _refreshTimestamp() {
+    final newCategory = classifyTimestamp(widget.chat.lastUsed);
+    final newMinutes = DateTime.now()
+        .difference(widget.chat.lastUsed)
+        .inMinutes;
+    final categoryChanged = newCategory != _category;
+    final minutesChanged =
+        newCategory == TimestampCategory.minutes && newMinutes != _minutesAgo;
+    if (!categoryChanged && !minutesChanged) return;
+    _category = newCategory;
+    _minutesAgo = newMinutes;
+    final formatted = _format(newCategory);
+    if (formatted != _displayTimestamp) {
+      setState(() => _displayTimestamp = formatted);
+    }
+  }
+
+  String _format(TimestampCategory category) {
+    final loc = AppLocalizations.of(context);
+    final locale = Localizations.localeOf(context).toString();
+    final patterns = SystemDateTimeFormat.of(context);
+    final timePattern = patterns.timePattern ?? DateFormat.jm(locale).pattern!;
+    final datePattern = patterns.datePattern ?? DateFormat.yMd(locale).pattern!;
+    return formatTimestamp(
+      widget.chat.lastUsed,
+      loc,
+      category,
+      timePattern: timePattern,
+      datePattern: datePattern,
+      locale: locale,
+    );
   }
 
   @override
@@ -459,15 +533,15 @@ class _LastUpdatedState extends State<_LastUpdated> {
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
     return Baseline(
       baseline: Spacings.xs,
       baselineType: TextBaseline.alphabetic,
       child: Text(
-        _localizedTimestamp(_displayTimestamp, loc),
+        _displayTimestamp,
         style: TextStyle(
           color: CustomColorScheme.of(context).text.tertiary,
-          fontSize: LabelFontSize.small2.size,
+          fontSize: LabelFontSize.small3.size,
+          height: 1.0,
         ),
       ),
     );
@@ -486,11 +560,12 @@ class _ChatTitle extends StatelessWidget {
       baselineType: TextBaseline.alphabetic,
       child: Text(
         title,
+        maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          fontSize: LabelFontSize.small1.size,
+          fontSize: LabelFontSize.base.size,
+          height: _previewLineHeight,
           fontWeight: FontWeight.bold,
-          height: 1,
           color: CustomColorScheme.of(context).text.primary,
         ),
       ),
@@ -498,37 +573,64 @@ class _ChatTitle extends StatelessWidget {
   }
 }
 
-String _localizedTimestamp(String original, AppLocalizations loc) =>
-    switch (original) {
-      'Now' => loc.timestamp_now,
-      'Yesterday' => loc.timestamp_yesterday,
-      _ => original,
-    };
+enum TimestampCategory {
+  now,
+  minutes,
+  today,
+  yesterday,
+  thisWeek,
+  thisYear,
+  older,
+}
 
-String formatTimestamp(DateTime timestamp, {DateTime? now}) {
+TimestampCategory classifyTimestamp(DateTime timestamp, {DateTime? now}) {
   now ??= DateTime.now();
-
-  final difference = now.difference(timestamp);
+  final diff = now.difference(timestamp);
   final yesterday = DateTime(now.year, now.month, now.day - 1);
 
-  if (difference.inSeconds < 60) {
-    return 'Now';
-  } else if (difference.inMinutes < 60) {
-    return '${difference.inMinutes}m';
-  } else if (now.year == timestamp.year &&
+  if (diff.inSeconds < 60) return TimestampCategory.now;
+  if (diff.inMinutes < 60) return TimestampCategory.minutes;
+  if (now.year == timestamp.year &&
       now.month == timestamp.month &&
       now.day == timestamp.day) {
-    return DateFormat('HH:mm').format(timestamp);
-  } else if (now.year == timestamp.year &&
-      timestamp.year == yesterday.year &&
+    return TimestampCategory.today;
+  }
+  if (timestamp.year == yesterday.year &&
       timestamp.month == yesterday.month &&
       timestamp.day == yesterday.day) {
-    return 'Yesterday';
-  } else if (difference.inDays < 7) {
-    return DateFormat('E').format(timestamp);
-  } else if (now.year == timestamp.year) {
-    return DateFormat('dd.MM').format(timestamp);
-  } else {
-    return DateFormat('dd.MM.yy').format(timestamp);
+    return TimestampCategory.yesterday;
   }
+  if (diff.inDays < 7) return TimestampCategory.thisWeek;
+  if (now.year == timestamp.year) return TimestampCategory.thisYear;
+  return TimestampCategory.older;
+}
+
+String formatTimestamp(
+  DateTime timestamp,
+  AppLocalizations loc,
+  TimestampCategory category, {
+  required String timePattern,
+  required String datePattern,
+  required String locale,
+  DateTime? now,
+}) {
+  now ??= DateTime.now();
+  return switch (category) {
+    TimestampCategory.now => loc.timestamp_now,
+    TimestampCategory.minutes => '${now.difference(timestamp).inMinutes}m',
+    TimestampCategory.today => DateFormat(timePattern).format(timestamp),
+    TimestampCategory.yesterday => loc.timestamp_yesterday,
+    TimestampCategory.thisWeek => DateFormat.E(locale).format(timestamp),
+    TimestampCategory.thisYear => DateFormat(
+      _stripYear(datePattern),
+    ).format(timestamp),
+    TimestampCategory.older => DateFormat(datePattern).format(timestamp),
+  };
+}
+
+/// Removes year tokens (y, Y) and surrounding separators from a
+/// date pattern, e.g. "M/d/yy" → "M/d", "dd.MM.yyyy" → "dd.MM".
+String _stripYear(String pattern) {
+  // Remove year tokens and any adjacent separator (/ . - , or space)
+  return pattern.replaceAll(RegExp(r"[/.\-,\s]*[yY]+[/.\-,\s]*"), '').trim();
 }

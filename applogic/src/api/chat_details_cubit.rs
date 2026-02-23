@@ -528,21 +528,33 @@ impl ChatDetailsContext {
         while let Some(notification) = notifications.next().await {
             if notification.ops.contains_key(&self.chat_id.into()) {
                 self.load_and_emit_state().await;
-            } else {
-                // Don't hold the lock of the state too long
-                let user_id = self
-                    .state_tx
-                    .borrow()
-                    .chat
-                    .as_ref()
-                    .and_then(|chat| chat.connection_user_id())
+                continue;
+            }
+
+            // Don't hold the lock of the state too long
+            let (last_message_id, user_id) = {
+                let state = self.state_tx.borrow();
+                let chat = state.chat.as_ref();
+                let last_message_id = chat.and_then(|c| c.last_message.as_ref()).map(|m| m.id);
+                let user_id = chat
+                    .and_then(|c| c.connection_user_id())
                     .cloned()
                     .map(UserId::from);
-                if let Some(user_id) = user_id
-                    && notification.ops.contains_key(&user_id.into())
-                {
-                    self.load_and_emit_state().await;
-                }
+                (last_message_id, user_id)
+            };
+
+            // Reload when the last message changes (e.g. status update)
+            if let Some(id) = last_message_id
+                && notification.ops.contains_key(&id.into())
+            {
+                self.load_and_emit_state().await;
+                continue;
+            }
+
+            if let Some(user_id) = user_id
+                && notification.ops.contains_key(&user_id.into())
+            {
+                self.load_and_emit_state().await;
             }
         }
     }
