@@ -2,16 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use crate::{
-    Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
-    chats::messages::TimestampedMessage,
-    clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
-    contacts::ContactAddInfos,
-    groups::{Group, GroupData, client_auth_info::StorableClientCredential},
-    job::{Job, JobContext, JobError},
-    store::StoreNotifier,
-    utils::connection_ext::ConnectionExt,
-};
+use std::collections::HashSet;
+
 use airapiclient::ds_api::DsRequestError;
 use aircommon::{
     codec::PersistenceCodec,
@@ -26,8 +18,18 @@ use mimi_room_policy::RoleIndex;
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
 use sqlx::{SqliteConnection, SqlitePool, SqliteTransaction, query, query_as};
-use std::collections::HashSet;
 use tracing::info;
+
+use crate::{
+    Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
+    chats::messages::TimestampedMessage,
+    clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
+    contacts::ContactAddInfos,
+    groups::{Group, GroupData, client_auth_info::StorableClientCredential},
+    job::{Job, JobContext, JobError},
+    store::StoreNotifier,
+    utils::connection_ext::ConnectionExt,
+};
 
 // Having separate retry intervals for test and non-test is a hack until we can
 // pass "now" directly into OutboundService runs.
@@ -288,7 +290,9 @@ impl PendingChatOperation {
                         .await?;
                 }
 
-                self.group.store_update(txn.as_mut()).await?;
+                self.group
+                    .store_update(txn.as_mut(), Some(ds_timestamp))
+                    .await?;
                 let messages =
                     CoreUser::store_new_messages(&mut *txn, notifier, chat.id(), group_messages)
                         .await?;
@@ -385,6 +389,7 @@ impl PendingChatOperation {
         job.store(txn.as_mut()).await?;
         Ok(job)
     }
+
     pub(super) async fn create_leave(
         txn: &mut SqliteTransaction<'_>,
         signer: &ClientSigningKey,
@@ -770,7 +775,7 @@ mod persistence {
 
         pub(crate) async fn is_pending_for_chat(
             executor: impl SqliteExecutor<'_>,
-            chat_id: &ChatId,
+            chat_id: ChatId,
         ) -> sqlx::Result<bool> {
             let record = query!(
                 "SELECT EXISTS(SELECT 1

@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                g.group_id AS \"group_id: _\",\n                g.identity_link_wrapper_key AS \"identity_link_wrapper_key: _\",\n                g.group_state_ear_key AS \"group_state_ear_key: _\",\n                g.pending_diff AS \"pending_diff: _\",\n                g.room_state AS \"room_state: _\",\n                g.self_updated_at AS \"self_updated_at: _\"\n            FROM \"group\" g\n            INNER JOIN chat c ON c.group_id = g.group_id\n            WHERE c.chat_id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "group_id: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "identity_link_wrapper_key: _",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "group_state_ear_key: _",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "pending_diff: _",
+        "ordinal": 3,
+        "type_info": "Blob"
+      },
+      {
+        "name": "room_state: _",
+        "ordinal": 4,
+        "type_info": "Blob"
+      },
+      {
+        "name": "self_updated_at: _",
+        "ordinal": 5,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "fe0ea1258934a7f5a4f20879414d3cf3b1fea741d61db6c4531258d140329fc2"
+}
