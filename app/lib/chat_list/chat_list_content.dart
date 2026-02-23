@@ -617,7 +617,9 @@ String formatTimestamp(
   now ??= DateTime.now();
   return switch (category) {
     TimestampCategory.now => loc.timestamp_now,
-    TimestampCategory.minutes => '${now.difference(timestamp).inMinutes}m',
+    TimestampCategory.minutes => loc.timestamp_minutesAgo(
+      now.difference(timestamp).inMinutes,
+    ),
     TimestampCategory.today => DateFormat(timePattern).format(timestamp),
     TimestampCategory.yesterday => loc.timestamp_yesterday,
     TimestampCategory.thisWeek => DateFormat.E(locale).format(timestamp),

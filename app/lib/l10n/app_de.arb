@@ -133,6 +133,7 @@
   "systemMessage_userCreatedGroup_prefix": "{user}",
   "systemMessage_userCreatedGroup_suffix": " hat die Gruppe erstellt",
   "timestamp_now": "Jetzt",
+  "timestamp_minutesAgo": "{count}m",
   "timestamp_yesterday": "Gestern",
   "messageBubble_sending": "Wird gesendet",
   "messageBubble_failedToSend": "Senden fehlgeschlagen",

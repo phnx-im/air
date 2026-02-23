@@ -102,7 +102,7 @@ void main() {
           locale: locale,
           now: fixedNow,
         ),
-        equals('59m'),
+        equals(loc.timestamp_minutesAgo(59)),
       );
     });
 
