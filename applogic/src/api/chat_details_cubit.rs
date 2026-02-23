@@ -16,6 +16,7 @@ use aircoreclient::{
     UploadTaskError,
 };
 use aircoreclient::{MessageId, clients::CoreUser, store::Store};
+use anyhow::{Context as _, bail};
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
 use mimi_content::MimiContent;
@@ -202,14 +203,38 @@ impl ChatDetailsCubitBase {
                 .store_message_draft(self.context.chat_id, None)
                 .await?;
         }
-        let editing_id = draft.and_then(|d| d.editing_id);
+
+        let replaces = if let Some(replaces_id) = draft.and_then(|d| d.editing_id) {
+            // Load the original message and the Mimi ID of the original message
+            let original: ChatMessage = self
+                .context
+                .store
+                .message(replaces_id)
+                .await?
+                .with_context(|| format!("Can't find message with id {replaces_id:?}"))?;
+            let Some(plain_body) = original
+                .message()
+                .mimi_content()
+                .and_then(|content| content.plain_body())
+            else {
+                bail!("Unable to edit message with no body.");
+            };
+
+            if plain_body == message_text {
+                // Nothing changed. Do nothing.
+                return Ok(());
+            }
+            Some(original)
+        } else {
+            None
+        };
 
         let salt: [u8; 16] = RustCrypto::default().random_array()?;
         let content = MimiContent::simple_markdown_message(message_text, salt);
 
         self.context
             .store
-            .send_message(self.context.chat_id, content, editing_id)
+            .send_message(self.context.chat_id, content, replaces)
             .await
             .inspect_err(|error| error!(%error, "Failed to send message"))?;
 

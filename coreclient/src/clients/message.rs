@@ -60,7 +60,7 @@ impl CoreUser {
         let null_content = null_part_content(&message)?;
 
         // Send the deletion message
-        self.send_message(chat_id, null_content, Some(message_id))
+        self.send_message(chat_id, null_content, Some(message))
             .await
     }
 
@@ -143,7 +143,7 @@ impl CoreUser {
         &self,
         chat_id: ChatId,
         content: MimiContent,
-        replaces_id: Option<MessageId>,
+        replaces: Option<ChatMessage>,
     ) -> anyhow::Result<ChatMessage> {
         let needs_update = self
             .with_transaction(async |txn| {
@@ -173,7 +173,7 @@ impl CoreUser {
                     message_id: MessageId::random(),
                     content,
                 }
-                .store_unsent_message(txn, notifier, self.user_id(), replaces_id)
+                .store_unsent_message(txn, notifier, self.user_id(), replaces)
                 .await?
                 .store_group_update(txn, notifier, self.user_id())
                 .await?;
@@ -224,7 +224,7 @@ impl UnsentContent {
         txn: &mut SqliteTransaction<'_>,
         notifier: &mut StoreNotifier,
         sender: &UserId,
-        replaces_id: Option<MessageId>,
+        replaces: Option<ChatMessage>,
     ) -> anyhow::Result<UnsentMessage<GroupUpdateNeeded>> {
         let UnsentContent {
             chat_id,
@@ -238,16 +238,12 @@ impl UnsentContent {
 
         let is_deletion = content.nested_part.part == NestedPartContent::NullPart;
 
-        let message = if let Some(replaces_id) = replaces_id {
-            // Load the original message and the Mimi ID of the original message
-            let mut original = ChatMessage::load(txn.as_mut(), replaces_id)
-                .await?
-                .with_context(|| format!("Can't find message with id {replaces_id:?}"))?;
-            let original_mimi_content = original
+        let message = if let Some(replaces) = replaces {
+            let original_mimi_content = replaces
                 .message()
                 .mimi_content()
                 .context("Replaced message does not have mimi content")?;
-            let original_mimi_id = original
+            let original_mimi_id = replaces
                 .message()
                 .mimi_id()
                 .context("Replaced message does not have mimi id")?;
@@ -258,7 +254,7 @@ impl UnsentContent {
                 // Store the edit
                 let edit = MessageEdit::new(
                     original_mimi_id,
-                    original.id(),
+                    replaces.id(),
                     edit_created_at,
                     original_mimi_content,
                 );
@@ -267,29 +263,30 @@ impl UnsentContent {
 
             // Edit the original message and clear its status
             let is_sent = false;
-            original.set_content_message(ContentMessage::new(
+            let mut updated = replaces.clone();
+            updated.set_content_message(ContentMessage::new(
                 sender.clone(),
                 is_sent,
                 content.clone(),
                 chat.group_id(),
             ));
             if is_deletion {
-                original.set_status(MessageStatus::Deleted);
+                updated.set_status(MessageStatus::Deleted);
             } else {
-                original.set_status(MessageStatus::Unread);
+                updated.set_status(MessageStatus::Unread);
             }
-            original.set_edited_at(edit_created_at);
-            original.update(txn.as_mut(), notifier).await?;
-            StatusRecord::clear(txn.as_mut(), notifier, original.id()).await?;
+            updated.set_edited_at(edit_created_at);
+            updated.update(txn.as_mut(), notifier).await?;
+            StatusRecord::clear(txn.as_mut(), notifier, updated.id()).await?;
 
             // Delete attachments for this message on network deletion
             // (FK cascade handles local deletion where the message row is deleted)
             if is_deletion {
-                AttachmentRecord::delete_by_message_id(txn.as_mut(), notifier, original.id())
+                AttachmentRecord::delete_by_message_id(txn.as_mut(), notifier, updated.id())
                     .await?;
             }
 
-            original
+            updated
         } else {
             // Store the message as unsent so that we don't lose it in case
             // something goes wrong.

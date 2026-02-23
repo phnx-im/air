@@ -26,6 +26,11 @@ reset-dev:
     cargo sqlx database reset -y --database-url {{CLIENT_DATABASE_URL}}
     cargo sqlx database reset -y --database-url {{SERVER_DATABASE_URL}}
 
+# Migrate databases.
+migrate-dev:
+    cd coreclient && cargo sqlx migrate run --database-url {{CLIENT_DATABASE_URL}}
+    cd backend && cargo sqlx migrate run --database-url {{SERVER_DATABASE_URL}}
+
 # Run fast and simple Rust lints.
 @check-rust:
     just _check-status "cargo machete"

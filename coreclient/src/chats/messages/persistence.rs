@@ -172,7 +172,7 @@ impl TryFrom<SqlChatMessage> for ChatMessage {
 }
 
 impl ChatMessage {
-    pub(crate) async fn load(
+    pub async fn load(
         executor: impl SqliteExecutor<'_>,
         message_id: MessageId,
     ) -> sqlx::Result<Option<Self>> {

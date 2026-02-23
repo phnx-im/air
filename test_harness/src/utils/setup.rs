@@ -768,7 +768,7 @@ impl TestBackend {
 
         test_sender
             .user
-            .send_message(chat_id, orig_message.clone(), Some(last_message.id()))
+            .send_message(chat_id, orig_message.clone(), Some(last_message.clone()))
             .await
             .unwrap();
         test_sender.user.outbound_service().run_once().await;
