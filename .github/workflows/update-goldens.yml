@@ -32,18 +32,11 @@ jobs:
             - name: Set up Just
               uses: extractions/setup-just@v2
 
-            - name: Install FVM (Linux/macOS)
-              if: runner.os != 'Windows'
-              run: |
-                  just install-fvm
-                  echo $HOME/fvm/bin >> $GITHUB_PATH
-
-            - name: Install FVM (Windows)
-              if: runner.os == 'Windows'
-              run: choco install fvm
-              shell: pwsh
-
-            - run: cd app && fvm install
+            - name: Set up Flutter FVM
+              uses: kuhnroyal/flutter-fvm-config-action/setup@v3
+              with:
+                  path: "app/.fvmrc"
+                  cache: false
 
             - name: Update goldens
               run: just update-flutter-goldens
