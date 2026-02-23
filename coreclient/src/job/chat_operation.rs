@@ -3,15 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::UserId;
-use anyhow::{anyhow, bail, ensure};
-use chrono::Utc;
+use anyhow::{anyhow, bail};
 use sqlx::SqliteConnection;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
     groups::Group,
     job::{Job, JobContext, JobError, pending_chat_operation::PendingChatOperation},
-    outbound_service::SELF_UPDATE_INTERVAL,
     utils::connection_ext::ConnectionExt,
 };
 
@@ -131,26 +129,10 @@ impl ChatOperation {
                     bail!("None of the users to remove are members of the group");
                 }
             }
-            ChatOperationType::Update(attributes) => {
-                if attributes.is_some() {
-                    return Ok(()); // Update needed when attributes need to be updated
-                }
-
-                let has_pending_proposals = group.mls_group().pending_proposals().next().is_some();
-                if has_pending_proposals {
-                    return Ok(()); // Update needed when there are pending proposals
-                }
-
-                let now = Utc::now();
-                let next_self_update_at = group
-                    .self_updated_at
-                    .map(|t| *t + SELF_UPDATE_INTERVAL)
-                    .unwrap_or(now);
-                ensure!(next_self_update_at <= now, "Last self update is too recent");
-            }
             // The following operations are always valid as long as the
             // group is active.
-            ChatOperationType::Leave | ChatOperationType::Delete => {}
+            ChatOperationType::Leave | ChatOperationType::Delete | ChatOperationType::Update(_) => {
+            }
         }
         Ok(())
     }

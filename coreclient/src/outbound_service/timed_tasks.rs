@@ -29,7 +29,7 @@ use super::OutboundServiceContext;
 pub const KEY_PACKAGES: usize = 100;
 
 /// Interval at which the self-update in a group is executed
-pub(crate) const SELF_UPDATE_INTERVAL: Duration = Duration::days(1);
+const SELF_UPDATE_INTERVAL: Duration = Duration::days(1);
 
 /// A task to be executed at some point in the future
 #[derive(Debug, Serialize, Deserialize)]
