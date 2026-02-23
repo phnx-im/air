@@ -320,7 +320,7 @@ impl OutboundServiceContext {
             return Ok(false);
         }
 
-        let job = ChatOperation::self_update(chat_id);
+        let job = ChatOperation::update(chat_id, None);
         let res = self.execute_job(job).await;
 
         match res {

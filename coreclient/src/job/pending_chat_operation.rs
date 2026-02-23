@@ -545,27 +545,6 @@ impl PendingChatOperation {
 
         Ok(job)
     }
-
-    pub(crate) async fn create_self_update(
-        txn: &mut SqliteTransaction<'_>,
-        signing_key: &ClientSigningKey,
-        chat_id: ChatId,
-    ) -> Result<Self, anyhow::Error> {
-        let chat = Chat::load(txn.as_mut(), &chat_id)
-            .await?
-            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
-        let group_id = chat.group_id();
-        let mut group = Group::load_clean(txn, group_id)
-            .await?
-            .with_context(|| format!("Can't find group with id {group_id:?}"))?;
-
-        let params = group.self_update(txn, signing_key)?;
-
-        let job = Self::new(group, Box::new(params));
-        job.store(txn.as_mut()).await?;
-
-        Ok(job)
-    }
 }
 
 mod persistence {

@@ -52,7 +52,7 @@ use aircommon::{
     time::TimeStamp,
     utils::removed_client,
 };
-use anyhow::{Context, Result, anyhow, bail, ensure};
+use anyhow::{Context, Result, anyhow, bail};
 use mimi_content::MimiContent;
 use mimi_room_policy::{MimiProposal, RoleIndex, RoomPolicy, VerifiedRoomState};
 use mls_assist::messages::AssistedMessageOut;
@@ -1077,44 +1077,6 @@ impl Group {
 
         GroupMembership::stage_removals_in_pending_commit(&mut *txn, self).await?;
         let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()));
-        Ok(GroupOperationParamsOut {
-            commit,
-            add_users_info_option: None,
-        })
-    }
-
-    pub(super) fn self_update(
-        &mut self,
-        txn: &mut SqliteTransaction<'_>,
-        signer: &ClientSigningKey,
-    ) -> Result<GroupOperationParamsOut> {
-        // We don't expect there to be a welcome.
-        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
-            new_encrypted_user_profile_keys: Vec::new(),
-        }))
-        .tls_serialize_detached()?;
-
-        self.mls_group.set_aad(aad);
-
-        let provider = AirOpenMlsProvider::new(txn.as_mut());
-
-        let leaf_node_parameters = LeafNodeParameters::builder()
-            .with_capabilities(default_capabilities())
-            .build();
-
-        let (commit, _welcome, group_info) = self
-            .mls_group
-            .commit_builder()
-            .create_group_info(true)
-            .leaf_node_parameters(leaf_node_parameters)
-            .consume_proposal_store(true)
-            .load_psks(provider.storage())?
-            .build(provider.rand(), provider.crypto(), signer, |_| true)?
-            .stage_commit(&provider)?
-            .into_messages();
-        ensure!(group_info.is_some(), "No group info after self-update");
-
-        let commit = AssistedMessageOut::new(commit, group_info);
         Ok(GroupOperationParamsOut {
             commit,
             add_users_info_option: None,

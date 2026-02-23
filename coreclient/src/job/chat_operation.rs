@@ -22,7 +22,6 @@ enum ChatOperationType {
     Leave,
     Delete,
     Update(Option<ChatAttributes>),
-    SelfUpdate,
 }
 
 pub(crate) struct ChatOperation {
@@ -93,13 +92,6 @@ impl ChatOperation {
         }
     }
 
-    pub(crate) fn self_update(chat_id: ChatId) -> Self {
-        ChatOperation {
-            chat_id,
-            operation: ChatOperationType::SelfUpdate,
-        }
-    }
-
     /// Check whether the operation is still valid given the current state of
     /// the group. If the operation is partially valid (e.g. one of the users to
     /// add is already a member), refine the operation to only include the valid
@@ -139,7 +131,16 @@ impl ChatOperation {
                     bail!("None of the users to remove are members of the group");
                 }
             }
-            ChatOperationType::SelfUpdate => {
+            ChatOperationType::Update(attributes) => {
+                if attributes.is_some() {
+                    return Ok(()); // Update needed when attributes need to be updated
+                }
+
+                let has_pending_proposals = group.mls_group().pending_proposals().next().is_some();
+                if has_pending_proposals {
+                    return Ok(()); // Update needed when there are pending proposals
+                }
+
                 let now = Utc::now();
                 let next_self_update_at = group
                     .self_updated_at
@@ -149,8 +150,7 @@ impl ChatOperation {
             }
             // The following operations are always valid as long as the
             // group is active.
-            ChatOperationType::Leave | ChatOperationType::Delete | ChatOperationType::Update(_) => {
-            }
+            ChatOperationType::Leave | ChatOperationType::Delete => {}
         }
         Ok(())
     }
@@ -180,7 +180,6 @@ impl ChatOperation {
             ChatOperationType::Update(chat_attributes) => {
                 self.execute_update(context, chat_attributes.as_ref()).await
             }
-            ChatOperationType::SelfUpdate => self.execute_self_update(context).await,
         }
     }
 
@@ -273,22 +272,6 @@ impl ChatOperation {
             })
             .await?;
 
-        job.execute(context).await
-    }
-
-    async fn execute_self_update(
-        self,
-        context: &mut JobContext<'_>,
-    ) -> Result<Vec<ChatMessage>, JobError> {
-        let JobContext {
-            pool, key_store, ..
-        } = context;
-        let job = pool
-            .with_transaction(async |txn| {
-                PendingChatOperation::create_self_update(txn, &key_store.signing_key, self.chat_id)
-                    .await
-            })
-            .await?;
         job.execute(context).await
     }
 
