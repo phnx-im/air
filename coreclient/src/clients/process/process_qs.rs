@@ -184,7 +184,7 @@ impl CoreUser {
             // If yes, merge the commit and store the updated group
             let (mut group_messages, group_data) =
                 group.merge_pending_commit(txn, None, timestamp).await?;
-            group.store_update(&mut **txn).await?;
+            group.store_update(txn.as_mut(), Some(timestamp)).await?;
 
             let mut chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
                 .await?
@@ -378,9 +378,6 @@ impl CoreUser {
                         sent_at: ds_timestamp,
                     }));
 
-                // MLSMessage Phase 3: Store the updated group.
-                group.store_update(txn.as_mut()).await?;
-
                 Ok(TransactionResult::Ok(connection_info_source))
             })
             .await?;
@@ -497,6 +494,7 @@ impl CoreUser {
                             let (new_messages, updated) = self
                                 .handle_proposal_message(txn, &mut group, *proposal, ds_timestamp)
                                 .await?;
+                            group.store_update(txn.as_mut(), None).await?;
                             (new_messages, Vec::new(), updated)
                         }
                         ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
@@ -513,6 +511,7 @@ impl CoreUser {
                                     we_were_removed,
                                 )
                                 .await?;
+                            group.store_update(txn.as_mut(), None).await?;
                             (new_messages, Vec::new(), updated)
                         }
                         ProcessedMessageContent::ExternalJoinProposalMessage(_) => {
@@ -521,9 +520,6 @@ impl CoreUser {
                             (new_messages, Vec::new(), updated)
                         }
                     };
-
-                // MLSMessage Phase 3: Store the updated group and the messages.
-                group.store_update(txn.as_mut()).await?;
 
                 let mut messages =
                     Self::store_new_messages(txn, notifier, chat_id, new_messages).await?;
