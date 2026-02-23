@@ -24,6 +24,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:air/ui/icons/app_icons.dart';
 
 import 'change_group_title_dialog.dart';
+import 'chat_debug_info_view.dart';
 import 'chat_details_cubit.dart';
 
 /// Details of a group chat
@@ -46,6 +47,15 @@ class GroupDetailsScreen extends StatelessWidget {
 
     return AppScaffold(
       title: chat.title,
+      onTitleLongPress: () {
+        final debugInfoFut = context.read<ChatDetailsCubit>().chatDebugInfo();
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) =>
+                ChatDebugInfoView(title: chat.title, debugInfo: debugInfoFut),
+          ),
+        );
+      },
       child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedWidth(

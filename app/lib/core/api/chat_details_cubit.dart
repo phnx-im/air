@@ -29,6 +29,8 @@ part 'chat_details_cubit.freezed.dart';
 abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   Future<void> acceptContactRequest();
 
+  Future<GroupDebugInfo> chatDebugInfo();
+
   Future<void> close();
 
   Future<void> deleteMessage({
@@ -113,6 +115,123 @@ sealed class ChatDetailsState with _$ChatDetailsState {
   }) = _ChatDetailsState;
   static Future<ChatDetailsState> default_() =>
       RustLib.instance.api.crateApiChatDetailsCubitChatDetailsStateDefault();
+}
+
+class DebugCapabilities {
+  final String userId;
+  final List<String> versions;
+  final List<String> ciphersuites;
+  final List<String> extensions;
+  final List<String> proposals;
+
+  const DebugCapabilities({
+    required this.userId,
+    required this.versions,
+    required this.ciphersuites,
+    required this.extensions,
+    required this.proposals,
+  });
+
+  @override
+  int get hashCode =>
+      userId.hashCode ^
+      versions.hashCode ^
+      ciphersuites.hashCode ^
+      extensions.hashCode ^
+      proposals.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DebugCapabilities &&
+          runtimeType == other.runtimeType &&
+          userId == other.userId &&
+          versions == other.versions &&
+          ciphersuites == other.ciphersuites &&
+          extensions == other.extensions &&
+          proposals == other.proposals;
+}
+
+class GroupDebugInfo {
+  final String groupId;
+  final BigInt epoch;
+  final String ciphersuite;
+  final List<String> versions;
+  final int ownLeafIndex;
+  final String? selfUpdatedAt;
+  final BigInt pendingProposals;
+  final bool hasPendingCommit;
+  final RequiredDebugCapabilities? requiredCapabilities;
+  final Map<int, DebugCapabilities> members;
+
+  const GroupDebugInfo({
+    required this.groupId,
+    required this.epoch,
+    required this.ciphersuite,
+    required this.versions,
+    required this.ownLeafIndex,
+    this.selfUpdatedAt,
+    required this.pendingProposals,
+    required this.hasPendingCommit,
+    this.requiredCapabilities,
+    required this.members,
+  });
+
+  @override
+  int get hashCode =>
+      groupId.hashCode ^
+      epoch.hashCode ^
+      ciphersuite.hashCode ^
+      versions.hashCode ^
+      ownLeafIndex.hashCode ^
+      selfUpdatedAt.hashCode ^
+      pendingProposals.hashCode ^
+      hasPendingCommit.hashCode ^
+      requiredCapabilities.hashCode ^
+      members.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GroupDebugInfo &&
+          runtimeType == other.runtimeType &&
+          groupId == other.groupId &&
+          epoch == other.epoch &&
+          ciphersuite == other.ciphersuite &&
+          versions == other.versions &&
+          ownLeafIndex == other.ownLeafIndex &&
+          selfUpdatedAt == other.selfUpdatedAt &&
+          pendingProposals == other.pendingProposals &&
+          hasPendingCommit == other.hasPendingCommit &&
+          requiredCapabilities == other.requiredCapabilities &&
+          members == other.members;
+}
+
+class RequiredDebugCapabilities {
+  final List<String> extensionTypes;
+  final List<String> proposalTypes;
+  final List<String> credentialTypes;
+
+  const RequiredDebugCapabilities({
+    required this.extensionTypes,
+    required this.proposalTypes,
+    required this.credentialTypes,
+  });
+
+  @override
+  int get hashCode =>
+      extensionTypes.hashCode ^
+      proposalTypes.hashCode ^
+      credentialTypes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RequiredDebugCapabilities &&
+          runtimeType == other.runtimeType &&
+          extensionTypes == other.extensionTypes &&
+          proposalTypes == other.proposalTypes &&
+          credentialTypes == other.credentialTypes;
 }
 
 @freezed
