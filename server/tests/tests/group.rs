@@ -580,10 +580,10 @@ async fn self_update() {
     let created_at = Utc::now();
 
     // Outbound service updates chats in batches of 5
-    const BATCH_SIZE: usize = 5;
+    const UPDATE_BATCH_SIZE: usize = 5;
 
     let mut chat_ids = Vec::new();
-    for _ in 0..BATCH_SIZE + 1 {
+    for _ in 0..UPDATE_BATCH_SIZE + 1 {
         chat_ids.push(setup.create_group(&alice).await);
     }
 
@@ -593,7 +593,7 @@ async fn self_update() {
     // Initially, all chats are self-updated at creation time
     let mut self_updated_at = Vec::new();
     for chat_id in &chat_ids {
-        let at = alice_core.self_updated_at(*chat_id).await.unwrap();
+        let at = alice_core.self_updated_at(*chat_id).await.unwrap().unwrap();
         assert!(
             created_at <= at && at <= created_at + Duration::seconds(10),
             "Self update is not within 10 seconds of now",
@@ -605,7 +605,8 @@ async fn self_update() {
     for chat_id in &chat_ids {
         alice_core
             .set_self_updated_at(*chat_id, DateTime::UNIX_EPOCH)
-            .await;
+            .await
+            .unwrap();
     }
     // Run the outbound service to update the chats
     alice_core
@@ -616,14 +617,15 @@ async fn self_update() {
     alice_core.outbound_service().run_once().await;
 
     // The outbound service updates the chats in batches of 5
-    for (idx, chat_id) in chat_ids.iter().take(BATCH_SIZE).enumerate() {
-        let at = alice_core.self_updated_at(*chat_id).await.unwrap();
+    for (idx, chat_id) in chat_ids.iter().take(UPDATE_BATCH_SIZE).enumerate() {
+        let at = alice_core.self_updated_at(*chat_id).await.unwrap().unwrap();
         assert!(self_updated_at[idx] < at, "Self update not happened",);
     }
     assert_eq!(
         alice_core
-            .self_updated_at(chat_ids[BATCH_SIZE])
+            .self_updated_at(chat_ids[UPDATE_BATCH_SIZE])
             .await
+            .unwrap()
             .unwrap(),
         DateTime::UNIX_EPOCH,
         "Last chat self-updated even though it should not have been"
@@ -638,8 +640,12 @@ async fn self_update() {
     alice_core.outbound_service().run_once().await;
 
     let at = alice_core
-        .self_updated_at(chat_ids[BATCH_SIZE])
+        .self_updated_at(chat_ids[UPDATE_BATCH_SIZE])
         .await
+        .unwrap()
         .unwrap();
-    assert!(self_updated_at[BATCH_SIZE] < at, "Self update not happened");
+    assert!(
+        self_updated_at[UPDATE_BATCH_SIZE] < at,
+        "Self update not happened"
+    );
 }

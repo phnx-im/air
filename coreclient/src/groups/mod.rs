@@ -1268,27 +1268,23 @@ impl Group {
 #[cfg(feature = "test_utils")]
 mod test_utils {
     use chrono::{DateTime, Utc};
-    use tracing::error;
 
     use crate::{Chat, ChatId, clients::CoreUser};
 
     impl CoreUser {
-        pub async fn self_updated_at(&self, chat_id: ChatId) -> Option<DateTime<Utc>> {
-            Chat::self_updated_at(self.pool(), chat_id)
-                .await
-                .inspect_err(|error| {
-                    error!(%error, "Failed to get self_updated_at");
-                })
-                .ok()
-                .flatten()
+        pub async fn self_updated_at(
+            &self,
+            chat_id: ChatId,
+        ) -> sqlx::Result<Option<DateTime<Utc>>> {
+            Chat::self_updated_at(self.pool(), chat_id).await
         }
 
-        pub async fn set_self_updated_at(&self, chat_id: ChatId, self_updated_at: DateTime<Utc>) {
-            if let Err(error) =
-                Chat::set_self_updated_at(self.pool(), chat_id, self_updated_at).await
-            {
-                error!(%error, "Failed to set self_updated_at");
-            }
+        pub async fn set_self_updated_at(
+            &self,
+            chat_id: ChatId,
+            self_updated_at: DateTime<Utc>,
+        ) -> sqlx::Result<()> {
+            Chat::set_self_updated_at(self.pool(), chat_id, self_updated_at).await
         }
     }
 }
