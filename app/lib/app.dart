@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
+import 'package:system_date_time_format/system_date_time_format.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import 'user/update_required_screen.dart';
@@ -172,39 +173,42 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         BlocProvider<AppLocaleCubit>(create: (context) => AppLocaleCubit()),
       ],
       child: InterfaceScale(
-        child: Builder(
-          builder: (context) {
-            final userLocaleCode = context.select(
-              (UserSettingsCubit cubit) => cubit.state.locale,
-            );
-            final appLocale = context.select(
-              (AppLocaleCubit cubit) => cubit.state,
-            );
-            // Prefer persisted user locale; fall back to in-memory selection.
-            final locale = userLocaleCode != null
-                ? Locale(userLocaleCode)
-                : appLocale;
+        // SDTFScope exposes date & time formatting system preferences
+        child: SDTFScope(
+          child: Builder(
+            builder: (context) {
+              final userLocaleCode = context.select(
+                (UserSettingsCubit cubit) => cubit.state.locale,
+              );
+              final appLocale = context.select(
+                (AppLocaleCubit cubit) => cubit.state,
+              );
+              // Prefer persisted user locale; fall back to in-memory selection.
+              final locale = userLocaleCode != null
+                  ? Locale(userLocaleCode)
+                  : appLocale;
 
-            return MaterialApp.router(
-              scaffoldMessengerKey: scaffoldMessengerKey,
-              onGenerateTitle: (context) =>
-                  AppLocalizations.of(context).appTitle,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              supportedLocales: supportedLocalesWithFallback(
-                AppLocalizations.supportedLocales,
-                const Locale('en', 'US'),
-              ),
-              locale: locale,
-              debugShowCheckedModeBanner: false,
-              theme: lightTheme,
-              darkTheme: darkTheme,
-              routerConfig: _appRouter,
-              builder: (context, router) => LoadableUserCubitProvider(
-                appStateController: _appStateController,
-                child: router!,
-              ),
-            );
-          },
+              return MaterialApp.router(
+                scaffoldMessengerKey: scaffoldMessengerKey,
+                onGenerateTitle: (context) =>
+                    AppLocalizations.of(context).appTitle,
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: supportedLocalesWithFallback(
+                  AppLocalizations.supportedLocales,
+                  const Locale('en', 'US'),
+                ),
+                locale: locale,
+                debugShowCheckedModeBanner: false,
+                theme: lightTheme,
+                darkTheme: darkTheme,
+                routerConfig: _appRouter,
+                builder: (context, router) => LoadableUserCubitProvider(
+                  appStateController: _appStateController,
+                  child: router!,
+                ),
+              );
+            },
+          ),
         ),
       ),
     );

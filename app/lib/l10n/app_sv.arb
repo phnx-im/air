@@ -133,6 +133,7 @@
   "systemMessage_userCreatedGroup_prefix": "{user}",
   "systemMessage_userCreatedGroup_suffix": " skapade gruppen",
   "timestamp_now": "Nu",
+  "timestamp_minutesAgo": "{count}m",
   "timestamp_yesterday": "Igår",
   "messageBubble_sending": "Skickar",
   "messageBubble_failedToSend": "Kunde inte skicka",
