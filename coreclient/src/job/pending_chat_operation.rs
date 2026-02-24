@@ -16,7 +16,7 @@ use mimi_room_policy::RoleIndex;
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
 use sqlx::{SqliteConnection, SqlitePool, SqliteTransaction, query, query_as};
-use tracing::info;
+use tracing::{debug, error, info};
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
@@ -91,7 +91,6 @@ impl Job for PendingChatOperation {
         mut self,
         context: &mut JobContext<'_>,
     ) -> Result<Vec<ChatMessage>, JobError> {
-        let group_id = self.group.group_id().clone();
         match self.execute_internal(context).await {
             // Update retry_due at on network errors
             Err(JobError::NetworkError) => {
@@ -100,12 +99,22 @@ impl Job for PendingChatOperation {
                 #[cfg(any(test, feature = "test_utils"))]
                 let retry_due = context.now + RETRY_INTERVAL;
                 self.update_retry_due_at(&context.pool, retry_due).await?;
+                let group_id = self.group.group_id();
                 info!(
                     ?group_id,
                     next_retry = ?retry_due,
                     "Failed to execute PendingChatOperation, will retry later"
                 );
                 Err(JobError::NetworkError)
+            }
+            Err(JobError::NotFound) => {
+                let group_id = self.group.group_id();
+                error!(
+                    ?group_id,
+                    "Group not found; deleting pending chat operation"
+                );
+                Self::delete(&context.pool, group_id).await?;
+                Err(JobError::NotFound)
             }
             res => res,
         }
@@ -319,6 +328,7 @@ impl PendingChatOperation {
         pool: &mut SqlitePool,
         error: DsRequestError,
     ) -> Result<JobError, JobError> {
+        debug!(?error, "DS request failed");
         const MAX_RETRIES: u32 = 5;
         if error.is_wrong_epoch() {
             // If we get a WrongEpochError, we know the commit was
@@ -327,6 +337,8 @@ impl PendingChatOperation {
             self.mark_as_waiting_for_queue_response(&*pool).await?;
 
             Err(JobError::Blocked)
+        } else if error.is_not_found() {
+            Err(JobError::NotFound)
         } else if (error.is_network_error() || self.number_of_attempts > 0)
             && self.number_of_attempts < MAX_RETRIES
         {

@@ -649,3 +649,58 @@ async fn self_update() {
         "Self update not happened"
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn self_update_skips_inactive_chats() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let active_chat = setup.create_group(&alice).await;
+    let inactive_chat = setup.create_group(&alice).await;
+
+    let alice_user = setup.get_user(&alice);
+    let alice_core = &alice_user.user;
+
+    // Leave one chat to make it inactive
+    alice_core.leave_chat(inactive_chat).await.unwrap();
+
+    // Set self_updated_at to the past for both chats
+    alice_core
+        .set_self_updated_at(active_chat, DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    alice_core
+        .set_self_updated_at(inactive_chat, DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+
+    // Run the outbound service
+    alice_core
+        .outbound_service()
+        .schedule_self_update(DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    alice_core.outbound_service().run_once().await;
+
+    // The active chat should have been self-updated
+    let active_at = alice_core
+        .self_updated_at(active_chat)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        DateTime::UNIX_EPOCH < active_at,
+        "Active chat was not self-updated"
+    );
+
+    // The inactive chat should NOT have been self-updated
+    assert_eq!(
+        alice_core
+            .self_updated_at(inactive_chat)
+            .await
+            .unwrap()
+            .unwrap(),
+        DateTime::UNIX_EPOCH,
+        "Inactive chat was self-updated even though it should not have been"
+    );
+}

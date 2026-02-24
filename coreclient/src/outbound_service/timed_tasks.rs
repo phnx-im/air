@@ -279,35 +279,54 @@ impl OutboundServiceContext {
 
         for chat_id in chat_ids {
             if run_token.is_cancelled() {
-                break; // Stop updating chats if the task is cancelled
+                debug!("Stopping self-update task due to cancellation");
+                return Ok(Duration::zero()); // Continue as soon as possible
             }
             if num_updated >= BATCH_SIZE {
-                break; // Stop updating chats if we've reached the batch size
+                info!(
+                    num_updated,
+                    "Self-update successful for a partial batch of chats"
+                );
+                return Ok(PARTIAL_UPDATE_INTERVAL); // Continue after a partial batch
             }
             if self.self_update_in_chat(chat_id).await? {
                 num_updated += 1;
             }
         }
 
-        let interval = if num_updated < num_chats {
-            info!("Self-update successful for a partial batch of chats");
-            PARTIAL_UPDATE_INTERVAL
-        } else {
-            info!("Self-update successful for all chats");
-            SELF_UPDATE_INTERVAL
-        };
-        Ok(interval)
+        let skipped = num_chats.wrapping_sub(num_updated);
+        info!(num_chats, skipped, "Full self-update successful");
+        Ok(SELF_UPDATE_INTERVAL)
     }
 
     async fn self_update_in_chat(&self, chat_id: ChatId) -> anyhow::Result<bool> {
         debug!(?chat_id, "Self-update in chat");
-        // TODO: Should we also self-update in blocked chats?
 
         let Some(group) =
             Group::load_with_chat_id(self.pool.acquire().await?.as_mut(), chat_id).await?
         else {
+            debug!(
+                ?chat_id,
+                "Skipping self-update in chat because group is not found"
+            );
             return Ok(false);
         };
+
+        if group.mls_group().pending_commit().is_some() {
+            debug!(
+                ?chat_id,
+                "Skipping self-update in chat because there is a pending commit"
+            );
+            return Ok(false);
+        }
+
+        if group.mls_group().pending_proposals().next().is_some() {
+            debug!(
+                ?chat_id,
+                "Skipping self-update in chat because there are pending proposals"
+            );
+            return Ok(false);
+        }
 
         let self_update_at: DateTime<Utc> =
             group.self_updated_at.map(From::from).unwrap_or_default();
@@ -325,10 +344,13 @@ impl OutboundServiceContext {
 
         match res {
             Ok(_messages) => Ok(true),
-            Err(JobError::Blocked) => Ok(false),
+            Err(JobError::NotFound | JobError::Blocked) => Ok(false),
             // Fatal or network errors abort the whole batch because we assume that they will
             // persist for the next chat in the batch.
-            Err(error @ (JobError::FatalError(_) | JobError::NetworkError)) => Err(error.into()),
+            Err(error @ (JobError::FatalError(_) | JobError::NetworkError)) => {
+                debug!(?chat_id, %error, "Failed to self-update in chat");
+                Err(error.into())
+            }
         }
     }
 }

@@ -7,9 +7,15 @@ import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 
 class AppScaffold extends StatelessWidget {
-  const AppScaffold({super.key, this.title, required this.child});
+  const AppScaffold({
+    super.key,
+    this.title,
+    this.onTitleLongPress,
+    required this.child,
+  });
 
   final String? title;
+  final Function()? onTitleLongPress;
   final Widget child;
 
   @override
@@ -20,7 +26,14 @@ class AppScaffold extends StatelessWidget {
         scrolledUnderElevation: 0,
         leading: const AppBarBackButton(),
         title: title != null
-            ? Text(title!, maxLines: 1, overflow: TextOverflow.ellipsis)
+            ? GestureDetector(
+                onLongPress: onTitleLongPress,
+                child: Text(
+                  title!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              )
             : null,
       ),
       body: SafeArea(

@@ -51,7 +51,7 @@ impl OutboundServiceContext {
                     // This job has a fatal error. Continue with the next one.
                     continue;
                 }
-                Err(JobError::Blocked) => {
+                Err(JobError::Blocked | JobError::NotFound) => {
                     continue;
                 }
                 Ok(_) => (),

@@ -439,6 +439,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Object dco_decode_DartOpaque(dynamic raw);
 
   @protected
+  Map<int, DebugCapabilities> dco_decode_Map_u_32_debug_capabilities_None(
+    dynamic raw,
+  );
+
+  @protected
   AttachmentsRepository
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
     dynamic raw,
@@ -691,6 +696,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformPushToken dco_decode_box_autoadd_platform_push_token(dynamic raw);
 
   @protected
+  RequiredDebugCapabilities dco_decode_box_autoadd_required_debug_capabilities(
+    dynamic raw,
+  );
+
+  @protected
   UiChatDetails dco_decode_box_autoadd_ui_chat_details(dynamic raw);
 
   @protected
@@ -746,6 +756,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ChatListState dco_decode_chat_list_state(dynamic raw);
 
   @protected
+  DebugCapabilities dco_decode_debug_capabilities(dynamic raw);
+
+  @protected
   DeleteMode dco_decode_delete_mode(dynamic raw);
 
   @protected
@@ -755,6 +768,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   double dco_decode_f_64(dynamic raw);
+
+  @protected
+  GroupDebugInfo dco_decode_group_debug_info(dynamic raw);
 
   @protected
   HomeNavigationState dco_decode_home_navigation_state(dynamic raw);
@@ -818,6 +834,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<RangedInlineElement> dco_decode_list_ranged_inline_element(dynamic raw);
+
+  @protected
+  List<(int, DebugCapabilities)> dco_decode_list_record_u_32_debug_capabilities(
+    dynamic raw,
+  );
 
   @protected
   List<UiAttachment> dco_decode_list_ui_attachment(dynamic raw);
@@ -927,6 +948,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RequiredDebugCapabilities?
+  dco_decode_opt_box_autoadd_required_debug_capabilities(dynamic raw);
+
+  @protected
   UiChatDetails? dco_decode_opt_box_autoadd_ui_chat_details(dynamic raw);
 
   @protected
@@ -970,6 +995,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RangedInlineElement dco_decode_ranged_inline_element(dynamic raw);
+
+  @protected
+  (int, DebugCapabilities) dco_decode_record_u_32_debug_capabilities(
+    dynamic raw,
+  );
+
+  @protected
+  RequiredDebugCapabilities dco_decode_required_debug_capabilities(dynamic raw);
 
   @protected
   int dco_decode_u_32(dynamic raw);
@@ -1363,6 +1396,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Object sse_decode_DartOpaque(SseDeserializer deserializer);
 
   @protected
+  Map<int, DebugCapabilities> sse_decode_Map_u_32_debug_capabilities_None(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   AttachmentsRepository
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
     SseDeserializer deserializer,
@@ -1635,6 +1673,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RequiredDebugCapabilities sse_decode_box_autoadd_required_debug_capabilities(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UiChatDetails sse_decode_box_autoadd_ui_chat_details(
     SseDeserializer deserializer,
   );
@@ -1710,6 +1753,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ChatListState sse_decode_chat_list_state(SseDeserializer deserializer);
 
   @protected
+  DebugCapabilities sse_decode_debug_capabilities(SseDeserializer deserializer);
+
+  @protected
   DeleteMode sse_decode_delete_mode(SseDeserializer deserializer);
 
   @protected
@@ -1719,6 +1765,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   double sse_decode_f_64(SseDeserializer deserializer);
+
+  @protected
+  GroupDebugInfo sse_decode_group_debug_info(SseDeserializer deserializer);
 
   @protected
   HomeNavigationState sse_decode_home_navigation_state(
@@ -1794,6 +1843,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<RangedInlineElement> sse_decode_list_ranged_inline_element(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<(int, DebugCapabilities)> sse_decode_list_record_u_32_debug_capabilities(
     SseDeserializer deserializer,
   );
 
@@ -1927,6 +1981,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RequiredDebugCapabilities?
+  sse_decode_opt_box_autoadd_required_debug_capabilities(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UiChatDetails? sse_decode_opt_box_autoadd_ui_chat_details(
     SseDeserializer deserializer,
   );
@@ -1986,6 +2046,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RangedInlineElement sse_decode_ranged_inline_element(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  (int, DebugCapabilities) sse_decode_record_u_32_debug_capabilities(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RequiredDebugCapabilities sse_decode_required_debug_capabilities(
     SseDeserializer deserializer,
   );
 
@@ -2462,6 +2532,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_DartOpaque(Object self, SseSerializer serializer);
 
   @protected
+  void sse_encode_Map_u_32_debug_capabilities_None(
+    Map<int, DebugCapabilities> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
     AttachmentsRepository self,
@@ -2784,6 +2860,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_required_debug_capabilities(
+    RequiredDebugCapabilities self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_ui_chat_details(
     UiChatDetails self,
     SseSerializer serializer,
@@ -2880,6 +2962,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_chat_list_state(ChatListState self, SseSerializer serializer);
 
   @protected
+  void sse_encode_debug_capabilities(
+    DebugCapabilities self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_delete_mode(DeleteMode self, SseSerializer serializer);
 
   @protected
@@ -2890,6 +2978,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_f_64(double self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_group_debug_info(
+    GroupDebugInfo self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_home_navigation_state(
@@ -2984,6 +3078,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_ranged_inline_element(
     List<RangedInlineElement> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_record_u_32_debug_capabilities(
+    List<(int, DebugCapabilities)> self,
     SseSerializer serializer,
   );
 
@@ -3153,6 +3253,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_required_debug_capabilities(
+    RequiredDebugCapabilities? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_ui_chat_details(
     UiChatDetails? self,
     SseSerializer serializer,
@@ -3230,6 +3336,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_ranged_inline_element(
     RangedInlineElement self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_record_u_32_debug_capabilities(
+    (int, DebugCapabilities) self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_required_debug_capabilities(
+    RequiredDebugCapabilities self,
     SseSerializer serializer,
   );
 

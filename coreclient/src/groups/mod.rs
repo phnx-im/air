@@ -5,6 +5,7 @@
 pub(crate) mod client_auth_info;
 // TODO: Allowing dead code here for now. We'll need diffs when we start
 // rotating keys.
+pub(crate) mod debug_info;
 #[allow(dead_code)]
 pub(crate) mod diff;
 pub(crate) mod error;
