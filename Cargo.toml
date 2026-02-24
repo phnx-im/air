@@ -128,9 +128,9 @@ zeroize = "1.8.1"
 [patch.crates-io]
 # Backported fix that allows us to skip lifetime checks temporarily. This can be
 # removed once we adopt the next OpenMLS release.
-openmls = { git = "https://github.com/openmls/openmls", rev = "a1b5216cc05d77c25e5daaaa7386261f31dac563" }
-openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "a1b5216cc05d77c25e5daaaa7386261f31dac563" }
-openmls_traits = { git = "https://github.com/openmls/openmls", rev = "a1b5216cc05d77c25e5daaaa7386261f31dac563" }
+openmls = { git = "https://github.com/boxdot/openmls", rev = "7eb56a715d4a7a7faa90d1cccea23b35c038f1d9" }
+openmls_rust_crypto = { git = "https://github.com/boxdot/openmls", rev = "7eb56a715d4a7a7faa90d1cccea23b35c038f1d9" }
+openmls_traits = { git = "https://github.com/boxdot/openmls", rev = "7eb56a715d4a7a7faa90d1cccea23b35c038f1d9" }
 
 [profile.release]
 strip = true
