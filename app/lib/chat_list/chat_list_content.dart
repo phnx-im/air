@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:air/chat/chat_details.dart';
 import 'package:air/chat_list/chat_list_view.dart';
@@ -24,6 +25,36 @@ import 'package:system_date_time_format/system_date_time_format.dart';
 import 'chat_list_cubit.dart';
 
 const _previewLineHeight = 1.28;
+
+/// Measures the height of two lines of preview text, caching the result
+/// as long as the text direction and scaler remain unchanged.
+double _twoLinePreviewHeight(ui.TextDirection direction, TextScaler scaler) {
+  if (direction == _cachedDirection && scaler == _cachedScaler) {
+    return _cachedTwoLineHeight;
+  }
+  final tp = TextPainter(
+    text: TextSpan(
+      text: ' ',
+      style: TextStyle(
+        fontSize: BodyFontSize.base.size,
+        height: _previewLineHeight,
+      ),
+    ),
+    textDirection: direction,
+    textScaler: scaler,
+    maxLines: 1,
+  )..layout();
+  _cachedTwoLineHeight = tp.height * 2;
+  tp.dispose();
+  _cachedDirection = direction;
+  _cachedScaler = scaler;
+  return _cachedTwoLineHeight;
+}
+
+// Cached fields for two-line preview height calculation.
+ui.TextDirection? _cachedDirection;
+TextScaler? _cachedScaler;
+double _cachedTwoLineHeight = 0;
 
 typedef ChatDetailsCubitCreate =
     ChatDetailsCubit Function({
@@ -199,20 +230,10 @@ class _ListTileBottom extends StatelessWidget {
     }
     final isBlocked = chat.status == const UiChatStatus.blocked();
 
-    // Measure actual rendered line height to account for
-    // platform font metrics and text scaling.
-    final previewStyle = TextStyle(
-      fontSize: BodyFontSize.base.size,
-      height: _previewLineHeight,
+    final twoLineHeight = _twoLinePreviewHeight(
+      Directionality.of(context),
+      MediaQuery.textScalerOf(context),
     );
-    final tp = TextPainter(
-      text: TextSpan(text: ' ', style: previewStyle),
-      textDirection: Directionality.of(context),
-      textScaler: MediaQuery.textScalerOf(context),
-      maxLines: 1,
-    )..layout();
-    final twoLineHeight = tp.height * 2;
-    tp.dispose();
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -268,14 +289,17 @@ class _TrailingIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final chat = context.watch<ChatDetailsCubit>().state.chat;
-    if (chat == null) return const SizedBox.shrink();
+    final (unreadMessages, lastMessage) = context.select((
+      ChatDetailsCubit cubit,
+    ) {
+      final chat = cubit.state.chat;
+      return (chat?.unreadMessages, chat?.lastMessage);
+    });
 
-    if (chat.unreadMessages > 0) {
-      return _UnreadBadge(count: chat.unreadMessages);
+    if (unreadMessages != null && unreadMessages > 0) {
+      return _UnreadBadge(count: unreadMessages);
     }
 
-    final lastMessage = chat.lastMessage;
     if (lastMessage == null) return const SizedBox.shrink();
 
     final lastSender = switch (lastMessage.message) {
@@ -586,7 +610,6 @@ enum TimestampCategory {
 TimestampCategory classifyTimestamp(DateTime timestamp, {DateTime? now}) {
   now ??= DateTime.now();
   final diff = now.difference(timestamp);
-  final yesterday = DateTime(now.year, now.month, now.day - 1);
 
   if (diff.inSeconds < 60) return TimestampCategory.now;
   if (diff.inMinutes < 60) return TimestampCategory.minutes;
@@ -595,6 +618,7 @@ TimestampCategory classifyTimestamp(DateTime timestamp, {DateTime? now}) {
       now.day == timestamp.day) {
     return TimestampCategory.today;
   }
+  final yesterday = DateTime(now.year, now.month, now.day - 1);
   if (timestamp.year == yesterday.year &&
       timestamp.month == yesterday.month &&
       timestamp.day == yesterday.day) {
