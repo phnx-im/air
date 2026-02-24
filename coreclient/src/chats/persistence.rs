@@ -312,7 +312,7 @@ impl Chat {
     /// Load chat ids for self-update
     ///
     /// Returns all chat ids that have a group attached with `self_updated_at` < `until_due_at`
-    /// ordered by `self_updated_at`.
+    /// ordered by `self_updated_at`. Inactive chats are excluded.
     pub(crate) async fn load_ids_for_self_update(
         executor: impl SqliteExecutor<'_>,
         until_due_at: DateTime<Utc>,
@@ -322,7 +322,8 @@ impl Chat {
                 c.chat_id AS "chat_id: _"
             FROM chat c
             INNER JOIN "group" g ON g.group_id = c.group_id
-            WHERE g.self_updated_at IS NULL OR g.self_updated_at < ?1
+            WHERE (g.self_updated_at IS NULL OR g.self_updated_at < ?1)
+                AND c.is_active = TRUE
             ORDER BY g.self_updated_at ASC"#,
             until_due_at as _,
         )
