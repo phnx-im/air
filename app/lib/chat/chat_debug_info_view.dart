@@ -12,6 +12,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
+/// Debug info about a chat group.
+///
+/// Note: Strings in this class are not localized.
 class ChatDebugInfoView extends HookWidget {
   const ChatDebugInfoView({
     required this.title,
@@ -324,6 +327,12 @@ class _MemberCard extends StatelessWidget {
             color: colors.separator.secondary,
           ),
           _InfoRow(label: 'User ID', value: caps.userId, monospace: true),
+          Divider(
+            height: 1,
+            indent: Spacings.s,
+            color: colors.separator.secondary,
+          ),
+          _InfoRow(label: 'Display Name', value: caps.displayName),
           Divider(
             height: 1,
             indent: Spacings.s,

@@ -639,6 +639,7 @@ pub struct _RequiredDebugCapabilities {
 #[frb(mirror(DebugCapabilities))]
 pub struct _DebugCapabilities {
     pub user_id: String,
+    pub display_name: String,
     pub versions: Vec<String>,
     pub ciphersuites: Vec<String>,
     pub extensions: Vec<String>,

@@ -119,6 +119,7 @@ sealed class ChatDetailsState with _$ChatDetailsState {
 
 class DebugCapabilities {
   final String userId;
+  final String displayName;
   final List<String> versions;
   final List<String> ciphersuites;
   final List<String> extensions;
@@ -126,6 +127,7 @@ class DebugCapabilities {
 
   const DebugCapabilities({
     required this.userId,
+    required this.displayName,
     required this.versions,
     required this.ciphersuites,
     required this.extensions,
@@ -135,6 +137,7 @@ class DebugCapabilities {
   @override
   int get hashCode =>
       userId.hashCode ^
+      displayName.hashCode ^
       versions.hashCode ^
       ciphersuites.hashCode ^
       extensions.hashCode ^
@@ -146,6 +149,7 @@ class DebugCapabilities {
       other is DebugCapabilities &&
           runtimeType == other.runtimeType &&
           userId == other.userId &&
+          displayName == other.displayName &&
           versions == other.versions &&
           ciphersuites == other.ciphersuites &&
           extensions == other.extensions &&

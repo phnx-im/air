@@ -19,7 +19,7 @@ use openmls::prelude::{
     Capabilities, Ciphersuite, ExtensionType, ProposalType, RequiredCapabilitiesExtension,
 };
 
-use crate::{ChatId, clients::CoreUser, groups::Group};
+use crate::{ChatId, UserProfile, clients::CoreUser, groups::Group};
 
 impl CoreUser {
     /// Returns debug info for a group
@@ -28,7 +28,7 @@ impl CoreUser {
         let group = Group::load_with_chat_id(&mut connection, chat_id)
             .await?
             .context("Group not found")?;
-        GroupDebugInfo::from_group(&group)
+        GroupDebugInfo::from_group(self, &group).await
     }
 }
 
@@ -56,6 +56,7 @@ pub struct RequiredDebugCapabilities {
 #[derive(Debug, Clone)]
 pub struct DebugCapabilities {
     pub user_id: String,
+    pub display_name: String,
     pub versions: Vec<String>,
     pub ciphersuites: Vec<String>,
     pub extensions: Vec<String>,
@@ -63,7 +64,7 @@ pub struct DebugCapabilities {
 }
 
 impl GroupDebugInfo {
-    fn from_group(group: &Group) -> anyhow::Result<Self> {
+    async fn from_group(core_user: &CoreUser, group: &Group) -> anyhow::Result<Self> {
         let group_id = QualifiedGroupId::try_from(group.group_id())?.to_string();
         let epoch = group.mls_group().epoch().as_u64();
         let ciphersuite = group.mls_group().ciphersuite().to_string();
@@ -89,10 +90,13 @@ impl GroupDebugInfo {
                 .public_group()
                 .leaf(member.index)
                 .context("No leaf node for member")?;
+            let user_id = credential.user_id();
+            let user_profile = core_user.user_profile(user_id).await;
             members.insert(
                 member.index.u32(),
                 DebugCapabilities::from_capabilities(
-                    credential.user_id(),
+                    user_id,
+                    user_profile,
                     leaf_node.capabilities(),
                 ),
             );
@@ -136,9 +140,14 @@ impl RequiredDebugCapabilities {
 }
 
 impl DebugCapabilities {
-    fn from_capabilities(user_id: &UserId, capabilities: &Capabilities) -> Self {
+    fn from_capabilities(
+        user_id: &UserId,
+        user_profile: UserProfile,
+        capabilities: &Capabilities,
+    ) -> Self {
         Self {
             user_id: format!("{user_id:?}"),
+            display_name: user_profile.display_name.to_string(),
             versions: capabilities
                 .versions()
                 .iter()

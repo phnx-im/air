@@ -7630,6 +7630,7 @@ const _: fn() = || {
     {
         let DebugCapabilities = None::<crate::api::chat_details_cubit::DebugCapabilities>.unwrap();
         let _: String = DebugCapabilities.user_id;
+        let _: String = DebugCapabilities.display_name;
         let _: Vec<String> = DebugCapabilities.versions;
         let _: Vec<String> = DebugCapabilities.ciphersuites;
         let _: Vec<String> = DebugCapabilities.extensions;
@@ -8602,12 +8603,14 @@ impl SseDecode for crate::api::chat_details_cubit::DebugCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_userId = <String>::sse_decode(deserializer);
+        let mut var_displayName = <String>::sse_decode(deserializer);
         let mut var_versions = <Vec<String>>::sse_decode(deserializer);
         let mut var_ciphersuites = <Vec<String>>::sse_decode(deserializer);
         let mut var_extensions = <Vec<String>>::sse_decode(deserializer);
         let mut var_proposals = <Vec<String>>::sse_decode(deserializer);
         return crate::api::chat_details_cubit::DebugCapabilities {
             user_id: var_userId,
+            display_name: var_displayName,
             versions: var_versions,
             ciphersuites: var_ciphersuites,
             extensions: var_extensions,
@@ -10964,6 +10967,7 @@ impl flutter_rust_bridge::IntoDart
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.user_id.into_into_dart().into_dart(),
+            self.0.display_name.into_into_dart().into_dart(),
             self.0.versions.into_into_dart().into_dart(),
             self.0.ciphersuites.into_into_dart().into_dart(),
             self.0.extensions.into_into_dart().into_dart(),
@@ -12877,6 +12881,7 @@ impl SseEncode for crate::api::chat_details_cubit::DebugCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.user_id, serializer);
+        <String>::sse_encode(self.display_name, serializer);
         <Vec<String>>::sse_encode(self.versions, serializer);
         <Vec<String>>::sse_encode(self.ciphersuites, serializer);
         <Vec<String>>::sse_encode(self.extensions, serializer);

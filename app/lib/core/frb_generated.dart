@@ -7875,14 +7875,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   DebugCapabilities dco_decode_debug_capabilities(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 5)
-      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return DebugCapabilities(
       userId: dco_decode_String(arr[0]),
-      versions: dco_decode_list_String(arr[1]),
-      ciphersuites: dco_decode_list_String(arr[2]),
-      extensions: dco_decode_list_String(arr[3]),
-      proposals: dco_decode_list_String(arr[4]),
+      displayName: dco_decode_String(arr[1]),
+      versions: dco_decode_list_String(arr[2]),
+      ciphersuites: dco_decode_list_String(arr[3]),
+      extensions: dco_decode_list_String(arr[4]),
+      proposals: dco_decode_list_String(arr[5]),
     );
   }
 
@@ -10279,12 +10280,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_userId = sse_decode_String(deserializer);
+    var var_displayName = sse_decode_String(deserializer);
     var var_versions = sse_decode_list_String(deserializer);
     var var_ciphersuites = sse_decode_list_String(deserializer);
     var var_extensions = sse_decode_list_String(deserializer);
     var var_proposals = sse_decode_list_String(deserializer);
     return DebugCapabilities(
       userId: var_userId,
+      displayName: var_displayName,
       versions: var_versions,
       ciphersuites: var_ciphersuites,
       extensions: var_extensions,
@@ -13258,6 +13261,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.userId, serializer);
+    sse_encode_String(self.displayName, serializer);
     sse_encode_list_String(self.versions, serializer);
     sse_encode_list_String(self.ciphersuites, serializer);
     sse_encode_list_String(self.extensions, serializer);
