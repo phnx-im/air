@@ -33,6 +33,8 @@ pub(crate) enum JobError {
     NetworkError,
     #[error("Blocked")]
     Blocked,
+    #[error("Not found")]
+    NotFound,
     #[error("Fatal error: {0}")]
     FatalError(#[from] anyhow::Error),
 }
