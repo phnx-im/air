@@ -194,7 +194,7 @@ impl ChatOperation {
         job.execute(context).await
     }
 
-    /// Remove users from the chat with the given [`ChatId`].
+    /// Remove users from the chat
     async fn execute_remove_members(
         &mut self,
         context: &mut JobContext<'_>,
@@ -218,7 +218,7 @@ impl ChatOperation {
         job.execute(context).await
     }
 
-    /// Leave the chat with the given [`ChatId`].
+    /// Leave the chat
     async fn execute_leave_chat(
         &mut self,
         context: &mut JobContext<'_>,
@@ -235,7 +235,7 @@ impl ChatOperation {
         job.execute(context).await
     }
 
-    /// Leave the chat with the given [`ChatId`].
+    /// Update the chat
     async fn execute_update(
         self,
         context: &mut JobContext<'_>,

@@ -170,7 +170,8 @@ impl CoreUser {
                     RoleIndex::Regular,
                 )?;
 
-                group.store_update(txn.as_mut()).await?;
+                let now = TimeStamp::now();
+                group.store_update(txn.as_mut(), Some(now)).await?;
 
                 // Create system messages for acceptance
                 let accepted_system_message = SystemMessage::AcceptedConnectionRequest {
@@ -178,7 +179,7 @@ impl CoreUser {
                     user_handle: handle.clone(),
                 };
                 let accepted_message =
-                    TimestampedMessage::system_message(accepted_system_message, TimeStamp::now());
+                    TimestampedMessage::system_message(accepted_system_message, now);
                 let chat_messages = vec![accepted_message];
                 Self::store_new_messages(txn.as_mut(), notifier, chat_id, chat_messages).await?;
 

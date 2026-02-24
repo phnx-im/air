@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::USER_HANDLE_REFRESH_THRESHOLD;
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use openmls::prelude::OpenMlsProvider;
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use serde::{Deserialize, Serialize};
@@ -12,7 +12,14 @@ use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::{
-    job::operation::{Operation, OperationData, OperationId, OperationKind},
+    Chat, ChatId,
+    groups::Group,
+    job::{
+        JobError,
+        chat_operation::ChatOperation,
+        operation::{Operation, OperationData, OperationId, OperationKind},
+        pending_chat_operation::PendingChatOperation,
+    },
     user_handles::UserHandleRecord,
     utils::connection_ext::StoreExt,
 };
@@ -20,6 +27,9 @@ use crate::{
 use super::OutboundServiceContext;
 
 pub const KEY_PACKAGES: usize = 100;
+
+/// Interval at which the self-update in a group is executed
+const SELF_UPDATE_INTERVAL: Duration = Duration::days(1);
 
 /// A task to be executed at some point in the future
 #[derive(Debug, Serialize, Deserialize)]
@@ -50,20 +60,15 @@ impl OperationData for TimedTask {
 pub(crate) enum TimedTaskKind {
     KeyPackageUpload,
     HandleRefresh,
+    SelfUpdate,
 }
 
 impl TimedTaskKind {
-    pub(super) fn default_interval(&self) -> Duration {
-        match self {
-            TimedTaskKind::KeyPackageUpload => Duration::weeks(1),
-            TimedTaskKind::HandleRefresh => Duration::weeks(1),
-        }
-    }
-
     pub(super) fn default_retry_interval(&self) -> Duration {
         match self {
             TimedTaskKind::KeyPackageUpload => Duration::minutes(5),
             TimedTaskKind::HandleRefresh => Duration::minutes(5),
+            TimedTaskKind::SelfUpdate => Duration::minutes(5),
         }
     }
 }
@@ -77,9 +82,16 @@ mod test_utils {
     use super::*;
 
     impl OutboundService {
-        #[cfg(any(feature = "test_utils", test))]
         pub async fn schedule_key_package_upload(&self, due_at: DateTime<Utc>) -> sqlx::Result<()> {
             TimedTask::new(TimedTaskKind::KeyPackageUpload)
+                .into_operation()
+                .schedule_at(due_at)
+                .enqueue(&self.context.pool)
+                .await
+        }
+
+        pub async fn schedule_self_update(&self, due_at: DateTime<Utc>) -> sqlx::Result<()> {
+            TimedTask::new(TimedTaskKind::SelfUpdate)
                 .into_operation()
                 .schedule_at(due_at)
                 .enqueue(&self.context.pool)
@@ -93,17 +105,7 @@ impl OutboundServiceContext {
         &self,
         run_token: &CancellationToken,
     ) -> anyhow::Result<()> {
-        // Make sure that upload package task always exists
-        TimedTask::new(TimedTaskKind::KeyPackageUpload)
-            .into_operation()
-            .enqueue_if_not_exists(&self.pool)
-            .await?;
-
-        // Make sure that handle refresh task always exists
-        TimedTask::new(TimedTaskKind::HandleRefresh)
-            .into_operation()
-            .enqueue_if_not_exists(&self.pool)
-            .await?;
+        self.ensure_timed_tasks_exist().await?;
 
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
@@ -121,13 +123,10 @@ impl OutboundServiceContext {
             let task_kind = op.data.kind;
             debug!(?task_kind, "dequeued task");
 
-            let res = self.handle_task(task_kind).await;
+            let res = self.handle_task(run_token, task_kind).await;
 
             let interval = match res {
-                Ok(_) => {
-                    // Task was successful, schedule next run
-                    task_kind.default_interval()
-                }
+                Ok(interval) => interval,
                 Err(error) => {
                     error!(%error, "Failed to execute timed task");
                     task_kind.default_retry_interval()
@@ -139,40 +138,58 @@ impl OutboundServiceContext {
         }
     }
 
-    async fn handle_task(&self, task_kind: TimedTaskKind) -> Result<(), anyhow::Error> {
+    async fn ensure_timed_tasks_exist(&self) -> Result<(), anyhow::Error> {
+        TimedTask::new(TimedTaskKind::KeyPackageUpload)
+            .into_operation()
+            .enqueue_if_not_exists(&self.pool)
+            .await?;
+        TimedTask::new(TimedTaskKind::HandleRefresh)
+            .into_operation()
+            .enqueue_if_not_exists(&self.pool)
+            .await?;
+        TimedTask::new(TimedTaskKind::SelfUpdate)
+            .into_operation()
+            .enqueue_if_not_exists(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// On success, returns the next due time for the task.
+    async fn handle_task(
+        &self,
+        run_token: &CancellationToken,
+        task_kind: TimedTaskKind,
+    ) -> anyhow::Result<Duration> {
         debug!(?task_kind, "handling task");
 
         match task_kind {
-            TimedTaskKind::KeyPackageUpload => self.upload_key_packages().await?,
-            TimedTaskKind::HandleRefresh => self.refresh_handles().await?,
+            TimedTaskKind::KeyPackageUpload => self.upload_key_packages().await,
+            TimedTaskKind::HandleRefresh => self.refresh_handles().await,
+            TimedTaskKind::SelfUpdate => self.self_update(run_token).await,
         }
-        Ok(())
     }
 
     /// Refresh handles whose `refreshed_at` is older than USER_HANDLE_REFRESH_THRESHOLD`.
     ///
     /// This ensures handles are refreshed on the server well before they expire (server sets
     /// a `USER_HANDLE_VALIDITY_PERIOD` window from creation/refresh time).
-    async fn refresh_handles(&self) -> anyhow::Result<()> {
+    async fn refresh_handles(&self) -> anyhow::Result<Duration> {
         let now = Utc::now();
         let threshold = now - USER_HANDLE_REFRESH_THRESHOLD;
         let handles = UserHandleRecord::load_needing_refresh(&self.pool, threshold).await?;
 
-        if handles.is_empty() {
-            debug!("no handles need refreshing");
-            return Ok(());
+        if !handles.is_empty() {
+            let api_client = self.api_clients.default_client()?;
+            for handle in handles {
+                info!("refreshing handle");
+                api_client
+                    .as_refresh_handle(handle.hash, &handle.signing_key)
+                    .await?;
+                UserHandleRecord::update_refreshed_at(&self.pool, &handle.hash, now).await?;
+            }
         }
 
-        let api_client = self.api_clients.default_client()?;
-        for handle in handles {
-            info!("refreshing handle");
-            api_client
-                .as_refresh_handle(handle.hash, &handle.signing_key)
-                .await?;
-            UserHandleRecord::update_refreshed_at(&self.pool, &handle.hash, now).await?;
-        }
-
-        Ok(())
+        Ok(Duration::weeks(1))
     }
 
     /// This function does the following:
@@ -181,7 +198,7 @@ impl OutboundServiceContext {
     /// 3. Delete key packages that are marked stale
     /// 4. Mark key packages stale that were previously marked live
     /// 5. Marks the uploaded key packages as live in the database
-    async fn upload_key_packages(&self) -> anyhow::Result<()> {
+    async fn upload_key_packages(&self) -> anyhow::Result<Duration> {
         let key_packages = self
             .with_transaction(async |txn| {
                 let mut key_packages = Vec::with_capacity(KEY_PACKAGES);
@@ -243,7 +260,76 @@ impl OutboundServiceContext {
         })
         .await?;
 
-        Ok(())
+        Ok(Duration::weeks(1))
+    }
+
+    async fn self_update(&self, run_token: &CancellationToken) -> anyhow::Result<Duration> {
+        const PARTIAL_UPDATE_INTERVAL: Duration = Duration::minutes(5);
+        const BATCH_SIZE: usize = 5;
+
+        let now = Utc::now();
+        let threshold = now - SELF_UPDATE_INTERVAL;
+
+        let chat_ids = Chat::load_ids_for_self_update(&self.pool, threshold).await?;
+        let num_chats = chat_ids.len();
+
+        info!(num_chats, "Running self-updates");
+
+        let mut num_updated = 0;
+
+        for chat_id in chat_ids {
+            if run_token.is_cancelled() {
+                break; // Stop updating chats if the task is cancelled
+            }
+            if num_updated >= BATCH_SIZE {
+                break; // Stop updating chats if we've reached the batch size
+            }
+            if self.self_update_in_chat(chat_id).await? {
+                num_updated += 1;
+            }
+        }
+
+        let interval = if num_updated < num_chats {
+            info!("Self-update successful for a partial batch of chats");
+            PARTIAL_UPDATE_INTERVAL
+        } else {
+            info!("Self-update successful for all chats");
+            SELF_UPDATE_INTERVAL
+        };
+        Ok(interval)
+    }
+
+    async fn self_update_in_chat(&self, chat_id: ChatId) -> anyhow::Result<bool> {
+        debug!(?chat_id, "Self-update in chat");
+        // TODO: Should we also self-update in blocked chats?
+
+        let Some(group) =
+            Group::load_with_chat_id(self.pool.acquire().await?.as_mut(), chat_id).await?
+        else {
+            return Ok(false);
+        };
+
+        let self_update_at: DateTime<Utc> =
+            group.self_updated_at.map(From::from).unwrap_or_default();
+        if Utc::now() <= self_update_at + SELF_UPDATE_INTERVAL {
+            return Ok(false);
+        }
+
+        // If a chat operation is pending, we skip updating this chat
+        if PendingChatOperation::is_pending_for_chat(&self.pool, chat_id).await? {
+            return Ok(false);
+        }
+
+        let job = ChatOperation::update(chat_id, None);
+        let res = self.execute_job(job).await;
+
+        match res {
+            Ok(_messages) => Ok(true),
+            Err(JobError::Blocked) => Ok(false),
+            // Fatal or network errors abort the whole batch because we assume that they will
+            // persist for the next chat in the batch.
+            Err(error @ (JobError::FatalError(_) | JobError::NetworkError)) => Err(error.into()),
+        }
     }
 }
 

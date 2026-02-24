@@ -187,7 +187,10 @@ impl CoreUser {
             // If yes, merge the commit and store the updated group
             let (mut group_messages, group_data) =
                 group.merge_pending_commit(txn, None, timestamp).await?;
-            group.store_update(&mut **txn).await?;
+            group
+                .group_mut()
+                .store_update(txn.as_mut(), Some(timestamp))
+                .await?;
 
             let mut chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
                 .await?
@@ -387,9 +390,6 @@ impl CoreUser {
                         sent_at: ds_timestamp,
                     }));
 
-                // MLSMessage Phase 3: Store the updated group.
-                group.store_update(txn.as_mut()).await?;
-
                 Ok(TransactionResult::Ok(connection_info_source))
             })
             .await?;
@@ -450,7 +450,7 @@ impl CoreUser {
                 // Load the group regardless of whether it has a pending commit or not.
                 let mut group = Group::load_verified(txn, &group_id)
                     .await?
-                    .with_context(|| format!("No group found for group ID {group_id:?}"))?;
+                    .ok_or_else(|| anyhow!("No group found for group ID {:?}", group_id))?;
 
                 // MLSMessage Phase 2: Process the message
 
@@ -513,6 +513,7 @@ impl CoreUser {
                         let (new_messages, updated) = self
                             .handle_proposal_message(txn, &mut group, *proposal, ds_timestamp)
                             .await?;
+                        group.group_mut().store_update(txn.as_mut(), None).await?;
                         (new_messages, Vec::new(), updated)
                     }
                     ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
@@ -521,9 +522,8 @@ impl CoreUser {
                             &sender_user_id,
                         )
                         .await?
-                        .context("No sender client credential found")?
+                        .ok_or_else(|| anyhow!("No sender client credential found"))?
                         .into();
-
                         let (new_messages, updated) = self
                             .handle_staged_commit_message(
                                 txn,
@@ -537,6 +537,7 @@ impl CoreUser {
                                 we_were_removed,
                             )
                             .await?;
+                        group.group_mut().store_update(txn.as_mut(), None).await?;
                         (new_messages, Vec::new(), updated)
                     }
                     ProcessedMessageContent::ExternalJoinProposalMessage(_) => {
@@ -545,9 +546,6 @@ impl CoreUser {
                         (new_messages, Vec::new(), updated)
                     }
                 };
-
-                // MLSMessage Phase 3: Store the updated group and the messages.
-                group.store_update(txn.as_mut()).await?;
 
                 let mut messages =
                     Self::store_new_messages(txn, notifier, chat_id, new_messages).await?;
@@ -785,7 +783,7 @@ impl CoreUser {
                     sender,
                     sender_client_credential,
                     &mut chat,
-                    group,
+                    group.group_mut(),
                 )
                 .await?;
             (true, vec![group_messages])
@@ -836,7 +834,7 @@ impl CoreUser {
         sender: &Sender,
         sender_client_credential: &ClientCredential,
         chat: &mut Chat,
-        group: &mut VerifiedGroup,
+        group: &mut Group,
     ) -> Result<TimestampedMessage, anyhow::Error> {
         let Some(contact_type) = chat.chat_type().unconfirmed_contact() else {
             bail!("Chat is not unconfirmed");
@@ -899,11 +897,7 @@ impl CoreUser {
 
         // Room state update: Pretend that we just invited that user
         // We do that now, because we didn't know that user id when we created the room.
-        group.group_mut().room_state_change_role(
-            self.user_id(),
-            sender_user_id,
-            RoleIndex::Regular,
-        )?;
+        group.room_state_change_role(self.user_id(), sender_user_id, RoleIndex::Regular)?;
 
         chat.confirm(txn.as_mut(), notifier, contact.user_id)
             .await?;
@@ -928,7 +922,7 @@ impl CoreUser {
         params: UserProfileKeyUpdateParams,
     ) -> anyhow::Result<ProcessQsMessageResult> {
         self.with_transaction(async |txn| {
-            // Don't update the profile if the chat is blocked.
+            // Don't update the profile if the chat is blocked
             let chat_id = ChatId::try_from(&params.group_id)?;
             if BlockedContact::check_blocked_chat(txn.as_mut(), chat_id).await? {
                 bail!(BlockedContactError);
@@ -941,16 +935,16 @@ impl CoreUser {
             let sender_credential = group
                 .credential_at(params.sender_index)?
                 .context("No sender credential found")?;
-            let sender_id = sender_credential.identity();
+            let sender = sender_credential.identity();
 
             // Phase 2: Decrypt the new user profile key
             let new_user_profile_key = UserProfileKey::decrypt(
                 group.identity_link_wrapper_key(),
                 &params.user_profile_key,
-                sender_id,
+                sender,
             )?;
 
-            // Phase 3: Schedule new profile fetch
+            // Phase 3: Fetch and store the (new) user profile and key
             Self::schedule_fetch_profile(txn.as_mut(), (sender_credential, new_user_profile_key))
                 .await?;
 

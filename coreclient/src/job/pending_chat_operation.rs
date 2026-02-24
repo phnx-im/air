@@ -288,7 +288,10 @@ impl PendingChatOperation {
                         .await?;
                 }
 
-                self.group.store_update(txn.as_mut()).await?;
+                self.group
+                    .group_mut()
+                    .store_update(txn.as_mut(), Some(ds_timestamp))
+                    .await?;
                 let messages =
                     CoreUser::store_new_messages(&mut *txn, notifier, chat.id(), group_messages)
                         .await?;
@@ -773,7 +776,7 @@ mod persistence {
 
         pub(crate) async fn is_pending_for_chat(
             executor: impl SqliteExecutor<'_>,
-            chat_id: &ChatId,
+            chat_id: ChatId,
         ) -> sqlx::Result<bool> {
             let record = query!(
                 "SELECT EXISTS(SELECT 1

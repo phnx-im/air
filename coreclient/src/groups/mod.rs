@@ -171,6 +171,8 @@ pub(crate) struct Group {
     mls_group: MlsGroup,
     pub room_state: VerifiedRoomState,
     pending_diff: Option<StagedGroupDiff>, // Currently unused, but we're keeping it for later
+    /// The time at which the user self-updated their key material in this group the last time
+    pub(crate) self_updated_at: Option<TimeStamp>,
 }
 
 impl Group {
@@ -236,6 +238,7 @@ impl Group {
             room_state,
             group_state_ear_key: group_state_ear_key.clone(),
             pending_diff: None,
+            self_updated_at: Some(TimeStamp::now()),
         };
 
         Ok((group, params))
@@ -380,6 +383,7 @@ impl Group {
             group_state_ear_key: joiner_info.group_state_ear_key,
             pending_diff: None,
             room_state,
+            self_updated_at: Some(TimeStamp::now()),
         };
 
         // Phase 7: Store the group and client credentials.
@@ -515,6 +519,7 @@ impl Group {
             group_state_ear_key,
             pending_diff: None,
             room_state,
+            self_updated_at: Some(TimeStamp::now()),
         };
 
         // Phase 4: Store the group and client auth info.
@@ -1221,6 +1226,30 @@ async fn verify_member_credentials(
         })
         .collect::<Result<Vec<_>>>()?;
     Ok(credentials)
+}
+
+#[cfg(feature = "test_utils")]
+mod test_utils {
+    use chrono::{DateTime, Utc};
+
+    use crate::{Chat, ChatId, clients::CoreUser};
+
+    impl CoreUser {
+        pub async fn self_updated_at(
+            &self,
+            chat_id: ChatId,
+        ) -> sqlx::Result<Option<DateTime<Utc>>> {
+            Chat::self_updated_at(self.pool(), chat_id).await
+        }
+
+        pub async fn set_self_updated_at(
+            &self,
+            chat_id: ChatId,
+            self_updated_at: DateTime<Utc>,
+        ) -> sqlx::Result<()> {
+            Chat::set_self_updated_at(self.pool(), chat_id, self_updated_at).await
+        }
+    }
 }
 
 impl TimestampedMessage {
