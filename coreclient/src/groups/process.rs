@@ -390,7 +390,7 @@ impl Group {
                 let user_profile_key = UserProfileKey::decrypt(
                     self.identity_link_wrapper_key(),
                     &encrypted_user_profile_key,
-                    client_credential.identity(),
+                    client_credential.user_id(),
                 )?;
                 Ok((client_credential, user_profile_key))
             })

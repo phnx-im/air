@@ -242,7 +242,7 @@ impl CoreUser {
                 let mut own_profile_key_in_group = None;
                 for profile_info in member_profile_info {
                     // TODO: Don't fetch while holding a transaction!
-                    if profile_info.client_credential.identity() == self.user_id() {
+                    if profile_info.client_credential.user_id() == self.user_id() {
                         // We already have our own profile info.
                         own_profile_key_in_group = Some(profile_info.user_profile_key);
                         continue;
@@ -484,7 +484,7 @@ impl CoreUser {
                                     &group,
                                     application_message,
                                     ds_timestamp,
-                                    sender_client_credential.identity(),
+                                    sender_client_credential.user_id(),
                                     read_receipts_enabled,
                                 )
                                 .await?;
@@ -781,7 +781,7 @@ impl CoreUser {
                 txn,
                 &mut notifier,
                 &mut chat,
-                sender_client_credential.identity().clone(),
+                sender_client_credential.user_id().clone(),
                 group_data,
                 ds_timestamp,
                 &mut group_messages,
@@ -816,7 +816,7 @@ impl CoreUser {
             "Incoming commit to ConnectionGroup was not an external commit"
         );
 
-        let sender_user_id = sender_client_credential.identity();
+        let sender_user_id = sender_client_credential.user_id();
 
         if let PartialContactType::TargetedMessage(chat_user_id) = &contact_type {
             ensure!(

@@ -218,7 +218,7 @@ impl Group {
             .build(&provider, signer, credential_with_key)
             .map_err(|e| anyhow!("Error while creating group: {:?}", e))?;
 
-        let user_id = signer.credential().identity();
+        let user_id = signer.credential().user_id();
         let room_state = VerifiedRoomState::new(
             user_id.tls_serialize_detached()?,
             RoomPolicy::default_trusted_private(),
@@ -430,7 +430,7 @@ impl Group {
                 UserProfileKey::decrypt(
                     welcome_attribution_info.identity_link_wrapper_key(),
                     &eupk,
-                    ci.identity(),
+                    ci.user_id(),
                 )
                 .map(|user_profile_key| ProfileInfo {
                     user_profile_key,
@@ -568,7 +568,7 @@ impl Group {
                     .map(|client_auth_info| client_auth_info.client_credential()),
             )
             .map(|(eupk, ci)| {
-                UserProfileKey::decrypt(&identity_link_wrapper_key, &eupk, ci.identity()).map(
+                UserProfileKey::decrypt(&identity_link_wrapper_key, &eupk, ci.user_id()).map(
                     |user_profile_key| ProfileInfo {
                         user_profile_key,
                         client_credential: ci.clone().into(),
@@ -581,7 +581,7 @@ impl Group {
         let own_index = mls_group.own_leaf_index().usize();
         let own_credential = signer.credential().clone();
         let own_group_membership = GroupMembership::new(
-            own_credential.identity().clone(),
+            own_credential.user_id().clone(),
             mls_group.group_id().clone(),
             LeafNodeIndex::new(own_index as u32),
         );
@@ -640,10 +640,7 @@ impl Group {
             .iter()
             .zip(client_credentials.iter())
             .map(|(upk, client_credential)| {
-                upk.encrypt(
-                    &self.identity_link_wrapper_key,
-                    client_credential.identity(),
-                )
+                upk.encrypt(&self.identity_link_wrapper_key, client_credential.user_id())
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -680,7 +677,7 @@ impl Group {
             .map(|wai_key| {
                 // WAI = WelcomeAttributionInfo
                 let wai_payload = WelcomeAttributionInfoPayload::new(
-                    signer.credential().identity().clone(),
+                    signer.credential().user_id().clone(),
                     self.identity_link_wrapper_key.clone(),
                 );
 
@@ -701,7 +698,7 @@ impl Group {
         let free_indices = GroupMembership::free_indices(&mut *connection, self.group_id()).await?;
         for (leaf_index, client_credential) in free_indices.zip(client_credentials) {
             let group_membership = GroupMembership::new(
-                client_credential.identity().clone(),
+                client_credential.user_id().clone(),
                 self.group_id.clone(),
                 leaf_index,
             );
@@ -1331,7 +1328,7 @@ impl TimestampedMessage {
                     .ok_or_else(|| anyhow!("Could not find client credential of remover"))?
             }
             .client_credential()
-            .identity()
+            .user_id()
             .clone();
 
             let Some(removed_index) = removed_client(remove_proposal) else {
@@ -1343,7 +1340,7 @@ impl TimestampedMessage {
                 .await?
                 .ok_or_else(|| anyhow!("Could not find client credential of removed"))?
                 .client_credential()
-                .identity()
+                .user_id()
                 .clone();
 
             if remover == removed {
@@ -1372,7 +1369,7 @@ impl TimestampedMessage {
                 .await?
                 .ok_or_else(|| anyhow!("Could not find client credential of sender"))?
                 .client_credential()
-                .identity()
+                .user_id()
                 .clone();
             // Get the name of the added member from the diff containing
             // the new clients.
@@ -1385,7 +1382,7 @@ impl TimestampedMessage {
                     )
                 })?
                 .client_credential()
-                .identity()
+                .user_id()
                 .clone();
             adds_set.insert((sender_name, addee_name));
         }
@@ -1404,7 +1401,7 @@ impl TimestampedMessage {
             let client_auth_info = ClientAuthInfo::load(&mut *connection, group_id, *sender_index)
                 .await?
                 .ok_or_else(|| anyhow!("Could not find client credential of sender"))?;
-            let user_id = client_auth_info.client_credential().identity();
+            let user_id = client_auth_info.client_credential().user_id();
             debug!(
                 ?user_id,
                 %sender_index, "Client has updated their key material",

@@ -70,7 +70,7 @@ impl MemoryUserKeyStore {
         }
         .encrypt(&self.qs_client_id_encryption_key, &[], &[]);
         QsReference {
-            client_homeserver_domain: self.signing_key.credential().identity().domain().clone(),
+            client_homeserver_domain: self.signing_key.credential().user_id().domain().clone(),
             sealed_reference,
         }
     }

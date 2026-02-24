@@ -181,13 +181,13 @@ impl ClientAuthInfo {
         // matches the UserId in the old credential
         if let Some(old_credential) = old_credential {
             ensure!(
-                client_credential.identity() == old_credential.user_id(),
+                client_credential.user_id() == old_credential.user_id(),
                 "UserId in new credential does not match UserId in old credential"
             );
         }
 
         let group_membership = GroupMembership::new(
-            client_credential.identity().clone(),
+            client_credential.user_id().clone(),
             group_id.clone(),
             leaf_index,
         );

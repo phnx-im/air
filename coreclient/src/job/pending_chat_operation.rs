@@ -154,7 +154,7 @@ impl PendingChatOperation {
             now,
         } = context;
         let signer = &key_store.signing_key;
-        let own_user_id = signer.credential().identity().clone();
+        let own_user_id = signer.credential().user_id().clone();
 
         let qgid = QualifiedGroupId::try_from(self.group.group_id())?;
 
@@ -374,7 +374,7 @@ impl PendingChatOperation {
             .await?
             .with_context(|| format!("No group found for group ID {group_id:?}"))?;
 
-        let own_id = signer.credential().identity();
+        let own_id = signer.credential().user_id();
 
         // Room policy checks
         for target in &target_users {
@@ -402,7 +402,7 @@ impl PendingChatOperation {
         let mut group = Group::load_clean(txn, group_id)
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
-        let own_id = signer.credential().identity();
+        let own_id = signer.credential().user_id();
         group.verify_role_change(own_id, own_id, RoleIndex::Outsider)?;
 
         let params = group.stage_leave_group(txn, signer)?;
@@ -517,7 +517,7 @@ impl PendingChatOperation {
                     .await?
                     .with_context(|| format!("Can't find group with id {group_id:?}"))?;
 
-                let own_id = signer.credential().identity();
+                let own_id = signer.credential().user_id();
 
                 // Room policy check (doesn't apply changes to room state yet)
                 for target in &new_members {

@@ -51,7 +51,7 @@ impl CreateChat {
         // If we can't get a new group ID, we can't create the chat. Getting a
         // new group ID is repeatable.
         let group_id = api_clients.default_client()?.ds_request_group_id().await?;
-        let own_user_id = key_store.signing_key.credential().identity();
+        let own_user_id = key_store.signing_key.credential().user_id();
 
         let group_data = PersistenceCodec::to_vec(&chat_attributes)?.into();
 

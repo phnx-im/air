@@ -280,7 +280,7 @@ impl UnfinalizedRegistrationState {
     }
 
     pub(super) fn user_id(&self) -> &UserId {
-        self.key_store.signing_key.credential().identity()
+        self.key_store.signing_key.credential().user_id()
     }
 }
 
@@ -331,7 +331,7 @@ impl AsRegisteredUserState {
     }
 
     pub(super) fn user_id(&self) -> &UserId {
-        self.key_store.signing_key.credential().identity()
+        self.key_store.signing_key.credential().user_id()
     }
 }
 
@@ -352,7 +352,7 @@ impl QsRegisteredUserState {
     }
 
     pub(super) fn user_id(&self) -> &UserId {
-        self.key_store.signing_key.credential().identity()
+        self.key_store.signing_key.credential().user_id()
     }
 }
 
@@ -409,7 +409,7 @@ impl PersistedUserState {
     }
 
     pub(super) fn user_id(&self) -> &UserId {
-        self.state.key_store.signing_key.credential().identity()
+        self.state.key_store.signing_key.credential().user_id()
     }
 
     pub(super) fn qs_user_id(&self) -> &QsUserId {

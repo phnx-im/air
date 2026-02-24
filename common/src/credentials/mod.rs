@@ -497,7 +497,7 @@ impl ClientCredential {
         (self.payload, self.signature)
     }
 
-    pub fn identity(&self) -> &UserId {
+    pub fn user_id(&self) -> &UserId {
         self.payload.identity()
     }
 

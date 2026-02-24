@@ -72,7 +72,7 @@ impl AuthService {
             .sign(&signing_key)
             .map_err(|_| RegisterUserError::LibraryError)?;
 
-        let user_id = client_credential.identity();
+        let user_id = client_credential.user_id();
 
         // Create the user entry with the information given in the request
         let mut txn = self.db_pool.begin().await.map_err(|error| {

@@ -22,7 +22,7 @@ impl UserProfileUpdate {
         key_index: UserProfileKeyIndex,
         signing_key: &ClientSigningKey,
     ) -> Result<UserProfileUpdate, UserProfileValidationError> {
-        let expected_user_id = signing_key.credential().identity();
+        let expected_user_id = signing_key.credential().user_id();
         let profile_user_id = new_user_profile.user_id;
         if &profile_user_id != expected_user_id {
             return Err(UserProfileValidationError::MismatchingUserId {

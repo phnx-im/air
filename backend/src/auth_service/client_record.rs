@@ -33,7 +33,7 @@ impl ClientRecord {
 
     #[cfg(test)]
     fn user_id(&self) -> &UserId {
-        self.credential.identity()
+        self.credential.user_id()
     }
 }
 
@@ -53,7 +53,7 @@ pub(crate) mod persistence {
         ) -> Result<(), StorageError> {
             let activity_time = DateTime::<Utc>::from(self.activity_time);
             let client_credential = FlatClientCredential::new(&self.credential);
-            let user_id = self.credential.identity();
+            let user_id = self.credential.user_id();
             query!(
                 "INSERT INTO as_client_record (
                     user_uuid,
@@ -79,7 +79,7 @@ pub(crate) mod persistence {
         ) -> Result<(), StorageError> {
             let activity_time = DateTime::<Utc>::from(self.activity_time);
             let client_credential = FlatClientCredential::new(&self.credential);
-            let user_id = self.credential.identity();
+            let user_id = self.credential.user_id();
             query!(
                 "UPDATE as_client_record SET
                     activity_time = $1,
