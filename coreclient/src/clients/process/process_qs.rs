@@ -335,7 +335,7 @@ impl CoreUser {
                 let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
                     .await?
                     .ok_or_else(|| anyhow!("No chat found for group ID {:?}", group_id))?;
-                let mut group = Group::load_clean(txn, &group_id)
+                let mut group = Group::load(txn, &group_id)
                     .await?
                     .ok_or_else(|| anyhow!("No group found for group ID {:?}", group_id))?;
 

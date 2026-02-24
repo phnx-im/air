@@ -66,7 +66,7 @@ impl CoreUser {
                     .await?
                     .context("attachment record not found")?;
                 let chat_id = record.chat_id;
-                let group = Group::load_with_chat_id_clean(txn, chat_id)
+                let group = Group::load_with_chat_id(txn, chat_id)
                     .await?
                     .context("group not found")?;
 
