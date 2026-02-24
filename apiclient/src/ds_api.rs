@@ -104,6 +104,14 @@ impl DsRequestError {
             false
         }
     }
+
+    pub fn is_not_found(&self) -> bool {
+        if let Self::Tonic(status) = self {
+            matches!(status.code(), Code::NotFound)
+        } else {
+            false
+        }
+    }
 }
 
 impl ApiClient {

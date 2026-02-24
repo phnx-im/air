@@ -54,6 +54,13 @@ impl OutboundServiceContext {
                 Err(JobError::Blocked) => {
                     continue;
                 }
+                Err(JobError::NotFound) => {
+                    // The group was deleted => remove the pending chat operation.
+                    PendingChatOperation::delete(&pool, &group_id)
+                        .await
+                        .map_err(anyhow::Error::from)?;
+                    continue;
+                }
                 Ok(_) => (),
             }
         }
