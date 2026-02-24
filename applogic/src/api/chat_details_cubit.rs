@@ -4,18 +4,17 @@
 
 //! A single chat details feature
 
-use std::path::PathBuf;
-use std::time::Duration;
+use std::{collections::HashMap, path::PathBuf, time::Duration};
 
 use aircommon::{
     OpenMlsRand, RustCrypto,
     identifiers::{AttachmentId, UserId},
 };
 use aircoreclient::{
-    AttachmentProgress, Chat, ChatId, ChatMessage, MessageDraft, ProvisionAttachmentError,
-    UploadTaskError,
+    AttachmentProgress, Chat, ChatId, ChatMessage, MessageDraft, MessageId,
+    ProvisionAttachmentError, UploadTaskError, clients::CoreUser, store::Store,
 };
-use aircoreclient::{MessageId, clients::CoreUser, store::Store};
+pub use aircoreclient::{DebugCapabilities, GroupDebugInfo, RequiredDebugCapabilities};
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
 use mimi_content::MimiContent;
@@ -427,6 +426,11 @@ impl ChatDetailsCubitBase {
         self.context.store.accept_contact_request(chat_id).await?;
         Ok(())
     }
+
+    pub async fn chat_debug_info(&self) -> anyhow::Result<GroupDebugInfo> {
+        let chat_id = self.context.chat_id;
+        self.context.store.chat_debug_info(chat_id).await
+    }
 }
 
 /// Loads the initial state and listen to the changes
@@ -609,4 +613,35 @@ pub enum UploadAttachmentError {
         max_size_bytes: u64,
         actual_size_bytes: u64,
     },
+}
+
+#[frb(mirror(GroupDebugInfo))]
+pub struct _GroupDebugInfo {
+    pub group_id: String,
+    pub epoch: u64,
+    pub ciphersuite: String,
+    pub versions: Vec<String>,
+    pub own_leaf_index: u32,
+    pub self_updated_at: Option<String>,
+    pub pending_proposals: usize,
+    pub has_pending_commit: bool,
+    pub required_capabilities: Option<RequiredDebugCapabilities>,
+    pub members: HashMap<u32, DebugCapabilities>,
+}
+
+#[frb(mirror(RequiredDebugCapabilities))]
+pub struct _RequiredDebugCapabilities {
+    pub extension_types: Vec<String>,
+    pub proposal_types: Vec<String>,
+    pub credential_types: Vec<String>,
+}
+
+#[frb(mirror(DebugCapabilities))]
+pub struct _DebugCapabilities {
+    pub user_id: String,
+    pub display_name: String,
+    pub versions: Vec<String>,
+    pub ciphersuites: Vec<String>,
+    pub extensions: Vec<String>,
+    pub proposals: Vec<String>,
 }

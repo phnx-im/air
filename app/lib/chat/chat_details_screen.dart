@@ -10,6 +10,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 
+import 'chat_debug_info_view.dart';
 import 'contact_details.dart';
 import 'chat_details_cubit.dart';
 import 'group_details.dart';
@@ -67,6 +68,19 @@ class ChatDetailsScreenView extends StatelessWidget {
           }
           return AppScaffold(
             title: chat.title,
+            onTitleLongPress: () {
+              final debugInfoFut = context
+                  .read<ChatDetailsCubit>()
+                  .chatDebugInfo();
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => ChatDebugInfoView(
+                    title: chat.title,
+                    debugInfo: debugInfoFut,
+                  ),
+                ),
+              );
+            },
             child: ContactDetailsView(
               profile: profile,
               relationship: ContactRelationship(
