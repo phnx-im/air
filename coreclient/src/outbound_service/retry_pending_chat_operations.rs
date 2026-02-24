@@ -51,14 +51,7 @@ impl OutboundServiceContext {
                     // This job has a fatal error. Continue with the next one.
                     continue;
                 }
-                Err(JobError::Blocked) => {
-                    continue;
-                }
-                Err(JobError::NotFound) => {
-                    // The group was deleted => remove the pending chat operation.
-                    PendingChatOperation::delete(&pool, &group_id)
-                        .await
-                        .map_err(anyhow::Error::from)?;
+                Err(JobError::Blocked | JobError::NotFound) => {
                     continue;
                 }
                 Ok(_) => (),

@@ -295,7 +295,7 @@ impl OutboundServiceContext {
         }
 
         let skipped = num_chats.wrapping_sub(num_updated);
-        info!(skipped, "Self-update successful for all chats");
+        info!(num_chats, skipped, "Full self-update successful");
         Ok(SELF_UPDATE_INTERVAL)
     }
 
