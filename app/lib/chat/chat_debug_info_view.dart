@@ -139,9 +139,8 @@ class _SectionHeader extends StatelessWidget {
         title.toUpperCase(),
         style: TextStyle(
           fontSize: BodyFontSize.small2.size,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.bold,
           color: colors.text.tertiary,
-          letterSpacing: 0.5,
         ),
       ),
     );
@@ -293,7 +292,7 @@ class _MemberCard extends StatelessWidget {
                   'Leaf $leafIndex',
                   style: TextStyle(
                     fontSize: BodyFontSize.small1.size,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.bold,
                     color: colors.text.primary,
                   ),
                 ),
@@ -313,7 +312,7 @@ class _MemberCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: BodyFontSize.small2.size,
                         color: colors.accent.primary,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),

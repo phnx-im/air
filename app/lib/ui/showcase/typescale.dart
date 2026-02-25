@@ -58,7 +58,6 @@ class Typescale extends StatelessWidget {
                   softWrap: false,
                   style: TextStyle(
                     fontSize: LabelFontSize.base.size,
-                    color: CustomColorScheme.of(context).text.tertiary,
                   ).withSystemMonospace(),
                 ),
               ),
@@ -68,8 +67,7 @@ class Typescale extends StatelessWidget {
                   softWrap: false,
                   style: TextStyle(
                     fontSize: LabelFontSize.small2.size,
-                    color: CustomColorScheme.of(context).text.quaternary,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.bold,
                   ).withSystemMonospace(),
                 ),
               ),
@@ -82,10 +80,7 @@ class Typescale extends StatelessWidget {
                 child: Text(
                   sample,
                   softWrap: false,
-                  style: TextStyle(
-                    fontSize: e.size,
-                    fontWeight: FontWeight.w400,
-                  ),
+                  style: TextStyle(fontSize: e.size),
                 ),
               ),
             ],
