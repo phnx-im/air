@@ -40,7 +40,7 @@ class InvitationCodeScreen extends HookWidget {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         toolbarHeight: isPointer() ? 100 : null,
-        backgroundColor: Colors.transparent,
+        backgroundColor: colors.backgroundBase.secondary,
       ),
       backgroundColor: backgroundColor,
       body: SafeArea(
