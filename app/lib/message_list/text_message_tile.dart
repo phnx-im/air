@@ -26,6 +26,8 @@ import 'package:air/user/user.dart';
 import 'package:air/util/platform.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/gestures.dart'
+    show EagerGestureRecognizer, kSecondaryMouseButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -413,12 +415,30 @@ class _MessageView extends HookWidget {
                 duration: const Duration(milliseconds: 120),
                 child: IgnorePointer(
                   ignoring: detached,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.deferToChild,
-                    onTap: () => isRevealed.value = true,
-                    onLongPress: onLongPress,
-                    onSecondaryTapDown: onSecondaryTapDown,
-                    child: bubble,
+                  // Right-click: handled via raw pointer events to
+                  // bypass the gesture arena (won by
+                  // _EagerSecondaryClickRecognizer).
+                  child: Listener(
+                    onPointerDown: onSecondaryTapDown != null
+                        ? (event) {
+                            if (event.buttons == kSecondaryMouseButton) {
+                              onSecondaryTapDown(
+                                TapDownDetails(
+                                  globalPosition: event.position,
+                                  localPosition: event.localPosition,
+                                ),
+                              );
+                            }
+                          }
+                        : null,
+                    // Tap and long-press: handled via the
+                    // gesture arena as usual.
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.deferToChild,
+                      onTap: () => isRevealed.value = true,
+                      onLongPress: onLongPress,
+                      child: bubble,
+                    ),
                   ),
                 ),
               ),
@@ -751,10 +771,20 @@ class _MessageContent extends StatelessWidget {
           ),
         );
         final Widget selectableChild = enableSelection
-            ? SelectableRegion(
-                selectionControls: emptyTextSelectionControls,
-                contextMenuBuilder: (context, _) => const SizedBox.shrink(),
-                child: textColumn,
+            // Prevents SelectableRegion from selecting
+            // words on right-click.
+            ? RawGestureDetector(
+                gestures: {
+                  _EagerSecondaryClickRecognizer:
+                      GestureRecognizerFactoryWithHandlers<
+                        _EagerSecondaryClickRecognizer
+                      >(_EagerSecondaryClickRecognizer.new, (_) {}),
+                },
+                child: SelectableRegion(
+                  selectionControls: emptyTextSelectionControls,
+                  contextMenuBuilder: (context, _) => const SizedBox.shrink(),
+                  child: textColumn,
+                ),
               )
             : SelectionContainer.disabled(child: textColumn);
         columnChildren.add(selectableChild);
@@ -1085,4 +1115,14 @@ BorderRadius _messageBorderRadius(
         ? r(!isSender || flightPosition.isLast)
         : Radius.zero,
   );
+}
+
+/// Immediately wins the gesture arena for secondary (right) mouse button
+/// clicks, preventing [SelectableRegion] from selecting words on right-click.
+/// Ignores primary button events so text selection via left-click still works.
+class _EagerSecondaryClickRecognizer extends EagerGestureRecognizer {
+  @override
+  bool isPointerAllowed(PointerDownEvent event) {
+    return event.buttons == kSecondaryMouseButton;
+  }
 }
