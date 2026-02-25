@@ -53,7 +53,10 @@ impl OutboundServiceContext {
             let operation_id = &op.operation_id;
 
             match self.execute_job(data).await {
-                Ok(()) => debug!(?operation_id, "fetched profile"),
+                Ok(()) => {
+                    debug!(?operation_id, "fetched profile");
+                    op.delete(&self.pool).await?;
+                }
                 Err(JobError::NetworkError) => {
                     debug!(
                         ?operation_id,
@@ -72,7 +75,8 @@ impl OutboundServiceContext {
                         continue;
                     }
                 }
-                Err(error @ (JobError::Blocked | JobError::FatalError(_))) => {
+                Err(error @ (JobError::Blocked | JobError::FatalError(_) | JobError::NotFound)) => {
+                    // These error cases must not happen when fetching profiles.
                     error!(?operation_id, %error, "Failed to fetch profile");
                     op.delete(&self.pool).await?;
                 }

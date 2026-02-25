@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::collections::HashSet;
+
 use aircommon::identifiers::UserId;
 use anyhow::{anyhow, bail};
 use sqlx::SqliteConnection;
@@ -114,7 +116,7 @@ impl ChatOperation {
 
         match &mut self.operation {
             ChatOperationType::AddMembers(user_ids) => {
-                let members = group.members(connection).await;
+                let members: HashSet<_> = group.members().collect();
                 user_ids.retain(|user_id| !members.contains(user_id));
 
                 if user_ids.is_empty() {
@@ -122,7 +124,7 @@ impl ChatOperation {
                 }
             }
             ChatOperationType::RemoveMembers(user_ids) => {
-                let members = group.members(connection).await;
+                let members: HashSet<_> = group.members().collect();
                 user_ids.retain(|user_id| members.contains(user_id));
 
                 if user_ids.is_empty() {

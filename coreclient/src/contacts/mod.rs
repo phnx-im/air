@@ -5,6 +5,7 @@
 use std::iter;
 
 use aircommon::{
+    credentials::VerifiableClientCredential,
     crypto::{
         ear::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
         indexed_aead::keys::UserProfileKey,
@@ -61,11 +62,9 @@ impl Contact {
         // Verify the KeyPackage
         let verified_key_package =
             key_package_in.validate(&RustCrypto::default(), ProtocolVersion::default())?;
-        let verifiable_client_credential = verified_key_package
-            .leaf_node()
-            .credential()
-            .clone()
-            .try_into()?;
+        let verifiable_client_credential = VerifiableClientCredential::from_basic_credential(
+            verified_key_package.leaf_node().credential(),
+        )?;
 
         let as_credential = AsCredentials::fetch_for_verification(
             connection,

@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use chrono::Duration;
-use mls_assist::openmls::prelude::{
-    BasicCredential, BasicCredentialError, Credential, SignatureScheme,
+use mls_assist::openmls::{
+    group::GroupId,
+    prelude::{BasicCredentialError, Credential, CredentialType, SignatureScheme},
 };
 
 use serde::{Deserialize, Serialize};
@@ -473,6 +474,17 @@ impl Labeled for ClientCredential {
 
 impl Hashable for ClientCredential {}
 
+/// A witness trait which guarantees that a leaf node credential was verified against an AS
+/// intermediate credential.
+///
+/// The implementor must guarantee that any credential obtained through this witness was previously
+/// verified against an AS intermediate credential, e.g. it came from a locally-stored MLS group
+/// that was verified on join.
+pub trait GroupStorageWitness {
+    /// Returns the group ID of the group that this credential was verified against.
+    fn group_id(&self) -> &GroupId;
+}
+
 // WARNING: If this type is changed, a new variant of the
 // VersionedClientCredential(Ref) must be created and the `FromSql` and `ToSql`
 // implementations of `ClientCredential` must be updated accordingly.
@@ -485,8 +497,19 @@ pub struct ClientCredential {
 }
 
 impl ClientCredential {
+    #[cfg(feature = "test_utils")]
     pub fn new(payload: ClientCredentialPayload, signature: AsIntermediateSignature) -> Self {
         Self { payload, signature }
+    }
+
+    pub fn assume_verified(
+        credential: VerifiableClientCredential,
+        _: &impl GroupStorageWitness,
+    ) -> Self {
+        Self {
+            payload: credential.payload,
+            signature: credential.signature,
+        }
     }
 
     pub fn signature_scheme(&self) -> SignatureScheme {
@@ -585,6 +608,20 @@ impl VerifiableClientCredential {
         Self { payload, signature }
     }
 
+    /// Deserializes a [`VerifiableClientCredential`] from a [`Credential`].
+    ///
+    /// If the credential is not a [`CredentialType::Basic`], an error is returned.
+    pub fn from_basic_credential(credential: &Credential) -> Result<Self, BasicCredentialError> {
+        // This impl does not construct a `BasicCredential` to avoid cloning the data.
+        let CredentialType::Basic = credential.credential_type() else {
+            return Err(BasicCredentialError::WrongCredentialType);
+        };
+        let credential = VerifiableClientCredential::tls_deserialize_exact_bytes(
+            credential.serialized_content(),
+        )?;
+        Ok(credential)
+    }
+
     pub fn domain(&self) -> &Fqdn {
         self.payload.csr.user_id.domain()
     }
@@ -609,17 +646,6 @@ impl Verifiable for VerifiableClientCredential {
 
     fn label(&self) -> &str {
         CLIENT_CREDENTIAL_LABEL
-    }
-}
-
-impl TryFrom<Credential> for VerifiableClientCredential {
-    type Error = BasicCredentialError;
-
-    fn try_from(value: Credential) -> Result<Self, Self::Error> {
-        let basic_credential = BasicCredential::try_from(value)?;
-        let credential =
-            VerifiableClientCredential::tls_deserialize_exact_bytes(basic_credential.identity())?;
-        Ok(credential)
     }
 }
 

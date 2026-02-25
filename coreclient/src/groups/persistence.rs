@@ -2,26 +2,30 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::ops::Deref;
+
 use aircommon::{
     codec::{BlobDecoded, BlobEncoded, PersistenceCodec},
-    credentials::VerifiableClientCredential,
+    credentials::{ClientCredential, GroupStorageWitness, VerifiableClientCredential},
     crypto::ear::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     time::TimeStamp,
 };
-use anyhow::ensure;
+use anyhow::{Result, ensure};
 use mimi_room_policy::{RoomState, VerifiedRoomState};
 use openmls::group::{GroupId, MlsGroup};
+use openmls::prelude::{LeafNodeIndex, StagedCommit};
 use openmls_traits::OpenMlsProvider;
-use sqlx::{SqliteExecutor, query, query_as};
+use sqlx::{SqliteExecutor, SqliteTransaction, query, query_as};
 use tls_codec::Serialize as _;
 use tracing::error;
 
 use crate::{
     ChatId,
+    chats::messages::TimestampedMessage,
     utils::persistence::{GroupIdRefWrapper, GroupIdWrapper},
 };
 
-use super::{Group, diff::StagedGroupDiff, openmls_provider::AirOpenMlsProvider};
+use super::{Group, GroupData, diff::StagedGroupDiff, openmls_provider::AirOpenMlsProvider};
 
 struct SqlGroup {
     group_id: GroupIdWrapper,
@@ -50,23 +54,20 @@ impl SqlGroup {
             state
         } else {
             error!("Failed to load room state. Falling back to default room state.");
-            let members = mls_group
+            let members: Vec<_> = mls_group
                 .members()
-                .map(|m| {
-                    VerifiableClientCredential::try_from(m.credential)
-                        .unwrap()
-                        .user_id()
-                        .clone()
-                        .tls_serialize_detached()
+                .map(|m| -> anyhow::Result<_> {
+                    let credential =
+                        VerifiableClientCredential::from_basic_credential(&m.credential)?;
+                    Ok(credential.user_id().tls_serialize_detached()?)
                 })
-                .filter_map(|r| match r {
-                    Ok(user) => Some(user),
-                    Err(e) => {
-                        error!(%e, "Failed to serialize user id for fallback room");
-                        None
-                    }
+                .filter_map(|res| {
+                    res.inspect_err(|error| {
+                        error!(%error, "Failed to serialize user id for fallback room");
+                    })
+                    .ok()
                 })
-                .collect::<Vec<_>>();
+                .collect();
 
             VerifiedRoomState::fallback_room(members)
         };
@@ -80,6 +81,72 @@ impl SqlGroup {
             room_state,
             self_updated_at,
         }
+    }
+}
+
+/// Verification that a group was loaded from the local storage.
+struct LocalGroupStorage(GroupId);
+
+// MLS groups are only written to local storage after all leaf credentials have been verified
+// against an AS intermediate credential.
+impl GroupStorageWitness for LocalGroupStorage {
+    fn group_id(&self) -> &GroupId {
+        &self.0
+    }
+}
+
+/// A [`Group`] loaded from local storage, with the guarantee that all
+/// leaf credentials have been previously verified against AS credentials.
+pub(crate) struct VerifiedGroup(Group);
+
+impl VerifiedGroup {
+    pub(crate) fn group_mut(&mut self) -> &mut Group {
+        &mut self.0
+    }
+
+    /// Like [`Group::credential_at`] but without requiring an explicit witness argument.
+    pub(crate) fn credential_at(
+        &self,
+        index: LeafNodeIndex,
+    ) -> anyhow::Result<Option<ClientCredential>> {
+        self.0.credential_at(index, self)
+    }
+
+    /// Delegates to [`Group::merge_pending_commit`] using a temporary witness.
+    ///
+    /// A temporary `LocalGroupStorage` is created to avoid a simultaneous
+    /// `&mut self` (for the group) and `&self` (for the witness) borrow conflict.
+    pub(crate) async fn merge_pending_commit(
+        &mut self,
+        txn: &mut SqliteTransaction<'_>,
+        staged_commit_option: impl Into<Option<StagedCommit>>,
+        ds_timestamp: TimeStamp,
+    ) -> Result<(Vec<TimestampedMessage>, Option<GroupData>)> {
+        let witness = LocalGroupStorage(self.0.group_id().clone());
+        self.0
+            .merge_pending_commit(txn, &witness, staged_commit_option, ds_timestamp)
+            .await
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_for_test(group: Group) -> Self {
+        Self(group)
+    }
+}
+
+impl Deref for VerifiedGroup {
+    type Target = Group;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+// VerifiedGroup can only be constructed via `load_verified` / `load_clean_verified`, which load
+// groups from local storage after all leaf credentials have been verified against AS intermediate
+// credentials.
+impl GroupStorageWitness for VerifiedGroup {
+    fn group_id(&self) -> &GroupId {
+        self.0.group_id()
     }
 }
 
@@ -111,7 +178,7 @@ impl Group {
         Ok(())
     }
 
-    pub async fn load_clean(
+    pub(crate) async fn load_clean(
         connection: &mut sqlx::SqliteConnection,
         group_id: &GroupId,
     ) -> anyhow::Result<Option<Self>> {
@@ -127,7 +194,16 @@ impl Group {
         Ok(Some(group))
     }
 
-    pub async fn load_with_chat_id_clean(
+    pub(crate) async fn load_clean_verified(
+        connection: &mut sqlx::SqliteConnection,
+        group_id: &GroupId,
+    ) -> anyhow::Result<Option<VerifiedGroup>> {
+        Ok(Self::load_clean(connection, group_id)
+            .await?
+            .map(VerifiedGroup))
+    }
+
+    pub(crate) async fn load_with_chat_id_clean(
         connection: &mut sqlx::SqliteConnection,
         chat_id: ChatId,
     ) -> anyhow::Result<Option<Self>> {
@@ -141,6 +217,13 @@ impl Group {
         );
 
         Ok(Some(group))
+    }
+
+    pub(crate) async fn load_verified(
+        connection: &mut sqlx::SqliteConnection,
+        group_id: &GroupId,
+    ) -> sqlx::Result<Option<VerifiedGroup>> {
+        Ok(Self::load(connection, group_id).await?.map(VerifiedGroup))
     }
 
     pub(crate) async fn load(

@@ -558,7 +558,7 @@ impl CoreUser {
         let Some(group) = Group::load(&mut connection, chat_id.group_id()).await? else {
             return Ok(None);
         };
-        Ok(Some(group.members(&mut *connection).await))
+        Ok(Some(group.members().collect()))
     }
 
     /// Returns None if there is no chat with the given id.

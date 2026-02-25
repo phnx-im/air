@@ -505,6 +505,11 @@ class AppLocalizationsFr extends AppLocalizations {
   String get timestamp_now => 'Maintenant';
 
   @override
+  String timestamp_minutesAgo(int count) {
+    return '$count min';
+  }
+
+  @override
   String get timestamp_yesterday => 'Hier';
 
   @override

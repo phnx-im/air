@@ -13,11 +13,13 @@ pub(crate) mod openmls_provider;
 pub(crate) mod persistence;
 pub(crate) mod process;
 
-use client_auth_info::ClientVerificationInfo;
 pub(crate) use error::*;
+pub(crate) use persistence::VerifiedGroup;
 
 use aircommon::{
-    credentials::{ClientCredential, VerifiableClientCredential, keys::ClientSigningKey},
+    credentials::{
+        ClientCredential, GroupStorageWitness, VerifiableClientCredential, keys::ClientSigningKey,
+    },
     crypto::{
         ear::{
             EarDecryptable, EarEncryptable,
@@ -53,16 +55,16 @@ use aircommon::{
     time::TimeStamp,
     utils::removed_client,
 };
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use mimi_content::MimiContent;
 use mimi_room_policy::{MimiProposal, RoleIndex, RoomPolicy, VerifiedRoomState};
 use mls_assist::messages::AssistedMessageOut;
 use openmls_provider::AirOpenMlsProvider;
 use openmls_traits::storage::StorageProvider;
 use serde::{Deserialize, Serialize};
-use sqlx::{SqliteConnection, SqliteExecutor, SqliteTransaction};
+use sqlx::{SqliteConnection, SqliteTransaction};
 use tls_codec::DeserializeBytes;
-use tracing::{debug, error};
+use tracing::{Level, debug, enabled, error};
 
 use crate::{
     SystemMessage,
@@ -73,12 +75,13 @@ use crate::{
         targeted_message::TargetedMessageContent,
     },
     contacts::ContactAddInfos,
+    groups::client_auth_info::VerifiableClientCredentialExt,
     key_stores::as_credentials::AsCredentials,
 };
 use std::collections::HashSet;
 
 use openmls::{
-    group::{ExternalCommitBuilder, JoinBuilder, Member, ProcessedWelcome},
+    group::{ExternalCommitBuilder, JoinBuilder, ProcessedWelcome},
     key_packages::KeyPackageBundle,
     prelude::{
         BasicCredentialError, CredentialWithKey, Extension, Extensions, GroupId, KeyPackage,
@@ -91,10 +94,7 @@ use openmls::{
     treesync::RatchetTree,
 };
 
-use self::{
-    client_auth_info::{ClientAuthInfo, GroupMembership, StorableClientCredential},
-    diff::StagedGroupDiff,
-};
+use self::{client_auth_info::StorableClientCredential, diff::StagedGroupDiff};
 
 pub(crate) struct PartialCreateGroupParams {
     pub(crate) group_id: GroupId,
@@ -187,7 +187,7 @@ impl Group {
         signer: &ClientSigningKey,
         group_id: GroupId,
         group_data: GroupData,
-    ) -> Result<(Self, GroupMembership, PartialCreateGroupParams)> {
+    ) -> Result<(Self, PartialCreateGroupParams)> {
         let provider = AirOpenMlsProvider::new(connection);
         let group_state_ear_key = GroupStateEarKey::random()?;
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
@@ -232,12 +232,6 @@ impl Group {
             room_state: room_state.clone(),
         };
 
-        let group_membership = GroupMembership::new(
-            user_id.clone(),
-            group_id.clone(),
-            LeafNodeIndex::new(0), // We just created the group so we're at index 0.
-        );
-
         let group = Self {
             group_id,
             identity_link_wrapper_key,
@@ -248,7 +242,7 @@ impl Group {
             self_updated_at: Some(TimeStamp::now()),
         };
 
-        Ok((group, group_membership, params))
+        Ok((group, params))
     }
 
     /// Join a group with the provided welcome message. If there exists a group
@@ -381,23 +375,7 @@ impl Group {
             )
         };
 
-        let client_information = member_information(mls_group.members())?;
-
-        // Phase 6: Fetch the AS credentials from the server
-        let as_credentials = AsCredentials::fetch_for_verification(
-            txn.as_mut(),
-            api_clients,
-            client_information.iter().map(|info| &info.credential),
-        )
-        .await?;
-
-        // Phase 7: Decrypt and verify the client credentials. This can involve
-        // queries to the clients' AS.
-        let client_information = ClientAuthInfo::verify_new_credentials(
-            mls_group.group_id(),
-            client_information,
-            &as_credentials,
-        )?;
+        let credentials = verify_member_credentials(txn, api_clients, &mls_group).await?;
 
         let group = Self {
             group_id: mls_group.group_id().clone(),
@@ -411,21 +389,14 @@ impl Group {
 
         // Phase 7: Store the group and client credentials.
         group.store(txn.as_mut()).await?;
-
-        {
-            for client_auth_info in &client_information {
-                client_auth_info.store(txn).await?;
-            }
+        for credential in &credentials {
+            credential.store(txn.as_mut()).await?;
         }
 
-        // Phase 8: Decrypt and verify the client credentials.
+        // Phase 8: Decrypt profile keys
         let member_profile_info = encrypted_user_profile_keys
             .into_iter()
-            .zip(
-                client_information
-                    .into_iter()
-                    .map(|client_auth_info| client_auth_info.into_client_credential()),
-            )
+            .zip(credentials)
             .map(|(eupk, ci)| {
                 UserProfileKey::decrypt(
                     welcome_attribution_info.identity_link_wrapper_key(),
@@ -434,7 +405,7 @@ impl Group {
                 )
                 .map(|user_profile_key| ProfileInfo {
                     user_profile_key,
-                    client_credential: ci,
+                    client_credential: ci.into(),
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -539,55 +510,8 @@ impl Group {
             )
         };
 
-        let group_id = mls_group.group_id();
-
-        let member_info = member_information(mls_group.members())?;
-
-        // Phase 2: Fetch the AS credentials from the server
-        let as_credentials = AsCredentials::fetch_for_verification(
-            &mut *txn,
-            api_clients,
-            member_info.iter().map(|info| &info.credential),
-        )
-        .await?;
-
-        // Phase 3: Decrypt and verify the client credentials.
-        let mut client_information =
-            ClientAuthInfo::verify_new_credentials(group_id, member_info, &as_credentials)?;
-
-        // Compile a list of user profile keys for the members.
-        let member_profile_info = encrypted_user_profile_keys
-            .into_iter()
-            .enumerate()
-            .filter_map(|(index, eupk)| {
-                (!removed_members.contains(&LeafNodeIndex::new(index as u32))).then_some(eupk)
-            })
-            .zip(
-                client_information
-                    .iter()
-                    .map(|client_auth_info| client_auth_info.client_credential()),
-            )
-            .map(|(eupk, ci)| {
-                UserProfileKey::decrypt(&identity_link_wrapper_key, &eupk, ci.user_id()).map(
-                    |user_profile_key| ProfileInfo {
-                        user_profile_key,
-                        client_credential: ci.clone().into(),
-                    },
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        // We still have to add ourselves to the encrypted client credentials.
-        let own_index = mls_group.own_leaf_index().usize();
-        let own_credential = signer.credential().clone();
-        let own_group_membership = GroupMembership::new(
-            own_credential.user_id().clone(),
-            mls_group.group_id().clone(),
-            LeafNodeIndex::new(own_index as u32),
-        );
-
-        let own_auth_info = ClientAuthInfo::new(own_credential, own_group_membership);
-        client_information.push(own_auth_info);
+        // Phase 3: Verify the client credentials
+        let credentials = verify_member_credentials(&mut *txn, api_clients, &mls_group).await?;
 
         let group = Self {
             group_id: mls_group.group_id().clone(),
@@ -600,16 +524,35 @@ impl Group {
         };
 
         // Phase 4: Store the group and client auth info.
-
         // If the group previously existed, delete it first.
         Group::delete_from_db(&mut *txn, &group.group_id).await?;
         group.store(txn.as_mut()).await?;
-        {
-            for client_auth_info in client_information.iter() {
-                // Store client auth info.
-                client_auth_info.store(&mut *txn).await?;
-            }
+        for credential in &credentials {
+            credential.store(txn.as_mut()).await?;
         }
+        // Also store own credential
+        let own_credential = signer.credential().clone();
+        StorableClientCredential::from(own_credential)
+            .store(txn.as_mut())
+            .await?;
+
+        // Compile a list of user profile keys for the members.
+        let member_profile_info = encrypted_user_profile_keys
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, eupk)| {
+                (!removed_members.contains(&LeafNodeIndex::new(index as u32))).then_some(eupk)
+            })
+            .zip(credentials)
+            .map(|(eupk, ci)| {
+                UserProfileKey::decrypt(&group.identity_link_wrapper_key, &eupk, ci.user_id()).map(
+                    |user_profile_key| ProfileInfo {
+                        user_profile_key,
+                        client_credential: ci.into(),
+                    },
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok((group, commit, group_info, member_profile_info))
     }
@@ -691,21 +634,6 @@ impl Group {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        // Stage removals
-        GroupMembership::stage_removals_in_pending_commit(&mut *connection, self).await?;
-
-        // Stage the adds in the DB.
-        let free_indices = GroupMembership::free_indices(&mut *connection, self.group_id()).await?;
-        for (leaf_index, client_credential) in free_indices.zip(client_credentials) {
-            let group_membership = GroupMembership::new(
-                client_credential.user_id().clone(),
-                self.group_id.clone(),
-                leaf_index,
-            );
-            let client_auth_info = ClientAuthInfo::new(client_credential, group_membership);
-            client_auth_info.stage_add(&mut *connection).await?;
-        }
-
         let add_users_info = AddUsersInfoOut {
             welcome,
             encrypted_welcome_attribution_infos,
@@ -723,10 +651,22 @@ impl Group {
         &mut self,
         connection: &mut sqlx::SqliteConnection,
         signer: &ClientSigningKey,
-        members: Vec<UserId>,
+        mut members: Vec<UserId>,
     ) -> Result<GroupOperationParamsOut> {
-        let remove_indices =
-            GroupMembership::client_indices(&mut *connection, self.group_id(), &members).await?;
+        // Note: The order of `remove_indices` is not the same as the order of `members`.
+        let mut remove_indices = Vec::with_capacity(members.len());
+        for member in self.mls_group.members() {
+            let credential = VerifiableClientCredential::from_basic_credential(&member.credential)?;
+            let user_id = credential.user_id();
+            if let Some(idx) = members.iter().position(|id| id == user_id) {
+                remove_indices.push(member.index);
+                members.swap_remove(idx);
+            }
+            if members.is_empty() {
+                break;
+            }
+        }
+        ensure!(members.is_empty(), "Not all members to remove were found");
 
         let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
             new_encrypted_user_profile_keys: vec![],
@@ -750,8 +690,6 @@ impl Group {
         debug_assert!(_welcome_option.is_none());
         let group_info = group_info_option.ok_or(anyhow!("No group info after commit"))?;
         let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()));
-
-        GroupMembership::stage_removals_in_pending_commit(&mut *connection, self).await?;
 
         let params = GroupOperationParamsOut {
             commit,
@@ -799,8 +737,6 @@ impl Group {
             group_info_option.ok_or(anyhow!("No group info after commit operation"))?;
         let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()));
 
-        GroupMembership::stage_removals_in_pending_commit(&mut *connection, self).await?;
-
         let params = DeleteGroupParamsOut { commit };
         Ok(params)
     }
@@ -809,7 +745,6 @@ impl Group {
         &mut self,
         txn: &mut SqliteTransaction<'_>,
     ) -> Result<()> {
-        GroupMembership::delete_staged_changes(txn, self.group_id()).await?;
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         self.pending_diff = None;
         self.mls_group.clear_pending_commit(provider.storage())?;
@@ -839,13 +774,13 @@ impl Group {
     ///
     /// Returns the messages resulting from the commit and any group data
     /// extracted from the staged commit.
-    pub(super) async fn merge_pending_commit(
+    pub(in crate::groups) async fn merge_pending_commit(
         &mut self,
         txn: &mut SqliteTransaction<'_>,
+        verified: &impl GroupStorageWitness,
         staged_commit_option: impl Into<Option<StagedCommit>>,
         ds_timestamp: TimeStamp,
     ) -> Result<(Vec<TimestampedMessage>, Option<GroupData>)> {
-        let free_indices = GroupMembership::free_indices(txn.as_mut(), self.group_id()).await?;
         let staged_commit_option: Option<StagedCommit> = staged_commit_option.into();
 
         self.apply_staged_operations_to_room_state(staged_commit_option.as_ref())?;
@@ -854,13 +789,11 @@ impl Group {
             // Compute the messages we want to emit from the staged commit and the
             // client info diff.
             let staged_commit_messages = TimestampedMessage::from_staged_commit(
-                txn.as_mut(),
-                self.group_id(),
-                free_indices,
+                self,
+                verified,
                 &staged_commit,
                 ds_timestamp,
-            )
-            .await?;
+            )?;
 
             let group_data = GroupData::from_staged_commit(&staged_commit);
 
@@ -876,13 +809,11 @@ impl Group {
                 if let Some(staged_commit) = self.mls_group.pending_commit() {
                     let group_data = GroupData::from_staged_commit(staged_commit);
                     let messages = TimestampedMessage::from_staged_commit(
-                        &mut *txn,
-                        self.group_id(),
-                        free_indices,
+                        self,
+                        verified,
                         staged_commit,
                         ds_timestamp,
-                    )
-                    .await?;
+                    )?;
                     (messages, group_data)
                 } else {
                     (vec![], None)
@@ -902,31 +833,7 @@ impl Group {
             }
         }
 
-        GroupMembership::merge_for_group(&mut *txn, self.group_id()).await?;
         self.pending_diff = None;
-        // Debug sanity checks after merging.
-        #[cfg(debug_assertions)]
-        {
-            let mls_group_members = self
-                .mls_group
-                .members()
-                .map(|m| m.index)
-                .collect::<Vec<_>>();
-            let group_member_data =
-                GroupMembership::group_members(txn.as_mut(), self.group_id()).await?;
-            if mls_group_members.len() != group_member_data.len() {
-                tracing::error!(?mls_group_members, "Group members according to OpenMLS");
-                tracing::error!(?group_member_data, "Group members according to DB");
-                panic!("Group members don't match up");
-            }
-            let client_indices =
-                GroupMembership::client_indices(txn.as_mut(), self.group_id(), &group_member_data)
-                    .await?;
-            self.mls_group.members().for_each(|m| {
-                let index = m.index;
-                debug_assert!(client_indices.contains(&index));
-            });
-        }
         Ok((event_messages, group_data))
     }
 
@@ -973,7 +880,8 @@ impl Group {
             .mls_group()
             .members()
             .find_map(|m| {
-                let client_credential = VerifiableClientCredential::try_from(m.credential).ok()?;
+                let client_credential =
+                    VerifiableClientCredential::from_basic_credential(&m.credential).ok()?;
                 if client_credential.user_id() == &recipient {
                     Some(m.index)
                 } else {
@@ -1002,32 +910,20 @@ impl Group {
         &self.group_state_ear_key
     }
 
-    pub async fn client_by_index(
-        &self,
-        connection: &mut sqlx::SqliteConnection,
-        index: LeafNodeIndex,
-    ) -> Option<UserId> {
-        GroupMembership::load(&mut *connection, self.group_id(), index)
-            .await
-            .ok()
-            .flatten()
-            .map(|group_membership| group_membership.user_id().clone())
-    }
-
     pub(crate) fn identity_link_wrapper_key(&self) -> &IdentityLinkWrapperKey {
         &self.identity_link_wrapper_key
     }
 
-    /// Returns a set containing the [`UserId`] of the members of the group.
-    pub(crate) async fn members(&self, executor: impl SqliteExecutor<'_>) -> HashSet<UserId> {
-        match GroupMembership::group_members(executor, self.group_id()).await {
-            // deduplicate by collecting into as set
-            Ok(group_members) => group_members.into_iter().collect(),
-            Err(error) => {
-                error!(%error, "Could not retrieve group members");
-                HashSet::new()
-            }
-        }
+    /// Returns an iterator over [`UserId`]s of the members of the group.
+    pub(crate) fn members(&self) -> impl Iterator<Item = UserId> {
+        self.mls_group.members().filter_map(|m| {
+            let credential = VerifiableClientCredential::from_basic_credential(&m.credential)
+                .inspect_err(|error| {
+                    error!(%error, "Invalid member credential");
+                })
+                .ok()?;
+            Some(credential.user_id().clone())
+        })
     }
 
     pub(super) async fn update(
@@ -1073,7 +969,6 @@ impl Group {
             )
         };
 
-        GroupMembership::stage_removals_in_pending_commit(&mut *txn, self).await?;
         let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()));
         Ok(GroupOperationParamsOut {
             commit,
@@ -1158,7 +1053,7 @@ impl Group {
 
     fn user_id_at_index(&self, index: LeafNodeIndex) -> Option<UserId> {
         self.mls_group().member_at(index).and_then(|m| {
-            VerifiableClientCredential::try_from(m.credential.clone())
+            VerifiableClientCredential::from_basic_credential(&m.credential)
                 .map(|c| c.user_id().clone())
                 .ok()
         })
@@ -1183,13 +1078,12 @@ impl Group {
                 Some(user_id) => user_id,
                 None => continue,
             };
-            let Ok(added_user) = VerifiableClientCredential::try_from(
+            let Ok(added_user) = VerifiableClientCredential::from_basic_credential(
                 proposal
                     .add_proposal()
                     .key_package()
                     .leaf_node()
-                    .credential()
-                    .clone(),
+                    .credential(),
             )
             .map(|c| c.user_id().clone()) else {
                 continue;
@@ -1261,6 +1155,75 @@ impl Group {
         .store(&provider, &psk_value)?;
         Ok(())
     }
+
+    /// Deserializes client credentials from the corresponding leaf node.
+    ///
+    /// Does not guarantee that the credential was verified and is valid.
+    pub(crate) fn unverified_credential_at(
+        &self,
+        index: LeafNodeIndex,
+    ) -> Result<Option<VerifiableClientCredential>, BasicCredentialError> {
+        self.mls_group
+            .member_at(index)
+            .map(|m| VerifiableClientCredential::from_basic_credential(&m.credential))
+            .transpose()
+    }
+
+    /// Same as [`Self::unverified_credential_at()`] but guarantees that the credential was
+    /// verified and is valid (if leaf contains valid data).
+    ///
+    /// The guarantee is given by the presence of the `witness` argument.
+    pub(crate) fn credential_at(
+        &self,
+        index: LeafNodeIndex,
+        witness: &impl GroupStorageWitness,
+    ) -> anyhow::Result<Option<ClientCredential>> {
+        ensure!(self.group_id() == witness.group_id(), "Group ID mismatch");
+        Ok(self
+            .unverified_credential_at(index)?
+            .map(|credential| ClientCredential::assume_verified(credential, witness)))
+    }
+}
+
+/// Verify credentials of *all* members of the group.
+///
+/// Might do a network request to fetch AS credentials.
+///
+/// Returns the credentials of the group members.
+async fn verify_member_credentials(
+    txn: &mut SqliteTransaction<'_>,
+    api_clients: &ApiClients,
+    mls_group: &MlsGroup,
+) -> Result<Vec<StorableClientCredential>, anyhow::Error> {
+    let unverified_credentials = mls_group
+        .members()
+        .map(|m| {
+            Ok((
+                VerifiableClientCredential::from_basic_credential(&m.credential)?,
+                SignaturePublicKey::from(m.signature_key),
+            ))
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+
+    let as_credentials = AsCredentials::fetch_for_verification(
+        txn.as_mut(),
+        api_clients,
+        unverified_credentials.iter().map(|(c, _)| c),
+    )
+    .await?;
+
+    let credentials = unverified_credentials
+        .into_iter()
+        .map(|(credential, leaf_verifying_key)| {
+            VerifiableClientCredential::verify_and_validate(
+                credential,
+                &leaf_verifying_key,
+                None,
+                &as_credentials,
+            )
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok(credentials)
 }
 
 #[cfg(feature = "test_utils")]
@@ -1290,10 +1253,9 @@ mod test_utils {
 impl TimestampedMessage {
     /// Turn a staged commit into a list of messages based on the proposals it
     /// includes.
-    async fn from_staged_commit(
-        connection: &mut sqlx::SqliteConnection,
-        group_id: &GroupId,
-        free_indices: impl Iterator<Item = LeafNodeIndex>,
+    fn from_staged_commit(
+        group: &Group,
+        verified: &impl GroupStorageWitness,
         staged_commit: &StagedCommit,
         ds_timestamp: TimeStamp,
     ) -> Result<Vec<Self>> {
@@ -1317,29 +1279,21 @@ impl TimestampedMessage {
                     continue;
                 }
             };
-            let remover = if let Some(remover) =
-                ClientAuthInfo::load(&mut *connection, group_id, *sender_index).await?
-            {
-                remover
-            } else {
-                // This is in case we removed ourselves.
-                ClientAuthInfo::load_staged(&mut *connection, group_id, *sender_index)
-                    .await?
-                    .ok_or_else(|| anyhow!("Could not find client credential of remover"))?
-            }
-            .client_credential()
-            .user_id()
-            .clone();
+
+            let remover = group
+                .credential_at(*sender_index, verified)?
+                .context("Could not find client credential of message sender")?
+                .user_id()
+                .clone();
 
             let Some(removed_index) = removed_client(remove_proposal) else {
                 // This cannot happen since we filtered for remove proposals.
                 continue;
             };
 
-            let removed = ClientAuthInfo::load_staged(connection, group_id, removed_index)
-                .await?
-                .ok_or_else(|| anyhow!("Could not find client credential of removed"))?
-                .client_credential()
+            let removed = group
+                .credential_at(removed_index, verified)?
+                .context("Could not find client credential of removed")?
                 .user_id()
                 .clone();
 
@@ -1359,32 +1313,28 @@ impl TimestampedMessage {
 
         // Collect adder and addee names and filter out duplicates
         let mut adds_set = HashSet::new();
-        for (staged_add_proposal, free_index) in staged_commit.add_proposals().zip(free_indices) {
+        for staged_add_proposal in staged_commit.add_proposals() {
             let Sender::Member(sender_index) = staged_add_proposal.sender() else {
                 // We don't support non-member adds.
                 bail!("Non-member add proposal")
             };
-            // Get the name of the sender from the list of existing clients
-            let sender_name = ClientAuthInfo::load(connection, group_id, *sender_index)
-                .await?
-                .ok_or_else(|| anyhow!("Could not find client credential of sender"))?
-                .client_credential()
+            // Get the user id of the sender from the MLS group member credential
+            let sender_id = group
+                .credential_at(*sender_index, verified)?
+                .context("Could not find client credential of sender")?
                 .user_id()
                 .clone();
-            // Get the name of the added member from the diff containing
-            // the new clients.
-            let addee_name = ClientAuthInfo::load_staged(connection, group_id, free_index)
-                .await?
-                .ok_or_else(|| {
-                    anyhow!(
-                        "Could not find client credential of added client at index {}",
-                        free_index
-                    )
-                })?
-                .client_credential()
-                .user_id()
-                .clone();
-            adds_set.insert((sender_name, addee_name));
+
+            // Get the user id of the added member from the proposal key package
+            let credential = staged_add_proposal
+                .add_proposal()
+                .key_package()
+                .leaf_node()
+                .credential();
+            let credential = VerifiableClientCredential::from_basic_credential(credential)?;
+            let addee_id = credential.user_id().clone();
+
+            adds_set.insert((sender_id, addee_id));
         }
         let add_messages = adds_set.into_iter().map(|(adder, addee)| {
             TimestampedMessage::system_message(SystemMessage::Add(adder, addee), ds_timestamp)
@@ -1398,38 +1348,20 @@ impl TimestampedMessage {
                 // Update proposals have to be sent by group members.
                 bail!("Invalid proposal")
             };
-            let client_auth_info = ClientAuthInfo::load(&mut *connection, group_id, *sender_index)
-                .await?
-                .ok_or_else(|| anyhow!("Could not find client credential of sender"))?;
-            let user_id = client_auth_info.client_credential().user_id();
-            debug!(
-                ?user_id,
-                %sender_index, "Client has updated their key material",
-            );
+            if enabled!(Level::DEBUG) {
+                let credential = group
+                    .credential_at(*sender_index, verified)?
+                    .context("Could not find client credential of sender")?;
+                let user_id = credential.user_id();
+                debug!(
+                    ?user_id,
+                    %sender_index, "Client has updated their key material",
+                );
+            }
         }
 
         Ok(event_messages)
     }
-}
-
-fn member_information(
-    members: impl IntoIterator<Item = Member>,
-) -> Result<Vec<ClientVerificationInfo>, BasicCredentialError> {
-    members
-        .into_iter()
-        .map(extract_member_info)
-        .collect::<Result<Vec<_>, BasicCredentialError>>()
-}
-
-fn extract_member_info(member: Member) -> Result<ClientVerificationInfo, BasicCredentialError> {
-    let credential = VerifiableClientCredential::try_from(member.credential)?;
-    let signature_public_key = SignaturePublicKey::from(member.signature_key);
-    let info = ClientVerificationInfo {
-        leaf_index: member.index,
-        credential,
-        leaf_key: signature_public_key,
-    };
-    Ok(info)
 }
 
 /// Returns true if the QS should suppress notifications for this message.

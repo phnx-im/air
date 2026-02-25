@@ -495,6 +495,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get timestamp_now => 'Now';
 
   @override
+  String timestamp_minutesAgo(int count) {
+    return '${count}m';
+  }
+
+  @override
   String get timestamp_yesterday => 'Yesterday';
 
   @override

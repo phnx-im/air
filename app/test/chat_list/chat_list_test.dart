@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:system_date_time_format/system_date_time_format.dart';
 
 import '../helpers.dart';
 import '../mocks.dart';
@@ -63,21 +64,23 @@ void main() {
           BlocProvider<ChatListCubit>.value(value: chatListCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
         ],
-        child: Builder(
-          builder: (context) {
-            return MaterialApp(
-              debugShowCheckedModeBanner: false,
-              theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              home: Scaffold(
-                body: ChatListView(
-                  createChatDetailsCubit: createMockChatDetailsCubitFactory(
-                    chats,
+        child: SDTFScope(
+          child: Builder(
+            builder: (context) {
+              return MaterialApp(
+                debugShowCheckedModeBanner: false,
+                theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                home: Scaffold(
+                  body: ChatListView(
+                    createChatDetailsCubit: createMockChatDetailsCubitFactory(
+                      chats,
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );

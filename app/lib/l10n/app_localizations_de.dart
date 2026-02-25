@@ -501,6 +501,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get timestamp_now => 'Jetzt';
 
   @override
+  String timestamp_minutesAgo(int count) {
+    return '${count}m';
+  }
+
+  @override
   String get timestamp_yesterday => 'Gestern';
 
   @override

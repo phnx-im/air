@@ -165,6 +165,14 @@
   "systemMessage_userCreatedGroup_suffix": " created the group",
 
   "timestamp_now": "Now",
+  "timestamp_minutesAgo": "{count}m",
+  "@timestamp_minutesAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "timestamp_yesterday": "Yesterday",
 
   "messageBubble_sending": "Sending",

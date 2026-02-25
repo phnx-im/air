@@ -897,6 +897,12 @@ abstract class AppLocalizations {
   /// **'Now'**
   String get timestamp_now;
 
+  /// No description provided for @timestamp_minutesAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{count}m'**
+  String timestamp_minutesAgo(int count);
+
   /// No description provided for @timestamp_yesterday.
   ///
   /// In en, this message translates to:
