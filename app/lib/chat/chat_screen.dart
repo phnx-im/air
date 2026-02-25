@@ -97,6 +97,7 @@ class ChatScreenView extends StatelessWidget {
       :blockedUserDisplayName,
       :members,
       :isGroupChat,
+      :isConfirmed,
     ) = context.select((ChatDetailsCubit cubit) {
       final chat = cubit.state.chat;
       final status = chat?.status;
@@ -115,6 +116,7 @@ class ChatScreenView extends StatelessWidget {
           UiChatType_Group() => true,
           _ => false,
         },
+        isConfirmed: chat?.isConfirmed ?? false,
       );
     });
 
@@ -140,6 +142,8 @@ class ChatScreenView extends StatelessWidget {
         userId: blockedUserId,
         displayName: blockedUserDisplayName,
       );
+    } else if (!isConfirmed) {
+      footer = const SizedBox.shrink();
     }
 
     return Scaffold(
