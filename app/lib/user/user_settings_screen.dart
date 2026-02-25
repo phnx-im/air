@@ -40,6 +40,8 @@ class UserSettingsScreen extends StatelessWidget {
 
     final colors = CustomColorScheme.of(context);
 
+    final brightness = MediaQuery.platformBrightnessOf(context);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -54,6 +56,9 @@ class UserSettingsScreen extends StatelessWidget {
         ),
         actions: null,
         backgroundColor: Colors.transparent,
+        systemOverlayStyle: brightness == Brightness.dark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         toolbarHeight: isPointer() ? 100 : null,
         centerTitle: true,
         scrolledUnderElevation: 0,
