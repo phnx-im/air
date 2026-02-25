@@ -52,7 +52,7 @@ platform :android do
           # Upload to Google Play Store
           supply(
             validate_only: false,
-            release_status: "draft",
+            release_status: "completed",
             version_code: current_build_number,
             track: track,
             aab: "build/app/outputs/bundle/release/app-release.aab",
