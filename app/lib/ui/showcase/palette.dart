@@ -21,12 +21,7 @@ class PaletteShowcase extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            name,
-            style: TextStyle(
-              color: CustomColorScheme.of(context).text.quaternary,
-            ),
-          ),
+          Text(name),
           const SizedBox(height: 8),
           Wrap(
             spacing: 12,
@@ -84,10 +79,8 @@ class PaletteShowcase extends StatelessWidget {
     // shades for neutrals include extra stops
     const neutralShades = [
       0,
-      25,
       50,
       100,
-      150,
       200,
       300,
       400,
@@ -95,10 +88,8 @@ class PaletteShowcase extends StatelessWidget {
       600,
       700,
       800,
-      850,
       900,
       950,
-      975,
       1000,
     ];
     const accentShades = [
