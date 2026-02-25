@@ -34,9 +34,12 @@ class InterfaceScale extends StatelessWidget {
     final uiScalingFactor = scalingFactors.uiFactor * userUiFactor;
 
     final mediaQuery = MediaQuery.of(context);
+    final systemTextScale = mediaQuery.textScaler.scale(1.0);
     final wrappedChild = MediaQuery(
       data: mediaQuery.copyWith(
-        textScaler: TextScaler.linear(scalingFactors.textFactor),
+        textScaler: TextScaler.linear(
+          scalingFactors.textFactor * systemTextScale,
+        ),
       ),
       child: child,
     );
