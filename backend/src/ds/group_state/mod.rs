@@ -361,7 +361,8 @@ fn fallback_room_state(
 ) -> VerifiedRoomState {
     let mut member_ids = Vec::new();
     for member in members {
-        let credential = match VerifiableClientCredential::try_from(member.credential) {
+        let credential = match VerifiableClientCredential::from_basic_credential(&member.credential)
+        {
             Ok(credential) => credential,
             Err(error) => {
                 error!(%error, "Failed to convert credential; skipping member");

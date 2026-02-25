@@ -84,7 +84,7 @@ impl GroupDebugInfo {
 
         let mut members = HashMap::new();
         for member in group.mls_group().members() {
-            let credential = VerifiableClientCredential::try_from(member.credential.clone())?;
+            let credential = VerifiableClientCredential::from_basic_credential(&member.credential)?;
             let leaf_node = group
                 .mls_group()
                 .public_group()

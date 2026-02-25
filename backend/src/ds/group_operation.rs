@@ -126,15 +126,14 @@ impl DsGroupState {
             }
         };
 
-        let sender = VerifiableClientCredential::try_from(
+        let sender = VerifiableClientCredential::from_basic_credential(
             self.group
                 .leaf(sender_index.leaf_index())
                 .ok_or_else(|| {
                     error!("Leaf of sender not found");
                     GroupOperationError::InvalidMessage
                 })?
-                .credential()
-                .clone(),
+                .credential(),
         )
         .map_err(|e| {
             error!(%e, "Credential in leaf of sender is invalid");
@@ -161,8 +160,8 @@ impl DsGroupState {
             let add_users_state = validate_added_users(staged_commit, aad_payload, add_users_info)?;
 
             for ((added_key_package, _), _) in &add_users_state.added_users {
-                let added = VerifiableClientCredential::try_from(
-                    added_key_package.leaf_node().credential().clone(),
+                let added = VerifiableClientCredential::from_basic_credential(
+                    added_key_package.leaf_node().credential(),
                 )
                 .map_err(|e| {
                     error!(%e, "Credential of added user is invalid");
@@ -222,15 +221,14 @@ impl DsGroupState {
                 return Err(GroupOperationError::InvalidMessage);
             }
 
-            let removed = VerifiableClientCredential::try_from(
+            let removed = VerifiableClientCredential::from_basic_credential(
                 self.group
                     .leaf(*removed)
                     .ok_or_else(|| {
                         error!("Leaf of removed user not found");
                         GroupOperationError::InvalidMessage
                     })?
-                    .credential()
-                    .clone(),
+                    .credential(),
             )
             .map_err(|e| {
                 error!(%e, "Credential of removed user is invalid");

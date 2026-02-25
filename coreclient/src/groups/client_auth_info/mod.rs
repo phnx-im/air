@@ -9,18 +9,10 @@ use aircommon::{
         AsIntermediateCredential, AsIntermediateCredentialBody, ClientCredential,
         VerifiableClientCredential,
     },
-    crypto::{
-        hash::Hash,
-        signatures::{private_keys::VerifyingKeyRef, signable::Verifiable},
-    },
-    identifiers::UserId,
+    crypto::{hash::Hash, signatures::signable::Verifiable},
 };
-use anyhow::{Context, Result, anyhow, ensure};
-use openmls::{
-    group::GroupId,
-    prelude::{LeafNodeIndex, SignaturePublicKey},
-};
-use sqlx::SqliteExecutor;
+use anyhow::{Context, Result, ensure};
+use openmls::prelude::SignaturePublicKey;
 
 pub(crate) mod persistence;
 
@@ -67,116 +59,34 @@ impl StorableClientCredential {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub(crate) struct GroupMembership {
-    user_id: UserId,
-    group_id: GroupId,
-    leaf_index: LeafNodeIndex,
-}
-
-impl GroupMembership {
-    pub(super) fn new(user_id: UserId, group_id: GroupId, leaf_index: LeafNodeIndex) -> Self {
-        Self {
-            user_id,
-            group_id,
-            leaf_index,
-        }
-    }
-
-    // Computes free indices based on existing leaf indices and staged removals.
-    // Not that staged additions are not considered.
-    pub(super) async fn free_indices(
-        executor: impl SqliteExecutor<'_>,
-        group_id: &GroupId,
-    ) -> Result<impl Iterator<Item = LeafNodeIndex> + 'static> {
-        let leaf_indices = Self::member_indices(executor, group_id).await?;
-        let highest_index = leaf_indices
-            .last()
-            .cloned()
-            .unwrap_or(LeafNodeIndex::new(0));
-        let free_indices = (0..highest_index.u32())
-            .filter(move |index| !leaf_indices.contains(&LeafNodeIndex::new(*index)))
-            .chain(highest_index.u32() + 1..)
-            .map(LeafNodeIndex::new);
-        Ok(free_indices)
-    }
-
-    /// Set the group member's leaf index. This can be required for resync
-    /// operations.
-    pub(super) fn set_leaf_index(&mut self, leaf_index: LeafNodeIndex) {
-        self.leaf_index = leaf_index;
-    }
-
-    pub(crate) fn user_id(&self) -> &UserId {
-        &self.user_id
-    }
-}
-
-pub(super) struct ClientAuthInfo {
-    client_credential: StorableClientCredential,
-    group_membership: GroupMembership,
-}
-
-pub(super) struct ClientVerificationInfo {
-    pub(super) leaf_index: LeafNodeIndex,
-    pub(super) credential: VerifiableClientCredential,
-    pub(super) leaf_key: SignaturePublicKey,
-}
-
-impl ClientAuthInfo {
-    pub(super) fn new(
-        client_credential: impl Into<StorableClientCredential>,
-        group_membership: GroupMembership,
-    ) -> Self {
-        Self {
-            client_credential: client_credential.into(),
-            group_membership,
-        }
-    }
-
-    /// Verify the given credentials
-    pub(super) fn verify_new_credentials(
-        group_id: &GroupId,
-        client_credentials: impl IntoIterator<Item = ClientVerificationInfo>,
+pub(crate) trait VerifiableClientCredentialExt: Sized {
+    fn verify_and_validate(
+        self,
+        leaf_signature_key: &SignaturePublicKey,
+        old_credential: Option<&Self>,
         as_credentials: &HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>,
-    ) -> Result<Vec<Self>> {
-        let mut client_auth_infos = Vec::new();
-        for ClientVerificationInfo {
-            leaf_index,
-            credential,
-            leaf_key,
-        } in client_credentials
-        {
-            let client_auth_info = Self::verify_credential(
-                group_id,
-                leaf_index,
-                credential,
-                leaf_key,
-                None,
-                as_credentials,
-            )?;
-            client_auth_infos.push(client_auth_info);
-        }
-        Ok(client_auth_infos)
-    }
+    ) -> Result<StorableClientCredential>;
+}
 
-    /// Verify the given credential
-    pub(super) fn verify_credential(
-        group_id: &GroupId,
-        leaf_index: LeafNodeIndex,
-        credential: VerifiableClientCredential,
-        leaf_signature_key: SignaturePublicKey,
-        old_credential: Option<VerifiableClientCredential>,
+impl VerifiableClientCredentialExt for VerifiableClientCredential {
+    fn verify_and_validate(
+        self,
+        leaf_signature_key: &SignaturePublicKey,
+        old_credential: Option<&Self>,
         as_credentials: &HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>,
-    ) -> Result<Self> {
+    ) -> Result<StorableClientCredential> {
         // Verify the leaf credential
-        let client_credential = StorableClientCredential::verify(credential, as_credentials)?;
+        let as_credential = as_credentials
+            .get(self.signer_fingerprint())
+            .context("Missing AS credential")?;
+        let client_credential: ClientCredential = self.verify(as_credential.verifying_key())?;
+
         // Check if the client credential matches the given public key
         ensure!(
-            client_credential.verifying_key().as_ref()
-                == VerifyingKeyRef::from(&leaf_signature_key),
+            client_credential.verifying_key().as_slice() == leaf_signature_key.as_slice(),
             "Client credential does not match leaf public key"
         );
+
         // If it's an update, ensure that the UserId in the new credential
         // matches the UserId in the old credential
         if let Some(old_credential) = old_credential {
@@ -186,93 +96,6 @@ impl ClientAuthInfo {
             );
         }
 
-        let group_membership = GroupMembership::new(
-            client_credential.identity().clone(),
-            group_id.clone(),
-            leaf_index,
-        );
-        let client_auth_info = ClientAuthInfo {
-            client_credential,
-            group_membership,
-        };
-        Ok(client_auth_info)
-    }
-
-    pub(super) async fn stage_update(
-        &self,
-        connection: &mut sqlx::SqliteConnection,
-    ) -> sqlx::Result<()> {
-        self.client_credential.store(&mut *connection).await?;
-        self.group_membership.stage_update(&mut *connection).await?;
-        Ok(())
-    }
-
-    pub(super) async fn stage_add(
-        &self,
-        connection: &mut sqlx::SqliteConnection,
-    ) -> sqlx::Result<()> {
-        self.client_credential.store(&mut *connection).await?;
-        self.group_membership.stage_add(&mut *connection).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn store(&self, connection: &mut sqlx::SqliteConnection) -> Result<()> {
-        self.client_credential.store(&mut *connection).await?;
-        self.group_membership.store(&mut *connection).await?;
-        Ok(())
-    }
-
-    pub(super) async fn load(
-        connection: &mut sqlx::SqliteConnection,
-        group_id: &GroupId,
-        leaf_index: LeafNodeIndex,
-    ) -> Result<Option<Self>> {
-        let Some(group_membership) =
-            GroupMembership::load(&mut *connection, group_id, leaf_index).await?
-        else {
-            return Ok(None);
-        };
-        let client_credential =
-            StorableClientCredential::load_by_user_id(&mut *connection, &group_membership.user_id)
-                .await?
-                .ok_or_else(|| {
-                    anyhow!("Found a matching Groupmembership, but no matching ClientCredential")
-                })?;
-        Ok(Some(Self::new(client_credential, group_membership)))
-    }
-
-    pub(super) async fn load_staged(
-        connection: &mut sqlx::SqliteConnection,
-        group_id: &GroupId,
-        leaf_index: LeafNodeIndex,
-    ) -> Result<Option<Self>> {
-        let Some(group_membership) =
-            GroupMembership::load_staged(&mut *connection, group_id, leaf_index).await?
-        else {
-            return Ok(None);
-        };
-        let client_credential =
-            StorableClientCredential::load_by_user_id(connection, &group_membership.user_id)
-                .await?
-                .ok_or_else(|| {
-                    anyhow!("Found a matching Groupmembership, but no matching ClientCredential")
-                })?;
-        Ok(Some(Self::new(client_credential, group_membership)))
-    }
-
-    pub(super) fn client_credential(&self) -> &StorableClientCredential {
-        &self.client_credential
-    }
-
-    pub(super) fn into_client_credential(self) -> ClientCredential {
-        self.client_credential.into()
-    }
-
-    pub(super) fn group_membership(&self) -> &GroupMembership {
-        &self.group_membership
-    }
-
-    pub(super) fn group_membership_mut(&mut self) -> &mut GroupMembership {
-        &mut self.group_membership
+        Ok(StorableClientCredential::from(client_credential))
     }
 }

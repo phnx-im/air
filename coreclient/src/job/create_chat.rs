@@ -61,7 +61,7 @@ impl CreateChat {
         // clean up the group, so this is repeatable.
         let (group, chat, partial_params, encrypted_user_profile_key) = connection
             .with_transaction(async |txn| {
-                let (group, group_membership, partial_params) =
+                let (group, partial_params) =
                     Group::create_group(txn, &key_store.signing_key, group_id, group_data)?;
 
                 let user_profile_key = UserProfileKey::load_own(txn.as_mut()).await?;
@@ -69,7 +69,6 @@ impl CreateChat {
                     user_profile_key.encrypt(group.identity_link_wrapper_key(), own_user_id)?;
 
                 group.store(txn.as_mut()).await?;
-                group_membership.store(txn.as_mut()).await?;
 
                 let chat = Chat::new_group_chat(partial_params.group_id.clone(), chat_attributes);
                 chat.store(txn.as_mut(), notifier).await?;

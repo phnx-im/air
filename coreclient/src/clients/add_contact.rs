@@ -207,11 +207,10 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
     ) -> anyhow::Result<(Group, PartialCreateGroupParams)> {
         let group_data = PersistenceCodec::to_vec(attributes)?.into();
 
-        let (group, group_membership, partial_params) =
+        let (group, partial_params) =
             Group::create_group(txn, signing_key, self.group_id.clone(), group_data)?;
 
         group.store(txn.as_mut()).await?;
-        group_membership.store(txn.as_mut()).await?;
 
         Ok((group, partial_params))
     }
