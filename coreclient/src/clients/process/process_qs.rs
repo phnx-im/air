@@ -248,7 +248,7 @@ impl CoreUser {
                 let mut own_profile_key_in_group = None;
                 for profile_info in member_profile_info {
                     // TODO: Don't fetch while holding a transaction!
-                    if profile_info.client_credential.identity() == self.user_id() {
+                    if profile_info.client_credential.user_id() == self.user_id() {
                         // We already have our own profile info.
                         own_profile_key_in_group = Some(profile_info.user_profile_key);
                         continue;
@@ -724,13 +724,13 @@ impl CoreUser {
             warn!("Removed user credential not found");
             return Ok((vec![], false));
         };
-        let removed = removed_credential.identity();
+        let removed = removed_credential.user_id();
 
         let Some(sender_credential) = group.credential_at(*sender_index)? else {
             warn!("Sender credential not found");
             return Ok((vec![], false));
         };
-        let sender = sender_credential.identity();
+        let sender = sender_credential.user_id();
 
         ensure!(
             sender == removed,
@@ -811,7 +811,7 @@ impl CoreUser {
                 txn,
                 &mut notifier,
                 &mut chat,
-                sender_client_credential.identity().clone(),
+                sender_client_credential.user_id().clone(),
                 group_data,
                 ds_timestamp,
                 &mut group_messages,
@@ -846,7 +846,7 @@ impl CoreUser {
             "Incoming commit to ConnectionGroup was not an external commit"
         );
 
-        let sender_user_id = sender_client_credential.identity();
+        let sender_user_id = sender_client_credential.user_id();
 
         if let PartialContactType::TargetedMessage(chat_user_id) = &contact_type {
             ensure!(
@@ -935,7 +935,7 @@ impl CoreUser {
             let sender_credential = group
                 .credential_at(params.sender_index)?
                 .context("No sender credential found")?;
-            let sender = sender_credential.identity();
+            let sender = sender_credential.user_id();
 
             // Phase 2: Decrypt the new user profile key
             let new_user_profile_key = UserProfileKey::decrypt(

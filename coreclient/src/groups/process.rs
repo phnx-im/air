@@ -341,7 +341,7 @@ impl Group {
                 let user_profile_key = UserProfileKey::decrypt(
                     self.identity_link_wrapper_key(),
                     &encrypted_user_profile_key,
-                    client_credential.identity(),
+                    client_credential.user_id(),
                 )?;
                 Ok((client_credential, user_profile_key))
             })
@@ -372,7 +372,7 @@ impl Group {
             let credential =
                 credential.verify_and_validate(leaf_node.signature_key(), None, as_credentials)?;
 
-            self.verify_role_change(sender_user, credential.identity(), RoleIndex::Regular)?;
+            self.verify_role_change(sender_user, credential.user_id(), RoleIndex::Regular)?;
 
             credential.store(txn.as_mut()).await?;
             credentials.push(credential.into());

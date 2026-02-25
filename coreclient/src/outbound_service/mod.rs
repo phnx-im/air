@@ -269,7 +269,7 @@ impl OutboundServiceContext {
     }
 
     fn user_id(&self) -> &UserId {
-        self.signing_key().credential().identity()
+        self.signing_key().credential().user_id()
     }
 }
 

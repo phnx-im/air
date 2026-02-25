@@ -73,7 +73,7 @@ impl OperationData for FetchProfileOperation {
     fn generate_id(&self) -> OperationId {
         let mut bytes = Vec::new();
         bytes.push(Self::kind() as u8);
-        let user_id = self.client_credential.identity();
+        let user_id = self.client_credential.user_id();
         if let Err(error) = user_id.tls_serialize(&mut bytes) {
             error!(%error, "error white serializing user id");
         }
@@ -106,7 +106,7 @@ impl Job for FetchProfileOperation {
             user_profile_key,
         } = self;
 
-        let user_id = client_credential.identity();
+        let user_id = client_credential.user_id();
 
         // Phase 1: Check if the profile in the DB is up to date.
         let existing_user_profile = ExistingUserProfile::load(&context.pool, user_id).await?;
