@@ -60,7 +60,7 @@ impl CoreUser {
         let mut connection = self.pool().acquire().await.ok()?;
         let chat = Chat::load(&mut connection, &chat_id).await.ok()??;
         let group = Group::load(&mut connection, chat.group_id()).await.ok()??;
-        Some(group.members(&mut *connection).await.into_iter().collect())
+        Some(group.members().collect())
     }
 
     /// Returns (operation_type, request_status, number_of_attempts) for the

@@ -498,6 +498,11 @@ class AppLocalizationsSv extends AppLocalizations {
   String get timestamp_now => 'Nu';
 
   @override
+  String timestamp_minutesAgo(int count) {
+    return '${count}m';
+  }
+
+  @override
   String get timestamp_yesterday => 'Igår';
 
   @override

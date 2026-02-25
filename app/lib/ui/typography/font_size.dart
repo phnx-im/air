@@ -22,7 +22,8 @@ enum FontSizes {
   large1(19.13), // -0.45
   base(17.00), // -0.43
   small1(15.11), // -0.23
-  small2(13.43); // -0.08
+  small2(13.43), // -0.08
+  small3(11.93); // 0.00
 
   final double size;
   const FontSizes(this.size);
@@ -33,7 +34,8 @@ enum LabelFontSize {
   large1(FontSizes.large1),
   base(FontSizes.base),
   small1(FontSizes.small1),
-  small2(FontSizes.small2);
+  small2(FontSizes.small2),
+  small3(FontSizes.small3);
 
   final FontSizes ref;
   const LabelFontSize(this.ref);
@@ -45,7 +47,8 @@ enum BodyFontSize {
   large1(FontSizes.large1),
   base(FontSizes.base),
   small1(FontSizes.small1),
-  small2(FontSizes.small2);
+  small2(FontSizes.small2),
+  small3(FontSizes.small3);
 
   final FontSizes ref;
   const BodyFontSize(this.ref);
@@ -70,7 +73,8 @@ enum LabelCupertinoTracking {
   large1(-0.45),
   base(-0.43),
   small1(-0.23),
-  small2(-0.08);
+  small2(-0.08),
+  small3(0.0);
 
   final double spacing;
   const LabelCupertinoTracking(this.spacing);
@@ -81,7 +85,8 @@ enum BodyCupertinoTracking {
   large1(-0.45),
   base(-0.43),
   small1(-0.23),
-  small2(-0.08);
+  small2(-0.08),
+  small3(0.0);
 
   final double spacing;
   const BodyCupertinoTracking(this.spacing);

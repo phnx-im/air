@@ -4,7 +4,6 @@
 
 set windows-shell := ["C:\\Program Files\\Git\\bin\\sh.exe","-c"]
 
-export RUST_LOG := "info"
 export RUST_BACKTRACE := "1"
 export RUSTFLAGS := "-D warnings"
 

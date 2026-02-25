@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:system_date_time_format/system_date_time_format.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import '../chat_list/chat_list_content_test.dart'
@@ -105,41 +106,43 @@ void main() {
           BlocProvider<ChatListCubit>.value(value: chatListCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
         ],
-        child: Builder(
-          builder: (context) {
-            final shotSize = _productShotSizeFor(platform);
-            final shot = ProductShot(
-              size: shotSize,
-              backgroundColor: backgroundColor,
-              titleColor: titleColor,
-              subtitleColor: subtitleColor,
-              title: title,
-              subtitle: subtitle,
-              frameColor: frameColor,
-              device: ProductShotDevices.forPlatform(platform),
-              child: ChatListView(
-                scaffold: true,
-                createChatDetailsCubit: createMockChatDetailsCubitFactory(
-                  chats,
+        child: SDTFScope(
+          child: Builder(
+            builder: (context) {
+              final shotSize = _productShotSizeFor(platform);
+              final shot = ProductShot(
+                size: shotSize,
+                backgroundColor: backgroundColor,
+                titleColor: titleColor,
+                subtitleColor: subtitleColor,
+                title: title,
+                subtitle: subtitle,
+                frameColor: frameColor,
+                device: ProductShotDevices.forPlatform(platform),
+                child: ChatListView(
+                  scaffold: true,
+                  createChatDetailsCubit: createMockChatDetailsCubitFactory(
+                    chats,
+                  ),
                 ),
-              ),
-            );
+              );
 
-            return MaterialApp(
-              debugShowCheckedModeBanner: false,
-              theme: testLightTheme,
-              themeMode: ThemeMode.light,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              home: Material(
-                child: MediaQuery(
-                  data: MediaQuery.of(
-                    context,
-                  ).copyWith(platformBrightness: Brightness.light),
-                  child: shot,
+              return MaterialApp(
+                debugShowCheckedModeBanner: false,
+                theme: testLightTheme,
+                themeMode: ThemeMode.light,
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                home: Material(
+                  child: MediaQuery(
+                    data: MediaQuery.of(
+                      context,
+                    ).copyWith(platformBrightness: Brightness.light),
+                    child: shot,
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );

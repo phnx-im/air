@@ -23,6 +23,7 @@ const pixel8DevicePixelRatio = 2.625;
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   setUpAll(() async {
     final binding = TestWidgetsFlutterBinding.ensureInitialized();
+    _mockSystemDateTimeFormatChannel(binding);
     await _loadFonts();
     _setGoldenFileComparatorWithThreshold(goldenThreshold);
     _setPhysicalScreenSize(binding, pixel8ScreenSize, pixel8DevicePixelRatio);
@@ -152,4 +153,11 @@ void _setPhysicalScreenSize(
   addTearDown(() {
     binding.platformDispatcher.views.first.resetPhysicalSize();
   });
+}
+
+void _mockSystemDateTimeFormatChannel(TestWidgetsFlutterBinding binding) {
+  binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    const MethodChannel('system_date_time_format'),
+    (MethodCall methodCall) async => null,
+  );
 }

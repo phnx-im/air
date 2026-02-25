@@ -4,18 +4,17 @@
 
 //! A single chat details feature
 
-use std::path::PathBuf;
-use std::time::Duration;
+use std::{collections::HashMap, path::PathBuf, time::Duration};
 
 use aircommon::{
     OpenMlsRand, RustCrypto,
     identifiers::{AttachmentId, UserId},
 };
 use aircoreclient::{
-    AttachmentProgress, Chat, ChatId, ChatMessage, MessageDraft, ProvisionAttachmentError,
-    UploadTaskError,
+    AttachmentProgress, Chat, ChatId, ChatMessage, MessageDraft, MessageId,
+    ProvisionAttachmentError, UploadTaskError, clients::CoreUser, store::Store,
 };
-use aircoreclient::{MessageId, clients::CoreUser, store::Store};
+pub use aircoreclient::{DebugCapabilities, GroupDebugInfo, RequiredDebugCapabilities};
 use anyhow::{Context as _, bail};
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
@@ -452,6 +451,11 @@ impl ChatDetailsCubitBase {
         self.context.store.accept_contact_request(chat_id).await?;
         Ok(())
     }
+
+    pub async fn chat_debug_info(&self) -> anyhow::Result<GroupDebugInfo> {
+        let chat_id = self.context.chat_id;
+        self.context.store.chat_debug_info(chat_id).await
+    }
 }
 
 /// Loads the initial state and listen to the changes
@@ -553,21 +557,33 @@ impl ChatDetailsContext {
         while let Some(notification) = notifications.next().await {
             if notification.ops.contains_key(&self.chat_id.into()) {
                 self.load_and_emit_state().await;
-            } else {
-                // Don't hold the lock of the state too long
-                let user_id = self
-                    .state_tx
-                    .borrow()
-                    .chat
-                    .as_ref()
-                    .and_then(|chat| chat.connection_user_id())
+                continue;
+            }
+
+            // Don't hold the lock of the state too long
+            let (last_message_id, user_id) = {
+                let state = self.state_tx.borrow();
+                let chat = state.chat.as_ref();
+                let last_message_id = chat.and_then(|c| c.last_message.as_ref()).map(|m| m.id);
+                let user_id = chat
+                    .and_then(|c| c.connection_user_id())
                     .cloned()
                     .map(UserId::from);
-                if let Some(user_id) = user_id
-                    && notification.ops.contains_key(&user_id.into())
-                {
-                    self.load_and_emit_state().await;
-                }
+                (last_message_id, user_id)
+            };
+
+            // Reload when the last message changes (e.g. status update)
+            if let Some(id) = last_message_id
+                && notification.ops.contains_key(&id.into())
+            {
+                self.load_and_emit_state().await;
+                continue;
+            }
+
+            if let Some(user_id) = user_id
+                && notification.ops.contains_key(&user_id.into())
+            {
+                self.load_and_emit_state().await;
             }
         }
     }
@@ -634,4 +650,35 @@ pub enum UploadAttachmentError {
         max_size_bytes: u64,
         actual_size_bytes: u64,
     },
+}
+
+#[frb(mirror(GroupDebugInfo))]
+pub struct _GroupDebugInfo {
+    pub group_id: String,
+    pub epoch: u64,
+    pub ciphersuite: String,
+    pub versions: Vec<String>,
+    pub own_leaf_index: u32,
+    pub self_updated_at: Option<String>,
+    pub pending_proposals: usize,
+    pub has_pending_commit: bool,
+    pub required_capabilities: Option<RequiredDebugCapabilities>,
+    pub members: HashMap<u32, DebugCapabilities>,
+}
+
+#[frb(mirror(RequiredDebugCapabilities))]
+pub struct _RequiredDebugCapabilities {
+    pub extension_types: Vec<String>,
+    pub proposal_types: Vec<String>,
+    pub credential_types: Vec<String>,
+}
+
+#[frb(mirror(DebugCapabilities))]
+pub struct _DebugCapabilities {
+    pub user_id: String,
+    pub display_name: String,
+    pub versions: Vec<String>,
+    pub ciphersuites: Vec<String>,
+    pub extensions: Vec<String>,
+    pub proposals: Vec<String>,
 }
