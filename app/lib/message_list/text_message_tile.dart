@@ -582,79 +582,6 @@ class _MessageView extends HookWidget {
   }
 }
 
-class RotatingSendIcon extends StatefulWidget {
-  const RotatingSendIcon({super.key});
-
-  @override
-  State<RotatingSendIcon> createState() => _RotatingSendIconState();
-}
-
-class _RotatingSendIconState extends State<RotatingSendIcon>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(seconds: 1),
-      vsync: this,
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return RotationTransition(
-      turns: _controller,
-      child: AppIcon.circleDashed(
-        size: 16,
-        color: CustomColorScheme.of(context).text.tertiary,
-      ),
-    );
-  }
-}
-
-class _MessageStatus extends StatelessWidget {
-  const _MessageStatus({required this.status});
-
-  final UiMessageStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final readReceiptsEnabled = context.select(
-      (UserSettingsCubit cubit) => cubit.state.readReceipts,
-    );
-    if (status == UiMessageStatus.hidden) {
-      return const SizedBox.shrink();
-    }
-    if (status == UiMessageStatus.sending) {
-      return const RotatingSendIcon();
-    }
-    if (status == UiMessageStatus.error) {
-      return AppIcon.circleAlert(
-        size: 16,
-        color: CustomColorScheme.of(context).function.warning,
-      );
-    }
-    final statusIconType = switch (status) {
-      UiMessageStatus.sent => MessageStatusIconType.sent,
-      UiMessageStatus.delivered => MessageStatusIconType.delivered,
-      UiMessageStatus.read =>
-        readReceiptsEnabled
-            ? MessageStatusIconType.read
-            : MessageStatusIconType.delivered,
-      _ => null,
-    };
-    return MessageStatusIcon(size: 16, statusIcon: statusIconType!);
-  }
-}
-
 class _MessageMetadataRow extends StatelessWidget {
   const _MessageMetadataRow({
     required this.timestamp,
@@ -712,7 +639,7 @@ class _MessageMetadataRow extends StatelessWidget {
                 ),
               if (showMessageStatus && isSendingOrError)
                 const SizedBox(width: Spacings.xxxs),
-              if (showMessageStatus) _MessageStatus(status: status),
+              if (showMessageStatus) MessageStatusIndicator(status: status),
               const SizedBox(width: Spacings.xs),
             ],
           ),

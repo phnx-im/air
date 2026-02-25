@@ -17,6 +17,8 @@ PODS:
     - Flutter
   - share_plus (0.0.1):
     - Flutter
+  - system_date_time_format (1.4.0):
+    - Flutter
   - url_launcher_ios (0.0.1):
     - Flutter
 
@@ -30,6 +32,7 @@ DEPENDENCIES:
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
   - share_plus (from `.symlinks/plugins/share_plus/ios`)
+  - system_date_time_format (from `.symlinks/plugins/system_date_time_format/ios`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
 
 EXTERNAL SOURCES:
@@ -51,20 +54,23 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/permission_handler_apple/ios"
   share_plus:
     :path: ".symlinks/plugins/share_plus/ios"
+  system_date_time_format:
+    :path: ".symlinks/plugins/system_date_time_format/ios"
   url_launcher_ios:
     :path: ".symlinks/plugins/url_launcher_ios/ios"
 
 SPEC CHECKSUMS:
-  airapplogic: c38782b11ec01d75116f99a220022c31a78ef7a4
-  file_selector_ios: ec57ec07954363dd730b642e765e58f199bb621a
+  airapplogic: c15e278a4b7cbb213909d1aed160784c5fd7a62c
+  file_selector_ios: 80c12e90ad3f2045ed6819d03742f1a4c5ec3f93
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  image_picker_ios: e0ece4aa2a75771a7de3fa735d26d90817041326
-  integration_test: 4a889634ef21a45d28d50d622cf412dc6d9f586e
-  package_info_plus: af8e2ca6888548050f16fa2f1938db7b5a5df499
-  path_provider_foundation: bb55f6dbba17d0dccd6737fe6f7f34fbd0376880
-  permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
-  share_plus: 50da8cb520a8f0f65671c6c6a99b3617ed10a58a
-  url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
+  image_picker_ios: 4f2f91b01abdb52842a8e277617df877e40f905b
+  integration_test: 252f60fa39af5e17c3aa9899d35d908a0721b573
+  package_info_plus: c0502532a26c7662a62a356cebe2692ec5fe4ec4
+  path_provider_foundation: 0b743cbb62d8e47eab856f09262bb8c1ddcfe6ba
+  permission_handler_apple: 9878588469a2b0d0fc1e048d9f43605f92e6cec2
+  share_plus: 8b6f8b3447e494cca5317c8c3073de39b3600d1f
+  system_date_time_format: afd46337f8c7a4b768e625623b103d4e1afcf725
+  url_launcher_ios: bb13df5870e8c4234ca12609d04010a21be43dfa
 
 PODFILE CHECKSUM: eaf81e234b54f737233ccd5bec4f97dfec586c5b
 

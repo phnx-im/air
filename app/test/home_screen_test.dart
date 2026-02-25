@@ -15,6 +15,7 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/message_list.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/user/user.dart';
+import 'package:system_date_time_format/system_date_time_format.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import 'chat/chat_screen_view_test.dart';
@@ -83,24 +84,26 @@ void main() {
           BlocProvider<MessageListCubit>.value(value: messageListCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
         ],
-        child: Builder(
-          builder: (context) {
-            return MaterialApp(
-              debugShowCheckedModeBanner: false,
-              theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              home: HomeScreenDesktopLayout(
-                chatList: ChatListView(
-                  createChatDetailsCubit: createMockChatDetailsCubitFactory(
-                    chats,
+        child: SDTFScope(
+          child: Builder(
+            builder: (context) {
+              return MaterialApp(
+                debugShowCheckedModeBanner: false,
+                theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                home: HomeScreenDesktopLayout(
+                  chatList: ChatListView(
+                    createChatDetailsCubit: createMockChatDetailsCubitFactory(
+                      chats,
+                    ),
+                  ),
+                  chat: const ChatScreenView(
+                    createMessageCubit: createMockMessageCubit,
                   ),
                 ),
-                chat: const ChatScreenView(
-                  createMessageCubit: createMockMessageCubit,
-                ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
