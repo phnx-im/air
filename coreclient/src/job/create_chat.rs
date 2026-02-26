@@ -54,6 +54,9 @@ impl CreateChat {
         let own_user_id = key_store.signing_key.credential().user_id();
 
         // TODO: Encrypt and upload the group profile
+        //
+        // There is a problem that we can provision an attachment for a group only AFTER the group
+        // exists. Here we don't have a group yet to upload the corresponding group profile.
         let group_data_bytes = GroupData {
             title: chat_attributes.title.clone(),
             picture: chat_attributes.picture.clone(),

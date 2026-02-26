@@ -1,0 +1,6 @@
+---
+source: coreclient/src/chats/mod.rs
+expression: bytes
+extension: cbor
+snapshot_kind: binary
+---

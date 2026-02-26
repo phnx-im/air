@@ -21,6 +21,7 @@ pub(crate) mod profile;
 
 pub(crate) struct JobContext<'a> {
     pub api_clients: &'a ApiClients,
+    pub http_client: &'a reqwest::Client,
     pub pool: SqlitePool,
     pub notifier: &'a mut StoreNotifier,
     pub key_store: &'a MemoryUserKeyStore,

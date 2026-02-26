@@ -6,13 +6,17 @@ use std::fmt::Display;
 
 use aircommon::{
     codec::{self, PersistenceCodec},
+    crypto::ear::{EarKey, keys::IdentityLinkWrapperKey},
     identifiers::{Fqdn, QualifiedGroupId, UserHandle, UserId},
     time::TimeStamp,
 };
+use anyhow::Context as _;
 use chrono::{DateTime, Utc};
+use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
 use serde_tuple::{Deserialize_tuple, Serialize_tuple};
+use sha2::{Digest, Sha256};
 use sqlx::{SqliteConnection, SqliteExecutor};
 use uuid::Uuid;
 
@@ -341,7 +345,7 @@ impl ChatAttributes {
 /// Warning: This type is serialized and stored in the group context, so it must be stable and
 /// backward compatible. Fields can be added (with `#[serde(default)]`) or reordered, but not
 /// removed or renamed.
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GroupData {
     pub title: String,
     pub picture: Option<Vec<u8>>,
@@ -374,19 +378,35 @@ impl GroupData {
     }
 }
 
-/// A pointer to an external encrypted group profile in the object storage.
+/// External encrypted group profile in the object storage.
+///
+/// This type is similar to the `ExternalPart` in the [MIMI Message Content draft].
 ///
 /// Warning: This type is serialized and stored in the group context, so it must be stable and
 /// backward compatible. Fields can be added at the end, renamed, but not removed or reordered.
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize_tuple, Deserialize_tuple)]
+///
+/// [MIMI Message Content draft]: https://www.ietf.org/archive/id/draft-ietf-mimi-content-07.html
+#[derive(Debug, Clone, Eq, PartialEq, Serialize_tuple, Deserialize_tuple)]
 pub struct ExternalGroupProfile {
-    /// Object ID in the object storage.
+    /// Object ID in the object storage
     ///
     /// Via this ID, the chat attributes can be retrieved from the object storage.
     pub object_id: Uuid,
-    /// The hash of the encrypted content stored in the object storage.
+    /// Size of the content in bytes
+    pub size: u64,
+    /// An IANA AEAD Algorithm, not `None`
+    pub enc_alg: EncryptionAlgorithm,
+    /// AEAD nonce
     #[serde(with = "serde_bytes")]
-    pub encrypted_content_hash: Vec<u8>,
+    pub nonce: Vec<u8>,
+    /// AEAD additional authentiation data
+    #[serde(with = "serde_bytes")]
+    pub aad: Vec<u8>,
+    /// An IANA Named Information Hash Algorithm
+    pub hash_alg: HashAlgorithm,
+    /// Hash of the content (which one: encrypted or plaintext?)
+    #[serde(with = "serde_bytes")]
+    pub content_hash: Vec<u8>,
 }
 
 /// Group profile stored as encrypted blob in the object storage.
@@ -402,6 +422,57 @@ pub struct GroupProfile {
     pub picture: Option<Vec<u8>>,
 }
 
+impl From<ChatAttributes> for GroupProfile {
+    fn from(ChatAttributes { title, picture }: ChatAttributes) -> Self {
+        Self {
+            title,
+            description: None,
+            picture,
+        }
+    }
+}
+
+pub(crate) struct ExternalGroupProfileBuilder {
+    inner: ExternalGroupProfile,
+}
+
+impl ExternalGroupProfileBuilder {
+    pub fn build(mut self, object_id: Uuid) -> ExternalGroupProfile {
+        self.inner.object_id = object_id;
+        self.inner
+    }
+}
+
+impl GroupProfile {
+    pub fn encrypt(
+        &self,
+        identity_link_wrapper_key: &IdentityLinkWrapperKey,
+    ) -> anyhow::Result<(Vec<u8>, ExternalGroupProfileBuilder)> {
+        const AIR_GROUP_PROFILE_ENCRYPTION_ALG: EncryptionAlgorithm =
+            EncryptionAlgorithm::Aes256Gcm;
+        const AIR_GROUP_PROFILE_HASH_ALG: HashAlgorithm = HashAlgorithm::Sha256;
+
+        let plaintext = PersistenceCodec::to_vec(self)?;
+        let aead_ciphertext = identity_link_wrapper_key.encrypt(plaintext.as_slice())?;
+        let (ciphertext, nonce) = aead_ciphertext.into_parts();
+
+        let content_hash = Sha256::digest(&plaintext);
+
+        let external = ExternalGroupProfile {
+            object_id: Uuid::nil(),
+            size: plaintext.len().try_into().context("usize overflow")?,
+            enc_alg: AIR_GROUP_PROFILE_ENCRYPTION_ALG,
+            nonce: nonce.into(),
+            aad: Vec::new(),
+            hash_alg: AIR_GROUP_PROFILE_HASH_ALG,
+            content_hash: content_hash.to_vec(),
+        };
+        let builder = ExternalGroupProfileBuilder { inner: external };
+
+        Ok((ciphertext, builder))
+    }
+}
+
 #[cfg(test)]
 mod test {
     use aircommon::codec::PersistenceCodec;
@@ -409,17 +480,25 @@ mod test {
 
     use super::*;
 
-    #[test]
-    fn group_data_stability() {
-        let data = GroupData {
+    fn test_group_data() -> GroupData {
+        GroupData {
             title: "Group Title".to_string(),
             picture: Some(vec![1, 2, 3]),
             encrypted_group_profile: Some(ExternalGroupProfile {
                 object_id: uuid!("89fea7df-3823-4688-8915-00ab38db1577"),
-                encrypted_content_hash: vec![42, 43],
+                size: 42,
+                enc_alg: EncryptionAlgorithm::Aes256Gcm,
+                nonce: b"nonce".to_vec(),
+                aad: Vec::new(),
+                hash_alg: HashAlgorithm::Sha256,
+                content_hash: b"content_hash".to_vec(),
             }),
-        };
-        let bytes = PersistenceCodec::to_vec(&data).unwrap();
+        }
+    }
+
+    #[test]
+    fn group_data_stability() {
+        let bytes = PersistenceCodec::to_vec(&test_group_data()).unwrap();
         insta::assert_binary_snapshot!(".cbor", bytes);
     }
 
@@ -442,30 +521,23 @@ mod test {
             picture: Option<Vec<u8>>,
         }
 
-        let chat_attributes_v1 = OldGroupData {
-            title: "title".to_string(),
-            picture: Some(vec![1, 2, 3]),
-        };
-        let chat_attributes = GroupData {
-            title: chat_attributes_v1.title.clone(),
-            picture: chat_attributes_v1.picture.clone(),
-            encrypted_group_profile: Some(ExternalGroupProfile {
-                object_id: uuid!("89fea7df-3823-4688-8915-00ab38db1577"),
-                encrypted_content_hash: vec![42, 43],
-            }),
+        let group_data = test_group_data();
+        let old_group_data = OldGroupData {
+            title: group_data.title.clone(),
+            picture: group_data.picture.clone(),
         };
 
-        let bytes = PersistenceCodec::to_vec(&chat_attributes).unwrap();
+        let bytes = PersistenceCodec::to_vec(&group_data).unwrap();
         let value: OldGroupData = PersistenceCodec::from_slice(&bytes).unwrap();
-        assert_eq!(value, chat_attributes_v1);
+        assert_eq!(value, old_group_data);
 
-        let bytes = PersistenceCodec::to_vec(&chat_attributes_v1).unwrap();
+        let bytes = PersistenceCodec::to_vec(&old_group_data).unwrap();
         let value: GroupData = PersistenceCodec::from_slice(&bytes).unwrap();
         assert_eq!(
             value,
             GroupData {
                 encrypted_group_profile: None,
-                ..chat_attributes
+                ..group_data
             }
         );
     }

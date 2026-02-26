@@ -508,6 +508,7 @@ impl ApiClient {
         group_id: &GroupId,
         sender_index: LeafNodeIndex,
         content_length: i64,
+        object_type: StorageObjectType,
     ) -> Result<ProvisionAttachmentResponse, DsRequestError> {
         let qgid: QualifiedGroupId = group_id.try_into()?;
         let payload = ProvisionAttachmentPayload {
@@ -517,7 +518,7 @@ impl ApiClient {
             sender: Some(sender_index.into()),
             use_post_policy: true,
             content_length,
-            object_type: StorageObjectType::Attachment.into(),
+            object_type: object_type.into(),
         };
         let request = payload.sign(signing_key)?;
         let response = self
@@ -536,6 +537,7 @@ impl ApiClient {
         group_id: &GroupId,
         sender_index: LeafNodeIndex,
         attachment_id: AttachmentId,
+        object_type: StorageObjectType,
     ) -> Result<String, DsRequestError> {
         let qgid: QualifiedGroupId = group_id.try_into()?;
         let payload = GetAttachmentUrlPayload {
@@ -544,7 +546,7 @@ impl ApiClient {
             group_id: Some(qgid.ref_into()),
             sender: Some(sender_index.into()),
             object_id: Some(attachment_id.uuid().into()),
-            object_type: StorageObjectType::Attachment.into(),
+            object_type: object_type.into(),
         };
         let request = payload.sign(signing_key)?;
         let response = self

@@ -18,7 +18,7 @@ use sqlx::{SqliteConnection, SqlitePool, SqliteTransaction, query, query_as};
 use tracing::{debug, error, info};
 
 use crate::{
-    Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
+    Chat, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
     chats::{GroupData, messages::TimestampedMessage},
     clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
     contacts::ContactAddInfos,
@@ -158,6 +158,7 @@ impl PendingChatOperation {
             notifier,
             key_store,
             now,
+            ..
         } = context;
         let signer = &key_store.signing_key;
         let own_user_id = signer.credential().user_id().clone();
@@ -432,7 +433,7 @@ impl PendingChatOperation {
         txn: &mut SqliteTransaction<'_>,
         signer: &ClientSigningKey,
         chat_id: ChatId,
-        new_chat_attributes: Option<&ChatAttributes>,
+        new_group_data: Option<GroupData>,
     ) -> anyhow::Result<Self> {
         let chat = Chat::load(txn.as_mut(), &chat_id)
             .await?
@@ -442,19 +443,7 @@ impl PendingChatOperation {
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
 
-        let group_data_bytes = new_chat_attributes
-            .map(|attributes| {
-                // We reuse the bytes representation of the group data to persist it in the local
-                // database as a job parameter.
-                GroupData {
-                    title: attributes.title.clone(),
-                    picture: attributes.picture.clone(),
-                    // This will be populated later when the job is executed
-                    encrypted_group_profile: None,
-                }
-                .encode()
-            })
-            .transpose()?;
+        let group_data_bytes = new_group_data.map(|data| data.encode()).transpose()?;
 
         let params = group
             .group_mut()
@@ -919,7 +908,8 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        groups::GroupDataBytes, store::StoreNotifier, utils::persistence::open_db_in_memory,
+        ChatAttributes, groups::GroupDataBytes, store::StoreNotifier,
+        utils::persistence::open_db_in_memory,
     };
 
     use super::*;
