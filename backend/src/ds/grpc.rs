@@ -12,7 +12,7 @@ use aircommon::{
             signable::{Verifiable, VerifiedStruct},
         },
     },
-    identifiers::{self, AttachmentId, Fqdn, QualifiedGroupId},
+    identifiers::{self, Fqdn, QualifiedGroupId},
     messages::client_ds::{
         GroupOperationParams, JoinConnectionGroupParams, QsQueueMessagePayload,
         UserProfileKeyUpdateParams, WelcomeInfoParams,
@@ -1088,13 +1088,10 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         let payload: GetAttachmentUrlPayload =
             request.verify(verifying_key).map_err(InvalidSignature)?;
 
-        let attachment_id = payload
-            .attachment_id
-            .ok_or_missing_field("attachment_id")?
-            .into();
-        let attachment_id = AttachmentId::new(attachment_id);
+        let object_id = payload.object_id.ok_or_missing_field("object_id")?.into();
+        let object_type = StorageObjectType::try_from(payload.object_type).unwrap_or_default();
 
-        Ok(self.ds.get_attachment_url(attachment_id).await?)
+        Ok(self.ds.get_attachment_url(object_id, object_type).await?)
     }
 
     async fn targeted_message(

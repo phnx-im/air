@@ -478,8 +478,7 @@ async fn encrypt_and_provision(
         }
     };
 
-    let attachment_id =
-        AttachmentId::new(response.attachment_id.context("no attachment id")?.into());
+    let attachment_id = AttachmentId::new(response.object_id.context("no attachment id")?.into());
 
     let metadata = AttachmentMetadata {
         attachment_id,

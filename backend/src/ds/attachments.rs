@@ -2,14 +2,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{identifiers::AttachmentId, time::ExpirationData};
+use aircommon::time::ExpirationData;
 use airprotos::{
     common::v1::{
         AttachmentTooLargeDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
     },
     delivery_service::v1::{
         GetAttachmentUrlResponse, HeaderEntry, ProvisionAttachmentPayload,
-        ProvisionAttachmentResponse, SignedPostPolicy,
+        ProvisionAttachmentResponse, SignedPostPolicy, StorageObjectType,
     },
 };
 use aws_sdk_s3::{
@@ -28,6 +28,8 @@ use tonic::{Code, Response, Status};
 use tracing::error;
 use uuid::Uuid;
 
+use crate::settings::StoragePaths;
+
 use super::{Ds, storage::Storage};
 
 impl Ds {
@@ -39,23 +41,25 @@ impl Ds {
             return Err(ProvisionAttachmentError::NoStorageConfigured);
         };
 
-        let attachment_id = Uuid::new_v4();
+        let object_id = Uuid::new_v4();
+        let object_type = StorageObjectType::try_from(payload.object_type).unwrap_or_default();
 
         let expiration = ExpirationData::now(storage.settings().upload_expiration);
 
         let response = if storage.settings().use_post_policy && payload.use_post_policy {
-            create_signed_post(storage, attachment_id, expiration)
+            create_signed_post(storage, object_id, expiration, object_type)
         } else {
             let content_length =
                 (payload.content_length > 0).then_some(payload.content_length as u64);
-            create_signed_put(storage, attachment_id, expiration, content_length).await?
+            create_signed_put(storage, object_id, expiration, content_length, object_type).await?
         };
         Ok(Response::new(response))
     }
 
     pub(super) async fn get_attachment_url(
         &self,
-        attachment_id: AttachmentId,
+        object_id: Uuid,
+        object_type: StorageObjectType,
     ) -> Result<Response<GetAttachmentUrlResponse>, GetAttachmentUrlError> {
         let Some(storage) = self.storage.as_ref() else {
             return Err(GetAttachmentUrlError::NoStorageConfigured);
@@ -71,11 +75,12 @@ impl Ds {
         presigning_config.set_expires_in(Some(duration.to_std()?));
         let presigning_config = presigning_config.build()?;
 
+        let key = storage_key(&storage.settings().storage_paths, object_id, object_type);
         let request = storage
             .client()
             .get_object()
             .bucket(storage.settings().bucket.clone())
-            .key(attachment_id.uuid().as_simple().to_string())
+            .key(key)
             .presigned(presigning_config)
             .await
             .map_err(Box::new)?;
@@ -99,9 +104,10 @@ impl Ds {
 
 async fn create_signed_put(
     storage: &Storage,
-    attachment_id: Uuid,
+    object_id: Uuid,
     expiration: ExpirationData,
     content_length: Option<u64>,
+    object_type: StorageObjectType,
 ) -> Result<ProvisionAttachmentResponse, ProvisionAttachmentError> {
     let not_before: DateTime<Utc> = expiration.not_before().into();
     let not_after: DateTime<Utc> = expiration.not_after().into();
@@ -112,11 +118,8 @@ async fn create_signed_put(
     presigning_config.set_expires_in(Some(duration.to_std()?));
     let presigning_config = presigning_config.build()?;
 
-    let request = storage
-        .client()
-        .put_object()
-        .bucket("data")
-        .key(attachment_id.as_simple().to_string());
+    let key = storage_key(&storage.settings().storage_paths, object_id, object_type);
+    let request = storage.client().put_object().bucket("data").key(key);
 
     let settings = storage.settings();
 
@@ -149,7 +152,7 @@ async fn create_signed_put(
         .collect();
 
     Ok(ProvisionAttachmentResponse {
-        attachment_id: Some(attachment_id.into()),
+        object_id: Some(object_id.into()),
         upload_url_expiration: Some(expiration.into()),
         upload_url: url,
         upload_headers: header,
@@ -165,8 +168,9 @@ struct Policy {
 
 fn create_signed_post(
     storage: &Storage,
-    attachment_id: Uuid,
+    object_id: Uuid,
     expiration: ExpirationData,
+    object_type: StorageObjectType,
 ) -> ProvisionAttachmentResponse {
     let not_before: DateTime<Utc> = expiration.not_before().into();
     let not_after: DateTime<Utc> = expiration.not_after().into();
@@ -180,11 +184,12 @@ fn create_signed_post(
         region = settings.region,
     );
 
+    let key = storage_key(&storage.settings().storage_paths, object_id, object_type);
     let policy = Policy {
         expiration: not_after,
         conditions: [
             json!({"bucket": "data"}),
-            json!({"key": attachment_id.as_simple().to_string()}),
+            json!({"key": key}),
             json!(["content-length-range", 0, settings.max_attachment_size]),
             json!({"x-amz-credential": x_amz_credential}),
             json!({"x-amz-algorithm": "AWS4-HMAC-SHA256"}),
@@ -216,11 +221,31 @@ fn create_signed_post(
     };
 
     ProvisionAttachmentResponse {
-        attachment_id: Some(attachment_id.into()),
+        object_id: Some(object_id.into()),
         upload_url_expiration: Some(expiration.into()),
         upload_url,
         post_policy: Some(post_policy),
         ..Default::default()
+    }
+}
+
+fn storage_key(paths: &StoragePaths, object_id: Uuid, object_type: StorageObjectType) -> String {
+    let key = object_id.as_simple();
+    match object_type {
+        // Note: Unspecified is treated as a generic attachment to preserve backwards compatibility
+        // with older clients.
+        StorageObjectType::Unspecified | StorageObjectType::Attachment => {
+            let path = paths.attachments_path.trim_end_matches('/');
+            format!("{path}/{key}")
+        }
+        StorageObjectType::GroupProfile => {
+            let path = paths.group_profiles_path.trim_end_matches('/');
+            format!("{path}/{key}")
+        }
+        StorageObjectType::UserProfile => {
+            let path = paths.user_profiles_path.trim_end_matches('/');
+            format!("{path}/{key}")
+        }
     }
 }
 
@@ -359,13 +384,14 @@ mod test {
             max_attachment_size: 20 * 1024 * 1024,
             use_post_policy: false,
             require_content_length: true,
+            storage_paths: Default::default(),
         };
         Storage::new(settings)
     }
 
     #[tokio::test]
     async fn test_create_signed_put() {
-        let attachment_id = uuid!("ba521fc6-1ec2-4f8e-a85e-3dacc1e96989");
+        let object_id = uuid!("ba521fc6-1ec2-4f8e-a85e-3dacc1e96989");
         let at = DateTime::parse_from_rfc3339("2023-01-01T00:00:00Z")
             .unwrap()
             .to_utc();
@@ -373,24 +399,42 @@ mod test {
 
         let storage = storage();
 
-        let response = create_signed_put(&storage, attachment_id, expiration.clone(), None).await;
+        let response = create_signed_put(
+            &storage,
+            object_id,
+            expiration.clone(),
+            None,
+            StorageObjectType::Unspecified,
+        )
+        .await;
         assert!(response.is_err());
 
-        let response = create_signed_put(&storage, attachment_id, expiration, Some(42)).await;
-
+        let response = create_signed_put(
+            &storage,
+            object_id,
+            expiration,
+            Some(42),
+            StorageObjectType::Unspecified,
+        )
+        .await;
         insta::assert_debug_snapshot!(response);
     }
 
     #[test]
     fn test_create_signed_policy() {
-        let attachment_id = uuid!("ba521fc6-1ec2-4f8e-a85e-3dacc1e96989");
+        let object_id = uuid!("ba521fc6-1ec2-4f8e-a85e-3dacc1e96989");
         let at = DateTime::parse_from_rfc3339("2023-01-01T00:00:00Z")
             .unwrap()
             .to_utc();
         let expiration = ExpirationData::from_parts(at.into(), (at + Duration::seconds(60)).into());
 
         let storage = storage();
-        let response = create_signed_post(&storage, attachment_id, expiration);
+        let response = create_signed_post(
+            &storage,
+            object_id,
+            expiration,
+            StorageObjectType::Unspecified,
+        );
 
         insta::assert_debug_snapshot!(response);
 
@@ -399,5 +443,29 @@ mod test {
         let policy: serde_json::Value = serde_json::from_slice(&policy_json).unwrap();
 
         insta::assert_debug_snapshot!(policy);
+    }
+
+    #[test]
+    fn test_storage_key_with_default_paths() {
+        let paths = StoragePaths::default();
+
+        let object_id = uuid!("ba521fc6-1ec2-4f8e-a85e-3dacc1e96989");
+
+        // Backwards compatibility with older clients
+        let object_type = StorageObjectType::Unspecified;
+        let key = storage_key(&paths, object_id, object_type);
+        assert_eq!(key, "attachments/ba521fc61ec24f8ea85e3dacc1e96989");
+
+        let object_type = StorageObjectType::Attachment;
+        let key = storage_key(&paths, object_id, object_type);
+        assert_eq!(key, "attachments/ba521fc61ec24f8ea85e3dacc1e96989");
+
+        let object_type = StorageObjectType::GroupProfile;
+        let key = storage_key(&paths, object_id, object_type);
+        assert_eq!(key, "group-profiles/ba521fc61ec24f8ea85e3dacc1e96989");
+
+        let object_type = StorageObjectType::UserProfile;
+        let key = storage_key(&paths, object_id, object_type);
+        assert_eq!(key, "user-profiles/ba521fc61ec24f8ea85e3dacc1e96989");
     }
 }

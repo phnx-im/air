@@ -29,8 +29,8 @@ use airprotos::{
         AddUsersInfo, ConnectionGroupInfoRequest, CreateGroupPayload, DeleteGroupPayload,
         ExternalCommitInfoRequest, GetAttachmentUrlPayload, GroupOperationPayload,
         JoinConnectionGroupRequest, ProvisionAttachmentPayload, RequestGroupIdRequest,
-        ResyncPayload, SelfRemovePayload, SendMessagePayload, TargetedMessagePayload,
-        UpdateProfileKeyPayload, WelcomeInfoPayload,
+        ResyncPayload, SelfRemovePayload, SendMessagePayload, StorageObjectType,
+        TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
     },
     validation::MissingFieldExt,
 };
@@ -517,6 +517,7 @@ impl ApiClient {
             sender: Some(sender_index.into()),
             use_post_policy: true,
             content_length,
+            object_type: StorageObjectType::Attachment.into(),
         };
         let request = payload.sign(signing_key)?;
         let response = self
@@ -542,7 +543,8 @@ impl ApiClient {
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
             group_id: Some(qgid.ref_into()),
             sender: Some(sender_index.into()),
-            attachment_id: Some(attachment_id.uuid().into()),
+            object_id: Some(attachment_id.uuid().into()),
+            object_type: StorageObjectType::Attachment.into(),
         };
         let request = payload.sign(signing_key)?;
         let response = self
