@@ -25,6 +25,7 @@ import 'package:system_date_time_format/system_date_time_format.dart';
 import 'chat_list_cubit.dart';
 
 const _previewLineHeight = 1.28;
+final _previewFontSize = BodyFontSize.small1.size;
 
 /// Measures the height of two lines of preview text, caching the result
 /// as long as the text direction and scaler remain unchanged.
@@ -35,10 +36,7 @@ double _twoLinePreviewHeight(ui.TextDirection direction, TextScaler scaler) {
   final tp = TextPainter(
     text: TextSpan(
       text: ' ',
-      style: TextStyle(
-        fontSize: BodyFontSize.base.size,
-        height: _previewLineHeight,
-      ),
+      style: TextStyle(fontSize: _previewFontSize, height: _previewLineHeight),
     ),
     textDirection: direction,
     textScaler: scaler,
@@ -341,7 +339,7 @@ class _UnreadBadge extends StatelessWidget {
         badgeText,
         style: TextStyle(
           color: CustomColorScheme.of(context).function.toggleWhite,
-          fontSize: LabelFontSize.small3.size,
+          fontSize: LabelFontSize.small2.size,
           height: 1,
         ),
       ),
@@ -383,7 +381,7 @@ class _LastMessage extends StatelessWidget {
       return Text(
         loc.textMessage_hiddenPlaceholder,
         style: TextStyle(
-          fontSize: BodyFontSize.base.size,
+          fontSize: _previewFontSize,
           height: _previewLineHeight,
           fontStyle: FontStyle.italic,
           color: color.text.tertiary,
@@ -401,7 +399,7 @@ class _LastMessage extends StatelessWidget {
       return Text(
         loc.textMessage_deleted,
         style: TextStyle(
-          fontSize: BodyFontSize.base.size,
+          fontSize: _previewFontSize,
           height: _previewLineHeight,
           fontStyle: FontStyle.italic,
           color: color.text.tertiary,
@@ -410,7 +408,7 @@ class _LastMessage extends StatelessWidget {
     }
 
     final readStyle = TextStyle(
-      fontSize: BodyFontSize.base.size,
+      fontSize: _previewFontSize,
       height: _previewLineHeight,
       color: Color.alphaBlend(
         color.text.tertiary,
