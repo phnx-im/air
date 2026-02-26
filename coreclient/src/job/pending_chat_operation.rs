@@ -4,7 +4,6 @@
 
 use airapiclient::ds_api::DsRequestError;
 use aircommon::{
-    codec::PersistenceCodec,
     credentials::{ClientCredential, keys::ClientSigningKey},
     identifiers::{QualifiedGroupId, UserId},
     messages::client_ds_out::{DeleteGroupParamsOut, GroupOperationParamsOut, SelfRemoveParamsOut},
@@ -20,10 +19,10 @@ use tracing::{debug, error, info};
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
-    chats::messages::TimestampedMessage,
+    chats::{GroupData, messages::TimestampedMessage},
     clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
     contacts::ContactAddInfos,
-    groups::{Group, GroupData, VerifiedGroup, client_auth_info::StorableClientCredential},
+    groups::{Group, VerifiedGroup, client_auth_info::StorableClientCredential},
     job::{Job, JobContext, JobError},
     store::StoreNotifier,
     utils::connection_ext::ConnectionExt,
@@ -247,18 +246,23 @@ impl PendingChatOperation {
                 };
 
                 let group_messages = if is_commit {
-                    let (mut group_messages, group_data) = self
+                    let (mut group_messages, group_data_bytes) = self
                         .group
                         .merge_pending_commit(txn, None, ds_timestamp)
                         .await?;
 
-                    if let Some(group_data) = group_data {
+                    if let Some(bytes) = group_data_bytes {
+                        let group_data = GroupData::decode(&bytes)?;
+                        let (chat_attributes, encrypted_group_profile) = group_data.into_parts();
+                        if let Some(encrypted_group_profile) = encrypted_group_profile {
+                            // TODO: Download the group profile from the remote storage
+                        }
                         update_chat_attributes(
                             txn,
                             notifier,
                             &mut chat,
                             own_user_id,
-                            group_data,
+                            chat_attributes,
                             ds_timestamp,
                             &mut group_messages,
                         )
@@ -437,12 +441,25 @@ impl PendingChatOperation {
         let mut group = Group::load_clean_verified(txn, group_id)
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
-        let group_data = match new_chat_attributes {
-            Some(attrs) => Some(GroupData::from(PersistenceCodec::to_vec(attrs)?)),
-            None => None,
-        };
 
-        let params = group.group_mut().update(txn, signer, group_data).await?;
+        let group_data_bytes = new_chat_attributes
+            .map(|attributes| {
+                // We reuse the bytes representation of the group data to persist it in the local
+                // database as a job parameter.
+                GroupData {
+                    title: attributes.title.clone(),
+                    picture: attributes.picture.clone(),
+                    // This will be populated later when the job is executed
+                    encrypted_group_profile: None,
+                }
+                .encode()
+            })
+            .transpose()?;
+
+        let params = group
+            .group_mut()
+            .update(txn, signer, group_data_bytes)
+            .await?;
 
         let job = Self::new(group, Box::new(params));
         job.store(txn.as_mut()).await?;
@@ -893,7 +910,6 @@ pub mod test_utils {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use aircommon::{
         credentials::{keys::ClientSigningKey, test_utils::create_test_credentials},
         identifiers::{QualifiedGroupId, UserId},
@@ -902,7 +918,11 @@ mod tests {
     use sqlx::SqlitePool;
     use uuid::Uuid;
 
-    use crate::{store::StoreNotifier, utils::persistence::open_db_in_memory};
+    use crate::{
+        groups::GroupDataBytes, store::StoreNotifier, utils::persistence::open_db_in_memory,
+    };
+
+    use super::*;
 
     async fn setup_group_and_chat()
     -> anyhow::Result<(SqlitePool, VerifiedGroup, ChatId, ClientSigningKey)> {
@@ -914,7 +934,7 @@ mod tests {
 
         let qgid = QualifiedGroupId::new(Uuid::new_v4(), user_id.domain().clone());
         let group_id = GroupId::from(qgid);
-        let group_data = GroupData::from(b"test-group-data".to_vec());
+        let group_data = GroupDataBytes::from(b"test-group-data".to_vec());
 
         let (group, _) =
             Group::create_group(&mut connection, &signing_key, group_id.clone(), group_data)?;

@@ -135,12 +135,13 @@ impl From<(ClientCredential, UserProfileKey)> for ProfileInfo {
     }
 }
 
+/// Bytes stored in the group data extension.
 #[derive(Debug, PartialEq, Clone)]
-pub(crate) struct GroupData {
+pub(crate) struct GroupDataBytes {
     bytes: Vec<u8>,
 }
 
-impl GroupData {
+impl GroupDataBytes {
     pub(crate) fn bytes(&self) -> &[u8] {
         &self.bytes
     }
@@ -150,7 +151,7 @@ impl GroupData {
             if let Proposal::GroupContextExtensions(extensions) = p.proposal()
                 && let Some(ext) = extensions.extensions().unknown(GROUP_DATA_EXTENSION_TYPE)
             {
-                Some(GroupData::from(ext.0.clone()))
+                Some(GroupDataBytes::from(ext.0.clone()))
             } else {
                 None
             }
@@ -158,7 +159,7 @@ impl GroupData {
     }
 }
 
-impl From<Vec<u8>> for GroupData {
+impl From<Vec<u8>> for GroupDataBytes {
     fn from(bytes: Vec<u8>) -> Self {
         Self { bytes }
     }
@@ -186,7 +187,7 @@ impl Group {
         connection: &mut SqliteConnection,
         signer: &ClientSigningKey,
         group_id: GroupId,
-        group_data: GroupData,
+        group_data_bytes: GroupDataBytes,
     ) -> Result<(Self, PartialCreateGroupParams)> {
         let provider = AirOpenMlsProvider::new(connection);
         let group_state_ear_key = GroupStateEarKey::random()?;
@@ -198,7 +199,7 @@ impl Group {
 
         let group_data_extension = Extension::Unknown(
             GROUP_DATA_EXTENSION_TYPE,
-            UnknownExtension(group_data.bytes),
+            UnknownExtension(group_data_bytes.bytes),
         );
         let gc_extensions =
             Extensions::from_vec(vec![group_data_extension, required_capabilities])?;
@@ -780,7 +781,7 @@ impl Group {
         verified: &impl GroupStorageWitness,
         staged_commit_option: impl Into<Option<StagedCommit>>,
         ds_timestamp: TimeStamp,
-    ) -> Result<(Vec<TimestampedMessage>, Option<GroupData>)> {
+    ) -> Result<(Vec<TimestampedMessage>, Option<GroupDataBytes>)> {
         let staged_commit_option: Option<StagedCommit> = staged_commit_option.into();
 
         self.apply_staged_operations_to_room_state(staged_commit_option.as_ref())?;
@@ -795,7 +796,7 @@ impl Group {
                 ds_timestamp,
             )?;
 
-            let group_data = GroupData::from_staged_commit(&staged_commit);
+            let group_data = GroupDataBytes::from_staged_commit(&staged_commit);
 
             let provider = AirOpenMlsProvider::new(&mut *txn);
             self.mls_group
@@ -807,7 +808,7 @@ impl Group {
             // create a notification message.
             let (staged_commit_messages, group_data) =
                 if let Some(staged_commit) = self.mls_group.pending_commit() {
-                    let group_data = GroupData::from_staged_commit(staged_commit);
+                    let group_data = GroupDataBytes::from_staged_commit(staged_commit);
                     let messages = TimestampedMessage::from_staged_commit(
                         self,
                         verified,
@@ -930,7 +931,7 @@ impl Group {
         &mut self,
         txn: &mut SqliteTransaction<'_>,
         signer: &ClientSigningKey,
-        new_group_data: Option<GroupData>,
+        new_group_data: Option<GroupDataBytes>,
     ) -> Result<GroupOperationParamsOut> {
         // We don't expect there to be a welcome.
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
@@ -1046,9 +1047,9 @@ impl Group {
 
     /// Returns the `GroupData` of a pending GroupContextExtension change proposal, if any.
     #[expect(dead_code)]
-    pub(crate) fn pending_group_data_update(&self) -> Option<GroupData> {
+    pub(crate) fn pending_group_data_update(&self) -> Option<GroupDataBytes> {
         let pending_commit = self.mls_group().pending_commit()?;
-        GroupData::from_staged_commit(pending_commit)
+        GroupDataBytes::from_staged_commit(pending_commit)
     }
 
     fn user_id_at_index(&self, index: LeafNodeIndex) -> Option<UserId> {
@@ -1125,10 +1126,10 @@ impl Group {
         Ok(result?)
     }
 
-    pub(crate) fn group_data(&self) -> Option<GroupData> {
+    pub(crate) fn group_data(&self) -> Option<GroupDataBytes> {
         self.mls_group().extensions().iter().find_map(|e| match e {
             Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, extension_bytes) => {
-                Some(GroupData::from(extension_bytes.0.clone()))
+                Some(GroupDataBytes::from(extension_bytes.0.clone()))
             }
             _ => None,
         })

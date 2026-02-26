@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    codec::PersistenceCodec,
     credentials::{ClientCredential, VerifiableClientCredential},
     crypto::{ear::EarDecryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{MimiId, QualifiedGroupId, UserId},
@@ -37,7 +36,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     ChatMessage, ChatStatus, ContentMessage, Message, SystemMessage,
-    chats::{StatusRecord, messages::edit::MessageEdit},
+    chats::{GroupData, StatusRecord, messages::edit::MessageEdit},
     clients::{
         QsListenResponder,
         attachment::AttachmentRecord,
@@ -59,9 +58,7 @@ use crate::{
     utils::connection_ext::StoreExt,
 };
 
-use super::{
-    Chat, ChatAttributes, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow,
-};
+use super::{Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow};
 
 pub enum ProcessQsMessageResult {
     None,
@@ -185,7 +182,7 @@ impl CoreUser {
             }
 
             // If yes, merge the commit and store the updated group
-            let (mut group_messages, group_data) =
+            let (mut group_messages, group_data_bytes) =
                 group.merge_pending_commit(txn, None, timestamp).await?;
             group
                 .group_mut()
@@ -197,13 +194,18 @@ impl CoreUser {
                 .context("Can't find chat for commit response")?;
 
             // Update group data in chat attributes if present
-            if let Some(group_data) = group_data {
+            if let Some(group_data_bytes) = group_data_bytes {
+                let group_data = GroupData::decode(&group_data_bytes)?;
+                let (chat_attributes, encrypted_group_profile) = group_data.into_parts();
+                if let Some(encrypted_group_profile) = encrypted_group_profile {
+                    // TODO: Download the group profile from the remote storage
+                }
                 update_chat_attributes(
                     txn,
                     notifier,
                     &mut chat,
                     self.user_id().clone(),
-                    group_data,
+                    chat_attributes,
                     timestamp,
                     &mut group_messages,
                 )
@@ -266,8 +268,12 @@ impl CoreUser {
 
                 // Set the chat attributes according to the group's
                 // group data.
-                let group_data = group.group_data().context("No group data")?;
-                let attributes: ChatAttributes = PersistenceCodec::from_slice(group_data.bytes())?;
+                let group_data_bytes = group.group_data().context("No group data")?;
+                let group_data = GroupData::decode(&group_data_bytes)?;
+                let (attributes, encrypted_group_profile) = group_data.into_parts();
+                if let Some(encrypted_group_profile) = encrypted_group_profile {
+                    // TODO: Download the group profile from the remote storage
+                }
 
                 let chat = Chat::new_group_chat(group_id.clone(), attributes);
                 let own_profile_key = UserProfileKey::load_own(txn.as_mut()).await?;
@@ -799,20 +805,25 @@ impl CoreUser {
             chat.set_inactive(txn.as_mut(), &mut notifier, past_members)
                 .await?;
         }
-        let (messages_from_commit, group_data) = group
+        let (messages_from_commit, group_data_bytes) = group
             .merge_pending_commit(txn, staged_commit, ds_timestamp)
             .await?;
 
         group_messages.extend(messages_from_commit);
 
-        if let Some(group_data) = group_data {
+        if let Some(group_data_bytes) = group_data_bytes {
+            let group_data = GroupData::decode(&group_data_bytes)?;
+            let (chat_attributes, encrypted_group_profile) = group_data.into_parts();
+            if let Some(encrypted_group_profile) = encrypted_group_profile {
+                // TODO: Download the group profile from the remote storage
+            }
             // Update chat attributes according to new group data
             update_chat_attributes(
                 txn,
                 &mut notifier,
                 &mut chat,
                 sender_client_credential.user_id().clone(),
-                group_data,
+                chat_attributes,
                 ds_timestamp,
                 &mut group_messages,
             )

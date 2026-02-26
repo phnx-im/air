@@ -4,7 +4,6 @@
 
 use airapiclient::{ApiClient, as_api::AsConnectionOfferResponder};
 use aircommon::{
-    codec::PersistenceCodec,
     credentials::keys::ClientSigningKey,
     crypto::{
         ear::keys::{FriendshipPackageEarKey, GroupStateEarKey},
@@ -27,6 +26,7 @@ use tracing::info;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage, UserProfile,
+    chats::GroupData,
     clients::{
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
         targeted_message::TargetedMessageContent,
@@ -203,9 +203,14 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
         &self,
         txn: &mut sqlx::SqliteTransaction<'_>,
         signing_key: &ClientSigningKey,
-        attributes: &ChatAttributes,
+        title: String,
     ) -> anyhow::Result<(Group, PartialCreateGroupParams)> {
-        let group_data = PersistenceCodec::to_vec(attributes)?.into();
+        let group_data = GroupData {
+            title,
+            picture: None,
+            encrypted_group_profile: None,
+        }
+        .encode()?;
 
         let (group, partial_params) =
             Group::create_group(txn, signing_key, self.group_id.clone(), group_data)?;
@@ -229,7 +234,7 @@ impl VerifiedConnectionPackagesWithGroupId<ConnectionPackage> {
         let attributes = ChatAttributes::new(title, None);
 
         let (group, partial_params) = self
-            .create_connection_group_internal(txn, signing_key, &attributes)
+            .create_connection_group_internal(txn, signing_key, attributes.title.clone())
             .await?;
 
         let Self {
@@ -271,7 +276,7 @@ impl VerifiedConnectionPackagesWithGroupId<UserId> {
         let attributes = ChatAttributes::new(title, None);
 
         let (group, partial_params) = self
-            .create_connection_group_internal(txn, signing_key, &attributes)
+            .create_connection_group_internal(txn, signing_key, attributes.title.clone())
             .await?;
 
         let Self {

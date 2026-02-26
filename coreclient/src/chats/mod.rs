@@ -5,16 +5,18 @@
 use std::fmt::Display;
 
 use aircommon::{
+    codec::{self, PersistenceCodec},
     identifiers::{Fqdn, QualifiedGroupId, UserHandle, UserId},
     time::TimeStamp,
 };
 use chrono::{DateTime, Utc};
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
+use serde_tuple::{Deserialize_tuple, Serialize_tuple};
 use sqlx::{SqliteConnection, SqliteExecutor};
 use uuid::Uuid;
 
-use crate::{contacts::PartialContactType, store::StoreNotifier};
+use crate::{contacts::PartialContactType, groups::GroupDataBytes, store::StoreNotifier};
 
 pub use draft::MessageDraft;
 pub(crate) use {pending::PendingConnectionInfo, status::StatusRecord};
@@ -301,7 +303,12 @@ impl ChatType {
     }
 }
 
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+/// Attributes of a chat.
+///
+/// This type is an in-memory representation of the chat attributes and is only persisted in the
+/// local database. It is not used to be communicated with other clients. For that, see it
+/// counterpart [`GroupData`].
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct ChatAttributes {
     pub title: String,
     pub picture: Option<Vec<u8>>,
@@ -326,5 +333,140 @@ impl ChatAttributes {
 
     pub fn set_picture(&mut self, picture: Option<Vec<u8>>) {
         self.picture = picture;
+    }
+}
+
+/// Data stored in the group data extension as blob.
+///
+/// Warning: This type is serialized and stored in the group context, so it must be stable and
+/// backward compatible. Fields can be added (with `#[serde(default)]`) or reordered, but not
+/// removed or renamed.
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GroupData {
+    pub title: String,
+    pub picture: Option<Vec<u8>>,
+    /// A storage id for the encrypted chat attributes.
+    ///
+    /// Via this id, the chat attributes can be retrieved from the object storage.
+    #[serde(default)]
+    pub encrypted_group_profile: Option<ExternalGroupProfile>,
+}
+
+impl GroupData {
+    /// Decodes the group data from the group data extension bytes.
+    pub(crate) fn decode(group_data: &GroupDataBytes) -> Result<Self, codec::Error> {
+        PersistenceCodec::from_slice(group_data.bytes())
+    }
+
+    /// Encodes the group data as bytes to be stored in the group data extension.
+    pub(crate) fn encode(&self) -> Result<GroupDataBytes, codec::Error> {
+        PersistenceCodec::to_vec(self).map(From::from)
+    }
+
+    /// Convert the data into the in-memory part and the external part.
+    pub(crate) fn into_parts(self) -> (ChatAttributes, Option<ExternalGroupProfile>) {
+        let Self {
+            title,
+            picture,
+            encrypted_group_profile,
+        } = self;
+        (ChatAttributes { title, picture }, encrypted_group_profile)
+    }
+}
+
+/// A pointer to an external encrypted group profile in the object storage.
+///
+/// Warning: This type is serialized and stored in the group context, so it must be stable and
+/// backward compatible. Fields can be added at the end, renamed, but not removed or reordered.
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize_tuple, Deserialize_tuple)]
+pub struct ExternalGroupProfile {
+    /// Object ID in the object storage.
+    ///
+    /// Via this ID, the chat attributes can be retrieved from the object storage.
+    pub object_id: Uuid,
+    /// The hash of the encrypted content stored in the object storage.
+    #[serde(with = "serde_bytes")]
+    pub encrypted_content_hash: Vec<u8>,
+}
+
+/// Group profile stored as encrypted blob in the object storage.
+///
+/// Warning: This type is stored in the remote object storage and therefore must be kept stable. It
+/// is serialized/deserialized as tuple. Fields can be added at the end, renamed, but not removed or
+/// reordered.
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize_tuple, Deserialize_tuple)]
+pub struct GroupProfile {
+    pub title: String,
+    pub description: Option<String>,
+    #[serde(with = "serde_bytes")]
+    pub picture: Option<Vec<u8>>,
+}
+
+#[cfg(test)]
+mod test {
+    use aircommon::codec::PersistenceCodec;
+    use uuid::uuid;
+
+    use super::*;
+
+    #[test]
+    fn group_data_stability() {
+        let data = GroupData {
+            title: "Group Title".to_string(),
+            picture: Some(vec![1, 2, 3]),
+            encrypted_group_profile: Some(ExternalGroupProfile {
+                object_id: uuid!("89fea7df-3823-4688-8915-00ab38db1577"),
+                encrypted_content_hash: vec![42, 43],
+            }),
+        };
+        let bytes = PersistenceCodec::to_vec(&data).unwrap();
+        insta::assert_binary_snapshot!(".cbor", bytes);
+    }
+
+    #[test]
+    fn group_profile_stability() {
+        let profile = GroupProfile {
+            title: "Group Title".to_string(),
+            description: Some("Group Description".to_string()),
+            picture: Some(vec![1, 2, 3]),
+        };
+        let bytes = PersistenceCodec::to_vec(&profile).unwrap();
+        insta::assert_binary_snapshot!(".cbor", bytes);
+    }
+
+    #[test]
+    fn chat_attributes_backward_compatibility() {
+        #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+        struct OldGroupData {
+            title: String,
+            picture: Option<Vec<u8>>,
+        }
+
+        let chat_attributes_v1 = OldGroupData {
+            title: "title".to_string(),
+            picture: Some(vec![1, 2, 3]),
+        };
+        let chat_attributes = GroupData {
+            title: chat_attributes_v1.title.clone(),
+            picture: chat_attributes_v1.picture.clone(),
+            encrypted_group_profile: Some(ExternalGroupProfile {
+                object_id: uuid!("89fea7df-3823-4688-8915-00ab38db1577"),
+                encrypted_content_hash: vec![42, 43],
+            }),
+        };
+
+        let bytes = PersistenceCodec::to_vec(&chat_attributes).unwrap();
+        let value: OldGroupData = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(value, chat_attributes_v1);
+
+        let bytes = PersistenceCodec::to_vec(&chat_attributes_v1).unwrap();
+        let value: GroupData = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            value,
+            GroupData {
+                encrypted_group_profile: None,
+                ..chat_attributes
+            }
+        );
     }
 }

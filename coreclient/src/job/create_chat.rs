@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    codec::PersistenceCodec, crypto::indexed_aead::keys::UserProfileKey, identifiers::QsReference,
-    time::TimeStamp,
+    crypto::indexed_aead::keys::UserProfileKey, identifiers::QsReference, time::TimeStamp,
 };
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage,
+    chats::GroupData,
     groups::Group,
     job::{Job, JobContext, JobError},
     key_stores::indexed_keys::StorableIndexedKey,
@@ -53,7 +53,13 @@ impl CreateChat {
         let group_id = api_clients.default_client()?.ds_request_group_id().await?;
         let own_user_id = key_store.signing_key.credential().user_id();
 
-        let group_data = PersistenceCodec::to_vec(&chat_attributes)?.into();
+        // TODO: Encrypt and upload the group profile
+        let group_data_bytes = GroupData {
+            title: chat_attributes.title.clone(),
+            picture: chat_attributes.picture.clone(),
+            encrypted_group_profile: None,
+        }
+        .encode()?;
 
         let mut connection = pool.acquire().await?;
 
@@ -62,7 +68,7 @@ impl CreateChat {
         let (group, chat, partial_params, encrypted_user_profile_key) = connection
             .with_transaction(async |txn| {
                 let (group, partial_params) =
-                    Group::create_group(txn, &key_store.signing_key, group_id, group_data)?;
+                    Group::create_group(txn, &key_store.signing_key, group_id, group_data_bytes)?;
 
                 let user_profile_key = UserProfileKey::load_own(txn.as_mut()).await?;
                 let encrypted_user_profile_key =

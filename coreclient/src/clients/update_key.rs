@@ -2,12 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{codec::PersistenceCodec, identifiers::UserId, time::TimeStamp};
+use aircommon::{identifiers::UserId, time::TimeStamp};
 use sqlx::SqliteConnection;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage, chats::messages::TimestampedMessage,
-    groups::GroupData, job::chat_operation::ChatOperation, store::StoreNotifier,
+    job::chat_operation::ChatOperation, store::StoreNotifier,
 };
 
 use super::CoreUser;
@@ -35,11 +35,10 @@ pub(crate) async fn update_chat_attributes(
     notifier: &mut StoreNotifier,
     chat: &mut Chat,
     sender_id: UserId,
-    group_data: GroupData,
+    new_chat_attributes: ChatAttributes,
     ds_timestamp: TimeStamp,
     message_buffer: &mut Vec<TimestampedMessage>,
 ) -> anyhow::Result<()> {
-    let new_chat_attributes: ChatAttributes = PersistenceCodec::from_slice(group_data.bytes())?;
     let new_title = new_chat_attributes.title;
     let old_title = chat.attributes.title.clone();
     if chat.attributes.title != new_title {
