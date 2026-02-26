@@ -18,7 +18,6 @@ no-default-features = false
 multiple-versions = "allow"
 
 [advisories]
-yanked = "deny"
 unsound = "all"
 ignore = [
     { id = "RUSTSEC-2023-0071", reason = "no fix yet available; the crate is not used by us" },
