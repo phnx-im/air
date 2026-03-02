@@ -29,7 +29,7 @@
 ### 🚜 Refactor
 
 - *(app)* Remove group membership (#1044)
-- Client credential identity -> user_id (#1052)
+- Rename client credential identity to user id (#1052)
 
 ## [0.11.1] - 2026-02-18
 
