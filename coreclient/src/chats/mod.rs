@@ -6,17 +6,12 @@ use std::fmt::Display;
 
 use aircommon::{
     codec::{self, PersistenceCodec},
-    crypto::ear::{EarKey, keys::IdentityLinkWrapperKey},
     identifiers::{Fqdn, QualifiedGroupId, UserHandle, UserId},
-    time::TimeStamp,
 };
-use anyhow::Context as _;
+use airprotos::client::group::{ExternalGroupProfile, GroupData, GroupProfile};
 use chrono::{DateTime, Utc};
-use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
-use serde_tuple::{Deserialize_tuple, Serialize_tuple};
-use sha2::{Digest, Sha256};
 use sqlx::{SqliteConnection, SqliteExecutor};
 use uuid::Uuid;
 
@@ -340,86 +335,36 @@ impl ChatAttributes {
     }
 }
 
-/// Data stored in the group data extension as blob.
-///
-/// Warning: This type is serialized and stored in the group context, so it must be stable and
-/// backward compatible. Fields can be added (with `#[serde(default)]`) or reordered, but not
-/// removed or renamed.
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct GroupData {
-    pub title: String,
-    pub picture: Option<Vec<u8>>,
-    /// A storage id for the encrypted chat attributes.
-    ///
-    /// Via this id, the chat attributes can be retrieved from the object storage.
-    #[serde(default)]
-    pub encrypted_group_profile: Option<ExternalGroupProfile>,
-}
-
-impl GroupData {
+/// Extension trait for bridging [`GroupData`] and types in this crate.
+pub(crate) trait GroupDataExt {
     /// Decodes the group data from the group data extension bytes.
-    pub(crate) fn decode(group_data: &GroupDataBytes) -> Result<Self, codec::Error> {
-        PersistenceCodec::from_slice(group_data.bytes())
-    }
+    fn decode(bytes: &GroupDataBytes) -> Result<Self, codec::Error>
+    where
+        Self: Sized;
 
     /// Encodes the group data as bytes to be stored in the group data extension.
-    pub(crate) fn encode(&self) -> Result<GroupDataBytes, codec::Error> {
+    fn encode(&self) -> Result<GroupDataBytes, codec::Error>;
+
+    fn into_parts(self) -> (ChatAttributes, Option<ExternalGroupProfile>);
+}
+
+impl GroupDataExt for GroupData {
+    fn decode(bytes: &GroupDataBytes) -> Result<Self, codec::Error> {
+        PersistenceCodec::from_slice(bytes.bytes())
+    }
+
+    fn encode(&self) -> Result<GroupDataBytes, codec::Error> {
         PersistenceCodec::to_vec(self).map(From::from)
     }
 
-    /// Convert the data into the in-memory part and the external part.
-    pub(crate) fn into_parts(self) -> (ChatAttributes, Option<ExternalGroupProfile>) {
+    fn into_parts(self) -> (ChatAttributes, Option<ExternalGroupProfile>) {
         let Self {
             title,
             picture,
-            encrypted_group_profile,
+            external_group_profile,
         } = self;
-        (ChatAttributes { title, picture }, encrypted_group_profile)
+        (ChatAttributes { title, picture }, external_group_profile)
     }
-}
-
-/// External encrypted group profile in the object storage.
-///
-/// This type is similar to the `ExternalPart` in the [MIMI Message Content draft].
-///
-/// Warning: This type is serialized and stored in the group context, so it must be stable and
-/// backward compatible. Fields can be added at the end, renamed, but not removed or reordered.
-///
-/// [MIMI Message Content draft]: https://www.ietf.org/archive/id/draft-ietf-mimi-content-07.html
-#[derive(Debug, Clone, Eq, PartialEq, Serialize_tuple, Deserialize_tuple)]
-pub struct ExternalGroupProfile {
-    /// Object ID in the object storage
-    ///
-    /// Via this ID, the chat attributes can be retrieved from the object storage.
-    pub object_id: Uuid,
-    /// Size of the content in bytes
-    pub size: u64,
-    /// An IANA AEAD Algorithm, not `None`
-    pub enc_alg: EncryptionAlgorithm,
-    /// AEAD nonce
-    #[serde(with = "serde_bytes")]
-    pub nonce: Vec<u8>,
-    /// AEAD additional authentiation data
-    #[serde(with = "serde_bytes")]
-    pub aad: Vec<u8>,
-    /// An IANA Named Information Hash Algorithm
-    pub hash_alg: HashAlgorithm,
-    /// Hash of the content (which one: encrypted or plaintext?)
-    #[serde(with = "serde_bytes")]
-    pub content_hash: Vec<u8>,
-}
-
-/// Group profile stored as encrypted blob in the object storage.
-///
-/// Warning: This type is stored in the remote object storage and therefore must be kept stable. It
-/// is serialized/deserialized as tuple. Fields can be added at the end, renamed, but not removed or
-/// reordered.
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize_tuple, Deserialize_tuple)]
-pub struct GroupProfile {
-    pub title: String,
-    pub description: Option<String>,
-    #[serde(with = "serde_bytes")]
-    pub picture: Option<Vec<u8>>,
 }
 
 impl From<ChatAttributes> for GroupProfile {
@@ -429,116 +374,5 @@ impl From<ChatAttributes> for GroupProfile {
             description: None,
             picture,
         }
-    }
-}
-
-pub(crate) struct ExternalGroupProfileBuilder {
-    inner: ExternalGroupProfile,
-}
-
-impl ExternalGroupProfileBuilder {
-    pub fn build(mut self, object_id: Uuid) -> ExternalGroupProfile {
-        self.inner.object_id = object_id;
-        self.inner
-    }
-}
-
-impl GroupProfile {
-    pub fn encrypt(
-        &self,
-        identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> anyhow::Result<(Vec<u8>, ExternalGroupProfileBuilder)> {
-        const AIR_GROUP_PROFILE_ENCRYPTION_ALG: EncryptionAlgorithm =
-            EncryptionAlgorithm::Aes256Gcm;
-        const AIR_GROUP_PROFILE_HASH_ALG: HashAlgorithm = HashAlgorithm::Sha256;
-
-        let plaintext = PersistenceCodec::to_vec(self)?;
-        let aead_ciphertext = identity_link_wrapper_key.encrypt(plaintext.as_slice())?;
-        let (ciphertext, nonce) = aead_ciphertext.into_parts();
-
-        let content_hash = Sha256::digest(&plaintext);
-
-        let external = ExternalGroupProfile {
-            object_id: Uuid::nil(),
-            size: plaintext.len().try_into().context("usize overflow")?,
-            enc_alg: AIR_GROUP_PROFILE_ENCRYPTION_ALG,
-            nonce: nonce.into(),
-            aad: Vec::new(),
-            hash_alg: AIR_GROUP_PROFILE_HASH_ALG,
-            content_hash: content_hash.to_vec(),
-        };
-        let builder = ExternalGroupProfileBuilder { inner: external };
-
-        Ok((ciphertext, builder))
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use aircommon::codec::PersistenceCodec;
-    use uuid::uuid;
-
-    use super::*;
-
-    fn test_group_data() -> GroupData {
-        GroupData {
-            title: "Group Title".to_string(),
-            picture: Some(vec![1, 2, 3]),
-            encrypted_group_profile: Some(ExternalGroupProfile {
-                object_id: uuid!("89fea7df-3823-4688-8915-00ab38db1577"),
-                size: 42,
-                enc_alg: EncryptionAlgorithm::Aes256Gcm,
-                nonce: b"nonce".to_vec(),
-                aad: Vec::new(),
-                hash_alg: HashAlgorithm::Sha256,
-                content_hash: b"content_hash".to_vec(),
-            }),
-        }
-    }
-
-    #[test]
-    fn group_data_stability() {
-        let bytes = PersistenceCodec::to_vec(&test_group_data()).unwrap();
-        insta::assert_binary_snapshot!(".cbor", bytes);
-    }
-
-    #[test]
-    fn group_profile_stability() {
-        let profile = GroupProfile {
-            title: "Group Title".to_string(),
-            description: Some("Group Description".to_string()),
-            picture: Some(vec![1, 2, 3]),
-        };
-        let bytes = PersistenceCodec::to_vec(&profile).unwrap();
-        insta::assert_binary_snapshot!(".cbor", bytes);
-    }
-
-    #[test]
-    fn chat_attributes_backward_compatibility() {
-        #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-        struct OldGroupData {
-            title: String,
-            picture: Option<Vec<u8>>,
-        }
-
-        let group_data = test_group_data();
-        let old_group_data = OldGroupData {
-            title: group_data.title.clone(),
-            picture: group_data.picture.clone(),
-        };
-
-        let bytes = PersistenceCodec::to_vec(&group_data).unwrap();
-        let value: OldGroupData = PersistenceCodec::from_slice(&bytes).unwrap();
-        assert_eq!(value, old_group_data);
-
-        let bytes = PersistenceCodec::to_vec(&old_group_data).unwrap();
-        let value: GroupData = PersistenceCodec::from_slice(&bytes).unwrap();
-        assert_eq!(
-            value,
-            GroupData {
-                encrypted_group_profile: None,
-                ..group_data
-            }
-        );
     }
 }

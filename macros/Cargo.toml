@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name = "airmacros"
+version = "0.1.0"
+authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
+edition = "2024"
+publish = false
+description = "Procedural macros for the Air Protocol crates"
+license = "AGPL-3.0-or-later"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }

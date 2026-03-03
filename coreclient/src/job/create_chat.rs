@@ -5,10 +5,11 @@
 use aircommon::{
     crypto::indexed_aead::keys::UserProfileKey, identifiers::QsReference, time::TimeStamp,
 };
+use airprotos::client::group::GroupData;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage,
-    chats::GroupData,
+    chats::GroupDataExt,
     groups::Group,
     job::{Job, JobContext, JobError},
     key_stores::indexed_keys::StorableIndexedKey,
@@ -60,7 +61,7 @@ impl CreateChat {
         let group_data_bytes = GroupData {
             title: chat_attributes.title.clone(),
             picture: chat_attributes.picture.clone(),
-            encrypted_group_profile: None,
+            external_group_profile: None,
         }
         .encode()?;
 

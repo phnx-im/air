@@ -9,6 +9,7 @@ use aircommon::{
     messages::client_ds_out::{DeleteGroupParamsOut, GroupOperationParamsOut, SelfRemoveParamsOut},
     time::TimeStamp,
 };
+use airprotos::client::group::GroupData;
 use anyhow::{Context as _, anyhow, bail};
 use chrono::{DateTime, Duration, Utc};
 use mimi_room_policy::RoleIndex;
@@ -19,7 +20,7 @@ use tracing::{debug, error, info};
 
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
-    chats::{GroupData, messages::TimestampedMessage},
+    chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
     contacts::ContactAddInfos,
     groups::{Group, VerifiedGroup, client_auth_info::StorableClientCredential},

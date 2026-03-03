@@ -19,6 +19,7 @@ use aircommon::{
     },
     time::TimeStamp,
 };
+use airprotos::client::group::GroupData;
 use anyhow::{Context, bail};
 use openmls::group::GroupId;
 use sqlx::SqliteTransaction;
@@ -26,13 +27,15 @@ use tracing::info;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage, UserProfile,
-    chats::GroupData,
+    chats::GroupDataExt,
     clients::{
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
         targeted_message::TargetedMessageContent,
     },
     contacts::{HandleContact, TargetedMessageContact},
-    groups::{Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider},
+    groups::{
+        Group, GroupDataBytes, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider,
+    },
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
     store::{Store, StoreNotifier},
     utils::connection_ext::StoreExt,
@@ -205,15 +208,15 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
         signing_key: &ClientSigningKey,
         title: String,
     ) -> anyhow::Result<(Group, PartialCreateGroupParams)> {
-        let group_data = GroupData {
+        let group_data_bytes = GroupData {
             title,
             picture: None,
-            encrypted_group_profile: None,
+            external_group_profile: None,
         }
         .encode()?;
 
         let (group, partial_params) =
-            Group::create_group(txn, signing_key, self.group_id.clone(), group_data)?;
+            Group::create_group(txn, signing_key, self.group_id.clone(), group_data_bytes)?;
 
         group.store(txn.as_mut()).await?;
 

@@ -5,13 +5,15 @@
 use std::collections::HashSet;
 
 use aircommon::identifiers::UserId;
-use airprotos::delivery_service::v1::StorageObjectType;
+use airprotos::{
+    client::group::{GroupData, GroupProfile},
+    delivery_service::v1::StorageObjectType,
+};
 use anyhow::{Context, anyhow, bail};
 use sqlx::SqliteConnection;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
-    chats::{GroupData, GroupProfile},
     groups::Group,
     job::{Job, JobContext, JobError, pending_chat_operation::PendingChatOperation},
     utils::connection_ext::ConnectionExt,
@@ -259,8 +261,9 @@ impl ChatOperation {
 
             // Encrypt
             let group_profile = GroupProfile::from(attributes);
-            let (ciphertext, external) =
-                group_profile.encrypt(group.identity_link_wrapper_key())?;
+            let (ciphertext, external) = group_profile
+                .encrypt(group.identity_link_wrapper_key())
+                .context("Failed to encrypt group profile")?;
 
             // Provision
             let api_client = api_clients.default_client()?;
@@ -299,7 +302,7 @@ impl ChatOperation {
             Some(GroupData {
                 title: group_profile.title,
                 picture: group_profile.picture,
-                encrypted_group_profile: Some(external),
+                external_group_profile: Some(external),
             })
         } else {
             None

@@ -17,7 +17,10 @@ use aircommon::{
     time::TimeStamp,
     utils::removed_client,
 };
-use airprotos::queue_service::v1::{QueueEvent, queue_event};
+use airprotos::{
+    client::group::GroupData,
+    queue_service::v1::{QueueEvent, queue_event},
+};
 use anyhow::{Context, Result, bail, ensure};
 use mimi_content::{
     Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPartContent,
@@ -36,7 +39,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     ChatMessage, ChatStatus, ContentMessage, Message, SystemMessage,
-    chats::{GroupData, StatusRecord, messages::edit::MessageEdit},
+    chats::{GroupDataExt, StatusRecord, messages::edit::MessageEdit},
     clients::{
         QsListenResponder,
         attachment::AttachmentRecord,
@@ -196,8 +199,8 @@ impl CoreUser {
             // Update group data in chat attributes if present
             if let Some(group_data_bytes) = group_data_bytes {
                 let group_data = GroupData::decode(&group_data_bytes)?;
-                let (chat_attributes, encrypted_group_profile) = group_data.into_parts();
-                if let Some(encrypted_group_profile) = encrypted_group_profile {
+                let (chat_attributes, external_group_profile) = group_data.into_parts();
+                if let Some(external_group_profile) = external_group_profile {
                     // TODO: Download the group profile from the remote storage
                 }
                 update_chat_attributes(

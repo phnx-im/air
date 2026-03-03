@@ -1,5 +1,5 @@
 ---
-source: coreclient/src/chats/mod.rs
+source: protos/src/client/group.rs
 expression: bytes
 extension: cbor
 snapshot_kind: binary
