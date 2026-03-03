@@ -6,7 +6,7 @@ use std::collections::HashSet;
 
 use aircommon::identifiers::UserId;
 use airprotos::{
-    client::group::{GroupData, GroupProfile},
+    client::group::{EncryptedGroupTitle, GroupData, GroupProfile},
     delivery_service::v1::StorageObjectType,
 };
 use anyhow::{Context, anyhow, bail};
@@ -299,9 +299,16 @@ impl ChatOperation {
                     .context("Failed to upload group profile")?;
             }
 
+            let encrypted_title = EncryptedGroupTitle::encrypt(
+                &group_profile.title,
+                group.identity_link_wrapper_key(),
+            )
+            .context("Failed to encrypt group title")?;
+
             Some(GroupData {
                 title: group_profile.title,
                 picture: group_profile.picture,
+                encrypted_title: Some(encrypted_title),
                 external_group_profile: Some(external),
             })
         } else {

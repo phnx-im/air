@@ -199,7 +199,8 @@ impl CoreUser {
             // Update group data in chat attributes if present
             if let Some(group_data_bytes) = group_data_bytes {
                 let group_data = GroupData::decode(&group_data_bytes)?;
-                let (chat_attributes, external_group_profile) = group_data.into_parts();
+                let (chat_attributes, external_group_profile) =
+                    group_data.into_parts(group.identity_link_wrapper_key());
                 if let Some(external_group_profile) = external_group_profile {
                     // TODO: Download the group profile from the remote storage
                 }
@@ -273,8 +274,9 @@ impl CoreUser {
                 // group data.
                 let group_data_bytes = group.group_data().context("No group data")?;
                 let group_data = GroupData::decode(&group_data_bytes)?;
-                let (attributes, encrypted_group_profile) = group_data.into_parts();
-                if let Some(encrypted_group_profile) = encrypted_group_profile {
+                let (attributes, external_group_profile) =
+                    group_data.into_parts(group.identity_link_wrapper_key());
+                if let Some(external_group_profile) = external_group_profile {
                     // TODO: Download the group profile from the remote storage
                 }
 
@@ -816,8 +818,9 @@ impl CoreUser {
 
         if let Some(group_data_bytes) = group_data_bytes {
             let group_data = GroupData::decode(&group_data_bytes)?;
-            let (chat_attributes, encrypted_group_profile) = group_data.into_parts();
-            if let Some(encrypted_group_profile) = encrypted_group_profile {
+            let (chat_attributes, external_group_profile) =
+                group_data.into_parts(group.identity_link_wrapper_key());
+            if let Some(external_group_profile) = external_group_profile {
                 // TODO: Download the group profile from the remote storage
             }
             // Update chat attributes according to new group data

@@ -6,6 +6,7 @@ use std::fmt::Display;
 
 use aircommon::{
     codec::{self, PersistenceCodec},
+    crypto::ear::keys::IdentityLinkWrapperKey,
     identifiers::{Fqdn, QualifiedGroupId, UserHandle, UserId},
 };
 use airprotos::client::group::{ExternalGroupProfile, GroupData, GroupProfile};
@@ -13,6 +14,7 @@ use chrono::{DateTime, Utc};
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
 use sqlx::{SqliteConnection, SqliteExecutor};
+use tracing::error;
 use uuid::Uuid;
 
 use crate::{contacts::PartialContactType, groups::GroupDataBytes, store::StoreNotifier};
@@ -345,7 +347,10 @@ pub(crate) trait GroupDataExt {
     /// Encodes the group data as bytes to be stored in the group data extension.
     fn encode(&self) -> Result<GroupDataBytes, codec::Error>;
 
-    fn into_parts(self) -> (ChatAttributes, Option<ExternalGroupProfile>);
+    fn into_parts(
+        self,
+        identity_link_wrapper_key: &IdentityLinkWrapperKey,
+    ) -> (ChatAttributes, Option<ExternalGroupProfile>);
 }
 
 impl GroupDataExt for GroupData {
@@ -357,12 +362,28 @@ impl GroupDataExt for GroupData {
         PersistenceCodec::to_vec(self).map(From::from)
     }
 
-    fn into_parts(self) -> (ChatAttributes, Option<ExternalGroupProfile>) {
+    fn into_parts(
+        self,
+        identity_link_wrapper_key: &IdentityLinkWrapperKey,
+    ) -> (ChatAttributes, Option<ExternalGroupProfile>) {
         let Self {
             title,
             picture,
+            encrypted_title,
             external_group_profile,
         } = self;
+
+        // Always prefer the encrypted title over the plaintext title
+        let title = if let Some(encrypted_title) = encrypted_title
+            && let Ok(decrypted_title) = encrypted_title
+                .decrypt(identity_link_wrapper_key)
+                .inspect_err(|error| {
+                    error!(%error, "Failed to decrypt group title; fallback to plaintext");
+                }) {
+            decrypted_title
+        } else {
+            title
+        };
         (ChatAttributes { title, picture }, external_group_profile)
     }
 }

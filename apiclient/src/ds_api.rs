@@ -474,12 +474,18 @@ impl ApiClient {
         Ok(())
     }
 
-    /// Request a group ID.
-    pub async fn ds_request_group_id(&self) -> Result<GroupId, DsRequestError> {
+    /// Request a group ID
+    ///
+    /// Returns a new group ID and group profile provisioning response.
+    pub async fn ds_request_group_id(
+        &self,
+        provision_group_profile: bool,
+    ) -> Result<(GroupId, Option<ProvisionAttachmentResponse>), DsRequestError> {
         let response = self
             .ds_grpc_client()
             .request_group_id(RequestGroupIdRequest {
                 client_metadata: Some(self.metadata().clone()),
+                provision_group_profile,
             })
             .await?
             .into_inner();
@@ -495,7 +501,7 @@ impl ApiClient {
                 error!(%error, "unexpected response");
                 DsRequestError::UnexpectedResponse
             })?;
-        Ok(qgid.into())
+        Ok((qgid.into(), response.group_profile_provisioning))
     }
 
     /// Provision an attachment for a group.

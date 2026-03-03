@@ -26,6 +26,12 @@ use uuid::Uuid;
 pub struct GroupData {
     pub title: String,
     pub picture: Option<Vec<u8>>,
+    /// Encrypted group title
+    ///
+    /// It is encrypted with the same key and algorithm as the external group profile. It is
+    /// included in this data to be able to use the group title immediately without having to fetch
+    /// the external group profile.
+    pub encrypted_title: Option<EncryptedGroupTitle>,
     /// A pointer to an external encrypted group profile
     ///
     /// Using this data, it is possible to retrieve the group profile from the object storage.
@@ -60,13 +66,6 @@ pub struct ExternalGroupProfile {
     /// Via this ID, the chat attributes can be retrieved from the object storage.
     #[tag(1)]
     pub object_id: Uuid,
-    /// Encrypted group title
-    ///
-    /// It is encrypted with the same key and algorithm as the external group profile. It is
-    /// included in this data to be able to use the group title immediately without having to fetch
-    /// the external group profile.
-    #[tag(2)]
-    pub encrypted_title: EncryptedGroupTitle,
     /// Size of the content in bytes
     #[tag(3)]
     pub size: u64,
@@ -151,16 +150,8 @@ impl GroupProfile {
         let aead_ciphertext = identity_link_wrapper_key.encrypt(plaintext.as_slice())?;
         let (ciphertext, nonce) = aead_ciphertext.into_parts();
 
-        let title_aead_ciphertext = identity_link_wrapper_key.encrypt(self.title.as_bytes())?;
-        let (title_ciphertext, title_nonce) = title_aead_ciphertext.into_parts();
-        let encrypted_title = EncryptedGroupTitle {
-            ciphertext: title_ciphertext,
-            nonce: title_nonce,
-        };
-
         let external = ExternalGroupProfile {
             object_id: Uuid::nil(),
-            encrypted_title,
             size,
             enc_alg: AIR_GROUP_PROFILE_ENCRYPTION_ALG,
             nonce,
@@ -185,6 +176,16 @@ pub enum GroupProfileEncryptionError {
 }
 
 impl EncryptedGroupTitle {
+    pub fn encrypt(
+        plaintext: &str,
+        identity_link_wrapper_key: &IdentityLinkWrapperKey,
+    ) -> Result<Self, EncryptionError> {
+        let plaintext = plaintext.as_bytes();
+        let aead_ciphertext = identity_link_wrapper_key.encrypt(plaintext)?;
+        let (ciphertext, nonce) = aead_ciphertext.into_parts();
+        Ok(EncryptedGroupTitle { ciphertext, nonce })
+    }
+
     pub fn decrypt(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
@@ -214,12 +215,12 @@ mod test {
         GroupData {
             title: "Group Title".to_string(),
             picture: Some(vec![1, 2, 3]),
+            encrypted_title: Some(EncryptedGroupTitle {
+                ciphertext: b"title-ciphertext".to_vec(),
+                nonce: [0xAA; _],
+            }),
             external_group_profile: Some(ExternalGroupProfile {
                 object_id: uuid!("89fea7df-3823-4688-8915-00ab38db1577"),
-                encrypted_title: EncryptedGroupTitle {
-                    ciphertext: b"title-ciphertext".to_vec(),
-                    nonce: [0xAA; _],
-                },
                 size: 42,
                 enc_alg: EncryptionAlgorithm::Aes256Gcm,
                 nonce: [0xBB; _],

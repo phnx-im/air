@@ -6,7 +6,7 @@ use airapiclient::{ApiClient, as_api::AsConnectionOfferResponder};
 use aircommon::{
     credentials::keys::ClientSigningKey,
     crypto::{
-        ear::keys::{FriendshipPackageEarKey, GroupStateEarKey},
+        ear::keys::{FriendshipPackageEarKey, GroupStateEarKey, IdentityLinkWrapperKey},
         hash::Hashable as _,
         hpke::HpkeEncryptable,
         indexed_aead::keys::UserProfileKey,
@@ -19,7 +19,7 @@ use aircommon::{
     },
     time::TimeStamp,
 };
-use airprotos::client::group::GroupData;
+use airprotos::client::group::{EncryptedGroupTitle, GroupData};
 use anyhow::{Context, bail};
 use openmls::group::GroupId;
 use sqlx::SqliteTransaction;
@@ -33,9 +33,7 @@ use crate::{
         targeted_message::TargetedMessageContent,
     },
     contacts::{HandleContact, TargetedMessageContact},
-    groups::{
-        Group, GroupDataBytes, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider,
-    },
+    groups::{Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider},
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
     store::{Store, StoreNotifier},
     utils::connection_ext::StoreExt,
@@ -92,7 +90,10 @@ impl CoreUser {
             verified_connection_package.into_current();
 
         // Phase 3: Prepare the connection locally
-        let group_id = client.ds_request_group_id().await?;
+        // No need to provision a group profile here, because we only have the group title and no
+        // any additional data to upload.
+        let provision_group_profile = false;
+        let (group_id, _) = client.ds_request_group_id(provision_group_profile).await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: verified_connection_package,
             group_id,
@@ -160,7 +161,10 @@ impl CoreUser {
         }
 
         // Phase 1: Prepare the connection locally
-        let group_id = client.ds_request_group_id().await?;
+        // No need to provision a group profile here, because we only have the group title and no
+        // any additional data to upload.
+        let provision_group_profile = false;
+        let (group_id, _) = client.ds_request_group_id(provision_group_profile).await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: user_id,
             group_id,
@@ -208,15 +212,25 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
         signing_key: &ClientSigningKey,
         title: String,
     ) -> anyhow::Result<(Group, PartialCreateGroupParams)> {
+        let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
+        let encrypted_title = EncryptedGroupTitle::encrypt(&title, &identity_link_wrapper_key)?;
         let group_data_bytes = GroupData {
             title,
+            encrypted_title: Some(encrypted_title),
             picture: None,
+            // No group profile is uploaded, because there is no addiotnal data except for the
+            // title.
             external_group_profile: None,
         }
         .encode()?;
 
-        let (group, partial_params) =
-            Group::create_group(txn, signing_key, self.group_id.clone(), group_data_bytes)?;
+        let (group, partial_params) = Group::create_group(
+            txn,
+            signing_key,
+            identity_link_wrapper_key,
+            self.group_id.clone(),
+            group_data_bytes,
+        )?;
 
         group.store(txn.as_mut()).await?;
 

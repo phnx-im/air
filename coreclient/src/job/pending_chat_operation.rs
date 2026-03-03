@@ -255,8 +255,9 @@ impl PendingChatOperation {
 
                     if let Some(bytes) = group_data_bytes {
                         let group_data = GroupData::decode(&bytes)?;
-                        let (chat_attributes, encrypted_group_profile) = group_data.into_parts();
-                        if let Some(encrypted_group_profile) = encrypted_group_profile {
+                        let (chat_attributes, external_group_profile) =
+                            group_data.into_parts(self.group.identity_link_wrapper_key());
+                        if let Some(external_group_profile) = external_group_profile {
                             // TODO: Download the group profile from the remote storage
                         }
                         update_chat_attributes(
@@ -902,6 +903,7 @@ pub mod test_utils {
 mod tests {
     use aircommon::{
         credentials::{keys::ClientSigningKey, test_utils::create_test_credentials},
+        crypto::ear::keys::IdentityLinkWrapperKey,
         identifiers::{QualifiedGroupId, UserId},
     };
     use chrono::{Duration, Utc};
@@ -927,8 +929,15 @@ mod tests {
         let group_id = GroupId::from(qgid);
         let group_data = GroupDataBytes::from(b"test-group-data".to_vec());
 
-        let (group, _) =
-            Group::create_group(&mut connection, &signing_key, group_id.clone(), group_data)?;
+        let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
+
+        let (group, _) = Group::create_group(
+            &mut connection,
+            &signing_key,
+            identity_link_wrapper_key,
+            group_id.clone(),
+            group_data,
+        )?;
         group.store(&mut *connection).await?;
         let group = VerifiedGroup::new_for_test(group);
 

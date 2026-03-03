@@ -82,10 +82,12 @@ message RoomState {
 
 message RequestGroupIdRequest {
   common.v1.ClientMetadata client_metadata = 1;
+  bool provision_group_profile = 2;
 }
 
 message RequestGroupIdResponse {
   common.v1.QualifiedGroupId group_id = 1;
+  ProvisionAttachmentResponse group_profile_provisioning = 2;
 }
 
 // create group

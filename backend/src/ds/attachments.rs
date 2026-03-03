@@ -8,8 +8,8 @@ use airprotos::{
         AttachmentTooLargeDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
     },
     delivery_service::v1::{
-        GetAttachmentUrlResponse, HeaderEntry, ProvisionAttachmentPayload,
-        ProvisionAttachmentResponse, SignedPostPolicy, StorageObjectType,
+        GetAttachmentUrlResponse, HeaderEntry, ProvisionAttachmentResponse, SignedPostPolicy,
+        StorageObjectType,
     },
 };
 use aws_sdk_s3::{
@@ -35,25 +35,25 @@ use super::{Ds, storage::Storage};
 impl Ds {
     pub(super) async fn provision_attachment(
         &self,
-        payload: ProvisionAttachmentPayload,
-    ) -> Result<Response<ProvisionAttachmentResponse>, ProvisionAttachmentError> {
+        object_type: StorageObjectType,
+        content_length: Option<u64>,
+        use_post_policy: bool,
+    ) -> Result<ProvisionAttachmentResponse, ProvisionAttachmentError> {
         let Some(storage) = self.storage.as_ref() else {
             return Err(ProvisionAttachmentError::NoStorageConfigured);
         };
 
         let object_id = Uuid::new_v4();
-        let object_type = StorageObjectType::try_from(payload.object_type).unwrap_or_default();
-
         let expiration = ExpirationData::now(storage.settings().upload_expiration);
 
-        let response = if storage.settings().use_post_policy && payload.use_post_policy {
+        let response = if storage.settings().use_post_policy && use_post_policy {
             create_signed_post(storage, object_id, expiration, object_type)
         } else {
-            let content_length =
-                (payload.content_length > 0).then_some(payload.content_length as u64);
+            // We still allow content length 0 for legacy clients.
+            let content_length = content_length.filter(|content_length| *content_length > 0);
             create_signed_put(storage, object_id, expiration, content_length, object_type).await?
         };
-        Ok(Response::new(response))
+        Ok(response)
     }
 
     pub(super) async fn get_attachment_url(
