@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Protocol client to client communication types used related to groups.
+//! Client protocol types related to groups.
 
 use aircommon::{
     codec::{self, PersistenceCodec},
@@ -225,7 +225,7 @@ mod test {
                 nonce: [0xBB; _],
                 aad: Vec::new(),
                 hash_alg: HashAlgorithm::Sha256,
-                content_hash: b"profile-content-hash".to_vec(),
+                content_hash: [0xCC; 32].to_vec(),
             }),
         }
     }
