@@ -625,7 +625,7 @@ impl Chat {
         .await?;
 
         query!(
-            "UPDATE chat SET last_read = ?1
+            "UPDATE chat SET last_read = MIN(last_read, ?1)
             WHERE chat_id = ?2",
             timestamp,
             chat_id,
