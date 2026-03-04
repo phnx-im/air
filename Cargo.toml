@@ -135,10 +135,6 @@ openmls = { git = "https://github.com/boxdot/openmls", rev = "7eb56a715d4a7a7faa
 openmls_rust_crypto = { git = "https://github.com/boxdot/openmls", rev = "7eb56a715d4a7a7faa90d1cccea23b35c038f1d9" }
 openmls_traits = { git = "https://github.com/boxdot/openmls", rev = "7eb56a715d4a7a7faa90d1cccea23b35c038f1d9" }
 
-[patch."https://github.com/phnx-im/mimi-content"]
-mimi_content = { path = "../mimi-content" }
-
-
 [profile.release]
 strip = true
 lto = true

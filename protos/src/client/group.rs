@@ -73,7 +73,7 @@ pub struct ExternalGroupProfile {
     pub size: u64,
     /// An IANA AEAD Algorithm, not `None`
     #[tag(4)]
-    pub enc_alg: EncryptionAlgorithm,
+    pub enc_alg: Option<EncryptionAlgorithm>,
     /// AEAD nonce
     #[tag(5)]
     pub nonce: [u8; AEAD_NONCE_SIZE],
@@ -176,7 +176,7 @@ impl GroupProfile {
         let external = ExternalGroupProfile {
             object_id: Uuid::nil(),
             size,
-            enc_alg: AIR_GROUP_PROFILE_ENCRYPTION_ALG,
+            enc_alg: Some(AIR_GROUP_PROFILE_ENCRYPTION_ALG),
             nonce,
             aad: Vec::new(),
             hash_alg: AIR_GROUP_PROFILE_HASH_ALG,
@@ -202,7 +202,7 @@ impl GroupProfile {
         if external_group_profile.size != ciphertext_len {
             return Err(GroupProfileDecryptionError::SizeMismatch);
         }
-        if external_group_profile.enc_alg != AIR_GROUP_PROFILE_ENCRYPTION_ALG {
+        if external_group_profile.enc_alg != Some(AIR_GROUP_PROFILE_ENCRYPTION_ALG) {
             return Err(GroupProfileDecryptionError::UnexpectedEncryptionAlgorithm(
                 external_group_profile.enc_alg,
             ));
@@ -242,7 +242,7 @@ pub enum GroupProfileDecryptionError {
     #[error("size mismatch")]
     SizeMismatch,
     #[error("unexpected encryption algorithm: {0:?}")]
-    UnexpectedEncryptionAlgorithm(EncryptionAlgorithm),
+    UnexpectedEncryptionAlgorithm(Option<EncryptionAlgorithm>),
     #[error("unexpected hash algorithm: {0:?}")]
     UnexpectedHashAlgorithm(HashAlgorithm),
     #[error("checksum mismatch")]
@@ -322,7 +322,7 @@ mod test {
             external_group_profile: Some(ExternalGroupProfile {
                 object_id: uuid!("89fea7df-3823-4688-8915-00ab38db1577"),
                 size: 42,
-                enc_alg: EncryptionAlgorithm::Aes256Gcm,
+                enc_alg: Some(EncryptionAlgorithm::Aes256Gcm),
                 nonce: [0xBB; _],
                 aad: Vec::new(),
                 hash_alg: HashAlgorithm::Sha256,
