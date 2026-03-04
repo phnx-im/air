@@ -295,7 +295,6 @@ impl Job for FetchGroupProfileOperation {
                 )
                 .await?;
 
-                // TODO: Do we have to surface the system notifications here somehow?
                 CoreUser::store_new_messages(txn, context.notifier, chat.id(), messages).await?;
 
                 debug!(?group_id, chat_id = %chat.id(), "Updated chat attributes");
