@@ -202,7 +202,14 @@ impl CoreUser {
                 let (chat_attributes, external_group_profile) =
                     group_data.into_parts(group.identity_link_wrapper_key());
                 if let Some(external_group_profile) = external_group_profile {
-                    // TODO: Download the group profile from the remote storage
+                    Self::schedule_fetch_group_profile(
+                        txn.as_mut(),
+                        chat.group_id().clone(),
+                        self.user_id().clone(),
+                        timestamp,
+                        external_group_profile,
+                    )
+                    .await?;
                 }
                 update_chat_attributes(
                     txn,
@@ -259,7 +266,7 @@ impl CoreUser {
                         own_profile_key_in_group = Some(profile_info.user_profile_key);
                         continue;
                     }
-                    Self::schedule_fetch_profile(txn.as_mut(), profile_info).await?;
+                    Self::schedule_fetch_user_profile(txn.as_mut(), profile_info).await?;
                 }
 
                 let Some(own_profile_key_in_group) = own_profile_key_in_group else {
@@ -277,7 +284,14 @@ impl CoreUser {
                 let (attributes, external_group_profile) =
                     group_data.into_parts(group.identity_link_wrapper_key());
                 if let Some(external_group_profile) = external_group_profile {
-                    // TODO: Download the group profile from the remote storage
+                    Self::schedule_fetch_group_profile(
+                        txn.as_mut(),
+                        group_id.clone(),
+                        sender_user_id.clone(),
+                        ds_timestamp,
+                        external_group_profile,
+                    )
+                    .await?;
                 }
 
                 let chat = Chat::new_group_chat(group_id.clone(), attributes);
@@ -612,7 +626,7 @@ impl CoreUser {
         // MLSMessage Phase 4: Fetch user profiles of new clients and store them.
         self.with_transaction(async |txn| {
             for profile_info in profile_infos {
-                Self::schedule_fetch_profile(txn.as_mut(), profile_info).await?;
+                Self::schedule_fetch_user_profile(txn.as_mut(), profile_info).await?;
             }
             Ok(())
         })
@@ -821,7 +835,14 @@ impl CoreUser {
             let (chat_attributes, external_group_profile) =
                 group_data.into_parts(group.identity_link_wrapper_key());
             if let Some(external_group_profile) = external_group_profile {
-                // TODO: Download the group profile from the remote storage
+                Self::schedule_fetch_group_profile(
+                    txn.as_mut(),
+                    chat.group_id().clone(),
+                    sender_client_credential.user_id().clone(),
+                    ds_timestamp,
+                    external_group_profile,
+                )
+                .await?;
             }
             // Update chat attributes according to new group data
             update_chat_attributes(
@@ -901,7 +922,7 @@ impl CoreUser {
         )?;
 
         // UnconfirmedConnection Phase 2: Fetch the user profile.
-        Self::schedule_fetch_profile(
+        Self::schedule_fetch_user_profile(
             txn.as_mut(),
             (sender_client_credential.clone(), user_profile_key),
         )
@@ -962,8 +983,11 @@ impl CoreUser {
             )?;
 
             // Phase 3: Fetch and store the (new) user profile and key
-            Self::schedule_fetch_profile(txn.as_mut(), (sender_credential, new_user_profile_key))
-                .await?;
+            Self::schedule_fetch_user_profile(
+                txn.as_mut(),
+                (sender_credential, new_user_profile_key),
+            )
+            .await?;
 
             Ok(ProcessQsMessageResult::None)
         })

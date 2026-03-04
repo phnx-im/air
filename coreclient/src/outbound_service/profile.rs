@@ -10,7 +10,7 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{
-    job::{JobError, operation::Operation, profile::FetchProfileOperation},
+    job::{JobError, operation::Operation, profile::FetchUserProfileOperation},
     outbound_service::OutboundServiceContext,
 };
 
@@ -18,7 +18,7 @@ const NUM_RETRIES: usize = 5;
 const RETRY_AFTER: Duration = Duration::from_secs(5);
 
 impl OutboundServiceContext {
-    /// Profiles are fetched in the background
+    /// Spawn a task that fetches user and group profiles in the background.
     pub(super) fn spawn_fetch_profiles(
         &self,
         run_token: &CancellationToken,
@@ -45,7 +45,7 @@ impl OutboundServiceContext {
         let now = Utc::now();
 
         while let Some(op) =
-            Operation::<FetchProfileOperation>::dequeue(&self.pool, task_id, now).await?
+            Operation::<FetchUserProfileOperation>::dequeue(&self.pool, task_id, now).await?
         {
             debug!(?op.operation_id, "fetching profile");
 

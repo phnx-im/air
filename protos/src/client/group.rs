@@ -134,6 +134,9 @@ pub struct GroupProfile {
     pub description: Option<String>,
     #[tag(3)]
     pub picture: Option<Vec<u8>>,
+    // TODO: Add padding
+    // #[tag(4)]
+    // pub padding: Vec<u8>,
 }
 
 /// A build helper for the [`GroupProfile`] type.
@@ -151,24 +154,24 @@ impl ExternalGroupProfileBuilder {
     }
 }
 
+const AIR_GROUP_PROFILE_ENCRYPTION_ALG: EncryptionAlgorithm = EncryptionAlgorithm::Aes256Gcm;
+const AIR_GROUP_PROFILE_HASH_ALG: HashAlgorithm = HashAlgorithm::Sha256;
+
 impl GroupProfile {
     pub fn encrypt(
         &self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
     ) -> Result<(Vec<u8>, ExternalGroupProfileBuilder), GroupProfileEncryptionError> {
-        const AIR_GROUP_PROFILE_ENCRYPTION_ALG: EncryptionAlgorithm =
-            EncryptionAlgorithm::Aes256Gcm;
-        const AIR_GROUP_PROFILE_HASH_ALG: HashAlgorithm = HashAlgorithm::Sha256;
-
         let plaintext = PersistenceCodec::to_vec(self)?;
-        let size = plaintext
-            .len()
-            .try_into()
-            .map_err(|_| GroupProfileEncryptionError::UsizeOverflow)?;
-        let content_hash = Sha256::digest(&plaintext);
 
         let aead_ciphertext = identity_link_wrapper_key.encrypt(plaintext.as_slice())?;
         let (ciphertext, nonce) = aead_ciphertext.into_parts();
+        let size = ciphertext
+            .len()
+            .try_into()
+            .map_err(|_| GroupProfileEncryptionError::UsizeOverflow)?;
+        // TODO: Do we have to calculate the checksum of the plaintext or the ciphertext?
+        let content_hash = Sha256::digest(&ciphertext);
 
         let external = ExternalGroupProfile {
             object_id: Uuid::nil(),
@@ -183,6 +186,43 @@ impl GroupProfile {
 
         Ok((ciphertext, builder))
     }
+
+    /// Decypts the group profile from the given ciphertext.
+    ///
+    /// Also validates the size, encryption algorithm, hash algorithm and checksum.
+    pub fn decrypt(
+        identity_link_wrapper_key: &IdentityLinkWrapperKey,
+        external_group_profile: &ExternalGroupProfile,
+        ciphertext: Vec<u8>,
+    ) -> Result<Self, GroupProfileDecryptionError> {
+        let ciphertext_len: u64 = ciphertext
+            .len()
+            .try_into()
+            .map_err(|_| GroupProfileDecryptionError::UsizeOverflow)?;
+        if external_group_profile.size != ciphertext_len {
+            return Err(GroupProfileDecryptionError::SizeMismatch);
+        }
+        if external_group_profile.enc_alg != AIR_GROUP_PROFILE_ENCRYPTION_ALG {
+            return Err(GroupProfileDecryptionError::UnexpectedEncryptionAlgorithm(
+                external_group_profile.enc_alg,
+            ));
+        }
+        if external_group_profile.hash_alg != AIR_GROUP_PROFILE_HASH_ALG {
+            return Err(GroupProfileDecryptionError::UnexpectedHashAlgorithm(
+                external_group_profile.hash_alg,
+            ));
+        }
+
+        let sha256 = Sha256::digest(&ciphertext);
+        if sha256.as_slice() != external_group_profile.content_hash.as_slice() {
+            return Err(GroupProfileDecryptionError::ChecksumMismatch);
+        }
+
+        let aead_ciphertext = AeadCiphertext::new(ciphertext, external_group_profile.nonce);
+        let plaintext = identity_link_wrapper_key
+            .decrypt_with_aad(&aead_ciphertext, &external_group_profile.aad)?;
+        Ok(PersistenceCodec::from_slice(&plaintext)?)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -193,6 +233,24 @@ pub enum GroupProfileEncryptionError {
     Encryption(#[from] EncryptionError),
     #[error("usize overflow")]
     UsizeOverflow,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum GroupProfileDecryptionError {
+    #[error("usize overflow")]
+    UsizeOverflow,
+    #[error("size mismatch")]
+    SizeMismatch,
+    #[error("unexpected encryption algorithm: {0:?}")]
+    UnexpectedEncryptionAlgorithm(EncryptionAlgorithm),
+    #[error("unexpected hash algorithm: {0:?}")]
+    UnexpectedHashAlgorithm(HashAlgorithm),
+    #[error("checksum mismatch")]
+    ChecksumMismatch,
+    #[error(transparent)]
+    Decryption(#[from] DecryptionError),
+    #[error(transparent)]
+    Codec(#[from] codec::Error),
 }
 
 impl<'a> GroupTitle<'a> {

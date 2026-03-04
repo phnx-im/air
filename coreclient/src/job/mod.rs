@@ -87,6 +87,17 @@ impl From<DsRequestError> for JobError {
     }
 }
 
+impl From<reqwest::Error> for JobError {
+    fn from(error: reqwest::Error) -> Self {
+        if error.is_connect() || error.is_timeout() {
+            info!(?error, "Job failed due to network error");
+            Self::NetworkError
+        } else {
+            Self::FatalError(error.into())
+        }
+    }
+}
+
 // The following errors are universally considered fatal for jobs.
 impl From<sqlx::Error> for JobError {
     fn from(err: sqlx::Error) -> Self {

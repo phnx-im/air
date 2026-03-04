@@ -2,19 +2,30 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+//! Fetching operations for user and group profiles.
+
 use aircommon::{
     credentials::ClientCredential,
     crypto::indexed_aead::{ciphertexts::IndexDecryptable, keys::UserProfileKey},
+    identifiers::{AttachmentId, UserId},
     messages::client_as_out::GetUserProfileResponse,
+    time::TimeStamp,
 };
+use airprotos::{
+    client::group::{ExternalGroupProfile, GroupProfile},
+    delivery_service::v1::StorageObjectType,
+};
+use anyhow::Context;
+use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
 use sqlx::SqliteExecutor;
 use tls_codec::Serialize as _;
-use tracing::error;
+use tracing::{debug, error, info};
 
 use crate::{
-    clients::CoreUser,
-    groups::ProfileInfo,
+    Chat, ChatAttributes, ChatStatus,
+    clients::{CoreUser, update_key::update_chat_attributes},
+    groups::{Group, ProfileInfo},
     job::operation::OperationId,
     key_stores::indexed_keys::StorableIndexedKey,
     user_profiles::{VerifiableUserProfile, process::ExistingUserProfile},
@@ -23,14 +34,14 @@ use crate::{
 
 use super::{
     Job, JobContext, JobError,
-    operation::{Operation, OperationData, OperationKind},
+    operation::{OperationData, OperationKind},
 };
 
 impl CoreUser {
-    /// Schedule a profile fetch operation
+    /// Schedule a user profile fetch operation.
     ///
     /// This will be executed on the next run of the outbound service.
-    pub(crate) async fn schedule_fetch_profile(
+    pub(crate) async fn schedule_fetch_user_profile(
         executor: impl SqliteExecutor<'_>,
         profile_info: impl Into<ProfileInfo>,
     ) -> sqlx::Result<()> {
@@ -38,15 +49,16 @@ impl CoreUser {
             client_credential,
             user_profile_key,
         } = profile_info.into();
-        FetchProfileOperation::new(client_credential, user_profile_key)
+        FetchUserProfileOperation::new(client_credential, user_profile_key)
+            .into_operation()
             .enqueue(executor)
             .await
     }
 
-    /// Immediately fetch profile from the server
+    /// Immediately fetch user profile from the server.
     ///
     /// This will do a network request.
-    pub(crate) async fn fetch_profile(
+    pub(crate) async fn fetch_user_profile(
         &self,
         profile_info: impl Into<ProfileInfo>,
     ) -> anyhow::Result<()> {
@@ -54,20 +66,53 @@ impl CoreUser {
             client_credential,
             user_profile_key,
         } = profile_info.into();
-        let job = FetchProfileOperation::new(client_credential, user_profile_key);
+        let job = FetchUserProfileOperation::new(client_credential, user_profile_key);
         self.execute_job(job).await
+    }
+
+    /// Schedule a group profile fetch operation.
+    ///
+    /// This will be executed on the next run of the outbound service.
+    pub(crate) async fn schedule_fetch_group_profile(
+        executor: impl SqliteExecutor<'_>,
+        group_id: GroupId,
+        sender_id: UserId,
+        uploaded_at: TimeStamp,
+        external_group_profile: ExternalGroupProfile,
+    ) -> sqlx::Result<()> {
+        FetchGroupProfileOperation {
+            group_id,
+            sender_id,
+            uploaded_at,
+            external_group_profile,
+        }
+        .into_operation()
+        .enqueue(executor)
+        .await
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct FetchProfileOperation {
+pub(crate) struct FetchUserProfileOperation {
     client_credential: ClientCredential,
     user_profile_key: UserProfileKey,
 }
 
-impl OperationData for FetchProfileOperation {
+impl FetchUserProfileOperation {
+    pub(crate) fn new(
+        client_credential: ClientCredential,
+        user_profile_key: UserProfileKey,
+    ) -> Self {
+        Self {
+            client_credential,
+            user_profile_key,
+        }
+    }
+}
+
+impl OperationData for FetchUserProfileOperation {
     fn kind() -> OperationKind {
-        OperationKind::FetchProfile
+        OperationKind::FetchUserProfile
     }
 
     fn generate_id(&self) -> OperationId {
@@ -81,23 +126,7 @@ impl OperationData for FetchProfileOperation {
     }
 }
 
-impl FetchProfileOperation {
-    pub(crate) fn new(
-        client_credential: ClientCredential,
-        user_profile_key: UserProfileKey,
-    ) -> Self {
-        Self {
-            client_credential,
-            user_profile_key,
-        }
-    }
-
-    pub(crate) async fn enqueue<'a>(self, executor: impl SqliteExecutor<'a>) -> sqlx::Result<()> {
-        Operation::new(self).enqueue(executor).await
-    }
-}
-
-impl Job for FetchProfileOperation {
+impl Job for FetchUserProfileOperation {
     type Output = ();
 
     async fn execute_logic(self, context: &mut JobContext<'_>) -> Result<Self::Output, JobError> {
@@ -142,6 +171,135 @@ impl Job for FetchProfileOperation {
                     // Delete the old user profile key
                     UserProfileKey::delete(txn.as_mut(), old_user_profile_index).await?;
                 }
+                Ok(())
+            })
+            .await?;
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(super) struct FetchGroupProfileOperation {
+    group_id: GroupId,
+    sender_id: UserId,
+    uploaded_at: TimeStamp,
+    external_group_profile: ExternalGroupProfile,
+}
+
+impl OperationData for FetchGroupProfileOperation {
+    fn kind() -> OperationKind {
+        OperationKind::FetchUserProfile
+    }
+
+    fn generate_id(&self) -> OperationId {
+        // Group ID is usually 16 bytes
+        let mut bytes = Vec::with_capacity(1 + 16);
+        bytes.push(Self::kind() as u8);
+        bytes.extend(self.group_id.as_slice());
+        OperationId(bytes)
+    }
+}
+
+impl Job for FetchGroupProfileOperation {
+    type Output = ();
+
+    async fn execute_logic(self, context: &mut JobContext<'_>) -> Result<Self::Output, JobError> {
+        let Self {
+            group_id,
+            sender_id,
+            uploaded_at,
+            external_group_profile,
+        } = self;
+
+        info!(
+            ?group_id,
+            object_id = %external_group_profile.object_id,
+            ?uploaded_at,
+            "Fetching group profile"
+        );
+
+        // Load chat and group
+        let Some((mut chat, group)) = context
+            .pool
+            .with_transaction(async |txn| {
+                let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
+                    .await?
+                    .context("Missing chat")?;
+                if let ChatStatus::Blocked = chat.status() {
+                    return Ok(None);
+                }
+                let group = Group::load_verified(txn.as_mut(), &group_id)
+                    .await?
+                    .context("Missing group")?;
+                Ok(Some((chat, group)))
+            })
+            .await?
+        else {
+            return Ok(()); // blocked chat
+        };
+
+        // Fetch group profile from the object storage
+        let api_client = context.api_clients.get(&chat.owner_domain())?;
+        let attachment_id = AttachmentId::new(external_group_profile.object_id);
+        let url = api_client
+            .ds_get_attachment_url(
+                &context.key_store.signing_key,
+                group.group_state_ear_key(),
+                &group_id,
+                group.own_index(),
+                attachment_id,
+                StorageObjectType::GroupProfile,
+            )
+            .await?;
+        let bytes = context
+            .http_client
+            .get(url)
+            .send()
+            .await?
+            .error_for_status()?
+            .bytes()
+            .await?;
+
+        // Decrypt and validate group profile
+        let group_profile = GroupProfile::decrypt(
+            group.identity_link_wrapper_key(),
+            &external_group_profile,
+            bytes.into(),
+        )
+        .map_err(JobError::fatal)?;
+
+        debug!(
+            ?group_id,
+            ?external_group_profile,
+            ?group_profile,
+            "Fetched and decrypted group profile"
+        );
+
+        // Update chat attributes and store new messages
+        context
+            .pool
+            .with_transaction(async |txn| {
+                let mut messages = Vec::new();
+
+                let chat_attributes =
+                    ChatAttributes::new(group_profile.title, group_profile.picture);
+                update_chat_attributes(
+                    txn.as_mut(),
+                    context.notifier,
+                    &mut chat,
+                    sender_id,
+                    chat_attributes,
+                    uploaded_at,
+                    &mut messages,
+                )
+                .await?;
+
+                // TODO: Do we have to surface the system notifications here somehow?
+                CoreUser::store_new_messages(txn, context.notifier, chat.id(), messages).await?;
+
+                debug!(?group_id, chat_id = %chat.id(), "Updated chat attributes");
+
                 Ok(())
             })
             .await?;
