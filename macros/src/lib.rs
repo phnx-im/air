@@ -282,8 +282,7 @@ pub fn derive_deserialize_tagged_map(input: TokenStream) -> TokenStream {
     all_generics
         .params
         .insert(0, GenericParam::Lifetime(de_lt_param));
-    let (all_impl_generics, all_ty_generics, all_where_clause) =
-        all_generics.split_for_impl();
+    let (all_impl_generics, all_ty_generics, all_where_clause) = all_generics.split_for_impl();
 
     let var_decls: Vec<TokenStream2> = infos
         .iter()

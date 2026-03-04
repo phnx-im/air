@@ -23,6 +23,7 @@ openmls.workspace = true
 prost.workspace = true
 semver.workspace = true
 serde.workspace = true
+serde_bytes.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 tls_codec.workspace = true
@@ -40,4 +41,5 @@ insta.workspace = true
 [package.metadata.cargo-machete]
 ignored = [
     "tonic-prost", # needed for generated tonic code
+    "serde_bytes", # used in Serialize_tagged_map/Deserialize_tagged_map generated code
 ]

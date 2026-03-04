@@ -293,6 +293,7 @@ dependencies = [
  "protoc-bin-vendored",
  "semver",
  "serde",
+ "serde_bytes",
  "sha2",
  "thiserror 2.0.18",
  "tls_codec",
