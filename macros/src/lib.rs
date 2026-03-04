@@ -7,7 +7,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::{Data, DeriveInput, Fields, FieldsNamed, LitInt, parse_macro_input};
+use syn::{Data, DeriveInput, Fields, FieldsNamed, GenericParam, LitInt, parse_macro_input};
 
 // Helpers
 
@@ -204,6 +204,8 @@ pub fn derive_serialize_tagged_map(input: TokenStream) -> TokenStream {
 
     let infos = extract_field_infos(fields);
 
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+
     let entries: Vec<TokenStream2> = infos
         .iter()
         .map(|fi| {
@@ -224,7 +226,7 @@ pub fn derive_serialize_tagged_map(input: TokenStream) -> TokenStream {
         .collect();
 
     quote! {
-        impl serde::Serialize for #name {
+        impl #impl_generics serde::Serialize for #name #ty_generics #where_clause {
             fn serialize<S>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error>
             where
                 S: serde::Serializer,
@@ -262,6 +264,26 @@ pub fn derive_deserialize_tagged_map(input: TokenStream) -> TokenStream {
 
     let infos = extract_field_infos(fields);
     let visitor_name = syn::Ident::new(&format!("{name}Visitor"), name.span());
+
+    // Original generics (without 'de) — used after the type name.
+    let orig_generics = &input.generics;
+    let (_, ty_generics, orig_where_clause) = orig_generics.split_for_impl();
+
+    // Add 'de as a plain lifetime with no bounds on the struct's own lifetimes.
+    // We deliberately do NOT add 'de: 'a because Cow<'a, str> (and similar types)
+    // always deserialise as owned values — serde's Deserialize impl for Cow never
+    // borrows from the input.  Adding 'de: 'a would make the impl too restrictive
+    // (it would no longer satisfy `for<'de> Deserialize<'de>` bounds that callers
+    // like PersistenceCodec::from_slice require).
+    let de_lt_param: syn::LifetimeParam = syn::parse_quote!('de);
+
+    // Clone the struct's generics and prepend 'de.
+    let mut all_generics = orig_generics.clone();
+    all_generics
+        .params
+        .insert(0, GenericParam::Lifetime(de_lt_param));
+    let (all_impl_generics, all_ty_generics, all_where_clause) =
+        all_generics.split_for_impl();
 
     let var_decls: Vec<TokenStream2> = infos
         .iter()
@@ -304,15 +326,20 @@ pub fn derive_deserialize_tagged_map(input: TokenStream) -> TokenStream {
     let field_names: Vec<&syn::Ident> = infos.iter().map(|fi| &fi.ident).collect();
 
     quote! {
-        impl<'de> serde::Deserialize<'de> for #name {
+        impl #all_impl_generics serde::Deserialize<'de> for #name #ty_generics #orig_where_clause {
             fn deserialize<D>(deserializer: D) -> ::core::result::Result<Self, D::Error>
             where
                 D: serde::Deserializer<'de>,
             {
-                struct #visitor_name;
+                // Two PhantomData fields: `marker` captures the struct's own generics
+                // (e.g. 'a), `lifetime` captures 'de so Rust knows the visitor uses it.
+                struct #visitor_name #all_ty_generics {
+                    marker: ::core::marker::PhantomData<#name #ty_generics>,
+                    lifetime: ::core::marker::PhantomData<&'de ()>,
+                }
 
-                impl<'de> serde::de::Visitor<'de> for #visitor_name {
-                    type Value = #name;
+                impl #all_impl_generics serde::de::Visitor<'de> for #visitor_name #all_ty_generics #all_where_clause {
+                    type Value = #name #ty_generics;
 
                     fn expecting(
                         &self,
@@ -343,7 +370,10 @@ pub fn derive_deserialize_tagged_map(input: TokenStream) -> TokenStream {
                     }
                 }
 
-                deserializer.deserialize_map(#visitor_name)
+                deserializer.deserialize_map(#visitor_name {
+                    marker: ::core::marker::PhantomData,
+                    lifetime: ::core::marker::PhantomData,
+                })
             }
         }
     }

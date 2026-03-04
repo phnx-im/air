@@ -4,6 +4,8 @@
 
 //! Client protocol types related to groups.
 
+use std::borrow::Cow;
+
 use aircommon::{
     codec::{self, PersistenceCodec},
     crypto::{
@@ -97,9 +99,9 @@ pub struct ExternalGroupProfile {
 /// }
 /// ```
 #[derive(Debug, Clone, Default, Eq, PartialEq, Serialize_tagged_map, Deserialize_tagged_map)]
-struct GroupTitle {
+struct GroupTitle<'a> {
     #[tag(1)]
-    title: String,
+    title: Cow<'a, str>,
     #[tag(2)]
     padding: Vec<u8>,
 }
@@ -193,13 +195,13 @@ pub enum GroupProfileEncryptionError {
     UsizeOverflow,
 }
 
-impl GroupTitle {
-    fn new(title: String) -> Self {
+impl<'a> GroupTitle<'a> {
+    fn new(title: &'a str) -> Self {
         const AIR_GROUP_TITLE_PADDING: usize = 32;
         let size = title.len();
-        let padding = size - (size % AIR_GROUP_TITLE_PADDING);
+        let padding = AIR_GROUP_TITLE_PADDING - (size % AIR_GROUP_TITLE_PADDING);
         Self {
-            title,
+            title: Cow::Borrowed(title),
             padding: vec![0; padding],
         }
     }
@@ -210,7 +212,7 @@ impl EncryptedGroupTitle {
         plaintext: &str,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
     ) -> Result<EncryptedGroupTitle, GroupTitleEncryptionError> {
-        let padded_title = GroupTitle::new(plaintext.into());
+        let padded_title = GroupTitle::new(plaintext);
         let plaintext = PersistenceCodec::to_vec(&padded_title)?;
         let aead_ciphertext = identity_link_wrapper_key.encrypt(plaintext.as_slice())?;
         let (ciphertext, nonce) = aead_ciphertext.into_parts();
@@ -224,7 +226,7 @@ impl EncryptedGroupTitle {
         let aead_ciphertext = AeadCiphertext::new(self.ciphertext, self.nonce);
         let plaintext = identity_link_wrapper_key.decrypt(&aead_ciphertext)?;
         let padded_title: GroupTitle = PersistenceCodec::from_slice(&plaintext)?;
-        Ok(padded_title.title)
+        Ok(padded_title.title.into_owned())
     }
 }
 
@@ -289,6 +291,21 @@ mod test {
     }
 
     #[test]
+    fn group_title_roundtrip() {
+        let title = GroupTitle::new("Hello Group");
+        let bytes = PersistenceCodec::to_vec(&title).unwrap();
+        let decoded: GroupTitle = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(title, decoded);
+    }
+
+    #[test]
+    fn group_title_stability() {
+        let title = GroupTitle::new("Hello Group");
+        let bytes = PersistenceCodec::to_vec(&title).unwrap();
+        insta::assert_binary_snapshot!(".cbor", bytes);
+    }
+
+    #[test]
     fn group_data_backward_compatibility() {
         #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
         struct OldGroupData {
@@ -311,6 +328,7 @@ mod test {
         assert_eq!(
             value,
             GroupData {
+                encrypted_title: None,
                 external_group_profile: None,
                 ..group_data
             }
