@@ -86,6 +86,24 @@ pub struct ExternalGroupProfile {
     pub content_hash: Vec<u8>,
 }
 
+/// A group title with padding
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// GroupTitle = {
+///   title: tstr .tag 1,
+///   padding: bytes .tag 2,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, Eq, PartialEq, Serialize_tagged_map, Deserialize_tagged_map)]
+struct GroupTitle {
+    #[tag(1)]
+    title: String,
+    #[tag(2)]
+    padding: Vec<u8>,
+}
+
 /// Ciphertext of a group title
 ///
 /// ## CDDL Definition
@@ -175,13 +193,26 @@ pub enum GroupProfileEncryptionError {
     UsizeOverflow,
 }
 
+impl GroupTitle {
+    fn new(title: String) -> Self {
+        const AIR_GROUP_TITLE_PADDING: usize = 32;
+        let size = title.len();
+        let padding = size - (size % AIR_GROUP_TITLE_PADDING);
+        Self {
+            title,
+            padding: vec![0; padding],
+        }
+    }
+}
+
 impl EncryptedGroupTitle {
     pub fn encrypt(
         plaintext: &str,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> Result<Self, EncryptionError> {
-        let plaintext = plaintext.as_bytes();
-        let aead_ciphertext = identity_link_wrapper_key.encrypt(plaintext)?;
+    ) -> Result<EncryptedGroupTitle, GroupTitleEncryptionError> {
+        let padded_title = GroupTitle::new(plaintext.into());
+        let plaintext = PersistenceCodec::to_vec(&padded_title)?;
+        let aead_ciphertext = identity_link_wrapper_key.encrypt(plaintext.as_slice())?;
         let (ciphertext, nonce) = aead_ciphertext.into_parts();
         Ok(EncryptedGroupTitle { ciphertext, nonce })
     }
@@ -189,19 +220,28 @@ impl EncryptedGroupTitle {
     pub fn decrypt(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> Result<String, EncryptedGroupTitleError> {
+    ) -> Result<String, GroupTitleDecryptionError> {
         let aead_ciphertext = AeadCiphertext::new(self.ciphertext, self.nonce);
         let plaintext = identity_link_wrapper_key.decrypt(&aead_ciphertext)?;
-        Ok(String::from_utf8(plaintext)?)
+        let padded_title: GroupTitle = PersistenceCodec::from_slice(&plaintext)?;
+        Ok(padded_title.title)
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum EncryptedGroupTitleError {
+pub enum GroupTitleEncryptionError {
+    #[error(transparent)]
+    Encryption(#[from] EncryptionError),
+    #[error(transparent)]
+    Codec(#[from] codec::Error),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum GroupTitleDecryptionError {
     #[error(transparent)]
     Decryption(#[from] DecryptionError),
     #[error(transparent)]
-    Utf8(#[from] std::string::FromUtf8Error),
+    Codec(#[from] codec::Error),
 }
 
 #[cfg(test)]
