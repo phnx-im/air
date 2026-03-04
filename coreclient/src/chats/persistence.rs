@@ -602,42 +602,6 @@ impl Chat {
         Ok((marked_as_read, new_marked_as_read))
     }
 
-    pub(crate) async fn mark_as_unread(
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
-        chat_id: ChatId,
-        message_id: MessageId,
-    ) -> sqlx::Result<()> {
-        let timestamp: Option<TimeStamp> = query_scalar!(
-            r#"SELECT
-                timestamp AS "timestamp: _"
-            FROM message
-            WHERE timestamp < (
-                SELECT timestamp
-                FROM message
-                WHERE message_id = ?
-            )
-            ORDER BY timestamp DESC
-            LIMIT 1"#,
-            message_id
-        )
-        .fetch_optional(txn.as_mut())
-        .await?;
-
-        query!(
-            "UPDATE chat SET last_read = MIN(last_read, ?1)
-            WHERE chat_id = ?2",
-            timestamp,
-            chat_id,
-        )
-        .execute(txn.as_mut())
-        .await?;
-
-        notifier.update(message_id);
-
-        Ok(())
-    }
-
     pub(crate) async fn global_unread_message_count(
         executor: impl SqliteExecutor<'_>,
     ) -> sqlx::Result<usize> {
