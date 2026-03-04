@@ -260,7 +260,8 @@ impl ChatOperation {
                 .with_context(|| format!("No group with chat id {chat_id}"))?;
 
             // Encrypt
-            let group_profile = GroupProfile::from(attributes);
+            let group_profile =
+                GroupProfile::new(attributes.title, None, attributes.picture.map(From::from));
             let (ciphertext, external) = group_profile
                 .encrypt(group.identity_link_wrapper_key())
                 .context("Failed to encrypt group profile")?;
@@ -307,7 +308,7 @@ impl ChatOperation {
 
             Some(GroupData {
                 title: group_profile.title,
-                picture: group_profile.picture,
+                picture: group_profile.picture.map(|p| p.into_owned()),
                 encrypted_title: Some(encrypted_title),
                 external_group_profile: Some(external),
             })

@@ -12,6 +12,7 @@ use aircommon::{
         ear::{AEAD_NONCE_SIZE, AeadCiphertext, EarKey, keys::IdentityLinkWrapperKey},
         errors::{DecryptionError, EncryptionError},
     },
+    padme::padme_len,
 };
 use airmacros::{Deserialize_tagged_map, Serialize_tagged_map};
 use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
@@ -127,16 +128,15 @@ pub struct EncryptedGroupTitle {
 
 /// Group profile stored as encrypted blob in the object storage.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize_tagged_map, Deserialize_tagged_map)]
-pub struct GroupProfile {
+pub struct GroupProfile<'a> {
     #[tag(1)]
     pub title: String,
     #[tag(2)]
     pub description: Option<String>,
     #[tag(3)]
-    pub picture: Option<Vec<u8>>,
-    // TODO: Add padding
-    // #[tag(4)]
-    // pub padding: Vec<u8>,
+    pub picture: Option<Cow<'a, [u8]>>,
+    #[tag(4)]
+    padding: Vec<u8>,
 }
 
 /// A build helper for the [`GroupProfile`] type.
@@ -157,7 +157,20 @@ impl ExternalGroupProfileBuilder {
 const AIR_GROUP_PROFILE_ENCRYPTION_ALG: EncryptionAlgorithm = EncryptionAlgorithm::Aes256Gcm;
 const AIR_GROUP_PROFILE_HASH_ALG: HashAlgorithm = HashAlgorithm::Sha256;
 
-impl GroupProfile {
+impl<'a> GroupProfile<'a> {
+    pub fn new(title: String, description: Option<String>, picture: Option<Cow<'a, [u8]>>) -> Self {
+        let len = title.len()
+            + description.as_ref().map(|d| d.len()).unwrap_or(0)
+            + picture.as_ref().map(|p| p.len()).unwrap_or(0);
+        let padding = padme_len(len) - len;
+        Self {
+            title,
+            description: None,
+            picture,
+            padding: vec![0; padding],
+        }
+    }
+
     pub fn encrypt(
         &self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
@@ -255,9 +268,8 @@ pub enum GroupProfileDecryptionError {
 
 impl<'a> GroupTitle<'a> {
     fn new(title: &'a str) -> Self {
-        const AIR_GROUP_TITLE_PADDING: usize = 32;
         let size = title.len();
-        let padding = AIR_GROUP_TITLE_PADDING - (size % AIR_GROUP_TITLE_PADDING);
+        let padding = padme_len(size) - size;
         Self {
             title: Cow::Borrowed(title),
             padding: vec![0; padding],
@@ -339,11 +351,11 @@ mod test {
 
     #[test]
     fn group_profile_stability() {
-        let profile = GroupProfile {
-            title: "Group Title".to_string(),
-            description: Some("Group Description".to_string()),
-            picture: Some(vec![1, 2, 3]),
-        };
+        let profile = GroupProfile::new(
+            "Group Title".to_string(),
+            Some("Group Description".to_string()),
+            Some(vec![1, 2, 3].into()),
+        );
         let bytes = PersistenceCodec::to_vec(&profile).unwrap();
         insta::assert_binary_snapshot!(".cbor", bytes);
     }

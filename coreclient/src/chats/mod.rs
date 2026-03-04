@@ -9,7 +9,7 @@ use aircommon::{
     crypto::ear::keys::IdentityLinkWrapperKey,
     identifiers::{Fqdn, QualifiedGroupId, UserHandle, UserId},
 };
-use airprotos::client::group::{ExternalGroupProfile, GroupData, GroupProfile};
+use airprotos::client::group::{ExternalGroupProfile, GroupData};
 use chrono::{DateTime, Utc};
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
@@ -385,15 +385,5 @@ impl GroupDataExt for GroupData {
             title
         };
         (ChatAttributes { title, picture }, external_group_profile)
-    }
-}
-
-impl From<ChatAttributes> for GroupProfile {
-    fn from(ChatAttributes { title, picture }: ChatAttributes) -> Self {
-        Self {
-            title,
-            description: None,
-            picture,
-        }
     }
 }

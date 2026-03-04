@@ -280,8 +280,10 @@ impl Job for FetchGroupProfileOperation {
             .with_transaction(async |txn| {
                 let mut messages = Vec::new();
 
-                let chat_attributes =
-                    ChatAttributes::new(group_profile.title, group_profile.picture);
+                let chat_attributes = ChatAttributes::new(
+                    group_profile.title,
+                    group_profile.picture.map(|p| p.into()),
+                );
                 update_chat_attributes(
                     txn.as_mut(),
                     context.notifier,

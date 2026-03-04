@@ -70,11 +70,14 @@ impl CreateChat {
         let external_group_profile = if let Some(provisioning) = group_profile_provisioning
             && let Some(object_id) = provisioning.object_id
         {
-            let group_profile = GroupProfile {
-                title: chat_attributes.title.clone(),
-                description: None,
-                picture: chat_attributes.picture.clone(),
-            };
+            let group_profile = GroupProfile::new(
+                chat_attributes.title.clone(),
+                None,
+                chat_attributes
+                    .picture
+                    .as_ref()
+                    .map(|p| p.as_slice().into()),
+            );
             let (bytes, builder) = group_profile
                 .encrypt(&identity_link_wrapper_key)
                 .context("Failed to encrypt group profile")?;

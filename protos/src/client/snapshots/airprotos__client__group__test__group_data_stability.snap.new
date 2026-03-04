@@ -1,7 +1,0 @@
----
-source: protos/src/client/group.rs
-assertion_line: 337
-expression: bytes
-extension: cbor
-snapshot_kind: binary
----
