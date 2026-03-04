@@ -255,18 +255,10 @@ impl PendingChatOperation {
 
                     if let Some(bytes) = group_data_bytes {
                         let group_data = GroupData::decode(&bytes)?;
-                        let (chat_attributes, external_group_profile) =
+                        let (chat_attributes, _external_group_profile) =
                             group_data.into_parts(self.group.identity_link_wrapper_key());
-                        if let Some(external_group_profile) = external_group_profile {
-                            CoreUser::schedule_fetch_group_profile(
-                                txn.as_mut(),
-                                self.group_id().clone(),
-                                own_user_id.clone(),
-                                ds_timestamp,
-                                external_group_profile,
-                            )
-                            .await?;
-                        }
+                        // No need to fetch the group profile: this is our own pending commit, so
+                        // the profile data is already available locally.
                         update_chat_attributes(
                             txn,
                             notifier,

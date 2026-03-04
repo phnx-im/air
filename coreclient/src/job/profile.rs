@@ -180,7 +180,7 @@ impl Job for FetchUserProfileOperation {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(super) struct FetchGroupProfileOperation {
+pub(crate) struct FetchGroupProfileOperation {
     group_id: GroupId,
     sender_id: UserId,
     uploaded_at: TimeStamp,
@@ -189,12 +189,11 @@ pub(super) struct FetchGroupProfileOperation {
 
 impl OperationData for FetchGroupProfileOperation {
     fn kind() -> OperationKind {
-        OperationKind::FetchUserProfile
+        OperationKind::FetchGroupProfile
     }
 
     fn generate_id(&self) -> OperationId {
-        // Group ID is usually 16 bytes
-        let mut bytes = Vec::with_capacity(1 + 16);
+        let mut bytes = Vec::new();
         bytes.push(Self::kind() as u8);
         bytes.extend(self.group_id.as_slice());
         OperationId(bytes)
@@ -272,7 +271,6 @@ impl Job for FetchGroupProfileOperation {
         debug!(
             ?group_id,
             ?external_group_profile,
-            ?group_profile,
             "Fetched and decrypted group profile"
         );
 

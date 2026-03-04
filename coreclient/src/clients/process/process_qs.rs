@@ -199,18 +199,10 @@ impl CoreUser {
             // Update group data in chat attributes if present
             if let Some(group_data_bytes) = group_data_bytes {
                 let group_data = GroupData::decode(&group_data_bytes)?;
-                let (chat_attributes, external_group_profile) =
+                let (chat_attributes, _external_group_profile) =
                     group_data.into_parts(group.identity_link_wrapper_key());
-                if let Some(external_group_profile) = external_group_profile {
-                    Self::schedule_fetch_group_profile(
-                        txn.as_mut(),
-                        chat.group_id().clone(),
-                        self.user_id().clone(),
-                        timestamp,
-                        external_group_profile,
-                    )
-                    .await?;
-                }
+                // No need to fetch the group profile: this is our own commit response, so the
+                // profile data is already available locally.
                 update_chat_attributes(
                     txn,
                     notifier,
