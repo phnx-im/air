@@ -16,7 +16,6 @@ license = "AGPL-3.0-or-later"
 [dependencies]
 airapiclient.workspace = true
 aircommon.workspace = true
-airmacros.workspace = true
 airprotos.workspace = true
 anyhow.workspace = true
 base64.workspace = true
@@ -39,9 +38,7 @@ rand.workspace = true                                              # TODO: Repla
 rand_chacha.workspace = true
 reqwest = { workspace = true, features = ["stream", "multipart"] }
 serde.workspace = true
-serde_bytes.workspace = true
 serde_json.workspace = true
-serde_tuple.workspace = true
 sha2.workspace = true
 sqlx = { workspace = true, features = ["chrono", "sqlite"] }
 tar.workspace = true

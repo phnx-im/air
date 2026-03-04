@@ -23,7 +23,6 @@ openmls.workspace = true
 prost.workspace = true
 semver.workspace = true
 serde.workspace = true
-serde_bytes.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 tls_codec.workspace = true
@@ -40,6 +39,5 @@ insta.workspace = true
 
 [package.metadata.cargo-machete]
 ignored = [
-    "prost",       # neeeded for generated tonic code
     "tonic-prost", # needed for generated tonic code
 ]
