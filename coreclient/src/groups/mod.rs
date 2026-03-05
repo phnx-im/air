@@ -186,11 +186,10 @@ impl Group {
     pub(super) fn create_group(
         connection: &mut SqliteConnection,
         signer: &ClientSigningKey,
+        identity_link_wrapper_key: IdentityLinkWrapperKey,
         group_id: GroupId,
         group_data_bytes: GroupDataBytes,
     ) -> Result<(Self, PartialCreateGroupParams)> {
-        let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
-
         let provider = AirOpenMlsProvider::new(connection);
         let group_state_ear_key = GroupStateEarKey::random()?;
 

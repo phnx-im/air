@@ -377,10 +377,12 @@ impl PersistedUserState {
             qs_user_id,
             qs_client_id,
         } = self.state;
+        let http_client = reqwest::Client::new();
         let store_notifications_tx = StoreNotificationsSender::new();
         let outbound_service = outbound_service::OutboundService::new(
             pool.clone(),
             api_clients.clone(),
+            http_client.clone(),
             key_store.clone(),
             qs_client_id,
             store_notifications_tx.clone(),
@@ -395,8 +397,8 @@ impl PersistedUserState {
             key_store,
             qs_user_id,
             qs_client_id,
-            api_clients: api_clients.clone(),
-            http_client: reqwest::Client::new(),
+            api_clients,
+            http_client,
             store_notifications_tx,
             outbound_service,
             event_loop_sender,

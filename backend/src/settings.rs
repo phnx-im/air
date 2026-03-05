@@ -127,6 +127,9 @@ pub struct StorageSettings {
     /// Requires content length to be present when provisioning an attachment
     #[serde(default)]
     pub require_content_length: bool,
+    /// Path prefixes in the bucket for different storage object types
+    #[serde(default)]
+    pub storage_paths: StoragePaths,
 }
 
 #[derive(Debug, Deserialize, Clone, Zeroize)]
@@ -203,6 +206,26 @@ impl Default for RateLimitsSettings {
         Self {
             period: std::time::Duration::from_millis(500),
             burst: 100,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct StoragePaths {
+    /// Path prefix in the bucket for attachments
+    pub attachments_path: String,
+    /// Path prefix in the bucket for group profiles
+    pub group_profiles_path: String,
+    /// Path prefix in the bucket for user profiles
+    pub user_profiles_path: String,
+}
+
+impl Default for StoragePaths {
+    fn default() -> Self {
+        Self {
+            attachments_path: "attachments".to_owned(),
+            group_profiles_path: "group-profiles".to_owned(),
+            user_profiles_path: "user-profiles".to_owned(),
         }
     }
 }
