@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    codec::PersistenceCodec,
     credentials::{ClientCredential, VerifiableClientCredential},
     crypto::{ear::EarDecryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{MimiId, QualifiedGroupId, UserId},
@@ -18,7 +17,10 @@ use aircommon::{
     time::TimeStamp,
     utils::removed_client,
 };
-use airprotos::queue_service::v1::{QueueEvent, queue_event};
+use airprotos::{
+    client::group::GroupData,
+    queue_service::v1::{QueueEvent, queue_event},
+};
 use anyhow::{Context, Result, bail, ensure};
 use mimi_content::{
     Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPartContent,
@@ -37,7 +39,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     ChatMessage, ChatStatus, ContentMessage, Message, SystemMessage,
-    chats::{StatusRecord, messages::edit::MessageEdit},
+    chats::{GroupDataExt, StatusRecord, messages::edit::MessageEdit},
     clients::{
         QsListenResponder,
         attachment::AttachmentRecord,
@@ -59,9 +61,7 @@ use crate::{
     utils::connection_ext::StoreExt,
 };
 
-use super::{
-    Chat, ChatAttributes, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow,
-};
+use super::{Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow};
 
 pub enum ProcessQsMessageResult {
     None,
@@ -185,7 +185,7 @@ impl CoreUser {
             }
 
             // If yes, merge the commit and store the updated group
-            let (mut group_messages, group_data) =
+            let (mut group_messages, group_data_bytes) =
                 group.merge_pending_commit(txn, None, timestamp).await?;
             group
                 .group_mut()
@@ -197,13 +197,18 @@ impl CoreUser {
                 .context("Can't find chat for commit response")?;
 
             // Update group data in chat attributes if present
-            if let Some(group_data) = group_data {
+            if let Some(group_data_bytes) = group_data_bytes {
+                let group_data = GroupData::decode(&group_data_bytes)?;
+                let (chat_attributes, _external_group_profile) =
+                    group_data.into_parts(group.identity_link_wrapper_key());
+                // No need to fetch the group profile: this is our own commit response, so the
+                // profile data is already available locally.
                 update_chat_attributes(
                     txn,
                     notifier,
                     &mut chat,
                     self.user_id().clone(),
-                    group_data,
+                    chat_attributes,
                     timestamp,
                     &mut group_messages,
                 )
@@ -253,7 +258,7 @@ impl CoreUser {
                         own_profile_key_in_group = Some(profile_info.user_profile_key);
                         continue;
                     }
-                    Self::schedule_fetch_profile(txn.as_mut(), profile_info).await?;
+                    Self::schedule_fetch_user_profile(txn.as_mut(), profile_info).await?;
                 }
 
                 let Some(own_profile_key_in_group) = own_profile_key_in_group else {
@@ -266,8 +271,20 @@ impl CoreUser {
 
                 // Set the chat attributes according to the group's
                 // group data.
-                let group_data = group.group_data().context("No group data")?;
-                let attributes: ChatAttributes = PersistenceCodec::from_slice(group_data.bytes())?;
+                let group_data_bytes = group.group_data().context("No group data")?;
+                let group_data = GroupData::decode(&group_data_bytes)?;
+                let (attributes, external_group_profile) =
+                    group_data.into_parts(group.identity_link_wrapper_key());
+                if let Some(external_group_profile) = external_group_profile {
+                    Self::schedule_fetch_group_profile(
+                        txn.as_mut(),
+                        group_id.clone(),
+                        sender_user_id.clone(),
+                        ds_timestamp,
+                        external_group_profile,
+                    )
+                    .await?;
+                }
 
                 let chat = Chat::new_group_chat(group_id.clone(), attributes);
                 let own_profile_key = UserProfileKey::load_own(txn.as_mut()).await?;
@@ -601,7 +618,7 @@ impl CoreUser {
         // MLSMessage Phase 4: Fetch user profiles of new clients and store them.
         self.with_transaction(async |txn| {
             for profile_info in profile_infos {
-                Self::schedule_fetch_profile(txn.as_mut(), profile_info).await?;
+                Self::schedule_fetch_user_profile(txn.as_mut(), profile_info).await?;
             }
             Ok(())
         })
@@ -799,20 +816,33 @@ impl CoreUser {
             chat.set_inactive(txn.as_mut(), &mut notifier, past_members)
                 .await?;
         }
-        let (messages_from_commit, group_data) = group
+        let (messages_from_commit, group_data_bytes) = group
             .merge_pending_commit(txn, staged_commit, ds_timestamp)
             .await?;
 
         group_messages.extend(messages_from_commit);
 
-        if let Some(group_data) = group_data {
+        if let Some(group_data_bytes) = group_data_bytes {
+            let group_data = GroupData::decode(&group_data_bytes)?;
+            let (chat_attributes, external_group_profile) =
+                group_data.into_parts(group.identity_link_wrapper_key());
+            if let Some(external_group_profile) = external_group_profile {
+                Self::schedule_fetch_group_profile(
+                    txn.as_mut(),
+                    chat.group_id().clone(),
+                    sender_client_credential.user_id().clone(),
+                    ds_timestamp,
+                    external_group_profile,
+                )
+                .await?;
+            }
             // Update chat attributes according to new group data
             update_chat_attributes(
                 txn,
                 &mut notifier,
                 &mut chat,
                 sender_client_credential.user_id().clone(),
-                group_data,
+                chat_attributes,
                 ds_timestamp,
                 &mut group_messages,
             )
@@ -884,7 +914,7 @@ impl CoreUser {
         )?;
 
         // UnconfirmedConnection Phase 2: Fetch the user profile.
-        Self::schedule_fetch_profile(
+        Self::schedule_fetch_user_profile(
             txn.as_mut(),
             (sender_client_credential.clone(), user_profile_key),
         )
@@ -945,8 +975,11 @@ impl CoreUser {
             )?;
 
             // Phase 3: Fetch and store the (new) user profile and key
-            Self::schedule_fetch_profile(txn.as_mut(), (sender_credential, new_user_profile_key))
-                .await?;
+            Self::schedule_fetch_user_profile(
+                txn.as_mut(),
+                (sender_credential, new_user_profile_key),
+            )
+            .await?;
 
             Ok(ProcessQsMessageResult::None)
         })

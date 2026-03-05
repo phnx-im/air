@@ -5,7 +5,11 @@
 use std::collections::HashSet;
 
 use aircommon::identifiers::UserId;
-use anyhow::{anyhow, bail};
+use airprotos::{
+    client::group::{EncryptedGroupTitle, GroupData, GroupProfile},
+    delivery_service::v1::StorageObjectType,
+};
+use anyhow::{Context, anyhow, bail};
 use sqlx::SqliteConnection;
 
 use crate::{
@@ -162,7 +166,7 @@ impl ChatOperation {
             ChatOperationType::Leave => self.execute_leave_chat(context).await,
             ChatOperationType::Delete => self.execute_delete(context).await,
             ChatOperationType::Update(chat_attributes) => {
-                self.execute_update(context, chat_attributes.as_ref()).await
+                self.execute_update(context, chat_attributes).await
             }
         }
     }
@@ -239,18 +243,86 @@ impl ChatOperation {
     async fn execute_update(
         self,
         context: &mut JobContext<'_>,
-        chat_attributes: Option<&ChatAttributes>,
+        chat_attributes: Option<ChatAttributes>,
     ) -> Result<Vec<ChatMessage>, JobError> {
         let JobContext {
-            pool, key_store, ..
+            api_clients,
+            http_client,
+            pool,
+            key_store,
+            ..
         } = context;
+
+        let group_data = if let Some(attributes) = chat_attributes {
+            let chat_id = self.chat_id;
+            let group = Group::load_with_chat_id_clean(pool.acquire().await?.as_mut(), chat_id)
+                .await?
+                .with_context(|| format!("No group with chat id {chat_id}"))?;
+
+            // Encrypt
+            let group_profile =
+                GroupProfile::new(attributes.title, None, attributes.picture.map(From::from));
+            let (ciphertext, external) = group_profile
+                .encrypt(group.identity_link_wrapper_key())
+                .context("Failed to encrypt group profile")?;
+
+            // Provision
+            let api_client = api_clients.default_client()?;
+            let content_length = ciphertext.len().try_into().context("usize overflow")?;
+            let provision_response = api_client
+                .ds_provision_attachment(
+                    &key_store.signing_key,
+                    group.group_state_ear_key(),
+                    group.group_id(),
+                    group.own_index(),
+                    content_length,
+                    StorageObjectType::GroupProfile,
+                )
+                .await?;
+            let object_id = provision_response.object_id.context("no object id")?;
+            let external = external.build(object_id.into());
+
+            // Upload
+            if provision_response.post_policy.is_some() {
+                return Err(anyhow!("Post policy is not supported yet").into());
+            } else {
+                // upload encrypted content via signed PUT url
+                let mut request = http_client.put(provision_response.upload_url);
+                for header in provision_response.upload_headers {
+                    request = request.header(header.key, header.value);
+                }
+                request
+                    .body(ciphertext)
+                    .send()
+                    .await
+                    .context("Failed to upload group profile")?
+                    .error_for_status()
+                    .context("Failed to upload group profile")?;
+            }
+
+            let encrypted_title = EncryptedGroupTitle::encrypt(
+                &group_profile.title,
+                group.identity_link_wrapper_key(),
+            )
+            .context("Failed to encrypt group title")?;
+
+            Some(GroupData {
+                title: group_profile.title,
+                picture: group_profile.picture.map(|p| p.into_owned()),
+                encrypted_title: Some(encrypted_title),
+                external_group_profile: Some(external),
+            })
+        } else {
+            None
+        };
+
         let job = pool
             .with_transaction(async |txn| {
                 PendingChatOperation::create_update(
                     txn,
                     &key_store.signing_key,
                     self.chat_id,
-                    chat_attributes,
+                    group_data,
                 )
                 .await
             })

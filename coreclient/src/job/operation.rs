@@ -56,10 +56,12 @@ pub(crate) struct Operation<T> {
     pub(crate) retries: usize,
 }
 
+/// Warning: Do not reorder the variants. The order is used for operation id generation.
 #[derive(Debug)]
 pub(crate) enum OperationKind {
-    FetchProfile,
+    FetchUserProfile,
     TimedTask,
+    FetchGroupProfile,
 }
 
 impl<T: OperationData> Operation<T> {
@@ -94,7 +96,8 @@ impl<T: OperationData> Operation<T> {
 impl OperationKind {
     fn as_str(&self) -> &'static str {
         match self {
-            Self::FetchProfile => "fetch_profile",
+            Self::FetchUserProfile => "fetch_profile",
+            Self::FetchGroupProfile => "fetch_group_profile",
             Self::TimedTask => "timed_task",
         }
     }
@@ -105,7 +108,8 @@ impl FromStr for OperationKind {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
-            "fetch_profile" => Self::FetchProfile,
+            "fetch_profile" => Self::FetchUserProfile,
+            "fetch_group_profile" => Self::FetchGroupProfile,
             "timed_task" => Self::TimedTask,
             _ => bail!("Invalid operation type: {s}"),
         })
@@ -332,7 +336,7 @@ mod tests {
 
     impl OperationData for MockData {
         fn kind() -> OperationKind {
-            OperationKind::FetchProfile
+            OperationKind::FetchUserProfile
         }
         fn generate_id(&self) -> OperationId {
             // Consistent ID based on payload for testing "replace" logic

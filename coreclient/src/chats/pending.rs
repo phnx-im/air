@@ -162,7 +162,7 @@ impl CoreUser {
                 );
 
                 // Fetch and store user profile
-                Self::schedule_fetch_profile(txn.as_mut(), contact_profile_info).await?;
+                Self::schedule_fetch_user_profile(txn.as_mut(), contact_profile_info).await?;
 
                 group.room_state_change_role(
                     &sender_user_id,
