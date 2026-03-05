@@ -59,7 +59,7 @@ reset-dev:
 _check-status command:
     #!/usr/bin/env -S bash -eu
     echo "{{BOLD}}Running {{command}}{{NORMAL}}"
-    if ! {{command}}; then
+    if ! { {{command}}; }; then
         just _log-error "{{command}}"
     fi
 
