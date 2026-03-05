@@ -2,10 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{
-    identifiers::{Fqdn, MimiId, UserHandle, UserId},
-    time::TimeStamp,
-};
+use aircommon::identifiers::{Fqdn, MimiId, UserHandle, UserId};
 use chrono::{DateTime, Utc};
 use mimi_content::MessageStatus;
 use openmls::group::GroupId;
@@ -948,7 +945,7 @@ pub mod tests {
         MessageDraft {
             message: "    ".into(), // Whitespace only
             editing_id: None,
-            updated_at: TimeStamp::now().into(),
+            updated_at: Utc::now(),
             is_committed: false,
         }
         .store(&mut *connection, &mut store_notifier, chat_4.id())
