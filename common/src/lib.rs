@@ -25,6 +25,7 @@ pub mod endpoint_paths;
 pub mod identifiers;
 pub mod messages;
 pub mod mls_group_config;
+pub mod padme;
 pub mod pow;
 pub mod time;
 pub mod utils;

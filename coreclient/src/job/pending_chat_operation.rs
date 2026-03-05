@@ -23,7 +23,7 @@ use crate::{
     chats::messages::TimestampedMessage,
     clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
     contacts::ContactAddInfos,
-    groups::{Group, GroupData, VerifiedGroup, client_auth_info::StorableClientCredential},
+    groups::{Group, GroupDataBytes, VerifiedGroup, client_auth_info::StorableClientCredential},
     job::{Job, JobContext, JobError},
     store::StoreNotifier,
     utils::connection_ext::ConnectionExt,
@@ -438,7 +438,7 @@ impl PendingChatOperation {
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
         let group_data = match new_chat_attributes {
-            Some(attrs) => Some(GroupData::from(PersistenceCodec::to_vec(attrs)?)),
+            Some(attrs) => Some(GroupDataBytes::from(PersistenceCodec::to_vec(attrs)?)),
             None => None,
         };
 
@@ -914,10 +914,14 @@ mod tests {
 
         let qgid = QualifiedGroupId::new(Uuid::new_v4(), user_id.domain().clone());
         let group_id = GroupId::from(qgid);
-        let group_data = GroupData::from(b"test-group-data".to_vec());
+        let group_data_bytes = GroupDataBytes::from(b"test-group-data".to_vec());
 
-        let (group, _) =
-            Group::create_group(&mut connection, &signing_key, group_id.clone(), group_data)?;
+        let (group, _) = Group::create_group(
+            &mut connection,
+            &signing_key,
+            group_id.clone(),
+            group_data_bytes,
+        )?;
         group.store(&mut *connection).await?;
         let group = VerifiedGroup::new_for_test(group);
 
