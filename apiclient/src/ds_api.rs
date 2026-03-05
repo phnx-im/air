@@ -29,8 +29,8 @@ use airprotos::{
         AddUsersInfo, ConnectionGroupInfoRequest, CreateGroupPayload, DeleteGroupPayload,
         ExternalCommitInfoRequest, GetAttachmentUrlPayload, GroupOperationPayload,
         JoinConnectionGroupRequest, ProvisionAttachmentPayload, RequestGroupIdRequest,
-        ResyncPayload, SelfRemovePayload, SendMessagePayload, TargetedMessagePayload,
-        UpdateProfileKeyPayload, WelcomeInfoPayload,
+        ResyncPayload, SelfRemovePayload, SendMessagePayload, StorageObjectType,
+        TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
     },
     validation::MissingFieldExt,
 };
@@ -474,12 +474,18 @@ impl ApiClient {
         Ok(())
     }
 
-    /// Request a group ID.
-    pub async fn ds_request_group_id(&self) -> Result<GroupId, DsRequestError> {
+    /// Request a group ID
+    ///
+    /// Returns a new group ID and group profile provisioning response.
+    pub async fn ds_request_group_id(
+        &self,
+        provision_group_profile: bool,
+    ) -> Result<(GroupId, Option<ProvisionAttachmentResponse>), DsRequestError> {
         let response = self
             .ds_grpc_client()
             .request_group_id(RequestGroupIdRequest {
                 client_metadata: Some(self.metadata().clone()),
+                provision_group_profile,
             })
             .await?
             .into_inner();
@@ -495,7 +501,7 @@ impl ApiClient {
                 error!(%error, "unexpected response");
                 DsRequestError::UnexpectedResponse
             })?;
-        Ok(qgid.into())
+        Ok((qgid.into(), response.group_profile_provisioning))
     }
 
     /// Provision an attachment for a group.
@@ -508,6 +514,7 @@ impl ApiClient {
         group_id: &GroupId,
         sender_index: LeafNodeIndex,
         content_length: i64,
+        object_type: StorageObjectType,
     ) -> Result<ProvisionAttachmentResponse, DsRequestError> {
         let qgid: QualifiedGroupId = group_id.try_into()?;
         let payload = ProvisionAttachmentPayload {
@@ -517,6 +524,7 @@ impl ApiClient {
             sender: Some(sender_index.into()),
             use_post_policy: true,
             content_length,
+            object_type: object_type.into(),
         };
         let request = payload.sign(signing_key)?;
         let response = self
@@ -535,6 +543,7 @@ impl ApiClient {
         group_id: &GroupId,
         sender_index: LeafNodeIndex,
         attachment_id: AttachmentId,
+        object_type: StorageObjectType,
     ) -> Result<String, DsRequestError> {
         let qgid: QualifiedGroupId = group_id.try_into()?;
         let payload = GetAttachmentUrlPayload {
@@ -542,7 +551,8 @@ impl ApiClient {
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
             group_id: Some(qgid.ref_into()),
             sender: Some(sender_index.into()),
-            attachment_id: Some(attachment_id.uuid().into()),
+            object_id: Some(attachment_id.uuid().into()),
+            object_type: object_type.into(),
         };
         let request = payload.sign(signing_key)?;
         let response = self

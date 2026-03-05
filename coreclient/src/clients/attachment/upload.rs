@@ -15,7 +15,10 @@ use aircommon::{
     crypto::ear::{AeadCiphertext, EarEncryptable, keys::AttachmentEarKey},
     identifiers::AttachmentId,
 };
-use airprotos::{common::v1::AttachmentTooLargeDetail, delivery_service::v1::SignedPostPolicy};
+use airprotos::{
+    common::v1::AttachmentTooLargeDetail,
+    delivery_service::v1::{SignedPostPolicy, StorageObjectType},
+};
 use anyhow::{Context, bail, ensure};
 use base64::{Engine, prelude::BASE64_STANDARD};
 use chrono::{DateTime, Local, Utc};
@@ -464,6 +467,7 @@ async fn encrypt_and_provision(
             group.group_id(),
             group.own_index(),
             content_length,
+            StorageObjectType::Attachment,
         )
         .await
     {
@@ -478,8 +482,7 @@ async fn encrypt_and_provision(
         }
     };
 
-    let attachment_id =
-        AttachmentId::new(response.attachment_id.context("no attachment id")?.into());
+    let attachment_id = AttachmentId::new(response.object_id.context("no object id")?.into());
 
     let metadata = AttachmentMetadata {
         attachment_id,
