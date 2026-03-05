@@ -955,9 +955,13 @@ impl Group {
                 builder = builder.propose_group_context_extensions(extensions);
             };
 
+            let leaf_node_parameters = LeafNodeParameters::builder()
+                .with_capabilities(default_capabilities())
+                .build();
             let (mls_message, _welcome_option, group_info_option) = builder
                 .force_self_update(true)
                 .create_group_info(true)
+                .leaf_node_parameters(leaf_node_parameters)
                 .load_psks(provider.storage())?
                 .build(provider.rand(), provider.crypto(), signer, |_| true)?
                 .stage_commit(&provider)?
