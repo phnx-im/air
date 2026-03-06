@@ -1,0 +1,9 @@
+---
+source: common/src/crypto/mod.rs
+expression: key
+---
+[
+  1,
+  2,
+  3
+]

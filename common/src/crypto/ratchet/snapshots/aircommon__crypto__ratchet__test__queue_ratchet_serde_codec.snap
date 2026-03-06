@@ -1,0 +1,27 @@
+---
+source: common/src/crypto/ratchet/mod.rs
+expression: diag
+---
+a4                                        # map(4)
+   6f                                     #   text(15)
+      73657175656e63655f6e756d626572      #     "sequence_number"
+   00                                     #   unsigned(0)
+   66                                     #   text(6)
+      736563726574                        #     "secret"
+   a1                                     #   map(1)
+      66                                  #     text(6)
+         736563726574                     #       "secret"
+      58 20                               #     bytes(32)
+         6162636465666768696a6b6c6d6e6f70 #       "abcdefghijklmnop"
+         7172737475767778797a303132333435 #       "qrstuvwxyz012345"
+   63                                     #   text(3)
+      6b6579                              #     "key"
+   a1                                     #   map(1)
+      66                                  #     text(6)
+         736563726574                     #       "secret"
+      58 20                               #     bytes(32)
+         e667e2c952b7ef0c084a0d2699656dc1 #       "\xe6g\xe2\xc9R\xb7\xef\x0c\x08J\r&\x99em\xc1"
+         c825777df610d068302ff3cae0001fc5 #       "\xc8%w}\xf6\x10\xd0h0/\xf3\xca\xe0\x00\x1f\xc5"
+   68                                     #   text(8)
+      5f7068616e746f6d                    #     "_phantom"
+   f6                                     #   null, simple(22)

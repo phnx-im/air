@@ -1,0 +1,33 @@
+---
+source: coreclient/src/clients/persistence.rs
+expression: diag
+---
+a4                                             # map(4)
+   67                                          #   text(7)
+      757365725f6964                           #     "user_id"
+   a2                                          #   map(2)
+      64                                       #     text(4)
+         75756964                              #       "uuid"
+      50                                       #     bytes(16)
+         00000000000000000000000000000001      #       "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01"
+      66                                       #     text(6)
+         646f6d61696e                          #       "domain"
+      a1                                       #     map(1)
+         66                                    #       text(6)
+            646f6d61696e                       #         "domain"
+         a1                                    #       map(1)
+            66                                 #         text(6)
+               446f6d61696e                    #           "Domain"
+            69                                 #         text(9)
+               6c6f63616c686f7374              #           "localhost"
+   73                                          #   text(19)
+      636c69656e745f7265636f72645f7374617465   #     "client_record_state"
+   68                                          #   text(8)
+      46696e6973686564                         #     "Finished"
+   6a                                          #   text(10)
+      637265617465645f6174                     #     "created_at"
+   74                                          #   text(20)
+      323032352d30312d30315430303a30303a30305a #     "2025-01-01T00:00:00Z"
+   6a                                          #   text(10)
+      69735f64656661756c74                     #     "is_default"
+   f4                                          #   false, simple(20)

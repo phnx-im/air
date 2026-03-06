@@ -1,0 +1,40 @@
+---
+source: coreclient/src/clients/persistence.rs
+expression: diag
+---
+a1                                           # map(1)
+   6d                                        #   text(13)
+      42617369635573657244617461             #     "BasicUserData"
+   a3                                        #   map(3)
+      67                                     #     text(7)
+         757365725f6964                      #       "user_id"
+      a2                                     #     map(2)
+         64                                  #       text(4)
+            75756964                         #         "uuid"
+         50                                  #       bytes(16)
+            00000000000000000000000000000001 #         "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01"
+         66                                  #       text(6)
+            646f6d61696e                     #         "domain"
+         a1                                  #       map(1)
+            66                               #         text(6)
+               646f6d61696e                  #           "domain"
+            a1                               #         map(1)
+               66                            #           text(6)
+                  446f6d61696e               #             "Domain"
+               69                            #           text(9)
+                  6c6f63616c686f7374         #             "localhost"
+      6a                                     #     text(10)
+         707573685f746f6b656e                #       "push_token"
+      a2                                     #     map(2)
+         68                                  #       text(8)
+            6f70657261746f72                 #         "operator"
+         66                                  #       text(6)
+            476f6f676c65                     #         "Google"
+         65                                  #       text(5)
+            746f6b656e                       #         "token"
+         65                                  #       text(5)
+            746f6b656e                       #         "token"
+      6f                                     #     text(15)
+         696e7669746174696f6e5f636f6465      #       "invitation_code"
+      68                                     #     text(8)
+         44554d4d59303037                    #       "DUMMY007"

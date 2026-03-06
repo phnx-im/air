@@ -1,0 +1,6 @@
+---
+source: common/src/crypto/signatures/keys.rs
+expression: diag
+---
+43        # bytes(3)
+   010203 #   "\x01\x02\x03"

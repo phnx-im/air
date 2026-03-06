@@ -1,0 +1,29 @@
+---
+source: backend/src/ds/attachments.rs
+expression: policy
+---
+Object {
+    "conditions": Array [
+        Object {
+            "bucket": String("data"),
+        },
+        Object {
+            "key": String("ba521fc61ec24f8ea85e3dacc1e96989"),
+        },
+        Array [
+            String("content-length-range"),
+            Number(0),
+            Number(20971520),
+        ],
+        Object {
+            "x-amz-credential": String("EXAMPLEKEY/20230101/example-region/s3/aws4_request"),
+        },
+        Object {
+            "x-amz-algorithm": String("AWS4-HMAC-SHA256"),
+        },
+        Object {
+            "x-amz-date": String("20230101T000000Z"),
+        },
+    ],
+    "expiration": String("2023-01-01T00:01:00Z"),
+}

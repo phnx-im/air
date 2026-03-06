@@ -1,0 +1,94 @@
+---
+source: coreclient/src/groups/diff.rs
+expression: diag
+---
+a3                                                         # map(3)
+   6b                                                      #   text(11)
+      6c6561665f7369676e6572                               #     "leaf_signer"
+   a2                                                      #   map(2)
+      6b                                                   #     text(11)
+         7369676e696e675f6b6579                            #       "signing_key"
+      a2                                                   #     map(2)
+         6b                                                #       text(11)
+            7369676e696e675f6b6579                         #         "signing_key"
+         43                                                #       bytes(3)
+            010203                                         #         "\x01\x02\x03"
+         6d                                                #       text(13)
+            766572696679696e675f6b6579                     #         "verifying_key"
+         43                                                #       bytes(3)
+            040506                                         #         "\x04\x05\x06"
+      6a                                                   #     text(10)
+         63726564656e7469616c                              #       "credential"
+      a2                                                   #     map(2)
+         67                                                #       text(7)
+            7061796c6f6164                                 #         "payload"
+         a3                                                #       map(3)
+            63                                             #         text(3)
+               637372                                      #           "csr"
+            a4                                             #         map(4)
+               67                                          #           text(7)
+                  76657273696f6e                           #             "version"
+               65                                          #           text(5)
+                  416c706861                               #             "Alpha"
+               67                                          #           text(7)
+                  757365725f6964                           #             "user_id"
+               a2                                          #           map(2)
+                  64                                       #             text(4)
+                     75756964                              #               "uuid"
+                  50                                       #             bytes(16)
+                     4a24017d30f640d88294962bb4dcfb3c      #               "J$\x01}0\xf6@\xd8\x82\x94\x96+\xb4\xdc\xfb<"
+                  66                                       #             text(6)
+                     646f6d61696e                          #               "domain"
+                  a1                                       #             map(1)
+                     66                                    #               text(6)
+                        646f6d61696e                       #                 "domain"
+                     a1                                    #               map(1)
+                        66                                 #                 text(6)
+                           446f6d61696e                    #                   "Domain"
+                        69                                 #                 text(9)
+                           6c6f63616c686f7374              #                   "localhost"
+               70                                          #           text(16)
+                  7369676e61747572655f736368656d65         #             "signature_scheme"
+               67                                          #           text(7)
+                  45443235353139                           #             "ED25519"
+               6d                                          #           text(13)
+                  766572696679696e675f6b6579               #             "verifying_key"
+               43                                          #           bytes(3)
+                  070809                                   #             "\x07\x08\t"
+            6f                                             #         text(15)
+               65787069726174696f6e5f64617461              #           "expiration_data"
+            a2                                             #         map(2)
+               6a                                          #           text(10)
+                  6e6f745f6265666f7265                     #             "not_before"
+               74                                          #           text(20)
+                  323032352d30352d32315430303a30303a30305a #             "2025-05-21T00:00:00Z"
+               69                                          #           text(9)
+                  6e6f745f6166746572                       #             "not_after"
+               74                                          #           text(20)
+                  323032352d30352d32325430303a30303a30305a #             "2025-05-22T00:00:00Z"
+            72                                             #         text(18)
+               7369676e65725f66696e6765727072696e74        #           "signer_fingerprint"
+            58 20                                          #         bytes(32)
+               000102030405060708090a0b0c0d0e0f            #           "\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f"
+               101112131415161718191a1b1c1d1e1f            #           "\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f"
+         69                                                #       text(9)
+            7369676e6174757265                             #         "signature"
+         43                                                #       bytes(3)
+            0d0e0f                                         #         "\r\x0e\x0f"
+   78 19                                                   #   text(25)
+      6964656e746974795f6c696e6b5f7772                     #     "identity_link_wr"
+      61707065725f6b6579                                   #     "apper_key"
+   a1                                                      #   map(1)
+      66                                                   #     text(6)
+         736563726574                                      #       "secret"
+      58 20                                                #     bytes(32)
+         6964656e746974795f6c696e6b5f6b65                  #       "identity_link_ke"
+         795f33325f62797465735f5f5f5f5f5f                  #       "y_32_bytes______"
+   73                                                      #   text(19)
+      67726f75705f73746174655f6561725f6b6579               #     "group_state_ear_key"
+   a1                                                      #   map(1)
+      66                                                   #     text(6)
+         736563726574                                      #       "secret"
+      58 20                                                #     bytes(32)
+         67726f75705f73746174655f6561725f                  #       "group_state_ear_"
+         6b65795f33325f62797465735f5f5f5f                  #       "key_32_bytes____"
