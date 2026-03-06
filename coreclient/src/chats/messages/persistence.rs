@@ -808,7 +808,6 @@ pub(crate) mod tests {
                 MimiContent::simple_markdown_message("a".to_string(), [0; 16]),
                 &group_id,
             ))),
-            None,
         );
         message_a.store(&pool, &mut store_notifier).await?;
 
@@ -816,13 +815,12 @@ pub(crate) mod tests {
             chat_b.id(),
             MessageId::random(),
             TimeStamp::from(2_000_000_000_i64),
-            Message::Content(Box::new(ContentMessage::new(
+            ContentMessage::new(
                 sender,
                 true,
                 MimiContent::simple_markdown_message("b".to_string(), [1; 16]),
                 &group_id,
-            ))),
-            None,
+            ),
         );
         message_b.store(&pool, &mut store_notifier).await?;
 

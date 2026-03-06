@@ -141,14 +141,16 @@ impl ChatMessage {
         chat_id: ChatId,
         message_id: MessageId,
         timestamp: TimeStamp,
-        message: Message,
-        in_reply_to: Option<MimiId>,
+        message: impl Into<Message>,
     ) -> Self {
         Self {
             chat_id,
             message_id,
-            in_reply_to: in_reply_to.map(|id| (id, None)),
-            timestamped_message: TimestampedMessage { timestamp, message },
+            timestamped_message: TimestampedMessage {
+                timestamp,
+                message: message.into(),
+            },
+            in_reply_to: None,
             status: MessageStatus::Unread,
         }
     }
@@ -293,6 +295,18 @@ pub struct InReplyToMessage {
 pub enum Message {
     Content(Box<ContentMessage>),
     Event(EventMessage),
+}
+
+impl From<ContentMessage> for Message {
+    fn from(content_message: ContentMessage) -> Self {
+        Self::Content(Box::new(content_message))
+    }
+}
+
+impl From<EventMessage> for Message {
+    fn from(event_message: EventMessage) -> Self {
+        Self::Event(event_message)
+    }
 }
 
 impl Message {

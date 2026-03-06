@@ -1272,21 +1272,17 @@ impl QsProcessEventResult {
 
 #[cfg(test)]
 mod tests {
-    use aircommon::{
-        identifiers::{MimiId, UserId},
-        time::TimeStamp,
-    };
-    use mimi_content::MimiContent;
+    use aircommon::{identifiers::UserId, time::TimeStamp};
+    use mimi_content::{ByteBuf, MimiContent};
     use sqlx::SqlitePool;
 
     use crate::{
-        ChatMessage, ContentMessage, Message, MessageId, MimiContentExt,
-        chats::persistence::tests::test_chat, clients::process::process_qs::handle_message_edit,
-        store::StoreNotifier,
+        ChatMessage, ContentMessage, MessageId, chats::persistence::tests::test_chat,
+        clients::process::process_qs::handle_message_edit, store::StoreNotifier,
     };
 
     #[sqlx::test]
-    async fn test_in_reply_to_redacted(pool: SqlitePool) -> anyhow::Result<()> {
+    async fn test_handle_message_update_with_replies(pool: SqlitePool) -> anyhow::Result<()> {
         let mut notifier = StoreNotifier::noop();
 
         let chat = test_chat();
@@ -1305,32 +1301,31 @@ mod tests {
             chat.id(),
             MessageId::random(),
             TimeStamp::now(),
-            Message::Content(Box::new(ContentMessage::new(
+            ContentMessage::new(
                 alice.clone(),
                 false,
                 MimiContent::simple_markdown_message("Hello from Alice!".to_string(), [0; 16]),
                 group_id,
-            ))),
-            None,
+            ),
         );
         alice_message.store(&pool, &mut notifier).await?;
 
         // Bob replies to Alice's message
+        let mut bob_mimi_content =
+            MimiContent::simple_markdown_message("Hello from Bob!".to_string(), [1; 16]);
+        bob_mimi_content.in_reply_to = alice_message
+            .message()
+            .mimi_id()
+            .map(|mimi_id| ByteBuf::from(mimi_id.as_slice()));
         let bob_message = ChatMessage::new_for_test(
             chat.id(),
             MessageId::random(),
             TimeStamp::now(),
-            Message::Content(Box::new(ContentMessage::new(
-                bob.clone(),
-                false,
-                MimiContent::simple_markdown_message("Hello from Bob!".to_string(), [1; 16]),
-                group_id,
-            ))),
-            alice_message.message().mimi_id().cloned(),
+            ContentMessage::new(bob.clone(), false, bob_mimi_content, group_id),
         );
         bob_message.store(&pool, &mut notifier).await?;
 
-        // Alice edits her message
+        // Alice edits her message once
         let mut txn = pool.begin().await?;
 
         let edited_alice_content = MimiContent::simple_markdown_message(
@@ -1338,60 +1333,46 @@ mod tests {
             [0; 16],
         );
 
-        handle_message_edit(
+        let alice_message = handle_message_edit(
             &mut txn,
             &mut notifier,
             group_id,
             TimeStamp::now(),
             &alice,
             *alice_message.message().mimi_id().unwrap(),
-            edited_alice_content.clone(),
-        )
-        .await?;
-
-        // Alice deletes her message
-        let edited_alice_mimi_id = edited_alice_content
-            .mimi_id(&alice, group_id)
-            .map(|bytes| MimiId::from_slice(&bytes).unwrap())
-            .unwrap();
-
-        handle_message_edit(
-            &mut txn,
-            &mut notifier,
-            group_id,
-            TimeStamp::now(),
-            &alice,
-            edited_alice_mimi_id,
             edited_alice_content,
         )
         .await?;
+        alice_message.update(txn.as_mut(), &mut notifier).await?;
 
         // Alice deletes her message
-        let alice_chat_message = ChatMessage::load(txn.as_mut(), alice_message.id())
+        let alice_message = ChatMessage::load(txn.as_mut(), alice_message.id())
             .await?
             .unwrap();
-        let redacted_content = alice_chat_message.null_part_content()?;
-        handle_message_edit(
+
+        let alice_message = handle_message_edit(
             &mut txn,
             &mut notifier,
             group_id,
             TimeStamp::now(),
             &alice,
-            *alice_chat_message.message().mimi_id().unwrap(),
-            redacted_content,
+            *alice_message.message().mimi_id().unwrap(),
+            alice_message.null_part_content()?,
         )
         .await?;
+        alice_message.update(txn.as_mut(), &mut notifier).await?;
 
-        let alice_chat_message = ChatMessage::load(txn.as_mut(), alice_message.id())
+        // Reload both messages, Bob's in_reply_to should reference the MIMI ID of Alice's now deleted MIMI content
+        let alice_message = ChatMessage::load(txn.as_mut(), alice_message.id())
             .await?
             .unwrap();
-        let bob_chat_message = ChatMessage::load(txn.as_mut(), bob_message.id())
+        let bob_message = ChatMessage::load(txn.as_mut(), bob_message.id())
             .await?
             .unwrap();
 
         assert_eq!(
-            &bob_chat_message.in_reply_to().unwrap().0,
-            alice_chat_message.message().mimi_id().unwrap()
+            &bob_message.in_reply_to().unwrap().0,
+            alice_message.message().mimi_id().unwrap()
         );
 
         Ok(())
