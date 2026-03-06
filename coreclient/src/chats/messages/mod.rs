@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::MimiId;
+use aircommon::{OpenMlsRand, RustCrypto, identifiers::MimiId};
 use mimi_content::{
     Disposition, MessageStatus, MimiContent, NestedPartContent, content_container::PartSemantics,
 };
@@ -103,6 +103,7 @@ impl MessageId {
 pub struct ChatMessage {
     pub(super) chat_id: ChatId,
     pub(super) message_id: MessageId,
+    pub(super) in_reply_to: Option<(MimiId, Option<InReplyToMessage>)>,
     pub(super) timestamped_message: TimestampedMessage,
     pub(super) status: MessageStatus,
 }
@@ -118,6 +119,7 @@ impl ChatMessage {
         Self {
             chat_id,
             message_id,
+            in_reply_to: None,
             timestamped_message,
             status: MessageStatus::Unread,
         }
@@ -140,10 +142,12 @@ impl ChatMessage {
         message_id: MessageId,
         timestamp: TimeStamp,
         message: Message,
+        in_reply_to: Option<MimiId>,
     ) -> Self {
         Self {
             chat_id,
             message_id,
+            in_reply_to: in_reply_to.map(|id| (id, None)),
             timestamped_message: TimestampedMessage { timestamp, message },
             status: MessageStatus::Unread,
         }
@@ -166,9 +170,34 @@ impl ChatMessage {
         Self {
             chat_id,
             message_id,
+            in_reply_to: None,
             timestamped_message,
             status: MessageStatus::Unread,
         }
+    }
+
+    /// Create a `MimiContent` with `NullPart` and `replaces` set to the MIMI ID of
+    /// the given message. This is used for message deletions, where the content is
+    /// replaced with a NullPart to indicate that the message has been deleted,
+    /// while still keeping the message visible as a "deleted" placeholder.
+    pub(crate) fn null_part_content(&self) -> anyhow::Result<MimiContent> {
+        let salt: [u8; 16] = RustCrypto::default().random_array()?;
+        Ok(MimiContent {
+            salt: mimi_content::ByteBuf::from(salt.to_vec()),
+            replaces: self
+                .message()
+                .mimi_id()
+                .map(|id| id.as_slice().to_vec().into()),
+            topic_id: Default::default(),
+            expires: None,
+            in_reply_to: None,
+            extensions: Default::default(),
+            nested_part: mimi_content::NestedPart {
+                disposition: mimi_content::Disposition::Render,
+                language: String::new(),
+                part: NestedPartContent::NullPart,
+            },
+        })
     }
 
     /// Mark the message as sent and update the timestamp.
@@ -245,6 +274,17 @@ impl ChatMessage {
     pub fn message_mut(&mut self) -> &mut Message {
         &mut self.timestamped_message.message
     }
+
+    pub fn in_reply_to(&self) -> Option<&(MimiId, Option<InReplyToMessage>)> {
+        self.in_reply_to.as_ref()
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct InReplyToMessage {
+    pub message_id: MessageId,
+    pub sender: UserId,
+    pub mimi_content: Option<MimiContent>,
 }
 
 // WARNING: If this type is changed, a new `VersionedMessage` variant must be

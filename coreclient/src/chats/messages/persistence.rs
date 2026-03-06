@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::fmt;
+
 use aircommon::{
     codec::{self, BlobDecoded, BlobEncoded, PersistenceCodec},
     identifiers::{Fqdn, MimiId, UserId},
@@ -10,20 +12,23 @@ use aircommon::{
 use anyhow::bail;
 use mimi_content::{MessageStatus, MimiContent};
 use serde::{Deserialize, Serialize};
-use sqlx::{SqliteExecutor, query, query_as};
+use sqlx::{SqliteExecutor, query, query_as, query_scalar};
 use tokio_stream::StreamExt;
-use tracing::warn;
+use tracing::{error, warn};
 use uuid::Uuid;
 
-use crate::{ChatId, ChatMessage, ContentMessage, Message, store::StoreNotifier};
+use crate::{
+    ChatId, ChatMessage, ContentMessage, Message, chats::messages::InReplyToMessage,
+    store::StoreNotifier,
+};
 
 use super::{ErrorMessage, EventMessage};
 
 const UNKNOWN_MESSAGE_VERSION: u16 = 0;
 const CURRENT_MESSAGE_VERSION: u16 = 1;
 
-#[derive(Serialize, Deserialize)]
-pub(crate) struct VersionedMessage {
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct VersionedMessage {
     #[serde(default = "VersionedMessage::unknown_message_version")]
     pub(crate) version: u16,
     // We store the message as bytes, because deserialization depends on
@@ -31,6 +36,15 @@ pub(crate) struct VersionedMessage {
     // TODO: Do not use cbor unsigned int array here
     #[serde(default)]
     pub(crate) content: Vec<u8>,
+}
+
+impl fmt::Debug for VersionedMessage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("VersionedMessage")
+            .field("version", &self.version)
+            .field("content_len", &self.content.len())
+            .finish_non_exhaustive()
+    }
 }
 
 impl VersionedMessage {
@@ -91,6 +105,11 @@ struct SqlChatMessage {
     status: i64,
     edited_at: Option<TimeStamp>,
     is_blocked: bool,
+    in_reply_to_mimi_id: Option<MimiId>,
+    in_reply_to_message_id: Option<MessageId>,
+    in_reply_to_sender_user_uuid: Option<Uuid>,
+    in_reply_to_sender_user_domain: Option<Fqdn>,
+    in_reply_to_content: Option<BlobDecoded<VersionedMessage>>,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -121,6 +140,11 @@ impl TryFrom<SqlChatMessage> for ChatMessage {
             status,
             edited_at,
             is_blocked,
+            in_reply_to_mimi_id,
+            in_reply_to_message_id,
+            in_reply_to_sender_user_uuid,
+            in_reply_to_sender_user_domain,
+            in_reply_to_content,
         }: SqlChatMessage,
     ) -> Result<Self, Self::Error> {
         let message = match (sender_user_uuid, sender_user_domain) {
@@ -162,9 +186,34 @@ impl TryFrom<SqlChatMessage> for ChatMessage {
                 .unwrap_or(MessageStatus::Unread)
         };
 
+        let in_reply_to = if let (
+            Some(message_id),
+            Some(in_reply_to_sender_user_uuid),
+            Some(in_reply_to_sender_user_domain),
+            blob_decoded_versioned_message,
+        ) = (
+            in_reply_to_message_id,
+            in_reply_to_sender_user_uuid,
+            in_reply_to_sender_user_domain,
+            in_reply_to_content,
+        ) {
+            Some(InReplyToMessage {
+                message_id,
+                sender: UserId::new(in_reply_to_sender_user_uuid, in_reply_to_sender_user_domain),
+                mimi_content: blob_decoded_versioned_message.and_then(|BlobDecoded(v)| {
+                    v.to_mimi_content().inspect_err(
+                        |error| error!(%error, "failed to decode MIMI content of replied message"),
+                    ).ok()
+                }),
+            })
+        } else {
+            None
+        };
+
         Ok(ChatMessage {
             message_id,
             chat_id,
+            in_reply_to: in_reply_to_mimi_id.map(|id| (id, in_reply_to)),
             timestamped_message,
             status,
         })
@@ -179,21 +228,29 @@ impl ChatMessage {
         query_as!(
             SqlChatMessage,
             r#"SELECT
-                message_id AS "message_id: _",
-                mimi_id AS "mimi_id: _",
-                chat_id AS "chat_id: _",
-                timestamp AS "timestamp: _",
-                sender_user_uuid AS "sender_user_uuid: _",
-                sender_user_domain AS "sender_user_domain: _",
-                content AS "content: _",
-                sent,
-                status,
-                edited_at AS "edited_at: _",
-                b.user_uuid IS NOT NULL AS "is_blocked!: _"
-            FROM message
-            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
-                AND b.user_domain = sender_user_domain
-            WHERE message_id = ?
+                m.message_id AS "message_id: _",
+                m.mimi_id AS "mimi_id: _",
+                m.chat_id AS "chat_id: _",
+                m.timestamp AS "timestamp: _",
+                m.sender_user_uuid AS "sender_user_uuid: _",
+                m.sender_user_domain AS "sender_user_domain: _",
+                m.content AS "content: _",
+                m.sent,
+                m.status,
+                m.edited_at AS "edited_at: _",
+                b.user_uuid IS NOT NULL AS "is_blocked!: _",
+                m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                COALESCE(rm.message_id, re.message_id) AS "in_reply_to_message_id: _",
+                COALESCE(rm.sender_user_uuid, red.sender_user_uuid) AS "in_reply_to_sender_user_uuid: _",
+                COALESCE(rm.sender_user_domain, red.sender_user_domain) AS "in_reply_to_sender_user_domain: _",
+                COALESCE(rm.content, re.content) AS "in_reply_to_content: _"
+            FROM message m
+            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
+                AND b.user_domain = m.sender_user_domain
+            LEFT JOIN message rm ON m.in_reply_to_mimi_id = rm.mimi_id
+            LEFT JOIN message_edit re ON m.in_reply_to_mimi_id = re.mimi_id
+            LEFT JOIN message red ON re.message_id = red.message_id
+            WHERE m.message_id = ?
             "#,
             message_id,
         )
@@ -224,7 +281,12 @@ impl ChatMessage {
                 sent,
                 status,
                 edited_at AS "edited_at: _",
-                b.user_uuid IS NOT NULL AS "is_blocked!: _"
+                b.user_uuid IS NOT NULL AS "is_blocked!: _",
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                NULL AS "in_reply_to_message_id: _",
+                NULL AS "in_reply_to_sender_user_uuid: _",
+                NULL AS "in_reply_to_sender_user_domain: _",
+                NULL AS "in_reply_to_content: _"
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
@@ -249,23 +311,39 @@ impl ChatMessage {
     ) -> sqlx::Result<Vec<ChatMessage>> {
         let messages: sqlx::Result<Vec<ChatMessage>> = query_as!(
             SqlChatMessage,
-            r#"SELECT
-                message_id AS "message_id: _",
-                mimi_id AS "mimi_id: _",
-                chat_id AS "chat_id: _",
-                timestamp AS "timestamp: _",
-                sender_user_uuid AS "sender_user_uuid: _",
-                sender_user_domain AS "sender_user_domain: _",
-                content AS "content: _",
-                sent,
-                status,
-                edited_at AS "edited_at: _",
-                b.user_uuid IS NOT NULL AS "is_blocked!: _"
-            FROM message
-            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
-                AND b.user_domain = sender_user_domain
-            WHERE chat_id = ?
-            ORDER BY timestamp DESC
+            r#"
+            WITH reply_targets AS (
+                SELECT message_id, mimi_id, content
+                    FROM message
+                UNION ALL
+                SELECT message_id, mimi_id, content
+                    FROM message_edit
+            )
+            
+            SELECT
+                m.message_id AS "message_id: _",
+                m.mimi_id AS "mimi_id: _",
+                m.chat_id AS "chat_id: _",
+                m.timestamp AS "timestamp: _",
+                m.sender_user_uuid AS "sender_user_uuid: _",
+                m.sender_user_domain AS "sender_user_domain: _",
+                m.content AS "content: _",
+                m.sent,
+                m.status,
+                m.edited_at AS "edited_at: _",
+                b.user_uuid IS NOT NULL AS "is_blocked!: _",
+                m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                rt.message_id AS "in_reply_to_message_id: _",
+                red.sender_user_uuid AS "in_reply_to_sender_user_uuid: _",
+                red.sender_user_domain AS "in_reply_to_sender_user_domain: _",
+                rt.content AS "in_reply_to_content: _"
+            FROM message m
+            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
+                AND b.user_domain = m.sender_user_domain
+            LEFT JOIN reply_targets rt ON rt.mimi_id = m.in_reply_to_mimi_id
+            LEFT JOIN message red ON rt.message_id = red.message_id
+            WHERE m.chat_id = ?
+            ORDER BY m.timestamp DESC
             LIMIT ?"#,
             chat_id,
             number_of_messages,
@@ -312,21 +390,36 @@ impl ChatMessage {
             Message::Content(content_message) => content_message.sent,
             Message::Event(_) => true,
         };
+        let in_reply_to_mimi_id = self
+            .timestamped_message
+            .message
+            .mimi_content()
+            .and_then(|content| content.in_reply_to.as_ref())
+            .and_then(|bytes| {
+                MimiId::from_slice(bytes)
+                    .inspect_err(|error| {
+                        error!(%error, "failed to decode in_reply_to MimiId");
+                    })
+                    .ok()
+            });
+        let in_reply_to_mimi_id = in_reply_to_mimi_id.as_ref();
 
         query!(
             "INSERT INTO message (
                 message_id,
                 mimi_id,
                 chat_id,
+                in_reply_to_mimi_id,
                 timestamp,
                 sender_user_uuid,
                 sender_user_domain,
                 content,
                 sent
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             self.message_id,
             mimi_id,
             self.chat_id,
+            in_reply_to_mimi_id,
             self.timestamped_message.timestamp,
             sender_uuid,
             sender_domain,
@@ -381,6 +474,7 @@ impl ChatMessage {
         )
         .execute(executor)
         .await?;
+
         notifier.update(self.id());
         notifier.update(self.chat_id);
         Ok(())
@@ -444,7 +538,12 @@ impl ChatMessage {
                 sent,
                 status,
                 edited_at AS "edited_at: _",
-                b.user_uuid IS NOT NULL AS "is_blocked!: _"
+                b.user_uuid IS NOT NULL AS "is_blocked!: _",
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                NULL AS "in_reply_to_message_id: _",
+                NULL AS "in_reply_to_sender_user_uuid: _",
+                NULL AS "in_reply_to_sender_user_domain: _",
+                NULL AS "in_reply_to_content: _"
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
@@ -483,7 +582,12 @@ impl ChatMessage {
                 sent,
                 status,
                 edited_at AS "edited_at: _",
-                b.user_uuid IS NOT NULL AS "is_blocked!: _"
+                b.user_uuid IS NOT NULL AS "is_blocked!: _",
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                NULL AS "in_reply_to_message_id: _",
+                NULL AS "in_reply_to_sender_user_uuid: _",
+                NULL AS "in_reply_to_sender_user_domain: _",
+                NULL AS "in_reply_to_content: _"
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
@@ -523,7 +627,12 @@ impl ChatMessage {
                 sent,
                 status,
                 edited_at AS "edited_at: _",
-                b.user_uuid IS NOT NULL AS "is_blocked!: _"
+                b.user_uuid IS NOT NULL AS "is_blocked!: _",
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                NULL AS "in_reply_to_message_id: _",
+                NULL AS "in_reply_to_sender_user_uuid: _",
+                NULL AS "in_reply_to_sender_user_domain: _",
+                NULL AS "in_reply_to_content: _"
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
@@ -563,7 +672,12 @@ impl ChatMessage {
                 sent,
                 status,
                 edited_at AS "edited_at: _",
-                b.user_uuid IS NOT NULL AS "is_blocked!: _"
+                b.user_uuid IS NOT NULL AS "is_blocked!: _",
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                NULL AS "in_reply_to_message_id: _",
+                NULL AS "in_reply_to_sender_user_uuid: _",
+                NULL AS "in_reply_to_sender_user_domain: _",
+                NULL AS "in_reply_to_content: _"
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
@@ -583,6 +697,31 @@ impl ChatMessage {
                 .transpose()
                 .map_err(From::from)
         })?
+    }
+
+    pub(crate) async fn redact_all_in_reply_to_mimi_ids(
+        executor: impl SqliteExecutor<'_>,
+        original_message_id: &MessageId,
+        original_mimi_id: &MimiId,
+        replaces: &MimiId,
+    ) -> sqlx::Result<Vec<MessageId>> {
+        query_scalar!(
+            r#"WITH target_mimi_ids AS(
+                SELECT mimi_id FROM message_edit WHERE message_id = ?
+                UNION ALL
+                SELECT ?
+            )
+            UPDATE message
+            SET in_reply_to_mimi_id = ?
+            WHERE in_reply_to_mimi_id IN (SELECT * FROM target_mimi_ids)
+            RETURNING message_id AS "message_id: _"
+            "#,
+            original_message_id,
+            original_mimi_id,
+            replaces
+        )
+        .fetch_all(executor)
+        .await
     }
 }
 
@@ -619,6 +758,7 @@ pub(crate) mod tests {
             chat_id,
             timestamped_message,
             status: MessageStatus::Unread,
+            in_reply_to: None,
         }
     }
 
@@ -668,6 +808,7 @@ pub(crate) mod tests {
                 MimiContent::simple_markdown_message("a".to_string(), [0; 16]),
                 &group_id,
             ))),
+            None,
         );
         message_a.store(&pool, &mut store_notifier).await?;
 
@@ -681,6 +822,7 @@ pub(crate) mod tests {
                 MimiContent::simple_markdown_message("b".to_string(), [1; 16]),
                 &group_id,
             ))),
+            None,
         );
         message_b.store(&pool, &mut store_notifier).await?;
 

@@ -5,6 +5,7 @@
 import 'dart:typed_data';
 
 import 'package:air/core/core.dart';
+import 'package:air/l10n/app_localizations.dart';
 import 'package:air/util/platform.dart';
 import 'package:uuid/uuid.dart';
 
@@ -166,4 +167,22 @@ extension UiChatMessageExtension on UiChatMessage {
 
 extension UiAttachmentExtension on UiAttachment {
   bool get isImage => imageMetadata != null;
+}
+
+extension UiMimiContentExtension on UiMimiContent {
+  String? plaintextPreview(AppLocalizations loc) {
+    if (isDeleted) {
+      return null;
+    }
+
+    return plainBody?.isNotEmpty == true
+        ? plainBody
+        : attachments.isNotEmpty
+        ? attachments.first.imageMetadata != null
+              ? loc.chatList_imageEmoji
+              : loc.chatList_fileEmoji
+        : null;
+  }
+
+  bool get isDeleted => replaces != null && content == null;
 }

@@ -159,9 +159,15 @@
   "newConnectionDialog_error_handleNotFound": "Benutzername {username} existiert nicht",
   "newConnectionDialog_error_duplicateRequest": "Du hast bereits eine ausstehende Kontaktanfrage an diesen Benutzernamen.",
   "newConnectionDialog_error_ownHandle": "Du kannst dir selbst keine Kontaktanfrage senden.",
+
   "composer_inputHint": "Nachricht an {chatTitle}",
   "composer_editMessage": "Nachricht bearbeiten",
   "composer_error_attachment": "Anhang konnte nicht hochgeladen werden. Bitte versuche es erneut.",
+
+  "composer_reply_deleted_message_placeholder": "Ursprüngliche Nachricht gelöscht",
+  "composer_reply_noaccess_message_user": "Unbekannter Nutzer",
+  "composer_reply_noaccess_message_placeholder": "Du hast keinen Zugriff auf diese Nachricht.",
+
   "attachmentSize": "{size} {byteUnit}",
   "@attachmentSize": {
     "placeholders": {
@@ -194,6 +200,7 @@
   "linkConfirmation_description": "Prüfe die URL, um sicherzugehen, dass du sie öffnen möchtest:",
   "linkConfirmation_openLink": "Öffnen",
   "linkConfirmation_cancel": "Abbrechen",
+  "messageContextMenu_reply": "Antworten",
   "messageContextMenu_copy": "Kopieren",
   "messageContextMenu_edit": "Bearbeiten",
   "messageContextMenu_delete": "Löschen",

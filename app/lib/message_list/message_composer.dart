@@ -6,6 +6,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:air/attachments/attachments.dart';
+import 'package:air/core/lib.dart';
 import 'package:air/l10n/app_localizations_extension.dart';
 import 'package:air/main.dart';
 import 'package:air/message_list/emoji_repository.dart';
@@ -13,6 +14,7 @@ import 'package:air/message_list/emoji_autocomplete.dart';
 import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
 import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/user/user_settings_cubit.dart';
+import 'package:air/user/users_cubit.dart';
 import 'package:air/util/debouncer.dart';
 import 'package:air/message_list/widgets/text_autocomplete.dart';
 import 'package:file_selector/file_selector.dart';
@@ -91,6 +93,9 @@ class _MessageComposerState extends State<MessageComposer>
     // 1. Initially loaded draft
     // 2. Editing ID has changed
     MessageId? currentEditingId;
+
+    MimiId? currentInReplyToId;
+
     _draftLoadingSubscription = _chatDetailsCubit.stream.listen((state) {
       // Check that chat is fully loaded
       if (state.chat == null) {
@@ -112,6 +117,14 @@ class _MessageComposerState extends State<MessageComposer>
             _inputController.text = draft?.message ?? "";
           }
           currentEditingId = draft?.editingId;
+        // Reply ID has changed
+        case final draft when draft?.inReplyTo?.$1 != currentInReplyToId:
+          // If input controller is not empty, then the user already typed something,
+          // and we don't want to overwrite it.
+          if (_inputController.text.isEmpty) {
+            _inputController.text = draft?.message ?? "";
+          }
+          currentInReplyToId = draft?.inReplyTo?.$1;
         default:
       }
     });
@@ -145,12 +158,17 @@ class _MessageComposerState extends State<MessageComposer>
 
   @override
   Widget build(BuildContext context) {
-    final (chatTitle, editingId, isConfirmedChat) = context.select((
-      ChatDetailsCubit cubit,
-    ) {
-      final chat = cubit.state.chat;
-      return (chat?.title, chat?.draft?.editingId, chat?.isConfirmed ?? false);
-    });
+    final (chatTitle, editingId, inReplyToId, isConfirmedChat) = context.select(
+      (ChatDetailsCubit cubit) {
+        final chat = cubit.state.chat;
+        return (
+          chat?.title,
+          chat?.draft?.editingId,
+          chat?.draft?.inReplyTo?.$1,
+          chat?.isConfirmed ?? false,
+        );
+      },
+    );
 
     if (chatTitle == null) {
       return const SizedBox.shrink();
@@ -176,15 +194,13 @@ class _MessageComposerState extends State<MessageComposer>
                   color: CustomColorScheme.of(context).backgroundBase.secondary,
                   borderRadius: BorderRadius.circular(Spacings.m),
                 ),
-                padding: const EdgeInsets.only(
-                  left: Spacings.xs,
-                  right: Spacings.xs,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: Spacings.xs),
                 child: _MessageInput(
                   focusNode: _focusNode,
                   controller: _inputController,
                   chatTitle: chatTitle,
                   isEditing: editingId != null,
+                  isReplying: inReplyToId != null,
                   layerLink: _inputFieldLink,
                   inputKey: _inputFieldKey,
                   onSubmitMessage: () =>
@@ -528,6 +544,7 @@ class _MessageInput extends StatelessWidget {
     required TextEditingController controller,
     required this.chatTitle,
     required this.isEditing,
+    required this.isReplying,
     required this.layerLink,
     required this.inputKey,
     required this.onSubmitMessage,
@@ -540,6 +557,7 @@ class _MessageInput extends StatelessWidget {
   final TextEditingController _controller;
   final String? chatTitle;
   final bool isEditing;
+  final bool isReplying;
   final LayerLink layerLink;
   final GlobalKey inputKey;
   final VoidCallback onSubmitMessage;
@@ -554,6 +572,13 @@ class _MessageInput extends StatelessWidget {
 
     final isConfirmedChat = context.select(
       (ChatDetailsCubit cubit) => cubit.state.chat?.isConfirmed ?? false,
+    );
+
+    final (isEditing, inReplyTo) = context.select(
+      (ChatDetailsCubit cubit) => (
+        cubit.state.chat?.draft?.editingId != null,
+        cubit.state.chat?.draft?.inReplyTo,
+      ),
     );
 
     final loc = AppLocalizations.of(context);
@@ -586,6 +611,42 @@ class _MessageInput extends StatelessWidget {
               ],
             ),
           ),
+
+        if (inReplyTo != null)
+          Padding(
+            padding: const EdgeInsets.only(top: Spacings.xs),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                InReplyToBubble(
+                  inReplyTo: inReplyTo.$2,
+                  backgroundColor: color.fill.secondary,
+                ),
+                Positioned(
+                  top: -8,
+                  right: -8,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: color.backgroundElevated.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const AppIcon.x(size: 12),
+                      constraints: const BoxConstraints(
+                        minHeight: Spacings.sm,
+                        minWidth: Spacings.sm,
+                      ),
+                      padding: EdgeInsets.zero,
+                      onPressed: () {
+                        context.read<ChatDetailsCubit>().resetDraft();
+                        _controller.clear();
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         CompositedTransformTarget(
           key: inputKey,
           link: layerLink,
@@ -602,6 +663,7 @@ class _MessageInput extends StatelessWidget {
             enabled: isConfirmedChat,
             decoration: InputDecoration(
               isDense: true,
+              contentPadding: const EdgeInsets.symmetric(vertical: Spacings.s),
               hintText: loc.composer_inputHint(chatTitle ?? ""),
               hintMaxLines: 1,
               hintStyle: TextStyle(
@@ -693,3 +755,85 @@ class _MessageInput extends StatelessWidget {
 }
 
 enum Direction { right, left }
+
+class InReplyToBubble extends StatelessWidget {
+  const InReplyToBubble({
+    super.key,
+    required this.inReplyTo,
+    this.backgroundColor,
+  });
+
+  final UiInReplyToMessage inReplyTo;
+  final Color? backgroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final color = CustomColorScheme.of(context);
+
+    // there are a few reasons why a message can't be resolved, for example:
+    // a message was deleted locally (only for me) or you joined a group
+    // and later somebody sent a message referencing a message you don't have
+    // access to. Unfortunately those two cases can't be differentiated.
+    final (senderDisplayName, contentPreview) = switch (inReplyTo) {
+      UiInReplyToMessage_NotFound() => (
+        loc.composer_reply_noaccess_message_user,
+        loc.composer_reply_noaccess_message_placeholder,
+      ),
+      UiInReplyToMessage_Resolved(:final sender, :final mimiContent) => (
+        context.select(
+          (UsersCubit cubit) => cubit.state.displayName(userId: sender),
+        ),
+        mimiContent.plaintextPreview(loc) ??
+            loc.composer_reply_deleted_message_placeholder,
+      ),
+    };
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacings.xs,
+        vertical: Spacings.xxs,
+      ),
+      decoration: BoxDecoration(
+        borderRadius: const BorderRadius.all(Radius.circular(Spacings.xxs)),
+        color: backgroundColor,
+      ),
+      constraints: const BoxConstraints(maxWidth: 260),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(color: color.separator.primary, width: 1),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                senderDisplayName,
+                style: TextStyle(
+                  fontSize: LabelFontSize.small1.size,
+                  fontWeight: FontWeight.bold,
+                  color: color.text.primary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                contentPreview,
+                style: TextStyle(
+                  fontSize: LabelFontSize.small1.size,
+                  color: color.text.secondary,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -25,7 +25,7 @@ use mimi_content::{
 };
 use mimi_room_policy::RoleIndex;
 use openmls::{
-    group::QueuedProposal,
+    group::{GroupId, QueuedProposal},
     prelude::{
         ApplicationMessage, MlsMessageBodyIn, MlsMessageIn, ProcessedMessageContent,
         ProtocolMessage, Sender, StagedCommit,
@@ -36,7 +36,7 @@ use tls_codec::DeserializeBytes;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    ChatMessage, ChatStatus, ContentMessage, Message, SystemMessage,
+    ChatMessage, ChatStatus, ContentMessage, Message, MimiContentExt, SystemMessage,
     chats::{StatusRecord, messages::edit::MessageEdit},
     clients::{
         QsListenResponder,
@@ -661,7 +661,7 @@ impl CoreUser {
             let message = handle_message_edit(
                 &mut savepoint_txn,
                 notifier,
-                group,
+                group.group_id(),
                 ds_timestamp,
                 sender,
                 mimi_id,
@@ -1033,7 +1033,7 @@ impl CoreUser {
 async fn handle_message_edit(
     txn: &mut SqliteTransaction<'_>,
     notifier: &mut StoreNotifier,
-    group: &Group,
+    group_id: &GroupId,
     ds_timestamp: TimeStamp,
     sender: &UserId,
     replaces: MimiId,
@@ -1060,6 +1060,7 @@ async fn handle_message_edit(
         }
     };
 
+    let original_message_id = message.id();
     let original_mimi_id = message
         .message()
         .mimi_id()
@@ -1080,6 +1081,19 @@ async fn handle_message_edit(
     );
 
     if is_delete {
+        // We need to redact existing references to the message we delete.
+        if let Ok(redacted_mimi_id_bytes) = content.mimi_id(sender, group_id)
+            && let Ok(redacted_mimi_id) = MimiId::from_slice(&redacted_mimi_id_bytes)
+        {
+            ChatMessage::redact_all_in_reply_to_mimi_ids(
+                txn.as_mut(),
+                &original_message_id,
+                original_mimi_id,
+                &redacted_mimi_id,
+            )
+            .await?;
+        }
+
         // Delete edit history when message is deleted
         MessageEdit::delete_by_message_id(txn.as_mut(), message.id()).await?;
         // Delete attachments for this message
@@ -1102,7 +1116,7 @@ async fn handle_message_edit(
         original_sender.clone(),
         is_sent,
         content,
-        group.group_id(),
+        group_id,
     ));
     message.set_edited_at(ds_timestamp);
     if is_delete {
@@ -1249,5 +1263,133 @@ impl QsProcessEventResult {
 
     pub fn is_partially_processed(&self) -> bool {
         matches!(self, Self::PartiallyProcessed { .. })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::{
+        identifiers::{MimiId, UserId},
+        time::TimeStamp,
+    };
+    use mimi_content::MimiContent;
+    use sqlx::SqlitePool;
+
+    use crate::{
+        ChatMessage, ContentMessage, Message, MessageId, MimiContentExt,
+        chats::persistence::tests::test_chat, clients::process::process_qs::handle_message_edit,
+        store::StoreNotifier,
+    };
+
+    #[sqlx::test]
+    async fn test_in_reply_to_redacted(pool: SqlitePool) -> anyhow::Result<()> {
+        let mut notifier = StoreNotifier::noop();
+
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
+            .await?;
+
+        let group_id = chat.group_id();
+
+        let domain = "localhost".parse().unwrap();
+
+        let alice = UserId::random(domain);
+        let bob = UserId::random("localhost".parse().unwrap());
+
+        // Alice sends a message
+        let alice_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            Message::Content(Box::new(ContentMessage::new(
+                alice.clone(),
+                false,
+                MimiContent::simple_markdown_message("Hello from Alice!".to_string(), [0; 16]),
+                &group_id,
+            ))),
+            None,
+        );
+        alice_message.store(&pool, &mut notifier).await?;
+
+        // Bob replies to Alice's message
+        let bob_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            Message::Content(Box::new(ContentMessage::new(
+                bob.clone(),
+                false,
+                MimiContent::simple_markdown_message("Hello from Bob!".to_string(), [1; 16]),
+                &group_id,
+            ))),
+            alice_message.message().mimi_id().cloned(),
+        );
+        bob_message.store(&pool, &mut notifier).await?;
+
+        // Alice edits her message
+        let mut txn = pool.begin().await?;
+
+        let edited_alice_content = MimiContent::simple_markdown_message(
+            "Hello from Alice! WITH EDIT".to_string(),
+            [0; 16],
+        );
+
+        handle_message_edit(
+            &mut txn,
+            &mut notifier,
+            &group_id,
+            TimeStamp::now(),
+            &alice,
+            alice_message.message().mimi_id().unwrap().clone(),
+            edited_alice_content.clone(),
+        )
+        .await?;
+
+        // Alice deletes her message
+        let edited_alice_mimi_id = edited_alice_content
+            .mimi_id(&alice, &group_id)
+            .map(|bytes| MimiId::from_slice(&bytes).unwrap())
+            .unwrap();
+
+        handle_message_edit(
+            &mut txn,
+            &mut notifier,
+            &group_id,
+            TimeStamp::now(),
+            &alice,
+            edited_alice_mimi_id,
+            edited_alice_content,
+        )
+        .await?;
+
+        // Alice deletes her message
+        let alice_chat_message = ChatMessage::load(txn.as_mut(), alice_message.id())
+            .await?
+            .unwrap();
+        let redacted_content = alice_chat_message.null_part_content()?;
+        handle_message_edit(
+            &mut txn,
+            &mut notifier,
+            &group_id,
+            TimeStamp::now(),
+            &alice,
+            alice_chat_message.message().mimi_id().unwrap().clone(),
+            redacted_content,
+        )
+        .await?;
+
+        let alice_chat_message = ChatMessage::load(txn.as_mut(), alice_message.id())
+            .await?
+            .unwrap();
+        let bob_chat_message = ChatMessage::load(txn.as_mut(), bob_message.id())
+            .await?
+            .unwrap();
+
+        assert_eq!(
+            &bob_chat_message.in_reply_to().unwrap().0,
+            alice_chat_message.message().mimi_id().unwrap()
+        );
+
+        Ok(())
     }
 }

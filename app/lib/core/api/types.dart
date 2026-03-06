@@ -7,6 +7,7 @@ import 'package:convert/convert.dart';
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import '../lib.dart';
 import 'markdown.dart';
 import 'message_content.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
@@ -16,8 +17,10 @@ part 'types.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `calculate`, `connection_user_id`, `flight_break_condition`, `from_asset`, `from_bytes`, `from_profile`, `from_user_id`, `load_from_chat_type`, `timestamp`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `UiChat`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
-// These functions are ignored (category: IgnoreBecauseExplicitAttribute): `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MessageDraft>>
+abstract class MessageDraft implements RustOpaqueInterface {}
 
 /// Mirror of the [`AddHandleContactError`] type
 enum AddHandleContactError { handleNotFound, duplicateRequest, ownHandle }
@@ -79,17 +82,6 @@ class ImageData {
           hash == other.hash;
 }
 
-/// UI representation of a [`MessageDraft`]
-@freezed
-sealed class MessageDraft with _$MessageDraft {
-  const factory MessageDraft({
-    required String message,
-    MessageId? editingId,
-    required DateTime updatedAt,
-    required bool isCommitted,
-  }) = _MessageDraft;
-}
-
 /// Mirror of the [`MessageId`] type
 class MessageId {
   final UuidValue uuid;
@@ -142,7 +134,7 @@ class UiChatDetails {
   final int messagesCount;
   final int unreadMessages;
   final UiChatMessage? lastMessage;
-  final MessageDraft? draft;
+  final UiMessageDraft? draft;
 
   const UiChatDetails({
     required this.id,
@@ -192,6 +184,7 @@ sealed class UiChatMessage with _$UiChatMessage {
     required MessageId id,
     required DateTime timestamp,
     required UiMessage message,
+    UiInReplyToMessage? inReplyToMessage,
     required UiFlightPosition position,
     required UiMessageStatus status,
   }) = _UiChatMessage;
@@ -334,6 +327,18 @@ enum UiFlightPosition {
   end,
 }
 
+@freezed
+sealed class UiInReplyToMessage with _$UiInReplyToMessage {
+  const UiInReplyToMessage._();
+
+  const factory UiInReplyToMessage.notFound() = UiInReplyToMessage_NotFound;
+  const factory UiInReplyToMessage.resolved({
+    required MessageId messageId,
+    required UiUserId sender,
+    required UiMimiContent mimiContent,
+  }) = UiInReplyToMessage_Resolved;
+}
+
 /// Inactive chat with past members
 class UiInactiveChat {
   final List<UiUserId> pastMembers;
@@ -357,6 +362,24 @@ sealed class UiMessage with _$UiMessage {
 
   const factory UiMessage.content(UiContentMessage field0) = UiMessage_Content;
   const factory UiMessage.display(UiEventMessage field0) = UiMessage_Display;
+}
+
+/// UI representation of a [`MessageDraft`]
+@freezed
+sealed class UiMessageDraft with _$UiMessageDraft {
+  const UiMessageDraft._();
+  const factory UiMessageDraft({
+    required String message,
+    MessageId? editingId,
+    (MimiId, UiInReplyToMessage)? inReplyTo,
+    required DateTime updatedAt,
+    required bool isCommitted,
+  }) = _UiMessageDraft;
+  static Future<UiMessageDraft> empty() =>
+      RustLib.instance.api.crateApiTypesUiMessageDraftEmpty();
+
+  Future<MessageDraft> toDraftWithoutContent() => RustLib.instance.api
+      .crateApiTypesUiMessageDraftToDraftWithoutContent(that: this);
 }
 
 enum UiMessageStatus {

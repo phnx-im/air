@@ -12,24 +12,10 @@ import 'package:air/ui/components/context_menu/context_menu_ui.dart';
 
 const double _mobileActionRowHeight = 56.0;
 
-class MessageAction {
-  const MessageAction({
-    required this.label,
-    this.leading,
-    required this.onSelected,
-    this.isDestructive = false,
-  });
-
-  final String label;
-  final Widget? leading;
-  final VoidCallback onSelected;
-  final bool isDestructive;
-}
-
 Future<void> showMobileMessageActions({
   required BuildContext context,
   required Rect anchorRect,
-  required List<MessageAction> actions,
+  required List<ContextMenuItem> actions,
   required Widget messageContent,
   required bool alignEnd,
 }) {
@@ -78,7 +64,7 @@ class _MobileMessageActionView extends StatelessWidget {
 
   final Animation<double> animation;
   final Rect anchorRect;
-  final List<MessageAction> actions;
+  final List<ContextMenuItem> actions;
   final Widget messageContent;
   final bool alignEnd;
 
@@ -241,7 +227,7 @@ class _MobileContextMenu extends StatelessWidget {
   });
 
   final Animation<double> animation;
-  final List<MessageAction> actions;
+  final List<ContextMenuItem> actions;
   final bool alignEnd;
 
   @override
@@ -258,7 +244,7 @@ class _MobileContextMenu extends StatelessWidget {
           isDestructive: action.isDestructive,
           onPressed: () {
             Navigator.of(context).pop();
-            action.onSelected();
+            action.onPressed();
           },
         ),
       );

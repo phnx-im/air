@@ -22,8 +22,8 @@ pub use crate::{
     chats::{
         Chat, ChatAttributes, ChatId, ChatStatus, ChatType, InactiveChat, MessageDraft,
         messages::{
-            ChatMessage, ContentMessage, ErrorMessage, EventMessage, Message, MessageId,
-            SystemMessage,
+            ChatMessage, ContentMessage, ErrorMessage, EventMessage, InReplyToMessage, Message,
+            MessageId, SystemMessage,
         },
     },
     clients::{
