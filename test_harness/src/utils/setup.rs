@@ -793,7 +793,6 @@ impl TestBackend {
                 orig_message.clone(),
                 group_id,
             ))),
-            None,
         );
         target_message.set_edited_at(message.edited_at().unwrap());
 
