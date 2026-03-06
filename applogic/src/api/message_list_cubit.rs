@@ -333,7 +333,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
 #[cfg(test)]
 mod tests {
     use aircommon::{identifiers::UserId, time::TimeStamp};
-    use aircoreclient::{ContentMessage, Message, MessageId};
+    use aircoreclient::{ContentMessage, MessageId};
     use mimi_content::MimiContent;
     use openmls::group::GroupId;
     use uuid::Uuid;
@@ -345,12 +345,12 @@ mod tests {
             ChatId::new(Uuid::from_u128(1)),
             MessageId::new(Uuid::from_u128(1)),
             TimeStamp::from(timestamp_secs * 1_000_000_000),
-            Message::with_content(ContentMessage::new(
+            ContentMessage::new(
                 sender.clone(),
                 true,
                 MimiContent::simple_markdown_message("some content".into(), [0; 16]), // simple seed for testing
                 &GroupId::from_slice(&[0]),
-            )),
+            ),
         )
     }
 

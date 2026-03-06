@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                    message_id AS \"message_id: _\"\n                FROM message_edit\n                WHERE mimi_id = ?",
+  "query": "SELECT message_id AS \"message_id: _\"\n                FROM message_edit\n                WHERE mimi_id = ?",
   "describe": {
     "columns": [
       {
@@ -16,5 +16,5 @@
       false
     ]
   },
-  "hash": "f456e400e82d9168116b850657d123ae026da73dd6e7d917b50fe32d9ea4052e"
+  "hash": "211abb46f8468a3f330f4da172d961f294e019e2d3ed1d81f361e1e1e655f68f"
 }

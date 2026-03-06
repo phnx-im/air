@@ -25,10 +25,18 @@ class ChatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final userId = context.select((UserCubit cubit) => cubit.state.userId);
-    final (messageId, message, timestamp, position, status) = context.select(
+    final (
+      messageId,
+      message,
+      inReplyToMessage,
+      timestamp,
+      position,
+      status,
+    ) = context.select(
       (MessageCubit cubit) => (
         cubit.state.message.id,
         cubit.state.message.message,
+        cubit.state.message.inReplyToMessage,
         cubit.state.message.timestamp,
         cubit.state.message.position,
         cubit.state.message.status,
@@ -56,6 +64,7 @@ class ChatTile extends StatelessWidget {
           UiMessage_Content(field0: final content) => TextMessageTile(
             messageId: messageId,
             contentMessage: content,
+            inReplyToMessage: inReplyToMessage,
             timestamp: timestamp,
             flightPosition: position,
             status: adjustedStatus,

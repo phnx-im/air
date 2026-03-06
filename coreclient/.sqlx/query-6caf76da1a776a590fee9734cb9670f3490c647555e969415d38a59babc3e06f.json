@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO message_draft (\n                    chat_id,\n                    message,\n                    editing_id,\n                    in_reply_to_mimi_id,\n                    updated_at,\n                    is_committed\n                )\n                VALUES (?, ?, ?, ?, ?, ?)\n                ON CONFLICT(chat_id) DO UPDATE SET\n                    message = excluded.message,\n                    editing_id = excluded.editing_id,\n                    in_reply_to_mimi_id = excluded.in_reply_to_mimi_id,\n                    updated_at = excluded.updated_at,\n                    is_committed = excluded.is_committed",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "6caf76da1a776a590fee9734cb9670f3490c647555e969415d38a59babc3e06f"
+}

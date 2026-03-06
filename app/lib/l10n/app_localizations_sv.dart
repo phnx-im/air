@@ -611,6 +611,17 @@ class AppLocalizationsSv extends AppLocalizations {
   }
 
   @override
+  String get composer_reply_deleted_message_placeholder =>
+      'Ursprungligt meddelande har raderats';
+
+  @override
+  String get composer_reply_noaccess_message_user => 'Okänd användare';
+
+  @override
+  String get composer_reply_noaccess_message_placeholder =>
+      'Du har inte tillgång till det här meddelandet.';
+
+  @override
   String attachmentSize(double size, Object byteUnit) {
     final intl.NumberFormat sizeNumberFormat =
         intl.NumberFormat.decimalPatternDigits(
@@ -664,6 +675,9 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get linkConfirmation_cancel => 'Avbryt';
+
+  @override
+  String get messageContextMenu_reply => 'Svara';
 
   @override
   String get messageContextMenu_copy => 'Kopiera';

@@ -2,19 +2,25 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircommon::{codec::BlobDecoded, identifiers::MimiId};
 use chrono::{DateTime, Utc};
 use tokio_stream::StreamExt;
 
-use crate::MessageId;
+use crate::{
+    MessageId,
+    chats::messages::{InReplyToMessage, persistence::VersionedMessage},
+};
 
 /// A message draft which is currently composed in a chat.
 ///
 /// Allows to persists drafts between opening and closing the chat and between sessions of
 /// the app.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MessageDraft {
     /// The text currently composed in the draft.
     pub message: String,
+    /// Whether we're replying to an existing message, the content is either loaded or not.
+    pub in_reply_to: Option<(MimiId, Option<InReplyToMessage>)>,
     /// The id of the message currently being edited, if any.
     pub editing_id: Option<MessageId>,
     /// The time when the draft was last updated.
@@ -30,6 +36,7 @@ impl MessageDraft {
     pub fn empty() -> Self {
         Self {
             message: String::new(),
+            in_reply_to: None,
             editing_id: None,
             updated_at: Utc::now(),
             is_committed: false,
@@ -38,11 +45,78 @@ impl MessageDraft {
 }
 
 mod persistence {
+    use aircommon::identifiers::{Fqdn, UserId};
     use sqlx::{SqliteExecutor, query, query_as, query_scalar};
+    use uuid::Uuid;
 
     use crate::{ChatId, store::StoreNotifier};
 
     use super::*;
+
+    #[derive(Debug)]
+    struct SqlMessageDraft {
+        /// The text currently composed in the draft.
+        pub message: String,
+        /// The id of the message we're replying to
+        pub in_reply_to_mimi_id: Option<MimiId>,
+        pub in_reply_to_message_id: Option<MessageId>,
+        pub in_reply_to_sender_user_uuid: Option<Uuid>,
+        pub in_reply_to_sender_user_domain: Option<Fqdn>,
+        pub in_reply_to_content: Option<BlobDecoded<VersionedMessage>>,
+
+        /// The data of the message we're replying to
+        // pub in_reply_to_content: Option<BlobDecoded<VersionedMessage>>,
+        /// The id of the message currently being edited, if any.
+        pub editing_id: Option<MessageId>,
+        /// The time when the draft was last updated.
+        pub updated_at: DateTime<Utc>,
+        /// When a draft is committed, it is loaded as part of the chat details data.
+        ///
+        /// Used for updating the draft during the edit process without immediately updating the chat
+        /// details.
+        pub is_committed: bool,
+    }
+
+    impl TryFrom<SqlMessageDraft> for MessageDraft {
+        type Error = anyhow::Error;
+
+        fn try_from(
+            SqlMessageDraft {
+                message,
+                editing_id,
+                updated_at,
+                is_committed,
+                in_reply_to_mimi_id,
+                in_reply_to_message_id,
+                in_reply_to_sender_user_uuid,
+                in_reply_to_sender_user_domain,
+                in_reply_to_content,
+            }: SqlMessageDraft,
+        ) -> Result<Self, Self::Error> {
+            let in_reply_to = if let Some(message_id) = in_reply_to_message_id
+                && let Some(sender_user_uuid) = in_reply_to_sender_user_uuid
+                && let Some(sender_user_domain) = in_reply_to_sender_user_domain
+            {
+                Some(InReplyToMessage {
+                    message_id,
+                    sender: UserId::new(sender_user_uuid, sender_user_domain),
+                    mimi_content: in_reply_to_content
+                        .map(|BlobDecoded(v)| v.to_mimi_content())
+                        .transpose()?,
+                })
+            } else {
+                None
+            };
+
+            Ok(Self {
+                message,
+                in_reply_to: in_reply_to_mimi_id.map(|id| (id, in_reply_to)),
+                editing_id,
+                updated_at,
+                is_committed,
+            })
+        }
+    }
 
     impl MessageDraft {
         pub(crate) async fn load(
@@ -50,20 +124,41 @@ mod persistence {
             chat_id: ChatId,
         ) -> sqlx::Result<Option<Self>> {
             query_as!(
-                MessageDraft,
+                SqlMessageDraft,
                 r#"
+                    WITH reply_targets AS (
+                        SELECT message_id, mimi_id, sender_user_uuid, sender_user_domain, content
+                            FROM message
+                        UNION ALL
+                        SELECT m.message_id, me.mimi_id, m.sender_user_uuid, m.sender_user_domain, me.content
+                            FROM message_edit me
+                        LEFT JOIN message m ON m.message_id = me.message_id
+                    )
+
                     SELECT
-                        message,
-                        editing_id AS "editing_id: _",
-                        updated_at AS "updated_at: _",
-                        is_committed
-                    FROM message_draft
+                        md.message,
+                        md.editing_id AS "editing_id: _",
+                        md.updated_at AS "updated_at: _",
+                        md.is_committed,
+                        md.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                        rt.message_id AS "in_reply_to_message_id: _",
+                        rt.sender_user_uuid AS "in_reply_to_sender_user_uuid: _",
+                        rt.sender_user_domain AS "in_reply_to_sender_user_domain: _",
+                        rt.content AS "in_reply_to_content: _"
+                    FROM message_draft AS md
+                    LEFT JOIN reply_targets rt ON rt.mimi_id = in_reply_to_mimi_id
                     WHERE chat_id = ?
                 "#,
                 chat_id
             )
             .fetch_optional(executor)
             .await
+            .map(|record: Option<SqlMessageDraft>| {
+                record
+                    .map(TryFrom::try_from)
+                    .transpose()
+                    .map_err(|e: anyhow::Error| sqlx::Error::Decode(e.into_boxed_dyn_error()))
+            })?
         }
 
         pub(crate) async fn store(
@@ -72,17 +167,27 @@ mod persistence {
             notifier: &mut StoreNotifier,
             chat_id: ChatId,
         ) -> sqlx::Result<()> {
+            let in_reply_to_mimi_id = self.in_reply_to.as_ref().map(|(mimi_id, _)| mimi_id);
             query!(
-                "INSERT OR REPLACE INTO message_draft (
+                "INSERT INTO message_draft (
                     chat_id,
                     message,
                     editing_id,
+                    in_reply_to_mimi_id,
                     updated_at,
                     is_committed
-                ) VALUES (?, ?, ?, ?, ?)",
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(chat_id) DO UPDATE SET
+                    message = excluded.message,
+                    editing_id = excluded.editing_id,
+                    in_reply_to_mimi_id = excluded.in_reply_to_mimi_id,
+                    updated_at = excluded.updated_at,
+                    is_committed = excluded.is_committed",
                 chat_id,
                 self.message,
                 self.editing_id,
+                in_reply_to_mimi_id,
                 self.updated_at,
                 self.is_committed,
             )
@@ -156,6 +261,7 @@ mod persistence {
             let draft = MessageDraft {
                 message: "Hello, world!".to_string(),
                 editing_id: Some(message.id()),
+                in_reply_to: None,
                 updated_at: now,
                 is_committed: false,
             };
@@ -174,6 +280,7 @@ mod persistence {
             let updated_draft = MessageDraft {
                 message: "Updated message.".to_string(),
                 editing_id: None, // No longer editing
+                in_reply_to: None,
                 updated_at: updated_now,
                 is_committed: false,
             };
@@ -214,6 +321,7 @@ mod persistence {
             MessageDraft {
                 message: "Hello, world!".to_string(),
                 editing_id: None,
+                in_reply_to: None,
                 updated_at: Utc::now(),
                 is_committed: false,
             }
@@ -223,6 +331,7 @@ mod persistence {
             MessageDraft {
                 message: "Hello, world!".to_string(),
                 editing_id: None,
+                in_reply_to: None,
                 updated_at: Utc::now(),
                 is_committed: true,
             }

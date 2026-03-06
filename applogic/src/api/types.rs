@@ -14,7 +14,7 @@ pub(crate) use aircommon::identifiers::UserHandle;
 pub(crate) use aircoreclient::{AddHandleContactError, ChatId, MessageDraft, MessageId};
 
 pub(crate) use aircommon::identifiers::UserHandleValidationError;
-use aircommon::identifiers::UserId;
+use aircommon::identifiers::{MimiId, UserId};
 use aircoreclient::{
     Asset, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact, ContentMessage, DisplayName,
     ErrorMessage, EventMessage, InactiveChat, Message, SystemMessage, TargetedMessageContact,
@@ -98,7 +98,7 @@ pub struct UiChat {
 }
 
 /// Details of a chat
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, PartialEq)]
 #[frb(type_64bit_int)]
 pub struct UiChatDetails {
     pub id: ChatId,
@@ -109,7 +109,7 @@ pub struct UiChatDetails {
     pub messages_count: usize,
     pub unread_messages: usize,
     pub last_message: Option<UiChatMessage>,
-    pub draft: Option<MessageDraft>,
+    pub draft: Option<UiMessageDraft>,
 }
 
 impl UiChatDetails {
@@ -122,15 +122,90 @@ impl UiChatDetails {
 }
 
 /// UI representation of a [`MessageDraft`]
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, PartialEq)]
 #[doc(hidden)]
-#[frb(mirror(MessageDraft))]
 #[frb(dart_metadata = ("freezed"))]
-pub struct _MessageDraft {
+pub struct UiMessageDraft {
     pub message: String,
     pub editing_id: Option<MessageId>,
+    pub in_reply_to: Option<(MimiId, UiInReplyToMessage)>,
     pub updated_at: DateTime<Utc>,
     pub is_committed: bool,
+}
+
+impl UiMessageDraft {
+    pub fn empty() -> Self {
+        Self {
+            message: String::new(),
+            in_reply_to: None,
+            editing_id: None,
+            updated_at: Utc::now(),
+            is_committed: false,
+        }
+    }
+
+    pub fn to_draft_without_content(&self) -> MessageDraft {
+        // we clone inside because we ignore the MIMI content (optimisation), so do not change thi method to self
+        MessageDraft {
+            message: self.message.clone(),
+            in_reply_to: self
+                .in_reply_to
+                .as_ref()
+                .map(|(mimi_id, _)| (*mimi_id, None)),
+            editing_id: self.editing_id,
+            updated_at: self.updated_at,
+            is_committed: self.is_committed,
+        }
+    }
+}
+
+impl From<MessageDraft> for UiMessageDraft {
+    fn from(
+        MessageDraft {
+            message,
+            editing_id,
+            in_reply_to,
+            updated_at,
+            is_committed,
+        }: MessageDraft,
+    ) -> Self {
+        UiMessageDraft {
+            message,
+            in_reply_to: in_reply_to.map(|(mimi_id, irt)| {
+                (
+                    mimi_id,
+                    match irt {
+                        Some(in_reply_to) => UiInReplyToMessage::Resolved {
+                            message_id: in_reply_to.message_id,
+                            sender: in_reply_to.sender.clone().into(),
+                            mimi_content: in_reply_to
+                                .mimi_content
+                                .clone()
+                                .unwrap_or_default()
+                                .into(),
+                        },
+                        None => UiInReplyToMessage::NotFound,
+                    },
+                )
+            }),
+            editing_id,
+            updated_at,
+            is_committed,
+        }
+    }
+}
+
+/// UI representation of a [`InReplyToMessage`]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[doc(hidden)]
+#[frb(dart_metadata = ("freezed"))]
+pub enum UiInReplyToMessage {
+    NotFound,
+    Resolved {
+        message_id: MessageId,
+        sender: UiUserId,
+        mimi_content: UiMimiContent,
+    },
 }
 
 /// Status of a chat
@@ -264,6 +339,7 @@ pub struct UiChatMessage {
     pub id: MessageId,
     pub timestamp: DateTime<Local>,
     pub message: UiMessage,
+    pub in_reply_to_message: Option<UiInReplyToMessage>,
     pub position: UiFlightPosition,
     pub status: UiMessageStatus,
 }
@@ -284,7 +360,6 @@ pub enum UiMessageStatus {
 }
 
 impl From<ChatMessage> for UiChatMessage {
-    #[frb(ignore)]
     fn from(message: ChatMessage) -> Self {
         let status = match message.status() {
             MessageStatus::Error => UiMessageStatus::Error,
@@ -295,11 +370,22 @@ impl From<ChatMessage> for UiChatMessage {
             _ => UiMessageStatus::Sent,
         };
 
+        let in_reply_to = message.in_reply_to().map(|irt| match irt {
+            (_, Some(in_reply_to)) => UiInReplyToMessage::Resolved {
+                message_id: in_reply_to.message_id,
+                sender: in_reply_to.sender.clone().into(),
+                mimi_content: in_reply_to.mimi_content.clone().unwrap_or_default().into(),
+            },
+            // this means we have a reference but couldn't load the contents (i.e. deleted for me, or in past history after joining)
+            (_, None) => UiInReplyToMessage::NotFound,
+        });
+
         Self {
             chat_id: message.chat_id(),
             id: message.id(),
             timestamp: message.timestamp().with_timezone(&Local),
             message: UiMessage::from(message.message().clone()),
+            in_reply_to_message: in_reply_to,
             position: UiFlightPosition::Single,
             status,
         }
