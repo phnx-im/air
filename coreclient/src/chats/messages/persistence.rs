@@ -271,26 +271,29 @@ impl ChatMessage {
         query_as!(
             SqlChatMessage,
             r#"SELECT
-                message_id AS "message_id: _",
-                mimi_id AS "mimi_id: _",
-                chat_id AS "chat_id: _",
-                timestamp AS "timestamp: _",
-                sender_user_uuid AS "sender_user_uuid: _",
-                sender_user_domain AS "sender_user_domain: _",
-                content AS "content: _",
-                sent,
-                status,
-                edited_at AS "edited_at: _",
+                m.message_id AS "message_id: _",
+                m.mimi_id AS "mimi_id: _",
+                m.chat_id AS "chat_id: _",
+                m.timestamp AS "timestamp: _",
+                m.sender_user_uuid AS "sender_user_uuid: _",
+                m.sender_user_domain AS "sender_user_domain: _",
+                m.content AS "content: _",
+                m.sent,
+                m.status,
+                m.edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                NULL AS "in_reply_to_message_id: _",
-                NULL AS "in_reply_to_sender_user_uuid: _",
-                NULL AS "in_reply_to_sender_user_domain: _",
-                NULL AS "in_reply_to_content: _"
-            FROM message
-            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
-                AND b.user_domain = sender_user_domain
-            WHERE mimi_id = ?
+                m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                COALESCE(rm.message_id, re.message_id) AS "in_reply_to_message_id: _",
+                COALESCE(rm.sender_user_uuid, red.sender_user_uuid) AS "in_reply_to_sender_user_uuid: _",
+                COALESCE(rm.sender_user_domain, red.sender_user_domain) AS "in_reply_to_sender_user_domain: _",
+                COALESCE(rm.content, re.content) AS "in_reply_to_content: _"
+            FROM message m
+            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
+                AND b.user_domain = m.sender_user_domain
+            LEFT JOIN message rm ON m.in_reply_to_mimi_id = rm.mimi_id
+            LEFT JOIN message_edit re ON m.in_reply_to_mimi_id = re.mimi_id
+            LEFT JOIN message red ON re.message_id = red.message_id
+            WHERE m.mimi_id = ?
             "#,
             mimi_id,
         )
@@ -528,27 +531,30 @@ impl ChatMessage {
         query_as!(
             SqlChatMessage,
             r#"SELECT
-                message_id AS "message_id: _",
-                mimi_id AS "mimi_id: _",
-                chat_id AS "chat_id: _",
-                timestamp AS "timestamp: _",
-                sender_user_uuid AS "sender_user_uuid: _",
-                sender_user_domain AS "sender_user_domain: _",
-                content AS "content: _",
-                sent,
-                status,
-                edited_at AS "edited_at: _",
+                m.message_id AS "message_id: _",
+                m.mimi_id AS "mimi_id: _",
+                m.chat_id AS "chat_id: _",
+                m.timestamp AS "timestamp: _",
+                m.sender_user_uuid AS "sender_user_uuid: _",
+                m.sender_user_domain AS "sender_user_domain: _",
+                m.content AS "content: _",
+                m.sent,
+                m.status,
+                m.edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                NULL AS "in_reply_to_message_id: _",
-                NULL AS "in_reply_to_sender_user_uuid: _",
-                NULL AS "in_reply_to_sender_user_domain: _",
-                NULL AS "in_reply_to_content: _"
-            FROM message
-            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
-                AND b.user_domain = sender_user_domain
-            WHERE chat_id = ?
-            ORDER BY timestamp DESC LIMIT 1"#,
+                m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                COALESCE(rm.message_id, re.message_id) AS "in_reply_to_message_id: _",
+                COALESCE(rm.sender_user_uuid, red.sender_user_uuid) AS "in_reply_to_sender_user_uuid: _",
+                COALESCE(rm.sender_user_domain, red.sender_user_domain) AS "in_reply_to_sender_user_domain: _",
+                COALESCE(rm.content, re.content) AS "in_reply_to_content: _"
+            FROM message m
+            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
+                AND b.user_domain = m.sender_user_domain
+            LEFT JOIN message rm ON m.in_reply_to_mimi_id = rm.mimi_id
+            LEFT JOIN message_edit re ON m.in_reply_to_mimi_id = re.mimi_id
+            LEFT JOIN message red ON re.message_id = red.message_id
+            WHERE m.chat_id = ?
+            ORDER BY m.timestamp DESC LIMIT 1"#,
             chat_id,
         )
         .fetch_optional(executor)
@@ -572,29 +578,32 @@ impl ChatMessage {
         query_as!(
             SqlChatMessage,
             r#"SELECT
-                message_id AS "message_id: _",
-                chat_id AS "chat_id: _",
-                mimi_id AS "mimi_id: _",
-                timestamp AS "timestamp: _",
-                sender_user_uuid AS "sender_user_uuid: _",
-                sender_user_domain AS "sender_user_domain: _",
-                content AS "content: _",
-                sent,
-                status,
-                edited_at AS "edited_at: _",
+                m.message_id AS "message_id: _",
+                m.chat_id AS "chat_id: _",
+                m.mimi_id AS "mimi_id: _",
+                m.timestamp AS "timestamp: _",
+                m.sender_user_uuid AS "sender_user_uuid: _",
+                m.sender_user_domain AS "sender_user_domain: _",
+                m.content AS "content: _",
+                m.sent,
+                m.status,
+                m.edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                NULL AS "in_reply_to_message_id: _",
-                NULL AS "in_reply_to_sender_user_uuid: _",
-                NULL AS "in_reply_to_sender_user_domain: _",
-                NULL AS "in_reply_to_content: _"
-            FROM message
-            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
-                AND b.user_domain = sender_user_domain
-            WHERE chat_id = ?
-                AND sender_user_uuid = ?
-                AND sender_user_domain = ?
-            ORDER BY timestamp DESC LIMIT 1"#,
+                m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                COALESCE(rm.message_id, re.message_id) AS "in_reply_to_message_id: _",
+                COALESCE(rm.sender_user_uuid, red.sender_user_uuid) AS "in_reply_to_sender_user_uuid: _",
+                COALESCE(rm.sender_user_domain, red.sender_user_domain) AS "in_reply_to_sender_user_domain: _",
+                COALESCE(rm.content, re.content) AS "in_reply_to_content: _"
+            FROM message m
+            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
+                AND b.user_domain = m.sender_user_domain
+            LEFT JOIN message rm ON m.in_reply_to_mimi_id = rm.mimi_id
+            LEFT JOIN message_edit re ON m.in_reply_to_mimi_id = re.mimi_id
+            LEFT JOIN message red ON re.message_id = red.message_id
+            WHERE m.chat_id = ?
+                AND m.sender_user_uuid = ?
+                AND m.sender_user_domain = ?
+            ORDER BY m.timestamp DESC LIMIT 1"#,
             chat_id,
             user_uuid,
             user_domain,
@@ -617,29 +626,32 @@ impl ChatMessage {
         query_as!(
             SqlChatMessage,
             r#"SELECT
-                message_id AS "message_id: _",
-                mimi_id AS "mimi_id: _",
-                chat_id AS "chat_id: _",
-                timestamp AS "timestamp: _",
-                sender_user_uuid AS "sender_user_uuid: _",
-                sender_user_domain AS "sender_user_domain: _",
-                content AS "content: _",
-                sent,
-                status,
-                edited_at AS "edited_at: _",
+                m.message_id AS "message_id: _",
+                m.mimi_id AS "mimi_id: _",
+                m.chat_id AS "chat_id: _",
+                m.timestamp AS "timestamp: _",
+                m.sender_user_uuid AS "sender_user_uuid: _",
+                m.sender_user_domain AS "sender_user_domain: _",
+                m.content AS "content: _",
+                m.sent,
+                m.status,
+                m.edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                NULL AS "in_reply_to_message_id: _",
-                NULL AS "in_reply_to_sender_user_uuid: _",
-                NULL AS "in_reply_to_sender_user_domain: _",
-                NULL AS "in_reply_to_content: _"
-            FROM message
-            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
-                AND b.user_domain = sender_user_domain
-            WHERE chat_id = ?2
-                AND message_id != ?1
-                AND timestamp <= (SELECT timestamp FROM message WHERE message_id = ?1)
-            ORDER BY timestamp DESC
+                m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                COALESCE(rm.message_id, re.message_id) AS "in_reply_to_message_id: _",
+                COALESCE(rm.sender_user_uuid, red.sender_user_uuid) AS "in_reply_to_sender_user_uuid: _",
+                COALESCE(rm.sender_user_domain, red.sender_user_domain) AS "in_reply_to_sender_user_domain: _",
+                COALESCE(rm.content, re.content) AS "in_reply_to_content: _"
+            FROM message m
+            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
+                AND b.user_domain = m.sender_user_domain
+            LEFT JOIN message rm ON m.in_reply_to_mimi_id = rm.mimi_id
+            LEFT JOIN message_edit re ON m.in_reply_to_mimi_id = re.mimi_id
+            LEFT JOIN message red ON re.message_id = red.message_id
+            WHERE m.chat_id = ?2
+                AND m.message_id != ?1
+                AND m.timestamp <= (SELECT timestamp FROM message WHERE message_id = ?1)
+            ORDER BY m.timestamp DESC
             LIMIT 1"#,
             message_id,
             chat_id,
@@ -662,29 +674,32 @@ impl ChatMessage {
         query_as!(
             SqlChatMessage,
             r#"SELECT
-                message_id AS "message_id: _",
-                mimi_id AS "mimi_id: _",
-                chat_id AS "chat_id: _",
-                timestamp AS "timestamp: _",
-                sender_user_uuid AS "sender_user_uuid: _",
-                sender_user_domain AS "sender_user_domain: _",
-                content AS "content: _",
-                sent,
-                status,
-                edited_at AS "edited_at: _",
+                m.message_id AS "message_id: _",
+                m.mimi_id AS "mimi_id: _",
+                m.chat_id AS "chat_id: _",
+                m.timestamp AS "timestamp: _",
+                m.sender_user_uuid AS "sender_user_uuid: _",
+                m.sender_user_domain AS "sender_user_domain: _",
+                m.content AS "content: _",
+                m.sent,
+                m.status,
+                m.edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                NULL AS "in_reply_to_message_id: _",
-                NULL AS "in_reply_to_sender_user_uuid: _",
-                NULL AS "in_reply_to_sender_user_domain: _",
-                NULL AS "in_reply_to_content: _"
-            FROM message
-            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
-                AND b.user_domain = sender_user_domain
-            WHERE chat_id = ?2
-                AND message_id != ?1
-                AND timestamp >= (SELECT timestamp FROM message WHERE message_id = ?1)
-            ORDER BY timestamp ASC
+                m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                COALESCE(rm.message_id, re.message_id) AS "in_reply_to_message_id: _",
+                COALESCE(rm.sender_user_uuid, red.sender_user_uuid) AS "in_reply_to_sender_user_uuid: _",
+                COALESCE(rm.sender_user_domain, red.sender_user_domain) AS "in_reply_to_sender_user_domain: _",
+                COALESCE(rm.content, re.content) AS "in_reply_to_content: _"
+            FROM message m
+            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
+                AND b.user_domain = m.sender_user_domain
+            LEFT JOIN message rm ON m.in_reply_to_mimi_id = rm.mimi_id
+            LEFT JOIN message_edit re ON m.in_reply_to_mimi_id = re.mimi_id
+            LEFT JOIN message red ON re.message_id = red.message_id
+            WHERE m.chat_id = ?2
+                AND m.message_id != ?1
+                AND m.timestamp >= (SELECT timestamp FROM message WHERE message_id = ?1)
+            ORDER BY m.timestamp ASC
             LIMIT 1"#,
             message_id,
             chat_id,

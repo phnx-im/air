@@ -311,7 +311,7 @@ class _MessageView extends HookWidget {
       );
       // when selection is enabled, it doesn't make sense to enable to drag to
       // reply action implemented with Dimissible.
-      return false
+      return enableSelection
           ? child
           : Dismissible(
               key: key ?? Key(messageId.toString()),

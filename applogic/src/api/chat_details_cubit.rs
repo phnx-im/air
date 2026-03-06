@@ -393,6 +393,19 @@ impl ChatDetailsCubitBase {
         });
     }
 
+    pub async fn reset_draft_reply(&self) {
+        self.core.state_tx().send_if_modified(|state| {
+            let Some(chat) = state.chat.as_mut() else {
+                return false;
+            };
+            let Some(draft) = chat.draft.as_mut() else {
+                return false;
+            };
+
+            draft.in_reply_to.take().is_some()
+        });
+    }
+
     pub async fn edit_message(&self, message_id: Option<MessageId>) -> anyhow::Result<()> {
         // Load message
         let message = match message_id {
@@ -457,8 +470,6 @@ impl ChatDetailsCubitBase {
             warn!("tried to reply to a message without MIMI ID, this is not possible.");
             return Ok(());
         };
-
-        warn!("replying to message with MIMI ID: {mimi_id:?}");
 
         let Some(mimi_content) = message.mimi_content().cloned() else {
             warn!("tried to reply to a message without MIMI content, this is not possible.");

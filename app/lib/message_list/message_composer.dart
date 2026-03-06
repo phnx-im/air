@@ -638,8 +638,7 @@ class _MessageInput extends StatelessWidget {
                       ),
                       padding: EdgeInsets.zero,
                       onPressed: () {
-                        context.read<ChatDetailsCubit>().resetDraft();
-                        _controller.clear();
+                        context.read<ChatDetailsCubit>().resetDraftReply();
                       },
                     ),
                   ),

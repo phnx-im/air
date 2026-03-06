@@ -82,6 +82,8 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
 
   Future<void> resetDraft() => _impl.resetDraft();
 
+  Future<void> resetDraftReply() => _impl.resetDraftReply();
+
   Future<void> editMessage({MessageId? messageId}) =>
       _impl.editMessage(messageId: messageId);
 
