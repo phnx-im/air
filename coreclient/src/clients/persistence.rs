@@ -322,10 +322,9 @@ mod tests {
 
     #[test]
     fn user_creation_state_basic_serde_codec() {
-        insta::assert_binary_snapshot!(
-            ".cbor",
-            PersistenceCodec::to_vec(&*USER_CREATION_STATE_BASIC).unwrap()
-        );
+        let bytes = PersistenceCodec::to_vec(&*USER_CREATION_STATE_BASIC).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
     }
 
     #[test]
@@ -336,7 +335,9 @@ mod tests {
     #[test]
     fn client_record_serde_codec() {
         let record = new_client_record(Uuid::from_u128(1), "2025-01-01T00:00:00Z".parse().unwrap());
-        insta::assert_binary_snapshot!(".cbor", PersistenceCodec::to_vec(&record).unwrap());
+        let bytes = PersistenceCodec::to_vec(&record).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
     }
 
     #[test]

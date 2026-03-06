@@ -817,10 +817,9 @@ pub(crate) mod tests {
 
     #[test]
     fn versioned_message_serde_codec() {
-        insta::assert_binary_snapshot!(
-            ".cbor",
-            PersistenceCodec::to_vec(&*VERSIONED_MESSAGE).unwrap()
-        );
+        let bytes = PersistenceCodec::to_vec(&*VERSIONED_MESSAGE).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
     }
 
     #[test]

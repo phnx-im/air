@@ -58,6 +58,7 @@ webp.workspace = true
 airbackend.workspace = true
 aircommon = { workspace = true, features = ["test_utils"] }
 airserver_test_harness.workspace = true
+cbor-diag.workspace = true
 insta = { workspace = true, features = ["json"] }
 tempfile.workspace = true
 tracing-subscriber.workspace = true
