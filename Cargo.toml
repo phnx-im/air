@@ -43,6 +43,7 @@ blurhash = "0.2.3"
 bytes = "1.11.1"
 camino = "1.1"
 cargo_metadata = "0.23"
+cbor-diag = "0.1.12"
 chrono = { version = "0.4.38", features = ["serde"] }
 ciborium = "0.2"
 clap = { version = "4.5", features = ["derive"] }

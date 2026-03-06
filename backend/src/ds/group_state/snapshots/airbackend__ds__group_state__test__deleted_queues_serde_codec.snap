@@ -1,6 +1,49 @@
 ---
 source: backend/src/ds/group_state/mod.rs
-expression: "PersistenceCodec::to_vec(&*DELETED_QUEUES).unwrap()"
-extension: cbor
-snapshot_kind: binary
+expression: diag
 ---
+82                               # array(2)
+   a1                            #   map(1)
+      6a                         #     text(10)
+         63697068657274657874    #       "ciphertext"
+      a2                         #     map(2)
+         6a                      #       text(10)
+            6b656d5f6f7574707574 #         "kem_output"
+         a1                      #       map(1)
+            63                   #         text(3)
+               766563            #           "vec"
+            83                   #         array(3)
+               01                #           unsigned(1)
+               02                #           unsigned(2)
+               03                #           unsigned(3)
+         6a                      #       text(10)
+            63697068657274657874 #         "ciphertext"
+         a1                      #       map(1)
+            63                   #         text(3)
+               766563            #           "vec"
+            83                   #         array(3)
+               04                #           unsigned(4)
+               05                #           unsigned(5)
+               06                #           unsigned(6)
+   a1                            #   map(1)
+      6a                         #     text(10)
+         63697068657274657874    #       "ciphertext"
+      a2                         #     map(2)
+         6a                      #       text(10)
+            6b656d5f6f7574707574 #         "kem_output"
+         a1                      #       map(1)
+            63                   #         text(3)
+               766563            #           "vec"
+            83                   #         array(3)
+               07                #           unsigned(7)
+               08                #           unsigned(8)
+               09                #           unsigned(9)
+         6a                      #       text(10)
+            63697068657274657874 #         "ciphertext"
+         a1                      #       map(1)
+            63                   #         text(3)
+               766563            #           "vec"
+            83                   #         array(3)
+               0a                #           unsigned(10)
+               0b                #           unsigned(11)
+               0c                #           unsigned(12)
