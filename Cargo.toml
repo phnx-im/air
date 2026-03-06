@@ -11,6 +11,7 @@ members = [
     "backend",
     "common",
     "coreclient",
+    "macros",
     "mls-assist",
     "protos",
     "server",
@@ -23,6 +24,7 @@ airapiclient = { path = "apiclient" }
 airbackend = { path = "backend" }
 aircommon = { path = "common" }
 aircoreclient = { path = "coreclient" }
+airmacros = { path = "macros" }
 airprotos = { path = "protos" }
 airserver = { path = "server" }
 airserver_test_harness = { path = "test_harness" }
@@ -72,7 +74,7 @@ memmap2 = "0.9.5"
 metrics = "0.24.2"
 metrics-exporter-prometheus = { version = "0.17.2", default-features = false }
 mimi-room-policy = { git = "https://github.com/phnx-im/mimi-room-policy", rev = "6406e6d84c1219da3afcccb91007f2fdaaf61193" }
-mimi_content = { git = "https://github.com/boxdot/mimi-content", rev = "18af569b6074ed5b63cb2d5086ffea3acfad3f02" }
+mimi_content = { git = "https://github.com/phnx-im/mimi-content", rev = "9189ef0b350576e6edd130e43d281c8eb9bfe452" }
 mockall = "0.13.1"
 mockito = "1.7.0"
 openmls = { version = "0.7.4" }

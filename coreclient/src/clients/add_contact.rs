@@ -205,10 +205,10 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
         signing_key: &ClientSigningKey,
         attributes: &ChatAttributes,
     ) -> anyhow::Result<(Group, PartialCreateGroupParams)> {
-        let group_data = PersistenceCodec::to_vec(attributes)?.into();
+        let group_data_bytes = PersistenceCodec::to_vec(attributes)?.into();
 
         let (group, partial_params) =
-            Group::create_group(txn, signing_key, self.group_id.clone(), group_data)?;
+            Group::create_group(txn, signing_key, self.group_id.clone(), group_data_bytes)?;
 
         group.store(txn.as_mut()).await?;
 

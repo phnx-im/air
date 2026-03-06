@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::MimiId;
+use aircommon::{identifiers::MimiId, time::TimeStamp};
 use mimi_content::{
     Disposition, MessageStatus, MimiContent, NestedPartContent, content_container::PartSemantics,
 };
