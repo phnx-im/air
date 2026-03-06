@@ -151,8 +151,8 @@ impl UiMessageDraft {
             in_reply_to: self
                 .in_reply_to
                 .as_ref()
-                .map(|(mimi_id, _)| (mimi_id.clone(), None)),
-            editing_id: self.editing_id.clone(),
+                .map(|(mimi_id, _)| (*mimi_id, None)),
+            editing_id: self.editing_id,
             updated_at: self.updated_at,
             is_committed: self.is_committed,
         }

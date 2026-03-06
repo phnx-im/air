@@ -1085,13 +1085,17 @@ async fn handle_message_edit(
         if let Ok(redacted_mimi_id_bytes) = content.mimi_id(sender, group_id)
             && let Ok(redacted_mimi_id) = MimiId::from_slice(&redacted_mimi_id_bytes)
         {
-            ChatMessage::redact_all_in_reply_to_mimi_ids(
+            let updated_message_ids = ChatMessage::redact_all_in_reply_to_mimi_ids(
                 txn.as_mut(),
                 &original_message_id,
                 original_mimi_id,
                 &redacted_mimi_id,
             )
             .await?;
+
+            for message_id in updated_message_ids {
+                notifier.add(message_id);
+            }
         }
 
         // Delete edit history when message is deleted
@@ -1305,7 +1309,7 @@ mod tests {
                 alice.clone(),
                 false,
                 MimiContent::simple_markdown_message("Hello from Alice!".to_string(), [0; 16]),
-                &group_id,
+                group_id,
             ))),
             None,
         );
@@ -1320,7 +1324,7 @@ mod tests {
                 bob.clone(),
                 false,
                 MimiContent::simple_markdown_message("Hello from Bob!".to_string(), [1; 16]),
-                &group_id,
+                group_id,
             ))),
             alice_message.message().mimi_id().cloned(),
         );
@@ -1337,24 +1341,24 @@ mod tests {
         handle_message_edit(
             &mut txn,
             &mut notifier,
-            &group_id,
+            group_id,
             TimeStamp::now(),
             &alice,
-            alice_message.message().mimi_id().unwrap().clone(),
+            *alice_message.message().mimi_id().unwrap(),
             edited_alice_content.clone(),
         )
         .await?;
 
         // Alice deletes her message
         let edited_alice_mimi_id = edited_alice_content
-            .mimi_id(&alice, &group_id)
+            .mimi_id(&alice, group_id)
             .map(|bytes| MimiId::from_slice(&bytes).unwrap())
             .unwrap();
 
         handle_message_edit(
             &mut txn,
             &mut notifier,
-            &group_id,
+            group_id,
             TimeStamp::now(),
             &alice,
             edited_alice_mimi_id,
@@ -1370,10 +1374,10 @@ mod tests {
         handle_message_edit(
             &mut txn,
             &mut notifier,
-            &group_id,
+            group_id,
             TimeStamp::now(),
             &alice,
-            alice_chat_message.message().mimi_id().unwrap().clone(),
+            *alice_chat_message.message().mimi_id().unwrap(),
             redacted_content,
         )
         .await?;

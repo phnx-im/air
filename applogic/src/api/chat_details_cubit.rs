@@ -207,7 +207,7 @@ impl ChatDetailsCubitBase {
         let in_reply_to_mimi_id = draft
             .as_ref()
             .and_then(|d| d.in_reply_to.as_ref())
-            .map(|(mimi_id, _)| mimi_id.clone());
+            .map(|(mimi_id, _)| *mimi_id);
 
         let replaces = if let Some(replaces_id) = draft.and_then(|d| d.editing_id) {
             // Load the original message and the Mimi ID of the original message

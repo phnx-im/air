@@ -351,6 +351,7 @@ mod tests {
                 MimiContent::simple_markdown_message("some content".into(), [0; 16]), // simple seed for testing
                 &GroupId::from_slice(&[0]),
             )),
+            None,
         )
     }
 
