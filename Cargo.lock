@@ -270,8 +270,11 @@ dependencies = [
 name = "airmacros"
 version = "0.1.0"
 dependencies = [
+ "ciborium",
  "proc-macro2",
  "quote",
+ "serde",
+ "serde_bytes",
  "syn",
 ]
 
