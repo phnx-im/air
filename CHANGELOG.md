@@ -1,3 +1,9 @@
+## [0.12.1] - 2026-03-06
+
+### 🐛 Bug Fixes
+
+- *(app)* Sometimes decreasing notification counts (#1063)
+
 ## [0.12.0] - 2026-03-02
 
 ### 🚀 Features

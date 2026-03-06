@@ -4,7 +4,7 @@
 
 [package]
 name = "airapplogic"
-version = "0.12.0"
+version = "0.12.1"
 authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
 edition = "2024"
 publish = false
