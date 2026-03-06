@@ -780,9 +780,11 @@ class InReplyToBubble extends StatelessWidget {
         loc.composer_reply_noaccess_message_placeholder,
       ),
       UiInReplyToMessage_Resolved(:final sender, :final mimiContent) => (
-        context.select(
-          (UsersCubit cubit) => cubit.state.displayName(userId: sender),
-        ),
+        mimiContent.isDeleted
+            ? null
+            : context.select(
+                (UsersCubit cubit) => cubit.state.displayName(userId: sender),
+              ),
         mimiContent.plaintextPreview(loc) ??
             loc.composer_reply_deleted_message_placeholder,
       ),
@@ -810,16 +812,17 @@ class InReplyToBubble extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                senderDisplayName,
-                style: TextStyle(
-                  fontSize: LabelFontSize.small1.size,
-                  fontWeight: FontWeight.bold,
-                  color: color.text.primary,
+              if (senderDisplayName != null)
+                Text(
+                  senderDisplayName,
+                  style: TextStyle(
+                    fontSize: LabelFontSize.small1.size,
+                    fontWeight: FontWeight.bold,
+                    color: color.text.primary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
               Text(
                 contentPreview,
                 style: TextStyle(
