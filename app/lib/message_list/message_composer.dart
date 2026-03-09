@@ -615,25 +615,30 @@ class _MessageInput extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: Spacings.xs),
             child: Stack(
-              clipBehavior: Clip.none,
               children: [
-                InReplyToBubble(
-                  inReplyTo: inReplyToMessage,
-                  backgroundColor: color.fill.secondary,
+                Padding(
+                  padding: const EdgeInsets.only(
+                    top: Spacings.xs, // half of the size of the circle below
+                    right: Spacings.xs,
+                  ),
+                  child: InReplyToBubble(
+                    inReplyTo: inReplyToMessage,
+                    backgroundColor: color.fill.secondary,
+                  ),
                 ),
                 Positioned(
-                  top: -8,
-                  right: -8,
+                  top: 0,
+                  right: 0,
                   child: Container(
                     decoration: BoxDecoration(
                       color: color.backgroundElevated.primary,
                       shape: BoxShape.circle,
                     ),
                     child: IconButton(
-                      icon: const AppIcon.x(size: 12),
+                      icon: const AppIcon.x(size: 14),
                       constraints: const BoxConstraints(
-                        minHeight: Spacings.sm,
-                        minWidth: Spacings.sm,
+                        minHeight: Spacings.m,
+                        minWidth: Spacings.m,
                       ),
                       padding: EdgeInsets.zero,
                       onPressed: () {
