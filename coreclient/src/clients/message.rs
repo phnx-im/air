@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId, time::TimeStamp};
+use aircommon::{identifiers::UserId, time::TimeStamp};
 use anyhow::{Context, bail};
 use mimi_content::{MessageStatus, MimiContent, NestedPartContent};
 use sqlx::SqliteTransaction;
@@ -15,30 +15,6 @@ use crate::{
 };
 
 use super::{CoreUser, Group, StoreNotifier};
-
-/// Create a `MimiContent` with `NullPart` and `replaces` set to the MIMI ID of
-/// the given message. This is used for message deletions, where the content is
-/// replaced with a NullPart to indicate that the message has been deleted,
-/// while still keeping the message visible as a "deleted" placeholder.
-fn null_part_content(message: &ChatMessage) -> anyhow::Result<MimiContent> {
-    let salt: [u8; 16] = RustCrypto::default().random_array()?;
-    Ok(MimiContent {
-        salt: mimi_content::ByteBuf::from(salt.to_vec()),
-        replaces: message
-            .message()
-            .mimi_id()
-            .map(|id| id.as_slice().to_vec().into()),
-        topic_id: Default::default(),
-        expires: None,
-        in_reply_to: None,
-        extensions: Default::default(),
-        nested_part: mimi_content::NestedPart {
-            disposition: mimi_content::Disposition::Render,
-            language: String::new(),
-            part: NestedPartContent::NullPart,
-        },
-    })
-}
 
 impl CoreUser {
     /// Delete a message and send the deletion to other group members.
@@ -57,7 +33,7 @@ impl CoreUser {
             .with_context(|| format!("Can't find message with id {message_id:?}"))?;
 
         // Create NullPart content
-        let null_content = null_part_content(&message)?;
+        let null_content = message.null_part_content()?;
 
         // Send the deletion message
         self.send_message(chat_id, null_content, Some(message))
@@ -111,7 +87,7 @@ impl CoreUser {
             MessageEdit::delete_by_message_id(txn.as_mut(), message_id).await?;
 
             // Create NullPart content for deletion
-            let null_content = null_part_content(&message)?;
+            let null_content = message.null_part_content()?;
 
             // Update the message with NullPart content
             message.set_content_message(ContentMessage::new(

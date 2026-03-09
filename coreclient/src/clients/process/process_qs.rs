@@ -25,7 +25,7 @@ use mimi_content::{
 };
 use mimi_room_policy::RoleIndex;
 use openmls::{
-    group::QueuedProposal,
+    group::{GroupId, QueuedProposal},
     prelude::{
         ApplicationMessage, MlsMessageBodyIn, MlsMessageIn, ProcessedMessageContent,
         ProtocolMessage, Sender, StagedCommit,
@@ -36,7 +36,7 @@ use tls_codec::DeserializeBytes;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    ChatMessage, ChatStatus, ContentMessage, Message, SystemMessage,
+    ChatMessage, ChatStatus, ContentMessage, Message, MimiContentExt, SystemMessage,
     chats::{StatusRecord, messages::edit::MessageEdit},
     clients::{
         QsListenResponder,
@@ -661,7 +661,7 @@ impl CoreUser {
             let message = handle_message_edit(
                 &mut savepoint_txn,
                 notifier,
-                group,
+                group.group_id(),
                 ds_timestamp,
                 sender,
                 mimi_id,
@@ -1033,7 +1033,7 @@ impl CoreUser {
 async fn handle_message_edit(
     txn: &mut SqliteTransaction<'_>,
     notifier: &mut StoreNotifier,
-    group: &Group,
+    group_id: &GroupId,
     ds_timestamp: TimeStamp,
     sender: &UserId,
     replaces: MimiId,
@@ -1060,6 +1060,7 @@ async fn handle_message_edit(
         }
     };
 
+    let original_message_id = message.id();
     let original_mimi_id = message
         .message()
         .mimi_id()
@@ -1080,6 +1081,23 @@ async fn handle_message_edit(
     );
 
     if is_delete {
+        // We need to redact existing references to the message we delete.
+        if let Ok(redacted_mimi_id_bytes) = content.mimi_id(sender, group_id)
+            && let Ok(redacted_mimi_id) = MimiId::from_slice(&redacted_mimi_id_bytes)
+        {
+            let updated_message_ids = ChatMessage::redact_all_in_reply_to_mimi_ids(
+                txn.as_mut(),
+                &original_message_id,
+                original_mimi_id,
+                &redacted_mimi_id,
+            )
+            .await?;
+
+            for message_id in updated_message_ids {
+                notifier.add(message_id);
+            }
+        }
+
         // Delete edit history when message is deleted
         MessageEdit::delete_by_message_id(txn.as_mut(), message.id()).await?;
         // Delete attachments for this message
@@ -1102,7 +1120,7 @@ async fn handle_message_edit(
         original_sender.clone(),
         is_sent,
         content,
-        group.group_id(),
+        group_id,
     ));
     message.set_edited_at(ds_timestamp);
     if is_delete {
@@ -1249,5 +1267,320 @@ impl QsProcessEventResult {
 
     pub fn is_partially_processed(&self) -> bool {
         matches!(self, Self::PartiallyProcessed { .. })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::{identifiers::UserId, time::TimeStamp};
+    use mimi_content::{ByteBuf, MimiContent};
+    use sqlx::SqlitePool;
+
+    use crate::{
+        ChatMessage, ContentMessage, MessageId, chats::persistence::tests::test_chat,
+        clients::process::process_qs::handle_message_edit, store::StoreNotifier,
+    };
+
+    /// Editing a message (without deleting) should not update any `in_reply_to` references.
+    #[sqlx::test]
+    async fn test_handle_message_edit_does_not_update_reply_references(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let mut notifier = StoreNotifier::noop();
+
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
+            .await?;
+
+        let group_id = chat.group_id();
+        let domain = "localhost".parse().unwrap();
+        let alice = UserId::random(domain);
+        let bob = UserId::random("localhost".parse().unwrap());
+
+        // Alice sends a message
+        let alice_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            ContentMessage::new(
+                alice.clone(),
+                false,
+                MimiContent::simple_markdown_message("Hello from Alice!".to_string(), [0; 16]),
+                group_id,
+            ),
+        );
+        alice_message.store(&pool, &mut notifier).await?;
+        let original_alice_mimi_id = *alice_message.message().mimi_id().unwrap();
+
+        // Bob replies to Alice's message
+        let mut bob_mimi_content =
+            MimiContent::simple_markdown_message("Hello from Bob!".to_string(), [1; 16]);
+        bob_mimi_content.in_reply_to = alice_message
+            .message()
+            .mimi_id()
+            .map(|mimi_id| ByteBuf::from(mimi_id.as_slice()));
+        let bob_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            ContentMessage::new(bob.clone(), false, bob_mimi_content, group_id),
+        );
+        bob_message.store(&pool, &mut notifier).await?;
+
+        // Alice edits her message (no delete)
+        let mut txn = pool.begin().await?;
+        let edited_alice_content = MimiContent::simple_markdown_message(
+            "Hello from Alice! WITH EDIT".to_string(),
+            [0; 16],
+        );
+        let alice_message = handle_message_edit(
+            &mut txn,
+            &mut notifier,
+            group_id,
+            TimeStamp::now(),
+            &alice,
+            original_alice_mimi_id,
+            edited_alice_content,
+        )
+        .await?;
+        alice_message.update(txn.as_mut(), &mut notifier).await?;
+
+        // Bob's in_reply_to should still reference the original MIMI ID
+        let bob_message = ChatMessage::load(txn.as_mut(), bob_message.id())
+            .await?
+            .unwrap();
+        assert_eq!(bob_message.in_reply_to().unwrap().0, original_alice_mimi_id);
+
+        Ok(())
+    }
+
+    /// Deleting a message with no replies should succeed without any side effects.
+    #[sqlx::test]
+    async fn test_handle_message_delete_without_replies(pool: SqlitePool) -> anyhow::Result<()> {
+        let mut notifier = StoreNotifier::noop();
+
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
+            .await?;
+
+        let group_id = chat.group_id();
+        let domain = "localhost".parse().unwrap();
+        let alice = UserId::random(domain);
+
+        // Alice sends a message
+        let alice_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            ContentMessage::new(
+                alice.clone(),
+                false,
+                MimiContent::simple_markdown_message("Hello from Alice!".to_string(), [0; 16]),
+                group_id,
+            ),
+        );
+        alice_message.store(&pool, &mut notifier).await?;
+
+        // Alice deletes her message
+        let mut txn = pool.begin().await?;
+        let alice_message = handle_message_edit(
+            &mut txn,
+            &mut notifier,
+            group_id,
+            TimeStamp::now(),
+            &alice,
+            *alice_message.message().mimi_id().unwrap(),
+            alice_message.null_part_content()?,
+        )
+        .await?;
+        alice_message.update(txn.as_mut(), &mut notifier).await?;
+
+        let alice_message = ChatMessage::load(txn.as_mut(), alice_message.id())
+            .await?
+            .unwrap();
+        assert_eq!(alice_message.status(), mimi_content::MessageStatus::Deleted);
+
+        Ok(())
+    }
+
+    /// When multiple messages reply to the same message, deleting it should update all of their
+    /// `in_reply_to` references.
+    #[sqlx::test]
+    async fn test_handle_message_delete_updates_multiple_replies(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let mut notifier = StoreNotifier::noop();
+
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
+            .await?;
+
+        let group_id = chat.group_id();
+        let domain = "localhost".parse().unwrap();
+        let alice = UserId::random(domain);
+        let bob = UserId::random("localhost".parse().unwrap());
+        let carol = UserId::random("localhost".parse().unwrap());
+
+        // Alice sends a message
+        let alice_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            ContentMessage::new(
+                alice.clone(),
+                false,
+                MimiContent::simple_markdown_message("Hello from Alice!".to_string(), [0; 16]),
+                group_id,
+            ),
+        );
+        alice_message.store(&pool, &mut notifier).await?;
+
+        // Bob replies to Alice's message
+        let mut bob_mimi_content =
+            MimiContent::simple_markdown_message("Reply from Bob!".to_string(), [1; 16]);
+        bob_mimi_content.in_reply_to = alice_message
+            .message()
+            .mimi_id()
+            .map(|mimi_id| ByteBuf::from(mimi_id.as_slice()));
+        let bob_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            ContentMessage::new(bob.clone(), false, bob_mimi_content, group_id),
+        );
+        bob_message.store(&pool, &mut notifier).await?;
+
+        // Carol also replies to Alice's message
+        let mut carol_mimi_content =
+            MimiContent::simple_markdown_message("Reply from Carol!".to_string(), [2; 16]);
+        carol_mimi_content.in_reply_to = alice_message
+            .message()
+            .mimi_id()
+            .map(|mimi_id| ByteBuf::from(mimi_id.as_slice()));
+        let carol_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            ContentMessage::new(carol.clone(), false, carol_mimi_content, group_id),
+        );
+        carol_message.store(&pool, &mut notifier).await?;
+
+        // Alice deletes her message
+        let mut txn = pool.begin().await?;
+        let alice_message = handle_message_edit(
+            &mut txn,
+            &mut notifier,
+            group_id,
+            TimeStamp::now(),
+            &alice,
+            *alice_message.message().mimi_id().unwrap(),
+            alice_message.null_part_content()?,
+        )
+        .await?;
+        alice_message.update(txn.as_mut(), &mut notifier).await?;
+
+        // Both Bob's and Carol's in_reply_to should reference Alice's deleted MIMI ID
+        let deleted_mimi_id = alice_message.message().mimi_id().unwrap();
+        let bob_message = ChatMessage::load(txn.as_mut(), bob_message.id())
+            .await?
+            .unwrap();
+        let carol_message = ChatMessage::load(txn.as_mut(), carol_message.id())
+            .await?
+            .unwrap();
+        assert_eq!(&bob_message.in_reply_to().unwrap().0, deleted_mimi_id);
+        assert_eq!(&carol_message.in_reply_to().unwrap().0, deleted_mimi_id);
+
+        Ok(())
+    }
+
+    /// If a message is edited and then another user replies to the *edited* version, deleting the
+    /// message should still update the reply's `in_reply_to` reference.
+    #[sqlx::test]
+    async fn test_handle_message_delete_updates_reply_to_edited_message(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let mut notifier = StoreNotifier::noop();
+
+        let chat = test_chat();
+        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
+            .await?;
+
+        let group_id = chat.group_id();
+        let domain = "localhost".parse().unwrap();
+        let alice = UserId::random(domain);
+        let bob = UserId::random("localhost".parse().unwrap());
+
+        // Alice sends a message
+        let alice_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            ContentMessage::new(
+                alice.clone(),
+                false,
+                MimiContent::simple_markdown_message("Hello from Alice!".to_string(), [0; 16]),
+                group_id,
+            ),
+        );
+        alice_message.store(&pool, &mut notifier).await?;
+
+        // Alice edits her message — the MIMI ID changes
+        let mut txn = pool.begin().await?;
+        let edited_alice_content = MimiContent::simple_markdown_message(
+            "Hello from Alice! WITH EDIT".to_string(),
+            [0; 16],
+        );
+        let alice_message = handle_message_edit(
+            &mut txn,
+            &mut notifier,
+            group_id,
+            TimeStamp::now(),
+            &alice,
+            *alice_message.message().mimi_id().unwrap(),
+            edited_alice_content,
+        )
+        .await?;
+        alice_message.update(txn.as_mut(), &mut notifier).await?;
+        txn.commit().await?;
+
+        // Bob replies to the *edited* version of Alice's message
+        let edited_alice_mimi_id = *alice_message.message().mimi_id().unwrap();
+        let mut bob_mimi_content =
+            MimiContent::simple_markdown_message("Reply to edited message!".to_string(), [1; 16]);
+        bob_mimi_content.in_reply_to =
+            Some(ByteBuf::from(edited_alice_mimi_id.as_slice().to_vec()));
+        let bob_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            ContentMessage::new(bob.clone(), false, bob_mimi_content, group_id),
+        );
+        bob_message.store(&pool, &mut notifier).await?;
+
+        // Alice deletes her (edited) message
+        let mut txn = pool.begin().await?;
+        let alice_message = ChatMessage::load(txn.as_mut(), alice_message.id())
+            .await?
+            .unwrap();
+        let alice_message = handle_message_edit(
+            &mut txn,
+            &mut notifier,
+            group_id,
+            TimeStamp::now(),
+            &alice,
+            *alice_message.message().mimi_id().unwrap(),
+            alice_message.null_part_content()?,
+        )
+        .await?;
+        alice_message.update(txn.as_mut(), &mut notifier).await?;
+
+        // Bob's in_reply_to should reference Alice's deleted MIMI ID (not the edited one)
+        let deleted_mimi_id = alice_message.message().mimi_id().unwrap();
+        let bob_message = ChatMessage::load(txn.as_mut(), bob_message.id())
+            .await?
+            .unwrap();
+        assert_eq!(&bob_message.in_reply_to().unwrap().0, deleted_mimi_id);
+
+        Ok(())
     }
 }

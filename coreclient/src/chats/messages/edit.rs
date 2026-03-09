@@ -64,8 +64,7 @@ mod persistence {
             mimi_id: &MimiId,
         ) -> sqlx::Result<Option<MessageId>> {
             query_scalar!(
-                r#"SELECT
-                    message_id AS "message_id: _"
+                r#"SELECT message_id AS "message_id: _"
                 FROM message_edit
                 WHERE mimi_id = ?"#,
                 mimi_id,

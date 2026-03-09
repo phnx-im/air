@@ -152,7 +152,7 @@ final chats = [
       position: UiFlightPosition.single,
       status: UiMessageStatus.sent,
     ),
-    draft: MessageDraft(
+    draft: UiMessageDraft(
       message: 'Some draft message',
       editingId: null,
       updatedAt: DateTime.now(),
