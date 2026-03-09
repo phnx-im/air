@@ -318,9 +318,9 @@ impl Store for CoreUser {
         &self,
         chat_id: ChatId,
         content: mimi_content::MimiContent,
-        replaces_id: Option<MessageId>,
+        replaces: Option<ChatMessage>,
     ) -> StoreResult<ChatMessage> {
-        self.send_message(chat_id, content, replaces_id).await
+        self.send_message(chat_id, content, replaces).await
     }
 
     async fn delete_message_content_locally(&self, message_id: MessageId) -> StoreResult<()> {

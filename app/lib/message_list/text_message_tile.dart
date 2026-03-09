@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:async' show unawaited;
+import 'dart:async' show Timer, unawaited;
 import 'dart:io';
 
 import 'package:air/attachments/attachments.dart';
@@ -26,6 +26,8 @@ import 'package:air/user/user.dart';
 import 'package:air/util/platform.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/gestures.dart'
+    show EagerGestureRecognizer, kSecondaryMouseButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -413,12 +415,30 @@ class _MessageView extends HookWidget {
                 duration: const Duration(milliseconds: 120),
                 child: IgnorePointer(
                   ignoring: detached,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.deferToChild,
-                    onTap: () => isRevealed.value = true,
-                    onLongPress: onLongPress,
-                    onSecondaryTapDown: onSecondaryTapDown,
-                    child: bubble,
+                  // Right-click: handled via raw pointer events to
+                  // bypass the gesture arena (won by
+                  // _EagerSecondaryClickRecognizer).
+                  child: Listener(
+                    onPointerDown: onSecondaryTapDown != null
+                        ? (event) {
+                            if (event.buttons == kSecondaryMouseButton) {
+                              onSecondaryTapDown(
+                                TapDownDetails(
+                                  globalPosition: event.position,
+                                  localPosition: event.localPosition,
+                                ),
+                              );
+                            }
+                          }
+                        : null,
+                    // Tap and long-press: handled via the
+                    // gesture arena as usual.
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.deferToChild,
+                      onTap: () => isRevealed.value = true,
+                      onLongPress: onLongPress,
+                      child: bubble,
+                    ),
                   ),
                 ),
               ),
@@ -582,7 +602,7 @@ class _MessageView extends HookWidget {
   }
 }
 
-class _MessageMetadataRow extends StatelessWidget {
+class _MessageMetadataRow extends StatefulWidget {
   const _MessageMetadataRow({
     required this.timestamp,
     required this.isSender,
@@ -596,16 +616,61 @@ class _MessageMetadataRow extends StatelessWidget {
   final UiMessageStatus status;
 
   @override
+  State<_MessageMetadataRow> createState() => _MessageMetadataRowState();
+}
+
+class _MessageMetadataRowState extends State<_MessageMetadataRow> {
+  Timer? _sendingTimer;
+  bool _showSending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateSendingTimer();
+  }
+
+  @override
+  void didUpdateWidget(_MessageMetadataRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.status != widget.status) {
+      _updateSendingTimer();
+    }
+  }
+
+  void _updateSendingTimer() {
+    if (widget.status == UiMessageStatus.sending) {
+      if (!_showSending && _sendingTimer == null) {
+        _sendingTimer = Timer(const Duration(seconds: 2), () {
+          _sendingTimer = null;
+          setState(() => _showSending = true);
+        });
+      }
+    } else {
+      _sendingTimer?.cancel();
+      _sendingTimer = null;
+      _showSending = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _sendingTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (!flightPosition.isLast) {
+    if (!widget.flightPosition.isLast) {
       return const SizedBox.shrink();
     }
 
     final loc = AppLocalizations.of(context);
-    final showMessageStatus = isSender && status != UiMessageStatus.hidden;
-    final isSendingOrError =
-        status == UiMessageStatus.error || status == UiMessageStatus.sending;
-    final double leadingSpacing = isSender ? Spacings.s : 0;
+    final showMessageStatus =
+        widget.isSender && widget.status != UiMessageStatus.hidden;
+    final isError = widget.status == UiMessageStatus.error;
+    final isSending = widget.status == UiMessageStatus.sending;
+    final showTimestamp = !isError && !(isSending && _showSending);
+    final double leadingSpacing = widget.isSender ? Spacings.s : 0;
 
     return SelectionContainer.disabled(
       child: Column(
@@ -613,15 +678,15 @@ class _MessageMetadataRow extends StatelessWidget {
         children: [
           const SizedBox(height: 2),
           Row(
-            mainAxisAlignment: isSender
+            mainAxisAlignment: widget.isSender
                 ? MainAxisAlignment.end
                 : MainAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               SizedBox(width: leadingSpacing),
-              if (!isSendingOrError) Timestamp(timestamp),
+              if (showTimestamp) Timestamp(widget.timestamp),
               if (showMessageStatus) const SizedBox(width: Spacings.xxxs),
-              if (showMessageStatus && status == UiMessageStatus.error)
+              if (showMessageStatus && isError)
                 Text(
                   style: TextStyle(
                     color: CustomColorScheme.of(context).function.warning,
@@ -629,7 +694,7 @@ class _MessageMetadataRow extends StatelessWidget {
                   ),
                   loc.messageBubble_failedToSend,
                 ),
-              if (showMessageStatus && status == UiMessageStatus.sending)
+              if (showMessageStatus && isSending && _showSending)
                 Text(
                   style: TextStyle(
                     color: CustomColorScheme.of(context).text.tertiary,
@@ -637,9 +702,10 @@ class _MessageMetadataRow extends StatelessWidget {
                   ),
                   loc.messageBubble_sending,
                 ),
-              if (showMessageStatus && isSendingOrError)
+              if (showMessageStatus && (isError || (isSending && _showSending)))
                 const SizedBox(width: Spacings.xxxs),
-              if (showMessageStatus) MessageStatusIndicator(status: status),
+              if (showMessageStatus)
+                MessageStatusIndicator(status: widget.status),
               const SizedBox(width: Spacings.xs),
             ],
           ),
@@ -751,10 +817,20 @@ class _MessageContent extends StatelessWidget {
           ),
         );
         final Widget selectableChild = enableSelection
-            ? SelectableRegion(
-                selectionControls: emptyTextSelectionControls,
-                contextMenuBuilder: (context, _) => const SizedBox.shrink(),
-                child: textColumn,
+            // Prevents SelectableRegion from selecting
+            // words on right-click.
+            ? RawGestureDetector(
+                gestures: {
+                  _EagerSecondaryClickRecognizer:
+                      GestureRecognizerFactoryWithHandlers<
+                        _EagerSecondaryClickRecognizer
+                      >(_EagerSecondaryClickRecognizer.new, (_) {}),
+                },
+                child: SelectableRegion(
+                  selectionControls: emptyTextSelectionControls,
+                  contextMenuBuilder: (context, _) => const SizedBox.shrink(),
+                  child: textColumn,
+                ),
               )
             : SelectionContainer.disabled(child: textColumn);
         columnChildren.add(selectableChild);
@@ -1085,4 +1161,14 @@ BorderRadius _messageBorderRadius(
         ? r(!isSender || flightPosition.isLast)
         : Radius.zero,
   );
+}
+
+/// Immediately wins the gesture arena for secondary (right) mouse button
+/// clicks, preventing [SelectableRegion] from selecting words on right-click.
+/// Ignores primary button events so text selection via left-click still works.
+class _EagerSecondaryClickRecognizer extends EagerGestureRecognizer {
+  @override
+  bool isPointerAllowed(PointerDownEvent event) {
+    return event.buttons == kSecondaryMouseButton;
+  }
 }

@@ -703,7 +703,7 @@ impl CoreUser {
     }
 
     pub fn user_id(&self) -> &UserId {
-        self.inner.key_store.signing_key.credential().identity()
+        self.inner.key_store.signing_key.credential().user_id()
     }
 
     pub(crate) async fn store_new_messages(

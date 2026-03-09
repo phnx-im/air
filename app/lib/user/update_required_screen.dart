@@ -51,7 +51,7 @@ class UpdateRequiredView extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         toolbarHeight: isPointer() ? 100 : null,
-        backgroundColor: Colors.transparent,
+        backgroundColor: colors.backgroundBase.secondary,
       ),
       backgroundColor: colors.backgroundBase.secondary,
       body: SafeArea(

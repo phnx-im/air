@@ -30,7 +30,7 @@ impl StorableClientCredential {
     /// Stores the client credential in the database if it does not already exist.
     pub(crate) async fn store(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
         let fingerprint = self.fingerprint();
-        let user_id = self.client_credential.identity();
+        let user_id = self.client_credential.user_id();
         let uuid = user_id.uuid();
         let domain = user_id.domain();
         query!(
@@ -85,7 +85,7 @@ mod tests {
         let credential = test_client_credential(Uuid::new_v4());
 
         credential.store(&pool).await?;
-        let loaded = StorableClientCredential::load_by_user_id(&pool, credential.identity())
+        let loaded = StorableClientCredential::load_by_user_id(&pool, credential.user_id())
             .await?
             .expect("missing credential");
         assert_eq!(
@@ -101,7 +101,7 @@ mod tests {
         let credential = test_client_credential(Uuid::new_v4());
 
         credential.store(&pool).await?;
-        let loaded = StorableClientCredential::load_by_user_id(&pool, credential.identity())
+        let loaded = StorableClientCredential::load_by_user_id(&pool, credential.user_id())
             .await?
             .expect("missing credential");
         assert_eq!(
@@ -119,7 +119,7 @@ mod tests {
         let credential_2 = test_client_credential(id);
 
         // precondition
-        assert_eq!(credential_1.identity(), credential_2.identity());
+        assert_eq!(credential_1.user_id(), credential_2.user_id());
         assert_ne!(
             credential_1.tls_serialize_detached(),
             credential_2.tls_serialize_detached()
@@ -128,7 +128,7 @@ mod tests {
         credential_1.store(&pool).await?;
         credential_2.store(&pool).await?;
 
-        let loaded = StorableClientCredential::load_by_user_id(&pool, credential_1.identity())
+        let loaded = StorableClientCredential::load_by_user_id(&pool, credential_1.user_id())
             .await?
             .expect("missing credential");
         assert_eq!(

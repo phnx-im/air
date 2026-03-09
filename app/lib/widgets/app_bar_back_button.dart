@@ -30,28 +30,30 @@ class AppBarBackButton extends StatelessWidget {
       padding: const EdgeInsets.only(left: Spacings.s),
       child: Align(
         alignment: Alignment.centerLeft,
-        child: Material(
-          type: MaterialType.circle,
-          color: Colors.transparent,
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            overlayColor: WidgetStateProperty.all(Colors.transparent),
-            onTap: () async {
-              final navigator = Navigator.of(context);
-              final popped = await navigator.maybePop();
-              if (!popped && context.mounted) {
-                context.read<NavigationCubit>().pop();
-              }
-            },
-            child: Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: backgroundColor,
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: AppIcon.arrowLeft(size: 16, color: foregroundColor),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () async {
+            final navigator = Navigator.of(context);
+            final popped = await navigator.maybePop();
+            if (!popped && context.mounted) {
+              context.read<NavigationCubit>().pop();
+            }
+          },
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: backgroundColor,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: AppIcon.arrowLeft(size: 16, color: foregroundColor),
+                ),
               ),
             ),
           ),

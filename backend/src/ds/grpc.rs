@@ -439,7 +439,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         let credential =
             ClientCredential::tls_deserialize_exact_bytes(own_leaf.credential.serialized_content())
                 .map_err(|_| Status::invalid_argument("invalid credential"))?;
-        let user_id = credential.identity().uuid();
+        let user_id = credential.user_id().uuid();
 
         // Configure the rate-limiting
         let rl_key = RlKey::new(

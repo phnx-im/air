@@ -218,7 +218,7 @@ impl Group {
             .build(&provider, signer, credential_with_key)
             .map_err(|e| anyhow!("Error while creating group: {:?}", e))?;
 
-        let user_id = signer.credential().identity();
+        let user_id = signer.credential().user_id();
         let room_state = VerifiedRoomState::new(
             user_id.tls_serialize_detached()?,
             RoomPolicy::default_trusted_private(),
@@ -401,7 +401,7 @@ impl Group {
                 UserProfileKey::decrypt(
                     welcome_attribution_info.identity_link_wrapper_key(),
                     &eupk,
-                    ci.identity(),
+                    ci.user_id(),
                 )
                 .map(|user_profile_key| ProfileInfo {
                     user_profile_key,
@@ -545,7 +545,7 @@ impl Group {
             })
             .zip(credentials)
             .map(|(eupk, ci)| {
-                UserProfileKey::decrypt(&group.identity_link_wrapper_key, &eupk, ci.identity()).map(
+                UserProfileKey::decrypt(&group.identity_link_wrapper_key, &eupk, ci.user_id()).map(
                     |user_profile_key| ProfileInfo {
                         user_profile_key,
                         client_credential: ci.into(),
@@ -583,10 +583,7 @@ impl Group {
             .iter()
             .zip(client_credentials.iter())
             .map(|(upk, client_credential)| {
-                upk.encrypt(
-                    &self.identity_link_wrapper_key,
-                    client_credential.identity(),
-                )
+                upk.encrypt(&self.identity_link_wrapper_key, client_credential.user_id())
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -623,7 +620,7 @@ impl Group {
             .map(|wai_key| {
                 // WAI = WelcomeAttributionInfo
                 let wai_payload = WelcomeAttributionInfoPayload::new(
-                    signer.credential().identity().clone(),
+                    signer.credential().user_id().clone(),
                     self.identity_link_wrapper_key.clone(),
                 );
 
@@ -958,9 +955,13 @@ impl Group {
                 builder = builder.propose_group_context_extensions(extensions);
             };
 
+            let leaf_node_parameters = LeafNodeParameters::builder()
+                .with_capabilities(default_capabilities())
+                .build();
             let (mls_message, _welcome_option, group_info_option) = builder
                 .force_self_update(true)
                 .create_group_info(true)
+                .leaf_node_parameters(leaf_node_parameters)
                 .load_psks(provider.storage())?
                 .build(provider.rand(), provider.crypto(), signer, |_| true)?
                 .stage_commit(&provider)?
@@ -1286,7 +1287,7 @@ impl TimestampedMessage {
             let remover = group
                 .credential_at(*sender_index, verified)?
                 .context("Could not find client credential of message sender")?
-                .identity()
+                .user_id()
                 .clone();
 
             let Some(removed_index) = removed_client(remove_proposal) else {
@@ -1297,7 +1298,7 @@ impl TimestampedMessage {
             let removed = group
                 .credential_at(removed_index, verified)?
                 .context("Could not find client credential of removed")?
-                .identity()
+                .user_id()
                 .clone();
 
             if remover == removed {
@@ -1325,7 +1326,7 @@ impl TimestampedMessage {
             let sender_id = group
                 .credential_at(*sender_index, verified)?
                 .context("Could not find client credential of sender")?
-                .identity()
+                .user_id()
                 .clone();
 
             // Get the user id of the added member from the proposal key package
@@ -1355,7 +1356,7 @@ impl TimestampedMessage {
                 let credential = group
                     .credential_at(*sender_index, verified)?
                     .context("Could not find client credential of sender")?;
-                let user_id = credential.identity();
+                let user_id = credential.user_id();
                 debug!(
                     ?user_id,
                     %sender_index, "Client has updated their key material",

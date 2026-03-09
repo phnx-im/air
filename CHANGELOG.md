@@ -1,3 +1,42 @@
+## [0.12.1] - 2026-03-06
+
+### 🐛 Bug Fixes
+
+- *(app)* Sometimes decreasing notification counts (#1063)
+
+## [0.12.0] - 2026-03-02
+
+### 🚀 Features
+
+- *(app)* Regular updates of own key material in groups (#1039)
+- *(app)* Add group debug info view (#1049)
+- *(app)* Chat list design overhaul (#1048)
+
+### 🐛 Bug Fixes
+
+- *(ci)* Sync image upload to play store (#1043)
+- *(app)* Make selection in composer smoother (#1046)
+- *(app)* Mobile image preview (#1045)
+- *(ci)* Bring back update-goldens job (#1047)
+- *(app)* Load groups clean only when necessary (#1040)
+- *(app)* Fix stuck outbound service (#1051)
+- *(app)* Hide message composer in contact request screen (#1053)
+- *(app)* Include system font scale (#1057)
+- *(app)* Right click on messages improvements (#1058)
+- *(app)* Increase back button hit area (#1059)
+- *(app)* Ignore empty edits (#1050)
+- *(app)* Consistent status bar color in light mode (#1054)
+- *(app)* Follow up tweaks (#1061)
+
+### 💼 Other
+
+- Auto-publish Android app on upload to internal track (#1056)
+
+### 🚜 Refactor
+
+- *(app)* Remove group membership (#1044)
+- Rename client credential identity to user id (#1052)
+
 ## [0.11.1] - 2026-02-18
 
 ### 🚀 Features

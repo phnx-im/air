@@ -251,7 +251,7 @@ pub trait Store {
         &self,
         chat_id: ChatId,
         content: MimiContent,
-        replaces_id: Option<MessageId>,
+        replaces_id: Option<ChatMessage>,
     ) -> StoreResult<ChatMessage>;
 
     async fn resend_message(&self, local_message_id: Uuid) -> StoreResult<()>;

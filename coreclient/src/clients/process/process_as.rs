@@ -167,7 +167,7 @@ impl CoreUser {
         let message_timestamp = sent_at.unwrap_or_else(TimeStamp::now);
 
         // Deny connection from blocked users
-        if BlockedContact::check_blocked(self.pool(), sender_client_credential.identity()).await? {
+        if BlockedContact::check_blocked(self.pool(), sender_client_credential.user_id()).await? {
             bail!(BlockedContactError);
         }
 
@@ -189,7 +189,7 @@ impl CoreUser {
                 .friendship_package
                 .user_profile_base_secret
                 .clone(),
-            sender_client_credential.identity(),
+            sender_client_credential.user_id(),
         )?;
         if let Err(error) = self
             .fetch_profile((sender_client_credential.clone(), sender_profile_key))
@@ -219,7 +219,7 @@ impl CoreUser {
             let user_profile_key = UserProfileKey::decrypt(
                 &connection_info.connection_group_identity_link_wrapper_key,
                 encrypted_user_profile_key,
-                sender_client_credential.identity(),
+                sender_client_credential.user_id(),
             )?;
 
             // Fetch and store user profile (it also creates a new contact)
@@ -232,7 +232,7 @@ impl CoreUser {
         }
 
         self.with_transaction_and_notifier(async |txn, notifier| {
-            let sender_user_id = sender_client_credential.identity();
+            let sender_user_id = sender_client_credential.user_id();
 
             // Create pending unconfirmed chat
             let (chat, partial_contact) = self
