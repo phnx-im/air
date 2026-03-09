@@ -70,7 +70,7 @@ jobs:
 
       # CHECK RUST
       - uses: extractions/setup-just@v2
-      - uses: dtolnay/rust-toolchain@1.92.0
+      - uses: dtolnay/rust-toolchain@1.94.0
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-deny@0.19.0,sqlx-cli@0.8.6,cargo-machete@0.9.1
