@@ -36,7 +36,7 @@ Future<void> showMobileMessageActions({
       final overlayView = _MobileMessageActionView(
         animation: curvedAnimation,
         anchorRect: anchorRect,
-        actions: actions,
+        contextMenuEntries: actions,
         messageContent: messageContent,
         alignEnd: alignEnd,
       );
@@ -57,14 +57,14 @@ class _MobileMessageActionView extends StatelessWidget {
   const _MobileMessageActionView({
     required this.animation,
     required this.anchorRect,
-    required this.actions,
+    required this.contextMenuEntries,
     required this.messageContent,
     required this.alignEnd,
   });
 
   final Animation<double> animation;
   final Rect anchorRect;
-  final List<ContextMenuEntry> actions;
+  final List<ContextMenuEntry> contextMenuEntries;
   final Widget messageContent;
   final bool alignEnd;
 
@@ -80,9 +80,9 @@ class _MobileMessageActionView extends StatelessWidget {
     final messageWidth = anchorRect.width;
 
     // Height of the action sheet that may appear below the bubble.
-    final double sheetHeight = actions.isEmpty
+    final double sheetHeight = contextMenuEntries.isEmpty
         ? 0.0
-        : actions.length * _mobileActionRowHeight;
+        : contextMenuEntries.length * _mobileActionRowHeight;
 
     // Downscale bubble if it cannot fit into the available viewport space and
     // reserve space for the action sheet when present.
@@ -208,7 +208,7 @@ class _MobileMessageActionView extends StatelessWidget {
                 top: sheetTop,
                 child: _MobileContextMenu(
                   animation: animation,
-                  actions: actions,
+                  entries: contextMenuEntries,
                   alignEnd: alignEnd,
                 ),
               ),
@@ -222,12 +222,12 @@ class _MobileMessageActionView extends StatelessWidget {
 class _MobileContextMenu extends StatelessWidget {
   const _MobileContextMenu({
     required this.animation,
-    required this.actions,
+    required this.entries,
     required this.alignEnd,
   });
 
   final Animation<double> animation;
-  final List<ContextMenuEntry> actions;
+  final List<ContextMenuEntry> entries;
   final bool alignEnd;
 
   @override
@@ -244,7 +244,7 @@ class _MobileContextMenu extends StatelessWidget {
           alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
           child: IntrinsicWidth(
             child: ContextMenuUi(
-              menuItems: actions,
+              menuItems: entries,
               onHide: () => Navigator.of(context).pop(),
             ),
           ),

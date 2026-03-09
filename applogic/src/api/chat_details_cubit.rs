@@ -6,7 +6,6 @@
 
 use std::{collections::HashMap, path::PathBuf, time::Duration};
 
-pub use aircommon::identifiers::MimiId;
 use aircommon::{
     OpenMlsRand, RustCrypto,
     identifiers::{AttachmentId, UserId},

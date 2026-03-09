@@ -376,7 +376,8 @@ impl From<ChatMessage> for UiChatMessage {
                 sender: in_reply_to.sender.clone().into(),
                 mimi_content: in_reply_to.mimi_content.clone().unwrap_or_default().into(),
             },
-            // this means we have a reference but couldn't load the contents (i.e. deleted for me, or in past history after joining)
+            // this means we have a reference but couldn't load the contents
+            // (i.e. deleted for me, or in past history after joining).
             (_, None) => UiInReplyToMessage::NotFound,
         });
 
