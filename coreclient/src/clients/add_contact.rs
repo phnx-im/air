@@ -89,7 +89,7 @@ impl CoreUser {
             verified_connection_package.into_current();
 
         // Phase 3: Prepare the connection locally
-        let group_id = client.ds_request_group_id().await?;
+        let (group_id, _) = client.ds_request_group_id(false).await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: verified_connection_package,
             group_id,
@@ -157,7 +157,7 @@ impl CoreUser {
         }
 
         // Phase 1: Prepare the connection locally
-        let group_id = client.ds_request_group_id().await?;
+        let (group_id, _) = client.ds_request_group_id(false).await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: user_id,
             group_id,
