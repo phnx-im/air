@@ -4,7 +4,7 @@
 
 [package]
 name = "airbackend"
-version = "0.12.0"
+version = "0.12.1"
 authors = ["Phoenix R&D <hello@phnx.im>"]
 edition = "2024"
 include = ["./migrations/**"]
@@ -50,6 +50,7 @@ zeroize.workspace = true
 [dev-dependencies]
 aircommon = { workspace = true, features = ["test_utils"] }
 anyhow.workspace = true
+cbor-diag.workspace = true
 insta.workspace = true
 mockall.workspace = true
 serde_json.workspace = true

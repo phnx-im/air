@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+// TODO: Adjust the names of the APIs <https://github.com/phnx-im/air/issues/1073>
+
 use aircommon::time::ExpirationData;
 use airprotos::{
     common::v1::{
@@ -33,14 +35,14 @@ use crate::settings::StoragePaths;
 use super::{Ds, storage::Storage};
 
 impl Ds {
-    pub(super) async fn provision_attachment(
+    pub(super) async fn provision_object(
         &self,
         object_type: StorageObjectType,
         content_length: Option<u64>,
         use_post_policy: bool,
-    ) -> Result<ProvisionAttachmentResponse, ProvisionAttachmentError> {
+    ) -> Result<ProvisionAttachmentResponse, ProvisionObjectError> {
         let Some(storage) = self.storage.as_ref() else {
-            return Err(ProvisionAttachmentError::NoStorageConfigured);
+            return Err(ProvisionObjectError::NoStorageConfigured);
         };
 
         let object_id = Uuid::new_v4();
@@ -56,7 +58,7 @@ impl Ds {
         Ok(response)
     }
 
-    pub(super) async fn get_attachment_url(
+    pub(super) async fn get_object_url(
         &self,
         object_id: Uuid,
         object_type: StorageObjectType,
@@ -108,7 +110,7 @@ async fn create_signed_put(
     expiration: ExpirationData,
     content_length: Option<u64>,
     object_type: StorageObjectType,
-) -> Result<ProvisionAttachmentResponse, ProvisionAttachmentError> {
+) -> Result<ProvisionAttachmentResponse, ProvisionObjectError> {
     let not_before: DateTime<Utc> = expiration.not_before().into();
     let not_after: DateTime<Utc> = expiration.not_after().into();
     let duration = not_after - not_before;
@@ -125,14 +127,14 @@ async fn create_signed_put(
 
     let request = if let Some(content_length) = content_length {
         if settings.max_attachment_size < content_length {
-            return Err(ProvisionAttachmentError::AttachmentTooLarge {
+            return Err(ProvisionObjectError::DataTooLarge {
                 max_size: settings.max_attachment_size,
                 actual_size: content_length,
             });
         }
         request.set_content_length(Some(content_length as i64))
     } else if settings.require_content_length {
-        return Err(ProvisionAttachmentError::ContentLengthRequired);
+        return Err(ProvisionObjectError::ContentLengthRequired);
     } else {
         request
     };
@@ -250,7 +252,7 @@ fn storage_key(paths: &StoragePaths, object_id: Uuid, object_type: StorageObject
 }
 
 #[derive(Debug, thiserror::Error, Display)]
-pub(super) enum ProvisionAttachmentError {
+pub(super) enum ProvisionObjectError {
     /// Attachments are not supported
     NoStorageConfigured,
     /// Internal error
@@ -264,42 +266,42 @@ pub(super) enum ProvisionAttachmentError {
     /// Content length is required
     ContentLengthRequired,
     /// Attachment is too large: {actual_size} bytes > {max_size} bytes
-    AttachmentTooLarge { max_size: u64, actual_size: u64 },
+    DataTooLarge { max_size: u64, actual_size: u64 },
 }
 
-impl From<ProvisionAttachmentError> for Status {
-    fn from(error: ProvisionAttachmentError) -> Self {
+impl From<ProvisionObjectError> for Status {
+    fn from(error: ProvisionObjectError) -> Self {
         let msg = error.to_string();
         match error {
-            ProvisionAttachmentError::NoStorageConfigured => {
+            ProvisionObjectError::NoStorageConfigured => {
                 error!("Storage is not configured");
                 Status::internal(msg)
             }
-            ProvisionAttachmentError::Build(error) => {
+            ProvisionObjectError::Build(error) => {
                 error!(%error, "Failed to build S3 config");
                 Status::internal(msg)
             }
-            ProvisionAttachmentError::Duration(error) => {
+            ProvisionObjectError::Duration(error) => {
                 error!(%error, "Failed to convert chrono to std duration");
                 Status::internal(msg)
             }
-            ProvisionAttachmentError::Presigning(error) => {
+            ProvisionObjectError::Presigning(error) => {
                 error!(%error, "Failed to create presigning config");
                 Status::internal(msg)
             }
-            ProvisionAttachmentError::Sdk(error) => {
+            ProvisionObjectError::Sdk(error) => {
                 error!(%error, "Failed to build S3 request");
                 Status::internal(msg)
             }
-            ProvisionAttachmentError::ContentLengthRequired => {
+            ProvisionObjectError::ContentLengthRequired => {
                 Status::invalid_argument("content length is required")
             }
-            ProvisionAttachmentError::AttachmentTooLarge {
+            ProvisionObjectError::DataTooLarge {
                 max_size,
                 actual_size,
             } => {
                 let message = format!(
-                    "attachment is too large; maximum size is {max_size} bytes, \
+                    "data is too large; maximum size is {max_size} bytes, \
                         actual size is {actual_size} bytes",
                 );
                 Status::with_details(

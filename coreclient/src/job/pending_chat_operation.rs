@@ -443,7 +443,6 @@ impl PendingChatOperation {
         let mut group = Group::load_clean_verified(txn, group_id)
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
-
         let group_data_bytes = new_group_data.map(|data| data.encode()).transpose()?;
 
         let params = group

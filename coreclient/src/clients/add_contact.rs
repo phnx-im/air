@@ -218,7 +218,7 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
             title,
             encrypted_title: Some(encrypted_title),
             picture: None,
-            // No group profile is uploaded, because there is no addiotnal data except for the
+            // No group profile is uploaded, because there is no additational data except for the
             // title.
             external_group_profile: None,
         }

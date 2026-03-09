@@ -11,8 +11,8 @@ use aircommon::{
     identifiers::{AttachmentId, UserId},
 };
 use aircoreclient::{
-    AttachmentProgress, Chat, ChatId, ChatMessage, MessageDraft, MessageId,
-    ProvisionAttachmentError, UploadTaskError, clients::CoreUser, store::Store,
+    AttachmentProgress, Chat, ChatId, ChatMessage, MessageId, ProvisionAttachmentError,
+    UploadTaskError, clients::CoreUser, store::Store,
 };
 pub use aircoreclient::{DebugCapabilities, GroupDebugInfo, RequiredDebugCapabilities};
 use anyhow::{Context as _, bail};
@@ -21,10 +21,10 @@ use flutter_rust_bridge::frb;
 use mimi_content::MimiContent;
 use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
-use crate::message_content::MimiContentExt;
-use crate::{StreamSink, mark_as_read::MarkAsReadState};
+use crate::{StreamSink, api::types::UiInReplyToMessage, mark_as_read::MarkAsReadState};
+use crate::{api::types::UiMessageDraft, message_content::MimiContentExt};
 use crate::{
     api::{
         attachments_repository::{AttachmentTaskHandle, AttachmentsRepository, InProgressMap},
@@ -47,7 +47,7 @@ use super::{types::UiChatDetails, user_cubit::UserCubitBase};
 ///
 /// Also see [`ChatDetailsCubitBase`].
 #[frb(dart_metadata = ("freezed"))]
-#[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct ChatDetailsState {
     pub chat: Option<UiChatDetails>,
     pub members: Vec<UiUserId>,
@@ -203,6 +203,11 @@ impl ChatDetailsCubitBase {
                 .await?;
         }
 
+        let in_reply_to_mimi_id = draft
+            .as_ref()
+            .and_then(|d| d.in_reply_to.as_ref())
+            .map(|(mimi_id, _)| *mimi_id);
+
         let replaces = if let Some(replaces_id) = draft.and_then(|d| d.editing_id) {
             // Load the original message and the Mimi ID of the original message
             let original: ChatMessage = self
@@ -229,7 +234,9 @@ impl ChatDetailsCubitBase {
         };
 
         let salt: [u8; 16] = RustCrypto::default().random_array()?;
-        let content = MimiContent::simple_markdown_message(message_text, salt);
+        let mut content = MimiContent::simple_markdown_message(message_text, salt);
+        // TODO: we should have nice setters and not have to deal with encoding ourselves (in mimi_content)
+        content.in_reply_to = in_reply_to_mimi_id.map(Into::into);
 
         self.context
             .store
@@ -361,10 +368,10 @@ impl ChatDetailsCubitBase {
                 }
                 Some(_) => false,
                 None => {
-                    chat.draft.replace(MessageDraft {
+                    chat.draft.replace(UiMessageDraft {
                         message: draft_message,
                         is_committed,
-                        ..MessageDraft::empty()
+                        ..UiMessageDraft::empty()
                     });
                     true
                 }
@@ -382,6 +389,19 @@ impl ChatDetailsCubitBase {
                 return false;
             };
             chat.draft.take().is_some()
+        });
+    }
+
+    pub async fn reset_draft_reply(&self) {
+        self.core.state_tx().send_if_modified(|state| {
+            let Some(chat) = state.chat.as_mut() else {
+                return false;
+            };
+            let Some(draft) = chat.draft.as_mut() else {
+                return false;
+            };
+
+            draft.in_reply_to.take().is_some()
         });
     }
 
@@ -414,7 +434,7 @@ impl ChatDetailsCubitBase {
             let Some(chat) = state.chat.as_mut() else {
                 return false;
             };
-            let draft = chat.draft.get_or_insert_with(MessageDraft::empty);
+            let draft = chat.draft.get_or_insert_with(UiMessageDraft::empty);
             if draft.editing_id.is_some() {
                 return false;
             }
@@ -431,14 +451,67 @@ impl ChatDetailsCubitBase {
         Ok(())
     }
 
+    pub async fn reply_to_message(&self, message_id: MessageId) -> anyhow::Result<()> {
+        // Load message
+        let Some(chat_message) = self.context.store.message(message_id).await? else {
+            warn!("could not load selected message to stage a reply");
+            return Ok(());
+        };
+
+        let message = chat_message.message();
+
+        let Some(sender) = message.sender().cloned() else {
+            warn!("tried to reply to a message without sender, this is not possible.");
+            return Ok(());
+        };
+
+        let Some(mimi_id) = message.mimi_id().cloned() else {
+            warn!("tried to reply to a message without MIMI ID, this is not possible.");
+            return Ok(());
+        };
+
+        let Some(mimi_content) = message.mimi_content().cloned() else {
+            warn!("tried to reply to a message without MIMI content, this is not possible.");
+            return Ok(());
+        };
+
+        // Update draft in state
+        let changed = self.core.state_tx().send_if_modified(|state| {
+            let Some(chat) = state.chat.as_mut() else {
+                return false;
+            };
+
+            let draft = chat.draft.get_or_insert_with(UiMessageDraft::empty);
+            if draft.editing_id.is_some() {
+                return false;
+            }
+
+            draft.message = String::new();
+            draft.in_reply_to = Some((
+                mimi_id.into(),
+                UiInReplyToMessage::Resolved {
+                    message_id,
+                    sender: sender.into(),
+                    mimi_content: mimi_content.into(),
+                },
+            ));
+            draft.is_committed = false;
+            true
+        });
+
+        if changed {
+            self.store_draft_from_state().await?;
+        }
+
+        Ok(())
+    }
+
     async fn store_draft_from_state(&self) -> anyhow::Result<()> {
-        let draft = self
-            .core
-            .state_tx()
-            .borrow()
-            .chat
-            .as_ref()
-            .and_then(|c| c.draft.clone());
+        let draft = self.core.state_tx().borrow().chat.as_ref().and_then(|c| {
+            c.draft
+                .as_ref()
+                .map(UiMessageDraft::to_draft_without_content)
+        });
         self.context
             .store
             .store_message_draft(self.context.chat_id, draft.as_ref())
@@ -606,7 +679,11 @@ pub(super) async fn load_chat_details(store: &impl Store, chat: Chat) -> UiChatD
 
     let chat_type = UiChatType::load_from_chat_type(store, chat.chat_type).await;
 
-    let draft = store.message_draft(chat.id).await.unwrap_or_default();
+    let draft = store
+        .message_draft(chat.id)
+        .await
+        .unwrap_or_default()
+        .map(Into::into);
 
     UiChatDetails {
         id: chat.id,

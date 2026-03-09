@@ -439,13 +439,7 @@ class _LastMessage extends StatelessWidget {
         ? draftMessage
         : switch (lastMessage?.message) {
             UiMessage_Content(field0: final content) =>
-              content.content.plainBody?.isNotEmpty == true
-                  ? content.content.plainBody
-                  : content.content.attachments.isNotEmpty
-                  ? content.content.attachments.first.imageMetadata != null
-                        ? loc.chatList_imageEmoji
-                        : loc.chatList_fileEmoji
-                  : '',
+              content.content.plaintextPreview(loc),
             UiMessage_Display(field0: final eventMessage) =>
               switch (eventMessage) {
                 UiEventMessage_System(field0: final systemMessage) => () {

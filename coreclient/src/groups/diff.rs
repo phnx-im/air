@@ -91,10 +91,9 @@ mod test {
 
     #[test]
     fn test_group_staged_diff_serde_codec() {
-        insta::assert_binary_snapshot!(
-            ".cbor",
-            PersistenceCodec::to_vec(&*STAGED_GROUP_DIFF).unwrap()
-        );
+        let bytes = PersistenceCodec::to_vec(&*STAGED_GROUP_DIFF).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
     }
 
     #[test]

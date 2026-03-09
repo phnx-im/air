@@ -485,4 +485,132 @@ $MessageContentCopyWith<$Res>? get content {
 }
 }
 
+/// @nodoc
+mixin _$UiMimiId {
+
+ U8Array32 get field0;
+/// Create a copy of UiMimiId
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiMimiIdCopyWith<UiMimiId> get copyWith => _$UiMimiIdCopyWithImpl<UiMimiId>(this as UiMimiId, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiMimiId&&const DeepCollectionEquality().equals(other.field0, field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(field0));
+
+@override
+String toString() {
+  return 'UiMimiId(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiMimiIdCopyWith<$Res>  {
+  factory $UiMimiIdCopyWith(UiMimiId value, $Res Function(UiMimiId) _then) = _$UiMimiIdCopyWithImpl;
+@useResult
+$Res call({
+ U8Array32 field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiMimiIdCopyWithImpl<$Res>
+    implements $UiMimiIdCopyWith<$Res> {
+  _$UiMimiIdCopyWithImpl(this._self, this._then);
+
+  final UiMimiId _self;
+  final $Res Function(UiMimiId) _then;
+
+/// Create a copy of UiMimiId
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? field0 = null,}) {
+  return _then(_self.copyWith(
+field0: null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as U8Array32,
+  ));
+}
+
+}
+
+
+
+/// @nodoc
+
+
+class _UiMimiId implements UiMimiId {
+  const _UiMimiId({required this.field0});
+  
+
+@override final  U8Array32 field0;
+
+/// Create a copy of UiMimiId
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$UiMimiIdCopyWith<_UiMimiId> get copyWith => __$UiMimiIdCopyWithImpl<_UiMimiId>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiMimiId&&const DeepCollectionEquality().equals(other.field0, field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(field0));
+
+@override
+String toString() {
+  return 'UiMimiId(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$UiMimiIdCopyWith<$Res> implements $UiMimiIdCopyWith<$Res> {
+  factory _$UiMimiIdCopyWith(_UiMimiId value, $Res Function(_UiMimiId) _then) = __$UiMimiIdCopyWithImpl;
+@override @useResult
+$Res call({
+ U8Array32 field0
+});
+
+
+
+
+}
+/// @nodoc
+class __$UiMimiIdCopyWithImpl<$Res>
+    implements _$UiMimiIdCopyWith<$Res> {
+  __$UiMimiIdCopyWithImpl(this._self, this._then);
+
+  final _UiMimiId _self;
+  final $Res Function(_UiMimiId) _then;
+
+/// Create a copy of UiMimiId
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(_UiMimiId(
+field0: null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as U8Array32,
+  ));
+}
+
+
+}
+
 // dart format on

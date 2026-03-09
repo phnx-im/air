@@ -12,24 +12,10 @@ import 'package:air/ui/components/context_menu/context_menu_ui.dart';
 
 const double _mobileActionRowHeight = 56.0;
 
-class MessageAction {
-  const MessageAction({
-    required this.label,
-    this.leading,
-    required this.onSelected,
-    this.isDestructive = false,
-  });
-
-  final String label;
-  final Widget? leading;
-  final VoidCallback onSelected;
-  final bool isDestructive;
-}
-
 Future<void> showMobileMessageActions({
   required BuildContext context,
   required Rect anchorRect,
-  required List<MessageAction> actions,
+  required List<ContextMenuEntry> actions,
   required Widget messageContent,
   required bool alignEnd,
 }) {
@@ -50,7 +36,7 @@ Future<void> showMobileMessageActions({
       final overlayView = _MobileMessageActionView(
         animation: curvedAnimation,
         anchorRect: anchorRect,
-        actions: actions,
+        contextMenuEntries: actions,
         messageContent: messageContent,
         alignEnd: alignEnd,
       );
@@ -71,14 +57,14 @@ class _MobileMessageActionView extends StatelessWidget {
   const _MobileMessageActionView({
     required this.animation,
     required this.anchorRect,
-    required this.actions,
+    required this.contextMenuEntries,
     required this.messageContent,
     required this.alignEnd,
   });
 
   final Animation<double> animation;
   final Rect anchorRect;
-  final List<MessageAction> actions;
+  final List<ContextMenuEntry> contextMenuEntries;
   final Widget messageContent;
   final bool alignEnd;
 
@@ -94,9 +80,9 @@ class _MobileMessageActionView extends StatelessWidget {
     final messageWidth = anchorRect.width;
 
     // Height of the action sheet that may appear below the bubble.
-    final double sheetHeight = actions.isEmpty
+    final double sheetHeight = contextMenuEntries.isEmpty
         ? 0.0
-        : actions.length * _mobileActionRowHeight;
+        : contextMenuEntries.length * _mobileActionRowHeight;
 
     // Downscale bubble if it cannot fit into the available viewport space and
     // reserve space for the action sheet when present.
@@ -222,7 +208,7 @@ class _MobileMessageActionView extends StatelessWidget {
                 top: sheetTop,
                 child: _MobileContextMenu(
                   animation: animation,
-                  actions: actions,
+                  entries: contextMenuEntries,
                   alignEnd: alignEnd,
                 ),
               ),
@@ -236,34 +222,16 @@ class _MobileMessageActionView extends StatelessWidget {
 class _MobileContextMenu extends StatelessWidget {
   const _MobileContextMenu({
     required this.animation,
-    required this.actions,
+    required this.entries,
     required this.alignEnd,
   });
 
   final Animation<double> animation;
-  final List<MessageAction> actions;
+  final List<ContextMenuEntry> entries;
   final bool alignEnd;
 
   @override
   Widget build(BuildContext context) {
-    final items = <ContextMenuEntry>[];
-    for (final (index, action) in actions.indexed) {
-      if (index > 0) {
-        items.add(const ContextMenuSeparator());
-      }
-      items.add(
-        ContextMenuItem(
-          label: action.label,
-          leading: action.leading,
-          isDestructive: action.isDestructive,
-          onPressed: () {
-            Navigator.of(context).pop();
-            action.onSelected();
-          },
-        ),
-      );
-    }
-
     final slideAnimation = animation.drive(
       Tween<Offset>(begin: const Offset(0, 0.12), end: Offset.zero),
     );
@@ -276,7 +244,7 @@ class _MobileContextMenu extends StatelessWidget {
           alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
           child: IntrinsicWidth(
             child: ContextMenuUi(
-              menuItems: items,
+              menuItems: entries,
               onHide: () => Navigator.of(context).pop(),
             ),
           ),

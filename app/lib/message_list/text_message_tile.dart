@@ -11,6 +11,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/main.dart';
 import 'package:air/message_list/jumbo_emoji.dart';
+import 'package:air/message_list/message_composer.dart';
 import 'package:air/message_list/mobile_message_actions.dart';
 import 'package:air/message_list/timestamp.dart';
 import 'package:air/navigation/navigation.dart';
@@ -26,6 +27,7 @@ import 'package:air/user/user.dart';
 import 'package:air/util/platform.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:file_selector/file_selector.dart';
+import 'package:path/path.dart' as p;
 import 'package:flutter/gestures.dart'
     show EagerGestureRecognizer, kSecondaryMouseButton;
 import 'package:flutter/material.dart';
@@ -93,6 +95,7 @@ class TextMessageTile extends StatelessWidget {
   const TextMessageTile({
     required this.messageId,
     required this.contentMessage,
+    required this.inReplyToMessage,
     required this.timestamp,
     required this.flightPosition,
     required this.status,
@@ -103,6 +106,7 @@ class TextMessageTile extends StatelessWidget {
 
   final MessageId messageId;
   final UiContentMessage contentMessage;
+  final UiInReplyToMessage? inReplyToMessage;
   final DateTime timestamp;
   final UiFlightPosition flightPosition;
   final UiMessageStatus status;
@@ -116,6 +120,7 @@ class TextMessageTile extends StatelessWidget {
       return _IncomingMessageTile(
         messageId: messageId,
         contentMessage: contentMessage,
+        inReplyToMessage: inReplyToMessage,
         timestamp: timestamp,
         flightPosition: flightPosition,
         status: status,
@@ -125,6 +130,7 @@ class TextMessageTile extends StatelessWidget {
     return _MessageView(
       messageId: messageId,
       contentMessage: contentMessage,
+      inReplyToMessage: inReplyToMessage,
       timestamp: timestamp,
       isSender: isSender,
       flightPosition: flightPosition,
@@ -139,6 +145,7 @@ class _IncomingMessageTile extends StatelessWidget {
   const _IncomingMessageTile({
     required this.messageId,
     required this.contentMessage,
+    required this.inReplyToMessage,
     required this.timestamp,
     required this.flightPosition,
     required this.status,
@@ -146,6 +153,7 @@ class _IncomingMessageTile extends StatelessWidget {
 
   final MessageId messageId;
   final UiContentMessage contentMessage;
+  final UiInReplyToMessage? inReplyToMessage;
   final DateTime timestamp;
   final UiFlightPosition flightPosition;
   final UiMessageStatus status;
@@ -204,6 +212,7 @@ class _IncomingMessageTile extends StatelessWidget {
               child: _MessageView(
                 messageId: messageId,
                 contentMessage: contentMessage,
+                inReplyToMessage: inReplyToMessage,
                 timestamp: timestamp,
                 isSender: false,
                 flightPosition: flightPosition,
@@ -234,6 +243,7 @@ class _MessageView extends HookWidget {
   const _MessageView({
     required this.messageId,
     required this.contentMessage,
+    required this.inReplyToMessage,
     required this.timestamp,
     required this.flightPosition,
     required this.isSender,
@@ -244,6 +254,7 @@ class _MessageView extends HookWidget {
 
   final MessageId messageId;
   final UiContentMessage contentMessage;
+  final UiInReplyToMessage? inReplyToMessage;
   final DateTime timestamp;
   final UiFlightPosition flightPosition;
   final bool isSender;
@@ -276,6 +287,8 @@ class _MessageView extends HookWidget {
     }, [contextMenuController]);
 
     final loc = AppLocalizations.of(context);
+    final colors = CustomColorScheme.of(context);
+
     final plainBody = contentMessage.content.plainBody?.trim();
     final platform = Theme.of(context).platform;
     final bool isMobilePlatform =
@@ -288,6 +301,7 @@ class _MessageView extends HookWidget {
     Widget buildMessageBubble({required bool enableSelection, GlobalKey? key}) {
       Widget child = _MessageContent(
         content: contentMessage.content,
+        inReplyToMessage: inReplyToMessage,
         isSender: isSender,
         senderId: contentMessage.sender,
         flightPosition: flightPosition,
@@ -295,82 +309,96 @@ class _MessageView extends HookWidget {
         isHidden: status == UiMessageStatus.hidden && !isRevealed.value,
         enableSelection: enableSelection,
       );
-      if (key != null) {
-        child = KeyedSubtree(key: key, child: child);
-      }
-      return child;
+      // when selection is enabled, it doesn't make sense to enable to drag to
+      // reply action implemented with Dismissible.
+      return enableSelection
+          ? child
+          : Dismissible(
+              key: key ?? Key(messageId.toString()),
+              direction: DismissDirection.startToEnd,
+              confirmDismiss: (direction) async {
+                context.read<ChatDetailsCubit>().replyToMessage(
+                  messageId: messageId,
+                );
+                return false;
+              },
+              dismissThresholds: const {DismissDirection.startToEnd: 0.1},
+              background: Container(
+                alignment: Alignment.centerLeft,
+                padding: const EdgeInsets.only(left: 20.0),
+                child: AppIcon.cornerLeft(
+                  size: 16,
+                  color: colors.function.black,
+                ),
+              ),
+              child: child,
+            );
     }
 
     final attachments = contentMessage.content.attachments;
-    final colors = CustomColorScheme.of(context);
-    final isDeleted =
-        contentMessage.content.replaces != null &&
-        contentMessage.content.content == null;
+    final isDeleted = contentMessage.content.isDeleted;
 
     const iconSize = 16.0;
 
-    final actions = <MessageAction>[
+    final actions = <ContextMenuEntry>[
+      if (!isDeleted)
+        ContextMenuItem(
+          label: loc.messageContextMenu_reply,
+          leading: const AppIcon.cornerLeft(size: iconSize),
+          onPressed: () {
+            context.read<ChatDetailsCubit>().replyToMessage(
+              messageId: messageId,
+            );
+          },
+        ),
       if (plainBody != null && plainBody.isNotEmpty)
-        MessageAction(
+        ContextMenuItem(
           label: loc.messageContextMenu_copy,
           leading: const AppIcon.copy(size: iconSize),
-          onSelected: () {
+          onPressed: () {
             Clipboard.setData(ClipboardData(text: plainBody));
           },
         ),
       if (isSender && attachments.isEmpty && !isDeleted)
-        MessageAction(
+        ContextMenuItem(
           label: loc.messageContextMenu_edit,
           leading: const AppIcon.pencil(size: iconSize),
-          onSelected: () {
+          onPressed: () {
             context.read<ChatDetailsCubit>().editMessage(messageId: messageId);
           },
         ),
-      if (!isDeleted)
-        MessageAction(
+      if (!isDeleted) ...[
+        const ContextMenuSeparator(),
+        ContextMenuItem(
           label: loc.messageContextMenu_delete,
           leading: AppIcon.trash(size: iconSize, color: colors.function.danger),
           isDestructive: true,
-          onSelected: () => isSender
+          onPressed: () => isSender
               ? _showDeleteMessageDialog(context: context, messageId: messageId)
               : _showDeleteForMeDialog(context: context, messageId: messageId),
         ),
+      ],
       if (isDeleted)
-        MessageAction(
+        ContextMenuItem(
           label: loc.messageContextMenu_delete,
           leading: AppIcon.trash(size: iconSize, color: colors.function.danger),
           isDestructive: true,
-          onSelected: () =>
+          onPressed: () =>
               _showDeleteForMeDialog(context: context, messageId: messageId),
         ),
       if (attachments.isNotEmpty && !Platform.isIOS)
-        MessageAction(
+        ContextMenuItem(
           label: loc.messageContextMenu_save,
           leading: const AppIcon.download(size: iconSize),
-          onSelected: () => _handleFileSave(context, attachments.first),
+          onPressed: () => _handleFileSave(context, attachments.first),
         ),
       if (attachments.isNotEmpty && Platform.isIOS)
-        MessageAction(
+        ContextMenuItem(
           label: loc.messageContextMenu_share,
           leading: const AppIcon.share(size: iconSize),
-          onSelected: () => _handleFileShare(context, attachments),
+          onPressed: () => _handleFileShare(context, attachments),
         ),
     ];
-
-    final menuItems = <ContextMenuEntry>[];
-    for (final (index, action) in actions.indexed) {
-      if (index > 0) {
-        menuItems.add(const ContextMenuSeparator());
-      }
-      menuItems.add(
-        ContextMenuItem(
-          label: action.label,
-          leading: action.leading,
-          onPressed: action.onSelected,
-          isDestructive: action.isDestructive,
-        ),
-      );
-    }
 
     final metadata = Padding(
       padding: EdgeInsets.only(left: isSender ? 0 : messageHorizontalPadding),
@@ -500,7 +528,7 @@ class _MessageView extends HookWidget {
             : ContextMenuDirection.right,
         offset: const Offset(Spacings.xxs, 0),
         controller: contextMenuController,
-        menuItems: menuItems,
+        menuItems: actions,
         cursorPosition: cursorPositionNotifier,
         child: buildMessageShell(
           onLongPress: null,
@@ -536,7 +564,7 @@ class _MessageView extends HookWidget {
         return;
       }
       await saveFileAndroid(
-        fileName: attachment.filename,
+        fileName: p.basename(attachment.filename),
         mimeType: attachment.contentType,
         data: data,
       );
@@ -545,7 +573,7 @@ class _MessageView extends HookWidget {
       // dialog
       final attachmentsRepository = context.read<AttachmentsRepository>();
       final location = await getSaveLocation(
-        suggestedName: attachment.filename,
+        suggestedName: p.basename(attachment.filename),
       );
       if (location == null) return;
       final path = location.path;
@@ -718,6 +746,7 @@ class _MessageMetadataRowState extends State<_MessageMetadataRow> {
 class _MessageContent extends StatelessWidget {
   const _MessageContent({
     required this.content,
+    required this.inReplyToMessage,
     required this.isSender,
     required this.senderId,
     required this.flightPosition,
@@ -727,6 +756,7 @@ class _MessageContent extends StatelessWidget {
   });
 
   final UiMimiContent content;
+  final UiInReplyToMessage? inReplyToMessage;
   final bool isSender;
   final UiUserId senderId;
   final UiFlightPosition flightPosition;
@@ -738,7 +768,7 @@ class _MessageContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final colors = CustomColorScheme.of(context);
-    final bool isDeleted = content.replaces != null && content.content == null;
+    final bool isDeleted = content.isDeleted;
     final bool isJumboEmoji =
         !isDeleted && !isHidden && isJumboEmojiMessage(content);
     // Hide the bubble background and padding for jumbo emoji
@@ -837,6 +867,9 @@ class _MessageContent extends StatelessWidget {
       }
     }
 
+    final inReplyTo = inReplyToMessage;
+    final color = CustomColorScheme.of(context);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 1.5),
       child: Container(
@@ -858,8 +891,20 @@ class _MessageContent extends StatelessWidget {
               children: [
                 // Main content (reserves space if edited)
                 Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (inReplyTo != null)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          left: Spacings.xs,
+                          right: Spacings.xs,
+                          top: Spacings.xs,
+                        ),
+                        child: InReplyToBubble(
+                          inReplyTo: inReplyTo,
+                          backgroundColor: color.fill.secondary,
+                        ),
+                      ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: columnChildren,

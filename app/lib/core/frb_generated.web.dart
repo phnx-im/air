@@ -32,6 +32,7 @@ import 'api/utils.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
+import 'lib.dart';
 import 'notifications.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_web.dart';
 import 'package:uuid/uuid.dart';
@@ -684,9 +685,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MessageContent dco_decode_box_autoadd_message_content(dynamic raw);
 
   @protected
-  MessageDraft dco_decode_box_autoadd_message_draft(dynamic raw);
-
-  @protected
   MessageId dco_decode_box_autoadd_message_id(dynamic raw);
 
   @protected
@@ -694,6 +692,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformPushToken dco_decode_box_autoadd_platform_push_token(dynamic raw);
+
+  @protected
+  (UiMimiId, UiInReplyToMessage)
+  dco_decode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(dynamic raw);
 
   @protected
   RequiredDebugCapabilities dco_decode_box_autoadd_required_debug_capabilities(
@@ -719,7 +721,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiImageMetadata dco_decode_box_autoadd_ui_image_metadata(dynamic raw);
 
   @protected
+  UiInReplyToMessage dco_decode_box_autoadd_ui_in_reply_to_message(dynamic raw);
+
+  @protected
   UiInactiveChat dco_decode_box_autoadd_ui_inactive_chat(dynamic raw);
+
+  @protected
+  UiMessageDraft dco_decode_box_autoadd_ui_message_draft(dynamic raw);
+
+  @protected
+  UiMimiContent dco_decode_box_autoadd_ui_mimi_content(dynamic raw);
 
   @protected
   UiSystemMessage dco_decode_box_autoadd_ui_system_message(dynamic raw);
@@ -868,9 +879,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MessageContent dco_decode_message_content(dynamic raw);
 
   @protected
-  MessageDraft dco_decode_message_draft(dynamic raw);
-
-  @protected
   MessageId dco_decode_message_id(dynamic raw);
 
   @protected
@@ -937,13 +945,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MessageContent? dco_decode_opt_box_autoadd_message_content(dynamic raw);
 
   @protected
-  MessageDraft? dco_decode_opt_box_autoadd_message_draft(dynamic raw);
-
-  @protected
   MessageId? dco_decode_opt_box_autoadd_message_id(dynamic raw);
 
   @protected
   PlatformPushToken? dco_decode_opt_box_autoadd_platform_push_token(
+    dynamic raw,
+  );
+
+  @protected
+  (UiMimiId, UiInReplyToMessage)?
+  dco_decode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
     dynamic raw,
   );
 
@@ -962,6 +973,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiImageMetadata? dco_decode_opt_box_autoadd_ui_image_metadata(dynamic raw);
+
+  @protected
+  UiInReplyToMessage? dco_decode_opt_box_autoadd_ui_in_reply_to_message(
+    dynamic raw,
+  );
+
+  @protected
+  UiMessageDraft? dco_decode_opt_box_autoadd_ui_message_draft(dynamic raw);
 
   @protected
   UiUserHandle? dco_decode_opt_box_autoadd_ui_user_handle(dynamic raw);
@@ -1002,6 +1021,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  (UiMimiId, UiInReplyToMessage)
+  dco_decode_record_ui_mimi_id_ui_in_reply_to_message(dynamic raw);
+
+  @protected
   RequiredDebugCapabilities dco_decode_required_debug_capabilities(dynamic raw);
 
   @protected
@@ -1012,6 +1035,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_u_8(dynamic raw);
+
+  @protected
+  U8Array32 dco_decode_u_8_array_32(dynamic raw);
 
   @protected
   UiAttachment dco_decode_ui_attachment(dynamic raw);
@@ -1056,16 +1082,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiImageMetadata dco_decode_ui_image_metadata(dynamic raw);
 
   @protected
+  UiInReplyToMessage dco_decode_ui_in_reply_to_message(dynamic raw);
+
+  @protected
   UiInactiveChat dco_decode_ui_inactive_chat(dynamic raw);
 
   @protected
   UiMessage dco_decode_ui_message(dynamic raw);
 
   @protected
+  UiMessageDraft dco_decode_ui_message_draft(dynamic raw);
+
+  @protected
   UiMessageStatus dco_decode_ui_message_status(dynamic raw);
 
   @protected
   UiMimiContent dco_decode_ui_mimi_content(dynamic raw);
+
+  @protected
+  UiMimiId dco_decode_ui_mimi_id(dynamic raw);
 
   @protected
   UiSystemMessage dco_decode_ui_system_message(dynamic raw);
@@ -1655,11 +1690,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  MessageDraft sse_decode_box_autoadd_message_draft(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   MessageId sse_decode_box_autoadd_message_id(SseDeserializer deserializer);
 
   @protected
@@ -1669,6 +1699,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformPushToken sse_decode_box_autoadd_platform_push_token(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  (UiMimiId, UiInReplyToMessage)
+  sse_decode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
     SseDeserializer deserializer,
   );
 
@@ -1706,7 +1742,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UiInReplyToMessage sse_decode_box_autoadd_ui_in_reply_to_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UiInactiveChat sse_decode_box_autoadd_ui_inactive_chat(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiMessageDraft sse_decode_box_autoadd_ui_message_draft(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiMimiContent sse_decode_box_autoadd_ui_mimi_content(
     SseDeserializer deserializer,
   );
 
@@ -1887,9 +1938,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MessageContent sse_decode_message_content(SseDeserializer deserializer);
 
   @protected
-  MessageDraft sse_decode_message_draft(SseDeserializer deserializer);
-
-  @protected
   MessageId sse_decode_message_id(SseDeserializer deserializer);
 
   @protected
@@ -1966,17 +2014,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  MessageDraft? sse_decode_opt_box_autoadd_message_draft(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   MessageId? sse_decode_opt_box_autoadd_message_id(
     SseDeserializer deserializer,
   );
 
   @protected
   PlatformPushToken? sse_decode_opt_box_autoadd_platform_push_token(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  (UiMimiId, UiInReplyToMessage)?
+  sse_decode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
     SseDeserializer deserializer,
   );
 
@@ -2003,6 +2052,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiImageMetadata? sse_decode_opt_box_autoadd_ui_image_metadata(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiInReplyToMessage? sse_decode_opt_box_autoadd_ui_in_reply_to_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiMessageDraft? sse_decode_opt_box_autoadd_ui_message_draft(
     SseDeserializer deserializer,
   );
 
@@ -2055,6 +2114,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  (UiMimiId, UiInReplyToMessage)
+  sse_decode_record_ui_mimi_id_ui_in_reply_to_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RequiredDebugCapabilities sse_decode_required_debug_capabilities(
     SseDeserializer deserializer,
   );
@@ -2067,6 +2132,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
+
+  @protected
+  U8Array32 sse_decode_u_8_array_32(SseDeserializer deserializer);
 
   @protected
   UiAttachment sse_decode_ui_attachment(SseDeserializer deserializer);
@@ -2113,16 +2181,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiImageMetadata sse_decode_ui_image_metadata(SseDeserializer deserializer);
 
   @protected
+  UiInReplyToMessage sse_decode_ui_in_reply_to_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UiInactiveChat sse_decode_ui_inactive_chat(SseDeserializer deserializer);
 
   @protected
   UiMessage sse_decode_ui_message(SseDeserializer deserializer);
 
   @protected
+  UiMessageDraft sse_decode_ui_message_draft(SseDeserializer deserializer);
+
+  @protected
   UiMessageStatus sse_decode_ui_message_status(SseDeserializer deserializer);
 
   @protected
   UiMimiContent sse_decode_ui_mimi_content(SseDeserializer deserializer);
+
+  @protected
+  UiMimiId sse_decode_ui_mimi_id(SseDeserializer deserializer);
 
   @protected
   UiSystemMessage sse_decode_ui_system_message(SseDeserializer deserializer);
@@ -2836,12 +2915,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_box_autoadd_message_draft(
-    MessageDraft self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_box_autoadd_message_id(
     MessageId self,
     SseSerializer serializer,
@@ -2856,6 +2929,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_platform_push_token(
     PlatformPushToken self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
+    (UiMimiId, UiInReplyToMessage) self,
     SseSerializer serializer,
   );
 
@@ -2902,8 +2981,26 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_ui_in_reply_to_message(
+    UiInReplyToMessage self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_ui_inactive_chat(
     UiInactiveChat self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_ui_message_draft(
+    UiMessageDraft self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_ui_mimi_content(
+    UiMimiContent self,
     SseSerializer serializer,
   );
 
@@ -3136,9 +3233,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_message_draft(MessageDraft self, SseSerializer serializer);
-
-  @protected
   void sse_encode_message_id(MessageId self, SseSerializer serializer);
 
   @protected
@@ -3235,12 +3329,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_opt_box_autoadd_message_draft(
-    MessageDraft? self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_opt_box_autoadd_message_id(
     MessageId? self,
     SseSerializer serializer,
@@ -3249,6 +3337,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_platform_push_token(
     PlatformPushToken? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
+    (UiMimiId, UiInReplyToMessage)? self,
     SseSerializer serializer,
   );
 
@@ -3279,6 +3373,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_ui_image_metadata(
     UiImageMetadata? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_ui_in_reply_to_message(
+    UiInReplyToMessage? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_ui_message_draft(
+    UiMessageDraft? self,
     SseSerializer serializer,
   );
 
@@ -3346,6 +3452,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_record_ui_mimi_id_ui_in_reply_to_message(
+    (UiMimiId, UiInReplyToMessage) self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_required_debug_capabilities(
     RequiredDebugCapabilities self,
     SseSerializer serializer,
@@ -3359,6 +3471,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_u_8(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_8_array_32(U8Array32 self, SseSerializer serializer);
 
   @protected
   void sse_encode_ui_attachment(UiAttachment self, SseSerializer serializer);
@@ -3427,6 +3542,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_ui_in_reply_to_message(
+    UiInReplyToMessage self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_ui_inactive_chat(
     UiInactiveChat self,
     SseSerializer serializer,
@@ -3436,6 +3557,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_ui_message(UiMessage self, SseSerializer serializer);
 
   @protected
+  void sse_encode_ui_message_draft(
+    UiMessageDraft self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_ui_message_status(
     UiMessageStatus self,
     SseSerializer serializer,
@@ -3443,6 +3570,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_ui_mimi_content(UiMimiContent self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ui_mimi_id(UiMimiId self, SseSerializer serializer);
 
   @protected
   void sse_encode_ui_system_message(

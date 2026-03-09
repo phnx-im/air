@@ -22,8 +22,8 @@ CLIENT_DATABASE_URL := if os() == "windows" {
 
 # Reset and migrate databases.
 reset-dev:
-    cargo sqlx database reset -y --database-url {{CLIENT_DATABASE_URL}}
-    cargo sqlx database reset -y --database-url {{SERVER_DATABASE_URL}}
+    cd coreclient && cargo sqlx database reset -y --database-url {{CLIENT_DATABASE_URL}}
+    cd backend && cargo sqlx database reset -y --database-url {{SERVER_DATABASE_URL}}
 
 # Migrate databases.
 migrate-dev:
@@ -64,7 +64,7 @@ migrate-dev:
 _check-status command:
     #!/usr/bin/env -S bash -eu
     echo "{{BOLD}}Running {{command}}{{NORMAL}}"
-    if ! {{command}}; then
+    if ! { {{command}}; }; then
         just _log-error "{{command}}"
     fi
 

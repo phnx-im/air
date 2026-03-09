@@ -209,6 +209,10 @@
   "composer_error_attachment": "Failed to upload attachment. Try again.",
   "composer_error_attachment_too_large": "Attachment is too large. The maximum size is {maxSize} and the actual size is {actualSize}.",
 
+  "composer_reply_deleted_message_placeholder": "Original message deleted",
+  "composer_reply_noaccess_message_user": "Unknown user",
+  "composer_reply_noaccess_message_placeholder": "You don't have access to this message.",
+
   "attachmentSize": "{size} {byteUnit}",
   "@attachmentSize": {
     "placeholders": {
@@ -245,6 +249,7 @@
   "linkConfirmation_openLink": "Open",
   "linkConfirmation_cancel": "Cancel",
 
+  "messageContextMenu_reply": "Reply",
   "messageContextMenu_copy": "Copy",
   "messageContextMenu_edit": "Edit",
   "messageContextMenu_delete": "Delete",
