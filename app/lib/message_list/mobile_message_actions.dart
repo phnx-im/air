@@ -15,7 +15,7 @@ const double _mobileActionRowHeight = 56.0;
 Future<void> showMobileMessageActions({
   required BuildContext context,
   required Rect anchorRect,
-  required List<ContextMenuItem> actions,
+  required List<ContextMenuEntry> actions,
   required Widget messageContent,
   required bool alignEnd,
 }) {
@@ -64,7 +64,7 @@ class _MobileMessageActionView extends StatelessWidget {
 
   final Animation<double> animation;
   final Rect anchorRect;
-  final List<ContextMenuItem> actions;
+  final List<ContextMenuEntry> actions;
   final Widget messageContent;
   final bool alignEnd;
 
@@ -227,29 +227,11 @@ class _MobileContextMenu extends StatelessWidget {
   });
 
   final Animation<double> animation;
-  final List<ContextMenuItem> actions;
+  final List<ContextMenuEntry> actions;
   final bool alignEnd;
 
   @override
   Widget build(BuildContext context) {
-    final items = <ContextMenuEntry>[];
-    for (final (index, action) in actions.indexed) {
-      if (index > 0) {
-        items.add(const ContextMenuSeparator());
-      }
-      items.add(
-        ContextMenuItem(
-          label: action.label,
-          leading: action.leading,
-          isDestructive: action.isDestructive,
-          onPressed: () {
-            Navigator.of(context).pop();
-            action.onPressed();
-          },
-        ),
-      );
-    }
-
     final slideAnimation = animation.drive(
       Tween<Offset>(begin: const Offset(0, 0.12), end: Offset.zero),
     );
@@ -262,7 +244,7 @@ class _MobileContextMenu extends StatelessWidget {
           alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
           child: IntrinsicWidth(
             child: ContextMenuUi(
-              menuItems: items,
+              menuItems: actions,
               onHide: () => Navigator.of(context).pop(),
             ),
           ),

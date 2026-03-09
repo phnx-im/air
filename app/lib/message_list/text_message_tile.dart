@@ -8,7 +8,6 @@ import 'dart:io';
 import 'package:air/attachments/attachments.dart';
 import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
-import 'package:air/core/lib.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/main.dart';
 import 'package:air/message_list/jumbo_emoji.dart';
@@ -500,7 +499,7 @@ class _MessageView extends HookWidget {
                   final future = showMobileMessageActions(
                     context: context,
                     anchorRect: anchorRect,
-                    actions: actions.cast(),
+                    actions: actions,
                     messageContent: overlayBubble,
                     alignEnd: isSender,
                   );
