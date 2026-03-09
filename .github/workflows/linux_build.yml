@@ -38,7 +38,7 @@ jobs:
       - run: echo /home/runner/fvm/bin >> $GITHUB_PATH
 
       - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@1.92.0
+        uses: dtolnay/rust-toolchain@1.94.0
 
       - uses: Swatinem/rust-cache@v2
         with:

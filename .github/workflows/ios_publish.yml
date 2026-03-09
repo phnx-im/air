@@ -47,7 +47,7 @@ jobs:
       - run: echo /Users/runner/fvm/bin >> $GITHUB_PATH
 
       - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@1.92.0
+        uses: dtolnay/rust-toolchain@1.94.0
 
       - name: Set up iOS CI
         env:
