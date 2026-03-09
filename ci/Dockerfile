@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1
-# needs to match the base debian version of distroless container images
+# This needs to match the base debian version of distroless container images:
+# if we build backend services that we run in Kubernetes with the distroless image
+# we need a match of glibc to be able to execute the binary.
 # see: https://github.com/GoogleContainerTools/distroless
 FROM debian:13
 ENV DEBIAN_FRONTEND=noninteractive
