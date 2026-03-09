@@ -6,7 +6,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:air/attachments/attachments.dart';
-import 'package:air/core/lib.dart';
 import 'package:air/l10n/app_localizations_extension.dart';
 import 'package:air/main.dart';
 import 'package:air/message_list/emoji_repository.dart';
@@ -94,7 +93,7 @@ class _MessageComposerState extends State<MessageComposer>
     // 2. Editing ID has changed
     MessageId? currentEditingId;
 
-    MimiId? currentInReplyToId;
+    UiMimiId? currentInReplyToId;
 
     _draftLoadingSubscription = _chatDetailsCubit.stream.listen((state) {
       // Check that chat is fully loaded
@@ -612,14 +611,14 @@ class _MessageInput extends StatelessWidget {
             ),
           ),
 
-        if (inReplyTo != null)
+        if (inReplyTo case (_, final inReplyToMessage))
           Padding(
             padding: const EdgeInsets.only(top: Spacings.xs),
             child: Stack(
               clipBehavior: Clip.none,
               children: [
                 InReplyToBubble(
-                  inReplyTo: inReplyTo.$2,
+                  inReplyTo: inReplyToMessage,
                   backgroundColor: color.fill.secondary,
                 ),
                 Positioned(
