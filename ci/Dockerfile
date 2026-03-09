@@ -41,7 +41,7 @@ RUN mkdir -p /home/builder/.local/bin
 ENV PATH=/home/builder/.local/bin:$PATH
 
 # Install Rust
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --no-update-default-toolchain --no-modify-path
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path
 ENV PATH=/home/builder/.cargo/bin:$PATH
 RUN cargo --version
 
