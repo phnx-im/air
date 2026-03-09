@@ -27,7 +27,7 @@ use super::{ErrorMessage, EventMessage};
 const UNKNOWN_MESSAGE_VERSION: u16 = 0;
 const CURRENT_MESSAGE_VERSION: u16 = 1;
 
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct VersionedMessage {
     #[serde(default = "VersionedMessage::unknown_message_version")]
     pub(crate) version: u16,
@@ -316,13 +316,18 @@ impl ChatMessage {
             SqlChatMessage,
             r#"
             WITH reply_targets AS (
-                SELECT message_id, mimi_id, content
-                    FROM message
+                SELECT
+                    message_id,
+                    mimi_id,
+                    content
+                FROM message
                 UNION ALL
-                SELECT message_id, mimi_id, content
-                    FROM message_edit
+                SELECT
+                    message_id,
+                    mimi_id,
+                    content
+                FROM message_edit
             )
-            
             SELECT
                 m.message_id AS "message_id: _",
                 m.mimi_id AS "mimi_id: _",
