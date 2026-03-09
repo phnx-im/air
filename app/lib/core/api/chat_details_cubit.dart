@@ -172,6 +172,7 @@ class GroupDebugInfo {
   final bool hasPendingCommit;
   final RequiredDebugCapabilities? requiredCapabilities;
   final Map<int, DebugCapabilities> members;
+  final String? groupDataCbor;
 
   const GroupDebugInfo({
     required this.groupId,
@@ -184,6 +185,7 @@ class GroupDebugInfo {
     required this.hasPendingCommit,
     this.requiredCapabilities,
     required this.members,
+    this.groupDataCbor,
   });
 
   @override
@@ -197,7 +199,8 @@ class GroupDebugInfo {
       pendingProposals.hashCode ^
       hasPendingCommit.hashCode ^
       requiredCapabilities.hashCode ^
-      members.hashCode;
+      members.hashCode ^
+      groupDataCbor.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -213,7 +216,8 @@ class GroupDebugInfo {
           pendingProposals == other.pendingProposals &&
           hasPendingCommit == other.hasPendingCommit &&
           requiredCapabilities == other.requiredCapabilities &&
-          members == other.members;
+          members == other.members &&
+          groupDataCbor == other.groupDataCbor;
 }
 
 class RequiredDebugCapabilities {

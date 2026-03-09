@@ -741,6 +741,7 @@ pub struct _GroupDebugInfo {
     pub has_pending_commit: bool,
     pub required_capabilities: Option<RequiredDebugCapabilities>,
     pub members: HashMap<u32, DebugCapabilities>,
+    pub group_data_cbor: Option<String>,
 }
 
 #[frb(mirror(RequiredDebugCapabilities))]

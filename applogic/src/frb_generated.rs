@@ -7735,6 +7735,7 @@ const _: fn() = || {
             GroupDebugInfo.required_capabilities;
         let _: std::collections::HashMap<u32, crate::api::chat_details_cubit::DebugCapabilities> =
             GroupDebugInfo.members;
+        let _: Option<String> = GroupDebugInfo.group_data_cbor;
     }
     {
         let MessageId = None::<crate::api::types::MessageId>.unwrap();
@@ -8747,6 +8748,7 @@ impl SseDecode for crate::api::chat_details_cubit::GroupDebugInfo {
             u32,
             crate::api::chat_details_cubit::DebugCapabilities,
         >>::sse_decode(deserializer);
+        let mut var_groupDataCbor = <Option<String>>::sse_decode(deserializer);
         return crate::api::chat_details_cubit::GroupDebugInfo {
             group_id: var_groupId,
             epoch: var_epoch,
@@ -8758,6 +8760,7 @@ impl SseDecode for crate::api::chat_details_cubit::GroupDebugInfo {
             has_pending_commit: var_hasPendingCommit,
             required_capabilities: var_requiredCapabilities,
             members: var_members,
+            group_data_cbor: var_groupDataCbor,
         };
     }
 }
@@ -11220,6 +11223,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::chat_details_cubit
             self.0.has_pending_commit.into_into_dart().into_dart(),
             self.0.required_capabilities.into_into_dart().into_dart(),
             self.0.members.into_into_dart().into_dart(),
+            self.0.group_data_cbor.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -13175,6 +13179,7 @@ impl SseEncode for crate::api::chat_details_cubit::GroupDebugInfo {
             serializer,
         );
         <std::collections::HashMap<u32, crate::api::chat_details_cubit::DebugCapabilities>>::sse_encode(self.members, serializer);
+        <Option<String>>::sse_encode(self.group_data_cbor, serializer);
     }
 }
 

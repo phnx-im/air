@@ -14,12 +14,18 @@ use aircommon::{
         QS_CLIENT_REFERENCE_EXTENSION_TYPE, SUPPORTED_PROTOCOL_VERSIONS,
     },
 };
+use airprotos::client::group::GroupData;
 use anyhow::Context as _;
 use openmls::prelude::{
     Capabilities, Ciphersuite, ExtensionType, ProposalType, RequiredCapabilitiesExtension,
 };
 
-use crate::{ChatId, UserProfile, clients::CoreUser, groups::Group};
+use crate::{
+    ChatId, UserProfile,
+    chats::GroupDataExt,
+    clients::CoreUser,
+    groups::{Group, GroupDataBytes},
+};
 
 impl CoreUser {
     /// Returns debug info for a group
@@ -44,6 +50,8 @@ pub struct GroupDebugInfo {
     pub has_pending_commit: bool,
     pub required_capabilities: Option<RequiredDebugCapabilities>,
     pub members: HashMap<u32, DebugCapabilities>,
+    /// CBOR diagnostic representation of the group data extension, if present.
+    pub group_data_cbor: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -81,6 +89,23 @@ impl GroupDebugInfo {
             .extensions()
             .required_capabilities()
             .map(RequiredDebugCapabilities::from_extension);
+        let group_data_cbor = group
+            .mls_group()
+            .extensions()
+            .unknown(GROUP_DATA_EXTENSION_TYPE)
+            .and_then(|ext| {
+                let mut group_data =
+                    GroupData::decode(&GroupDataBytes::from(ext.0.clone())).ok()?;
+                // Picture data is too long to be displayed in the UI, so we replace it with its
+                // length encoded as little endian byte array.
+                if let Some(picture_len) = group_data.picture.as_ref().map(|p| p.len()) {
+                    group_data.picture = Some(picture_len.to_le_bytes().to_vec());
+                }
+                let bytes = group_data.encode().ok()?;
+                cbor_diag::parse_bytes(&bytes.bytes()[1..])
+                    .ok()
+                    .map(|d| d.to_diag_pretty())
+            });
 
         let mut members = HashMap::new();
         for member in group.mls_group().members() {
@@ -113,6 +138,7 @@ impl GroupDebugInfo {
             has_pending_commit,
             required_capabilities,
             members,
+            group_data_cbor,
         })
     }
 }

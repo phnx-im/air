@@ -38,7 +38,7 @@ class ChatDebugInfoView extends HookWidget {
         ),
         AsyncSnapshot(hasError: true, :final error) => Center(
           child: Padding(
-            padding: const EdgeInsets.all(Spacings.m),
+            padding: const EdgeInsets.all(Spacings.s),
             child: Text(
               error.toString(),
               style: TextStyle(
@@ -101,6 +101,11 @@ class _GroupDebugInfoBody extends StatelessWidget {
             ),
           ],
         ),
+        if (info.groupDataCbor != null) ...[
+          const SizedBox(height: Spacings.s),
+          const _SectionHeader('Group Data'),
+          _GroupDataCard(cbor: info.groupDataCbor!),
+        ],
         if (info.requiredCapabilities != null) ...[
           const SizedBox(height: Spacings.s),
           const _SectionHeader('Required Capabilities'),
@@ -131,10 +136,7 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacings.s,
-        vertical: Spacings.xxs,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: Spacings.xxs),
       child: Text(
         title.toUpperCase(),
         style: TextStyle(
@@ -157,7 +159,6 @@ class _InfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: Spacings.s),
       decoration: BoxDecoration(
         color: colors.backgroundBase.secondary,
         borderRadius: BorderRadius.circular(12),
@@ -239,6 +240,44 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
+class _GroupDataCard extends StatelessWidget {
+  const _GroupDataCard({required this.cbor});
+
+  final String cbor;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = CustomColorScheme.of(context);
+    return InkWell(
+      onTap: () {
+        Clipboard.setData(ClipboardData(text: cbor));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Copied Group Data'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(Spacings.s),
+        decoration: BoxDecoration(
+          color: colors.backgroundBase.secondary,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          cbor,
+          style: TextStyle(
+            fontSize: BodyFontSize.small2.size,
+            color: colors.text.primary,
+          ).withSystemMonospace(),
+        ),
+      ),
+    );
+  }
+}
+
 class _RequiredCapabilitiesCard extends StatelessWidget {
   const _RequiredCapabilitiesCard({required this.caps});
 
@@ -272,7 +311,6 @@ class _MemberCard extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: Spacings.s),
       decoration: BoxDecoration(
         color: isOwn
             ? colors.backgroundBase.quaternary

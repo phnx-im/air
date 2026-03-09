@@ -8020,8 +8020,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   GroupDebugInfo dco_decode_group_debug_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 10)
-      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    if (arr.length != 11)
+      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
     return GroupDebugInfo(
       groupId: dco_decode_String(arr[0]),
       epoch: dco_decode_u_64(arr[1]),
@@ -8034,6 +8034,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       requiredCapabilities:
           dco_decode_opt_box_autoadd_required_debug_capabilities(arr[8]),
       members: dco_decode_Map_u_32_debug_capabilities_None(arr[9]),
+      groupDataCbor: dco_decode_opt_String(arr[10]),
     );
   }
 
@@ -10539,6 +10540,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_requiredCapabilities =
         sse_decode_opt_box_autoadd_required_debug_capabilities(deserializer);
     var var_members = sse_decode_Map_u_32_debug_capabilities_None(deserializer);
+    var var_groupDataCbor = sse_decode_opt_String(deserializer);
     return GroupDebugInfo(
       groupId: var_groupId,
       epoch: var_epoch,
@@ -10550,6 +10552,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       hasPendingCommit: var_hasPendingCommit,
       requiredCapabilities: var_requiredCapabilities,
       members: var_members,
+      groupDataCbor: var_groupDataCbor,
     );
   }
 
@@ -13631,6 +13634,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       serializer,
     );
     sse_encode_Map_u_32_debug_capabilities_None(self.members, serializer);
+    sse_encode_opt_String(self.groupDataCbor, serializer);
   }
 
   @protected

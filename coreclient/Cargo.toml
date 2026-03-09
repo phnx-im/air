@@ -19,6 +19,7 @@ aircommon.workspace = true
 airprotos.workspace = true
 anyhow.workspace = true
 base64.workspace = true
+cbor-diag.workspace = true
 blurhash.workspace = true
 chrono.workspace = true
 derive_more.workspace = true
@@ -58,7 +59,6 @@ webp.workspace = true
 airbackend.workspace = true
 aircommon = { workspace = true, features = ["test_utils"] }
 airserver_test_harness.workspace = true
-cbor-diag.workspace = true
 insta = { workspace = true, features = ["json"] }
 tempfile.workspace = true
 tracing-subscriber.workspace = true
