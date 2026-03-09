@@ -1,6 +1,6 @@
 ---
 source: common/src/crypto/mod.rs
-expression: "PersistenceCodec::to_vec(&key).unwrap()"
-extension: cbor
-snapshot_kind: binary
+expression: diag
 ---
+43        # bytes(3)
+   010203 #   "\x01\x02\x03"
