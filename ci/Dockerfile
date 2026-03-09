@@ -13,8 +13,8 @@ RUN groupadd --gid 2000 builder && \
     mkdir -p /cache/target && \
     chown -R builder: /cache /home/builder
 
-RUN apt-get update && \
-    apt-get install -y \
+RUN apt update && \
+    apt install -yqq \
     clang \
     cmake \
     curl \
@@ -41,8 +41,9 @@ RUN mkdir -p /home/builder/.local/bin
 ENV PATH=/home/builder/.local/bin:$PATH
 
 # Install Rust
-RUN curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --no-update-default-toolchain --no-modify-path
 ENV PATH=/home/builder/.cargo/bin:$PATH
+RUN cargo --version
 
 # Install tools (and check that they work)
 RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash && \
