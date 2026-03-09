@@ -39,7 +39,9 @@ mod test {
     #[test]
     fn qs_client_verifying_key_serde_codec() {
         let key = QsClientVerifyingKey::new_for_test(vec![1, 2, 3]);
-        insta::assert_binary_snapshot!(".cbor", PersistenceCodec::to_vec(&key).unwrap());
+        let bytes = PersistenceCodec::to_vec(&key).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
     }
 
     #[test]

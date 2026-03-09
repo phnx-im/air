@@ -5,6 +5,7 @@
 #![warn(clippy::large_futures)]
 
 pub mod auth_service;
+pub mod client;
 pub mod common;
 pub mod convert;
 pub mod delivery_service;

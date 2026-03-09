@@ -4,10 +4,7 @@
 
 use std::fmt::Display;
 
-use aircommon::{
-    identifiers::{Fqdn, QualifiedGroupId, UserHandle, UserId},
-    time::TimeStamp,
-};
+use aircommon::identifiers::{Fqdn, QualifiedGroupId, UserHandle, UserId};
 use chrono::{DateTime, Utc};
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
@@ -301,6 +298,11 @@ impl ChatType {
     }
 }
 
+/// Attributes of a chat.
+///
+/// This type is an in-memory representation of the chat attributes and is only persisted in the
+/// local database. It is not used to be communicated with other clients. For that, see its
+/// counterpart [`GroupData`].
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ChatAttributes {
     pub title: String,

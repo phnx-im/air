@@ -27,6 +27,7 @@ import 'package:air/user/user.dart';
 import 'package:air/util/platform.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:file_selector/file_selector.dart';
+import 'package:path/path.dart' as p;
 import 'package:flutter/gestures.dart'
     show EagerGestureRecognizer, kSecondaryMouseButton;
 import 'package:flutter/material.dart';
@@ -563,7 +564,7 @@ class _MessageView extends HookWidget {
         return;
       }
       await saveFileAndroid(
-        fileName: attachment.filename,
+        fileName: p.basename(attachment.filename),
         mimeType: attachment.contentType,
         data: data,
       );
@@ -572,7 +573,7 @@ class _MessageView extends HookWidget {
       // dialog
       final attachmentsRepository = context.read<AttachmentsRepository>();
       final location = await getSaveLocation(
-        suggestedName: attachment.filename,
+        suggestedName: p.basename(attachment.filename),
       );
       if (location == null) return;
       final path = location.path;

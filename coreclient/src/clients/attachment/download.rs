@@ -6,6 +6,7 @@ use aircommon::{
     crypto::ear::{AeadCiphertext, EarDecryptable, keys::AttachmentEarKey},
     identifiers::AttachmentId,
 };
+use airprotos::delivery_service::v1::StorageObjectType;
 use anyhow::{Context, anyhow, ensure};
 use mimi_content::content_container::EncryptionAlgorithm;
 use sha2::{Digest, Sha256};
@@ -122,6 +123,7 @@ impl CoreUser {
                 group.group_id(),
                 group.own_index(),
                 attachment_id,
+                StorageObjectType::Attachment,
             )
             .await?;
         debug!(?attachment_id, %download_url, "Got download URL from DS");

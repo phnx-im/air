@@ -279,7 +279,7 @@ class MainActivity : FlutterActivity() {
                     throw IOException("Failed to create directory")
                 }
 
-                val file = File(appDirectory, fileName)
+                val file = File(appDirectory, File(fileName).name)
                 finalUri = Uri.fromFile(file)
 
                 // Write the data
