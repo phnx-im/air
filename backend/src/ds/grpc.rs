@@ -44,7 +44,7 @@ use tonic::{Request, Response, Status, async_trait};
 use tracing::{error, warn};
 
 use crate::{
-    ds::{attachments::ProvisionAttachmentError, process::Provider},
+    ds::{attachments::ProvisionObjectError, process::Provider},
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
     qs::QsConnector,
     rate_limiter::{RateLimiter, RlConfig, RlKey, provider::RlPostgresStorage},
@@ -383,11 +383,11 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         let group_profile_provisioning = if request.provision_group_profile {
             match self
                 .ds
-                .provision_attachment(StorageObjectType::GroupProfile, None, false)
+                .provision_object(StorageObjectType::GroupProfile, None, false)
                 .await
             {
                 Ok(response) => Some(response),
-                Err(ProvisionAttachmentError::NoStorageConfigured) => None,
+                Err(ProvisionObjectError::NoStorageConfigured) => None,
                 Err(error) => {
                     error!(%error, "Failed to provision attachment");
                     return Err(Status::internal("Failed to provision attachment"));
@@ -1077,7 +1077,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .map_err(|_| Status::invalid_argument("invalid content length"))?;
         let response = self
             .ds
-            .provision_attachment(
+            .provision_object(
                 payload.object_type.try_into().unwrap_or_default(),
                 Some(content_length),
                 payload.use_post_policy,
@@ -1123,7 +1123,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         let object_id = payload.object_id.ok_or_missing_field("object_id")?.into();
         let object_type = StorageObjectType::try_from(payload.object_type).unwrap_or_default();
 
-        Ok(self.ds.get_attachment_url(object_id, object_type).await?)
+        Ok(self.ds.get_object_url(object_id, object_type).await?)
     }
 
     async fn targeted_message(
