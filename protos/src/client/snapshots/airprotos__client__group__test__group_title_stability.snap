@@ -1,0 +1,11 @@
+---
+source: protos/src/client/group.rs
+expression: diag
+---
+a2                           # map(2)
+   01                        #   unsigned(1)
+   6b                        #   text(11)
+      48656c6c6f2047726f7570 #     "Hello Group"
+   02                        #   unsigned(2)
+   41                        #   bytes(1)
+      00                     #     "\x00"

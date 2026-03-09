@@ -25,7 +25,7 @@ use crate::{
     utils::persistence::{GroupIdRefWrapper, GroupIdWrapper},
 };
 
-use super::{Group, GroupData, diff::StagedGroupDiff, openmls_provider::AirOpenMlsProvider};
+use super::{Group, GroupDataBytes, diff::StagedGroupDiff, openmls_provider::AirOpenMlsProvider};
 
 struct SqlGroup {
     group_id: GroupIdWrapper,
@@ -121,7 +121,7 @@ impl VerifiedGroup {
         txn: &mut SqliteTransaction<'_>,
         staged_commit_option: impl Into<Option<StagedCommit>>,
         ds_timestamp: TimeStamp,
-    ) -> Result<(Vec<TimestampedMessage>, Option<GroupData>)> {
+    ) -> Result<(Vec<TimestampedMessage>, Option<GroupDataBytes>)> {
         let witness = LocalGroupStorage(self.0.group_id().clone());
         self.0
             .merge_pending_commit(txn, &witness, staged_commit_option, ds_timestamp)
