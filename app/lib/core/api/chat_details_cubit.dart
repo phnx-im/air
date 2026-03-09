@@ -7,6 +7,7 @@ import 'package:convert/convert.dart';
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import '../lib.dart';
 import 'attachments_repository.dart';
 import 'chats_repository.dart';
 import 'markdown.dart';
@@ -21,7 +22,7 @@ part 'chat_details_cubit.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `store_draft_from_state`, `update_state_task`, `upload_attachment_impl`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChatDetailsContext`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `eq`, `fmt`, `hash`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `eq`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `into_ui_result`
 // These functions are ignored (category: IgnoreBecauseNotAllowedOwner): `into_ui_result`
 
@@ -70,7 +71,11 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
     withMembers: withMembers,
   );
 
+  Future<void> replyToMessage({required MessageId messageId});
+
   Future<void> resetDraft();
+
+  Future<void> resetDraftReply();
 
   Future<UploadAttachmentError?> retryUploadAttachment({
     required AttachmentId attachmentId,

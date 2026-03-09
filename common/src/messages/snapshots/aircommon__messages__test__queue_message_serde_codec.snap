@@ -1,6 +1,20 @@
 ---
 source: common/src/messages/mod.rs
-expression: "PersistenceCodec::to_vec(&message).unwrap()"
-extension: cbor
-snapshot_kind: binary
+expression: diag
 ---
+a2                                        # map(2)
+   6f                                     #   text(15)
+      73657175656e63655f6e756d626572      #     "sequence_number"
+   01                                     #   unsigned(1)
+   6a                                     #   text(10)
+      63697068657274657874                #     "ciphertext"
+   a2                                     #   map(2)
+      6a                                  #     text(10)
+         63697068657274657874             #       "ciphertext"
+      58 20                               #     bytes(32)
+         01010101010101010101010101010101 #       "\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01"
+         01010101010101010101010101010101 #       "\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01"
+      65                                  #     text(5)
+         6e6f6e6365                       #       "nonce"
+      4c                                  #     bytes(12)
+         010101010101010101010101         #       "\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01"

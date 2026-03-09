@@ -25,7 +25,8 @@ use serde::{Deserialize, Serialize};
 pub type Aead = Aes256Gcm;
 /// Key size of the [`Aead`] scheme
 pub const AEAD_KEY_SIZE: usize = 32;
-const AEAD_NONCE_SIZE: usize = 12;
+/// Nonce size of the [`Aead`] scheme
+pub const AEAD_NONCE_SIZE: usize = 12;
 
 #[derive(
     Clone,

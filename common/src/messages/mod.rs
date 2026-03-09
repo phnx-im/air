@@ -115,7 +115,9 @@ mod test {
             sequence_number: 1,
             ciphertext: AeadCiphertext::dummy(),
         };
-        insta::assert_binary_snapshot!(".cbor", PersistenceCodec::to_vec(&message).unwrap());
+        let bytes = PersistenceCodec::to_vec(&message).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
     }
 
     #[test]

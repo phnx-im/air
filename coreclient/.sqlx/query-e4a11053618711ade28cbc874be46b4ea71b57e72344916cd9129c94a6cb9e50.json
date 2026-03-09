@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                    WITH reply_targets AS (\n                        SELECT message_id, mimi_id, sender_user_uuid, sender_user_domain, content\n                            FROM message\n                        UNION ALL\n                        SELECT m.message_id, me.mimi_id, m.sender_user_uuid, m.sender_user_domain, me.content\n                            FROM message_edit me\n                        LEFT JOIN message m ON m.message_id = me.message_id\n                    )\n\n                    SELECT\n                        md.message,\n                        md.editing_id AS \"editing_id: _\",\n                        md.updated_at AS \"updated_at: _\",\n                        md.is_committed,\n                        md.in_reply_to_mimi_id AS \"in_reply_to_mimi_id: _\",\n                        rt.message_id AS \"in_reply_to_message_id: _\",\n                        rt.sender_user_uuid AS \"in_reply_to_sender_user_uuid: _\",\n                        rt.sender_user_domain AS \"in_reply_to_sender_user_domain: _\",\n                        rt.content AS \"in_reply_to_content: _\"\n                    FROM message_draft AS md\n                    LEFT JOIN reply_targets rt ON rt.mimi_id = in_reply_to_mimi_id\n                    WHERE chat_id = ?\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "message",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "editing_id: _",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "updated_at: _",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_committed",
+        "ordinal": 3,
+        "type_info": "Bool"
+      },
+      {
+        "name": "in_reply_to_mimi_id: _",
+        "ordinal": 4,
+        "type_info": "Blob"
+      },
+      {
+        "name": "in_reply_to_message_id: _",
+        "ordinal": 5,
+        "type_info": "Blob"
+      },
+      {
+        "name": "in_reply_to_sender_user_uuid: _",
+        "ordinal": 6,
+        "type_info": "Blob"
+      },
+      {
+        "name": "in_reply_to_sender_user_domain: _",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "in_reply_to_content: _",
+        "ordinal": 8,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "e4a11053618711ade28cbc874be46b4ea71b57e72344916cd9129c94a6cb9e50"
+}

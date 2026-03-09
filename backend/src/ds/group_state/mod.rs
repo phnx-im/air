@@ -417,7 +417,9 @@ mod test {
     #[test]
     fn test_encrypted_ds_group_state_serde_codec() {
         let state = EncryptedDsGroupState::dummy();
-        insta::assert_binary_snapshot!(".cbor", PersistenceCodec::to_vec(&state).unwrap());
+        let bytes = PersistenceCodec::to_vec(&state).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
     }
 
     #[test]
@@ -441,10 +443,9 @@ mod test {
 
     #[test]
     fn test_deleted_queues_serde_codec() {
-        insta::assert_binary_snapshot!(
-            ".cbor",
-            PersistenceCodec::to_vec(&*DELETED_QUEUES).unwrap()
-        );
+        let bytes = PersistenceCodec::to_vec(&*DELETED_QUEUES).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
     }
 
     #[test]

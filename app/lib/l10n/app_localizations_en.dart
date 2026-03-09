@@ -607,6 +607,17 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get composer_reply_deleted_message_placeholder =>
+      'Original message deleted';
+
+  @override
+  String get composer_reply_noaccess_message_user => 'Unknown user';
+
+  @override
+  String get composer_reply_noaccess_message_placeholder =>
+      'You don\'t have access to this message.';
+
+  @override
   String attachmentSize(double size, Object byteUnit) {
     final intl.NumberFormat sizeNumberFormat =
         intl.NumberFormat.decimalPatternDigits(
@@ -660,6 +671,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get linkConfirmation_cancel => 'Cancel';
+
+  @override
+  String get messageContextMenu_reply => 'Reply';
 
   @override
   String get messageContextMenu_copy => 'Copy';

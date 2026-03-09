@@ -946,6 +946,7 @@ pub mod tests {
             message: "    ".into(), // Whitespace only
             editing_id: None,
             updated_at: Utc::now(),
+            in_reply_to: None,
             is_committed: false,
         }
         .store(&mut *connection, &mut store_notifier, chat_4.id())
@@ -959,6 +960,7 @@ pub mod tests {
         MessageDraft {
             message: "Hello, world!".to_string(),
             editing_id: Some(message.id()),
+            in_reply_to: None,
             updated_at: Utc::now(),
             is_committed: true,
         }
@@ -973,6 +975,7 @@ pub mod tests {
         MessageDraft {
             message: "Hello, world!".to_string(),
             editing_id: Some(message.id()),
+            in_reply_to: None,
             updated_at: Utc::now().checked_add_days(Days::new(1)).unwrap(),
             is_committed: true,
         }

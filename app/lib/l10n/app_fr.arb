@@ -162,6 +162,9 @@
   "composer_inputHint": "Message à {chatTitle}",
   "composer_editMessage": "Modifier le message",
   "composer_error_attachment": "Échec du téléchargement de la pièce jointe. Veuillez réessayer.",
+  "composer_reply_deleted_message_placeholder": "Message supprimé",
+  "composer_reply_noaccess_message_user": "Utilisateur inconnu",
+  "composer_reply_noaccess_message_placeholder": "Vous n'avez pas accès à ce message.",
   "attachmentSize": "{size} {byteUnit}",
   "@attachmentSize": {
     "placeholders": {
@@ -195,6 +198,8 @@
   "linkConfirmation_description": "Vérifiez l’URL pour vous assurer de vouloir l’ouvrir :",
   "linkConfirmation_openLink": "Ouvrir",
   "linkConfirmation_cancel": "Annuler",
+
+  "messageContextMenu_reply": "Répondre",
   "messageContextMenu_copy": "Copier",
   "messageContextMenu_edit": "Modifier",
   "messageContextMenu_delete": "Supprimer",

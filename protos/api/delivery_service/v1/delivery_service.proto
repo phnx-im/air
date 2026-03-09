@@ -82,10 +82,12 @@ message RoomState {
 
 message RequestGroupIdRequest {
   common.v1.ClientMetadata client_metadata = 1;
+  bool provision_group_profile = 2;
 }
 
 message RequestGroupIdResponse {
   common.v1.QualifiedGroupId group_id = 1;
+  ProvisionAttachmentResponse group_profile_provisioning = 2;
 }
 
 // create group
@@ -357,10 +359,22 @@ message ProvisionAttachmentPayload {
   LeafNodeIndex sender = 3;
   bool use_post_policy = 4;
   int64 content_length = 5;
+  StorageObjectType object_type = 7;
+}
+
+enum StorageObjectType {
+  // Unknown storage object type
+  STORAGE_OBJECT_TYPE_UNSPECIFIED = 0;
+  // A generic attachment
+  STORAGE_OBJECT_TYPE_ATTACHMENT = 1;
+  // A group profile
+  STORAGE_OBJECT_TYPE_GROUP_PROFILE = 2;
+  // A user profile
+  STORAGE_OBJECT_TYPE_USER_PROFILE = 3;
 }
 
 message ProvisionAttachmentResponse {
-  common.v1.Uuid attachment_id = 1;
+  common.v1.Uuid object_id = 1;
   common.v1.ExpirationData upload_url_expiration = 2;
   string upload_url = 4; // non-empty
   repeated HeaderEntry upload_headers = 5; // can be empty
@@ -390,7 +404,8 @@ message GetAttachmentUrlPayload {
   GroupStateEarKey group_state_ear_key = 1;
   common.v1.QualifiedGroupId group_id = 2;
   LeafNodeIndex sender = 3;
-  common.v1.Uuid attachment_id = 4;
+  common.v1.Uuid object_id = 4;
+  StorageObjectType object_type = 6;
 }
 
 message GetAttachmentUrlResponse {

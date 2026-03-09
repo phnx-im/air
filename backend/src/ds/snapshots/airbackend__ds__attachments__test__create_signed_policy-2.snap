@@ -8,7 +8,7 @@ Object {
             "bucket": String("data"),
         },
         Object {
-            "key": String("ba521fc61ec24f8ea85e3dacc1e96989"),
+            "key": String("attachments/ba521fc61ec24f8ea85e3dacc1e96989"),
         },
         Array [
             String("content-length-range"),

@@ -12,7 +12,7 @@ use aircommon::{
             signable::{Verifiable, VerifiedStruct},
         },
     },
-    identifiers::{self, AttachmentId, Fqdn, QualifiedGroupId},
+    identifiers::{self, Fqdn, QualifiedGroupId},
     messages::client_ds::{
         GroupOperationParams, JoinConnectionGroupParams, QsQueueMessagePayload,
         UserProfileKeyUpdateParams, WelcomeInfoParams,
@@ -44,7 +44,7 @@ use tonic::{Request, Response, Status, async_trait};
 use tracing::{error, warn};
 
 use crate::{
-    ds::process::Provider,
+    ds::{attachments::ProvisionObjectError, process::Provider},
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
     qs::QsConnector,
     rate_limiter::{RateLimiter, RlConfig, RlKey, provider::RlPostgresStorage},
@@ -379,8 +379,27 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
         let qgid = self.ds.request_group_id().await;
+
+        let group_profile_provisioning = if request.provision_group_profile {
+            match self
+                .ds
+                .provision_object(StorageObjectType::GroupProfile, None, false)
+                .await
+            {
+                Ok(response) => Some(response),
+                Err(ProvisionObjectError::NoStorageConfigured) => None,
+                Err(error) => {
+                    error!(%error, "Failed to provision attachment");
+                    return Err(Status::internal("Failed to provision attachment"));
+                }
+            }
+        } else {
+            None
+        };
+
         Ok(Response::new(RequestGroupIdResponse {
             group_id: Some(qgid.ref_into()),
+            group_profile_provisioning,
         }))
     }
 
@@ -1050,9 +1069,22 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .ok_or_else(|| Status::invalid_argument("unknown sender"))?
             .signature_key()
             .into();
-        let payload = request.verify(verifying_key).map_err(InvalidSignature)?;
+        let payload: ProvisionAttachmentPayload =
+            request.verify(verifying_key).map_err(InvalidSignature)?;
+        let content_length = payload
+            .content_length
+            .try_into()
+            .map_err(|_| Status::invalid_argument("invalid content length"))?;
+        let response = self
+            .ds
+            .provision_object(
+                payload.object_type.try_into().unwrap_or_default(),
+                Some(content_length),
+                payload.use_post_policy,
+            )
+            .await?;
 
-        Ok(self.ds.provision_attachment(payload).await?)
+        Ok(Response::new(response))
     }
 
     async fn get_attachment_url(
@@ -1088,13 +1120,10 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         let payload: GetAttachmentUrlPayload =
             request.verify(verifying_key).map_err(InvalidSignature)?;
 
-        let attachment_id = payload
-            .attachment_id
-            .ok_or_missing_field("attachment_id")?
-            .into();
-        let attachment_id = AttachmentId::new(attachment_id);
+        let object_id = payload.object_id.ok_or_missing_field("object_id")?.into();
+        let object_type = StorageObjectType::try_from(payload.object_type).unwrap_or_default();
 
-        Ok(self.ds.get_attachment_url(attachment_id).await?)
+        Ok(self.ds.get_object_url(object_id, object_type).await?)
     }
 
     async fn targeted_message(

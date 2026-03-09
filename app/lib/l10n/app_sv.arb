@@ -162,6 +162,9 @@
   "composer_inputHint": "Meddelande till {chatTitle}",
   "composer_editMessage": "Redigera meddelande",
   "composer_error_attachment": "Kunde inte ladda upp bilagan. Försök igen.",
+  "composer_reply_deleted_message_placeholder": "Ursprungligt meddelande har raderats",
+  "composer_reply_noaccess_message_user": "Okänd användare",
+  "composer_reply_noaccess_message_placeholder": "Du har inte tillgång till det här meddelandet.",
   "attachmentSize": "{size} {byteUnit}",
   "@attachmentSize": {
     "placeholders": {
@@ -195,6 +198,7 @@
   "linkConfirmation_description": "Kontrollera webbadressen så att du är säker på att du vill öppna den:",
   "linkConfirmation_openLink": "Öppna",
   "linkConfirmation_cancel": "Avbryt",
+  "messageContextMenu_reply": "Svara",
   "messageContextMenu_copy": "Kopiera",
   "messageContextMenu_edit": "Redigera",
   "messageContextMenu_delete": "Radera",

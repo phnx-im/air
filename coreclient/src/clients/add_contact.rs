@@ -89,7 +89,7 @@ impl CoreUser {
             verified_connection_package.into_current();
 
         // Phase 3: Prepare the connection locally
-        let group_id = client.ds_request_group_id().await?;
+        let (group_id, _) = client.ds_request_group_id(false).await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: verified_connection_package,
             group_id,
@@ -157,7 +157,7 @@ impl CoreUser {
         }
 
         // Phase 1: Prepare the connection locally
-        let group_id = client.ds_request_group_id().await?;
+        let (group_id, _) = client.ds_request_group_id(false).await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: user_id,
             group_id,
@@ -205,10 +205,10 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
         signing_key: &ClientSigningKey,
         attributes: &ChatAttributes,
     ) -> anyhow::Result<(Group, PartialCreateGroupParams)> {
-        let group_data = PersistenceCodec::to_vec(attributes)?.into();
+        let group_data_bytes = PersistenceCodec::to_vec(attributes)?.into();
 
         let (group, partial_params) =
-            Group::create_group(txn, signing_key, self.group_id.clone(), group_data)?;
+            Group::create_group(txn, signing_key, self.group_id.clone(), group_data_bytes)?;
 
         group.store(txn.as_mut()).await?;
 

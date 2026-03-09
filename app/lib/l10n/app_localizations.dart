@@ -1077,6 +1077,24 @@ abstract class AppLocalizations {
   /// **'Attachment is too large. The maximum size is {maxSize} and the actual size is {actualSize}.'**
   String composer_error_attachment_too_large(Object actualSize, Object maxSize);
 
+  /// No description provided for @composer_reply_deleted_message_placeholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Original message deleted'**
+  String get composer_reply_deleted_message_placeholder;
+
+  /// No description provided for @composer_reply_noaccess_message_user.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown user'**
+  String get composer_reply_noaccess_message_user;
+
+  /// No description provided for @composer_reply_noaccess_message_placeholder.
+  ///
+  /// In en, this message translates to:
+  /// **'You don\'t have access to this message.'**
+  String get composer_reply_noaccess_message_placeholder;
+
   /// No description provided for @attachmentSize.
   ///
   /// In en, this message translates to:
@@ -1160,6 +1178,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cancel'**
   String get linkConfirmation_cancel;
+
+  /// No description provided for @messageContextMenu_reply.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply'**
+  String get messageContextMenu_reply;
 
   /// No description provided for @messageContextMenu_copy.
   ///
