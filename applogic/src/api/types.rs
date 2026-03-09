@@ -11,14 +11,14 @@ use std::fmt;
 
 // Re-export for FRB-reasons
 pub(crate) use aircommon::identifiers::UserHandle;
-pub(crate) use aircoreclient::{AddHandleContactError, ChatId, MessageDraft, MessageId};
+pub(crate) use aircoreclient::{AddHandleContactError, ChatId, MessageId};
 
 pub(crate) use aircommon::identifiers::UserHandleValidationError;
 use aircommon::identifiers::{MimiId, UserId};
 use aircoreclient::{
     Asset, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact, ContentMessage, DisplayName,
-    ErrorMessage, EventMessage, InactiveChat, Message, SystemMessage, TargetedMessageContact,
-    UserProfile, store::Store,
+    ErrorMessage, EventMessage, InactiveChat, Message, MessageDraft, SystemMessage,
+    TargetedMessageContact, UserProfile, store::Store,
 };
 use chrono::{DateTime, Duration, Local, Utc};
 use flutter_rust_bridge::frb;
@@ -134,7 +134,7 @@ pub struct UiMessageDraft {
 }
 
 impl UiMessageDraft {
-    pub fn empty() -> Self {
+    pub(crate) fn empty() -> Self {
         Self {
             message: String::new(),
             in_reply_to: None,
@@ -144,7 +144,7 @@ impl UiMessageDraft {
         }
     }
 
-    pub fn to_draft_without_content(&self) -> MessageDraft {
+    pub(crate) fn to_draft_without_content(&self) -> MessageDraft {
         // we clone inside because we ignore the MIMI content (optimisation), so do not change thi method to self
         MessageDraft {
             message: self.message.clone(),

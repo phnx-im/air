@@ -20,9 +20,23 @@ import '../chat_list/chat_list_content_test.dart';
 import '../helpers.dart';
 import '../mocks.dart';
 
-const testSize = Size(1080, 2800);
+// NB: do not forget to adjust this, when you add more content to render
+const highTestSize = Size(1080, 4050);
 
 final chatId = 1.chatId();
+
+final firstMessageContent = UiMimiContent(
+  plainBody: 'Hello Alice from Bob',
+  topicId: Uint8List(0),
+  content: simpleMessage('Hello Alice from Bob'),
+  attachments: [],
+);
+
+final firstDeletedMessageContent = UiMimiContent(
+  topicId: Uint8List(0),
+  attachments: [],
+  replaces: Uint8List(0),
+);
 
 final messages = [
   UiChatMessage(
@@ -187,7 +201,7 @@ This is a message with multiple lines. It should be properly displayed in the me
   UiChatMessage(
     id: 9.messageId(),
     chatId: chatId,
-    timestamp: DateTime.parse('2023-01-01T00:04:02.000Z'),
+    timestamp: DateTime.parse('2023-01-01T00:04:03.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -201,6 +215,92 @@ This is a message with multiple lines. It should be properly displayed in the me
         ),
       ),
     ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.read,
+  ),
+  UiChatMessage(
+    id: 10.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:04:04.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 1.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          topicId: Uint8List(0),
+          plainBody: "This is a reply to Bob",
+          content: simpleMessage("Hello Bob from Alice"),
+          attachments: [],
+        ),
+      ),
+    ),
+    inReplyToMessage: UiInReplyToMessage.resolved(
+      messageId: 1.messageId(),
+      sender: 1.userId(),
+      mimiContent: firstMessageContent,
+    ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.read,
+  ),
+  UiChatMessage(
+    id: 11.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:05:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 2.userId(),
+        sent: true,
+        edited: false,
+        content: firstDeletedMessageContent,
+      ),
+    ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.sent,
+  ),
+  UiChatMessage(
+    id: 12.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:05:05.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 3.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          topicId: Uint8List(0),
+          plainBody: "Bob, wrong chat",
+          content: simpleMessage("Bob, wrong chat"),
+          attachments: [],
+        ),
+      ),
+    ),
+    inReplyToMessage: UiInReplyToMessage.resolved(
+      messageId: 11.messageId(),
+      sender: 2.userId(),
+      mimiContent: firstDeletedMessageContent,
+    ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.read,
+  ),
+  UiChatMessage(
+    id: 13.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:05:07.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 3.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          topicId: Uint8List(0),
+          plainBody: "This is an answer to a message I deleted locally",
+          content: simpleMessage("Hey, I am new here!"),
+          attachments: [],
+        ),
+      ),
+    ),
+    inReplyToMessage: const UiInReplyToMessage.notFound(),
     position: UiFlightPosition.single,
     status: UiMessageStatus.read,
   ),
@@ -569,7 +669,7 @@ void main() {
     });
 
     testWidgets('renders correctly', (tester) async {
-      tester.view.physicalSize = testSize;
+      tester.view.physicalSize = highTestSize;
       addTearDown(() {
         tester.view.resetPhysicalSize();
       });
@@ -589,7 +689,7 @@ void main() {
     });
 
     testWidgets('renders correctly (dark mode)', (tester) async {
-      tester.view.physicalSize = testSize;
+      tester.view.physicalSize = highTestSize;
       addTearDown(() {
         tester.view.resetPhysicalSize();
       });
@@ -614,7 +714,7 @@ void main() {
     });
 
     testWidgets('renders correctly with attachments', (tester) async {
-      tester.view.physicalSize = testSize;
+      tester.view.physicalSize = highTestSize;
       addTearDown(() {
         tester.view.resetPhysicalSize();
       });
@@ -645,7 +745,7 @@ void main() {
     });
 
     testWidgets('renders correctly with blocked messages', (tester) async {
-      tester.view.physicalSize = testSize;
+      tester.view.physicalSize = highTestSize;
       addTearDown(() {
         tester.view.resetPhysicalSize();
       });
@@ -676,7 +776,7 @@ void main() {
     testWidgets('renders correctly with blocked messages in contact chat', (
       tester,
     ) async {
-      tester.view.physicalSize = testSize;
+      tester.view.physicalSize = highTestSize;
       addTearDown(() {
         tester.view.resetPhysicalSize();
       });
@@ -703,7 +803,7 @@ void main() {
     });
 
     testWidgets('renders jumbo emoji without bubble', (tester) async {
-      tester.view.physicalSize = testSize;
+      tester.view.physicalSize = const Size(1080, 1350);
       addTearDown(() {
         tester.view.resetPhysicalSize();
       });
@@ -725,7 +825,7 @@ void main() {
     testWidgets('renders correctly with disabled read receipts', (
       tester,
     ) async {
-      tester.view.physicalSize = testSize;
+      tester.view.physicalSize = highTestSize;
       addTearDown(() {
         tester.view.resetPhysicalSize();
       });
