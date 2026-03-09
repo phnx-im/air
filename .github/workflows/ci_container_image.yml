@@ -43,7 +43,7 @@ jobs:
 
       - name: Hash only changed files
         id: hash
-        run: cat "sha256sum=$(${{ steps.changed-files.outputs.all_changed_files }} | sha256sum | cut -d '' -f1)" >> "$GITHUB_OUTPUT"
+        run: cat "sha256sum=$(cat ${{ steps.changed-files.outputs.all_changed_files }} | sha256sum | cut -d '' -f1)" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         uses: docker/build-push-action@v6
