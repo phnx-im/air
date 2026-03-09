@@ -19,33 +19,68 @@ env:
   SQLX_OFFLINE: true
 
 jobs:
-  linux-build:
+  setup:
     runs-on: ubuntu-latest
+    name: Build and push CI container image
+    outputs:
+      ci_image_tag: ${{ steps.tagger.outputs.tag }}
+
+    steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if container image already exists
+        id: tagger
+        run: |
+          SHORT_TAG="echo ${{ hashFiles('ci/Dockerfile') }} | cut -c1-7"          
+          echo "tag=$SHORT_TAG" >> $GITHUB_OUTPUT
+          
+          # Attempt to inspect the manifest. 
+          # Redirect output to /dev/null because we only care about the exit status.
+          if docker manifest inspect $SHORT_TAG > /dev/null 2>&1; then
+            echo "build=false" >> $GITHUB_OUTPUT
+            echo "Image exists!"
+          else
+            echo "build=true" >> $GITHUB_OUTPUT
+            echo "Image not found, will trigger docker build!"
+          fi
+
+      - if: steps.tagger.outputs.build
+        name: Build and push
+        id: container-build-push
+        uses: docker/build-push-action@v6
+        with:
+          file: ci/Dockerfile
+          push: true
+          tags: ghcr.io/phnx-im/air/linux-ci-${{ steps.tagger.outputs.tag }}
+
+  linux-build:
+    needs: setup
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.setup.outputs.ci_image_tag }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # Fetch all commit metadata (build number is derived from number of commits)
           fetch-depth: 0
           # Don't download historical file contents (blobs)
           filter: blob:none
-
-      - run: git lfs install && git lfs pull
-
-      - uses: extractions/setup-just@v2
-      - run: just install-fvm
-      - run: echo /home/runner/fvm/bin >> $GITHUB_PATH
-
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@1.92.0
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-directories: app/build/linux/x64/release/plugins/airapplogic/cargokit_build
-
-      - name: Install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y ninja-build gtk+-3.0 gtk+-3.0-dev glib-2.0-dev gio-2.0-dev
+          lfs: true
 
       - name: Build Linux app
         run: cd app && fvm flutter build linux -v --build-number=$(git rev-list --count HEAD)
