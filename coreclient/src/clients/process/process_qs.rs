@@ -1114,11 +1114,6 @@ async fn handle_message_edit(
     // Clear the status of the message
     StatusRecord::clear(txn.as_mut(), notifier, message.id()).await?;
 
-    // Only mark as unread for edits, not deletions
-    if !is_delete {
-        Chat::mark_as_unread(txn, notifier, message.chat_id(), message.id()).await?;
-    }
-
     Ok(message)
 }
 
