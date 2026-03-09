@@ -227,21 +227,7 @@ impl ChatMessage {
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
             SqlChatMessage,
-            r#"
-            WITH reply_targets AS (
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message
-                UNION ALL
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message_edit
-            )
-            SELECT
+            r#"SELECT
                 m.message_id AS "message_id: _",
                 m.mimi_id AS "mimi_id: _",
                 m.chat_id AS "chat_id: _",
@@ -254,15 +240,16 @@ impl ChatMessage {
                 m.edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
                 m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                rt.message_id AS "in_reply_to_message_id: _",
-                red.sender_user_uuid AS "in_reply_to_sender_user_uuid: _",
-                red.sender_user_domain AS "in_reply_to_sender_user_domain: _",
-                rt.content AS "in_reply_to_content: _"
+                COALESCE(rm.message_id, re.message_id) AS "in_reply_to_message_id: _",
+                COALESCE(rm.sender_user_uuid, red.sender_user_uuid) AS "in_reply_to_sender_user_uuid: _",
+                COALESCE(rm.sender_user_domain, red.sender_user_domain) AS "in_reply_to_sender_user_domain: _",
+                COALESCE(rm.content, re.content) AS "in_reply_to_content: _"
             FROM message m
             LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
                 AND b.user_domain = m.sender_user_domain
-            LEFT JOIN reply_targets rt ON rt.mimi_id = m.in_reply_to_mimi_id
-            LEFT JOIN message red ON rt.message_id = red.message_id
+            LEFT JOIN message rm ON m.in_reply_to_mimi_id = rm.mimi_id
+            LEFT JOIN message_edit re ON m.in_reply_to_mimi_id = re.mimi_id
+            LEFT JOIN message red ON re.message_id = red.message_id
             WHERE m.message_id = ?
             "#,
             message_id,
@@ -283,21 +270,7 @@ impl ChatMessage {
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
             SqlChatMessage,
-            r#"
-            WITH reply_targets AS (
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message
-                UNION ALL
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message_edit
-            )
-            SELECT
+            r#"SELECT
                 m.message_id AS "message_id: _",
                 m.mimi_id AS "mimi_id: _",
                 m.chat_id AS "chat_id: _",
@@ -310,15 +283,16 @@ impl ChatMessage {
                 m.edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
                 m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                rt.message_id AS "in_reply_to_message_id: _",
-                red.sender_user_uuid AS "in_reply_to_sender_user_uuid: _",
-                red.sender_user_domain AS "in_reply_to_sender_user_domain: _",
-                rt.content AS "in_reply_to_content: _"
+                COALESCE(rm.message_id, re.message_id) AS "in_reply_to_message_id: _",
+                COALESCE(rm.sender_user_uuid, red.sender_user_uuid) AS "in_reply_to_sender_user_uuid: _",
+                COALESCE(rm.sender_user_domain, red.sender_user_domain) AS "in_reply_to_sender_user_domain: _",
+                COALESCE(rm.content, re.content) AS "in_reply_to_content: _"
             FROM message m
             LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
                 AND b.user_domain = m.sender_user_domain
-            LEFT JOIN reply_targets rt ON rt.mimi_id = m.in_reply_to_mimi_id
-            LEFT JOIN message red ON rt.message_id = red.message_id
+            LEFT JOIN message rm ON m.in_reply_to_mimi_id = rm.mimi_id
+            LEFT JOIN message_edit re ON m.in_reply_to_mimi_id = re.mimi_id
+            LEFT JOIN message red ON re.message_id = red.message_id
             WHERE m.mimi_id = ?
             "#,
             mimi_id,
@@ -561,21 +535,7 @@ impl ChatMessage {
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
             SqlChatMessage,
-            r#"
-            WITH reply_targets AS (
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message
-                UNION ALL
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message_edit
-            )
-            SELECT
+            r#"SELECT
                 m.message_id AS "message_id: _",
                 m.mimi_id AS "mimi_id: _",
                 m.chat_id AS "chat_id: _",
@@ -588,15 +548,16 @@ impl ChatMessage {
                 m.edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
                 m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                rt.message_id AS "in_reply_to_message_id: _",
-                red.sender_user_uuid AS "in_reply_to_sender_user_uuid: _",
-                red.sender_user_domain AS "in_reply_to_sender_user_domain: _",
-                rt.content AS "in_reply_to_content: _"
+                COALESCE(rm.message_id, re.message_id) AS "in_reply_to_message_id: _",
+                COALESCE(rm.sender_user_uuid, red.sender_user_uuid) AS "in_reply_to_sender_user_uuid: _",
+                COALESCE(rm.sender_user_domain, red.sender_user_domain) AS "in_reply_to_sender_user_domain: _",
+                COALESCE(rm.content, re.content) AS "in_reply_to_content: _"
             FROM message m
             LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
                 AND b.user_domain = m.sender_user_domain
-            LEFT JOIN reply_targets rt ON rt.mimi_id = m.in_reply_to_mimi_id
-            LEFT JOIN message red ON rt.message_id = red.message_id
+            LEFT JOIN message rm ON m.in_reply_to_mimi_id = rm.mimi_id
+            LEFT JOIN message_edit re ON m.in_reply_to_mimi_id = re.mimi_id
+            LEFT JOIN message red ON re.message_id = red.message_id
             WHERE m.chat_id = ?
             ORDER BY m.timestamp DESC LIMIT 1"#,
             chat_id,
@@ -621,21 +582,7 @@ impl ChatMessage {
         let user_domain = user_id.domain();
         query_as!(
             SqlChatMessage,
-            r#"
-            WITH reply_targets AS (
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message
-                UNION ALL
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message_edit
-            )
-            SELECT
+            r#"SELECT
                 m.message_id AS "message_id: _",
                 m.chat_id AS "chat_id: _",
                 m.mimi_id AS "mimi_id: _",
@@ -648,15 +595,16 @@ impl ChatMessage {
                 m.edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
                 m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                rt.message_id AS "in_reply_to_message_id: _",
-                red.sender_user_uuid AS "in_reply_to_sender_user_uuid: _",
-                red.sender_user_domain AS "in_reply_to_sender_user_domain: _",
-                rt.content AS "in_reply_to_content: _"
+                COALESCE(rm.message_id, re.message_id) AS "in_reply_to_message_id: _",
+                COALESCE(rm.sender_user_uuid, red.sender_user_uuid) AS "in_reply_to_sender_user_uuid: _",
+                COALESCE(rm.sender_user_domain, red.sender_user_domain) AS "in_reply_to_sender_user_domain: _",
+                COALESCE(rm.content, re.content) AS "in_reply_to_content: _"
             FROM message m
             LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
                 AND b.user_domain = m.sender_user_domain
-            LEFT JOIN reply_targets rt ON rt.mimi_id = m.in_reply_to_mimi_id
-            LEFT JOIN message red ON rt.message_id = red.message_id
+            LEFT JOIN message rm ON m.in_reply_to_mimi_id = rm.mimi_id
+            LEFT JOIN message_edit re ON m.in_reply_to_mimi_id = re.mimi_id
+            LEFT JOIN message red ON re.message_id = red.message_id
             WHERE m.chat_id = ?
                 AND m.sender_user_uuid = ?
                 AND m.sender_user_domain = ?
@@ -682,21 +630,7 @@ impl ChatMessage {
     ) -> sqlx::Result<Option<ChatMessage>> {
         query_as!(
             SqlChatMessage,
-            r#"
-            WITH reply_targets AS (
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message
-                UNION ALL
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message_edit
-            )
-            SELECT
+            r#"SELECT
                 m.message_id AS "message_id: _",
                 m.mimi_id AS "mimi_id: _",
                 m.chat_id AS "chat_id: _",
@@ -709,15 +643,16 @@ impl ChatMessage {
                 m.edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
                 m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                rt.message_id AS "in_reply_to_message_id: _",
-                red.sender_user_uuid AS "in_reply_to_sender_user_uuid: _",
-                red.sender_user_domain AS "in_reply_to_sender_user_domain: _",
-                rt.content AS "in_reply_to_content: _"
+                COALESCE(rm.message_id, re.message_id) AS "in_reply_to_message_id: _",
+                COALESCE(rm.sender_user_uuid, red.sender_user_uuid) AS "in_reply_to_sender_user_uuid: _",
+                COALESCE(rm.sender_user_domain, red.sender_user_domain) AS "in_reply_to_sender_user_domain: _",
+                COALESCE(rm.content, re.content) AS "in_reply_to_content: _"
             FROM message m
             LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
                 AND b.user_domain = m.sender_user_domain
-            LEFT JOIN reply_targets rt ON rt.mimi_id = m.in_reply_to_mimi_id
-            LEFT JOIN message red ON rt.message_id = red.message_id
+            LEFT JOIN message rm ON m.in_reply_to_mimi_id = rm.mimi_id
+            LEFT JOIN message_edit re ON m.in_reply_to_mimi_id = re.mimi_id
+            LEFT JOIN message red ON re.message_id = red.message_id
             WHERE m.chat_id = ?2
                 AND m.message_id != ?1
                 AND m.timestamp <= (SELECT timestamp FROM message WHERE message_id = ?1)
@@ -743,21 +678,7 @@ impl ChatMessage {
     ) -> sqlx::Result<Option<ChatMessage>> {
         query_as!(
             SqlChatMessage,
-            r#"
-            WITH reply_targets AS (
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message
-                UNION ALL
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message_edit
-            )
-            SELECT
+            r#"SELECT
                 m.message_id AS "message_id: _",
                 m.mimi_id AS "mimi_id: _",
                 m.chat_id AS "chat_id: _",
@@ -770,15 +691,16 @@ impl ChatMessage {
                 m.edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
                 m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                rt.message_id AS "in_reply_to_message_id: _",
-                red.sender_user_uuid AS "in_reply_to_sender_user_uuid: _",
-                red.sender_user_domain AS "in_reply_to_sender_user_domain: _",
-                rt.content AS "in_reply_to_content: _"
+                COALESCE(rm.message_id, re.message_id) AS "in_reply_to_message_id: _",
+                COALESCE(rm.sender_user_uuid, red.sender_user_uuid) AS "in_reply_to_sender_user_uuid: _",
+                COALESCE(rm.sender_user_domain, red.sender_user_domain) AS "in_reply_to_sender_user_domain: _",
+                COALESCE(rm.content, re.content) AS "in_reply_to_content: _"
             FROM message m
             LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
                 AND b.user_domain = m.sender_user_domain
-            LEFT JOIN reply_targets rt ON rt.mimi_id = m.in_reply_to_mimi_id
-            LEFT JOIN message red ON rt.message_id = red.message_id
+            LEFT JOIN message rm ON m.in_reply_to_mimi_id = rm.mimi_id
+            LEFT JOIN message_edit re ON m.in_reply_to_mimi_id = re.mimi_id
+            LEFT JOIN message red ON re.message_id = red.message_id
             WHERE m.chat_id = ?2
                 AND m.message_id != ?1
                 AND m.timestamp >= (SELECT timestamp FROM message WHERE message_id = ?1)
