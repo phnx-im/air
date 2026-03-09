@@ -57,7 +57,7 @@ jobs:
           java-version: "17"
 
       - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@1.92.0
+        uses: dtolnay/rust-toolchain@1.94.0
         with:
           targets: aarch64-linux-android
 
