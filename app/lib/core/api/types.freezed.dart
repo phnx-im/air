@@ -1486,7 +1486,7 @@ $UiEventMessageCopyWith<$Res> get field0 {
 /// @nodoc
 mixin _$UiMessageDraft {
 
- String get message; MessageId? get editingId; (MimiId, UiInReplyToMessage)? get inReplyTo; DateTime get updatedAt; bool get isCommitted;
+ String get message; MessageId? get editingId; (UiMimiId, UiInReplyToMessage)? get inReplyTo; DateTime get updatedAt; bool get isCommitted;
 /// Create a copy of UiMessageDraft
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1517,7 +1517,7 @@ abstract mixin class $UiMessageDraftCopyWith<$Res>  {
   factory $UiMessageDraftCopyWith(UiMessageDraft value, $Res Function(UiMessageDraft) _then) = _$UiMessageDraftCopyWithImpl;
 @useResult
 $Res call({
- String message, MessageId? editingId, (MimiId, UiInReplyToMessage)? inReplyTo, DateTime updatedAt, bool isCommitted
+ String message, MessageId? editingId, (UiMimiId, UiInReplyToMessage)? inReplyTo, DateTime updatedAt, bool isCommitted
 });
 
 
@@ -1539,7 +1539,7 @@ class _$UiMessageDraftCopyWithImpl<$Res>
 message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
 as String,editingId: freezed == editingId ? _self.editingId : editingId // ignore: cast_nullable_to_non_nullable
 as MessageId?,inReplyTo: freezed == inReplyTo ? _self.inReplyTo : inReplyTo // ignore: cast_nullable_to_non_nullable
-as (MimiId, UiInReplyToMessage)?,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
+as (UiMimiId, UiInReplyToMessage)?,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime,isCommitted: null == isCommitted ? _self.isCommitted : isCommitted // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
@@ -1552,13 +1552,13 @@ as bool,
 /// @nodoc
 
 
-class _UiMessageDraft extends UiMessageDraft {
-  const _UiMessageDraft({required this.message, this.editingId, this.inReplyTo, required this.updatedAt, required this.isCommitted}): super._();
+class _UiMessageDraft implements UiMessageDraft {
+  const _UiMessageDraft({required this.message, this.editingId, this.inReplyTo, required this.updatedAt, required this.isCommitted});
   
 
 @override final  String message;
 @override final  MessageId? editingId;
-@override final  (MimiId, UiInReplyToMessage)? inReplyTo;
+@override final  (UiMimiId, UiInReplyToMessage)? inReplyTo;
 @override final  DateTime updatedAt;
 @override final  bool isCommitted;
 
@@ -1592,7 +1592,7 @@ abstract mixin class _$UiMessageDraftCopyWith<$Res> implements $UiMessageDraftCo
   factory _$UiMessageDraftCopyWith(_UiMessageDraft value, $Res Function(_UiMessageDraft) _then) = __$UiMessageDraftCopyWithImpl;
 @override @useResult
 $Res call({
- String message, MessageId? editingId, (MimiId, UiInReplyToMessage)? inReplyTo, DateTime updatedAt, bool isCommitted
+ String message, MessageId? editingId, (UiMimiId, UiInReplyToMessage)? inReplyTo, DateTime updatedAt, bool isCommitted
 });
 
 
@@ -1614,7 +1614,7 @@ class __$UiMessageDraftCopyWithImpl<$Res>
 message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
 as String,editingId: freezed == editingId ? _self.editingId : editingId // ignore: cast_nullable_to_non_nullable
 as MessageId?,inReplyTo: freezed == inReplyTo ? _self.inReplyTo : inReplyTo // ignore: cast_nullable_to_non_nullable
-as (MimiId, UiInReplyToMessage)?,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
+as (UiMimiId, UiInReplyToMessage)?,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime,isCommitted: null == isCommitted ? _self.isCommitted : isCommitted // ignore: cast_nullable_to_non_nullable
 as bool,
   ));

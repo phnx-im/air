@@ -19,7 +19,7 @@ pub use aircoreclient::{DebugCapabilities, GroupDebugInfo, RequiredDebugCapabili
 use anyhow::{Context as _, bail};
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
-use mimi_content::{ByteBuf, MimiContent};
+use mimi_content::MimiContent;
 use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
 use tracing::{error, info, warn};
@@ -237,7 +237,7 @@ impl ChatDetailsCubitBase {
         let salt: [u8; 16] = RustCrypto::default().random_array()?;
         let mut content = MimiContent::simple_markdown_message(message_text, salt);
         // TODO: we should have nice setters and not have to deal with encoding ourselves (in mimi_content)
-        content.in_reply_to = in_reply_to_mimi_id.map(|id| ByteBuf::from(id.as_slice()));
+        content.in_reply_to = in_reply_to_mimi_id.map(Into::into);
 
         self.context
             .store
@@ -489,7 +489,7 @@ impl ChatDetailsCubitBase {
 
             draft.message = String::new();
             draft.in_reply_to = Some((
-                mimi_id,
+                mimi_id.into(),
                 UiInReplyToMessage::Resolved {
                     message_id,
                     sender: sender.into(),

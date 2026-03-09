@@ -14,7 +14,7 @@ pub(crate) use aircommon::identifiers::UserHandle;
 pub(crate) use aircoreclient::{AddHandleContactError, ChatId, MessageId};
 
 pub(crate) use aircommon::identifiers::UserHandleValidationError;
-use aircommon::identifiers::{MimiId, UserId};
+use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact, ContentMessage, DisplayName,
     ErrorMessage, EventMessage, InactiveChat, Message, MessageDraft, SystemMessage,
@@ -25,7 +25,7 @@ use flutter_rust_bridge::frb;
 use mimi_content::MessageStatus;
 use uuid::Uuid;
 
-use crate::api::message_content::UiMimiContent;
+use crate::api::message_content::{UiMimiContent, UiMimiId};
 
 /// Mode for deleting a message
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -128,7 +128,7 @@ impl UiChatDetails {
 pub struct UiMessageDraft {
     pub message: String,
     pub editing_id: Option<MessageId>,
-    pub in_reply_to: Option<(MimiId, UiInReplyToMessage)>,
+    pub in_reply_to: Option<(UiMimiId, UiInReplyToMessage)>,
     pub updated_at: DateTime<Utc>,
     pub is_committed: bool,
 }
@@ -145,13 +145,13 @@ impl UiMessageDraft {
     }
 
     pub(crate) fn to_draft_without_content(&self) -> MessageDraft {
-        // we clone inside because we ignore the MIMI content (optimisation), so do not change thi method to self
+        // we clone inside because we ignore the MIMI content (optimisation), so do not change this method to self
         MessageDraft {
             message: self.message.clone(),
             in_reply_to: self
                 .in_reply_to
                 .as_ref()
-                .map(|(mimi_id, _)| (*mimi_id, None)),
+                .map(|(mimi_id, _)| ((*mimi_id).into(), None)),
             editing_id: self.editing_id,
             updated_at: self.updated_at,
             is_committed: self.is_committed,
@@ -173,7 +173,7 @@ impl From<MessageDraft> for UiMessageDraft {
             message,
             in_reply_to: in_reply_to.map(|(mimi_id, irt)| {
                 (
-                    mimi_id,
+                    mimi_id.into(),
                     match irt {
                         Some(in_reply_to) => UiInReplyToMessage::Resolved {
                             message_id: in_reply_to.message_id,

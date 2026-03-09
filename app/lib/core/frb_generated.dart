@@ -89,7 +89,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 1301907141;
+  int get rustContentHash => -1758088116;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -755,12 +755,6 @@ abstract class RustLibApi extends BaseApi {
 
   Future<Uint8List> crateApiLoggingTarLogs({required String cacheDir});
 
-  Future<UiMessageDraft> crateApiTypesUiMessageDraftEmpty();
-
-  Future<MessageDraft> crateApiTypesUiMessageDraftToDraftWithoutContent({
-    required UiMessageDraft that,
-  });
-
   UserHandleValidationError? crateApiTypesUiUserHandleValidationError({
     required UiUserHandle that,
   });
@@ -841,14 +835,6 @@ abstract class RustLibApi extends BaseApi {
   get rust_arc_decrement_strong_count_MessageCubitBasePtr;
 
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_MessageDraft;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_MessageDraft;
-
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_MessageDraftPtr;
-
-  RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_MessageListCubitBase;
 
   RustArcDecrementStrongCountFnType
@@ -865,12 +851,6 @@ abstract class RustLibApi extends BaseApi {
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_MessageListStatePtr;
-
-  RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_MimiId;
-
-  RustArcDecrementStrongCountFnType get rust_arc_decrement_strong_count_MimiId;
-
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_MimiIdPtr;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_NavigationCubitBase;
@@ -6517,68 +6497,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "tar_logs", argNames: ["cacheDir"]);
 
   @override
-  Future<UiMessageDraft> crateApiTypesUiMessageDraftEmpty() {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 153,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_ui_message_draft,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiTypesUiMessageDraftEmptyConstMeta,
-        argValues: [],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiTypesUiMessageDraftEmptyConstMeta =>
-      const TaskConstMeta(debugName: "ui_message_draft_empty", argNames: []);
-
-  @override
-  Future<MessageDraft> crateApiTypesUiMessageDraftToDraftWithoutContent({
-    required UiMessageDraft that,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_box_autoadd_ui_message_draft(that, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 154,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageDraft,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiTypesUiMessageDraftToDraftWithoutContentConstMeta,
-        argValues: [that],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta
-  get kCrateApiTypesUiMessageDraftToDraftWithoutContentConstMeta =>
-      const TaskConstMeta(
-        debugName: "ui_message_draft_to_draft_without_content",
-        argNames: ["that"],
-      );
-
-  @override
   UserHandleValidationError? crateApiTypesUiUserHandleValidationError({
     required UiUserHandle that,
   }) {
@@ -6590,7 +6508,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 155,
+            funcId: 153,
           )!;
         },
         codec: SseCodec(
@@ -6623,7 +6541,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 156,
+            funcId: 154,
           )!;
         },
         codec: SseCodec(
@@ -6846,14 +6764,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase;
 
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_MessageDraft => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageDraft;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_MessageDraft => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageDraft;
-
-  RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_MessageListCubitBase => wire
       .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase;
 
@@ -6868,14 +6778,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   RustArcDecrementStrongCountFnType
   get rust_arc_decrement_strong_count_MessageListState => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_MimiId => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMimiId;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_MimiId => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMimiId;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_NavigationCubitBase => wire
@@ -7032,15 +6934,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  MessageDraft
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageDraft(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return MessageDraftImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
   MessageListCubitBase
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
     dynamic raw,
@@ -7056,15 +6949,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return MessageListStateImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  MimiId
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMimiId(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return MimiIdImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -7562,15 +7446,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  MessageDraft
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageDraft(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return MessageDraftImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
   MessageListCubitBase
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
     dynamic raw,
@@ -7586,15 +7461,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return MessageListStateImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  MimiId
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMimiId(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return MimiIdImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -7962,12 +7828,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  (MimiId, UiInReplyToMessage)
-  dco_decode_box_autoadd_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_mimi_id_ui_in_reply_to_message(
-    dynamic raw,
-  ) {
+  (UiMimiId, UiInReplyToMessage)
+  dco_decode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw as (MimiId, UiInReplyToMessage);
+    return raw as (UiMimiId, UiInReplyToMessage);
   }
 
   @protected
@@ -8637,16 +8501,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  (MimiId, UiInReplyToMessage)?
-  dco_decode_opt_box_autoadd_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_mimi_id_ui_in_reply_to_message(
+  (UiMimiId, UiInReplyToMessage)?
+  dco_decode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null
         ? null
-        : dco_decode_box_autoadd_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_mimi_id_ui_in_reply_to_message(
-            raw,
-          );
+        : dco_decode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(raw);
   }
 
   @protected
@@ -8794,24 +8656,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  (MimiId, UiInReplyToMessage)
-  dco_decode_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_mimi_id_ui_in_reply_to_message(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 2) {
-      throw Exception('Expected 2 elements, got ${arr.length}');
-    }
-    return (
-      dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMimiId(
-        arr[0],
-      ),
-      dco_decode_ui_in_reply_to_message(arr[1]),
-    );
-  }
-
-  @protected
   (int, DebugCapabilities) dco_decode_record_u_32_debug_capabilities(
     dynamic raw,
   ) {
@@ -8821,6 +8665,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       throw Exception('Expected 2 elements, got ${arr.length}');
     }
     return (dco_decode_u_32(arr[0]), dco_decode_debug_capabilities(arr[1]));
+  }
+
+  @protected
+  (UiMimiId, UiInReplyToMessage)
+  dco_decode_record_ui_mimi_id_ui_in_reply_to_message(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2) {
+      throw Exception('Expected 2 elements, got ${arr.length}');
+    }
+    return (
+      dco_decode_ui_mimi_id(arr[0]),
+      dco_decode_ui_in_reply_to_message(arr[1]),
+    );
   }
 
   @protected
@@ -8854,6 +8712,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   int dco_decode_u_8(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
+  }
+
+  @protected
+  U8Array32 dco_decode_u_8_array_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return U8Array32(dco_decode_list_prim_u_8_strict(raw));
   }
 
   @protected
@@ -9119,7 +8983,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       message: dco_decode_String(arr[0]),
       editingId: dco_decode_opt_box_autoadd_message_id(arr[1]),
       inReplyTo:
-          dco_decode_opt_box_autoadd_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_mimi_id_ui_in_reply_to_message(
+          dco_decode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
             arr[2],
           ),
       updatedAt: dco_decode_Chrono_Utc(arr[3]),
@@ -9147,6 +9011,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       content: dco_decode_opt_box_autoadd_message_content(arr[4]),
       attachments: dco_decode_list_ui_attachment(arr[5]),
     );
+  }
+
+  @protected
+  UiMimiId dco_decode_ui_mimi_id(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 1)
+      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
+    return UiMimiId(field0: dco_decode_u_8_array_32(arr[0]));
   }
 
   @protected
@@ -9397,18 +9270,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  MessageDraft
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageDraft(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return MessageDraftImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
   MessageListCubitBase
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
     SseDeserializer deserializer,
@@ -9427,18 +9288,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return MessageListStateImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  MimiId
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMimiId(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return MimiIdImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -10026,18 +9875,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  MessageDraft
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageDraft(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return MessageDraftImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
   MessageListCubitBase
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
     SseDeserializer deserializer,
@@ -10056,18 +9893,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return MessageListStateImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  MimiId
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMimiId(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return MimiIdImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -10487,14 +10312,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  (MimiId, UiInReplyToMessage)
-  sse_decode_box_autoadd_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_mimi_id_ui_in_reply_to_message(
+  (UiMimiId, UiInReplyToMessage)
+  sse_decode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_mimi_id_ui_in_reply_to_message(
-      deserializer,
-    ));
+    return (sse_decode_record_ui_mimi_id_ui_in_reply_to_message(deserializer));
   }
 
   @protected
@@ -11379,14 +11202,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  (MimiId, UiInReplyToMessage)?
-  sse_decode_opt_box_autoadd_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_mimi_id_ui_in_reply_to_message(
+  (UiMimiId, UiInReplyToMessage)?
+  sse_decode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_mimi_id_ui_in_reply_to_message(
+      return (sse_decode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
         deserializer,
       ));
     } else {
@@ -11622,26 +11445,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  (MimiId, UiInReplyToMessage)
-  sse_decode_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_mimi_id_ui_in_reply_to_message(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_field0 =
-        sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMimiId(
-          deserializer,
-        );
-    var var_field1 = sse_decode_ui_in_reply_to_message(deserializer);
-    return (var_field0, var_field1);
-  }
-
-  @protected
   (int, DebugCapabilities) sse_decode_record_u_32_debug_capabilities(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_field0 = sse_decode_u_32(deserializer);
     var var_field1 = sse_decode_debug_capabilities(deserializer);
+    return (var_field0, var_field1);
+  }
+
+  @protected
+  (UiMimiId, UiInReplyToMessage)
+  sse_decode_record_ui_mimi_id_ui_in_reply_to_message(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_field0 = sse_decode_ui_mimi_id(deserializer);
+    var var_field1 = sse_decode_ui_in_reply_to_message(deserializer);
     return (var_field0, var_field1);
   }
 
@@ -11676,6 +11496,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   int sse_decode_u_8(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint8();
+  }
+
+  @protected
+  U8Array32 sse_decode_u_8_array_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_list_prim_u_8_strict(deserializer);
+    return U8Array32(inner);
   }
 
   @protected
@@ -11959,7 +11786,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_message = sse_decode_String(deserializer);
     var var_editingId = sse_decode_opt_box_autoadd_message_id(deserializer);
     var var_inReplyTo =
-        sse_decode_opt_box_autoadd_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_mimi_id_ui_in_reply_to_message(
+        sse_decode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
           deserializer,
         );
     var var_updatedAt = sse_decode_Chrono_Utc(deserializer);
@@ -11997,6 +11824,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       content: var_content,
       attachments: var_attachments,
     );
+  }
+
+  @protected
+  UiMimiId sse_decode_ui_mimi_id(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_field0 = sse_decode_u_8_array_32(deserializer);
+    return UiMimiId(field0: var_field0);
   }
 
   @protected
@@ -12271,19 +12105,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageDraft(
-    MessageDraft self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as MessageDraftImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
     MessageListCubitBase self,
     SseSerializer serializer,
@@ -12304,19 +12125,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as MessageListStateImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMimiId(
-    MimiId self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as MimiIdImpl).frbInternalSseEncode(move: true),
       serializer,
     );
   }
@@ -13018,19 +12826,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageDraft(
-    MessageDraft self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as MessageDraftImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
     MessageListCubitBase self,
     SseSerializer serializer,
@@ -13051,19 +12846,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as MessageListStateImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMimiId(
-    MimiId self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as MimiIdImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -13600,16 +13382,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void
-  sse_encode_box_autoadd_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_mimi_id_ui_in_reply_to_message(
-    (MimiId, UiInReplyToMessage) self,
+  void sse_encode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
+    (UiMimiId, UiInReplyToMessage) self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_mimi_id_ui_in_reply_to_message(
-      self,
-      serializer,
-    );
+    sse_encode_record_ui_mimi_id_ui_in_reply_to_message(self, serializer);
   }
 
   @protected
@@ -14458,16 +14236,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void
-  sse_encode_opt_box_autoadd_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_mimi_id_ui_in_reply_to_message(
-    (MimiId, UiInReplyToMessage)? self,
+  void sse_encode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
+    (UiMimiId, UiInReplyToMessage)? self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     sse_encode_bool(self != null, serializer);
     if (self != null) {
-      sse_encode_box_autoadd_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_mimi_id_ui_in_reply_to_message(
+      sse_encode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
         self,
         serializer,
       );
@@ -14693,20 +14470,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void
-  sse_encode_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_mimi_id_ui_in_reply_to_message(
-    (MimiId, UiInReplyToMessage) self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMimiId(
-      self.$1,
-      serializer,
-    );
-    sse_encode_ui_in_reply_to_message(self.$2, serializer);
-  }
-
-  @protected
   void sse_encode_record_u_32_debug_capabilities(
     (int, DebugCapabilities) self,
     SseSerializer serializer,
@@ -14714,6 +14477,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_32(self.$1, serializer);
     sse_encode_debug_capabilities(self.$2, serializer);
+  }
+
+  @protected
+  void sse_encode_record_ui_mimi_id_ui_in_reply_to_message(
+    (UiMimiId, UiInReplyToMessage) self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_ui_mimi_id(self.$1, serializer);
+    sse_encode_ui_in_reply_to_message(self.$2, serializer);
   }
 
   @protected
@@ -14743,6 +14516,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_u_8(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putUint8(self);
+  }
+
+  @protected
+  void sse_encode_u_8_array_32(U8Array32 self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_prim_u_8_strict(self.inner, serializer);
   }
 
   @protected
@@ -14985,7 +14764,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.message, serializer);
     sse_encode_opt_box_autoadd_message_id(self.editingId, serializer);
-    sse_encode_opt_box_autoadd_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_mimi_id_ui_in_reply_to_message(
+    sse_encode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
       self.inReplyTo,
       serializer,
     );
@@ -15014,6 +14793,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.plainBody, serializer);
     sse_encode_opt_box_autoadd_message_content(self.content, serializer);
     sse_encode_list_ui_attachment(self.attachments, serializer);
+  }
+
+  @protected
+  void sse_encode_ui_mimi_id(UiMimiId self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_8_array_32(self.field0, serializer);
   }
 
   @protected
@@ -15585,26 +15370,6 @@ class MessageCubitBaseImpl extends RustOpaque implements MessageCubitBase {
 }
 
 @sealed
-class MessageDraftImpl extends RustOpaque implements MessageDraft {
-  // Not to be used by end users
-  MessageDraftImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  MessageDraftImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_MessageDraft,
-    rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_MessageDraft,
-    rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_MessageDraftPtr,
-  );
-}
-
-@sealed
 class MessageListCubitBaseImpl extends RustOpaque
     implements MessageListCubitBase {
   // Not to be used by end users
@@ -15696,26 +15461,6 @@ class MessageListStateImpl extends RustOpaque implements MessageListState {
         that: this,
         messageId: messageId,
       );
-}
-
-@sealed
-class MimiIdImpl extends RustOpaque implements MimiId {
-  // Not to be used by end users
-  MimiIdImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  MimiIdImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_MimiId,
-    rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_MimiId,
-    rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_MimiIdPtr,
-  );
 }
 
 @sealed
