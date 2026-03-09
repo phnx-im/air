@@ -5,14 +5,17 @@
 use std::panic::{self, AssertUnwindSafe};
 use tokio::runtime::Builder;
 use tracing::{error, info};
+use uuid::Uuid;
 
 use crate::{
     api::user::User,
     background_execution::{IncomingNotificationContent, stack},
     logging::init_logger,
+    messages::FetchAndProcessAllMessagesError,
+    notifications::{NotificationContent, NotificationId},
 };
 
-use aircoreclient::store::Store;
+use aircoreclient::{ChatId, store::Store};
 
 use super::NotificationBatch;
 
@@ -155,10 +158,21 @@ pub(crate) async fn retrieve_messages(path: String) -> NotificationBatch {
             info!("All messages fetched and processed");
             processed_messages.notifications_content
         }
-        Err(e) => {
-            error!(?e, "Failed to fetch messages");
-            Vec::new()
-        }
+        Err(e) => match e {
+            FetchAndProcessAllMessagesError::UnsupportedClientVersion => {
+                error!("Unsupported client version");
+                vec![NotificationContent {
+                    identifier: NotificationId::update_required_id(),
+                    title: "Software update required".to_string(),
+                    body: "Update to keep using Air".to_string(),
+                    chat_id: ChatId::new(Uuid::nil()),
+                }]
+            }
+            FetchAndProcessAllMessagesError::Fatal(error) => {
+                error!(?error, "Fatal error while fetching messages");
+                Vec::new()
+            }
+        },
     };
 
     let badge_count = user.global_unread_messages_count().await;
