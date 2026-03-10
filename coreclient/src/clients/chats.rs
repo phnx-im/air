@@ -12,7 +12,10 @@ use crate::{
     chats::{Chat, messages::ChatMessage},
     groups::Group,
     job::{chat_operation::ChatOperation, create_chat::CreateChat},
-    utils::{connection_ext::StoreExt, image::resize_profile_image},
+    utils::{
+        connection_ext::{ConnectionExt, StoreExt},
+        image::resize_profile_image,
+    },
 };
 
 use super::{ChatId, CoreUser};
@@ -122,9 +125,15 @@ impl CoreUser {
         Ok(())
     }
 
-    pub(crate) async fn message(&self, message_id: MessageId) -> sqlx::Result<Option<ChatMessage>> {
-        let mut txn = self.pool().begin_with("BEGIN IMMEDIATE").await?;
-        ChatMessage::load(&mut txn, message_id).await
+    pub(crate) async fn message(
+        &self,
+        message_id: MessageId,
+    ) -> anyhow::Result<Option<ChatMessage>> {
+        self.pool()
+            .with_transaction(async |txn| {
+                ChatMessage::load(txn, message_id).await.map_err(Into::into)
+            })
+            .await
     }
 
     pub(crate) async fn prev_message(
