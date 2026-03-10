@@ -230,7 +230,7 @@ impl Store for CoreUser {
     }
 
     async fn message(&self, message_id: MessageId) -> StoreResult<Option<ChatMessage>> {
-        Ok(self.message(message_id).await?)
+        self.message(message_id).await
     }
 
     async fn prev_message(
