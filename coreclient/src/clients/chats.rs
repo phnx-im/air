@@ -158,9 +158,12 @@ impl CoreUser {
         chat_id: ChatId,
         number_of_messages: usize,
     ) -> Result<Vec<ChatMessage>> {
-        let messages =
-            ChatMessage::load_multiple(self.pool(), chat_id, number_of_messages as u32).await?;
-        Ok(messages)
+        self.with_transaction(async |txn| {
+            ChatMessage::load_multiple(txn, chat_id, number_of_messages as u32)
+                .await
+                .map_err(From::from)
+        })
+        .await
     }
 
     pub async fn load_room_state(&self, chat_id: &ChatId) -> Result<(UserId, VerifiedRoomState)> {
