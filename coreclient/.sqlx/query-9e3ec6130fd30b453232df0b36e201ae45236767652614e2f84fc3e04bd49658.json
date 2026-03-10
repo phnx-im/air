@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                m.message_id AS \"message_id: _\",\n                m.mimi_id AS \"mimi_id: _\",\n                m.chat_id AS \"chat_id: _\",\n                m.timestamp AS \"timestamp: _\",\n                m.sender_user_uuid AS \"sender_user_uuid: _\",\n                m.sender_user_domain AS \"sender_user_domain: _\",\n                m.content AS \"content: _\",\n                m.sent,\n                m.status,\n                m.edited_at AS \"edited_at: _\",\n                b.user_uuid IS NOT NULL AS \"is_blocked!: _\",\n                m.in_reply_to_mimi_id AS \"in_reply_to_mimi_id: _\",\n                COALESCE(rm.message_id, re.message_id) AS \"in_reply_to_message_id: _\",\n                COALESCE(rm.sender_user_uuid, red.sender_user_uuid) AS \"in_reply_to_sender_user_uuid: _\",\n                COALESCE(rm.sender_user_domain, red.sender_user_domain) AS \"in_reply_to_sender_user_domain: _\",\n                COALESCE(rm.content, re.content) AS \"in_reply_to_content: _\"\n            FROM message m\n            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid\n                AND b.user_domain = m.sender_user_domain\n            LEFT JOIN message rm ON m.in_reply_to_mimi_id = rm.mimi_id\n            LEFT JOIN message_edit re ON m.in_reply_to_mimi_id = re.mimi_id\n            LEFT JOIN message red ON re.message_id = red.message_id\n            WHERE m.chat_id = ?\n            ORDER BY m.timestamp DESC LIMIT 1",
+  "query": "SELECT\n                m.message_id AS \"message_id: _\",\n                m.mimi_id AS \"mimi_id: _\",\n                m.chat_id AS \"chat_id: _\",\n                m.timestamp AS \"timestamp: _\",\n                m.sender_user_uuid AS \"sender_user_uuid: _\",\n                m.sender_user_domain AS \"sender_user_domain: _\",\n                m.content AS \"content: _\",\n                m.sent,\n                m.status,\n                m.edited_at AS \"edited_at: _\",\n                b.user_uuid IS NOT NULL AS \"is_blocked!: _\",\n                m.in_reply_to_mimi_id AS \"in_reply_to_mimi_id: _\",\n                NULL AS \"in_reply_to_message_id: _\",\n                NULL AS \"in_reply_to_sender_user_uuid: _\",\n                NULL AS \"in_reply_to_sender_user_domain: _\",\n                NULL AS \"in_reply_to_content: _\"\n            FROM message m\n            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid\n                AND b.user_domain = m.sender_user_domain\n            WHERE m.mimi_id = ?\n            ",
   "describe": {
     "columns": [
       {
@@ -106,5 +106,5 @@
       null
     ]
   },
-  "hash": "9dec26c4a7ab109a727a7402d24804890d185691d969a0591bf2e96a58717d5f"
+  "hash": "9e3ec6130fd30b453232df0b36e201ae45236767652614e2f84fc3e04bd49658"
 }

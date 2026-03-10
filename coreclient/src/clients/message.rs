@@ -28,7 +28,8 @@ impl CoreUser {
         message_id: MessageId,
     ) -> anyhow::Result<ChatMessage> {
         // Load the message to get its mimi_id
-        let message = ChatMessage::load(self.pool(), message_id)
+        let mut txn = self.pool().begin().await?;
+        let message = ChatMessage::load(&mut txn, message_id)
             .await?
             .with_context(|| format!("Can't find message with id {message_id:?}"))?;
 
@@ -46,7 +47,7 @@ impl CoreUser {
     /// and status records. The message will no longer appear in the chat.
     pub(crate) async fn delete_message_locally(&self, message_id: MessageId) -> anyhow::Result<()> {
         self.with_transaction_and_notifier(async |txn, notifier| {
-            let message = ChatMessage::load(txn.as_mut(), message_id)
+            let message = ChatMessage::load(txn, message_id)
                 .await?
                 .with_context(|| format!("Can't find message with id {message_id:?}"))?;
 
@@ -69,11 +70,11 @@ impl CoreUser {
         message_id: MessageId,
     ) -> anyhow::Result<()> {
         self.with_transaction_and_notifier(async |txn, notifier| {
-            let mut message = ChatMessage::load(txn.as_mut(), message_id)
+            let mut message = ChatMessage::load(txn, message_id)
                 .await?
                 .with_context(|| format!("Can't find message with id {message_id:?}"))?;
 
-            let chat = Chat::load(txn.as_mut(), &message.chat_id())
+            let chat = Chat::load(txn, &message.chat_id())
                 .await?
                 .with_context(|| format!("Can't find chat with id {:?}", message.chat_id()))?;
 
@@ -357,33 +358,32 @@ mod tests {
             CoreUser::new_ephemeral(user_id, backend.server_url(), None, "DUMMY007".to_owned())
                 .await?;
 
-        let pool = user.pool();
+        let mut txn = user.pool().begin().await?;
         let mut notifier = StoreNotifier::noop();
 
         // Set up test data: chat -> message -> attachment
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
-            .await?;
+        chat.store(txn.as_mut(), &mut notifier).await?;
 
         let message = test_chat_message(chat.id());
-        message.store(pool, &mut notifier).await?;
+        message.store(txn.as_mut(), &mut notifier).await?;
 
         let attachment = test_attachment_record(chat.id(), message.id());
-        attachment.store(pool, &mut notifier, None).await?;
+        attachment.store(txn.as_mut(), &mut notifier, None).await?;
 
         // Verify attachment exists before deletion
-        let ids = AttachmentRecord::load_ids_by_message_id(pool, message.id()).await?;
+        let ids = AttachmentRecord::load_ids_by_message_id(txn.as_mut(), message.id()).await?;
         assert_eq!(ids.len(), 1);
 
         // Call the actual function
         user.delete_message_content_locally(message.id()).await?;
 
         // Verify attachment is gone
-        let ids = AttachmentRecord::load_ids_by_message_id(pool, message.id()).await?;
+        let ids = AttachmentRecord::load_ids_by_message_id(txn.as_mut(), message.id()).await?;
         assert!(ids.is_empty());
 
         // Verify message still exists with Deleted status
-        let loaded = ChatMessage::load(pool, message.id()).await?.unwrap();
+        let loaded = ChatMessage::load(&mut txn, message.id()).await?.unwrap();
         assert_eq!(loaded.status(), MessageStatus::Deleted);
 
         Ok(())

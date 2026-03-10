@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                COALESCE(rm.message_id, re.message_id) AS \"message_id: _\",\n                COALESCE(rm.sender_user_uuid, red.sender_user_uuid) AS \"sender_user_uuid: _\",\n                COALESCE(rm.sender_user_domain, red.sender_user_domain) AS \"sender_user_domain: _\",\n                COALESCE(rm.content, re.content) AS \"content: _\"\n            FROM message m\n            LEFT JOIN message rm ON m.in_reply_to_mimi_id = rm.mimi_id\n            -- Fallback if the reply is pointed to a previous version (edit) of the message\n            LEFT JOIN message_edit re ON m.in_reply_to_mimi_id = re.mimi_id AND rm.mimi_id IS NULL\n            LEFT JOIN message red ON re.message_id = red.message_id\n            WHERE m.mimi_id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "message_id: _",
+        "ordinal": 0,
+        "type_info": "Null"
+      },
+      {
+        "name": "sender_user_uuid: _",
+        "ordinal": 1,
+        "type_info": "Null"
+      },
+      {
+        "name": "sender_user_domain: _",
+        "ordinal": 2,
+        "type_info": "Null"
+      },
+      {
+        "name": "content: _",
+        "ordinal": 3,
+        "type_info": "Null"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "45e8d1031db111a1c4980212454c7ed58d8e0c94e9073cd207281456a607c4e8"
+}

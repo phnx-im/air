@@ -123,7 +123,8 @@ impl CoreUser {
     }
 
     pub(crate) async fn message(&self, message_id: MessageId) -> sqlx::Result<Option<ChatMessage>> {
-        ChatMessage::load(self.pool(), message_id).await
+        let mut txn = self.pool().begin().await?;
+        ChatMessage::load(&mut txn, message_id).await
     }
 
     pub(crate) async fn prev_message(
@@ -131,7 +132,8 @@ impl CoreUser {
         chat_id: ChatId,
         message_id: MessageId,
     ) -> Result<Option<ChatMessage>> {
-        Ok(ChatMessage::prev_message(self.pool(), chat_id, message_id).await?)
+        let mut txn = self.pool().begin().await?;
+        Ok(ChatMessage::prev_message(&mut txn, chat_id, message_id).await?)
     }
 
     pub(crate) async fn next_message(
@@ -139,7 +141,8 @@ impl CoreUser {
         chat_id: ChatId,
         message_id: MessageId,
     ) -> Result<Option<ChatMessage>> {
-        Ok(ChatMessage::next_message(self.pool(), chat_id, message_id).await?)
+        let mut txn = self.pool().begin().await?;
+        Ok(ChatMessage::next_message(&mut txn, chat_id, message_id).await?)
     }
 
     pub async fn chat(&self, chat: &ChatId) -> Option<Chat> {

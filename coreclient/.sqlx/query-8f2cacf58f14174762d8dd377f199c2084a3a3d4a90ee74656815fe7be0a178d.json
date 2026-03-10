@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE message\n            SET in_reply_to_mimi_id = ?\n            WHERE in_reply_to_mimi_id IN (\n                SELECT mimi_id FROM message_edit WHERE message_id = ?\n                UNION ALL\n                SELECT ?\n            )\n            RETURNING message_id AS \"message_id: _\"\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "message_id: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8f2cacf58f14174762d8dd377f199c2084a3a3d4a90ee74656815fe7be0a178d"
+}

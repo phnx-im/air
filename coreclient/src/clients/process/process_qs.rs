@@ -1043,7 +1043,7 @@ async fn handle_message_edit(
 
     // First try to directly load the original message by mimi id (non-edited message) and fallback
     // to the history of edits otherwise.
-    let mut message = match ChatMessage::load_by_mimi_id(txn.as_mut(), &replaces).await? {
+    let mut message = match ChatMessage::load_by_mimi_id(txn, &replaces).await? {
         Some(message) => message,
         None => {
             let message_id = MessageEdit::find_message_id(txn.as_mut(), &replaces)
@@ -1052,11 +1052,9 @@ async fn handle_message_edit(
                     format!("Original message id not found for editing; mimi_id = {replaces:?}")
                 })?;
 
-            ChatMessage::load(txn.as_mut(), message_id)
-                .await?
-                .with_context(|| {
-                    format!("Original message not found for editing; message_id = {message_id:?}")
-                })?
+            ChatMessage::load(txn, message_id).await?.with_context(|| {
+                format!("Original message not found for editing; message_id = {message_id:?}")
+            })?
         }
     };
 
@@ -1346,7 +1344,7 @@ mod tests {
         alice_message.update(txn.as_mut(), &mut notifier).await?;
 
         // Bob's in_reply_to should still reference the original MIMI ID
-        let bob_message = ChatMessage::load(txn.as_mut(), bob_message.id())
+        let bob_message = ChatMessage::load(&mut txn, bob_message.id())
             .await?
             .unwrap();
         assert_eq!(bob_message.in_reply_to().unwrap().0, original_alice_mimi_id);
@@ -1362,6 +1360,7 @@ mod tests {
         let chat = test_chat();
         chat.store(pool.acquire().await?.as_mut(), &mut notifier)
             .await?;
+        let mut txn = pool.begin().await?;
 
         let group_id = chat.group_id();
         let domain = "localhost".parse().unwrap();
@@ -1382,7 +1381,6 @@ mod tests {
         alice_message.store(&pool, &mut notifier).await?;
 
         // Alice deletes her message
-        let mut txn = pool.begin().await?;
         let alice_message = handle_message_edit(
             &mut txn,
             &mut notifier,
@@ -1395,7 +1393,7 @@ mod tests {
         .await?;
         alice_message.update(txn.as_mut(), &mut notifier).await?;
 
-        let alice_message = ChatMessage::load(txn.as_mut(), alice_message.id())
+        let alice_message = ChatMessage::load(&mut txn, alice_message.id())
             .await?
             .unwrap();
         assert_eq!(alice_message.status(), mimi_content::MessageStatus::Deleted);
@@ -1410,10 +1408,10 @@ mod tests {
         pool: SqlitePool,
     ) -> anyhow::Result<()> {
         let mut notifier = StoreNotifier::noop();
+        let mut txn = pool.begin().await?;
 
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
-            .await?;
+        chat.store(txn.as_mut(), &mut notifier).await?;
 
         let group_id = chat.group_id();
         let domain = "localhost".parse().unwrap();
@@ -1433,7 +1431,7 @@ mod tests {
                 group_id,
             ),
         );
-        alice_message.store(&pool, &mut notifier).await?;
+        alice_message.store(txn.as_mut(), &mut notifier).await?;
 
         // Bob replies to Alice's message
         let mut bob_mimi_content =
@@ -1448,7 +1446,7 @@ mod tests {
             TimeStamp::now(),
             ContentMessage::new(bob.clone(), false, bob_mimi_content, group_id),
         );
-        bob_message.store(&pool, &mut notifier).await?;
+        bob_message.store(txn.as_mut(), &mut notifier).await?;
 
         // Carol also replies to Alice's message
         let mut carol_mimi_content =
@@ -1463,10 +1461,9 @@ mod tests {
             TimeStamp::now(),
             ContentMessage::new(carol.clone(), false, carol_mimi_content, group_id),
         );
-        carol_message.store(&pool, &mut notifier).await?;
+        carol_message.store(txn.as_mut(), &mut notifier).await?;
 
         // Alice deletes her message
-        let mut txn = pool.begin().await?;
         let alice_message = handle_message_edit(
             &mut txn,
             &mut notifier,
@@ -1481,10 +1478,10 @@ mod tests {
 
         // Both Bob's and Carol's in_reply_to should reference Alice's deleted MIMI ID
         let deleted_mimi_id = alice_message.message().mimi_id().unwrap();
-        let bob_message = ChatMessage::load(txn.as_mut(), bob_message.id())
+        let bob_message = ChatMessage::load(&mut txn, bob_message.id())
             .await?
             .unwrap();
-        let carol_message = ChatMessage::load(txn.as_mut(), carol_message.id())
+        let carol_message = ChatMessage::load(&mut txn, carol_message.id())
             .await?
             .unwrap();
         assert_eq!(&bob_message.in_reply_to().unwrap().0, deleted_mimi_id);
@@ -1500,10 +1497,10 @@ mod tests {
         pool: SqlitePool,
     ) -> anyhow::Result<()> {
         let mut notifier = StoreNotifier::noop();
+        let mut txn = pool.begin().await?;
 
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
-            .await?;
+        chat.store(txn.as_mut(), &mut notifier).await?;
 
         let group_id = chat.group_id();
         let domain = "localhost".parse().unwrap();
@@ -1522,10 +1519,9 @@ mod tests {
                 group_id,
             ),
         );
-        alice_message.store(&pool, &mut notifier).await?;
+        alice_message.store(txn.as_mut(), &mut notifier).await?;
 
         // Alice edits her message — the MIMI ID changes
-        let mut txn = pool.begin().await?;
         let edited_alice_content = MimiContent::simple_markdown_message(
             "Hello from Alice! WITH EDIT".to_string(),
             [0; 16],
@@ -1541,7 +1537,6 @@ mod tests {
         )
         .await?;
         alice_message.update(txn.as_mut(), &mut notifier).await?;
-        txn.commit().await?;
 
         // Bob replies to the *edited* version of Alice's message
         let edited_alice_mimi_id = *alice_message.message().mimi_id().unwrap();
@@ -1555,11 +1550,10 @@ mod tests {
             TimeStamp::now(),
             ContentMessage::new(bob.clone(), false, bob_mimi_content, group_id),
         );
-        bob_message.store(&pool, &mut notifier).await?;
+        bob_message.store(txn.as_mut(), &mut notifier).await?;
 
         // Alice deletes her (edited) message
-        let mut txn = pool.begin().await?;
-        let alice_message = ChatMessage::load(txn.as_mut(), alice_message.id())
+        let alice_message = ChatMessage::load(&mut txn, alice_message.id())
             .await?
             .unwrap();
         let alice_message = handle_message_edit(
@@ -1576,7 +1570,7 @@ mod tests {
 
         // Bob's in_reply_to should reference Alice's deleted MIMI ID (not the edited one)
         let deleted_mimi_id = alice_message.message().mimi_id().unwrap();
-        let bob_message = ChatMessage::load(txn.as_mut(), bob_message.id())
+        let bob_message = ChatMessage::load(&mut txn, bob_message.id())
             .await?
             .unwrap();
         assert_eq!(&bob_message.in_reply_to().unwrap().0, deleted_mimi_id);

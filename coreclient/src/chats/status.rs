@@ -131,7 +131,7 @@ mod persistence {
     mod test {
         use chrono::Utc;
         use mimi_content::MessageStatus;
-        use sqlx::{SqlitePool, query_scalar};
+        use sqlx::{Connection, SqlitePool, query_scalar};
 
         use crate::chats::{
             messages::persistence::tests::test_chat_message_with_salt,
@@ -204,16 +204,16 @@ mod persistence {
             use crate::ChatMessage;
 
             let mut notifier = StoreNotifier::noop();
+            let mut conn = pool.acquire().await?;
 
             let alice = UserId::random("localhost".parse().unwrap());
             let bob = UserId::random("localhost".parse().unwrap());
 
             let chat = test_chat();
-            chat.store(pool.acquire().await?.as_mut(), &mut notifier)
-                .await?;
+            chat.store(conn.as_mut(), &mut notifier).await?;
 
             let message = test_chat_message_with_salt(chat.id(), [0; 16]);
-            message.store(&pool, &mut notifier).await?;
+            message.store(conn.as_mut(), &mut notifier).await?;
             let mimi_id = message.message().mimi_id().unwrap();
 
             // Create status records from multiple users
@@ -230,36 +230,35 @@ mod persistence {
                 }],
             };
 
-            let mut txn = pool.begin().await?;
+            let mut txn = conn.begin().await?;
             StatusRecord::borrowed(&alice, report_alice, Utc::now().into())
                 .store_report(&mut txn, &mut notifier)
                 .await?;
             StatusRecord::borrowed(&bob, report_bob, Utc::now().into())
                 .store_report(&mut txn, &mut notifier)
                 .await?;
-            txn.commit().await?;
 
             // Verify status records exist
             let count: i64 =
                 query_scalar("SELECT COUNT(*) FROM message_status WHERE message_id = ?")
                     .bind(message.id())
-                    .fetch_one(&pool)
+                    .fetch_one(txn.as_mut())
                     .await?;
             assert_eq!(count, 2);
 
             // Clear status records
-            StatusRecord::clear(&pool, &mut notifier, message.id()).await?;
+            StatusRecord::clear(txn.as_mut(), &mut notifier, message.id()).await?;
 
             // Verify status records are gone
             let count: i64 =
                 query_scalar("SELECT COUNT(*) FROM message_status WHERE message_id = ?")
                     .bind(message.id())
-                    .fetch_one(&pool)
+                    .fetch_one(txn.as_mut())
                     .await?;
             assert_eq!(count, 0);
 
             // Verify message still exists
-            let loaded = ChatMessage::load(&pool, message.id()).await?;
+            let loaded = ChatMessage::load(&mut txn, message.id()).await?;
             assert!(loaded.is_some());
 
             Ok(())
