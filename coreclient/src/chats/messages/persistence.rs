@@ -219,7 +219,7 @@ impl ChatMessage {
         .await?
         .map(TryFrom::try_from)
         .transpose()?
-        .try_load_replied_message(txn)
+        .with_loaded_in_reply_to(txn)
         .await
     }
 
@@ -253,7 +253,7 @@ impl ChatMessage {
         .await?
         .map(TryFrom::try_from)
         .transpose()?
-        .try_load_replied_message(txn)
+        .with_loaded_in_reply_to(txn)
         .await
     }
 
@@ -306,7 +306,7 @@ impl ChatMessage {
 
         for message in messages.iter_mut() {
             // we don't want to fail for all messages if one load operation fails
-            if let Err(error) = message.try_load_replied_message(txn).await {
+            if let Err(error) = message.augment_in_reply_to(txn).await {
                 error!(%error, "failed to load reply for message");
             }
         }
@@ -315,10 +315,7 @@ impl ChatMessage {
     }
 
     /// Augments a chat message when it is a reply with the data from the referenced message
-    async fn try_load_replied_message(
-        &mut self,
-        txn: &mut SqliteTransaction<'_>,
-    ) -> sqlx::Result<()> {
+    async fn augment_in_reply_to(&mut self, txn: &mut SqliteTransaction<'_>) -> sqlx::Result<()> {
         if let Some((mimi_id, message)) = self.in_reply_to.as_mut() {
             *message = InReplyToMessage::load(txn, mimi_id).await?;
         }
@@ -511,7 +508,7 @@ impl ChatMessage {
         .await?
         .map(TryFrom::try_from)
         .transpose()?
-        .try_load_replied_message(txn)
+        .with_loaded_in_reply_to(txn)
         .await
     }
 
@@ -553,7 +550,7 @@ impl ChatMessage {
         .await?
         .map(TryFrom::try_from)
         .transpose()?
-        .try_load_replied_message(txn)
+        .with_loaded_in_reply_to(txn)
         .await
     }
 
@@ -592,7 +589,7 @@ impl ChatMessage {
         .await?
         .map(TryFrom::try_from)
         .transpose()?
-        .try_load_replied_message(txn)
+        .with_loaded_in_reply_to(txn)
         .await
     }
 
@@ -631,7 +628,7 @@ impl ChatMessage {
         .await?
         .map(TryFrom::try_from)
         .transpose()?
-        .try_load_replied_message(txn)
+        .with_loaded_in_reply_to(txn)
         .await
     }
 
@@ -692,11 +689,11 @@ trait SqlChatMessageExt
 where
     Self: Sized,
 {
-    async fn try_load_replied_message(self, txn: &mut SqliteTransaction<'_>) -> sqlx::Result<Self>;
+    async fn with_loaded_in_reply_to(self, txn: &mut SqliteTransaction<'_>) -> sqlx::Result<Self>;
 }
 
 impl SqlChatMessageExt for &mut ChatMessage {
-    async fn try_load_replied_message(self, txn: &mut SqliteTransaction<'_>) -> sqlx::Result<Self> {
+    async fn with_loaded_in_reply_to(self, txn: &mut SqliteTransaction<'_>) -> sqlx::Result<Self> {
         if let Some((in_reply_to_mimi_id, in_reply_to_message)) = self.in_reply_to.as_mut() {
             *in_reply_to_message = InReplyToMessage::load(txn, in_reply_to_mimi_id).await?;
         }
@@ -706,12 +703,12 @@ impl SqlChatMessageExt for &mut ChatMessage {
 }
 
 impl SqlChatMessageExt for Option<ChatMessage> {
-    async fn try_load_replied_message(
+    async fn with_loaded_in_reply_to(
         mut self,
         txn: &mut SqliteTransaction<'_>,
     ) -> sqlx::Result<Self> {
         if let Some(chat_message) = self.as_mut() {
-            chat_message.try_load_replied_message(txn).await?;
+            chat_message.augment_in_reply_to(txn).await?;
         }
 
         Ok(self)
