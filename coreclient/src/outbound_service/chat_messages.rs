@@ -32,12 +32,13 @@ impl OutboundService {
         message_id: MessageId,
         attachment_id: Option<AttachmentId>,
     ) -> anyhow::Result<()> {
-        let mut pool = self.context.pool.clone();
-        pool.with_transaction(async |txn| {
-            self.enqueue_chat_message_in_transaction(txn, message_id, attachment_id)
-                .await
-        })
-        .await
+        self.context
+            .pool
+            .with_transaction(async |txn| {
+                self.enqueue_chat_message_in_transaction(txn, message_id, attachment_id)
+                    .await
+            })
+            .await
     }
 
     pub async fn enqueue_chat_message_in_transaction(

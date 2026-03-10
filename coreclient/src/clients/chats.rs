@@ -123,7 +123,7 @@ impl CoreUser {
     }
 
     pub(crate) async fn message(&self, message_id: MessageId) -> sqlx::Result<Option<ChatMessage>> {
-        let mut txn = self.pool().begin().await?;
+        let mut txn = self.pool().begin_with("BEGIN IMMEDIATE").await?;
         ChatMessage::load(&mut txn, message_id).await
     }
 
@@ -132,7 +132,7 @@ impl CoreUser {
         chat_id: ChatId,
         message_id: MessageId,
     ) -> Result<Option<ChatMessage>> {
-        let mut txn = self.pool().begin().await?;
+        let mut txn = self.pool().begin_with("BEGIN IMMEDIATE").await?;
         Ok(ChatMessage::prev_message(&mut txn, chat_id, message_id).await?)
     }
 

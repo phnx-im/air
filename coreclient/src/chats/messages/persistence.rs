@@ -663,21 +663,21 @@ impl ChatMessage {
 }
 
 #[derive(Debug)]
-struct SqlInReplyToReponse {
+struct SqlInReplyToMessage {
     message_id: MessageId,
     sender_user_uuid: Option<Uuid>,
     sender_user_domain: Option<Fqdn>,
     content: Option<BlobDecoded<VersionedMessage>>,
 }
 
-impl From<SqlInReplyToReponse> for Option<InReplyToMessage> {
+impl From<SqlInReplyToMessage> for Option<InReplyToMessage> {
     fn from(
-        SqlInReplyToReponse {
+        SqlInReplyToMessage {
             message_id,
             sender_user_uuid,
             sender_user_domain,
             content,
-        }: SqlInReplyToReponse,
+        }: SqlInReplyToMessage,
     ) -> Self {
         Some(InReplyToMessage {
             message_id,
@@ -726,8 +726,8 @@ impl InReplyToMessage {
         let mimi_id = mimi_id.as_slice();
 
         // Try to load the message that was replied to
-        let in_reply_to_message = if let Some(replied_to_message) = query_as!(
-            SqlInReplyToReponse,
+        let in_reply_to_message = if let Some(in_reply_to_message) = query_as!(
+            SqlInReplyToMessage,
             r#"
             SELECT
                 message_id AS "message_id: _",
@@ -742,11 +742,11 @@ impl InReplyToMessage {
         .fetch_optional(txn.as_mut())
         .await?
         {
-            replied_to_message.into()
+            in_reply_to_message.into()
         }
         // If we didn't find it, try to load a message edit (previous version)
-        else if let Some(replied_to_message_edit) = query_as!(
-            SqlInReplyToReponse,
+        else if let Some(in_reply_to_message) = query_as!(
+            SqlInReplyToMessage,
             r#"
             SELECT
                 me.message_id AS "message_id: _",
@@ -762,7 +762,7 @@ impl InReplyToMessage {
         .fetch_optional(txn.as_mut())
         .await?
         {
-            replied_to_message_edit.into()
+            in_reply_to_message.into()
         } else {
             None
         };
