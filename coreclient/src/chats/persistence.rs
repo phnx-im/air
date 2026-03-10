@@ -128,7 +128,7 @@ impl Chat {
     /// On conflict, the chat is **not** removed but updated.
     pub(crate) async fn store(
         &self,
-        connection: &mut SqliteConnection,
+        conn: &mut SqliteConnection,
         notifier: &mut StoreNotifier,
     ) -> sqlx::Result<()> {
         info!(
@@ -213,7 +213,7 @@ impl Chat {
             is_active,
             is_incoming,
         )
-        .execute(&mut *connection)
+        .execute(&mut *conn)
         .await?;
 
         for member in past_members {
@@ -229,7 +229,7 @@ impl Chat {
                 uuid,
                 domain,
             )
-            .execute(&mut *connection)
+            .execute(&mut *conn)
             .await?;
         }
 

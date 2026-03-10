@@ -150,7 +150,7 @@ mod tests {
         );
 
         // Verify message still exists
-        let loaded = crate::ChatMessage::load(&pool, message.id()).await?;
+        let loaded = crate::ChatMessage::load(&mut pool.begin().await?, message.id()).await?;
         assert!(loaded.is_some());
 
         Ok(())
