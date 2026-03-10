@@ -726,7 +726,7 @@ impl InReplyToMessage {
         let mimi_id = mimi_id.as_slice();
 
         // Try to load the message that was replied to
-        let replied_to_message = query_as!(
+        let in_reply_to_message = if let Some(replied_to_message) = query_as!(
             SqlInReplyToReponse,
             r#"
             SELECT
@@ -740,14 +740,12 @@ impl InReplyToMessage {
             mimi_id,
         )
         .fetch_optional(txn.as_mut())
-        .await?;
-
-        if let Some(irt) = replied_to_message {
-            return Ok(irt.into());
+        .await?
+        {
+            replied_to_message.into()
         }
-
         // If we didn't find it, try to load a message edit (previous version)
-        let replied_to_message_edit = query_as!(
+        else if let Some(replied_to_message_edit) = query_as!(
             SqlInReplyToReponse,
             r#"
             SELECT
@@ -762,13 +760,14 @@ impl InReplyToMessage {
             mimi_id,
         )
         .fetch_optional(txn.as_mut())
-        .await?;
+        .await?
+        {
+            replied_to_message_edit.into()
+        } else {
+            None
+        };
 
-        if let Some(irt) = replied_to_message_edit {
-            return Ok(irt.into());
-        }
-
-        Ok(None)
+        Ok(in_reply_to_message)
     }
 }
 
