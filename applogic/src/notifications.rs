@@ -109,6 +109,10 @@ impl NotificationId {
     pub(crate) fn random() -> Self {
         Self(Uuid::new_v4())
     }
+
+    pub(crate) fn update_required_id() -> Self {
+        Self(uuid::uuid!("42d3fcea-3383-42d3-abd4-f3427e945311"))
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

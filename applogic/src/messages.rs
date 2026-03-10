@@ -5,7 +5,7 @@
 use aircommon::messages::QueueMessage;
 use aircoreclient::{
     ChatId,
-    clients::{process::process_qs::ProcessedQsMessages, queue_event},
+    clients::{ListenQueueError, process::process_qs::ProcessedQsMessages, queue_event},
 };
 use anyhow::Result;
 use tokio_stream::StreamExt;
@@ -25,7 +25,7 @@ impl User {
     }
 
     /// Fetch and process QS messages
-    async fn fetch_and_process_qs_messages(&self) -> Result<ProcessedQsMessages> {
+    async fn fetch_and_process_qs_messages(&self) -> Result<ProcessedQsMessages, ListenQueueError> {
         let (stream, responder) = self.user.listen_queue().await?;
         let mut stream = stream
             .take_while(|message| !matches!(message.event, Some(queue_event::Event::Empty(_))))
@@ -68,7 +68,7 @@ impl User {
     /// This function is intended to be called in the background service.
     pub(crate) async fn fetch_and_process_all_messages_in_background(
         &self,
-    ) -> Result<ProcessedMessages> {
+    ) -> Result<ProcessedMessages, FetchAndProcessAllMessagesError> {
         let mut notifications = Vec::new();
 
         // Fetch QS messages
@@ -80,7 +80,15 @@ impl User {
             errors: _,
             processed: _,
             mut new_connections,
-        } = Box::pin(self.fetch_and_process_qs_messages()).await?;
+        } = Box::pin(self.fetch_and_process_qs_messages())
+            .await
+            .map_err(|error| {
+                if error.is_unsupported_version() {
+                    FetchAndProcessAllMessagesError::UnsupportedClientVersion
+                } else {
+                    FetchAndProcessAllMessagesError::Fatal(error.into())
+                }
+            })?;
         self.new_chat_notifications(&new_chats, &mut notifications)
             .await;
         self.new_message_notifications(&new_messages, &mut notifications)
@@ -88,7 +96,10 @@ impl User {
 
         // Fetch AS connection requests
         debug!("fetch AS messages");
-        let new_handle_connections = self.fetch_and_process_as_messages().await?;
+        let new_handle_connections = self
+            .fetch_and_process_as_messages()
+            .await
+            .map_err(FetchAndProcessAllMessagesError::Fatal)?;
         new_connections.extend(new_handle_connections);
 
         self.new_connection_request_notifications(&new_connections, &mut notifications)
@@ -98,4 +109,12 @@ impl User {
             notifications_content: notifications,
         })
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum FetchAndProcessAllMessagesError {
+    #[error("Unsupported client version")]
+    UnsupportedClientVersion,
+    #[error(transparent)]
+    Fatal(anyhow::Error),
 }
