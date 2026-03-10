@@ -668,7 +668,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_box_autoadd_developer_settings_screen_type(dynamic raw);
 
   @protected
+  EncryptedGroupTitleDebugInfo
+  dco_decode_box_autoadd_encrypted_group_title_debug_info(dynamic raw);
+
+  @protected
+  ExternalGroupProfileDebugInfo
+  dco_decode_box_autoadd_external_group_profile_debug_info(dynamic raw);
+
+  @protected
   double dco_decode_box_autoadd_f_64(dynamic raw);
+
+  @protected
+  GroupDataDebugInfo dco_decode_box_autoadd_group_data_debug_info(dynamic raw);
 
   @protected
   HomeNavigationState dco_decode_box_autoadd_home_navigation_state(dynamic raw);
@@ -776,7 +787,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  EncryptedGroupTitleDebugInfo dco_decode_encrypted_group_title_debug_info(
+    dynamic raw,
+  );
+
+  @protected
+  ExternalGroupProfileDebugInfo dco_decode_external_group_profile_debug_info(
+    dynamic raw,
+  );
+
+  @protected
   double dco_decode_f_64(dynamic raw);
+
+  @protected
+  GroupDataDebugInfo dco_decode_group_data_debug_info(dynamic raw);
 
   @protected
   GroupDebugInfo dco_decode_group_debug_info(dynamic raw);
@@ -934,7 +958,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_opt_box_autoadd_developer_settings_screen_type(dynamic raw);
 
   @protected
+  EncryptedGroupTitleDebugInfo?
+  dco_decode_opt_box_autoadd_encrypted_group_title_debug_info(dynamic raw);
+
+  @protected
+  ExternalGroupProfileDebugInfo?
+  dco_decode_opt_box_autoadd_external_group_profile_debug_info(dynamic raw);
+
+  @protected
   double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
+
+  @protected
+  GroupDataDebugInfo? dco_decode_opt_box_autoadd_group_data_debug_info(
+    dynamic raw,
+  );
 
   @protected
   ImageData? dco_decode_opt_box_autoadd_image_data(dynamic raw);
@@ -1667,7 +1704,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  EncryptedGroupTitleDebugInfo
+  sse_decode_box_autoadd_encrypted_group_title_debug_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ExternalGroupProfileDebugInfo
+  sse_decode_box_autoadd_external_group_profile_debug_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
+
+  @protected
+  GroupDataDebugInfo sse_decode_box_autoadd_group_data_debug_info(
+    SseDeserializer deserializer,
+  );
 
   @protected
   HomeNavigationState sse_decode_box_autoadd_home_navigation_state(
@@ -1813,7 +1867,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  EncryptedGroupTitleDebugInfo sse_decode_encrypted_group_title_debug_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ExternalGroupProfileDebugInfo sse_decode_external_group_profile_debug_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   double sse_decode_f_64(SseDeserializer deserializer);
+
+  @protected
+  GroupDataDebugInfo sse_decode_group_data_debug_info(
+    SseDeserializer deserializer,
+  );
 
   @protected
   GroupDebugInfo sse_decode_group_debug_info(SseDeserializer deserializer);
@@ -1999,7 +2068,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  EncryptedGroupTitleDebugInfo?
+  sse_decode_opt_box_autoadd_encrypted_group_title_debug_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ExternalGroupProfileDebugInfo?
+  sse_decode_opt_box_autoadd_external_group_profile_debug_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
+
+  @protected
+  GroupDataDebugInfo? sse_decode_opt_box_autoadd_group_data_debug_info(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ImageData? sse_decode_opt_box_autoadd_image_data(
@@ -2886,7 +2972,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_encrypted_group_title_debug_info(
+    EncryptedGroupTitleDebugInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_external_group_profile_debug_info(
+    ExternalGroupProfileDebugInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_group_data_debug_info(
+    GroupDataDebugInfo self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_home_navigation_state(
@@ -3072,7 +3176,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_encrypted_group_title_debug_info(
+    EncryptedGroupTitleDebugInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_external_group_profile_debug_info(
+    ExternalGroupProfileDebugInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_f_64(double self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_group_data_debug_info(
+    GroupDataDebugInfo self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_group_debug_info(
@@ -3312,7 +3434,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_encrypted_group_title_debug_info(
+    EncryptedGroupTitleDebugInfo? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_external_group_profile_debug_info(
+    ExternalGroupProfileDebugInfo? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_group_data_debug_info(
+    GroupDataDebugInfo? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_box_autoadd_image_data(

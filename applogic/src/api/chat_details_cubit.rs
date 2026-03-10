@@ -14,7 +14,10 @@ use aircoreclient::{
     AttachmentProgress, Chat, ChatId, ChatMessage, MessageId, ProvisionAttachmentError,
     UploadTaskError, clients::CoreUser, store::Store,
 };
-pub use aircoreclient::{DebugCapabilities, GroupDebugInfo, RequiredDebugCapabilities};
+pub use aircoreclient::{
+    DebugCapabilities, EncryptedGroupTitleDebugInfo, ExternalGroupProfileDebugInfo,
+    GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
+};
 use anyhow::{Context as _, bail};
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
@@ -741,7 +744,33 @@ pub struct _GroupDebugInfo {
     pub has_pending_commit: bool,
     pub required_capabilities: Option<RequiredDebugCapabilities>,
     pub members: HashMap<u32, DebugCapabilities>,
-    pub group_data_cbor: Option<String>,
+    pub group_data: Option<GroupDataDebugInfo>,
+}
+
+#[frb(mirror(GroupDataDebugInfo))]
+pub struct _GroupDataDebugInfo {
+    pub title: String,
+    pub has_picture: bool,
+    pub encrypted_title: Option<EncryptedGroupTitleDebugInfo>,
+    pub external_group_profile: Option<ExternalGroupProfileDebugInfo>,
+}
+
+#[frb(mirror(EncryptedGroupTitleDebugInfo))]
+pub struct _EncryptedGroupTitleDebugInfo {
+    pub ciphertext: String,
+    pub nonce: String,
+    pub aad: String,
+}
+
+#[frb(mirror(ExternalGroupProfileDebugInfo))]
+pub struct _ExternalGroupProfileDebugInfo {
+    pub object_id: String,
+    pub size: u64,
+    pub enc_alg: Option<String>,
+    pub aad: String,
+    pub nonce: String,
+    pub hash_alg: String,
+    pub content_hash: String,
 }
 
 #[frb(mirror(RequiredDebugCapabilities))]

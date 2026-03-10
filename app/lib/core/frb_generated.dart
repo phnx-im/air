@@ -7778,9 +7778,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  EncryptedGroupTitleDebugInfo
+  dco_decode_box_autoadd_encrypted_group_title_debug_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_encrypted_group_title_debug_info(raw);
+  }
+
+  @protected
+  ExternalGroupProfileDebugInfo
+  dco_decode_box_autoadd_external_group_profile_debug_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_external_group_profile_debug_info(raw);
+  }
+
+  @protected
   double dco_decode_box_autoadd_f_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as double;
+  }
+
+  @protected
+  GroupDataDebugInfo dco_decode_box_autoadd_group_data_debug_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_group_data_debug_info(raw);
   }
 
   @protected
@@ -8011,9 +8031,59 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  EncryptedGroupTitleDebugInfo dco_decode_encrypted_group_title_debug_info(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return EncryptedGroupTitleDebugInfo(
+      ciphertext: dco_decode_String(arr[0]),
+      nonce: dco_decode_String(arr[1]),
+      aad: dco_decode_String(arr[2]),
+    );
+  }
+
+  @protected
+  ExternalGroupProfileDebugInfo dco_decode_external_group_profile_debug_info(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return ExternalGroupProfileDebugInfo(
+      objectId: dco_decode_String(arr[0]),
+      size: dco_decode_u_64(arr[1]),
+      encAlg: dco_decode_opt_String(arr[2]),
+      aad: dco_decode_String(arr[3]),
+      nonce: dco_decode_String(arr[4]),
+      hashAlg: dco_decode_String(arr[5]),
+      contentHash: dco_decode_String(arr[6]),
+    );
+  }
+
+  @protected
   double dco_decode_f_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as double;
+  }
+
+  @protected
+  GroupDataDebugInfo dco_decode_group_data_debug_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return GroupDataDebugInfo(
+      title: dco_decode_String(arr[0]),
+      hasPicture: dco_decode_bool(arr[1]),
+      encryptedTitle:
+          dco_decode_opt_box_autoadd_encrypted_group_title_debug_info(arr[2]),
+      externalGroupProfile:
+          dco_decode_opt_box_autoadd_external_group_profile_debug_info(arr[3]),
+    );
   }
 
   @protected
@@ -8034,7 +8104,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       requiredCapabilities:
           dco_decode_opt_box_autoadd_required_debug_capabilities(arr[8]),
       members: dco_decode_Map_u_32_debug_capabilities_None(arr[9]),
-      groupDataCbor: dco_decode_opt_String(arr[10]),
+      groupData: dco_decode_opt_box_autoadd_group_data_debug_info(arr[10]),
     );
   }
 
@@ -8470,9 +8540,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  EncryptedGroupTitleDebugInfo?
+  dco_decode_opt_box_autoadd_encrypted_group_title_debug_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_encrypted_group_title_debug_info(raw);
+  }
+
+  @protected
+  ExternalGroupProfileDebugInfo?
+  dco_decode_opt_box_autoadd_external_group_profile_debug_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_external_group_profile_debug_info(raw);
+  }
+
+  @protected
   double? dco_decode_opt_box_autoadd_f_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_f_64(raw);
+  }
+
+  @protected
+  GroupDataDebugInfo? dco_decode_opt_box_autoadd_group_data_debug_info(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_group_data_debug_info(raw);
   }
 
   @protected
@@ -10255,9 +10353,35 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  EncryptedGroupTitleDebugInfo
+  sse_decode_box_autoadd_encrypted_group_title_debug_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_encrypted_group_title_debug_info(deserializer));
+  }
+
+  @protected
+  ExternalGroupProfileDebugInfo
+  sse_decode_box_autoadd_external_group_profile_debug_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_external_group_profile_debug_info(deserializer));
+  }
+
+  @protected
   double sse_decode_box_autoadd_f_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_f_64(deserializer));
+  }
+
+  @protected
+  GroupDataDebugInfo sse_decode_box_autoadd_group_data_debug_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_group_data_debug_info(deserializer));
   }
 
   @protected
@@ -10521,9 +10645,70 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  EncryptedGroupTitleDebugInfo sse_decode_encrypted_group_title_debug_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_ciphertext = sse_decode_String(deserializer);
+    var var_nonce = sse_decode_String(deserializer);
+    var var_aad = sse_decode_String(deserializer);
+    return EncryptedGroupTitleDebugInfo(
+      ciphertext: var_ciphertext,
+      nonce: var_nonce,
+      aad: var_aad,
+    );
+  }
+
+  @protected
+  ExternalGroupProfileDebugInfo sse_decode_external_group_profile_debug_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_objectId = sse_decode_String(deserializer);
+    var var_size = sse_decode_u_64(deserializer);
+    var var_encAlg = sse_decode_opt_String(deserializer);
+    var var_aad = sse_decode_String(deserializer);
+    var var_nonce = sse_decode_String(deserializer);
+    var var_hashAlg = sse_decode_String(deserializer);
+    var var_contentHash = sse_decode_String(deserializer);
+    return ExternalGroupProfileDebugInfo(
+      objectId: var_objectId,
+      size: var_size,
+      encAlg: var_encAlg,
+      aad: var_aad,
+      nonce: var_nonce,
+      hashAlg: var_hashAlg,
+      contentHash: var_contentHash,
+    );
+  }
+
+  @protected
   double sse_decode_f_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getFloat64();
+  }
+
+  @protected
+  GroupDataDebugInfo sse_decode_group_data_debug_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_title = sse_decode_String(deserializer);
+    var var_hasPicture = sse_decode_bool(deserializer);
+    var var_encryptedTitle =
+        sse_decode_opt_box_autoadd_encrypted_group_title_debug_info(
+          deserializer,
+        );
+    var var_externalGroupProfile =
+        sse_decode_opt_box_autoadd_external_group_profile_debug_info(
+          deserializer,
+        );
+    return GroupDataDebugInfo(
+      title: var_title,
+      hasPicture: var_hasPicture,
+      encryptedTitle: var_encryptedTitle,
+      externalGroupProfile: var_externalGroupProfile,
+    );
   }
 
   @protected
@@ -10540,7 +10725,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_requiredCapabilities =
         sse_decode_opt_box_autoadd_required_debug_capabilities(deserializer);
     var var_members = sse_decode_Map_u_32_debug_capabilities_None(deserializer);
-    var var_groupDataCbor = sse_decode_opt_String(deserializer);
+    var var_groupData = sse_decode_opt_box_autoadd_group_data_debug_info(
+      deserializer,
+    );
     return GroupDebugInfo(
       groupId: var_groupId,
       epoch: var_epoch,
@@ -10552,7 +10739,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       hasPendingCommit: var_hasPendingCommit,
       requiredCapabilities: var_requiredCapabilities,
       members: var_members,
-      groupDataCbor: var_groupDataCbor,
+      groupData: var_groupData,
     );
   }
 
@@ -11142,11 +11329,56 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  EncryptedGroupTitleDebugInfo?
+  sse_decode_opt_box_autoadd_encrypted_group_title_debug_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_encrypted_group_title_debug_info(
+        deserializer,
+      ));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  ExternalGroupProfileDebugInfo?
+  sse_decode_opt_box_autoadd_external_group_profile_debug_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_external_group_profile_debug_info(
+        deserializer,
+      ));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_f_64(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  GroupDataDebugInfo? sse_decode_opt_box_autoadd_group_data_debug_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_group_data_debug_info(deserializer));
     } else {
       return null;
     }
@@ -13316,9 +13548,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_encrypted_group_title_debug_info(
+    EncryptedGroupTitleDebugInfo self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_encrypted_group_title_debug_info(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_external_group_profile_debug_info(
+    ExternalGroupProfileDebugInfo self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_external_group_profile_debug_info(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_f_64(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_group_data_debug_info(
+    GroupDataDebugInfo self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_group_data_debug_info(self, serializer);
   }
 
   @protected
@@ -13610,9 +13869,53 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_encrypted_group_title_debug_info(
+    EncryptedGroupTitleDebugInfo self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.ciphertext, serializer);
+    sse_encode_String(self.nonce, serializer);
+    sse_encode_String(self.aad, serializer);
+  }
+
+  @protected
+  void sse_encode_external_group_profile_debug_info(
+    ExternalGroupProfileDebugInfo self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.objectId, serializer);
+    sse_encode_u_64(self.size, serializer);
+    sse_encode_opt_String(self.encAlg, serializer);
+    sse_encode_String(self.aad, serializer);
+    sse_encode_String(self.nonce, serializer);
+    sse_encode_String(self.hashAlg, serializer);
+    sse_encode_String(self.contentHash, serializer);
+  }
+
+  @protected
   void sse_encode_f_64(double self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putFloat64(self);
+  }
+
+  @protected
+  void sse_encode_group_data_debug_info(
+    GroupDataDebugInfo self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.title, serializer);
+    sse_encode_bool(self.hasPicture, serializer);
+    sse_encode_opt_box_autoadd_encrypted_group_title_debug_info(
+      self.encryptedTitle,
+      serializer,
+    );
+    sse_encode_opt_box_autoadd_external_group_profile_debug_info(
+      self.externalGroupProfile,
+      serializer,
+    );
   }
 
   @protected
@@ -13634,7 +13937,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       serializer,
     );
     sse_encode_Map_u_32_debug_capabilities_None(self.members, serializer);
-    sse_encode_opt_String(self.groupDataCbor, serializer);
+    sse_encode_opt_box_autoadd_group_data_debug_info(
+      self.groupData,
+      serializer,
+    );
   }
 
   @protected
@@ -14178,12 +14484,54 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_encrypted_group_title_debug_info(
+    EncryptedGroupTitleDebugInfo? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_encrypted_group_title_debug_info(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_external_group_profile_debug_info(
+    ExternalGroupProfileDebugInfo? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_external_group_profile_debug_info(
+        self,
+        serializer,
+      );
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_f_64(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_group_data_debug_info(
+    GroupDataDebugInfo? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_group_data_debug_info(self, serializer);
     }
   }
 

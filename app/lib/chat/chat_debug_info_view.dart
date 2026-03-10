@@ -101,10 +101,10 @@ class _GroupDebugInfoBody extends StatelessWidget {
             ),
           ],
         ),
-        if (info.groupDataCbor != null) ...[
+        if (info.groupData != null) ...[
           const SizedBox(height: Spacings.s),
           const _SectionHeader('Group Data'),
-          _GroupDataCard(cbor: info.groupDataCbor!),
+          _GroupDataInfoCard(data: info.groupData!),
         ],
         if (info.requiredCapabilities != null) ...[
           const SizedBox(height: Spacings.s),
@@ -150,6 +150,32 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
+class _CardSectionHeader extends StatelessWidget {
+  const _CardSectionHeader(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = CustomColorScheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacings.s,
+        vertical: Spacings.xs,
+      ),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: BodyFontSize.small2.size,
+          fontWeight: FontWeight.w600,
+          color: colors.text.tertiary,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+}
+
 class _InfoCard extends StatelessWidget {
   const _InfoCard({required this.children});
 
@@ -164,6 +190,7 @@ class _InfoCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (int i = 0; i < children.length; i++) ...[
             children[i],
@@ -223,7 +250,7 @@ class _InfoRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              width: 140,
+              width: 200,
               child: Text(
                 label,
                 style: TextStyle(
@@ -240,40 +267,71 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-class _GroupDataCard extends StatelessWidget {
-  const _GroupDataCard({required this.cbor});
+class _GroupDataInfoCard extends StatelessWidget {
+  const _GroupDataInfoCard({required this.data});
 
-  final String cbor;
+  final GroupDataDebugInfo data;
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
-    return InkWell(
-      onTap: () {
-        Clipboard.setData(ClipboardData(text: cbor));
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Copied Group Data'),
-            duration: Duration(seconds: 2),
+    return _InfoCard(
+      children: [
+        _InfoRow(label: 'Title', value: data.title),
+        _InfoRow(label: 'Has Picture', value: data.hasPicture ? 'yes' : 'no'),
+        if (data.encryptedTitle != null) ...[
+          const _CardSectionHeader('Encrypted Title'),
+          _InfoRow(
+            label: 'Ciphertext',
+            value: data.encryptedTitle!.ciphertext,
+            monospace: true,
           ),
-        );
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(Spacings.s),
-        decoration: BoxDecoration(
-          color: colors.backgroundBase.secondary,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          cbor,
-          style: TextStyle(
-            fontSize: BodyFontSize.small2.size,
-            color: colors.text.primary,
-          ).withSystemMonospace(),
-        ),
-      ),
+          _InfoRow(
+            label: 'Nonce',
+            value: data.encryptedTitle!.nonce,
+            monospace: true,
+          ),
+          _InfoRow(
+            label: 'AAD',
+            value: data.encryptedTitle!.aad,
+            monospace: true,
+          ),
+        ],
+        if (data.externalGroupProfile != null) ...[
+          const _CardSectionHeader('External Group Profile'),
+          _InfoRow(
+            label: 'Object ID',
+            value: data.externalGroupProfile!.objectId,
+            monospace: true,
+          ),
+          _InfoRow(
+            label: 'Size',
+            value: data.externalGroupProfile!.size.toString(),
+          ),
+          _InfoRow(
+            label: 'Enc Alg',
+            value: data.externalGroupProfile!.encAlg ?? '—',
+          ),
+          _InfoRow(
+            label: 'Nonce',
+            value: data.externalGroupProfile!.nonce,
+            monospace: true,
+          ),
+          _InfoRow(
+            label: 'AAD',
+            value: data.externalGroupProfile!.aad,
+            monospace: true,
+          ),
+          _InfoRow(
+            label: 'Hash Alg',
+            value: data.externalGroupProfile!.hashAlg,
+          ),
+          _InfoRow(
+            label: 'Content Hash',
+            value: data.externalGroupProfile!.contentHash,
+            monospace: true,
+          ),
+        ],
+      ],
     );
   }
 }
@@ -435,7 +493,7 @@ class _ChipListRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              width: 140,
+              width: 200,
               child: Text(
                 label,
                 style: TextStyle(

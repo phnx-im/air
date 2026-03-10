@@ -7722,6 +7722,34 @@ const _: fn() = || {
         let _: Vec<String> = DebugCapabilities.proposals;
     }
     {
+        let EncryptedGroupTitleDebugInfo =
+            None::<crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo>.unwrap();
+        let _: String = EncryptedGroupTitleDebugInfo.ciphertext;
+        let _: String = EncryptedGroupTitleDebugInfo.nonce;
+        let _: String = EncryptedGroupTitleDebugInfo.aad;
+    }
+    {
+        let ExternalGroupProfileDebugInfo =
+            None::<crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo>.unwrap();
+        let _: String = ExternalGroupProfileDebugInfo.object_id;
+        let _: u64 = ExternalGroupProfileDebugInfo.size;
+        let _: Option<String> = ExternalGroupProfileDebugInfo.enc_alg;
+        let _: String = ExternalGroupProfileDebugInfo.aad;
+        let _: String = ExternalGroupProfileDebugInfo.nonce;
+        let _: String = ExternalGroupProfileDebugInfo.hash_alg;
+        let _: String = ExternalGroupProfileDebugInfo.content_hash;
+    }
+    {
+        let GroupDataDebugInfo =
+            None::<crate::api::chat_details_cubit::GroupDataDebugInfo>.unwrap();
+        let _: String = GroupDataDebugInfo.title;
+        let _: bool = GroupDataDebugInfo.has_picture;
+        let _: Option<crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo> =
+            GroupDataDebugInfo.encrypted_title;
+        let _: Option<crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo> =
+            GroupDataDebugInfo.external_group_profile;
+    }
+    {
         let GroupDebugInfo = None::<crate::api::chat_details_cubit::GroupDebugInfo>.unwrap();
         let _: String = GroupDebugInfo.group_id;
         let _: u64 = GroupDebugInfo.epoch;
@@ -7735,7 +7763,8 @@ const _: fn() = || {
             GroupDebugInfo.required_capabilities;
         let _: std::collections::HashMap<u32, crate::api::chat_details_cubit::DebugCapabilities> =
             GroupDebugInfo.members;
-        let _: Option<String> = GroupDebugInfo.group_data_cbor;
+        let _: Option<crate::api::chat_details_cubit::GroupDataDebugInfo> =
+            GroupDebugInfo.group_data;
     }
     {
         let MessageId = None::<crate::api::types::MessageId>.unwrap();
@@ -8723,10 +8752,66 @@ impl SseDecode for crate::api::navigation_cubit::DeveloperSettingsScreenType {
     }
 }
 
+impl SseDecode for crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_ciphertext = <String>::sse_decode(deserializer);
+        let mut var_nonce = <String>::sse_decode(deserializer);
+        let mut var_aad = <String>::sse_decode(deserializer);
+        return crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo {
+            ciphertext: var_ciphertext,
+            nonce: var_nonce,
+            aad: var_aad,
+        };
+    }
+}
+
+impl SseDecode for crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_objectId = <String>::sse_decode(deserializer);
+        let mut var_size = <u64>::sse_decode(deserializer);
+        let mut var_encAlg = <Option<String>>::sse_decode(deserializer);
+        let mut var_aad = <String>::sse_decode(deserializer);
+        let mut var_nonce = <String>::sse_decode(deserializer);
+        let mut var_hashAlg = <String>::sse_decode(deserializer);
+        let mut var_contentHash = <String>::sse_decode(deserializer);
+        return crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo {
+            object_id: var_objectId,
+            size: var_size,
+            enc_alg: var_encAlg,
+            aad: var_aad,
+            nonce: var_nonce,
+            hash_alg: var_hashAlg,
+            content_hash: var_contentHash,
+        };
+    }
+}
+
 impl SseDecode for f64 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         deserializer.cursor.read_f64::<NativeEndian>().unwrap()
+    }
+}
+
+impl SseDecode for crate::api::chat_details_cubit::GroupDataDebugInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_title = <String>::sse_decode(deserializer);
+        let mut var_hasPicture = <bool>::sse_decode(deserializer);
+        let mut var_encryptedTitle = <Option<
+            crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo,
+        >>::sse_decode(deserializer);
+        let mut var_externalGroupProfile = <Option<
+            crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo,
+        >>::sse_decode(deserializer);
+        return crate::api::chat_details_cubit::GroupDataDebugInfo {
+            title: var_title,
+            has_picture: var_hasPicture,
+            encrypted_title: var_encryptedTitle,
+            external_group_profile: var_externalGroupProfile,
+        };
     }
 }
 
@@ -8748,7 +8833,8 @@ impl SseDecode for crate::api::chat_details_cubit::GroupDebugInfo {
             u32,
             crate::api::chat_details_cubit::DebugCapabilities,
         >>::sse_decode(deserializer);
-        let mut var_groupDataCbor = <Option<String>>::sse_decode(deserializer);
+        let mut var_groupData =
+            <Option<crate::api::chat_details_cubit::GroupDataDebugInfo>>::sse_decode(deserializer);
         return crate::api::chat_details_cubit::GroupDebugInfo {
             group_id: var_groupId,
             epoch: var_epoch,
@@ -8760,7 +8846,7 @@ impl SseDecode for crate::api::chat_details_cubit::GroupDebugInfo {
             has_pending_commit: var_hasPendingCommit,
             required_capabilities: var_requiredCapabilities,
             members: var_members,
-            group_data_cbor: var_groupDataCbor,
+            group_data: var_groupData,
         };
     }
 }
@@ -9388,11 +9474,54 @@ impl SseDecode for Option<crate::api::navigation_cubit::DeveloperSettingsScreenT
     }
 }
 
+impl SseDecode for Option<crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(
+                <crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo>::sse_decode(
+                    deserializer,
+                ),
+            );
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(
+                <crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo>::sse_decode(
+                    deserializer,
+                ),
+            );
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<f64> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<f64>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::chat_details_cubit::GroupDataDebugInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(
+                <crate::api::chat_details_cubit::GroupDataDebugInfo>::sse_decode(deserializer),
+            );
         } else {
             return None;
         }
@@ -11210,6 +11339,93 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::navigation_cubit::DeveloperSe
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo>
+{
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.ciphertext.into_into_dart().into_dart(),
+            self.0.nonce.into_into_dart().into_dart(),
+            self.0.aad.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo>
+{
+}
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo>,
+    > for crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo
+{
+    fn into_into_dart(
+        self,
+    ) -> FrbWrapper<crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo>
+{
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.object_id.into_into_dart().into_dart(),
+            self.0.size.into_into_dart().into_dart(),
+            self.0.enc_alg.into_into_dart().into_dart(),
+            self.0.aad.into_into_dart().into_dart(),
+            self.0.nonce.into_into_dart().into_dart(),
+            self.0.hash_alg.into_into_dart().into_dart(),
+            self.0.content_hash.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo>
+{
+}
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo>,
+    > for crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo
+{
+    fn into_into_dart(
+        self,
+    ) -> FrbWrapper<crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<crate::api::chat_details_cubit::GroupDataDebugInfo>
+{
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.title.into_into_dart().into_dart(),
+            self.0.has_picture.into_into_dart().into_dart(),
+            self.0.encrypted_title.into_into_dart().into_dart(),
+            self.0.external_group_profile.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::chat_details_cubit::GroupDataDebugInfo>
+{
+}
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<crate::api::chat_details_cubit::GroupDataDebugInfo>,
+    > for crate::api::chat_details_cubit::GroupDataDebugInfo
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::chat_details_cubit::GroupDataDebugInfo> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::chat_details_cubit::GroupDebugInfo> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -11223,7 +11439,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::chat_details_cubit
             self.0.has_pending_commit.into_into_dart().into_dart(),
             self.0.required_capabilities.into_into_dart().into_dart(),
             self.0.members.into_into_dart().into_dart(),
-            self.0.group_data_cbor.into_into_dart().into_dart(),
+            self.0.group_data.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -13156,10 +13372,48 @@ impl SseEncode for crate::api::navigation_cubit::DeveloperSettingsScreenType {
     }
 }
 
+impl SseEncode for crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.ciphertext, serializer);
+        <String>::sse_encode(self.nonce, serializer);
+        <String>::sse_encode(self.aad, serializer);
+    }
+}
+
+impl SseEncode for crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.object_id, serializer);
+        <u64>::sse_encode(self.size, serializer);
+        <Option<String>>::sse_encode(self.enc_alg, serializer);
+        <String>::sse_encode(self.aad, serializer);
+        <String>::sse_encode(self.nonce, serializer);
+        <String>::sse_encode(self.hash_alg, serializer);
+        <String>::sse_encode(self.content_hash, serializer);
+    }
+}
+
 impl SseEncode for f64 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_f64::<NativeEndian>(self).unwrap();
+    }
+}
+
+impl SseEncode for crate::api::chat_details_cubit::GroupDataDebugInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.title, serializer);
+        <bool>::sse_encode(self.has_picture, serializer);
+        <Option<crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo>>::sse_encode(
+            self.encrypted_title,
+            serializer,
+        );
+        <Option<crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo>>::sse_encode(
+            self.external_group_profile,
+            serializer,
+        );
     }
 }
 
@@ -13179,7 +13433,10 @@ impl SseEncode for crate::api::chat_details_cubit::GroupDebugInfo {
             serializer,
         );
         <std::collections::HashMap<u32, crate::api::chat_details_cubit::DebugCapabilities>>::sse_encode(self.members, serializer);
-        <Option<String>>::sse_encode(self.group_data_cbor, serializer);
+        <Option<crate::api::chat_details_cubit::GroupDataDebugInfo>>::sse_encode(
+            self.group_data,
+            serializer,
+        );
     }
 }
 
@@ -13684,12 +13941,46 @@ impl SseEncode for Option<crate::api::navigation_cubit::DeveloperSettingsScreenT
     }
 }
 
+impl SseEncode for Option<crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo>::sse_encode(
+                value, serializer,
+            );
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo>::sse_encode(
+                value, serializer,
+            );
+        }
+    }
+}
+
 impl SseEncode for Option<f64> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <f64>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::chat_details_cubit::GroupDataDebugInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::chat_details_cubit::GroupDataDebugInfo>::sse_encode(value, serializer);
         }
     }
 }

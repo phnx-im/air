@@ -14,8 +14,9 @@ use aircommon::{
         QS_CLIENT_REFERENCE_EXTENSION_TYPE, SUPPORTED_PROTOCOL_VERSIONS,
     },
 };
-use airprotos::client::group::GroupData;
+use airprotos::client::group::{EncryptedGroupTitle, ExternalGroupProfile, GroupData};
 use anyhow::Context as _;
+use hex::ToHex as _;
 use openmls::prelude::{
     Capabilities, Ciphersuite, ExtensionType, ProposalType, RequiredCapabilitiesExtension,
 };
@@ -50,8 +51,33 @@ pub struct GroupDebugInfo {
     pub has_pending_commit: bool,
     pub required_capabilities: Option<RequiredDebugCapabilities>,
     pub members: HashMap<u32, DebugCapabilities>,
-    /// CBOR diagnostic representation of the group data extension, if present.
-    pub group_data_cbor: Option<String>,
+    pub group_data: Option<GroupDataDebugInfo>,
+}
+
+#[derive(Debug, Clone)]
+pub struct GroupDataDebugInfo {
+    pub title: String,
+    pub has_picture: bool,
+    pub encrypted_title: Option<EncryptedGroupTitleDebugInfo>,
+    pub external_group_profile: Option<ExternalGroupProfileDebugInfo>,
+}
+
+#[derive(Debug, Clone)]
+pub struct EncryptedGroupTitleDebugInfo {
+    pub ciphertext: String,
+    pub nonce: String,
+    pub aad: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExternalGroupProfileDebugInfo {
+    pub object_id: String,
+    pub size: u64,
+    pub enc_alg: Option<String>,
+    pub aad: String,
+    pub nonce: String,
+    pub hash_alg: String,
+    pub content_hash: String,
 }
 
 #[derive(Debug, Clone)]
@@ -89,22 +115,18 @@ impl GroupDebugInfo {
             .extensions()
             .required_capabilities()
             .map(RequiredDebugCapabilities::from_extension);
-        let group_data_cbor = group
+        let group_data = group
             .mls_group()
             .extensions()
             .unknown(GROUP_DATA_EXTENSION_TYPE)
-            .and_then(|ext| {
-                let mut group_data =
-                    GroupData::decode(&GroupDataBytes::from(ext.0.clone())).ok()?;
-                // Picture data is too long to be displayed in the UI, so we replace it with its
-                // length encoded as little endian byte array.
-                if let Some(picture_len) = group_data.picture.as_ref().map(|p| p.len()) {
-                    group_data.picture = Some(picture_len.to_le_bytes().to_vec());
-                }
-                let bytes = group_data.encode().ok()?;
-                cbor_diag::parse_bytes(&bytes.bytes()[1..])
-                    .ok()
-                    .map(|d| d.to_diag_pretty())
+            .and_then(|ext| GroupData::decode(&GroupDataBytes::from(ext.0.clone())).ok())
+            .map(|gd| GroupDataDebugInfo {
+                title: gd.title,
+                has_picture: gd.picture.is_some(),
+                encrypted_title: gd.encrypted_title.map(EncryptedGroupTitleDebugInfo::from),
+                external_group_profile: gd
+                    .external_group_profile
+                    .map(ExternalGroupProfileDebugInfo::from),
             });
 
         let mut members = HashMap::new();
@@ -138,7 +160,7 @@ impl GroupDebugInfo {
             has_pending_commit,
             required_capabilities,
             members,
-            group_data_cbor,
+            group_data,
         })
     }
 }
@@ -222,5 +244,45 @@ fn format_proposal_type(t: &ProposalType) -> String {
         }
         ProposalType::Custom(n) => format!("Custom({n:#06x})"),
         _ => format!("{t:?}"),
+    }
+}
+
+impl From<EncryptedGroupTitle> for EncryptedGroupTitleDebugInfo {
+    fn from(
+        EncryptedGroupTitle {
+            ciphertext,
+            nonce,
+            aad,
+        }: EncryptedGroupTitle,
+    ) -> Self {
+        Self {
+            ciphertext: ciphertext.encode_hex(),
+            nonce: nonce.encode_hex(),
+            aad: aad.encode_hex(),
+        }
+    }
+}
+
+impl From<ExternalGroupProfile> for ExternalGroupProfileDebugInfo {
+    fn from(
+        ExternalGroupProfile {
+            object_id,
+            size,
+            enc_alg,
+            nonce,
+            aad,
+            hash_alg,
+            content_hash,
+        }: ExternalGroupProfile,
+    ) -> Self {
+        Self {
+            object_id: object_id.to_string(),
+            size,
+            enc_alg: enc_alg.map(|a| format!("{a:?}")),
+            nonce: nonce.encode_hex(),
+            aad: aad.encode_hex(),
+            hash_alg: format!("{hash_alg:?}"),
+            content_hash: content_hash.encode_hex(),
+        }
     }
 }
