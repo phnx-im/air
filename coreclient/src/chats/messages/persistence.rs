@@ -741,6 +741,7 @@ impl SqlChatMessageExt for sqlx::Result<Option<SqlChatMessage>> {
             return self;
         };
 
+        #[derive(Debug)]
         struct SqlInReplyToReponse {
             message_id: Option<MessageId>,
             sender_user_uuid: Option<Uuid>,
@@ -749,19 +750,31 @@ impl SqlChatMessageExt for sqlx::Result<Option<SqlChatMessage>> {
         }
 
         let in_reply_to_mimi_id = in_reply_to_mimi_id.as_slice();
+        // TODO: maybe we push the optimisation in-code further and do the first message lookup, and then the edit, ourselves.
+        dbg!("LOADING IN REPLY TO MESAGE!");
         let in_reply_to_message = query_as!(
             SqlInReplyToReponse,
-            r#"SELECT
-                COALESCE(rm.message_id, re.message_id) AS "message_id: _",
-                COALESCE(rm.sender_user_uuid, red.sender_user_uuid) AS "sender_user_uuid: _",
-                COALESCE(rm.sender_user_domain, red.sender_user_domain) AS "sender_user_domain: _",
-                COALESCE(rm.content, re.content) AS "content: _"
-            FROM message m
-            LEFT JOIN message rm ON m.in_reply_to_mimi_id = rm.mimi_id
-            -- Fallback if the reply is pointed to a previous version (edit) of the message
-            LEFT JOIN message_edit re ON m.in_reply_to_mimi_id = re.mimi_id AND rm.mimi_id IS NULL
-            LEFT JOIN message red ON re.message_id = red.message_id
-            WHERE m.mimi_id = ?
+            r#"
+            WITH reply_source AS (
+                -- Direct: mimi_id lives on message itself
+                SELECT mimi_id, message_id, sender_user_uuid, sender_user_domain, content
+                FROM message
+                WHERE mimi_id IS NOT NULL
+
+                UNION ALL
+
+                -- Indirect: mimi_id belongs to an edit, resolve to the parent message
+                SELECT me.mimi_id, m.message_id, m.sender_user_uuid, m.sender_user_domain, me.content
+                FROM message_edit me
+                JOIN message m ON m.message_id = me.message_id
+            )
+            SELECT
+                message_id AS "message_id: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _"
+            FROM reply_source
+            WHERE mimi_id = ?
             "#,
             in_reply_to_mimi_id,
         )
