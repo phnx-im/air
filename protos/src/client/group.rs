@@ -82,7 +82,7 @@ pub struct ExternalGroupProfile {
     /// An IANA Named Information Hash Algorithm
     #[tag(6)]
     pub hash_alg: HashAlgorithm,
-    /// Hash of the content (which one: encrypted or plaintext?)
+    /// Hash of the original content (non-encrypted)
     #[tag(7)]
     pub content_hash: Vec<u8>,
 }
@@ -190,7 +190,8 @@ impl<'a> GroupProfile<'a> {
             .len()
             .try_into()
             .map_err(|_| GroupProfileEncryptionError::UsizeOverflow)?;
-        let content_hash = Sha256::digest(&ciphertext);
+
+        let content_hash = Sha256::digest(&plaintext);
 
         let external = ExternalGroupProfile {
             object_id: Uuid::nil(),
@@ -232,14 +233,15 @@ impl<'a> GroupProfile<'a> {
             ));
         }
 
-        let sha256 = Sha256::digest(&ciphertext);
+        let aead_ciphertext = AeadCiphertext::new(ciphertext, external_group_profile.nonce);
+        let plaintext = identity_link_wrapper_key
+            .decrypt_with_aad(&aead_ciphertext, &external_group_profile.aad)?;
+
+        let sha256 = Sha256::digest(&plaintext);
         if sha256.as_slice() != external_group_profile.content_hash.as_slice() {
             return Err(GroupProfileDecryptionError::ChecksumMismatch);
         }
 
-        let aead_ciphertext = AeadCiphertext::new(ciphertext, external_group_profile.nonce);
-        let plaintext = identity_link_wrapper_key
-            .decrypt_with_aad(&aead_ciphertext, &external_group_profile.aad)?;
         Ok(PersistenceCodec::from_slice(&plaintext)?)
     }
 }
