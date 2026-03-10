@@ -213,7 +213,7 @@ impl Group {
         let mls_group = MlsGroup::builder()
             .with_group_id(group_id.clone())
             .with_capabilities(leaf_node_capabilities)
-            .with_group_context_extensions(gc_extensions)?
+            .with_group_context_extensions(gc_extensions)
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
             .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
@@ -498,8 +498,8 @@ impl Group {
             }
 
             let (mls_group, commit) = builder
-                .create_group_info(true)
                 .load_psks(provider.storage())?
+                .create_group_info(true)
                 .build(provider.rand(), provider.crypto(), signer, |_| true)?
                 .finalize(&provider)?;
 
@@ -602,9 +602,9 @@ impl Group {
             self.mls_group
                 .commit_builder()
                 .force_self_update(true)
-                .create_group_info(true)
                 .propose_adds(key_packages)
                 .load_psks(provider.storage())?
+                .create_group_info(true)
                 .build(provider.rand(), provider.crypto(), signer, |_| true)?
                 .stage_commit(&provider)?
                 .into_contents()
@@ -681,9 +681,9 @@ impl Group {
             .mls_group
             .commit_builder()
             .force_self_update(true)
-            .create_group_info(true)
             .propose_removals(remove_indices)
             .load_psks(provider.storage())?
+            .create_group_info(true)
             .build(provider.rand(), provider.crypto(), signer, |_| true)?
             .stage_commit(&provider)?
             .into_contents();
@@ -727,9 +727,9 @@ impl Group {
             .mls_group
             .commit_builder()
             .force_self_update(true)
-            .create_group_info(true)
             .propose_removals(remove_indices)
             .load_psks(provider.storage())?
+            .create_group_info(true)
             .build(provider.rand(), provider.crypto(), signer, |_| true)?
             .stage_commit(provider)?
             .into_contents();
@@ -940,13 +940,15 @@ impl Group {
         }))
         .tls_serialize_detached()?;
 
-        let extensions = new_group_data.map(|gd| {
-            let group_data_extension =
-                Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, UnknownExtension(gd.bytes));
-            let mut exts = self.mls_group().extensions().clone();
-            exts.add_or_replace(group_data_extension);
-            exts
-        });
+        let extensions = new_group_data
+            .map(|gd| -> Result<_> {
+                let group_data_extension =
+                    Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, UnknownExtension(gd.bytes));
+                let mut exts = self.mls_group().extensions().clone();
+                exts.add_or_replace(group_data_extension)?;
+                Ok(exts)
+            })
+            .transpose()?;
 
         self.mls_group.set_aad(aad);
         let (mls_message, group_info) = {
@@ -954,7 +956,7 @@ impl Group {
 
             let mut builder = self.mls_group.commit_builder();
             if let Some(extensions) = extensions {
-                builder = builder.propose_group_context_extensions(extensions);
+                builder = builder.propose_group_context_extensions(extensions)?;
             };
 
             let leaf_node_parameters = LeafNodeParameters::builder()
@@ -962,9 +964,9 @@ impl Group {
                 .build();
             let (mls_message, _welcome_option, group_info_option) = builder
                 .force_self_update(true)
-                .create_group_info(true)
                 .leaf_node_parameters(leaf_node_parameters)
                 .load_psks(provider.storage())?
+                .create_group_info(true)
                 .build(provider.rand(), provider.crypto(), signer, |_| true)?
                 .stage_commit(&provider)?
                 .into_contents();
