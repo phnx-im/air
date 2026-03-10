@@ -14,7 +14,7 @@ use mimi_content::{MessageStatus, MimiContent};
 use serde::{Deserialize, Serialize};
 use sqlx::{SqliteExecutor, SqliteTransaction, query, query_as, query_scalar};
 use tokio_stream::StreamExt;
-use tracing::{debug, error, warn};
+use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -307,7 +307,7 @@ impl ChatMessage {
         for message in messages.iter_mut() {
             // we don't want to fail for all messages if one load operation fails
             if let Err(error) = message.try_load_replied_message(txn).await {
-                debug!(%error, "failed to run reply for message");
+                error!(%error, "failed to load reply for message");
             }
         }
 
