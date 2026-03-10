@@ -129,9 +129,9 @@ zeroize = "1.8.1"
 
 
 [patch.crates-io]
-openmls = { git = "https://github.com/openmls/openmls", rev = "eea3f26ef72e7217ac4eb4086fd13683cec49985" }
-openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "eea3f26ef72e7217ac4eb4086fd13683cec49985" }
-openmls_traits = { git = "https://github.com/openmls/openmls", rev = "eea3f26ef72e7217ac4eb4086fd13683cec49985" }
+openmls = { git = "https://github.com/openmls/openmls", rev = "04c50d7fb12d52f4f9aee26de5f5234f3df29fa8" }
+openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "04c50d7fb12d52f4f9aee26de5f5234f3df29fa8" }
+openmls_traits = { git = "https://github.com/openmls/openmls", rev = "04c50d7fb12d52f4f9aee26de5f5234f3df29fa8" }
 
 [profile.release]
 strip = true
