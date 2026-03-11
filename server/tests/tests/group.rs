@@ -395,6 +395,117 @@ async fn update_group_data() {
     }
 }
 
+/// Tests that after being invited to a group, the invitee fetches the encrypted group profile from
+/// object storage via the outbound service and sees the correct group attributes (title and
+/// picture).
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Fetch group profile on invite", skip_all)]
+async fn fetch_group_profile_on_invite() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    let chat_id = setup.create_group(&alice).await;
+
+    // Record Alice's group attributes (title and resized picture set during create_group)
+    let alice_user = &setup.get_user(&alice).user;
+    let alice_chat = alice_user.chat(&chat_id).await.unwrap();
+    let expected_title = alice_chat.attributes().title().to_owned();
+    let expected_picture = alice_chat.attributes().picture.clone();
+
+    // Alice invites Bob; the encrypted group profile is already uploaded from group creation
+    alice_user
+        .invite_users(chat_id, slice::from_ref(&bob))
+        .await
+        .unwrap();
+
+    // Bob processes the invitation: this schedules a FetchGroupProfileOperation
+    let bob_user = &setup.get_user(&bob).user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Bob should process invitation without errors: {:?}",
+        result.errors
+    );
+
+    // Bob sees the group title immediately after processing the invitation, but not the picture
+    let bob_chat = bob_user.chat(&chat_id).await.unwrap();
+    assert_eq!(bob_chat.attributes().title(), &expected_title);
+
+    // Bob runs the outbound service: this executes FetchGroupProfileOperation,
+    // downloading and decrypting the encrypted group profile from object storage
+    bob_user.outbound_service().run_once().await;
+
+    // Bob should have the correct group attributes after fetching the encrypted profile
+    let bob_chat = bob_user.chat(&chat_id).await.unwrap();
+    assert_eq!(bob_chat.attributes().title(), &expected_title);
+    assert_eq!(bob_chat.attributes().picture, expected_picture);
+}
+
+/// Tests that after a group title and picture update, other members fetch the new encrypted group
+/// profile via the outbound service and see the updated attributes.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Fetch group profile on update", skip_all)]
+async fn fetch_group_profile_on_update() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let chat = setup.get_user(&alice).user.chat(&chat_id).await.unwrap();
+    let title = chat.attributes().title().to_owned();
+
+    // Bob sees the group title of group immediately
+    let bob_user = &setup.get_user(&bob).user;
+    let bob_chat = bob_user.chat(&chat_id).await.unwrap();
+    assert_eq!(bob_chat.attributes().title(), &title);
+
+    // Alice updates the group title and picture
+    let new_title = "Updated Group Title".to_string();
+    let alice_user = &setup.get_user(&alice).user;
+    alice_user
+        .set_chat_title(chat_id, new_title.clone())
+        .await
+        .unwrap();
+    alice_user
+        .set_chat_picture(chat_id, Some(test_picture_bytes()))
+        .await
+        .unwrap();
+
+    // Record Alice's stored picture (may be resized relative to test_picture_bytes)
+    let expected_picture = alice_user
+        .chat(&chat_id)
+        .await
+        .unwrap()
+        .attributes
+        .picture
+        .clone();
+
+    // Bob fetches Alice's commits: this schedules FetchGroupProfileOperations
+    let bob_user = &setup.get_user(&bob).user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Bob should process Alice's updates without errors: {:?}",
+        result.errors
+    );
+
+    // Bob runs the outbound service: this executes FetchGroupProfileOperations,
+    // downloading and decrypting the new encrypted group profile from object storage
+    bob_user.outbound_service().run_once().await;
+
+    // Bob should see the updated title and picture
+    let bob_chat = bob_user.chat(&chat_id).await.unwrap();
+    assert_eq!(bob_chat.attributes().title(), &new_title);
+    assert_eq!(bob_chat.attributes().picture, expected_picture);
+}
+
 /// This test checks that bob can leave a group where he missed a commit. He leaves the group only
 /// locally. Other user can remove the bob correctly (commit is merged), and add him again.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

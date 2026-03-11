@@ -76,6 +76,7 @@ impl OutboundService<OutboundServiceContext> {
     pub(crate) fn new(
         pool: SqlitePool,
         api_clients: ApiClients,
+        http_client: reqwest::Client,
         key_store: MemoryUserKeyStore,
         qs_client_id: QsClientId,
         store_notifications_tx: StoreNotificationsSender,
@@ -84,6 +85,7 @@ impl OutboundService<OutboundServiceContext> {
         let context = OutboundServiceContext {
             pool,
             api_clients,
+            http_client,
             key_store,
             qs_client_id,
             store_notifications_tx,
@@ -208,6 +210,7 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
 pub struct OutboundServiceContext {
     pool: SqlitePool,
     api_clients: ApiClients,
+    http_client: reqwest::Client,
     key_store: MemoryUserKeyStore,
     qs_client_id: QsClientId,
     store_notifications_tx: StoreNotificationsSender,
@@ -221,6 +224,7 @@ impl OutboundServiceContext {
         let mut notifier = self.notifier();
         let mut context = JobContext {
             api_clients: &self.api_clients,
+            http_client: &self.http_client,
             pool: self.pool().clone(),
             notifier: &mut notifier,
             key_store: &self.key_store,

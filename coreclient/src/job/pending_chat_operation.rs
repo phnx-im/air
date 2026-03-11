@@ -4,12 +4,12 @@
 
 use airapiclient::ds_api::DsRequestError;
 use aircommon::{
-    codec::PersistenceCodec,
     credentials::{ClientCredential, keys::ClientSigningKey},
     identifiers::{QualifiedGroupId, UserId},
     messages::client_ds_out::{DeleteGroupParamsOut, GroupOperationParamsOut, SelfRemoveParamsOut},
     time::TimeStamp,
 };
+use airprotos::client::group::GroupData;
 use anyhow::{Context as _, anyhow, bail};
 use chrono::{DateTime, Duration, Utc};
 use mimi_room_policy::RoleIndex;
@@ -19,11 +19,11 @@ use sqlx::{SqliteConnection, SqlitePool, SqliteTransaction, query, query_as};
 use tracing::{debug, error, info};
 
 use crate::{
-    Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
-    chats::messages::TimestampedMessage,
+    Chat, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
+    chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
     contacts::ContactAddInfos,
-    groups::{Group, GroupDataBytes, VerifiedGroup, client_auth_info::StorableClientCredential},
+    groups::{Group, VerifiedGroup, client_auth_info::StorableClientCredential},
     job::{Job, JobContext, JobError},
     store::StoreNotifier,
     utils::connection_ext::ConnectionExt,
@@ -159,6 +159,7 @@ impl PendingChatOperation {
             notifier,
             key_store,
             now,
+            ..
         } = context;
         let signer = &key_store.signing_key;
         let own_user_id = signer.credential().user_id().clone();
@@ -247,18 +248,23 @@ impl PendingChatOperation {
                 };
 
                 let group_messages = if is_commit {
-                    let (mut group_messages, group_data) = self
+                    let (mut group_messages, group_data_bytes) = self
                         .group
                         .merge_pending_commit(txn, None, ds_timestamp)
                         .await?;
 
-                    if let Some(group_data) = group_data {
+                    if let Some(bytes) = group_data_bytes {
+                        let group_data = GroupData::decode(&bytes)?;
+                        let (chat_attributes, _external_group_profile) =
+                            group_data.into_parts(self.group.identity_link_wrapper_key());
+                        // No need to fetch the group profile: this is our own pending commit, so
+                        // the profile data is already available locally.
                         update_chat_attributes(
                             txn,
                             notifier,
                             &mut chat,
                             own_user_id,
-                            group_data,
+                            chat_attributes,
                             ds_timestamp,
                             &mut group_messages,
                         )
@@ -428,7 +434,7 @@ impl PendingChatOperation {
         txn: &mut SqliteTransaction<'_>,
         signer: &ClientSigningKey,
         chat_id: ChatId,
-        new_chat_attributes: Option<&ChatAttributes>,
+        new_group_data: Option<GroupData>,
     ) -> anyhow::Result<Self> {
         let chat = Chat::load(txn.as_mut(), &chat_id)
             .await?
@@ -437,12 +443,12 @@ impl PendingChatOperation {
         let mut group = Group::load_clean_verified(txn, group_id)
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
-        let group_data = match new_chat_attributes {
-            Some(attrs) => Some(GroupDataBytes::from(PersistenceCodec::to_vec(attrs)?)),
-            None => None,
-        };
+        let group_data_bytes = new_group_data.map(|data| data.encode()).transpose()?;
 
-        let params = group.group_mut().update(txn, signer, group_data).await?;
+        let params = group
+            .group_mut()
+            .update(txn, signer, group_data_bytes)
+            .await?;
 
         let job = Self::new(group, Box::new(params));
         job.store(txn.as_mut()).await?;
@@ -893,16 +899,21 @@ pub mod test_utils {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use aircommon::{
         credentials::{keys::ClientSigningKey, test_utils::create_test_credentials},
+        crypto::ear::keys::IdentityLinkWrapperKey,
         identifiers::{QualifiedGroupId, UserId},
     };
     use chrono::{Duration, Utc};
     use sqlx::SqlitePool;
     use uuid::Uuid;
 
-    use crate::{store::StoreNotifier, utils::persistence::open_db_in_memory};
+    use crate::{
+        ChatAttributes, groups::GroupDataBytes, store::StoreNotifier,
+        utils::persistence::open_db_in_memory,
+    };
+
+    use super::*;
 
     async fn setup_group_and_chat()
     -> anyhow::Result<(SqlitePool, VerifiedGroup, ChatId, ClientSigningKey)> {
@@ -916,9 +927,12 @@ mod tests {
         let group_id = GroupId::from(qgid);
         let group_data_bytes = GroupDataBytes::from(b"test-group-data".to_vec());
 
+        let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
+
         let (group, _) = Group::create_group(
             &mut connection,
             &signing_key,
+            identity_link_wrapper_key,
             group_id.clone(),
             group_data_bytes,
         )?;

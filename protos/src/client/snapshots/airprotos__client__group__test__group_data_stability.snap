@@ -15,16 +15,19 @@ a4                                                 # map(4)
       03                                           #     unsigned(3)
    6f                                              #   text(15)
       656e637279707465645f7469746c65               #     "encrypted_title"
-   a2                                              #   map(2)
+   a3                                              #   map(3)
       01                                           #     unsigned(1)
       50                                           #     bytes(16)
          7469746c652d63697068657274657874          #       "title-ciphertext"
       02                                           #     unsigned(2)
       4c                                           #     bytes(12)
          aaaaaaaaaaaaaaaaaaaaaaaa                  #       "\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa"
+      03                                           #     unsigned(3)
+      4b                                           #     bytes(11)
+         67726f75702d7469746c65                    #       "group-title"
    76                                              #   text(22)
       65787465726e616c5f67726f75705f70726f66696c65 #     "external_group_profile"
-   a6                                              #   map(6)
+   a7                                              #   map(7)
       01                                           #     unsigned(1)
       50                                           #     bytes(16)
          89fea7df38234688891500ab38db1577          #       "\x89\xfe\xa7\xdf8#F\x88\x89\x15\x00\xab8\xdb\x15w"
@@ -35,6 +38,9 @@ a4                                                 # map(4)
       04                                           #     unsigned(4)
       4c                                           #     bytes(12)
          bbbbbbbbbbbbbbbbbbbbbbbb                  #       "\xbb\xbb\xbb\xbb\xbb\xbb\xbb\xbb\xbb\xbb\xbb\xbb"
+      05                                           #     unsigned(5)
+      4d                                           #     bytes(13)
+         67726f75702d70726f66696c65                #       "group-profile"
       06                                           #     unsigned(6)
       01                                           #     unsigned(1)
       07                                           #     unsigned(7)

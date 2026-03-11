@@ -806,6 +806,7 @@ impl CoreUser {
         let mut notifier = self.store_notifier();
         let mut context = JobContext {
             api_clients: &self.inner.api_clients,
+            http_client: &self.inner.http_client,
             pool: self.pool().clone(),
             notifier: &mut notifier,
             key_store: &self.inner.key_store,

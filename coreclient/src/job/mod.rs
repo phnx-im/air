@@ -21,6 +21,7 @@ pub(crate) mod profile;
 
 pub(crate) struct JobContext<'a> {
     pub api_clients: &'a ApiClients,
+    pub http_client: &'a reqwest::Client,
     pub pool: SqlitePool,
     pub notifier: &'a mut StoreNotifier,
     pub key_store: &'a MemoryUserKeyStore,
@@ -83,6 +84,17 @@ impl From<DsRequestError> for JobError {
         // only log info here.
         info!(?error, "Job failed due to network error");
         Self::NetworkError
+    }
+}
+
+impl From<reqwest::Error> for JobError {
+    fn from(error: reqwest::Error) -> Self {
+        if error.is_connect() || error.is_timeout() {
+            info!(?error, "Job failed due to network error");
+            Self::NetworkError
+        } else {
+            Self::FatalError(error.into())
+        }
     }
 }
 
