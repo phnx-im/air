@@ -33,15 +33,15 @@ enum MobileFontSizes {
 
 // Font sizes for widescreen (macOS, Linux and Windows)
 enum WidescreenFontSizes {
-  large5(23.43),
-  large4(20.83),
-  large3(18.51),
-  large2(16.46),
-  large1(14.63),
-  base(13.00),
-  small1(11.56),
-  small2(10.27),
-  small3(9.13);
+  large5(27.03),
+  large4(24.03),
+  large3(21.36),
+  large2(19),
+  large1(16.875),
+  base(15.00),
+  small1(13.335),
+  small2(11.85),
+  small3(10.53);
 
   final double size;
   const WidescreenFontSizes(this.size);
