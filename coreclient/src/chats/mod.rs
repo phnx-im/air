@@ -4,14 +4,20 @@
 
 use std::fmt::Display;
 
-use aircommon::identifiers::{Fqdn, QualifiedGroupId, UserHandle, UserId};
+use aircommon::{
+    codec::{self, PersistenceCodec},
+    crypto::ear::keys::IdentityLinkWrapperKey,
+    identifiers::{Fqdn, QualifiedGroupId, UserHandle, UserId},
+};
+use airprotos::client::group::{ExternalGroupProfile, GroupData};
 use chrono::{DateTime, Utc};
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
 use sqlx::{SqliteConnection, SqliteExecutor};
+use tracing::error;
 use uuid::Uuid;
 
-use crate::{contacts::PartialContactType, store::StoreNotifier};
+use crate::{contacts::PartialContactType, groups::GroupDataBytes, store::StoreNotifier};
 
 pub use draft::MessageDraft;
 pub(crate) use {pending::PendingConnectionInfo, status::StatusRecord};
@@ -328,5 +334,56 @@ impl ChatAttributes {
 
     pub fn set_picture(&mut self, picture: Option<Vec<u8>>) {
         self.picture = picture;
+    }
+}
+
+/// Extension trait for bridging [`GroupData`] and types in this coreclient.
+pub(crate) trait GroupDataExt {
+    /// Decodes the group data from the group data extension bytes.
+    fn decode(bytes: &GroupDataBytes) -> Result<Self, codec::Error>
+    where
+        Self: Sized;
+
+    /// Encodes the group data as bytes to be stored in the group data extension.
+    fn encode(&self) -> Result<GroupDataBytes, codec::Error>;
+
+    fn into_parts(
+        self,
+        identity_link_wrapper_key: &IdentityLinkWrapperKey,
+    ) -> (ChatAttributes, Option<ExternalGroupProfile>);
+}
+
+impl GroupDataExt for GroupData {
+    fn decode(bytes: &GroupDataBytes) -> Result<Self, codec::Error> {
+        PersistenceCodec::from_slice(bytes.bytes())
+    }
+
+    fn encode(&self) -> Result<GroupDataBytes, codec::Error> {
+        PersistenceCodec::to_vec(self).map(From::from)
+    }
+
+    fn into_parts(
+        self,
+        identity_link_wrapper_key: &IdentityLinkWrapperKey,
+    ) -> (ChatAttributes, Option<ExternalGroupProfile>) {
+        let Self {
+            title,
+            picture,
+            encrypted_title,
+            external_group_profile,
+        } = self;
+
+        // Always prefer the encrypted title over the plaintext title
+        let title = if let Some(encrypted_title) = encrypted_title
+            && let Ok(decrypted_title) = encrypted_title
+                .decrypt(identity_link_wrapper_key)
+                .inspect_err(|error| {
+                    error!(%error, "Failed to decrypt group title; fallback to plaintext");
+                }) {
+            decrypted_title
+        } else {
+            title
+        };
+        (ChatAttributes { title, picture }, external_group_profile)
     }
 }

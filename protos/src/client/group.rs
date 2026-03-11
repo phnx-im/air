@@ -9,7 +9,7 @@ use std::borrow::Cow;
 use aircommon::{
     codec::{self, PersistenceCodec},
     crypto::{
-        ear::{AEAD_NONCE_SIZE, AeadCiphertext, EarKey, keys::IdentityLinkWrapperKey},
+        ear::{AEAD_NONCE_SIZE, AeadCiphertext, EarKey, Payload, keys::IdentityLinkWrapperKey},
         errors::{DecryptionError, EncryptionError},
     },
     padme::padme_padding_len,
@@ -82,7 +82,7 @@ pub struct ExternalGroupProfile {
     /// An IANA Named Information Hash Algorithm
     #[tag(6)]
     pub hash_alg: HashAlgorithm,
-    /// Hash of the content (which one: encrypted or plaintext?)
+    /// Hash of the original content (non-encrypted)
     #[tag(7)]
     pub content_hash: Vec<u8>,
 }
@@ -113,6 +113,7 @@ struct GroupTitle<'a> {
 /// EncryptedGroupTitle = {
 ///   ciphertext: bytes .tag 1,
 ///   nonce: bytes .size 12 .tag 2,
+///   aad: bytes .tag 3,
 /// }
 /// ```
 #[derive(Debug, Clone, Default, Eq, PartialEq, SerializeTaggedMap, DeserializeTaggedMap)]
@@ -122,6 +123,8 @@ pub struct EncryptedGroupTitle {
     pub ciphertext: Vec<u8>,
     #[tag(2)]
     pub nonce: [u8; AEAD_NONCE_SIZE],
+    #[tag(3)]
+    pub aad: Vec<u8>,
 }
 
 /// Group profile stored as encrypted blob in the object storage.
@@ -175,21 +178,27 @@ impl<'a> GroupProfile<'a> {
     ) -> Result<(Vec<u8>, ExternalGroupProfileBuilder), GroupProfileEncryptionError> {
         let plaintext = PersistenceCodec::to_vec(self)?;
 
-        let aead_ciphertext = identity_link_wrapper_key.encrypt(plaintext.as_slice())?;
+        let aad = b"group-profile";
+        let payload = Payload {
+            msg: plaintext.as_slice(),
+            aad,
+        };
+
+        let aead_ciphertext = identity_link_wrapper_key.encrypt(payload)?;
         let (ciphertext, nonce) = aead_ciphertext.into_parts();
         let size = ciphertext
             .len()
             .try_into()
             .map_err(|_| GroupProfileEncryptionError::UsizeOverflow)?;
-        // TODO: Do we have to calculate the checksum of the plaintext or the ciphertext?
-        let content_hash = Sha256::digest(&ciphertext);
+
+        let content_hash = Sha256::digest(&plaintext);
 
         let external = ExternalGroupProfile {
             object_id: Uuid::nil(),
             size,
             enc_alg: Some(AIR_GROUP_PROFILE_ENCRYPTION_ALG),
             nonce,
-            aad: Vec::new(),
+            aad: aad.to_vec(),
             hash_alg: AIR_GROUP_PROFILE_HASH_ALG,
             content_hash: content_hash.to_vec(),
         };
@@ -224,14 +233,15 @@ impl<'a> GroupProfile<'a> {
             ));
         }
 
-        let sha256 = Sha256::digest(&ciphertext);
+        let aead_ciphertext = AeadCiphertext::new(ciphertext, external_group_profile.nonce);
+        let plaintext = identity_link_wrapper_key
+            .decrypt_with_aad(&aead_ciphertext, &external_group_profile.aad)?;
+
+        let sha256 = Sha256::digest(&plaintext);
         if sha256.as_slice() != external_group_profile.content_hash.as_slice() {
             return Err(GroupProfileDecryptionError::ChecksumMismatch);
         }
 
-        let aead_ciphertext = AeadCiphertext::new(ciphertext, external_group_profile.nonce);
-        let plaintext = identity_link_wrapper_key
-            .decrypt_with_aad(&aead_ciphertext, &external_group_profile.aad)?;
         Ok(PersistenceCodec::from_slice(&plaintext)?)
     }
 }
@@ -282,9 +292,18 @@ impl EncryptedGroupTitle {
     ) -> Result<EncryptedGroupTitle, GroupTitleEncryptionError> {
         let padded_title = GroupTitle::new(plaintext);
         let plaintext = PersistenceCodec::to_vec(&padded_title)?;
-        let aead_ciphertext = identity_link_wrapper_key.encrypt(plaintext.as_slice())?;
+        let aad = b"group-title";
+        let payload = Payload {
+            msg: plaintext.as_slice(),
+            aad,
+        };
+        let aead_ciphertext = identity_link_wrapper_key.encrypt(payload)?;
         let (ciphertext, nonce) = aead_ciphertext.into_parts();
-        Ok(EncryptedGroupTitle { ciphertext, nonce })
+        Ok(EncryptedGroupTitle {
+            ciphertext,
+            nonce,
+            aad: aad.to_vec(),
+        })
     }
 
     pub fn decrypt(
@@ -292,7 +311,7 @@ impl EncryptedGroupTitle {
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
     ) -> Result<String, GroupTitleDecryptionError> {
         let aead_ciphertext = AeadCiphertext::new(self.ciphertext, self.nonce);
-        let plaintext = identity_link_wrapper_key.decrypt(&aead_ciphertext)?;
+        let plaintext = identity_link_wrapper_key.decrypt_with_aad(&aead_ciphertext, &self.aad)?;
         let padded_title: GroupTitle = PersistenceCodec::from_slice(&plaintext)?;
         Ok(padded_title.title.into_owned())
     }
@@ -328,13 +347,14 @@ mod test {
             encrypted_title: Some(EncryptedGroupTitle {
                 ciphertext: b"title-ciphertext".to_vec(),
                 nonce: [0xAA; _],
+                aad: b"group-title".to_vec(),
             }),
             external_group_profile: Some(ExternalGroupProfile {
                 object_id: uuid!("89fea7df-3823-4688-8915-00ab38db1577"),
                 size: 42,
                 enc_alg: Some(EncryptionAlgorithm::Aes256Gcm),
                 nonce: [0xBB; _],
-                aad: Vec::new(),
+                aad: b"group-profile".to_vec(),
                 hash_alg: HashAlgorithm::Sha256,
                 content_hash: [0xCC; 32].to_vec(),
             }),
@@ -374,6 +394,29 @@ mod test {
         let bytes = PersistenceCodec::to_vec(&title).unwrap();
         let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
         insta::assert_snapshot!(diag);
+    }
+
+    #[test]
+    fn encrypted_group_title_roundtrip() {
+        let key = IdentityLinkWrapperKey::random().unwrap();
+        let original = "Hello encrypted title";
+        let encrypted = EncryptedGroupTitle::encrypt(original, &key).unwrap();
+        let decrypted = encrypted.decrypt(&key).unwrap();
+        assert_eq!(decrypted, original);
+    }
+
+    #[test]
+    fn group_profile_encrypt_decrypt_roundtrip() {
+        let key = IdentityLinkWrapperKey::random().unwrap();
+        let profile = GroupProfile::new(
+            "My Group".to_string(),
+            Some("A test group".to_string()),
+            Some(vec![0xDE, 0xAD, 0xBE, 0xEF].into()),
+        );
+        let (ciphertext, builder) = profile.encrypt(&key).unwrap();
+        let external = builder.build(Uuid::new_v4());
+        let decrypted = GroupProfile::decrypt(&key, &external, ciphertext).unwrap();
+        assert_eq!(decrypted, profile);
     }
 
     #[test]

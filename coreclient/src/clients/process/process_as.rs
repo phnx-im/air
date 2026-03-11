@@ -192,7 +192,7 @@ impl CoreUser {
             sender_client_credential.user_id(),
         )?;
         if let Err(error) = self
-            .fetch_profile((sender_client_credential.clone(), sender_profile_key))
+            .fetch_user_profile((sender_client_credential.clone(), sender_profile_key))
             .await
         {
             warn!(%error, "Failed to fetch user profile; falling back to fetching group info");
@@ -228,7 +228,7 @@ impl CoreUser {
                 user_profile_key,
             };
 
-            self.fetch_profile(profile_info).await?;
+            self.fetch_user_profile(profile_info).await?;
         }
 
         self.with_transaction_and_notifier(async |txn, notifier| {

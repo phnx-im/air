@@ -161,6 +161,104 @@ class DebugCapabilities {
           proposals == other.proposals;
 }
 
+class EncryptedGroupTitleDebugInfo {
+  final String ciphertext;
+  final String nonce;
+  final String aad;
+
+  const EncryptedGroupTitleDebugInfo({
+    required this.ciphertext,
+    required this.nonce,
+    required this.aad,
+  });
+
+  @override
+  int get hashCode => ciphertext.hashCode ^ nonce.hashCode ^ aad.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is EncryptedGroupTitleDebugInfo &&
+          runtimeType == other.runtimeType &&
+          ciphertext == other.ciphertext &&
+          nonce == other.nonce &&
+          aad == other.aad;
+}
+
+class ExternalGroupProfileDebugInfo {
+  final String objectId;
+  final BigInt size;
+  final String? encAlg;
+  final String aad;
+  final String nonce;
+  final String hashAlg;
+  final String contentHash;
+
+  const ExternalGroupProfileDebugInfo({
+    required this.objectId,
+    required this.size,
+    this.encAlg,
+    required this.aad,
+    required this.nonce,
+    required this.hashAlg,
+    required this.contentHash,
+  });
+
+  @override
+  int get hashCode =>
+      objectId.hashCode ^
+      size.hashCode ^
+      encAlg.hashCode ^
+      aad.hashCode ^
+      nonce.hashCode ^
+      hashAlg.hashCode ^
+      contentHash.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ExternalGroupProfileDebugInfo &&
+          runtimeType == other.runtimeType &&
+          objectId == other.objectId &&
+          size == other.size &&
+          encAlg == other.encAlg &&
+          aad == other.aad &&
+          nonce == other.nonce &&
+          hashAlg == other.hashAlg &&
+          contentHash == other.contentHash;
+}
+
+class GroupDataDebugInfo {
+  final String title;
+  final bool hasPicture;
+  final EncryptedGroupTitleDebugInfo? encryptedTitle;
+  final ExternalGroupProfileDebugInfo? externalGroupProfile;
+
+  const GroupDataDebugInfo({
+    required this.title,
+    required this.hasPicture,
+    this.encryptedTitle,
+    this.externalGroupProfile,
+  });
+
+  @override
+  int get hashCode =>
+      title.hashCode ^
+      hasPicture.hashCode ^
+      encryptedTitle.hashCode ^
+      externalGroupProfile.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GroupDataDebugInfo &&
+          runtimeType == other.runtimeType &&
+          title == other.title &&
+          hasPicture == other.hasPicture &&
+          encryptedTitle == other.encryptedTitle &&
+          externalGroupProfile == other.externalGroupProfile;
+}
+
 class GroupDebugInfo {
   final String groupId;
   final BigInt epoch;
@@ -172,6 +270,7 @@ class GroupDebugInfo {
   final bool hasPendingCommit;
   final RequiredDebugCapabilities? requiredCapabilities;
   final Map<int, DebugCapabilities> members;
+  final GroupDataDebugInfo? groupData;
 
   const GroupDebugInfo({
     required this.groupId,
@@ -184,6 +283,7 @@ class GroupDebugInfo {
     required this.hasPendingCommit,
     this.requiredCapabilities,
     required this.members,
+    this.groupData,
   });
 
   @override
@@ -197,7 +297,8 @@ class GroupDebugInfo {
       pendingProposals.hashCode ^
       hasPendingCommit.hashCode ^
       requiredCapabilities.hashCode ^
-      members.hashCode;
+      members.hashCode ^
+      groupData.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -213,7 +314,8 @@ class GroupDebugInfo {
           pendingProposals == other.pendingProposals &&
           hasPendingCommit == other.hasPendingCommit &&
           requiredCapabilities == other.requiredCapabilities &&
-          members == other.members;
+          members == other.members &&
+          groupData == other.groupData;
 }
 
 class RequiredDebugCapabilities {
