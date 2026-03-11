@@ -6,7 +6,7 @@ use aircommon::identifiers::AttachmentId;
 use anyhow::anyhow;
 use anyhow::{Context, ensure};
 use mimi_content::MessageStatus;
-use sqlx::SqliteTransaction;
+use sqlx::{Connection, SqliteTransaction};
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use tracing::warn;
@@ -32,12 +32,13 @@ impl OutboundService {
         message_id: MessageId,
         attachment_id: Option<AttachmentId>,
     ) -> anyhow::Result<()> {
-        let mut pool = self.context.pool.clone();
-        pool.with_transaction(async |txn| {
-            self.enqueue_chat_message_in_transaction(txn, message_id, attachment_id)
-                .await
-        })
-        .await
+        self.context
+            .pool
+            .with_transaction(async |txn| {
+                self.enqueue_chat_message_in_transaction(txn, message_id, attachment_id)
+                    .await
+            })
+            .await
     }
 
     pub async fn enqueue_chat_message_in_transaction(
@@ -47,7 +48,7 @@ impl OutboundService {
         attachment_id: Option<AttachmentId>,
     ) -> anyhow::Result<()> {
         // Load message to make sure it exists and get chat id
-        let message = ChatMessage::load(txn.as_mut(), message_id)
+        let message = ChatMessage::load(txn, message_id)
             .await?
             .with_context(|| format!("Can't find message with id {message_id:?}"))?;
         let chat_id = message.chat_id();
@@ -73,26 +74,25 @@ impl OutboundService {
         message_id: MessageId,
         attachment_id: Option<AttachmentId>,
     ) -> anyhow::Result<()> {
-        let mut connection = self.context.pool.acquire().await?;
-
-        // Load message to make sure it exists and get chat id
-        let message = ChatMessage::load(&mut *connection, message_id)
-            .await?
-            .with_context(|| format!("Can't find message with id {message_id:?}"))?;
-        let chat_id = message.chat_id();
-
-        // Load chat to check status
-        let chat = Chat::load(&mut connection, &chat_id)
-            .await?
-            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
-        if let ChatStatus::Blocked = chat.status() {
-            return Ok(());
-        }
-
-        let message_queue = ChatMessageQueue::new(message.chat_id(), message_id, attachment_id);
-
         self.context
             .with_transaction_and_notifier(async |txn, notifier| {
+                // Load message to make sure it exists and get chat id
+                let message = ChatMessage::load(txn, message_id)
+                    .await?
+                    .with_context(|| format!("Can't find message with id {message_id:?}"))?;
+                let chat_id = message.chat_id();
+
+                // Load chat to check status
+                let chat = Chat::load(txn, &chat_id)
+                    .await?
+                    .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+                if let ChatStatus::Blocked = chat.status() {
+                    return Ok(());
+                }
+
+                let message_queue =
+                    ChatMessageQueue::new(message.chat_id(), message_id, attachment_id);
+
                 message_queue
                     .remove_and_mark_as_failed(txn, notifier)
                     .await?;
@@ -149,7 +149,7 @@ impl OutboundServiceContext {
 
             // Always delete the message from the queue. We don't want to automatically
             // retry here.
-            self.with_transaction(async |txn| {
+            self.with_transaction(async |txn| -> anyhow::Result<_> {
                 ChatMessageQueue::remove(txn, message_id).await?;
                 Ok(())
             })
@@ -163,11 +163,12 @@ impl OutboundServiceContext {
         // load chat and message
         let (chat, mut message) = {
             let mut connection = self.pool.acquire().await?;
-            let message = ChatMessage::load(&mut *connection, message_id)
+            let mut txn = connection.begin().await?;
+            let message = ChatMessage::load(&mut txn, message_id)
                 .await?
                 .with_context(|| format!("Can't find message with id {message_id:?}"))?;
             let chat_id = message.chat_id();
-            let chat = Chat::load(&mut connection, &chat_id)
+            let chat = Chat::load(&mut txn, &chat_id)
                 .await?
                 .with_context(|| format!("Can't find chat with id {chat_id}"))?;
 
@@ -177,7 +178,7 @@ impl OutboundServiceContext {
             }
 
             // Don't send messages for chats with pending resync
-            if Resync::is_pending_for_chat(&mut *connection, &chat_id).await? {
+            if Resync::is_pending_for_chat(txn.as_mut(), &chat_id).await? {
                 debug!(?chat_id, "Skipping sending message due to pending resync");
                 return Ok(());
             }

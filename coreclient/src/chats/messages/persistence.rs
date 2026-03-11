@@ -12,7 +12,7 @@ use aircommon::{
 use anyhow::bail;
 use mimi_content::{MessageStatus, MimiContent};
 use serde::{Deserialize, Serialize};
-use sqlx::{SqliteExecutor, query, query_as, query_scalar};
+use sqlx::{SqliteExecutor, SqliteTransaction, query, query_as, query_scalar};
 use tokio_stream::StreamExt;
 use tracing::{error, warn};
 use uuid::Uuid;
@@ -106,10 +106,6 @@ struct SqlChatMessage {
     edited_at: Option<TimeStamp>,
     is_blocked: bool,
     in_reply_to_mimi_id: Option<MimiId>,
-    in_reply_to_message_id: Option<MessageId>,
-    in_reply_to_sender_user_uuid: Option<Uuid>,
-    in_reply_to_sender_user_domain: Option<Fqdn>,
-    in_reply_to_content: Option<BlobDecoded<VersionedMessage>>,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -141,10 +137,6 @@ impl TryFrom<SqlChatMessage> for ChatMessage {
             edited_at,
             is_blocked,
             in_reply_to_mimi_id,
-            in_reply_to_message_id,
-            in_reply_to_sender_user_uuid,
-            in_reply_to_sender_user_domain,
-            in_reply_to_content,
         }: SqlChatMessage,
     ) -> Result<Self, Self::Error> {
         let message = match (sender_user_uuid, sender_user_domain) {
@@ -186,34 +178,10 @@ impl TryFrom<SqlChatMessage> for ChatMessage {
                 .unwrap_or(MessageStatus::Unread)
         };
 
-        let in_reply_to = if let (
-            Some(message_id),
-            Some(in_reply_to_sender_user_uuid),
-            Some(in_reply_to_sender_user_domain),
-            blob_decoded_versioned_message,
-        ) = (
-            in_reply_to_message_id,
-            in_reply_to_sender_user_uuid,
-            in_reply_to_sender_user_domain,
-            in_reply_to_content,
-        ) {
-            Some(InReplyToMessage {
-                message_id,
-                sender: UserId::new(in_reply_to_sender_user_uuid, in_reply_to_sender_user_domain),
-                mimi_content: blob_decoded_versioned_message.and_then(|BlobDecoded(v)| {
-                    v.to_mimi_content().inspect_err(
-                        |error| error!(%error, "failed to decode MIMI content of replied message"),
-                    ).ok()
-                }),
-            })
-        } else {
-            None
-        };
-
         Ok(ChatMessage {
             message_id,
             chat_id,
-            in_reply_to: in_reply_to_mimi_id.map(|id| (id, in_reply_to)),
+            in_reply_to: in_reply_to_mimi_id.map(|id| (id, None)),
             timestamped_message,
             status,
         })
@@ -222,167 +190,104 @@ impl TryFrom<SqlChatMessage> for ChatMessage {
 
 impl ChatMessage {
     pub async fn load(
-        executor: impl SqliteExecutor<'_>,
+        txn: &mut SqliteTransaction<'_>,
         message_id: MessageId,
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
             SqlChatMessage,
-            r#"
-            WITH reply_targets AS (
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message
-                UNION ALL
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message_edit
-            )
-            SELECT
-                m.message_id AS "message_id: _",
-                m.mimi_id AS "mimi_id: _",
-                m.chat_id AS "chat_id: _",
-                m.timestamp AS "timestamp: _",
-                m.sender_user_uuid AS "sender_user_uuid: _",
-                m.sender_user_domain AS "sender_user_domain: _",
-                m.content AS "content: _",
-                m.sent,
-                m.status,
-                m.edited_at AS "edited_at: _",
+            r#"SELECT
+                message_id AS "message_id: _",
+                mimi_id AS "mimi_id: _",
+                chat_id AS "chat_id: _",
+                timestamp AS "timestamp: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _",
+                sent,
+                status,
+                edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                rt.message_id AS "in_reply_to_message_id: _",
-                red.sender_user_uuid AS "in_reply_to_sender_user_uuid: _",
-                red.sender_user_domain AS "in_reply_to_sender_user_domain: _",
-                rt.content AS "in_reply_to_content: _"
-            FROM message m
-            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
-                AND b.user_domain = m.sender_user_domain
-            LEFT JOIN reply_targets rt ON rt.mimi_id = m.in_reply_to_mimi_id
-            LEFT JOIN message red ON rt.message_id = red.message_id
-            WHERE m.message_id = ?
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+            FROM message
+            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
+                AND b.user_domain = sender_user_domain
+            WHERE message_id = ?
             "#,
             message_id,
         )
-        .fetch_optional(executor)
+        .fetch_optional(txn.as_mut())
+        .await?
+        .map(TryFrom::try_from)
+        .transpose()?
+        .with_loaded_in_reply_to(txn)
         .await
-        .map(|record| {
-            record
-                .map(TryFrom::try_from)
-                .transpose()
-                .map_err(From::from)
-        })?
     }
 
     pub(crate) async fn load_by_mimi_id(
-        executor: impl SqliteExecutor<'_>,
+        txn: &mut SqliteTransaction<'_>,
         mimi_id: &MimiId,
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
             SqlChatMessage,
-            r#"
-            WITH reply_targets AS (
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message
-                UNION ALL
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message_edit
-            )
-            SELECT
-                m.message_id AS "message_id: _",
-                m.mimi_id AS "mimi_id: _",
-                m.chat_id AS "chat_id: _",
-                m.timestamp AS "timestamp: _",
-                m.sender_user_uuid AS "sender_user_uuid: _",
-                m.sender_user_domain AS "sender_user_domain: _",
-                m.content AS "content: _",
-                m.sent,
-                m.status,
-                m.edited_at AS "edited_at: _",
+            r#"SELECT
+                message_id AS "message_id: _",
+                mimi_id AS "mimi_id: _",
+                chat_id AS "chat_id: _",
+                timestamp AS "timestamp: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _",
+                sent,
+                status,
+                edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                rt.message_id AS "in_reply_to_message_id: _",
-                red.sender_user_uuid AS "in_reply_to_sender_user_uuid: _",
-                red.sender_user_domain AS "in_reply_to_sender_user_domain: _",
-                rt.content AS "in_reply_to_content: _"
-            FROM message m
-            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
-                AND b.user_domain = m.sender_user_domain
-            LEFT JOIN reply_targets rt ON rt.mimi_id = m.in_reply_to_mimi_id
-            LEFT JOIN message red ON rt.message_id = red.message_id
-            WHERE m.mimi_id = ?
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+            FROM message
+            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
+                AND b.user_domain = sender_user_domain
+            WHERE mimi_id = ?
             "#,
             mimi_id,
         )
-        .fetch_optional(executor)
+        .fetch_optional(txn.as_mut())
+        .await?
+        .map(TryFrom::try_from)
+        .transpose()?
+        .with_loaded_in_reply_to(txn)
         .await
-        .map(|record| {
-            record
-                .map(TryFrom::try_from)
-                .transpose()
-                .map_err(From::from)
-        })?
     }
 
     pub(crate) async fn load_multiple(
-        executor: impl SqliteExecutor<'_>,
+        txn: &mut SqliteTransaction<'_>,
         chat_id: ChatId,
         number_of_messages: u32,
     ) -> sqlx::Result<Vec<ChatMessage>> {
         let messages: sqlx::Result<Vec<ChatMessage>> = query_as!(
             SqlChatMessage,
             r#"
-            WITH reply_targets AS (
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message
-                UNION ALL
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message_edit
-            )
             SELECT
-                m.message_id AS "message_id: _",
-                m.mimi_id AS "mimi_id: _",
-                m.chat_id AS "chat_id: _",
-                m.timestamp AS "timestamp: _",
-                m.sender_user_uuid AS "sender_user_uuid: _",
-                m.sender_user_domain AS "sender_user_domain: _",
-                m.content AS "content: _",
-                m.sent,
-                m.status,
-                m.edited_at AS "edited_at: _",
+                message_id AS "message_id: _",
+                mimi_id AS "mimi_id: _",
+                chat_id AS "chat_id: _",
+                timestamp AS "timestamp: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _",
+                sent,
+                status,
+                edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                rt.message_id AS "in_reply_to_message_id: _",
-                red.sender_user_uuid AS "in_reply_to_sender_user_uuid: _",
-                red.sender_user_domain AS "in_reply_to_sender_user_domain: _",
-                rt.content AS "in_reply_to_content: _"
-            FROM message m
-            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
-                AND b.user_domain = m.sender_user_domain
-            LEFT JOIN reply_targets rt ON rt.mimi_id = m.in_reply_to_mimi_id
-            LEFT JOIN message red ON rt.message_id = red.message_id
-            WHERE m.chat_id = ?
-            ORDER BY m.timestamp DESC
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+            FROM message
+            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
+                AND b.user_domain = sender_user_domain
+            WHERE chat_id = ?
+            ORDER BY timestamp DESC
             LIMIT ?"#,
             chat_id,
             number_of_messages,
         )
-        .fetch(executor)
+        .fetch(txn.as_mut())
         .filter_map(|res| {
             let message: sqlx::Result<ChatMessage> = res
                 // skip messages that we can't decode, but don't fail loading the rest of the
@@ -395,9 +300,27 @@ impl ChatMessage {
         })
         .collect()
         .await;
+
         let mut messages = messages?;
         messages.reverse();
+
+        for message in messages.iter_mut() {
+            // we don't want to fail for all messages if one load operation fails
+            if let Err(error) = message.augment_in_reply_to(txn).await {
+                error!(%error, "failed to load reply for message");
+            }
+        }
+
         Ok(messages)
+    }
+
+    /// Augments a chat message when it is a reply with the data from the referenced message
+    async fn augment_in_reply_to(&mut self, txn: &mut SqliteTransaction<'_>) -> sqlx::Result<()> {
+        if let Some((mimi_id, message)) = self.in_reply_to.as_mut() {
+            *message = InReplyToMessage::load(txn, mimi_id).await?;
+        }
+
+        Ok(())
     }
 
     pub(crate) async fn store(
@@ -556,64 +479,42 @@ impl ChatMessage {
 
     /// Get the last message in the chat.
     pub(crate) async fn last_message(
-        executor: impl SqliteExecutor<'_>,
+        txn: &mut SqliteTransaction<'_>,
         chat_id: ChatId,
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
             SqlChatMessage,
-            r#"
-            WITH reply_targets AS (
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message
-                UNION ALL
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message_edit
-            )
-            SELECT
-                m.message_id AS "message_id: _",
-                m.mimi_id AS "mimi_id: _",
-                m.chat_id AS "chat_id: _",
-                m.timestamp AS "timestamp: _",
-                m.sender_user_uuid AS "sender_user_uuid: _",
-                m.sender_user_domain AS "sender_user_domain: _",
-                m.content AS "content: _",
-                m.sent,
-                m.status,
-                m.edited_at AS "edited_at: _",
+            r#"SELECT
+                message_id AS "message_id: _",
+                mimi_id AS "mimi_id: _",
+                chat_id AS "chat_id: _",
+                timestamp AS "timestamp: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _",
+                sent,
+                status,
+                edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                rt.message_id AS "in_reply_to_message_id: _",
-                red.sender_user_uuid AS "in_reply_to_sender_user_uuid: _",
-                red.sender_user_domain AS "in_reply_to_sender_user_domain: _",
-                rt.content AS "in_reply_to_content: _"
-            FROM message m
-            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
-                AND b.user_domain = m.sender_user_domain
-            LEFT JOIN reply_targets rt ON rt.mimi_id = m.in_reply_to_mimi_id
-            LEFT JOIN message red ON rt.message_id = red.message_id
-            WHERE m.chat_id = ?
-            ORDER BY m.timestamp DESC LIMIT 1"#,
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+            FROM message
+            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
+                AND b.user_domain = sender_user_domain
+            WHERE chat_id = ?
+            ORDER BY timestamp DESC LIMIT 1"#,
             chat_id,
         )
-        .fetch_optional(executor)
+        .fetch_optional(txn.as_mut())
+        .await?
+        .map(TryFrom::try_from)
+        .transpose()?
+        .with_loaded_in_reply_to(txn)
         .await
-        .map(|record| {
-            record
-                .map(TryFrom::try_from)
-                .transpose()
-                .map_err(From::from)
-        })?
     }
 
     /// Get the last content message in the chat which is owned by the given user.
     pub(crate) async fn last_content_message_by_user(
-        executor: impl SqliteExecutor<'_>,
+        txn: &mut SqliteTransaction<'_>,
         chat_id: ChatId,
         user_id: &UserId,
     ) -> sqlx::Result<Option<Self>> {
@@ -621,180 +522,114 @@ impl ChatMessage {
         let user_domain = user_id.domain();
         query_as!(
             SqlChatMessage,
-            r#"
-            WITH reply_targets AS (
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message
-                UNION ALL
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message_edit
-            )
-            SELECT
-                m.message_id AS "message_id: _",
-                m.chat_id AS "chat_id: _",
-                m.mimi_id AS "mimi_id: _",
-                m.timestamp AS "timestamp: _",
-                m.sender_user_uuid AS "sender_user_uuid: _",
-                m.sender_user_domain AS "sender_user_domain: _",
-                m.content AS "content: _",
-                m.sent,
-                m.status,
-                m.edited_at AS "edited_at: _",
+            r#"SELECT
+                message_id AS "message_id: _",
+                chat_id AS "chat_id: _",
+                mimi_id AS "mimi_id: _",
+                timestamp AS "timestamp: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _",
+                sent,
+                status,
+                edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                rt.message_id AS "in_reply_to_message_id: _",
-                red.sender_user_uuid AS "in_reply_to_sender_user_uuid: _",
-                red.sender_user_domain AS "in_reply_to_sender_user_domain: _",
-                rt.content AS "in_reply_to_content: _"
-            FROM message m
-            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
-                AND b.user_domain = m.sender_user_domain
-            LEFT JOIN reply_targets rt ON rt.mimi_id = m.in_reply_to_mimi_id
-            LEFT JOIN message red ON rt.message_id = red.message_id
-            WHERE m.chat_id = ?
-                AND m.sender_user_uuid = ?
-                AND m.sender_user_domain = ?
-            ORDER BY m.timestamp DESC LIMIT 1"#,
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+            FROM message
+            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
+                AND b.user_domain = sender_user_domain
+            WHERE chat_id = ?
+                AND sender_user_uuid = ?
+                AND sender_user_domain = ?
+            ORDER BY timestamp DESC LIMIT 1"#,
             chat_id,
             user_uuid,
             user_domain,
         )
-        .fetch_optional(executor)
+        .fetch_optional(txn.as_mut())
+        .await?
+        .map(TryFrom::try_from)
+        .transpose()?
+        .with_loaded_in_reply_to(txn)
         .await
-        .map(|record| {
-            record
-                .map(TryFrom::try_from)
-                .transpose()
-                .map_err(From::from)
-        })?
     }
 
     pub(crate) async fn prev_message(
-        executor: impl SqliteExecutor<'_>,
+        txn: &mut SqliteTransaction<'_>,
         chat_id: ChatId,
         message_id: MessageId,
     ) -> sqlx::Result<Option<ChatMessage>> {
         query_as!(
             SqlChatMessage,
-            r#"
-            WITH reply_targets AS (
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message
-                UNION ALL
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message_edit
-            )
-            SELECT
-                m.message_id AS "message_id: _",
-                m.mimi_id AS "mimi_id: _",
-                m.chat_id AS "chat_id: _",
-                m.timestamp AS "timestamp: _",
-                m.sender_user_uuid AS "sender_user_uuid: _",
-                m.sender_user_domain AS "sender_user_domain: _",
-                m.content AS "content: _",
-                m.sent,
-                m.status,
-                m.edited_at AS "edited_at: _",
+            r#"SELECT
+                message_id AS "message_id: _",
+                mimi_id AS "mimi_id: _",
+                chat_id AS "chat_id: _",
+                timestamp AS "timestamp: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _",
+                sent,
+                status,
+                edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                rt.message_id AS "in_reply_to_message_id: _",
-                red.sender_user_uuid AS "in_reply_to_sender_user_uuid: _",
-                red.sender_user_domain AS "in_reply_to_sender_user_domain: _",
-                rt.content AS "in_reply_to_content: _"
-            FROM message m
-            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
-                AND b.user_domain = m.sender_user_domain
-            LEFT JOIN reply_targets rt ON rt.mimi_id = m.in_reply_to_mimi_id
-            LEFT JOIN message red ON rt.message_id = red.message_id
-            WHERE m.chat_id = ?2
-                AND m.message_id != ?1
-                AND m.timestamp <= (SELECT timestamp FROM message WHERE message_id = ?1)
-            ORDER BY m.timestamp DESC
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+            FROM message
+            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
+                AND b.user_domain = sender_user_domain
+            WHERE chat_id = ?2
+                AND message_id != ?1
+                AND timestamp <= (SELECT timestamp FROM message WHERE message_id = ?1)
+            ORDER BY timestamp DESC
             LIMIT 1"#,
             message_id,
             chat_id,
         )
-        .fetch_optional(executor)
+        .fetch_optional(txn.as_mut())
+        .await?
+        .map(TryFrom::try_from)
+        .transpose()?
+        .with_loaded_in_reply_to(txn)
         .await
-        .map(|record| {
-            record
-                .map(TryFrom::try_from)
-                .transpose()
-                .map_err(From::from)
-        })?
     }
 
     pub(crate) async fn next_message(
-        executor: impl SqliteExecutor<'_>,
+        txn: &mut SqliteTransaction<'_>,
         chat_id: ChatId,
         message_id: MessageId,
     ) -> sqlx::Result<Option<ChatMessage>> {
         query_as!(
             SqlChatMessage,
-            r#"
-            WITH reply_targets AS (
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message
-                UNION ALL
-                SELECT
-                    message_id,
-                    mimi_id,
-                    content
-                FROM message_edit
-            )
-            SELECT
-                m.message_id AS "message_id: _",
-                m.mimi_id AS "mimi_id: _",
-                m.chat_id AS "chat_id: _",
-                m.timestamp AS "timestamp: _",
-                m.sender_user_uuid AS "sender_user_uuid: _",
-                m.sender_user_domain AS "sender_user_domain: _",
-                m.content AS "content: _",
-                m.sent,
-                m.status,
-                m.edited_at AS "edited_at: _",
+            r#"SELECT
+                message_id AS "message_id: _",
+                mimi_id AS "mimi_id: _",
+                chat_id AS "chat_id: _",
+                timestamp AS "timestamp: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _",
+                sent,
+                status,
+                edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                rt.message_id AS "in_reply_to_message_id: _",
-                red.sender_user_uuid AS "in_reply_to_sender_user_uuid: _",
-                red.sender_user_domain AS "in_reply_to_sender_user_domain: _",
-                rt.content AS "in_reply_to_content: _"
-            FROM message m
-            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
-                AND b.user_domain = m.sender_user_domain
-            LEFT JOIN reply_targets rt ON rt.mimi_id = m.in_reply_to_mimi_id
-            LEFT JOIN message red ON rt.message_id = red.message_id
-            WHERE m.chat_id = ?2
-                AND m.message_id != ?1
-                AND m.timestamp >= (SELECT timestamp FROM message WHERE message_id = ?1)
-            ORDER BY m.timestamp ASC
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+            FROM message
+            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
+                AND b.user_domain = sender_user_domain
+            WHERE chat_id = ?2
+                AND message_id != ?1
+                AND timestamp >= (SELECT timestamp FROM message WHERE message_id = ?1)
+            ORDER BY timestamp ASC
             LIMIT 1"#,
             message_id,
             chat_id,
         )
-        .fetch_optional(executor)
+        .fetch_optional(txn.as_mut())
+        .await?
+        .map(TryFrom::try_from)
+        .transpose()?
+        .with_loaded_in_reply_to(txn)
         .await
-        .map(|record| {
-            record
-                .map(TryFrom::try_from)
-                .transpose()
-                .map_err(From::from)
-        })?
     }
 
     pub(crate) async fn redact_all_in_reply_to_mimi_ids(
@@ -804,7 +639,8 @@ impl ChatMessage {
         replaces: &MimiId,
     ) -> sqlx::Result<Vec<MessageId>> {
         query_scalar!(
-            r#"WITH target_mimi_ids AS(
+            r#"
+            WITH target_mimi_ids AS(
                 SELECT mimi_id FROM message_edit WHERE message_id = ?
                 UNION ALL
                 SELECT ?
@@ -820,6 +656,115 @@ impl ChatMessage {
         )
         .fetch_all(executor)
         .await
+    }
+}
+
+#[derive(Debug)]
+struct SqlInReplyToMessage {
+    message_id: MessageId,
+    sender_user_uuid: Option<Uuid>,
+    sender_user_domain: Option<Fqdn>,
+    content: Option<BlobDecoded<VersionedMessage>>,
+}
+
+impl From<SqlInReplyToMessage> for Option<InReplyToMessage> {
+    fn from(
+        SqlInReplyToMessage {
+            message_id,
+            sender_user_uuid,
+            sender_user_domain,
+            content,
+        }: SqlInReplyToMessage,
+    ) -> Self {
+        Some(InReplyToMessage {
+            message_id,
+            sender: UserId::new(sender_user_uuid?, sender_user_domain?),
+            mimi_content: content.and_then(|BlobDecoded(c)| c.to_mimi_content().ok()),
+        })
+    }
+}
+
+/// Small trait to be able to augment the result of a sqlx::fetch operation on ChatMessage
+trait SqlChatMessageExt
+where
+    Self: Sized,
+{
+    async fn with_loaded_in_reply_to(self, txn: &mut SqliteTransaction<'_>) -> sqlx::Result<Self>;
+}
+
+impl SqlChatMessageExt for &mut ChatMessage {
+    async fn with_loaded_in_reply_to(self, txn: &mut SqliteTransaction<'_>) -> sqlx::Result<Self> {
+        if let Some((in_reply_to_mimi_id, in_reply_to_message)) = self.in_reply_to.as_mut() {
+            *in_reply_to_message = InReplyToMessage::load(txn, in_reply_to_mimi_id).await?;
+        }
+
+        Ok(self)
+    }
+}
+
+impl SqlChatMessageExt for Option<ChatMessage> {
+    async fn with_loaded_in_reply_to(
+        mut self,
+        txn: &mut SqliteTransaction<'_>,
+    ) -> sqlx::Result<Self> {
+        if let Some(chat_message) = self.as_mut() {
+            chat_message.augment_in_reply_to(txn).await?;
+        }
+
+        Ok(self)
+    }
+}
+
+impl InReplyToMessage {
+    pub(crate) async fn load(
+        txn: &mut SqliteTransaction<'_>,
+        mimi_id: &MimiId,
+    ) -> sqlx::Result<Option<Self>> {
+        let mimi_id = mimi_id.as_slice();
+
+        // Try to load the message that was replied to
+        let in_reply_to_message = if let Some(in_reply_to_message) = query_as!(
+            SqlInReplyToMessage,
+            r#"
+            SELECT
+                message_id AS "message_id: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _"
+            FROM message
+            WHERE mimi_id = ?
+            "#,
+            mimi_id,
+        )
+        .fetch_optional(txn.as_mut())
+        .await?
+        {
+            in_reply_to_message.into()
+        }
+        // If we didn't find it, try to load a message edit (previous version)
+        else if let Some(in_reply_to_message) = query_as!(
+            SqlInReplyToMessage,
+            r#"
+            SELECT
+                me.message_id AS "message_id: _",
+                m.sender_user_uuid AS "sender_user_uuid: _",
+                m.sender_user_domain AS "sender_user_domain: _",
+                me.content AS "content: _"
+            FROM message_edit me
+            LEFT JOIN message m ON m.message_id = me.message_id
+            WHERE me.mimi_id = ?
+            "#,
+            mimi_id,
+        )
+        .fetch_optional(txn.as_mut())
+        .await?
+        {
+            in_reply_to_message.into()
+        } else {
+            None
+        };
+
+        Ok(in_reply_to_message)
     }
 }
 
@@ -871,7 +816,10 @@ pub(crate) mod tests {
         let message = test_chat_message(chat.id());
 
         message.store(&pool, &mut store_notifier).await?;
-        let loaded = ChatMessage::load(&pool, message.id()).await?.unwrap();
+
+        let mut txn = pool.begin().await?;
+        let loaded = ChatMessage::load(&mut txn, message.id()).await?.unwrap();
+
         assert_eq!(loaded, message);
 
         Ok(())
@@ -922,13 +870,15 @@ pub(crate) mod tests {
         );
         message_b.store(&pool, &mut store_notifier).await?;
 
-        let prev = ChatMessage::prev_message(&pool, chat_b.id(), message_b.id()).await?;
+        let mut txn = pool.begin().await?;
+
+        let prev = ChatMessage::prev_message(&mut txn, chat_b.id(), message_b.id()).await?;
         assert!(
             prev.is_none(),
             "prev_message should ignore messages from other chats"
         );
 
-        let next = ChatMessage::next_message(&pool, chat_a.id(), message_a.id()).await?;
+        let next = ChatMessage::next_message(&mut txn, chat_a.id(), message_a.id()).await?;
         assert!(
             next.is_none(),
             "next_message should ignore messages from other chats"
@@ -940,21 +890,21 @@ pub(crate) mod tests {
     #[sqlx::test]
     async fn store_load_multiple(pool: SqlitePool) -> anyhow::Result<()> {
         let mut store_notifier = StoreNotifier::noop();
+        let mut txn = pool.begin().await?;
 
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
-            .await?;
+        chat.store(txn.as_mut(), &mut store_notifier).await?;
 
         let message_a = test_chat_message(chat.id());
         let message_b = test_chat_message(chat.id());
 
-        message_a.store(&pool, &mut store_notifier).await?;
-        message_b.store(&pool, &mut store_notifier).await?;
+        message_a.store(txn.as_mut(), &mut store_notifier).await?;
+        message_b.store(txn.as_mut(), &mut store_notifier).await?;
 
-        let loaded = ChatMessage::load_multiple(&pool, chat.id(), 2).await?;
+        let loaded = ChatMessage::load_multiple(&mut txn, chat.id(), 2).await?;
         assert_eq!(loaded, [message_a, message_b.clone()]);
 
-        let loaded = ChatMessage::load_multiple(&pool, chat.id(), 1).await?;
+        let loaded = ChatMessage::load_multiple(&mut txn, chat.id(), 1).await?;
         assert_eq!(loaded, [message_b]);
 
         Ok(())
@@ -963,22 +913,28 @@ pub(crate) mod tests {
     #[sqlx::test]
     async fn update_sent_status(pool: SqlitePool) -> anyhow::Result<()> {
         let mut store_notifier = StoreNotifier::noop();
+        let mut txn = pool.begin().await?;
 
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
-            .await?;
+        chat.store(&mut txn, &mut store_notifier).await?;
 
         let message = test_chat_message(chat.id());
-        message.store(&pool, &mut store_notifier).await?;
+        message.store(txn.as_mut(), &mut store_notifier).await?;
 
-        let loaded = ChatMessage::load(&pool, message.id()).await?.unwrap();
+        let loaded = ChatMessage::load(&mut txn, message.id()).await?.unwrap();
         assert!(!loaded.is_sent());
 
         let sent_at: TimeStamp = Utc::now().into();
-        ChatMessage::update_sent_status(&pool, &mut store_notifier, loaded.id(), sent_at, true)
-            .await?;
+        ChatMessage::update_sent_status(
+            txn.as_mut(),
+            &mut store_notifier,
+            loaded.id(),
+            sent_at,
+            true,
+        )
+        .await?;
 
-        let loaded = ChatMessage::load(&pool, message.id()).await?.unwrap();
+        let loaded = ChatMessage::load(&mut txn, message.id()).await?.unwrap();
         assert_eq!(&loaded.timestamp(), sent_at.as_ref());
         assert!(loaded.is_sent());
 
@@ -999,7 +955,9 @@ pub(crate) mod tests {
         message_a.store(&pool, &mut store_notifier).await?;
         message_b.store(&pool, &mut store_notifier).await?;
 
-        let loaded = ChatMessage::last_message(&pool, chat.id()).await?;
+        let mut txn = pool.begin().await?;
+
+        let loaded = ChatMessage::last_message(&mut txn, chat.id()).await?;
         assert_eq!(loaded, Some(message_b));
 
         Ok(())
@@ -1008,18 +966,18 @@ pub(crate) mod tests {
     #[sqlx::test]
     async fn prev_message(pool: SqlitePool) -> anyhow::Result<()> {
         let mut store_notifier = StoreNotifier::noop();
+        let mut txn = pool.begin().await?;
 
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
-            .await?;
+        chat.store(&mut txn, &mut store_notifier).await?;
 
         let message_a = test_chat_message(chat.id());
         let message_b = test_chat_message(chat.id());
 
-        message_a.store(&pool, &mut store_notifier).await?;
-        message_b.store(&pool, &mut store_notifier).await?;
+        message_a.store(txn.as_mut(), &mut store_notifier).await?;
+        message_b.store(txn.as_mut(), &mut store_notifier).await?;
 
-        let loaded = ChatMessage::prev_message(&pool, chat.id(), message_b.id()).await?;
+        let loaded = ChatMessage::prev_message(&mut txn, chat.id(), message_b.id()).await?;
         assert_eq!(loaded, Some(message_a));
 
         Ok(())
@@ -1028,18 +986,18 @@ pub(crate) mod tests {
     #[sqlx::test]
     async fn next_message(pool: SqlitePool) -> anyhow::Result<()> {
         let mut store_notifier = StoreNotifier::noop();
+        let mut txn = pool.begin().await?;
 
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
-            .await?;
+        chat.store(txn.as_mut(), &mut store_notifier).await?;
 
         let message_a = test_chat_message(chat.id());
         let message_b = test_chat_message(chat.id());
 
-        message_a.store(&pool, &mut store_notifier).await?;
-        message_b.store(&pool, &mut store_notifier).await?;
+        message_a.store(txn.as_mut(), &mut store_notifier).await?;
+        message_b.store(txn.as_mut(), &mut store_notifier).await?;
 
-        let loaded = ChatMessage::next_message(&pool, chat.id(), message_a.id()).await?;
+        let loaded = ChatMessage::next_message(&mut txn, chat.id(), message_a.id()).await?;
         assert_eq!(loaded, Some(message_b));
 
         Ok(())
@@ -1068,23 +1026,23 @@ pub(crate) mod tests {
     #[sqlx::test]
     async fn delete_message(pool: SqlitePool) -> anyhow::Result<()> {
         let mut store_notifier = StoreNotifier::noop();
+        let mut txn = pool.begin().await?;
 
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
-            .await?;
+        chat.store(txn.as_mut(), &mut store_notifier).await?;
 
         let message = test_chat_message(chat.id());
-        message.store(&pool, &mut store_notifier).await?;
+        message.store(txn.as_mut(), &mut store_notifier).await?;
 
         // Verify message exists
-        let loaded = ChatMessage::load(&pool, message.id()).await?;
+        let loaded = ChatMessage::load(&mut txn, message.id()).await?;
         assert!(loaded.is_some());
 
         // Delete message
-        ChatMessage::delete(&pool, &mut store_notifier, message.id(), chat.id()).await?;
+        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message.id(), chat.id()).await?;
 
         // Verify message is gone
-        let loaded = ChatMessage::load(&pool, message.id()).await?;
+        let loaded = ChatMessage::load(&mut txn, message.id()).await?;
         assert!(loaded.is_none());
 
         Ok(())
@@ -1096,33 +1054,33 @@ pub(crate) mod tests {
         use aircommon::identifiers::MimiId;
 
         let mut store_notifier = StoreNotifier::noop();
+        let mut txn = pool.begin().await?;
 
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
-            .await?;
+        chat.store(txn.as_mut(), &mut store_notifier).await?;
 
         let message = test_chat_message(chat.id());
-        message.store(&pool, &mut store_notifier).await?;
+        message.store(txn.as_mut(), &mut store_notifier).await?;
 
         // Create edit history entry
         let mimi_id = MimiId::from_slice(&[1u8; 32])?;
         let edit_content = MimiContent::simple_markdown_message("Edited!".to_string(), [1; 16]);
         let edit = MessageEdit::new(&mimi_id, message.id(), TimeStamp::now(), &edit_content);
-        edit.store(&pool).await?;
+        edit.store(txn.as_mut()).await?;
 
         // Verify edit history exists
-        let found = MessageEdit::find_message_id(&pool, &mimi_id).await?;
+        let found = MessageEdit::find_message_id(txn.as_mut(), &mimi_id).await?;
         assert_eq!(found, Some(message.id()));
 
         // Delete message - should cascade to edit history
-        ChatMessage::delete(&pool, &mut store_notifier, message.id(), chat.id()).await?;
+        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message.id(), chat.id()).await?;
 
         // Verify message is gone
-        let loaded = ChatMessage::load(&pool, message.id()).await?;
+        let loaded = ChatMessage::load(&mut txn, message.id()).await?;
         assert!(loaded.is_none());
 
         // Verify edit history is also gone (FK cascade)
-        let found = MessageEdit::find_message_id(&pool, &mimi_id).await?;
+        let found = MessageEdit::find_message_id(txn.as_mut(), &mimi_id).await?;
         assert!(found.is_none());
 
         Ok(())
@@ -1135,13 +1093,13 @@ pub(crate) mod tests {
         use sqlx::query_scalar;
 
         let mut store_notifier = StoreNotifier::noop();
+        let mut txn = pool.begin().await?;
 
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
-            .await?;
+        chat.store(txn.as_mut(), &mut store_notifier).await?;
 
         let message = test_chat_message_with_salt(chat.id(), [0; 16]);
-        message.store(&pool, &mut store_notifier).await?;
+        message.store(txn.as_mut(), &mut store_notifier).await?;
 
         let mimi_id = message.message().mimi_id().unwrap();
 
@@ -1153,30 +1111,31 @@ pub(crate) mod tests {
                 status: mimi_content::MessageStatus::Delivered,
             }],
         };
-        let mut txn = pool.begin().await?;
         StatusRecord::borrowed(&sender, report, TimeStamp::now())
             .store_report(&mut txn, &mut store_notifier)
             .await?;
         txn.commit().await?;
 
+        let mut txn = pool.begin().await?;
+
         // Verify status record exists
         let count: i64 = query_scalar("SELECT COUNT(*) FROM message_status WHERE message_id = ?")
             .bind(message.id())
-            .fetch_one(&pool)
+            .fetch_one(txn.as_mut())
             .await?;
         assert_eq!(count, 1);
 
         // Delete message - should cascade to status records
-        ChatMessage::delete(&pool, &mut store_notifier, message.id(), chat.id()).await?;
+        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message.id(), chat.id()).await?;
 
         // Verify message is gone
-        let loaded = ChatMessage::load(&pool, message.id()).await?;
+        let loaded = ChatMessage::load(&mut txn, message.id()).await?;
         assert!(loaded.is_none());
 
         // Verify status records are also gone (FK cascade)
         let count: i64 = query_scalar("SELECT COUNT(*) FROM message_status WHERE message_id = ?")
             .bind(message.id())
-            .fetch_one(&pool)
+            .fetch_one(txn.as_mut())
             .await?;
         assert_eq!(count, 0);
 
@@ -1186,29 +1145,29 @@ pub(crate) mod tests {
     #[sqlx::test]
     async fn delete_preserves_other_messages(pool: SqlitePool) -> anyhow::Result<()> {
         let mut store_notifier = StoreNotifier::noop();
+        let mut txn = pool.begin().await?;
 
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
-            .await?;
+        chat.store(&mut txn, &mut store_notifier).await?;
 
         let message_a = test_chat_message_with_salt(chat.id(), [0; 16]);
         let message_b = test_chat_message_with_salt(chat.id(), [1; 16]);
         let message_c = test_chat_message_with_salt(chat.id(), [2; 16]);
 
-        message_a.store(&pool, &mut store_notifier).await?;
-        message_b.store(&pool, &mut store_notifier).await?;
-        message_c.store(&pool, &mut store_notifier).await?;
+        message_a.store(txn.as_mut(), &mut store_notifier).await?;
+        message_b.store(txn.as_mut(), &mut store_notifier).await?;
+        message_c.store(txn.as_mut(), &mut store_notifier).await?;
 
         // Delete only message_b
-        ChatMessage::delete(&pool, &mut store_notifier, message_b.id(), chat.id()).await?;
+        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message_b.id(), chat.id()).await?;
 
         // Verify message_b is gone
-        let loaded_b = ChatMessage::load(&pool, message_b.id()).await?;
+        let loaded_b = ChatMessage::load(&mut txn, message_b.id()).await?;
         assert!(loaded_b.is_none());
 
         // Verify message_a and message_c still exist
-        let loaded_a = ChatMessage::load(&pool, message_a.id()).await?;
-        let loaded_c = ChatMessage::load(&pool, message_c.id()).await?;
+        let loaded_a = ChatMessage::load(&mut txn, message_a.id()).await?;
+        let loaded_c = ChatMessage::load(&mut txn, message_c.id()).await?;
         assert_eq!(loaded_a, Some(message_a));
         assert_eq!(loaded_c, Some(message_c));
 
@@ -1218,15 +1177,20 @@ pub(crate) mod tests {
     #[sqlx::test]
     async fn delete_nonexistent_message(pool: SqlitePool) -> anyhow::Result<()> {
         let mut store_notifier = StoreNotifier::noop();
+        let mut txn = pool.begin().await?;
 
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
-            .await?;
+        chat.store(txn.as_mut(), &mut store_notifier).await?;
 
         // Try to delete a message that doesn't exist
         let fake_message_id = MessageId::random();
-        let result =
-            ChatMessage::delete(&pool, &mut store_notifier, fake_message_id, chat.id()).await;
+        let result = ChatMessage::delete(
+            txn.as_mut(),
+            &mut store_notifier,
+            fake_message_id,
+            chat.id(),
+        )
+        .await;
 
         // Should succeed without error (no-op)
         assert!(result.is_ok());

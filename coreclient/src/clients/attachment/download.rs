@@ -53,7 +53,7 @@ impl CoreUser {
 
         // Load the pending attachment record and update the status to `Downloading`.
         let Some((pending_record, group)) = self
-            .with_transaction(async |txn| {
+            .with_transaction(async |txn| -> anyhow::Result<_> {
                 let Some(pending_record) =
                     PendingAttachmentRecord::load_pending(txn.as_mut(), attachment_id).await?
                 else {

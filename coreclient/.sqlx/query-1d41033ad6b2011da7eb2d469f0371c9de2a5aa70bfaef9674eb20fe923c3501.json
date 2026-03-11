@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                me.message_id AS \"message_id: _\",\n                m.sender_user_uuid AS \"sender_user_uuid: _\",\n                m.sender_user_domain AS \"sender_user_domain: _\",\n                me.content AS \"content: _\"\n            FROM message_edit me\n            LEFT JOIN message m ON m.message_id = me.message_id\n            WHERE me.mimi_id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "message_id: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "sender_user_uuid: _",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "sender_user_domain: _",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "content: _",
+        "ordinal": 3,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "1d41033ad6b2011da7eb2d469f0371c9de2a5aa70bfaef9674eb20fe923c3501"
+}

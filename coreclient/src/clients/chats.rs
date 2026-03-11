@@ -12,7 +12,10 @@ use crate::{
     chats::{Chat, messages::ChatMessage},
     groups::Group,
     job::{chat_operation::ChatOperation, create_chat::CreateChat},
-    utils::{connection_ext::StoreExt, image::resize_profile_image},
+    utils::{
+        connection_ext::{ConnectionExt, StoreExt},
+        image::resize_profile_image,
+    },
 };
 
 use super::{ChatId, CoreUser};
@@ -122,8 +125,15 @@ impl CoreUser {
         Ok(())
     }
 
-    pub(crate) async fn message(&self, message_id: MessageId) -> sqlx::Result<Option<ChatMessage>> {
-        ChatMessage::load(self.pool(), message_id).await
+    pub(crate) async fn message(
+        &self,
+        message_id: MessageId,
+    ) -> anyhow::Result<Option<ChatMessage>> {
+        self.pool()
+            .with_transaction(async |txn| {
+                ChatMessage::load(txn, message_id).await.map_err(Into::into)
+            })
+            .await
     }
 
     pub(crate) async fn prev_message(
@@ -131,7 +141,10 @@ impl CoreUser {
         chat_id: ChatId,
         message_id: MessageId,
     ) -> Result<Option<ChatMessage>> {
-        Ok(ChatMessage::prev_message(self.pool(), chat_id, message_id).await?)
+        self.with_transaction(async |txn| {
+            Ok(ChatMessage::prev_message(txn, chat_id, message_id).await?)
+        })
+        .await
     }
 
     pub(crate) async fn next_message(
@@ -139,7 +152,10 @@ impl CoreUser {
         chat_id: ChatId,
         message_id: MessageId,
     ) -> Result<Option<ChatMessage>> {
-        Ok(ChatMessage::next_message(self.pool(), chat_id, message_id).await?)
+        self.with_transaction(async |txn| {
+            Ok(ChatMessage::next_message(txn, chat_id, message_id).await?)
+        })
+        .await
     }
 
     pub async fn chat(&self, chat: &ChatId) -> Option<Chat> {
@@ -155,9 +171,10 @@ impl CoreUser {
         chat_id: ChatId,
         number_of_messages: usize,
     ) -> Result<Vec<ChatMessage>> {
-        let messages =
-            ChatMessage::load_multiple(self.pool(), chat_id, number_of_messages as u32).await?;
-        Ok(messages)
+        self.with_transaction(async |txn| {
+            Ok(ChatMessage::load_multiple(txn, chat_id, number_of_messages as u32).await?)
+        })
+        .await
     }
 
     pub async fn load_room_state(&self, chat_id: &ChatId) -> Result<(UserId, VerifiedRoomState)> {

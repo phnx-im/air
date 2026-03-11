@@ -599,7 +599,7 @@ impl CoreUser {
         };
 
         // MLSMessage Phase 4: Fetch user profiles of new clients and store them.
-        self.with_transaction(async |txn| {
+        self.with_transaction(async |txn| -> anyhow::Result<_> {
             for profile_info in profile_infos {
                 Self::schedule_fetch_profile(txn.as_mut(), profile_info).await?;
             }
@@ -1043,7 +1043,7 @@ async fn handle_message_edit(
 
     // First try to directly load the original message by mimi id (non-edited message) and fallback
     // to the history of edits otherwise.
-    let mut message = match ChatMessage::load_by_mimi_id(txn.as_mut(), &replaces).await? {
+    let mut message = match ChatMessage::load_by_mimi_id(txn, &replaces).await? {
         Some(message) => message,
         None => {
             let message_id = MessageEdit::find_message_id(txn.as_mut(), &replaces)
@@ -1052,11 +1052,9 @@ async fn handle_message_edit(
                     format!("Original message id not found for editing; mimi_id = {replaces:?}")
                 })?;
 
-            ChatMessage::load(txn.as_mut(), message_id)
-                .await?
-                .with_context(|| {
-                    format!("Original message not found for editing; message_id = {message_id:?}")
-                })?
+            ChatMessage::load(txn, message_id).await?.with_context(|| {
+                format!("Original message not found for editing; message_id = {message_id:?}")
+            })?
         }
     };
 
@@ -1346,7 +1344,7 @@ mod tests {
         alice_message.update(txn.as_mut(), &mut notifier).await?;
 
         // Bob's in_reply_to should still reference the original MIMI ID
-        let bob_message = ChatMessage::load(txn.as_mut(), bob_message.id())
+        let bob_message = ChatMessage::load(&mut txn, bob_message.id())
             .await?
             .unwrap();
         assert_eq!(bob_message.in_reply_to().unwrap().0, original_alice_mimi_id);
@@ -1395,7 +1393,7 @@ mod tests {
         .await?;
         alice_message.update(txn.as_mut(), &mut notifier).await?;
 
-        let alice_message = ChatMessage::load(txn.as_mut(), alice_message.id())
+        let alice_message = ChatMessage::load(&mut txn, alice_message.id())
             .await?
             .unwrap();
         assert_eq!(alice_message.status(), mimi_content::MessageStatus::Deleted);
@@ -1481,10 +1479,10 @@ mod tests {
 
         // Both Bob's and Carol's in_reply_to should reference Alice's deleted MIMI ID
         let deleted_mimi_id = alice_message.message().mimi_id().unwrap();
-        let bob_message = ChatMessage::load(txn.as_mut(), bob_message.id())
+        let bob_message = ChatMessage::load(&mut txn, bob_message.id())
             .await?
             .unwrap();
-        let carol_message = ChatMessage::load(txn.as_mut(), carol_message.id())
+        let carol_message = ChatMessage::load(&mut txn, carol_message.id())
             .await?
             .unwrap();
         assert_eq!(&bob_message.in_reply_to().unwrap().0, deleted_mimi_id);
@@ -1559,7 +1557,7 @@ mod tests {
 
         // Alice deletes her (edited) message
         let mut txn = pool.begin().await?;
-        let alice_message = ChatMessage::load(txn.as_mut(), alice_message.id())
+        let alice_message = ChatMessage::load(&mut txn, alice_message.id())
             .await?
             .unwrap();
         let alice_message = handle_message_edit(
@@ -1576,7 +1574,7 @@ mod tests {
 
         // Bob's in_reply_to should reference Alice's deleted MIMI ID (not the edited one)
         let deleted_mimi_id = alice_message.message().mimi_id().unwrap();
-        let bob_message = ChatMessage::load(txn.as_mut(), bob_message.id())
+        let bob_message = ChatMessage::load(&mut txn, bob_message.id())
             .await?
             .unwrap();
         assert_eq!(&bob_message.in_reply_to().unwrap().0, deleted_mimi_id);

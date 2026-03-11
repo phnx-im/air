@@ -26,7 +26,7 @@ impl OutboundServiceContext {
 
             let now = chrono::Utc::now();
 
-            let mut pool = self.pool.clone();
+            let pool = self.pool.clone();
             let pending_chat_operation = pool
                 .with_transaction(async |txn| {
                     PendingChatOperation::dequeue(txn, task_id, now).await

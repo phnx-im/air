@@ -27,7 +27,7 @@ use crate::{
     store::UserSetting,
     user_handles::UserHandleRecord,
     user_profiles::UserProfile,
-    utils::connection_ext::StoreExt,
+    utils::connection_ext::{ConnectionExt, StoreExt},
 };
 
 use super::{Store, StoreNotification, StoreResult};
@@ -230,7 +230,7 @@ impl Store for CoreUser {
     }
 
     async fn message(&self, message_id: MessageId) -> StoreResult<Option<ChatMessage>> {
-        Ok(self.message(message_id).await?)
+        self.message(message_id).await
     }
 
     async fn prev_message(
@@ -250,7 +250,8 @@ impl Store for CoreUser {
     }
 
     async fn last_message(&self, chat_id: ChatId) -> StoreResult<Option<ChatMessage>> {
-        Ok(ChatMessage::last_message(self.pool(), chat_id).await?)
+        let mut txn = self.pool().begin_with("BEGIN IMMEDIATE").await?;
+        Ok(ChatMessage::last_message(&mut txn, chat_id).await?)
     }
 
     async fn last_message_by_user(
@@ -258,11 +259,20 @@ impl Store for CoreUser {
         chat_id: ChatId,
         user_id: &UserId,
     ) -> StoreResult<Option<ChatMessage>> {
-        Ok(ChatMessage::last_content_message_by_user(self.pool(), chat_id, user_id).await?)
+        self.pool()
+            .with_transaction(async |txn| {
+                ChatMessage::last_content_message_by_user(txn, chat_id, user_id)
+                    .await
+                    .map_err(Into::into)
+            })
+            .await
     }
 
     async fn message_draft(&self, chat_id: ChatId) -> StoreResult<Option<MessageDraft>> {
-        Ok(MessageDraft::load(self.pool(), chat_id).await?)
+        self.with_transaction(async |txn| {
+            MessageDraft::load(txn, chat_id).await.map_err(From::from)
+        })
+        .await
     }
 
     async fn store_message_draft(
