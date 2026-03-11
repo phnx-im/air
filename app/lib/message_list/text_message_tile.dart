@@ -341,65 +341,79 @@ class _MessageView extends HookWidget {
 
     const iconSize = 16.0;
 
-    final actions = <ContextMenuEntry>[
+    final actions = [
       if (!isDeleted)
-        ContextMenuItem(
+        MessageAction(
           label: loc.messageContextMenu_reply,
           leading: const AppIcon.cornerLeft(size: iconSize),
-          onPressed: () {
+          onSelected: () {
             context.read<ChatDetailsCubit>().replyToMessage(
               messageId: messageId,
             );
           },
         ),
       if (plainBody != null && plainBody.isNotEmpty)
-        ContextMenuItem(
+        MessageAction(
           label: loc.messageContextMenu_copy,
           leading: const AppIcon.copy(size: iconSize),
-          onPressed: () {
+          onSelected: () {
             Clipboard.setData(ClipboardData(text: plainBody));
           },
         ),
       if (isSender && attachments.isEmpty && !isDeleted)
-        ContextMenuItem(
+        MessageAction(
           label: loc.messageContextMenu_edit,
           leading: const AppIcon.pencil(size: iconSize),
-          onPressed: () {
+          onSelected: () {
             context.read<ChatDetailsCubit>().editMessage(messageId: messageId);
           },
         ),
-      if (!isDeleted) ...[
-        const ContextMenuSeparator(),
-        ContextMenuItem(
+      if (!isDeleted)
+        MessageAction(
           label: loc.messageContextMenu_delete,
           leading: AppIcon.trash(size: iconSize, color: colors.function.danger),
           isDestructive: true,
-          onPressed: () => isSender
+          insertSeparatorBefore: true,
+          onSelected: () => isSender
               ? _showDeleteMessageDialog(context: context, messageId: messageId)
               : _showDeleteForMeDialog(context: context, messageId: messageId),
         ),
-      ],
       if (isDeleted)
-        ContextMenuItem(
+        MessageAction(
           label: loc.messageContextMenu_delete,
           leading: AppIcon.trash(size: iconSize, color: colors.function.danger),
           isDestructive: true,
-          onPressed: () =>
+          onSelected: () =>
               _showDeleteForMeDialog(context: context, messageId: messageId),
         ),
       if (attachments.isNotEmpty && !Platform.isIOS)
-        ContextMenuItem(
+        MessageAction(
           label: loc.messageContextMenu_save,
           leading: const AppIcon.download(size: iconSize),
-          onPressed: () => _handleFileSave(context, attachments.first),
+          onSelected: () => _handleFileSave(context, attachments.first),
         ),
       if (attachments.isNotEmpty && Platform.isIOS)
-        ContextMenuItem(
+        MessageAction(
           label: loc.messageContextMenu_share,
           leading: const AppIcon.share(size: iconSize),
-          onPressed: () => _handleFileShare(context, attachments),
+          onSelected: () => _handleFileShare(context, attachments),
         ),
     ];
+
+    final menuItems = <ContextMenuEntry>[];
+    for (final action in actions) {
+      if (action.insertSeparatorBefore) {
+        menuItems.add(const ContextMenuSeparator());
+      }
+      menuItems.add(
+        ContextMenuItem(
+          label: action.label,
+          leading: action.leading,
+          onPressed: action.onSelected,
+          isDestructive: action.isDestructive,
+        ),
+      );
+    }
 
     final metadata = Padding(
       padding: EdgeInsets.only(left: isSender ? 0 : messageHorizontalPadding),
@@ -531,7 +545,7 @@ class _MessageView extends HookWidget {
             : ContextMenuDirection.right,
         offset: const Offset(Spacings.xxs, 0),
         controller: contextMenuController,
-        menuItems: actions,
+        menuItems: menuItems,
         cursorPosition: cursorPositionNotifier,
         child: buildMessageShell(
           onLongPress: null,

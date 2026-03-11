@@ -634,10 +634,7 @@ class _MessageInput extends StatelessWidget {
                       color: color.backgroundElevated.primary,
                       shape: BoxShape.circle,
                     ),
-                    constraints: const BoxConstraints(
-                      maxHeight: 20,
-                      maxWidth: 20,
-                    ),
+                    constraints: BoxConstraints.tight(const Size.square(20)),
                     child: IconButton(
                       icon: const AppIcon.x(size: 12),
                       constraints: const BoxConstraints(
