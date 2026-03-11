@@ -31,16 +31,22 @@ class InterfaceScale extends StatelessWidget {
     final userUiFactor = interfaceScale ?? defaultUiFactor;
 
     final scalingFactors = getScalingFactors(context);
-    final uiScalingFactor = scalingFactors.uiFactor * userUiFactor;
 
     final mediaQuery = MediaQuery.of(context);
+
+    // on Linux (GTK) the text scaling is used as UI scaling in Firefox
+    // and VSCode (most likely for legacy reasons) but we want to adhere to this behaviour.
     final systemTextScale = mediaQuery.textScaler.scale(1.0);
+
+    final textScaleFactor =
+        scalingFactors.textFactor * (Platform.isLinux ? 1.0 : systemTextScale);
+    final uiScalingFactor =
+        scalingFactors.uiFactor *
+        userUiFactor *
+        (Platform.isLinux ? systemTextScale : 1.0);
+
     final wrappedChild = MediaQuery(
-      data: mediaQuery.copyWith(
-        textScaler: TextScaler.linear(
-          scalingFactors.textFactor * systemTextScale,
-        ),
-      ),
+      data: mediaQuery.copyWith(textScaler: TextScaler.linear(textScaleFactor)),
       child: child,
     );
     return uiScalingFactor == 1.0

@@ -18,13 +18,11 @@ ScalingFactors getScalingFactors(BuildContext context) {
   const android = 16.0;
   const macos = 13.0;
   const windows = 15.0;
-  const linux = 14.0;
 
   const iosUiTweak = 1.0;
   const androidUiTweak = 1.0;
   const macosUiTweak = 1.0;
   const windowsUiTweak = 1.0;
-  const linuxUiTweak = 1.0;
 
   const iosTextTweak = 1.0;
   const androidTextTweak = 1.0;
@@ -61,10 +59,7 @@ ScalingFactors getScalingFactors(BuildContext context) {
       textFactor: windowsTextTweak,
     );
   } else if (Platform.isLinux) {
-    return const ScalingFactors(
-      uiFactor: linux / refBase * linuxUiTweak,
-      textFactor: linuxTextTweak,
-    );
+    return const ScalingFactors(uiFactor: 1.0, textFactor: linuxTextTweak);
   } else {
     return const ScalingFactors(uiFactor: 1.0, textFactor: 1.0);
   }
