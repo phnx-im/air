@@ -129,7 +129,6 @@ class _Avatar extends StatelessWidget {
                 style: TextTheme.of(context).labelMedium!.copyWith(
                   color: colors.function.white,
                   fontSize: LabelFontSize.small2.size * size / 28,
-                  fontWeight: FontWeight.w300,
                 ),
               ),
             ),

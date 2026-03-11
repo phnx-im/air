@@ -27,10 +27,7 @@ class ShowcaseApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       builder: (context, child) => Stack(
         fit: StackFit.expand,
-        children: [
-          if (child != null) child,
-          const GridOverlayInteractive(gridSize: 4),
-        ],
+        children: [?child, const GridOverlayInteractive(gridSize: 4)],
       ),
     );
 

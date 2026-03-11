@@ -28,9 +28,13 @@ impl CoreUser {
         message_id: MessageId,
     ) -> anyhow::Result<ChatMessage> {
         // Load the message to get its mimi_id
-        let message = ChatMessage::load(self.pool(), message_id)
-            .await?
-            .with_context(|| format!("Can't find message with id {message_id:?}"))?;
+        let message = self
+            .with_transaction(async |txn| {
+                ChatMessage::load(txn, message_id)
+                    .await?
+                    .with_context(|| format!("Can't find message with id {message_id:?}"))
+            })
+            .await?;
 
         // Create NullPart content
         let null_content = message.null_part_content()?;
@@ -46,7 +50,7 @@ impl CoreUser {
     /// and status records. The message will no longer appear in the chat.
     pub(crate) async fn delete_message_locally(&self, message_id: MessageId) -> anyhow::Result<()> {
         self.with_transaction_and_notifier(async |txn, notifier| {
-            let message = ChatMessage::load(txn.as_mut(), message_id)
+            let message = ChatMessage::load(txn, message_id)
                 .await?
                 .with_context(|| format!("Can't find message with id {message_id:?}"))?;
 
@@ -69,11 +73,11 @@ impl CoreUser {
         message_id: MessageId,
     ) -> anyhow::Result<()> {
         self.with_transaction_and_notifier(async |txn, notifier| {
-            let mut message = ChatMessage::load(txn.as_mut(), message_id)
+            let mut message = ChatMessage::load(txn, message_id)
                 .await?
                 .with_context(|| format!("Can't find message with id {message_id:?}"))?;
 
-            let chat = Chat::load(txn.as_mut(), &message.chat_id())
+            let chat = Chat::load(txn, &message.chat_id())
                 .await?
                 .with_context(|| format!("Can't find chat with id {:?}", message.chat_id()))?;
 
@@ -383,7 +387,9 @@ mod tests {
         assert!(ids.is_empty());
 
         // Verify message still exists with Deleted status
-        let loaded = ChatMessage::load(pool, message.id()).await?.unwrap();
+        let loaded = ChatMessage::load(&mut pool.begin().await?, message.id())
+            .await?
+            .unwrap();
         assert_eq!(loaded.status(), MessageStatus::Deleted);
 
         Ok(())

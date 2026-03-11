@@ -2,14 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{codec::BlobDecoded, identifiers::MimiId};
+use aircommon::identifiers::MimiId;
 use chrono::{DateTime, Utc};
 use tokio_stream::StreamExt;
 
-use crate::{
-    MessageId,
-    chats::messages::{InReplyToMessage, persistence::VersionedMessage},
-};
+use crate::{MessageId, chats::messages::InReplyToMessage};
 
 /// A message draft which is currently composed in a chat.
 ///
@@ -45,9 +42,7 @@ impl MessageDraft {
 }
 
 mod persistence {
-    use aircommon::identifiers::{Fqdn, UserId};
-    use sqlx::{SqliteExecutor, query, query_as, query_scalar};
-    use uuid::Uuid;
+    use sqlx::{SqliteExecutor, SqliteTransaction, query, query_as, query_scalar};
 
     use crate::{ChatId, store::StoreNotifier};
 
@@ -59,11 +54,6 @@ mod persistence {
         pub message: String,
         /// The id of the message we're replying to
         pub in_reply_to_mimi_id: Option<MimiId>,
-        pub in_reply_to_message_id: Option<MessageId>,
-        pub in_reply_to_sender_user_uuid: Option<Uuid>,
-        pub in_reply_to_sender_user_domain: Option<Fqdn>,
-        pub in_reply_to_content: Option<BlobDecoded<VersionedMessage>>,
-
         /// The data of the message we're replying to
         // pub in_reply_to_content: Option<BlobDecoded<VersionedMessage>>,
         /// The id of the message currently being edited, if any.
@@ -77,88 +67,56 @@ mod persistence {
         pub is_committed: bool,
     }
 
-    impl TryFrom<SqlMessageDraft> for MessageDraft {
-        type Error = anyhow::Error;
-
-        fn try_from(
+    impl From<SqlMessageDraft> for MessageDraft {
+        fn from(
             SqlMessageDraft {
                 message,
                 editing_id,
                 updated_at,
                 is_committed,
                 in_reply_to_mimi_id,
-                in_reply_to_message_id,
-                in_reply_to_sender_user_uuid,
-                in_reply_to_sender_user_domain,
-                in_reply_to_content,
             }: SqlMessageDraft,
-        ) -> Result<Self, Self::Error> {
-            let in_reply_to = if let Some(message_id) = in_reply_to_message_id
-                && let Some(sender_user_uuid) = in_reply_to_sender_user_uuid
-                && let Some(sender_user_domain) = in_reply_to_sender_user_domain
-            {
-                Some(InReplyToMessage {
-                    message_id,
-                    sender: UserId::new(sender_user_uuid, sender_user_domain),
-                    mimi_content: in_reply_to_content
-                        .map(|BlobDecoded(v)| v.to_mimi_content())
-                        .transpose()?,
-                })
-            } else {
-                None
-            };
-
-            Ok(Self {
+        ) -> Self {
+            Self {
                 message,
-                in_reply_to: in_reply_to_mimi_id.map(|id| (id, in_reply_to)),
+                in_reply_to: in_reply_to_mimi_id.map(|id| (id, None)),
                 editing_id,
                 updated_at,
                 is_committed,
-            })
+            }
         }
     }
 
     impl MessageDraft {
         pub(crate) async fn load(
-            executor: impl SqliteExecutor<'_>,
+            txn: &mut SqliteTransaction<'_>,
             chat_id: ChatId,
         ) -> sqlx::Result<Option<Self>> {
-            query_as!(
+            let Some(mut message_draft) = query_as!(
                 SqlMessageDraft,
                 r#"
-                    WITH reply_targets AS (
-                        SELECT message_id, mimi_id, sender_user_uuid, sender_user_domain, content
-                            FROM message
-                        UNION ALL
-                        SELECT m.message_id, me.mimi_id, m.sender_user_uuid, m.sender_user_domain, me.content
-                            FROM message_edit me
-                        LEFT JOIN message m ON m.message_id = me.message_id
-                    )
-
                     SELECT
-                        md.message,
-                        md.editing_id AS "editing_id: _",
-                        md.updated_at AS "updated_at: _",
-                        md.is_committed,
-                        md.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
-                        rt.message_id AS "in_reply_to_message_id: _",
-                        rt.sender_user_uuid AS "in_reply_to_sender_user_uuid: _",
-                        rt.sender_user_domain AS "in_reply_to_sender_user_domain: _",
-                        rt.content AS "in_reply_to_content: _"
-                    FROM message_draft AS md
-                    LEFT JOIN reply_targets rt ON rt.mimi_id = in_reply_to_mimi_id
+                        message,
+                        editing_id AS "editing_id: _",
+                        updated_at AS "updated_at: _",
+                        is_committed,
+                        in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+                    FROM message_draft
                     WHERE chat_id = ?
                 "#,
                 chat_id
             )
-            .fetch_optional(executor)
-            .await
-            .map(|record: Option<SqlMessageDraft>| {
-                record
-                    .map(TryFrom::try_from)
-                    .transpose()
-                    .map_err(|e: anyhow::Error| sqlx::Error::Decode(e.into_boxed_dyn_error()))
-            })?
+            .fetch_optional(txn.as_mut())
+            .await?
+            .map(MessageDraft::from) else {
+                return Ok(None);
+            };
+
+            if let Some((mimi_id, message)) = message_draft.in_reply_to.as_mut() {
+                *message = InReplyToMessage::load(txn, mimi_id).await?;
+            }
+
+            Ok(Some(message_draft))
         }
 
         pub(crate) async fn store(
@@ -253,7 +211,7 @@ mod persistence {
             message.store(&pool, &mut notifier).await?;
 
             // 1. Load non-existent draft (should be None)
-            let loaded_draft = MessageDraft::load(&pool, chat.id()).await?;
+            let loaded_draft = MessageDraft::load(&mut pool.begin().await?, chat.id()).await?;
             assert_eq!(loaded_draft, None);
 
             // 2. Store a new draft
@@ -268,7 +226,7 @@ mod persistence {
             draft.store(&pool, &mut notifier, chat.id()).await?;
 
             // 3. Load the stored draft and assert its contents
-            let loaded_draft = MessageDraft::load(&pool, chat.id()).await?;
+            let loaded_draft = MessageDraft::load(&mut pool.begin().await?, chat.id()).await?;
             assert!(loaded_draft.is_some());
             let loaded_draft = loaded_draft.unwrap();
             assert_eq!(loaded_draft.message, "Hello, world!".to_string());
@@ -287,7 +245,7 @@ mod persistence {
             updated_draft.store(&pool, &mut notifier, chat.id()).await?;
 
             // 5. Load the updated draft and assert its new contents
-            let loaded_draft = MessageDraft::load(&pool, chat.id()).await?;
+            let loaded_draft = MessageDraft::load(&mut pool.begin().await?, chat.id()).await?;
             assert!(loaded_draft.is_some());
             let loaded_draft = loaded_draft.unwrap();
             assert_eq!(loaded_draft.message, "Updated message.");
@@ -298,7 +256,8 @@ mod persistence {
             MessageDraft::delete(&pool, &mut notifier, chat.id()).await?;
 
             // 7. Try to load it again (should be None)
-            let loaded_draft_after_delete = MessageDraft::load(&pool, chat.id()).await?;
+            let loaded_draft_after_delete =
+                MessageDraft::load(&mut pool.begin().await?, chat.id()).await?;
             assert_eq!(loaded_draft_after_delete, None);
 
             Ok(())
@@ -341,13 +300,13 @@ mod persistence {
             MessageDraft::commit_all(&pool, &mut notifier).await?;
 
             assert!(
-                MessageDraft::load(&pool, chat_a.id())
+                MessageDraft::load(&mut pool.begin().await?, chat_a.id())
                     .await?
                     .unwrap()
                     .is_committed
             );
             assert!(
-                MessageDraft::load(&pool, chat_b.id())
+                MessageDraft::load(&mut pool.begin().await?, chat_b.id())
                     .await?
                     .unwrap()
                     .is_committed

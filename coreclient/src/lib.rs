@@ -38,7 +38,10 @@ pub use crate::{
         user_settings::ReadReceiptsSetting,
     },
     contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},
-    groups::debug_info::{DebugCapabilities, GroupDebugInfo, RequiredDebugCapabilities},
+    groups::debug_info::{
+        DebugCapabilities, EncryptedGroupTitleDebugInfo, ExternalGroupProfileDebugInfo,
+        GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
+    },
     user_handles::UserHandleRecord,
     user_profiles::{Asset, DisplayName, DisplayNameError, UserProfile},
     utils::persistence::{

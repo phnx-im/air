@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                    SELECT\n                        message,\n                        editing_id AS \"editing_id: _\",\n                        updated_at AS \"updated_at: _\",\n                        is_committed,\n                        in_reply_to_mimi_id AS \"in_reply_to_mimi_id: _\"\n                    FROM message_draft\n                    WHERE chat_id = ?\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "message",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "editing_id: _",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "updated_at: _",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_committed",
+        "ordinal": 3,
+        "type_info": "Bool"
+      },
+      {
+        "name": "in_reply_to_mimi_id: _",
+        "ordinal": 4,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "fb262ffb619f517d30c737429e0ff1ddcc1e62e0c999761116b83124b63e8fbd"
+}

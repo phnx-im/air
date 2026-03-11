@@ -38,7 +38,7 @@ class ChatDebugInfoView extends HookWidget {
         ),
         AsyncSnapshot(hasError: true, :final error) => Center(
           child: Padding(
-            padding: const EdgeInsets.all(Spacings.m),
+            padding: const EdgeInsets.all(Spacings.s),
             child: Text(
               error.toString(),
               style: TextStyle(
@@ -101,6 +101,11 @@ class _GroupDebugInfoBody extends StatelessWidget {
             ),
           ],
         ),
+        if (info.groupData != null) ...[
+          const SizedBox(height: Spacings.s),
+          const _SectionHeader('Group Data'),
+          _GroupDataInfoCard(data: info.groupData!),
+        ],
         if (info.requiredCapabilities != null) ...[
           const SizedBox(height: Spacings.s),
           const _SectionHeader('Required Capabilities'),
@@ -131,17 +136,39 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacings.s,
-        vertical: Spacings.xxs,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: Spacings.xxs),
       child: Text(
         title.toUpperCase(),
         style: TextStyle(
           fontSize: BodyFontSize.small2.size,
+          fontWeight: FontWeight.bold,
+          color: colors.text.tertiary,
+        ),
+      ),
+    );
+  }
+}
+
+class _CardSectionHeader extends StatelessWidget {
+  const _CardSectionHeader(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = CustomColorScheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacings.s,
+        vertical: Spacings.xs,
+      ),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: BodyFontSize.small2.size,
           fontWeight: FontWeight.w600,
           color: colors.text.tertiary,
-          letterSpacing: 0.5,
+          letterSpacing: 0.3,
         ),
       ),
     );
@@ -157,12 +184,12 @@ class _InfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: Spacings.s),
       decoration: BoxDecoration(
         color: colors.backgroundBase.secondary,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (int i = 0; i < children.length; i++) ...[
             children[i],
@@ -222,7 +249,7 @@ class _InfoRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              width: 140,
+              width: 200,
               child: Text(
                 label,
                 style: TextStyle(
@@ -235,6 +262,75 @@ class _InfoRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _GroupDataInfoCard extends StatelessWidget {
+  const _GroupDataInfoCard({required this.data});
+
+  final GroupDataDebugInfo data;
+
+  @override
+  Widget build(BuildContext context) {
+    return _InfoCard(
+      children: [
+        _InfoRow(label: 'Title', value: data.title),
+        _InfoRow(label: 'Has Picture', value: data.hasPicture ? 'yes' : 'no'),
+        if (data.encryptedTitle != null) ...[
+          const _CardSectionHeader('Encrypted Title'),
+          _InfoRow(
+            label: 'Ciphertext',
+            value: data.encryptedTitle!.ciphertext,
+            monospace: true,
+          ),
+          _InfoRow(
+            label: 'Nonce',
+            value: data.encryptedTitle!.nonce,
+            monospace: true,
+          ),
+          _InfoRow(
+            label: 'AAD',
+            value: data.encryptedTitle!.aad,
+            monospace: true,
+          ),
+        ],
+        if (data.externalGroupProfile != null) ...[
+          const _CardSectionHeader('External Group Profile'),
+          _InfoRow(
+            label: 'Object ID',
+            value: data.externalGroupProfile!.objectId,
+            monospace: true,
+          ),
+          _InfoRow(
+            label: 'Size',
+            value: data.externalGroupProfile!.size.toString(),
+          ),
+          _InfoRow(
+            label: 'Enc Alg',
+            value: data.externalGroupProfile!.encAlg ?? '—',
+          ),
+          _InfoRow(
+            label: 'Nonce',
+            value: data.externalGroupProfile!.nonce,
+            monospace: true,
+          ),
+          _InfoRow(
+            label: 'AAD',
+            value: data.externalGroupProfile!.aad,
+            monospace: true,
+          ),
+          _InfoRow(
+            label: 'Hash Alg',
+            value: data.externalGroupProfile!.hashAlg,
+          ),
+          _InfoRow(
+            label: 'Content Hash',
+            value: data.externalGroupProfile!.contentHash,
+            monospace: true,
+          ),
+        ],
+      ],
     );
   }
 }
@@ -272,7 +368,6 @@ class _MemberCard extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: Spacings.s),
       decoration: BoxDecoration(
         color: isOwn
             ? colors.backgroundBase.quaternary
@@ -293,7 +388,7 @@ class _MemberCard extends StatelessWidget {
                   'Leaf $leafIndex',
                   style: TextStyle(
                     fontSize: BodyFontSize.small1.size,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.bold,
                     color: colors.text.primary,
                   ),
                 ),
@@ -313,7 +408,7 @@ class _MemberCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: BodyFontSize.small2.size,
                         color: colors.accent.primary,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
@@ -397,7 +492,7 @@ class _ChipListRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              width: 140,
+              width: 200,
               child: Text(
                 label,
                 style: TextStyle(

@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    codec::PersistenceCodec,
     credentials::{ClientCredential, VerifiableClientCredential},
     crypto::{ear::EarDecryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{MimiId, QualifiedGroupId, UserId},
@@ -18,7 +17,10 @@ use aircommon::{
     time::TimeStamp,
     utils::removed_client,
 };
-use airprotos::queue_service::v1::{QueueEvent, queue_event};
+use airprotos::{
+    client::group::GroupData,
+    queue_service::v1::{QueueEvent, queue_event},
+};
 use anyhow::{Context, Result, bail, ensure};
 use mimi_content::{
     Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPartContent,
@@ -37,7 +39,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     ChatMessage, ChatStatus, ContentMessage, Message, MimiContentExt, SystemMessage,
-    chats::{StatusRecord, messages::edit::MessageEdit},
+    chats::{GroupDataExt, StatusRecord, messages::edit::MessageEdit},
     clients::{
         QsListenResponder,
         attachment::AttachmentRecord,
@@ -59,9 +61,7 @@ use crate::{
     utils::connection_ext::StoreExt,
 };
 
-use super::{
-    Chat, ChatAttributes, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow,
-};
+use super::{Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow};
 
 pub enum ProcessQsMessageResult {
     None,
@@ -185,7 +185,7 @@ impl CoreUser {
             }
 
             // If yes, merge the commit and store the updated group
-            let (mut group_messages, group_data) =
+            let (mut group_messages, group_data_bytes) =
                 group.merge_pending_commit(txn, None, timestamp).await?;
             group
                 .group_mut()
@@ -197,13 +197,18 @@ impl CoreUser {
                 .context("Can't find chat for commit response")?;
 
             // Update group data in chat attributes if present
-            if let Some(group_data) = group_data {
+            if let Some(group_data_bytes) = group_data_bytes {
+                let group_data = GroupData::decode(&group_data_bytes)?;
+                let (chat_attributes, _external_group_profile) =
+                    group_data.into_parts(group.identity_link_wrapper_key());
+                // No need to fetch the group profile: this is our own commit response, so the
+                // profile data is already available locally.
                 update_chat_attributes(
                     txn,
                     notifier,
                     &mut chat,
                     self.user_id().clone(),
-                    group_data,
+                    chat_attributes,
                     timestamp,
                     &mut group_messages,
                 )
@@ -253,7 +258,7 @@ impl CoreUser {
                         own_profile_key_in_group = Some(profile_info.user_profile_key);
                         continue;
                     }
-                    Self::schedule_fetch_profile(txn.as_mut(), profile_info).await?;
+                    Self::schedule_fetch_user_profile(txn.as_mut(), profile_info).await?;
                 }
 
                 let Some(own_profile_key_in_group) = own_profile_key_in_group else {
@@ -266,8 +271,20 @@ impl CoreUser {
 
                 // Set the chat attributes according to the group's
                 // group data.
-                let group_data = group.group_data().context("No group data")?;
-                let attributes: ChatAttributes = PersistenceCodec::from_slice(group_data.bytes())?;
+                let group_data_bytes = group.group_data().context("No group data")?;
+                let group_data = GroupData::decode(&group_data_bytes)?;
+                let (attributes, external_group_profile) =
+                    group_data.into_parts(group.identity_link_wrapper_key());
+                if let Some(external_group_profile) = external_group_profile {
+                    Self::schedule_fetch_group_profile(
+                        txn.as_mut(),
+                        group_id.clone(),
+                        sender_user_id.clone(),
+                        ds_timestamp,
+                        external_group_profile,
+                    )
+                    .await?;
+                }
 
                 let chat = Chat::new_group_chat(group_id.clone(), attributes);
                 let own_profile_key = UserProfileKey::load_own(txn.as_mut()).await?;
@@ -599,9 +616,9 @@ impl CoreUser {
         };
 
         // MLSMessage Phase 4: Fetch user profiles of new clients and store them.
-        self.with_transaction(async |txn| {
+        self.with_transaction(async |txn| -> anyhow::Result<_> {
             for profile_info in profile_infos {
-                Self::schedule_fetch_profile(txn.as_mut(), profile_info).await?;
+                Self::schedule_fetch_user_profile(txn.as_mut(), profile_info).await?;
             }
             Ok(())
         })
@@ -799,20 +816,33 @@ impl CoreUser {
             chat.set_inactive(txn.as_mut(), &mut notifier, past_members)
                 .await?;
         }
-        let (messages_from_commit, group_data) = group
+        let (messages_from_commit, group_data_bytes) = group
             .merge_pending_commit(txn, staged_commit, ds_timestamp)
             .await?;
 
         group_messages.extend(messages_from_commit);
 
-        if let Some(group_data) = group_data {
+        if let Some(group_data_bytes) = group_data_bytes {
+            let group_data = GroupData::decode(&group_data_bytes)?;
+            let (chat_attributes, external_group_profile) =
+                group_data.into_parts(group.identity_link_wrapper_key());
+            if let Some(external_group_profile) = external_group_profile {
+                Self::schedule_fetch_group_profile(
+                    txn.as_mut(),
+                    chat.group_id().clone(),
+                    sender_client_credential.user_id().clone(),
+                    ds_timestamp,
+                    external_group_profile,
+                )
+                .await?;
+            }
             // Update chat attributes according to new group data
             update_chat_attributes(
                 txn,
                 &mut notifier,
                 &mut chat,
                 sender_client_credential.user_id().clone(),
-                group_data,
+                chat_attributes,
                 ds_timestamp,
                 &mut group_messages,
             )
@@ -884,7 +914,7 @@ impl CoreUser {
         )?;
 
         // UnconfirmedConnection Phase 2: Fetch the user profile.
-        Self::schedule_fetch_profile(
+        Self::schedule_fetch_user_profile(
             txn.as_mut(),
             (sender_client_credential.clone(), user_profile_key),
         )
@@ -945,8 +975,11 @@ impl CoreUser {
             )?;
 
             // Phase 3: Fetch and store the (new) user profile and key
-            Self::schedule_fetch_profile(txn.as_mut(), (sender_credential, new_user_profile_key))
-                .await?;
+            Self::schedule_fetch_user_profile(
+                txn.as_mut(),
+                (sender_credential, new_user_profile_key),
+            )
+            .await?;
 
             Ok(ProcessQsMessageResult::None)
         })
@@ -1043,7 +1076,7 @@ async fn handle_message_edit(
 
     // First try to directly load the original message by mimi id (non-edited message) and fallback
     // to the history of edits otherwise.
-    let mut message = match ChatMessage::load_by_mimi_id(txn.as_mut(), &replaces).await? {
+    let mut message = match ChatMessage::load_by_mimi_id(txn, &replaces).await? {
         Some(message) => message,
         None => {
             let message_id = MessageEdit::find_message_id(txn.as_mut(), &replaces)
@@ -1052,11 +1085,9 @@ async fn handle_message_edit(
                     format!("Original message id not found for editing; mimi_id = {replaces:?}")
                 })?;
 
-            ChatMessage::load(txn.as_mut(), message_id)
-                .await?
-                .with_context(|| {
-                    format!("Original message not found for editing; message_id = {message_id:?}")
-                })?
+            ChatMessage::load(txn, message_id).await?.with_context(|| {
+                format!("Original message not found for editing; message_id = {message_id:?}")
+            })?
         }
     };
 
@@ -1346,7 +1377,7 @@ mod tests {
         alice_message.update(txn.as_mut(), &mut notifier).await?;
 
         // Bob's in_reply_to should still reference the original MIMI ID
-        let bob_message = ChatMessage::load(txn.as_mut(), bob_message.id())
+        let bob_message = ChatMessage::load(&mut txn, bob_message.id())
             .await?
             .unwrap();
         assert_eq!(bob_message.in_reply_to().unwrap().0, original_alice_mimi_id);
@@ -1395,7 +1426,7 @@ mod tests {
         .await?;
         alice_message.update(txn.as_mut(), &mut notifier).await?;
 
-        let alice_message = ChatMessage::load(txn.as_mut(), alice_message.id())
+        let alice_message = ChatMessage::load(&mut txn, alice_message.id())
             .await?
             .unwrap();
         assert_eq!(alice_message.status(), mimi_content::MessageStatus::Deleted);
@@ -1481,10 +1512,10 @@ mod tests {
 
         // Both Bob's and Carol's in_reply_to should reference Alice's deleted MIMI ID
         let deleted_mimi_id = alice_message.message().mimi_id().unwrap();
-        let bob_message = ChatMessage::load(txn.as_mut(), bob_message.id())
+        let bob_message = ChatMessage::load(&mut txn, bob_message.id())
             .await?
             .unwrap();
-        let carol_message = ChatMessage::load(txn.as_mut(), carol_message.id())
+        let carol_message = ChatMessage::load(&mut txn, carol_message.id())
             .await?
             .unwrap();
         assert_eq!(&bob_message.in_reply_to().unwrap().0, deleted_mimi_id);
@@ -1559,7 +1590,7 @@ mod tests {
 
         // Alice deletes her (edited) message
         let mut txn = pool.begin().await?;
-        let alice_message = ChatMessage::load(txn.as_mut(), alice_message.id())
+        let alice_message = ChatMessage::load(&mut txn, alice_message.id())
             .await?
             .unwrap();
         let alice_message = handle_message_edit(
@@ -1576,7 +1607,7 @@ mod tests {
 
         // Bob's in_reply_to should reference Alice's deleted MIMI ID (not the edited one)
         let deleted_mimi_id = alice_message.message().mimi_id().unwrap();
-        let bob_message = ChatMessage::load(txn.as_mut(), bob_message.id())
+        let bob_message = ChatMessage::load(&mut txn, bob_message.id())
             .await?
             .unwrap();
         assert_eq!(&bob_message.in_reply_to().unwrap().0, deleted_mimi_id);

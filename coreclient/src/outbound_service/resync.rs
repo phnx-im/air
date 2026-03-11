@@ -22,7 +22,7 @@ use crate::{
     ChatId,
     clients::api_clients::ApiClients,
     groups::{Group, ProfileInfo},
-    job::{operation::OperationData, profile::FetchProfileOperation},
+    job::{operation::OperationData, profile::FetchUserProfileOperation},
     outbound_service::{OutboundService, OutboundServiceContext, error::OutboundServiceError},
 };
 
@@ -81,10 +81,11 @@ impl OutboundServiceContext {
                 user_profile_key,
             } in profile_infos
             {
-                if let Err(error) = FetchProfileOperation::new(client_credential, user_profile_key)
-                    .into_operation()
-                    .enqueue(connection.as_mut())
-                    .await
+                if let Err(error) =
+                    FetchUserProfileOperation::new(client_credential, user_profile_key)
+                        .into_operation()
+                        .enqueue(connection.as_mut())
+                        .await
                 {
                     error!(%error, "Failed to enqueue fetch profile operation");
                 }

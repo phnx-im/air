@@ -18,6 +18,10 @@ Future<String> dbPath() async {
 
   if (Platform.isAndroid || Platform.isIOS) {
     path = await getDatabaseDirectoryMobile();
+  } else if (Platform.isLinux) {
+    // This corresponds to the $XDG_DATA_HOME/<AppName> directory
+    final directory = await getApplicationSupportDirectory();
+    path = directory.path;
   } else {
     final directory = await getApplicationDocumentsDirectory();
     path = directory.path;

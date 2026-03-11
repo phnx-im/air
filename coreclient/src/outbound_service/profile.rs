@@ -2,15 +2,19 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::time::Duration;
+use std::{ops::ControlFlow, time::Duration};
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{
-    job::{JobError, operation::Operation, profile::FetchProfileOperation},
+    job::{
+        Job, JobError,
+        operation::{Operation, OperationData},
+        profile::{FetchGroupProfileOperation, FetchUserProfileOperation},
+    },
     outbound_service::OutboundServiceContext,
 };
 
@@ -18,7 +22,7 @@ const NUM_RETRIES: usize = 5;
 const RETRY_AFTER: Duration = Duration::from_secs(5);
 
 impl OutboundServiceContext {
-    /// Profiles are fetched in the background
+    /// Spawn a task that fetches user and group profiles in the background.
     pub(super) fn spawn_fetch_profiles(
         &self,
         run_token: &CancellationToken,
@@ -44,45 +48,69 @@ impl OutboundServiceContext {
         let task_id = Uuid::new_v4();
         let now = Utc::now();
 
+        // fetch user profiles
         while let Some(op) =
-            Operation::<FetchProfileOperation>::dequeue(&self.pool, task_id, now).await?
+            Operation::<FetchUserProfileOperation>::dequeue(&self.pool, task_id, now).await?
         {
-            debug!(?op.operation_id, "fetching profile");
+            match self.fetch_profile(op, now).await? {
+                ControlFlow::Continue(_) => (),
+                ControlFlow::Break(_) => break,
+            }
+        }
 
-            let (mut op, data) = op.take_data();
-            let operation_id = &op.operation_id;
-
-            match self.execute_job(data).await {
-                Ok(()) => {
-                    debug!(?operation_id, "fetched profile");
-                    op.delete(&self.pool).await?;
-                }
-                Err(JobError::NetworkError) => {
-                    debug!(
-                        ?operation_id,
-                        "Failed to fetch profile due to network error"
-                    );
-                    if op.retries + 1 < NUM_RETRIES {
-                        op.reschedule(&self.pool, now + RETRY_AFTER).await?;
-                        return Ok(());
-                    } else {
-                        let retries = op.retries;
-                        error!(
-                            ?operation_id,
-                            retries, "Reached max number of retries; giving up"
-                        );
-                        op.delete(&self.pool).await?;
-                        continue;
-                    }
-                }
-                Err(error @ (JobError::Blocked | JobError::FatalError(_) | JobError::NotFound)) => {
-                    // These error cases must not happen when fetching profiles.
-                    error!(?operation_id, %error, "Failed to fetch profile");
-                    op.delete(&self.pool).await?;
-                }
+        // fetch group profiles
+        while let Some(op) =
+            Operation::<FetchGroupProfileOperation>::dequeue(&self.pool, task_id, now).await?
+        {
+            match self.fetch_profile(op, now).await? {
+                ControlFlow::Continue(_) => (),
+                ControlFlow::Break(_) => break,
             }
         }
 
         Ok(())
+    }
+
+    async fn fetch_profile<T: OperationData + Job<Output = ()>>(
+        &self,
+        op: Operation<T>,
+        now: DateTime<Utc>,
+    ) -> anyhow::Result<ControlFlow<()>> {
+        debug!(?op.operation_id, kind = ?T::kind(), "fetching profile");
+
+        let (mut op, data) = op.take_data();
+        let operation_id = &op.operation_id;
+
+        match self.execute_job(data).await {
+            Ok(()) => {
+                debug!(?operation_id, "fetched profile");
+                op.delete(&self.pool).await?;
+            }
+            Err(JobError::NetworkError) => {
+                debug!(
+                    ?operation_id,
+                    "Failed to fetch profile due to network error"
+                );
+                if op.retries + 1 < NUM_RETRIES {
+                    op.reschedule(&self.pool, now + RETRY_AFTER).await?;
+                    return Ok(ControlFlow::Break(()));
+                } else {
+                    let retries = op.retries;
+                    error!(
+                        ?operation_id,
+                        retries, "Reached max number of retries; giving up"
+                    );
+                    op.delete(&self.pool).await?;
+                    return Ok(ControlFlow::Continue(()));
+                }
+            }
+            Err(error @ (JobError::Blocked | JobError::FatalError(_) | JobError::NotFound)) => {
+                // These error cases must not happen when fetching profiles.
+                error!(?operation_id, %error, "Failed to fetch profile; deleting operation");
+                op.delete(&self.pool).await?;
+            }
+        }
+
+        Ok(ControlFlow::Continue(()))
     }
 }
