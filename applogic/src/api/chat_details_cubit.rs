@@ -392,8 +392,8 @@ impl ChatDetailsCubitBase {
         });
     }
 
-    pub async fn reset_draft_reply(&self) {
-        self.core.state_tx().send_if_modified(|state| {
+    pub async fn reset_draft_reply(&self) -> anyhow::Result<()> {
+        let changed = self.core.state_tx().send_if_modified(|state| {
             let Some(chat) = state.chat.as_mut() else {
                 return false;
             };
@@ -403,6 +403,12 @@ impl ChatDetailsCubitBase {
 
             draft.in_reply_to.take().is_some()
         });
+
+        if changed {
+            self.store_draft_from_state().await?;
+        }
+
+        Ok(())
     }
 
     pub async fn edit_message(&self, message_id: Option<MessageId>) -> anyhow::Result<()> {

@@ -768,9 +768,11 @@ class _MessageContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final colors = CustomColorScheme.of(context);
+    final inReplyTo = inReplyToMessage;
+    final bool isReply = inReplyTo != null;
     final bool isDeleted = content.isDeleted;
     final bool isJumboEmoji =
-        !isDeleted && !isHidden && isJumboEmojiMessage(content);
+        !isDeleted && !isHidden && !isReply && isJumboEmojiMessage(content);
     // Hide the bubble background and padding for jumbo emoji
     final nakedContent = isJumboEmoji;
     // Adjust padding when sender label is not shown
@@ -831,7 +833,8 @@ class _MessageContent extends StatelessWidget {
 
       selectableBlocks.addAll(
         (content.content?.elements ?? []).map(
-          (inner) => buildBlockElement(context, inner.element, isSender),
+          (inner) =>
+              buildBlockElement(context, inner.element, isSender, isReply),
         ),
       );
 
@@ -867,9 +870,6 @@ class _MessageContent extends StatelessWidget {
       }
     }
 
-    final inReplyTo = inReplyToMessage;
-    final color = CustomColorScheme.of(context);
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 1.5),
       child: Container(
@@ -902,7 +902,7 @@ class _MessageContent extends StatelessWidget {
                         ),
                         child: InReplyToBubble(
                           inReplyTo: inReplyTo,
-                          backgroundColor: color.fill.secondary,
+                          backgroundColor: colors.fill.secondary,
                         ),
                       ),
                     Column(
