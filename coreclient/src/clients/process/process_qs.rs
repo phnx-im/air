@@ -599,7 +599,7 @@ impl CoreUser {
         };
 
         // MLSMessage Phase 4: Fetch user profiles of new clients and store them.
-        self.with_transaction(async |txn| {
+        self.with_transaction(async |txn| -> anyhow::Result<_> {
             for profile_info in profile_infos {
                 Self::schedule_fetch_profile(txn.as_mut(), profile_info).await?;
             }

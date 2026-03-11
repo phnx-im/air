@@ -149,7 +149,7 @@ impl OutboundServiceContext {
 
             // Always delete the message from the queue. We don't want to automatically
             // retry here.
-            self.with_transaction(async |txn| {
+            self.with_transaction(async |txn| -> anyhow::Result<_> {
                 ChatMessageQueue::remove(txn, message_id).await?;
                 Ok(())
             })

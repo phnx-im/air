@@ -141,8 +141,10 @@ impl CoreUser {
         chat_id: ChatId,
         message_id: MessageId,
     ) -> Result<Option<ChatMessage>> {
-        let mut txn = self.pool().begin_with("BEGIN IMMEDIATE").await?;
-        Ok(ChatMessage::prev_message(&mut txn, chat_id, message_id).await?)
+        self.with_transaction(async |txn| {
+            Ok(ChatMessage::prev_message(txn, chat_id, message_id).await?)
+        })
+        .await
     }
 
     pub(crate) async fn next_message(
@@ -150,8 +152,10 @@ impl CoreUser {
         chat_id: ChatId,
         message_id: MessageId,
     ) -> Result<Option<ChatMessage>> {
-        let mut txn = self.pool().begin().await?;
-        Ok(ChatMessage::next_message(&mut txn, chat_id, message_id).await?)
+        self.with_transaction(async |txn| {
+            Ok(ChatMessage::next_message(txn, chat_id, message_id).await?)
+        })
+        .await
     }
 
     pub async fn chat(&self, chat: &ChatId) -> Option<Chat> {
@@ -167,10 +171,10 @@ impl CoreUser {
         chat_id: ChatId,
         number_of_messages: usize,
     ) -> Result<Vec<ChatMessage>> {
-        let mut txn = self.pool().begin().await?;
-        let messages =
-            ChatMessage::load_multiple(&mut txn, chat_id, number_of_messages as u32).await?;
-        Ok(messages)
+        self.with_transaction(async |txn| {
+            Ok(ChatMessage::load_multiple(txn, chat_id, number_of_messages as u32).await?)
+        })
+        .await
     }
 
     pub async fn load_room_state(&self, chat_id: &ChatId) -> Result<(UserId, VerifiedRoomState)> {

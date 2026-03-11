@@ -73,10 +73,13 @@ pub(crate) trait StoreExt {
     ///
     /// The transaction is committed if the function returns `Ok`, and rolled
     /// back if the function returns `Err`.
-    async fn with_transaction<U: Send>(
+    async fn with_transaction<U: Send, E>(
         &self,
-        f: impl AsyncFnOnce(&mut SqliteTransaction<'_>) -> anyhow::Result<U>,
-    ) -> anyhow::Result<U> {
+        f: impl AsyncFnOnce(&mut SqliteTransaction<'_>) -> Result<U, E>,
+    ) -> Result<U, E>
+    where
+        E: From<sqlx::Error>,
+    {
         let mut txn = self.pool().begin_with("BEGIN IMMEDIATE").await?;
         let value = f(&mut txn).await?;
         txn.commit().await?;

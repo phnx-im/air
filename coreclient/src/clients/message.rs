@@ -28,10 +28,13 @@ impl CoreUser {
         message_id: MessageId,
     ) -> anyhow::Result<ChatMessage> {
         // Load the message to get its mimi_id
-        let mut txn = self.pool().begin().await?;
-        let message = ChatMessage::load(&mut txn, message_id)
-            .await?
-            .with_context(|| format!("Can't find message with id {message_id:?}"))?;
+        let message = self
+            .with_transaction(async |txn| {
+                ChatMessage::load(txn, message_id)
+                    .await?
+                    .with_context(|| format!("Can't find message with id {message_id:?}"))
+            })
+            .await?;
 
         // Create NullPart content
         let null_content = message.null_part_content()?;
