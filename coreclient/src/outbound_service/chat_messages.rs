@@ -17,7 +17,7 @@ use crate::outbound_service::resync::Resync;
 use crate::utils::connection_ext::ConnectionExt as _;
 use crate::{
     Chat, ChatMessage, ChatStatus, Message, MessageId,
-    outbound_service::chat_message_queue::ChatMessageQueue, utils::connection_ext::StoreExt,
+    outbound_service::chat_message_queue::ChatMessageQueue, utils::connection_ext::DatabaseAccess,
 };
 
 use super::{OutboundService, OutboundServiceContext};

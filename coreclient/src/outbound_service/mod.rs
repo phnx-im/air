@@ -25,7 +25,7 @@ use crate::{
     key_stores::MemoryUserKeyStore,
     outbound_service::error::OutboundServiceRunError,
     store::{StoreNotificationsSender, StoreNotifier},
-    utils::{connection_ext::StoreExt, global_lock::GlobalLock},
+    utils::{connection_ext::DatabaseAccess, global_lock::GlobalLock},
 };
 
 pub use timed_tasks::KEY_PACKAGES;
@@ -273,13 +273,17 @@ impl OutboundServiceContext {
     }
 }
 
-impl StoreExt for OutboundServiceContext {
-    fn pool(&self) -> &SqlitePool {
-        &self.pool
-    }
-
+impl DatabaseAccess for OutboundServiceContext {
     fn notifier(&self) -> StoreNotifier {
         StoreNotifier::new(self.store_notifications_tx.clone())
+    }
+
+    async fn acquire(&self) -> sqlx::Result<impl AsMut<sqlx::SqliteConnection>> {
+        self.pool.acquire().await
+    }
+
+    async fn begin_immediate(&self) -> sqlx::Result<sqlx::SqliteTransaction<'_>> {
+        self.pool.begin_with("BEGIN IMMEDIATE").await
     }
 }
 

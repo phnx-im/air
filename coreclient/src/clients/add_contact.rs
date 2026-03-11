@@ -35,7 +35,7 @@ use crate::{
     groups::{Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider},
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
     store::{Store, StoreNotifier},
-    utils::connection_ext::StoreExt,
+    utils::connection_ext::DatabaseAccess,
 };
 
 use super::{CoreUser, connection_offer::payload::ConnectionOfferPayload};

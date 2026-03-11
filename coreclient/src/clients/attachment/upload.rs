@@ -47,7 +47,7 @@ use crate::{
     groups::Group,
     store::{Store, StoreNotifier},
     utils::{
-        connection_ext::StoreExt,
+        connection_ext::DatabaseAccess,
         image::{ReencodedAttachmentImage, load_attachment_image},
     },
 };

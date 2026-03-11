@@ -15,7 +15,7 @@ use crate::{
     groups::Group,
     key_stores::indexed_keys::StorableIndexedKey,
     user_profiles::{IndexedUserProfile, UserProfile, update::UserProfileUpdate},
-    utils::connection_ext::StoreExt,
+    utils::connection_ext::DatabaseAccess,
 };
 
 use super::CoreUser;

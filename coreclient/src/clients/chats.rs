@@ -13,7 +13,7 @@ use crate::{
     groups::Group,
     job::{chat_operation::ChatOperation, create_chat::CreateChat},
     utils::{
-        connection_ext::{ConnectionExt, StoreExt},
+        connection_ext::{ConnectionExt, DatabaseAccess},
         image::resize_profile_image,
     },
 };

@@ -5,12 +5,12 @@
 use airapiclient::{ApiClientInitError, as_api::AsRequestError, ds_api::DsRequestError};
 use aircommon::codec;
 use chrono::{DateTime, Utc};
-use sqlx::SqlitePool;
 use thiserror::Error;
 use tracing::info;
 
 use crate::{
     clients::api_clients::ApiClients, key_stores::MemoryUserKeyStore, store::StoreNotifier,
+    utils::connection_ext::DatabaseAccess,
 };
 
 pub(crate) mod chat_operation;
@@ -19,9 +19,9 @@ pub(crate) mod operation;
 pub(crate) mod pending_chat_operation;
 pub(crate) mod profile;
 
-pub(crate) struct JobContext<'a> {
+pub(crate) struct JobContext<'a, D: DatabaseAccess> {
     pub api_clients: &'a ApiClients,
-    pub pool: SqlitePool,
+    pub db: &'a D,
     pub notifier: &'a mut StoreNotifier,
     pub key_store: &'a MemoryUserKeyStore,
     pub now: DateTime<Utc>,
@@ -45,10 +45,10 @@ impl JobError {
     }
 }
 
-pub(crate) trait Job {
+pub(crate) trait Job<D: DatabaseAccess> {
     type Output;
 
-    async fn execute(mut self, context: &mut JobContext<'_>) -> Result<Self::Output, JobError>
+    async fn execute(mut self, context: &mut JobContext<'_, D>) -> Result<Self::Output, JobError>
     where
         Self: Sized,
     {
@@ -56,11 +56,12 @@ pub(crate) trait Job {
         Box::pin(self.execute_logic(context)).await
     }
 
-    async fn execute_logic(self, context: &mut JobContext<'_>) -> Result<Self::Output, JobError>;
+    async fn execute_logic(self, context: &mut JobContext<'_, D>)
+    -> Result<Self::Output, JobError>;
 
     async fn execute_dependencies(
         &mut self,
-        _context: &mut JobContext<'_>,
+        _context: &mut JobContext<'_, D>,
     ) -> Result<(), JobError> {
         Ok(())
     }

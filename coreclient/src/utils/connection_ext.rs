@@ -64,10 +64,26 @@ impl ConnectionExt for &SqlitePool {
     }
 }
 
-pub(crate) trait StoreExt {
-    fn pool(&self) -> &SqlitePool;
+pub(crate) trait DatabaseAccess {
+    async fn acquire(&self) -> sqlx::Result<impl AsMut<SqliteConnection>>;
+    async fn begin_immediate(&self) -> sqlx::Result<SqliteTransaction<'_>>;
 
     fn notifier(&self) -> StoreNotifier;
+
+    /// Executes a function with a connection from the pool.
+    ///
+    /// Connection is dropped (back to the pool) at the end of the lambda.
+    async fn with_connection<U: Send, E>(
+        &self,
+        f: impl AsyncFnOnce(&mut SqliteConnection) -> Result<U, E>,
+    ) -> Result<U, E>
+    where
+        E: From<sqlx::Error>,
+    {
+        let mut connection = self.acquire().await?;
+        let value = f(&mut connection).await?;
+        Ok(value)
+    }
 
     /// Executes a function with a transaction.
     ///
@@ -80,7 +96,7 @@ pub(crate) trait StoreExt {
     where
         E: From<sqlx::Error>,
     {
-        let mut txn = self.pool().begin_with("BEGIN IMMEDIATE").await?;
+        let mut txn = self.begin_immediate().await?;
         let value = f(&mut txn).await?;
         txn.commit().await?;
         Ok(value)
@@ -108,7 +124,7 @@ pub(crate) trait StoreExt {
         &self,
         f: impl AsyncFnOnce(&mut SqliteTransaction<'_>, &mut StoreNotifier) -> anyhow::Result<T>,
     ) -> anyhow::Result<T> {
-        let mut txn = self.pool().begin_with("BEGIN IMMEDIATE").await?;
+        let mut txn = self.begin_immediate().await?;
         let mut notifier = self.notifier();
         let value = f(&mut txn, &mut notifier).await?;
         txn.commit().await?;

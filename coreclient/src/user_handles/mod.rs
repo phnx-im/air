@@ -10,13 +10,14 @@ use aircommon::{
 };
 use anyhow::Context;
 pub use persistence::UserHandleRecord;
+use sqlx::SqliteConnection;
 use tokio::task::spawn_blocking;
 use tracing::error;
 
 use crate::{
     clients::{CONNECTION_PACKAGES, CoreUser},
     store::StoreResult,
-    user_handles::connection_packages::StorableConnectionPackage,
+    user_handles::connection_packages::StorableConnectionPackage, utils::connection_ext::DatabaseAccess,
 };
 
 pub(crate) mod connection_packages;
@@ -53,35 +54,42 @@ impl CoreUser {
                 })
                 .ok();
             if delete_locally {
-                UserHandleRecord::delete(self.pool(), &record.handle)
+                self.with_connection(async |connection| -> sqlx::Result<_> {
+                    UserHandleRecord::delete(connection, &record.handle)
                     .await
                     .inspect_err(|error| {
                         error!(%error, "failed to delete user handle locally in rollback");
                     })
-                    .ok();
+                }).ok();
             }
         };
 
-        let mut txn = self.pool().begin().await?;
-        if let Err(error) = record.store(&mut *txn).await {
-            error!(%error, "failed to store user handle; rollback");
-            rollback(false).await;
-            return Err(error.into());
-        }
+        let connection_packages = self.with_transaction(async |txn| -> anyhow::Result<_> {
+            record.store(txn.as_mut()).await?;
 
-        // Publish connection packages
-        let connection_package_bundles =
-            generate_connection_packages(&record.signing_key, record.hash)?;
+            // Publish connection packages
+            let connection_package_bundles =
+                generate_connection_packages(&record.signing_key, record.hash)?;
 
-        // Store connection packages in the database
-        let mut connection_packages = Vec::with_capacity(connection_package_bundles.len());
-        for (decryption_key, connection_package) in connection_package_bundles {
-            connection_package
-                .store_for_handle(&mut txn, &handle, &decryption_key)
-                .await?;
-            connection_packages.push(connection_package);
-        }
-        txn.commit().await?;
+            // Store connection packages in the database
+            let mut connection_packages = Vec::with_capacity(connection_package_bundles.len());
+            for (decryption_key, connection_package) in connection_package_bundles {
+                connection_package
+                    .store_for_handle(&mut txn, &handle, &decryption_key)
+                    .await?;
+                connection_packages.push(connection_package);
+            }
+            Ok(connection_packages)
+        }).await;
+        
+        let connection_packages = match connection_packages {
+            Ok(c) => c,
+            Err(error) => {
+                error!(%error, "failed to store user handle; rollback");
+                rollback(false).await;
+                return Err(error.into());
+            }
+        };
 
         if let Err(error) = api_client
             .as_publish_connection_packages_for_handle(
@@ -104,7 +112,7 @@ impl CoreUser {
         &self,
         handle: &UserHandle,
     ) -> StoreResult<UserHandleDeleteResponse> {
-        let record = UserHandleRecord::load(self.pool(), handle)
+        let record = UserHandleRecord::load(self.acquire().await?, handle)
             .await?
             .context("no user handle found")?;
         let api_client = self.api_client()?;
@@ -117,7 +125,7 @@ impl CoreUser {
     }
 
     pub(crate) async fn remove_user_handle_locally(&self, handle: &UserHandle) -> StoreResult<()> {
-        let mut txn = self.pool().begin().await?;
+        let mut txn = self.with_transaction(f)
         UserHandleRecord::delete(txn.as_mut(), handle).await?;
         txn.commit().await?;
         Ok(())

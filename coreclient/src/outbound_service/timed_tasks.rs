@@ -21,7 +21,7 @@ use crate::{
         pending_chat_operation::PendingChatOperation,
     },
     user_handles::UserHandleRecord,
-    utils::connection_ext::StoreExt,
+    utils::connection_ext::DatabaseAccess,
 };
 
 use super::OutboundServiceContext;

@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 
 use crate::{
     clients::CoreUser, user_profiles::display_name::BaseDisplayName,
-    utils::connection_ext::StoreExt,
+    utils::connection_ext::DatabaseAccess,
 };
 
 impl CoreUser {

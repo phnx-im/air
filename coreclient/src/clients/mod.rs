@@ -55,7 +55,7 @@ use crate::{
     outbound_service::OutboundService,
     store::Store,
     utils::{
-        connection_ext::StoreExt,
+        connection_ext::DatabaseAccess,
         global_lock::GlobalLock,
         image::resize_profile_image,
         persistence::{delete_client_database, open_lock_file},
@@ -286,9 +286,11 @@ impl CoreUser {
         Ok(())
     }
 
-    pub(crate) fn pool(&self) -> &SqlitePool {
+    fn pool(&self) -> &SqlitePool {
         &self.inner.pool
     }
+
+    // fn db_access(&self) ->
 
     #[cfg(feature = "test_utils")]
     pub fn pool_for_tests(&self) -> &SqlitePool {
@@ -817,13 +819,17 @@ impl CoreUser {
     }
 }
 
-impl StoreExt for CoreUser {
-    fn pool(&self) -> &SqlitePool {
-        &self.inner.pool
-    }
-
+impl DatabaseAccess for CoreUser {
     fn notifier(&self) -> StoreNotifier {
         StoreNotifier::new(self.inner.store_notifications_tx.clone())
+    }
+
+    async fn acquire(&self) -> sqlx::Result<impl AsMut<SqliteConnection>> {
+        self.inner.pool.acquire().await
+    }
+
+    async fn begin_immediate(&self) -> sqlx::Result<sqlx::SqliteTransaction<'_>> {
+        self.inner.pool.begin_with("BEGIN IMMEDIATE").await
     }
 }
 

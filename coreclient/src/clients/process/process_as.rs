@@ -35,7 +35,7 @@ use crate::{
     contacts::HandleContact,
     groups::ProfileInfo,
     user_handles::connection_packages::StorableConnectionPackage,
-    utils::connection_ext::StoreExt,
+    utils::connection_ext::DatabaseAccess,
 };
 
 use super::{AsCredentials, Chat, ChatAttributes, ChatId, CoreUser, FriendshipPackage, anyhow};
@@ -85,13 +85,8 @@ impl ConnectionInfoSource {
                     sent_at,
                 } = *connection_offer_source;
                 let connection_offer_hash = connection_offer.connection_offer_hash();
-                let mut connection = core_user.pool().acquire().await?;
                 let (cep_payload, hash) = core_user
-                    .parse_and_verify_connection_offer(
-                        &mut connection,
-                        connection_offer,
-                        user_handle.clone(),
-                    )
+                    .parse_and_verify_connection_offer(connection_offer, user_handle.clone())
                     .await?;
                 let sender_client_credential = cep_payload.sender_client_credential;
                 let handle_connection_info = HandleConnectionInfo {
@@ -311,12 +306,12 @@ impl CoreUser {
     /// Parse and verify the connection offer
     async fn parse_and_verify_connection_offer(
         &self,
-        connection: &mut SqliteConnection,
         com: ConnectionOfferMessage,
         user_handle: UserHandle,
     ) -> Result<(ConnectionOfferPayload, ConnectionPackageHash)> {
         let (eco, hash) = com.into_parts();
 
+        let mut connection = self.pool().acquire().await?;
         let decryption_key = ConnectionPackage::load_decryption_key(&mut *connection, &hash)
             .await?
             .context("No decryption key found for incoming connection offer")?;
@@ -327,12 +322,15 @@ impl CoreUser {
 
         // EncryptedConnectionOffer Phase 1: Load the AS credential of the sender.
         let as_intermediate_credential = AsCredentials::get(
-            connection,
+            &mut connection,
             &self.inner.api_clients,
             sender_domain,
             cep_in.signer_fingerprint(),
         )
         .await?;
+
+        drop(connection);
+
         let payload = cep_in
             .verify(
                 as_intermediate_credential.verifying_key(),

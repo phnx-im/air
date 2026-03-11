@@ -11,7 +11,7 @@ use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, ContentMessage, MessageId,
     chats::{StatusRecord, messages::edit::MessageEdit},
     clients::{attachment::AttachmentRecord, block_contact::BlockedContactError},
-    utils::connection_ext::StoreExt,
+    utils::connection_ext::DatabaseAccess,
 };
 
 use super::{CoreUser, Group, StoreNotifier};
@@ -361,7 +361,7 @@ mod tests {
             CoreUser::new_ephemeral(user_id, backend.server_url(), None, "DUMMY007".to_owned())
                 .await?;
 
-        let pool = user.pool();
+        let pool = user.pool_for_tests();
         let mut notifier = StoreNotifier::noop();
 
         // Set up test data: chat -> message -> attachment

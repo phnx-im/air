@@ -21,7 +21,7 @@ use crate::{
     groups::{Group, openmls_provider::AirOpenMlsProvider},
     job::pending_chat_operation::PendingChatOperation,
     outbound_service::{error::OutboundServiceError, resync::Resync},
-    utils::connection_ext::StoreExt,
+    utils::connection_ext::DatabaseAccess,
 };
 
 use super::{OutboundService, OutboundServiceContext, receipt_queue::ReceiptQueue};

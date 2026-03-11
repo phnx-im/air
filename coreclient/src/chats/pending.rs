@@ -28,7 +28,7 @@ use crate::{
     groups::Group,
     key_stores::indexed_keys::StorableIndexedKey,
     user_handles::connection_packages::StorableConnectionPackage,
-    utils::connection_ext::StoreExt,
+    utils::connection_ext::DatabaseAccess,
 };
 
 pub(crate) struct PendingConnectionInfo {

@@ -27,7 +27,7 @@ use crate::{
     store::UserSetting,
     user_handles::UserHandleRecord,
     user_profiles::UserProfile,
-    utils::connection_ext::{ConnectionExt, StoreExt},
+    utils::connection_ext::{ConnectionExt, DatabaseAccess},
 };
 
 use super::{Store, StoreNotification, StoreResult};
