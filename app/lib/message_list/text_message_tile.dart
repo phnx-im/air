@@ -320,12 +320,13 @@ class _MessageView extends HookWidget {
                 context.read<ChatDetailsCubit>().replyToMessage(
                   messageId: messageId,
                 );
+                HapticFeedback.lightImpact();
                 return false;
               },
-              dismissThresholds: const {DismissDirection.startToEnd: 0.1},
+              dismissThresholds: const {DismissDirection.startToEnd: 0.4},
               background: Container(
                 alignment: Alignment.centerLeft,
-                padding: const EdgeInsets.only(left: 20.0),
+                padding: const EdgeInsets.only(left: 50.0),
                 child: AppIcon.cornerLeft(
                   size: 16,
                   color: colors.function.black,
@@ -484,6 +485,8 @@ class _MessageView extends HookWidget {
           onLongPress: actions.isEmpty
               ? null
               : () {
+                  HapticFeedback.lightImpact();
+
                   final bubbleContext = bubbleKey.currentContext;
                   if (bubbleContext == null) return;
                   final renderObject = bubbleContext.findRenderObject();
@@ -833,8 +836,7 @@ class _MessageContent extends StatelessWidget {
 
       selectableBlocks.addAll(
         (content.content?.elements ?? []).map(
-          (inner) =>
-              buildBlockElement(context, inner.element, isSender, isReply),
+          (inner) => buildBlockElement(context, inner.element, isSender),
         ),
       );
 

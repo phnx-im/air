@@ -23,11 +23,10 @@ Widget buildBlockElement(
   BuildContext context,
   BlockElement block,
   bool isSender,
-  bool isReply,
 ) {
   return switch (block) {
     BlockElement_Paragraph(:final field0) => () {
-      final jumbo = isJumboEmoji(field0) && !isReply;
+      final jumbo = isJumboEmoji(field0);
       return Text.rich(
         TextSpan(
           children: field0
@@ -84,10 +83,7 @@ Widget buildBlockElement(
         spacing: BodyFontSize.base.size,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: field0
-            .map(
-              (inner) =>
-                  buildBlockElement(context, inner.element, isSender, isReply),
-            )
+            .map((inner) => buildBlockElement(context, inner.element, isSender))
             .toList(),
       ),
     ),
@@ -120,7 +116,6 @@ Widget buildBlockElement(
                             context,
                             item.element,
                             isSender,
-                            isReply,
                           ),
                         )
                         .toList(),
@@ -167,7 +162,6 @@ Widget buildBlockElement(
                               context,
                               item.element,
                               isSender,
-                              isReply,
                             ),
                           )
                           .toList(),
@@ -208,7 +202,6 @@ Widget buildBlockElement(
                               context,
                               item.element,
                               isSender,
-                              isReply,
                             ),
                           )
                           .toList(),
@@ -237,7 +230,6 @@ Widget buildBlockElement(
                               context,
                               item.element,
                               isSender,
-                              isReply,
                             ),
                           )
                           .toList(),
