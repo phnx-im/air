@@ -259,7 +259,7 @@ mod persistence {
             assert_eq!(count, 0);
 
             // Verify message still exists
-            let loaded = ChatMessage::load(&mut pool.begin().await?, message.id()).await?;
+            let loaded = ChatMessage::load(pool.acquire().await?.as_mut(), message.id()).await?;
             assert!(loaded.is_some());
 
             Ok(())
