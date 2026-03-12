@@ -112,6 +112,7 @@ async fn connect_users_via_targeted_message() {
     charlie_user
         .accept_contact_request(bob_chat_id)
         .await
+        .unwrap()
         .unwrap();
 
     // Charlie should have two messages in the new chat

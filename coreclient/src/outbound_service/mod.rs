@@ -217,10 +217,12 @@ pub struct OutboundServiceContext {
 }
 
 impl OutboundServiceContext {
-    async fn execute_job<T: Send, JobType: Job<Output = T>>(
-        &self,
-        job: JobType,
-    ) -> Result<T, JobError> {
+    async fn execute_job<T, E, JobType>(&self, job: JobType) -> Result<T, JobError<E>>
+    where
+        T: Send,
+        E: std::error::Error + Send + Sync + 'static,
+        JobType: Job<Output = T, DomainError = E>,
+    {
         let mut notifier = self.notifier();
         let mut context = JobContext {
             api_clients: &self.api_clients,

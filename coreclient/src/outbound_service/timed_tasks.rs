@@ -347,7 +347,7 @@ impl OutboundServiceContext {
             Err(JobError::NotFound | JobError::Blocked) => Ok(false),
             // Fatal or network errors abort the whole batch because we assume that they will
             // persist for the next chat in the batch.
-            Err(error @ (JobError::FatalError(_) | JobError::NetworkError)) => {
+            Err(error @ (JobError::Fatal(_) | JobError::NetworkError | JobError::Domain(_))) => {
                 debug!(?chat_id, %error, "Failed to self-update in chat");
                 Err(error.into())
             }

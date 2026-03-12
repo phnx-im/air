@@ -234,6 +234,7 @@ dependencies = [
  "cbor-diag",
  "chrono",
  "derive_more 0.99.20",
+ "displaydoc",
  "enumset",
  "flate2",
  "hex",

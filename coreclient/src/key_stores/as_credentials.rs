@@ -167,7 +167,10 @@ impl AsCredentials {
         connection: &mut SqliteConnection,
         api_clients: &ApiClients,
         verifiable_credentials: impl Iterator<Item = &VerifiableClientCredential>,
-    ) -> Result<HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>> {
+    ) -> Result<
+        HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>,
+        AsCredentialStoreError,
+    > {
         let mut as_credentials = HashMap::new();
         for verifiable_credential in verifiable_credentials {
             if as_credentials.contains_key(verifiable_credential.signer_fingerprint()) {

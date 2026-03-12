@@ -523,6 +523,7 @@ async fn add_contact_and_change_profile() {
     alice_user
         .accept_contact_request(alice_bob_chat_id)
         .await
+        .unwrap()
         .unwrap();
 
     // Send message from Alice to Bob

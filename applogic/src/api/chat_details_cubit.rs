@@ -10,13 +10,13 @@ use aircommon::{
     OpenMlsRand, RustCrypto,
     identifiers::{AttachmentId, UserId},
 };
+pub use aircoreclient::{
+    AcceptContactRequestError, DebugCapabilities, EncryptedGroupTitleDebugInfo,
+    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
+};
 use aircoreclient::{
     AttachmentProgress, Chat, ChatId, ChatMessage, MessageId, ProvisionAttachmentError,
     UploadTaskError, clients::CoreUser, store::Store,
-};
-pub use aircoreclient::{
-    DebugCapabilities, EncryptedGroupTitleDebugInfo, ExternalGroupProfileDebugInfo,
-    GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
 };
 use anyhow::{Context as _, bail};
 use chrono::{DateTime, Local, SubsecRound, Utc};
@@ -522,10 +522,17 @@ impl ChatDetailsCubitBase {
         Ok(())
     }
 
-    pub async fn accept_contact_request(&self) -> anyhow::Result<()> {
+    pub async fn accept_contact_request(
+        &self,
+    ) -> anyhow::Result<Option<AcceptContactRequestError>> {
         let chat_id = self.context.chat_id;
-        self.context.store.accept_contact_request(chat_id).await?;
-        Ok(())
+        Ok(self
+            .context
+            .store
+            .accept_contact_request(chat_id)
+            .await?
+            .map(|_| None)
+            .unwrap_or_else(Some))
     }
 
     pub async fn chat_debug_info(&self) -> anyhow::Result<GroupDebugInfo> {
@@ -730,6 +737,11 @@ pub enum UploadAttachmentError {
         max_size_bytes: u64,
         actual_size_bytes: u64,
     },
+}
+
+#[frb(mirror(AcceptContactRequestError))]
+pub enum _AcceptContactRequestError {
+    IncompatibleClient { reason: String },
 }
 
 #[frb(mirror(GroupDebugInfo))]
