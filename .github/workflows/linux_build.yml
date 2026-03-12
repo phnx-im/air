@@ -24,14 +24,14 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # Fetch all commit metadata (build number is derived from number of commits)
           fetch-depth: 0
           # Don't download historical file contents (blobs)
           filter: blob:none
-
-      - run: git lfs install && git lfs pull
+          # Enable Git LFS
+          lfs: true
 
       - uses: extractions/setup-just@v2
       - run: just install-fvm
@@ -42,7 +42,8 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          cache-directories: app/build/linux/x64/release/plugins/airapplogic/cargokit_build
+          workspaces: ". -> app/build/linux/x64/release/plugins/airapplogic/cargokit_build"
+          # save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y ninja-build gtk+-3.0 gtk+-3.0-dev glib-2.0-dev gio-2.0-dev
