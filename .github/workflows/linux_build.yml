@@ -30,7 +30,7 @@ jobs:
           fetch-depth: 0
           # Don't download historical file contents (blobs)
           filter: blob:none
-          
+
       - run: git lfs install && git lfs pull
 
       - uses: extractions/setup-just@v2
@@ -43,7 +43,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ". -> app/build/linux/x64/release/plugins/airapplogic/cargokit_build"
-          # save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          shared-key: "cargokit-build"
 
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y ninja-build gtk+-3.0 gtk+-3.0-dev glib-2.0-dev gio-2.0-dev
