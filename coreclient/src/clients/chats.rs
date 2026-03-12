@@ -174,12 +174,11 @@ impl CoreUser {
     }
 
     pub async fn load_room_state(&self, chat_id: &ChatId) -> Result<(UserId, VerifiedRoomState)> {
-        if let Some(chat_id) = self.chat(chat_id).await {
-            if let Some(group) =
+        if let Some(chat_id) = self.chat(chat_id).await
+            && let Some(group) =
                 Group::load(self.pool().acquire().await?.as_mut(), chat_id.group_id()).await?
-            {
-                return Ok((self.user_id().clone(), group.room_state));
-            }
+        {
+            return Ok((self.user_id().clone(), group.room_state));
         }
         bail!("Room does not exist")
     }
