@@ -30,8 +30,8 @@ jobs:
           fetch-depth: 0
           # Don't download historical file contents (blobs)
           filter: blob:none
-          # Enable Git LFS
-          lfs: true
+          
+      - run: git lfs install && git lfs pull
 
       - uses: extractions/setup-just@v2
       - run: just install-fvm
