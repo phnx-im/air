@@ -12,7 +12,7 @@ use aircommon::{
 use anyhow::bail;
 use mimi_content::{MessageStatus, MimiContent};
 use serde::{Deserialize, Serialize};
-use sqlx::{SqliteExecutor, SqliteTransaction, query, query_as, query_scalar};
+use sqlx::{SqliteConnection, SqliteExecutor, SqliteTransaction, query, query_as, query_scalar};
 use tokio_stream::StreamExt;
 use tracing::{error, warn};
 use uuid::Uuid;
@@ -190,7 +190,7 @@ impl TryFrom<SqlChatMessage> for ChatMessage {
 
 impl ChatMessage {
     pub async fn load(
-        txn: &mut SqliteTransaction<'_>,
+        connection: &mut SqliteConnection,
         message_id: MessageId,
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
@@ -215,16 +215,16 @@ impl ChatMessage {
             "#,
             message_id,
         )
-        .fetch_optional(txn.as_mut())
+        .fetch_optional(&mut *connection)
         .await?
         .map(TryFrom::try_from)
         .transpose()?
-        .with_loaded_in_reply_to(txn)
+        .with_loaded_in_reply_to(&mut *connection)
         .await
     }
 
     pub(crate) async fn load_by_mimi_id(
-        txn: &mut SqliteTransaction<'_>,
+        connection: &mut SqliteConnection,
         mimi_id: &MimiId,
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
@@ -249,11 +249,11 @@ impl ChatMessage {
             "#,
             mimi_id,
         )
-        .fetch_optional(txn.as_mut())
+        .fetch_optional(&mut *connection)
         .await?
         .map(TryFrom::try_from)
         .transpose()?
-        .with_loaded_in_reply_to(txn)
+        .with_loaded_in_reply_to(&mut *connection)
         .await
     }
 
@@ -315,9 +315,9 @@ impl ChatMessage {
     }
 
     /// Augments a chat message when it is a reply with the data from the referenced message
-    async fn augment_in_reply_to(&mut self, txn: &mut SqliteTransaction<'_>) -> sqlx::Result<()> {
+    async fn augment_in_reply_to(&mut self, connection: &mut SqliteConnection) -> sqlx::Result<()> {
         if let Some((mimi_id, message)) = self.in_reply_to.as_mut() {
-            *message = InReplyToMessage::load(txn, mimi_id).await?;
+            *message = InReplyToMessage::load(connection, mimi_id).await?;
         }
 
         Ok(())
@@ -689,13 +689,17 @@ trait SqlChatMessageExt
 where
     Self: Sized,
 {
-    async fn with_loaded_in_reply_to(self, txn: &mut SqliteTransaction<'_>) -> sqlx::Result<Self>;
+    async fn with_loaded_in_reply_to(self, connection: &mut SqliteConnection)
+    -> sqlx::Result<Self>;
 }
 
 impl SqlChatMessageExt for &mut ChatMessage {
-    async fn with_loaded_in_reply_to(self, txn: &mut SqliteTransaction<'_>) -> sqlx::Result<Self> {
+    async fn with_loaded_in_reply_to(
+        self,
+        connection: &mut SqliteConnection,
+    ) -> sqlx::Result<Self> {
         if let Some((in_reply_to_mimi_id, in_reply_to_message)) = self.in_reply_to.as_mut() {
-            *in_reply_to_message = InReplyToMessage::load(txn, in_reply_to_mimi_id).await?;
+            *in_reply_to_message = InReplyToMessage::load(connection, in_reply_to_mimi_id).await?;
         }
 
         Ok(self)
@@ -705,10 +709,10 @@ impl SqlChatMessageExt for &mut ChatMessage {
 impl SqlChatMessageExt for Option<ChatMessage> {
     async fn with_loaded_in_reply_to(
         mut self,
-        txn: &mut SqliteTransaction<'_>,
+        connection: &mut SqliteConnection,
     ) -> sqlx::Result<Self> {
         if let Some(chat_message) = self.as_mut() {
-            chat_message.augment_in_reply_to(txn).await?;
+            chat_message.augment_in_reply_to(connection).await?;
         }
 
         Ok(self)
@@ -717,7 +721,7 @@ impl SqlChatMessageExt for Option<ChatMessage> {
 
 impl InReplyToMessage {
     pub(crate) async fn load(
-        txn: &mut SqliteTransaction<'_>,
+        connection: &mut SqliteConnection,
         mimi_id: &MimiId,
     ) -> sqlx::Result<Option<Self>> {
         let mimi_id = mimi_id.as_slice();
@@ -736,7 +740,7 @@ impl InReplyToMessage {
             "#,
             mimi_id,
         )
-        .fetch_optional(txn.as_mut())
+        .fetch_optional(&mut *connection)
         .await?
         {
             in_reply_to_message.into()
@@ -756,7 +760,7 @@ impl InReplyToMessage {
             "#,
             mimi_id,
         )
-        .fetch_optional(txn.as_mut())
+        .fetch_optional(&mut *connection)
         .await?
         {
             in_reply_to_message.into()
