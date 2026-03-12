@@ -796,7 +796,6 @@ class InReplyToBubble extends StatelessWidget {
     };
 
     return Container(
-      // width: double.infinity,
       padding: const EdgeInsets.symmetric(
         horizontal: Spacings.xs,
         vertical: Spacings.xxs,
