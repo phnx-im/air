@@ -201,14 +201,11 @@ impl CoreUser {
                 self.outbound_service()
                     .enqueue_chat_message_in_transaction(txn, unsent_message.message.id(), None)
                     .await?;
-
                 Ok(unsent_message)
             })
             .await?;
 
-        let sent_message = unsent_group_message.message;
-
-        Ok(sent_message)
+        Ok(unsent_group_message.message)
     }
 
     // TODO: This should be merged with send_message as soon as we don't
