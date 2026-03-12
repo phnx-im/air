@@ -62,7 +62,7 @@ class PushProcessingWorker(
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notification = NotificationCompat.Builder(applicationContext, Notifications.CHANNEL_ID)
-            .setContentTitle("Processing messages").setSmallIcon(R.drawable.ic_notification).build()
+            .setContentTitle("Fetching messages").setSmallIcon(R.drawable.ic_notification).build()
         return ForegroundInfo(0, notification)
     }
 
