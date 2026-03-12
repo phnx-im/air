@@ -445,13 +445,19 @@ impl ChatMessage {
         executor: impl SqliteExecutor<'_>,
         notifier: &mut StoreNotifier,
         message_id: MessageId,
-        chat_id: ChatId,
     ) -> sqlx::Result<()> {
-        query!("DELETE FROM message WHERE message_id = ?", message_id)
-            .execute(executor)
-            .await?;
-        notifier.remove(message_id);
-        notifier.update(chat_id);
+        let chat_id = query_as!(
+            ChatId,
+            "DELETE FROM message WHERE message_id = ? RETURNING chat_id AS 'uuid: _'",
+            message_id
+        )
+        .fetch_optional(executor)
+        .await?;
+
+        if let Some(chat_id) = chat_id {
+            notifier.remove(message_id);
+            notifier.update(chat_id);
+        }
         Ok(())
     }
 
@@ -653,6 +659,19 @@ impl ChatMessage {
             original_message_id,
             original_mimi_id,
             replaces
+        )
+        .fetch_all(executor)
+        .await
+    }
+
+    pub(crate) async fn load_message_ids_in_reply_to_mimi_id(
+        executor: impl SqliteExecutor<'_>,
+        mimi_id: &MimiId,
+    ) -> sqlx::Result<Vec<MessageId>> {
+        query_as!(
+            MessageId,
+            r#"SELECT message_id AS 'uuid: _' FROM message WHERE in_reply_to_mimi_id = ?"#,
+            mimi_id
         )
         .fetch_all(executor)
         .await
@@ -1043,7 +1062,7 @@ pub(crate) mod tests {
         assert!(loaded.is_some());
 
         // Delete message
-        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message.id(), chat.id()).await?;
+        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message.id()).await?;
 
         // Verify message is gone
         let loaded = ChatMessage::load(&mut txn, message.id()).await?;
@@ -1077,7 +1096,7 @@ pub(crate) mod tests {
         assert_eq!(found, Some(message.id()));
 
         // Delete message - should cascade to edit history
-        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message.id(), chat.id()).await?;
+        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message.id()).await?;
 
         // Verify message is gone
         let loaded = ChatMessage::load(&mut txn, message.id()).await?;
@@ -1130,7 +1149,7 @@ pub(crate) mod tests {
         assert_eq!(count, 1);
 
         // Delete message - should cascade to status records
-        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message.id(), chat.id()).await?;
+        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message.id()).await?;
 
         // Verify message is gone
         let loaded = ChatMessage::load(&mut txn, message.id()).await?;
@@ -1163,7 +1182,7 @@ pub(crate) mod tests {
         message_c.store(txn.as_mut(), &mut store_notifier).await?;
 
         // Delete only message_b
-        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message_b.id(), chat.id()).await?;
+        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message_b.id()).await?;
 
         // Verify message_b is gone
         let loaded_b = ChatMessage::load(&mut txn, message_b.id()).await?;
@@ -1188,13 +1207,7 @@ pub(crate) mod tests {
 
         // Try to delete a message that doesn't exist
         let fake_message_id = MessageId::random();
-        let result = ChatMessage::delete(
-            txn.as_mut(),
-            &mut store_notifier,
-            fake_message_id,
-            chat.id(),
-        )
-        .await;
+        let result = ChatMessage::delete(txn.as_mut(), &mut store_notifier, fake_message_id).await;
 
         // Should succeed without error (no-op)
         assert!(result.is_ok());

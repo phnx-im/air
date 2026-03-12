@@ -39,9 +39,37 @@ impl CoreUser {
         // Create NullPart content
         let null_content = message.null_part_content()?;
 
+        let replaces_message_id = message.id();
+        let replaces_mimi_id = message.message().mimi_id().cloned();
+
         // Send the deletion message
-        self.send_message(chat_id, null_content, Some(message))
-            .await
+        let sent_message = self
+            .send_message(chat_id, null_content, Some(message))
+            .await?;
+
+        // Redact reply references to this message
+        if let Some(replaces_mimi_id) = replaces_mimi_id
+            && let Some(redacted_mimi_id) = sent_message.message().mimi_id()
+        {
+            self.with_transaction_and_notifier(async |txn, notifier| {
+                let updated_message_ids = ChatMessage::redact_all_in_reply_to_mimi_ids(
+                    txn.as_mut(),
+                    &replaces_message_id,
+                    &replaces_mimi_id,
+                    redacted_mimi_id,
+                )
+                .await?;
+
+                for message_id in updated_message_ids {
+                    notifier.add(message_id);
+                }
+
+                Ok(())
+            })
+            .await?;
+        }
+
+        Ok(sent_message)
     }
 
     /// Delete a message locally without sending a network message.
@@ -54,10 +82,22 @@ impl CoreUser {
                 .await?
                 .with_context(|| format!("Can't find message with id {message_id:?}"))?;
 
-            let chat_id = message.chat_id();
+            // Find the IDs of all messages that are replies to the message we're deleting
+            // and mark them as updated, to notify the UI.
+            if let Some(replaces_mimi_id) = message.message().mimi_id() {
+                let message_ids_replied_to = ChatMessage::load_message_ids_in_reply_to_mimi_id(
+                    txn.as_mut(),
+                    replaces_mimi_id,
+                )
+                .await?;
+
+                for message_id in message_ids_replied_to {
+                    notifier.add(message_id);
+                }
+            }
 
             // Delete the message (edit history and status records are cascade-deleted)
-            ChatMessage::delete(txn.as_mut(), notifier, message_id, chat_id).await?;
+            ChatMessage::delete(txn.as_mut(), notifier, message_id).await?;
 
             Ok(())
         })
@@ -161,11 +201,14 @@ impl CoreUser {
                 self.outbound_service()
                     .enqueue_chat_message_in_transaction(txn, unsent_message.message.id(), None)
                     .await?;
+
                 Ok(unsent_message)
             })
             .await?;
 
-        Ok(unsent_group_message.message)
+        let sent_message = unsent_group_message.message;
+
+        Ok(sent_message)
     }
 
     // TODO: This should be merged with send_message as soon as we don't
