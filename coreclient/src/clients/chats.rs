@@ -12,10 +12,7 @@ use crate::{
     chats::{Chat, messages::ChatMessage},
     groups::Group,
     job::{chat_operation::ChatOperation, create_chat::CreateChat},
-    utils::{
-        connection_ext::{ConnectionExt, StoreExt},
-        image::resize_profile_image,
-    },
+    utils::{connection_ext::StoreExt, image::resize_profile_image},
 };
 
 use super::{ChatId, CoreUser};
@@ -129,11 +126,9 @@ impl CoreUser {
         &self,
         message_id: MessageId,
     ) -> anyhow::Result<Option<ChatMessage>> {
-        self.pool()
-            .with_transaction(async |txn| {
-                ChatMessage::load(txn, message_id).await.map_err(Into::into)
-            })
+        ChatMessage::load(self.pool().acquire().await?.as_mut(), message_id)
             .await
+            .map_err(Into::into)
     }
 
     pub(crate) async fn prev_message(
@@ -141,10 +136,9 @@ impl CoreUser {
         chat_id: ChatId,
         message_id: MessageId,
     ) -> Result<Option<ChatMessage>> {
-        self.with_transaction(async |txn| {
-            Ok(ChatMessage::prev_message(txn, chat_id, message_id).await?)
-        })
-        .await
+        ChatMessage::prev_message(self.pool().acquire().await?.as_mut(), chat_id, message_id)
+            .await
+            .map_err(Into::into)
     }
 
     pub(crate) async fn next_message(
@@ -152,10 +146,9 @@ impl CoreUser {
         chat_id: ChatId,
         message_id: MessageId,
     ) -> Result<Option<ChatMessage>> {
-        self.with_transaction(async |txn| {
-            Ok(ChatMessage::next_message(txn, chat_id, message_id).await?)
-        })
-        .await
+        ChatMessage::next_message(self.pool().acquire().await?.as_mut(), chat_id, message_id)
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn chat(&self, chat: &ChatId) -> Option<Chat> {
@@ -171,16 +164,20 @@ impl CoreUser {
         chat_id: ChatId,
         number_of_messages: usize,
     ) -> Result<Vec<ChatMessage>> {
-        self.with_transaction(async |txn| {
-            Ok(ChatMessage::load_multiple(txn, chat_id, number_of_messages as u32).await?)
-        })
+        ChatMessage::load_multiple(
+            self.pool().acquire().await?.as_mut(),
+            chat_id,
+            number_of_messages as u32,
+        )
         .await
+        .map_err(Into::into)
     }
 
     pub async fn load_room_state(&self, chat_id: &ChatId) -> Result<(UserId, VerifiedRoomState)> {
         if let Some(chat_id) = self.chat(chat_id).await {
-            let mut connection = self.pool().acquire().await?;
-            if let Some(group) = Group::load(&mut connection, chat_id.group_id()).await? {
+            if let Some(group) =
+                Group::load(self.pool().acquire().await?.as_mut(), chat_id.group_id()).await?
+            {
                 return Ok((self.user_id().clone(), group.room_state));
             }
         }
