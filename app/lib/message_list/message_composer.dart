@@ -618,8 +618,8 @@ class _MessageInput extends StatelessWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.only(
-                    top: Spacings.xs, // half of the size of the circle below
-                    right: Spacings.xs,
+                    top: Spacings.xxxs,
+                    right: Spacings.xxxs,
                   ),
                   child: InReplyToBubble(
                     inReplyTo: inReplyToMessage,
@@ -634,11 +634,12 @@ class _MessageInput extends StatelessWidget {
                       color: color.backgroundElevated.primary,
                       shape: BoxShape.circle,
                     ),
+                    constraints: BoxConstraints.tight(const Size.square(20)),
                     child: IconButton(
-                      icon: const AppIcon.x(size: 14),
+                      icon: const AppIcon.x(size: 12),
                       constraints: const BoxConstraints(
-                        minHeight: Spacings.m,
-                        minWidth: Spacings.m,
+                        minHeight: Spacings.xxs,
+                        minWidth: Spacings.xxs,
                       ),
                       padding: EdgeInsets.zero,
                       onPressed: () {
@@ -795,7 +796,6 @@ class InReplyToBubble extends StatelessWidget {
     };
 
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.symmetric(
         horizontal: Spacings.xs,
         vertical: Spacings.xxs,
@@ -804,7 +804,6 @@ class InReplyToBubble extends StatelessWidget {
         borderRadius: const BorderRadius.all(Radius.circular(Spacings.xxs)),
         color: backgroundColor,
       ),
-      constraints: const BoxConstraints(maxWidth: 260),
       child: Container(
         decoration: BoxDecoration(
           border: Border(

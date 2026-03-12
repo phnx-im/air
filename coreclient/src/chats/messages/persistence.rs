@@ -12,7 +12,7 @@ use aircommon::{
 use anyhow::bail;
 use mimi_content::{MessageStatus, MimiContent};
 use serde::{Deserialize, Serialize};
-use sqlx::{SqliteConnection, SqliteExecutor, SqliteTransaction, query, query_as, query_scalar};
+use sqlx::{SqliteConnection, SqliteExecutor, query, query_as, query_scalar};
 use tokio_stream::StreamExt;
 use tracing::{error, warn};
 use uuid::Uuid;
@@ -258,7 +258,7 @@ impl ChatMessage {
     }
 
     pub(crate) async fn load_multiple(
-        txn: &mut SqliteTransaction<'_>,
+        connection: &mut SqliteConnection,
         chat_id: ChatId,
         number_of_messages: u32,
     ) -> sqlx::Result<Vec<ChatMessage>> {
@@ -287,7 +287,7 @@ impl ChatMessage {
             chat_id,
             number_of_messages,
         )
-        .fetch(txn.as_mut())
+        .fetch(&mut *connection)
         .filter_map(|res| {
             let message: sqlx::Result<ChatMessage> = res
                 // skip messages that we can't decode, but don't fail loading the rest of the
@@ -306,7 +306,7 @@ impl ChatMessage {
 
         for message in messages.iter_mut() {
             // we don't want to fail for all messages if one load operation fails
-            if let Err(error) = message.augment_in_reply_to(txn).await {
+            if let Err(error) = message.augment_in_reply_to(connection).await {
                 error!(%error, "failed to load reply for message");
             }
         }
@@ -479,7 +479,7 @@ impl ChatMessage {
 
     /// Get the last message in the chat.
     pub(crate) async fn last_message(
-        txn: &mut SqliteTransaction<'_>,
+        connection: &mut SqliteConnection,
         chat_id: ChatId,
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
@@ -504,17 +504,17 @@ impl ChatMessage {
             ORDER BY timestamp DESC LIMIT 1"#,
             chat_id,
         )
-        .fetch_optional(txn.as_mut())
+        .fetch_optional(&mut *connection)
         .await?
         .map(TryFrom::try_from)
         .transpose()?
-        .with_loaded_in_reply_to(txn)
+        .with_loaded_in_reply_to(connection)
         .await
     }
 
     /// Get the last content message in the chat which is owned by the given user.
     pub(crate) async fn last_content_message_by_user(
-        txn: &mut SqliteTransaction<'_>,
+        connection: &mut SqliteConnection,
         chat_id: ChatId,
         user_id: &UserId,
     ) -> sqlx::Result<Option<Self>> {
@@ -546,16 +546,16 @@ impl ChatMessage {
             user_uuid,
             user_domain,
         )
-        .fetch_optional(txn.as_mut())
+        .fetch_optional(&mut *connection)
         .await?
         .map(TryFrom::try_from)
         .transpose()?
-        .with_loaded_in_reply_to(txn)
+        .with_loaded_in_reply_to(connection)
         .await
     }
 
     pub(crate) async fn prev_message(
-        txn: &mut SqliteTransaction<'_>,
+        connection: &mut SqliteConnection,
         chat_id: ChatId,
         message_id: MessageId,
     ) -> sqlx::Result<Option<ChatMessage>> {
@@ -585,16 +585,16 @@ impl ChatMessage {
             message_id,
             chat_id,
         )
-        .fetch_optional(txn.as_mut())
+        .fetch_optional(&mut *connection)
         .await?
         .map(TryFrom::try_from)
         .transpose()?
-        .with_loaded_in_reply_to(txn)
+        .with_loaded_in_reply_to(connection)
         .await
     }
 
     pub(crate) async fn next_message(
-        txn: &mut SqliteTransaction<'_>,
+        connection: &mut SqliteConnection,
         chat_id: ChatId,
         message_id: MessageId,
     ) -> sqlx::Result<Option<ChatMessage>> {
@@ -624,11 +624,11 @@ impl ChatMessage {
             message_id,
             chat_id,
         )
-        .fetch_optional(txn.as_mut())
+        .fetch_optional(&mut *connection)
         .await?
         .map(TryFrom::try_from)
         .transpose()?
-        .with_loaded_in_reply_to(txn)
+        .with_loaded_in_reply_to(connection)
         .await
     }
 
