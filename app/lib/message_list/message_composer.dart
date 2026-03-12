@@ -795,10 +795,8 @@ class InReplyToBubble extends StatelessWidget {
       ),
     };
 
-    final isDesktop = ResponsiveScreen.isDesktop(context);
-
     return Container(
-      width: double.infinity,
+      // width: double.infinity,
       padding: const EdgeInsets.symmetric(
         horizontal: Spacings.xs,
         vertical: Spacings.xxs,
@@ -807,7 +805,6 @@ class InReplyToBubble extends StatelessWidget {
         borderRadius: const BorderRadius.all(Radius.circular(Spacings.xxs)),
         color: backgroundColor,
       ),
-      constraints: isDesktop ? null : const BoxConstraints(maxWidth: 260),
       child: Container(
         decoration: BoxDecoration(
           border: Border(
