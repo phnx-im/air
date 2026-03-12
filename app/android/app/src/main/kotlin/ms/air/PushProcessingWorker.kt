@@ -6,7 +6,9 @@ package ms.air
 
 import android.content.Context
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
+import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -57,6 +59,12 @@ class PushProcessingWorker(
                 Result.retry()
             }
         }
+
+    override suspend fun getForegroundInfo(): ForegroundInfo {
+        val notification = NotificationCompat.Builder(applicationContext, Notifications.CHANNEL_ID)
+            .setContentTitle("Fetching messages").setSmallIcon(R.drawable.ic_notification).build()
+        return ForegroundInfo(0, notification)
+    }
 
     companion object {
         const val KEY_DATA_PAYLOAD = "data_payload"
