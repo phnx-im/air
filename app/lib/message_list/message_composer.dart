@@ -28,6 +28,7 @@ import 'package:air/l10n/l10n.dart' show AppLocalizations;
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
+import 'package:air/util/platform.dart';
 import 'package:provider/provider.dart';
 
 import 'package:air/util/platform.dart'
@@ -85,45 +86,52 @@ class _MessageComposerState extends State<MessageComposer>
 
     _chatDetailsCubit = context.read<ChatDetailsCubit>();
 
+    // Keep track of whether we loaded a draft for the first time
+    bool isDraftLoaded = false;
+
     // Propagate loaded draft to the text field.
     //
     // There are two cases when the changes are propagated:
     //
     // 1. Initially loaded draft
-    // 2. Editing ID has changed
+    // 2. Editing ID has changed (when user clicks edit on another message)
     MessageId? currentEditingId;
 
+    // Stage the reply we have in the draft.
+    //
+    // There are two cases when the changes are propagated:
+    //
+    // 1. Initially loaded draft
+    // 2. In Reply To ID has changed (when user clicks reply on another message)
     UiMimiId? currentInReplyToId;
 
     _draftLoadingSubscription = _chatDetailsCubit.stream.listen((state) {
-      // Check that chat is fully loaded
       if (state.chat == null) {
         return;
       }
+
       switch (state.chat?.draft) {
         // Initially loaded draft
-        case final draft? when draft.isCommitted:
+        case final draft? when draft.isCommitted && !isDraftLoaded:
           // If input controller is not empty, then the user already typed something,
           // and we don't want to overwrite it.
+          isDraftLoaded = true;
           if (_inputController.text.isEmpty) {
             _inputController.text = draft.message;
+            if (PlatformExtension.isDesktop) {
+              _focusNode.requestFocus();
+            }
           }
         // Editing ID has changed
         case final draft when draft?.editingId != currentEditingId:
-          // If input controller is not empty, then the user already typed something,
-          // and we don't want to overwrite it.
-          if (_inputController.text.isEmpty) {
-            _inputController.text = draft?.message ?? "";
-          }
+          _inputController.text = draft?.message ?? "";
           currentEditingId = draft?.editingId;
+          _focusNode.requestFocus();
         // Reply ID has changed
         case final draft when draft?.inReplyTo?.$1 != currentInReplyToId:
-          // If input controller is not empty, then the user already typed something,
-          // and we don't want to overwrite it.
-          if (_inputController.text.isEmpty) {
-            _inputController.text = draft?.message ?? "";
-          }
+          _inputController.text = draft?.message ?? "";
           currentInReplyToId = draft?.inReplyTo?.$1;
+          _focusNode.requestFocus();
         default:
       }
     });
@@ -295,6 +303,13 @@ class _MessageComposerState extends State<MessageComposer>
       return _editMessage(chatDetailsCubit)
           ? KeyEventResult.handled
           : KeyEventResult.ignored;
+    } else if (!modifierKeyPressed &&
+        evt.logicalKey == LogicalKeyboardKey.escape &&
+        evt is KeyDownEvent) {
+      final chatDetailsCubit = context.read<ChatDetailsCubit>();
+      return _resetDraft(chatDetailsCubit)
+          ? KeyEventResult.handled
+          : KeyEventResult.ignored;
     } else {
       return KeyEventResult.ignored;
     }
@@ -356,6 +371,8 @@ class _MessageComposerState extends State<MessageComposer>
   }
 
   bool _editMessage(ChatDetailsCubit cubit) {
+    // in case we already typed a message, do not start an edit
+    // which would erase the text in the input field.
     if (_inputController.text.trim().isNotEmpty) {
       return false;
     }
@@ -364,6 +381,19 @@ class _MessageComposerState extends State<MessageComposer>
     }
     cubit.editMessage();
     return true;
+  }
+
+  bool _resetDraft(ChatDetailsCubit cubit) {
+    // if we are replying to a message, reset only this
+    if (cubit.state.chat?.draft?.inReplyTo != null) {
+      cubit.resetDraftReply();
+      return true;
+    } else if (cubit.state.chat?.draft?.editingId != null) {
+      cubit.resetDraft();
+      _inputController.clear();
+      return true;
+    }
+    return false;
   }
 
   void _uploadAttachment(
