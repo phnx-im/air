@@ -34,8 +34,12 @@ jobs:
       - run: git lfs install && git lfs pull
 
       - uses: extractions/setup-just@v2
-      - run: just install-fvm
-      - run: echo /home/runner/fvm/bin >> $GITHUB_PATH
+
+      - name: Setup Flutter SDK
+        uses: flutter-actions/setup-flutter@v4
+        with:
+          channel: stable
+          version: 3.41.4
 
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@1.94.0
@@ -49,7 +53,7 @@ jobs:
         uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Build Linux app
-        run: cd app && fvm flutter build linux -v --build-number=$(git rev-list --count HEAD)
+        run: cd app && flutter build linux -v --build-number=$(git rev-list --count HEAD)
         env:
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: "sccache"
