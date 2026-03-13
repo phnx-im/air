@@ -76,13 +76,6 @@ Future<bool> _tryLoadSystemMonospaceFont(String family) async {
       r'C:\Windows\Fonts\consolai.ttf',
       r'C:\Windows\Fonts\consolaz.ttf',
     ],
-    if (Platform.isLinux) ...[
-      '/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf',
-      '/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf',
-      '/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf',
-      '/usr/share/fonts/opentype/noto/NotoSansMono-Regular.otf',
-      '/usr/share/fonts/TTF/DejaVuSansMono.ttf',
-    ],
   ];
 
   for (final path in paths) {

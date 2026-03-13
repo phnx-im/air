@@ -99,7 +99,7 @@ class NativeLib {
 
 class Notifications {
     companion object JniNotifications {
-        private const val CHANNEL_ID = "Chats"
+        const val CHANNEL_ID = "Chats"
         private const val NOTIFICATION_ID = 0
 
         const val SELECT_NOTIFICATION: String = "SELECT_NOTIFICATION"
