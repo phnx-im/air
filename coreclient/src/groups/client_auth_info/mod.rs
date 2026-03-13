@@ -9,10 +9,14 @@ use aircommon::{
         AsIntermediateCredential, AsIntermediateCredentialBody, ClientCredential,
         VerifiableClientCredential,
     },
-    crypto::{hash::Hash, signatures::signable::Verifiable},
+    crypto::{
+        hash::Hash,
+        signatures::{private_keys::SignatureVerificationError, signable::Verifiable},
+    },
 };
-use anyhow::{Context, Result, ensure};
-use openmls::prelude::SignaturePublicKey;
+use openmls::prelude::{BasicCredentialError, SignaturePublicKey};
+
+use crate::key_stores::as_credentials::AsCredentialStoreError;
 
 pub(crate) mod persistence;
 
@@ -49,10 +53,10 @@ impl StorableClientCredential {
     pub(crate) fn verify(
         verifiable_client_credential: VerifiableClientCredential,
         as_credentials: &HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>,
-    ) -> Result<Self> {
+    ) -> Result<Self, ClientCredentialError> {
         let as_credential = as_credentials
             .get(verifiable_client_credential.signer_fingerprint())
-            .context("Missing AS credential")?;
+            .ok_or(ClientCredentialError::MissingAsCredential)?;
         let client_credential =
             verifiable_client_credential.verify(as_credential.verifying_key())?;
         Ok(Self { client_credential })
@@ -65,7 +69,7 @@ pub(crate) trait VerifiableClientCredentialExt: Sized {
         leaf_signature_key: &SignaturePublicKey,
         old_credential: Option<&Self>,
         as_credentials: &HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>,
-    ) -> Result<StorableClientCredential>;
+    ) -> Result<StorableClientCredential, ClientCredentialError>;
 }
 
 impl VerifiableClientCredentialExt for VerifiableClientCredential {
@@ -74,28 +78,42 @@ impl VerifiableClientCredentialExt for VerifiableClientCredential {
         leaf_signature_key: &SignaturePublicKey,
         old_credential: Option<&Self>,
         as_credentials: &HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>,
-    ) -> Result<StorableClientCredential> {
+    ) -> Result<StorableClientCredential, ClientCredentialError> {
         // Verify the leaf credential
         let as_credential = as_credentials
             .get(self.signer_fingerprint())
-            .context("Missing AS credential")?;
+            .ok_or(ClientCredentialError::MissingAsCredential)?;
         let client_credential: ClientCredential = self.verify(as_credential.verifying_key())?;
 
         // Check if the client credential matches the given public key
-        ensure!(
-            client_credential.verifying_key().as_slice() == leaf_signature_key.as_slice(),
-            "Client credential does not match leaf public key"
-        );
+        if client_credential.verifying_key().as_slice() != leaf_signature_key.as_slice() {
+            return Err(ClientCredentialError::LeafPublicKeyMismatch);
+        }
 
         // If it's an update, ensure that the UserId in the new credential
         // matches the UserId in the old credential
-        if let Some(old_credential) = old_credential {
-            ensure!(
-                client_credential.user_id() == old_credential.user_id(),
-                "UserId in new credential does not match UserId in old credential"
-            );
+        if let Some(old_credential) = old_credential
+            && client_credential.user_id() != old_credential.user_id()
+        {
+            return Err(ClientCredentialError::UserIdMismatch);
         }
 
         Ok(StorableClientCredential::from(client_credential))
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum ClientCredentialError {
+    #[error(transparent)]
+    Credential(#[from] BasicCredentialError),
+    #[error(transparent)]
+    AsCredential(#[from] AsCredentialStoreError),
+    #[error(transparent)]
+    Signature(#[from] SignatureVerificationError),
+    #[error("Missing AS credential")]
+    MissingAsCredential,
+    #[error("Client credential does not match leaf public key")]
+    LeafPublicKeyMismatch,
+    #[error("UserId in new credential does not match UserId in old credential")]
+    UserIdMismatch,
 }

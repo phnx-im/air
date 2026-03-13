@@ -14,6 +14,7 @@ use aircommon::{
 };
 use anyhow::{Context, bail, ensure};
 use mimi_room_policy::RoleIndex;
+use openmls::treesync::errors::LeafNodeValidationError;
 use tls_codec::DeserializeBytes;
 use tracing::{instrument, warn};
 
@@ -25,7 +26,7 @@ use crate::{
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
     },
     contacts::HandleContact,
-    groups::Group,
+    groups::{ExternalJoinError, Group},
     key_stores::indexed_keys::StorableIndexedKey,
     user_handles::connection_packages::StorableConnectionPackage,
     utils::connection_ext::StoreExt,
@@ -42,7 +43,10 @@ pub(crate) struct PendingConnectionInfo {
 
 impl CoreUser {
     #[instrument(skip(self), err)]
-    pub(crate) async fn accept_contact_request(&self, chat_id: ChatId) -> anyhow::Result<()> {
+    pub(crate) async fn accept_contact_request(
+        &self,
+        chat_id: ChatId,
+    ) -> anyhow::Result<Result<(), AcceptContactRequestError>> {
         // Load needed data
         let (chat, sender_user_id, pending_connection_info, partial_contact, own_user_profile_key) =
             self.with_transaction(async |txn| {
@@ -109,8 +113,8 @@ impl CoreUser {
             .await?;
 
         // Create a new group by joining it (if group already exists, it will be replaced)
-        let (commit, group_info) = self
-            .with_transaction_and_notifier(async |txn, notifier| {
+        let result = self
+            .with_transaction_and_notifier(async |txn, notifier| -> anyhow::Result<_> {
                 if Group::load_with_chat_id(txn.as_mut(), chat_id)
                     .await?
                     .is_some()
@@ -200,7 +204,22 @@ impl CoreUser {
 
                 Ok((commit, group_info))
             })
-            .await?;
+            .await;
+
+        // Propagate the error to the caller if it is a leaf node validation error.
+        let (commit, group_info) = match result {
+            Ok(value) => value,
+            Err(error) => {
+                let join_error: ExternalJoinError = error.downcast()?;
+                return join_error
+                    .classify_leaf_validation_error()
+                    .map(|validation| {
+                        Err(AcceptContactRequestError::IncompatibleClient {
+                            reason: validation.to_string(),
+                        })
+                    });
+            }
+        };
 
         // Send confirmation to DS
         let qs_client_reference = self.create_own_client_reference();
@@ -236,7 +255,7 @@ impl CoreUser {
         })
         .await?;
 
-        Ok(())
+        Ok(Ok(()))
     }
 
     fn prepare_group(
@@ -341,6 +360,21 @@ mod persistence {
             .execute(executor)
             .await?;
             Ok(())
+        }
+    }
+}
+
+/// Errors that can occur when accepting a contact request.
+#[derive(Debug, thiserror::Error)]
+pub enum AcceptContactRequestError {
+    #[error("Incompatible client: {reason}")]
+    IncompatibleClient { reason: String },
+}
+
+impl From<LeafNodeValidationError> for AcceptContactRequestError {
+    fn from(error: LeafNodeValidationError) -> Self {
+        Self::IncompatibleClient {
+            reason: error.to_string(),
         }
     }
 }

@@ -22,6 +22,7 @@ base64.workspace = true
 blurhash.workspace = true
 chrono.workspace = true
 derive_more.workspace = true
+displaydoc.workspace = true
 enumset.workspace = true
 flate2.workspace = true
 hex.workspace = true

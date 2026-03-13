@@ -11,10 +11,10 @@ pub(crate) trait ConnectionExt {
     ///
     /// The transaction is committed if the function returns `Ok`, and rolled
     /// back if the function returns `Err`.
-    async fn with_transaction<T: Send>(
+    async fn with_transaction<T: Send, E: From<sqlx::Error>>(
         self,
-        f: impl AsyncFnOnce(&mut SqliteTransaction<'_>) -> anyhow::Result<T>,
-    ) -> anyhow::Result<T>;
+        f: impl AsyncFnOnce(&mut SqliteTransaction<'_>) -> Result<T, E>,
+    ) -> Result<T, E>;
 
     /// Executes a function with a connection.
     ///
@@ -26,10 +26,10 @@ pub(crate) trait ConnectionExt {
 }
 
 impl ConnectionExt for &mut SqliteConnection {
-    async fn with_transaction<T: Send>(
+    async fn with_transaction<T: Send, E: From<sqlx::Error>>(
         self,
-        f: impl AsyncFnOnce(&mut SqliteTransaction<'_>) -> anyhow::Result<T>,
-    ) -> anyhow::Result<T> {
+        f: impl AsyncFnOnce(&mut SqliteTransaction<'_>) -> Result<T, E>,
+    ) -> Result<T, E> {
         let mut txn = self.begin_with("BEGIN IMMEDIATE").await?;
         let value = f(&mut txn).await?;
         txn.commit().await?;
@@ -45,10 +45,10 @@ impl ConnectionExt for &mut SqliteConnection {
 }
 
 impl ConnectionExt for &SqlitePool {
-    async fn with_transaction<T: Send>(
+    async fn with_transaction<T: Send, E: From<sqlx::Error>>(
         self,
-        f: impl AsyncFnOnce(&mut SqliteTransaction<'_>) -> anyhow::Result<T>,
-    ) -> anyhow::Result<T> {
+        f: impl AsyncFnOnce(&mut SqliteTransaction<'_>) -> Result<T, E>,
+    ) -> Result<T, E> {
         let mut txn = self.begin_with("BEGIN IMMEDIATE").await?;
         let value = f(&mut txn).await?;
         txn.commit().await?;

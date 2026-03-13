@@ -29,27 +29,42 @@ pub(crate) struct JobContext<'a> {
 }
 
 #[derive(Debug, Error)]
-pub(crate) enum JobError {
+pub(crate) enum JobError<E> {
+    #[error(transparent)]
+    Domain(E),
     #[error("Network error")]
     NetworkError,
     #[error("Blocked")]
     Blocked,
     #[error("Not found")]
     NotFound,
-    #[error("Fatal error: {0}")]
-    FatalError(#[from] anyhow::Error),
+    #[error(transparent)]
+    Fatal(#[from] anyhow::Error),
 }
 
-impl JobError {
+impl<E> JobError<E> {
     pub(crate) fn fatal(error: impl Into<anyhow::Error>) -> Self {
-        Self::FatalError(error.into())
+        Self::Fatal(error.into())
+    }
+
+    pub(crate) fn domain(error: impl Into<E>) -> Self {
+        Self::Domain(error.into())
     }
 }
 
 pub(crate) trait Job {
     type Output;
 
-    async fn execute(mut self, context: &mut JobContext<'_>) -> Result<Self::Output, JobError>
+    /// Error which can occur when executing the job and is specific to the jobs domain.
+    ///
+    /// When such an error occurs, the job is considered to be failed and cannot be retried. The
+    /// error should be propagated to the user.
+    type DomainError: std::error::Error + Send + Sync + 'static;
+
+    async fn execute(
+        mut self,
+        context: &mut JobContext<'_>,
+    ) -> Result<Self::Output, JobError<Self::DomainError>>
     where
         Self: Sized,
     {
@@ -57,28 +72,31 @@ pub(crate) trait Job {
         Box::pin(self.execute_logic(context)).await
     }
 
-    async fn execute_logic(self, context: &mut JobContext<'_>) -> Result<Self::Output, JobError>;
+    async fn execute_logic(
+        self,
+        context: &mut JobContext<'_>,
+    ) -> Result<Self::Output, JobError<Self::DomainError>>;
 
     async fn execute_dependencies(
         &mut self,
         _context: &mut JobContext<'_>,
-    ) -> Result<(), JobError> {
+    ) -> Result<(), JobError<Self::DomainError>> {
         Ok(())
     }
 }
 
-impl From<AsRequestError> for JobError {
+impl<E> From<AsRequestError> for JobError<E> {
     fn from(error: AsRequestError) -> Self {
         if error.is_network_error() {
             info!(?error, "Job failed due to network error");
             Self::NetworkError
         } else {
-            Self::FatalError(error.into())
+            Self::Fatal(error.into())
         }
     }
 }
 
-impl From<DsRequestError> for JobError {
+impl<E> From<DsRequestError> for JobError<E> {
     fn from(error: DsRequestError) -> Self {
         // Network erros can occur without any fault of the job itself, so we
         // only log info here.
@@ -87,38 +105,38 @@ impl From<DsRequestError> for JobError {
     }
 }
 
-impl From<reqwest::Error> for JobError {
+impl<E> From<reqwest::Error> for JobError<E> {
     fn from(error: reqwest::Error) -> Self {
         if error.is_connect() || error.is_timeout() {
             info!(?error, "Job failed due to network error");
             Self::NetworkError
         } else {
-            Self::FatalError(error.into())
+            Self::Fatal(error.into())
         }
     }
 }
 
 // The following errors are universally considered fatal for jobs.
-impl From<sqlx::Error> for JobError {
+impl<E> From<sqlx::Error> for JobError<E> {
     fn from(err: sqlx::Error) -> Self {
-        JobError::FatalError(anyhow::Error::new(err))
+        JobError::Fatal(anyhow::Error::new(err))
     }
 }
 
-impl From<ApiClientInitError> for JobError {
+impl<E> From<ApiClientInitError> for JobError<E> {
     fn from(err: ApiClientInitError) -> Self {
-        JobError::FatalError(anyhow::Error::new(err))
+        JobError::Fatal(anyhow::Error::new(err))
     }
 }
 
-impl From<codec::Error> for JobError {
+impl<E> From<codec::Error> for JobError<E> {
     fn from(err: codec::Error) -> Self {
-        JobError::FatalError(anyhow::Error::new(err))
+        JobError::Fatal(anyhow::Error::new(err))
     }
 }
 
-impl From<tls_codec::Error> for JobError {
+impl<E> From<tls_codec::Error> for JobError<E> {
     fn from(err: tls_codec::Error) -> Self {
-        JobError::FatalError(anyhow::Error::new(err))
+        JobError::Fatal(anyhow::Error::new(err))
     }
 }

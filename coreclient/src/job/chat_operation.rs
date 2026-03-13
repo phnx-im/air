@@ -10,7 +10,9 @@ use airprotos::{
     delivery_service::v1::StorageObjectType,
 };
 use anyhow::{Context, anyhow, bail};
+use openmls::treesync::errors::LeafNodeValidationError;
 use sqlx::SqliteConnection;
+use thiserror::Error;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
@@ -33,21 +35,33 @@ pub(crate) struct ChatOperation {
     operation: ChatOperationType,
 }
 
+/// Specific errors which can occur when executing a [`ChatOperation`].
+#[derive(Debug, Error)]
+pub(crate) enum ChatOperationError {
+    #[error(transparent)]
+    LeafNodeValidation(#[from] LeafNodeValidationError),
+}
+
 impl Job for ChatOperation {
     type Output = Vec<ChatMessage>;
+
+    type DomainError = ChatOperationError;
 
     async fn execute_logic(
         self,
         context: &mut JobContext<'_>,
-    ) -> Result<Vec<ChatMessage>, JobError> {
+    ) -> Result<Vec<ChatMessage>, JobError<Self::DomainError>> {
         self.execute_internal(context).await
     }
 
-    async fn execute_dependencies(&mut self, context: &mut JobContext<'_>) -> Result<(), JobError> {
+    async fn execute_dependencies(
+        &mut self,
+        context: &mut JobContext<'_>,
+    ) -> Result<(), JobError<Self::DomainError>> {
         // Execute any pending operation for this chat first.
         let pending_operation = context
             .pool
-            .with_transaction(async |txn| Ok(PendingChatOperation::load(txn, &self.chat_id).await?))
+            .with_transaction(async |txn| PendingChatOperation::load(txn, &self.chat_id).await)
             .await?;
 
         if let Some(pending_operation) = pending_operation {
@@ -146,7 +160,7 @@ impl ChatOperation {
     async fn execute_internal(
         mut self,
         context: &mut JobContext<'_>,
-    ) -> Result<Vec<ChatMessage>, JobError> {
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         // Check whether our operation is still. It may be refined in case the
         // group state has changed, either due to a PendingChatOperation
         // executed as a dependency, or one or more commits arriving from the
@@ -175,7 +189,7 @@ impl ChatOperation {
         &mut self,
         context: &mut JobContext<'_>,
         users: Vec<UserId>,
-    ) -> Result<Vec<ChatMessage>, JobError> {
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext {
             api_clients,
             pool,
@@ -203,7 +217,7 @@ impl ChatOperation {
         &mut self,
         context: &mut JobContext<'_>,
         users: Vec<UserId>,
-    ) -> Result<Vec<ChatMessage>, JobError> {
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext {
             pool, key_store, ..
         } = context;
@@ -226,7 +240,7 @@ impl ChatOperation {
     async fn execute_leave_chat(
         &mut self,
         context: &mut JobContext<'_>,
-    ) -> Result<Vec<ChatMessage>, JobError> {
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext {
             pool, key_store, ..
         } = context;
@@ -244,7 +258,7 @@ impl ChatOperation {
         self,
         context: &mut JobContext<'_>,
         chat_attributes: Option<ChatAttributes>,
-    ) -> Result<Vec<ChatMessage>, JobError> {
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext {
             api_clients,
             http_client,
@@ -334,7 +348,7 @@ impl ChatOperation {
     async fn execute_delete(
         self,
         context: &mut JobContext<'_>,
-    ) -> Result<Vec<ChatMessage>, JobError> {
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext {
             pool,
             notifier,

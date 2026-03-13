@@ -25,6 +25,7 @@ pub use crate::{
             ChatMessage, ContentMessage, ErrorMessage, EventMessage, InReplyToMessage, Message,
             MessageId, SystemMessage,
         },
+        pending::AcceptContactRequestError,
     },
     clients::{
         add_contact::AddHandleContactError,
@@ -34,6 +35,7 @@ pub use crate::{
             progress::{AttachmentProgress, AttachmentProgressEvent},
         },
         block_contact::BlockedContactError,
+        invite_users::InviteUsersError,
         safety_code::SafetyCode,
         user_settings::ReadReceiptsSetting,
     },

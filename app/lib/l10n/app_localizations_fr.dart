@@ -549,6 +549,11 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
+  String newChatDialog_error_incompatibleClient(Object chatName) {
+    return 'Couldn\'t create new group chat with name $chatName because one of the contacts has an incompatible client.';
+  }
+
+  @override
   String get newConnectionDialog_newConnectionTitle => 'Ajouter un contact Air';
 
   @override
@@ -869,6 +874,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get addMembersScreen_done => 'Terminé';
 
   @override
+  String get addMembersScreen_error_incompatibleClient =>
+      'Couldn\'t add member(s) because one of the contacts has an incompatible client';
+
+  @override
   String get leaveChatDialog_title => 'Quitter la discussion';
 
   @override
@@ -970,4 +979,8 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get contactRequestDialog_error_fatal =>
       'Impossible d\'accepter la demande de contact';
+
+  @override
+  String get contactRequestDialog_error_incompatibleClient =>
+      'Can\'t accept contact request because your client does not have enough capabilities. Please update the app and try again.';
 }

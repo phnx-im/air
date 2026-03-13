@@ -975,6 +975,12 @@ abstract class AppLocalizations {
   /// **'Failed to create new group chat with name {chatName}'**
   String newChatDialog_error(Object chatName);
 
+  /// No description provided for @newChatDialog_error_incompatibleClient.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t create new group chat with name {chatName} because one of the contacts has an incompatible client.'**
+  String newChatDialog_error_incompatibleClient(Object chatName);
+
   /// No description provided for @newConnectionDialog_newConnectionTitle.
   ///
   /// In en, this message translates to:
@@ -1509,6 +1515,12 @@ abstract class AppLocalizations {
   /// **'Done'**
   String get addMembersScreen_done;
 
+  /// No description provided for @addMembersScreen_error_incompatibleClient.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t add member(s) because one of the contacts has an incompatible client'**
+  String get addMembersScreen_error_incompatibleClient;
+
   /// No description provided for @leaveChatDialog_title.
   ///
   /// In en, this message translates to:
@@ -1694,6 +1706,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to accept contact request'**
   String get contactRequestDialog_error_fatal;
+
+  /// No description provided for @contactRequestDialog_error_incompatibleClient.
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t accept contact request because your client does not have enough capabilities. Please update the app and try again.'**
+  String get contactRequestDialog_error_incompatibleClient;
 }
 
 class _AppLocalizationsDelegate

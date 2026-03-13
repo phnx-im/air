@@ -8,6 +8,7 @@ import 'dart:typed_data';
 import 'package:air/core/core.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
 /// Wrapper of the [UserCubitBase] that implements a [StateStreamableSource]
 ///
@@ -54,8 +55,11 @@ class UserCubit implements StateStreamableSource<UiUser> {
         profilePicture: profilePicture,
       );
 
-  Future<void> addUserToChat(ChatId chatId, UiUserId userId) =>
-      _impl.addUserToChat(chatId, userId);
+  @useResult
+  Future<InviteUsersError?> addUserToChat(
+    ChatId chatId,
+    List<UiUserId> userIds,
+  ) => _impl.addUsersToChat(chatId, userIds);
 
   Future<void> removeUserFromChat(ChatId chatId, UiUserId userId) =>
       _impl.removeUserFromChat(chatId, userId);

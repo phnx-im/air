@@ -456,7 +456,11 @@ impl TestBackend {
         }
 
         // Users accepts the connection request
-        user2.accept_contact_request(chat.id()).await.unwrap();
+        user2
+            .accept_contact_request(chat.id())
+            .await
+            .unwrap()
+            .unwrap();
         let mut user2_contacts_after = user2.contacts().await.unwrap();
         info!("User 2 contacts after: {:?}", user2_contacts_after);
         let user2_handle_contacts_before = user2.handle_contacts().await.unwrap();
@@ -1085,7 +1089,8 @@ impl TestBackend {
                 &invitees.iter().cloned().cloned().collect::<Vec<_>>(),
             )
             .await
-            .expect("Error inviting users.");
+            .expect("Fatala error inviting users")
+            .expect("Specific error inviting users");
 
         let mut expected_messages = HashSet::new();
         for invitee_id in &invitees {

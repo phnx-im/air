@@ -7,14 +7,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/core/core.dart';
+import 'package:air/main.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
+import 'package:logging/logging.dart';
 
 import 'add_members_cubit.dart';
 import 'widgets/member_search_field.dart';
 import 'widgets/member_selection_list.dart';
+
+final _log = Logger('AddMembersScreen');
 
 class AddMembersScreen extends StatelessWidget {
   const AddMembersScreen({super.key});
@@ -121,9 +125,23 @@ class _AddMembersScreenViewState extends State<AddMembersScreenView> {
     if (chatId == null) {
       throw StateError(loc.addMembersScreen_error_noActiveChat);
     }
-    for (final userId in selectedContacts) {
-      await userCubit.addUserToChat(chatId, userId);
+    final error = await userCubit.addUserToChat(
+      chatId,
+      selectedContacts.toList(),
+    );
+    switch (error) {
+      // No error
+      case null:
+        navigationCubit.pop();
+        break;
+      case InviteUsersError_IncompatibleClient(:final reason):
+        _log.severe('Failed to add members: incompatible client', reason);
+        if (context.mounted) {
+          showErrorBanner(
+            context,
+            loc.addMembersScreen_error_incompatibleClient,
+          );
+        }
     }
-    navigationCubit.pop();
   }
 }
