@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use openmls::group::GroupEpoch;
 use openmls::prelude::tls_codec::{self, TlsDeserialize, TlsSerialize, TlsSize};
 use openmls::{
     framing::{ContentType, MlsMessageBodyOut},
@@ -12,9 +11,10 @@ use openmls::{
         group_info::VerifiableGroupInfo,
     },
 };
+use openmls::{group::GroupEpoch, prelude::group_info::GroupInfo};
 
 #[cfg(doc)]
-use openmls::prelude::{PrivateMessage, PublicMessage, group_info::GroupInfo};
+use openmls::prelude::{PrivateMessage, PublicMessage};
 use serde::{Deserialize, Serialize};
 
 pub mod codec;
@@ -107,13 +107,13 @@ impl AssistedMessageIn {
 
 #[derive(Debug, TlsSize, Clone, TlsSerialize, Serialize, Deserialize)]
 pub struct AssistedGroupInfo {
-    extensions: Extensions,
+    extensions: Extensions<GroupInfo>,
     signature: Signature,
 }
 
 #[derive(Debug, TlsDeserialize, TlsSize, Clone)]
 pub struct AssistedGroupInfoIn {
-    extensions: Extensions,
+    extensions: Extensions<GroupInfo>,
     signature: Signature,
 }
 

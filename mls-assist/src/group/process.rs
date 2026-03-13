@@ -103,7 +103,7 @@ impl Group {
             return Err(ProcessAssistedMessageError::InconsistentGroupContext);
         }
         let processed_assisted_message =
-            ProcessedAssistedMessage::Commit(processed_message, group_info);
+            ProcessedAssistedMessage::Commit(processed_message, Box::new(group_info));
         let message_plus = ProcessedAssistedMessagePlus {
             processed_assisted_message,
             serialized_mls_message: assisted_message.serialized_mls_message,
