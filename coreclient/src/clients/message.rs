@@ -387,7 +387,7 @@ mod tests {
         assert!(ids.is_empty());
 
         // Verify message still exists with Deleted status
-        let loaded = ChatMessage::load(&mut pool.begin().await?, message.id())
+        let loaded = ChatMessage::load(pool.acquire().await?.as_mut(), message.id())
             .await?
             .unwrap();
         assert_eq!(loaded.status(), MessageStatus::Deleted);
