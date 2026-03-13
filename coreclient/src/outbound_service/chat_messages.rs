@@ -6,7 +6,7 @@ use aircommon::identifiers::AttachmentId;
 use anyhow::anyhow;
 use anyhow::{Context, ensure};
 use mimi_content::MessageStatus;
-use sqlx::{Connection, SqliteTransaction};
+use sqlx::SqliteTransaction;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use tracing::warn;
@@ -163,12 +163,11 @@ impl OutboundServiceContext {
         // load chat and message
         let (chat, mut message) = {
             let mut connection = self.pool.acquire().await?;
-            let mut txn = connection.begin().await?;
-            let message = ChatMessage::load(&mut txn, message_id)
+            let message = ChatMessage::load(connection.as_mut(), message_id)
                 .await?
                 .with_context(|| format!("Can't find message with id {message_id:?}"))?;
             let chat_id = message.chat_id();
-            let chat = Chat::load(&mut txn, &chat_id)
+            let chat = Chat::load(connection.as_mut(), &chat_id)
                 .await?
                 .with_context(|| format!("Can't find chat with id {chat_id}"))?;
 
@@ -178,7 +177,7 @@ impl OutboundServiceContext {
             }
 
             // Don't send messages for chats with pending resync
-            if Resync::is_pending_for_chat(txn.as_mut(), &chat_id).await? {
+            if Resync::is_pending_for_chat(connection.as_mut(), &chat_id).await? {
                 debug!(?chat_id, "Skipping sending message due to pending resync");
                 return Ok(());
             }

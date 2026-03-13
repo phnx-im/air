@@ -28,13 +28,9 @@ impl CoreUser {
         message_id: MessageId,
     ) -> anyhow::Result<ChatMessage> {
         // Load the message to get its mimi_id
-        let message = self
-            .with_transaction(async |txn| {
-                ChatMessage::load(txn, message_id)
-                    .await?
-                    .with_context(|| format!("Can't find message with id {message_id:?}"))
-            })
-            .await?;
+        let message = ChatMessage::load(self.pool().acquire().await?.as_mut(), message_id)
+            .await?
+            .with_context(|| format!("Can't find message with id {message_id:?}"))?;
 
         // Create NullPart content
         let null_content = message.null_part_content()?;
@@ -125,21 +121,20 @@ impl CoreUser {
         content: MimiContent,
         replaces: Option<ChatMessage>,
     ) -> anyhow::Result<ChatMessage> {
-        let needs_update = self
-            .with_transaction(async |txn| {
-                let chat = Chat::load(txn.as_mut(), &chat_id)
-                    .await?
-                    .with_context(|| format!("Can't find chat with id {chat_id}"))?;
-                if let ChatStatus::Blocked = chat.status() {
-                    bail!(BlockedContactError);
-                }
-                let group_id = chat.group_id;
-                let group = Group::load_clean(txn, &group_id)
-                    .await?
-                    .with_context(|| format!("Can't find group with id {group_id:?}"))?;
-                Ok(group.mls_group().has_pending_proposals())
-            })
-            .await?;
+        let needs_update = {
+            let mut connection = self.pool().acquire().await?;
+            let chat = Chat::load(connection.as_mut(), &chat_id)
+                .await?
+                .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+            if let ChatStatus::Blocked = chat.status() {
+                bail!(BlockedContactError);
+            }
+            let group_id = chat.group_id;
+            let group = Group::load_clean(connection.as_mut(), &group_id)
+                .await?
+                .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+            group.mls_group().has_pending_proposals()
+        };
 
         if needs_update {
             // TODO race condition: Before or after this update, new proposals could arrive
