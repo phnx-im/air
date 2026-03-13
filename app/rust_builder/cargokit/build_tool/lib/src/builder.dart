@@ -74,7 +74,7 @@ class BuildEnvironment {
       (e) => e.name == firstSegment,
     );
     if (buildConfiguration == null) {
-      _log.warning('Unknown build configuraiton $value, will assume release');
+      _log.warning('Unknown build configuration $value, will assume release');
       return BuildConfiguration.release;
     }
     return buildConfiguration;

@@ -96,7 +96,7 @@ impl CreateChat {
 
             Some(builder.build(object_id.into()))
         } else {
-            error!("Unexcepted group profile provisioning response");
+            error!("Unexpected group profile provisioning response");
             None
         };
 

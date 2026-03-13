@@ -43,7 +43,7 @@ mod timed_tasks;
 
 /// A service which is responsible for processing outbound messages.
 ///
-/// The service starts a background task which dequeues messages from the correspoding work queues.
+/// The service starts a background task which dequeues messages from the corresponding work queues.
 /// The initial state of the service is `Stopped`, that is, the background task is not running. The
 /// background task only runs when the service is started, and when there is a notification to run.
 /// After doing the work once, it wait for the next notification, or stops if it is stopped.
