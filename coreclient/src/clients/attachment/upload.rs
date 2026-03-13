@@ -68,19 +68,9 @@ impl CoreUser {
             ProvisionAttachmentError,
         >,
     > {
-        let (chat, group) = self
-            .with_transaction(async |txn| -> anyhow::Result<_> {
-                let chat = Chat::load(txn, &chat_id)
-                    .await?
-                    .with_context(|| format!("Can't find chat with id {chat_id}"))?;
-
-                let group_id = chat.group_id();
-                let group = Group::load_clean(txn, group_id)
-                    .await?
-                    .with_context(|| format!("Can't find group with id {group_id:?}"))?;
-                Ok((chat, group))
-            })
-            .await?;
+        let group = Group::load_with_chat_id_clean(self.pool().acquire().await?.as_mut(), chat_id)
+            .await?
+            .with_context(|| format!("Can't find group with id {chat_id:?}"))?;
 
         // load the attachment data
         let mut attachment = ProcessedAttachment::from_file(path)?;
@@ -128,7 +118,7 @@ impl CoreUser {
                 // (must be done after the message is stored locally due to foreign key constraints)
                 let record = AttachmentRecord {
                     attachment_id,
-                    chat_id: chat.id(),
+                    chat_id,
                     message_id,
                     content_type: content_type.to_owned(),
                     status: AttachmentStatus::Uploading,
