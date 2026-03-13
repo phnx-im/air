@@ -93,10 +93,10 @@ impl MemoryUserKeyStore {
             QS_CLIENT_REFERENCE_EXTENSION_TYPE,
             UnknownExtension(client_reference.tls_serialize_detached()?),
         );
-        let leaf_node_extensions = Extensions::single(client_ref_extension);
+        let leaf_node_extensions = Extensions::single(client_ref_extension)?;
         let key_package_extensions = if last_resort {
             let last_resort_extension = Extension::LastResort(LastResortExtension::new());
-            Extensions::single(last_resort_extension)
+            Extensions::single(last_resort_extension)?
         } else {
             Extensions::default()
         };

@@ -107,7 +107,7 @@ impl Group {
         let processed_message = match processed_assisted_message {
             ProcessedAssistedMessage::NonCommit(processed_message) => processed_message,
             ProcessedAssistedMessage::Commit(processed_message, group_info) => {
-                self.group_info = group_info;
+                self.group_info = *group_info;
                 processed_message
             }
             ProcessedAssistedMessage::PrivateMessage(_) => return Ok(()),
@@ -201,7 +201,7 @@ pub struct ProcessedAssistedMessagePlus {
 pub enum ProcessedAssistedMessage {
     PrivateMessage(PrivateMessageIn),
     NonCommit(ProcessedMessage),
-    Commit(ProcessedMessage, GroupInfo),
+    Commit(ProcessedMessage, Box<GroupInfo>),
 }
 
 impl ProcessedAssistedMessage {
