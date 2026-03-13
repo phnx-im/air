@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                c.user_uuid IS NOT NULL AS \"is_blocked!: bool\"\n            FROM chat\n            LEFT JOIN blocked_contact c\n                ON c.user_uuid = chat.connection_user_uuid\n                AND c.user_domain = chat.connection_user_domain\n            WHERE chat_id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "is_blocked!: bool",
+        "ordinal": 0,
+        "type_info": "Null"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "3b23264f89b2179dfaf587032d88f0670a7beafdc9887413210aa85aa18f0639"
+}
