@@ -878,7 +878,7 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_reset_draft_reply_
             let message = unsafe { flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(ptr_, rust_vec_len_, data_len_) };
             let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>>>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
-                    transform_result_sse::<_, ()>((move || async move {
+                    transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
                         let mut api_that_guard = None;
 let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
         for i in decode_indices_ {
@@ -888,7 +888,7 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = Result::<_,()>::Ok({ crate::api::chat_details_cubit::ChatDetailsCubitBase::reset_draft_reply(&*api_that_guard).await; })?;   Ok(output_ok)
+ let output_ok = crate::api::chat_details_cubit::ChatDetailsCubitBase::reset_draft_reply(&*api_that_guard).await?;   Ok(output_ok)
                     })().await)
                 } })
 }

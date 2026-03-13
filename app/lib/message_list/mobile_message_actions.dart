@@ -12,10 +12,26 @@ import 'package:air/ui/components/context_menu/context_menu_ui.dart';
 
 const double _mobileActionRowHeight = 56.0;
 
+class MessageAction {
+  const MessageAction({
+    required this.label,
+    this.leading,
+    required this.onSelected,
+    this.isDestructive = false,
+    this.insertSeparatorBefore = false,
+  });
+
+  final String label;
+  final Widget? leading;
+  final VoidCallback onSelected;
+  final bool isDestructive;
+  final bool insertSeparatorBefore;
+}
+
 Future<void> showMobileMessageActions({
   required BuildContext context,
   required Rect anchorRect,
-  required List<ContextMenuEntry> actions,
+  required List<MessageAction> actions,
   required Widget messageContent,
   required bool alignEnd,
 }) {
@@ -36,7 +52,7 @@ Future<void> showMobileMessageActions({
       final overlayView = _MobileMessageActionView(
         animation: curvedAnimation,
         anchorRect: anchorRect,
-        contextMenuEntries: actions,
+        actions: actions,
         messageContent: messageContent,
         alignEnd: alignEnd,
       );
@@ -57,14 +73,14 @@ class _MobileMessageActionView extends StatelessWidget {
   const _MobileMessageActionView({
     required this.animation,
     required this.anchorRect,
-    required this.contextMenuEntries,
+    required this.actions,
     required this.messageContent,
     required this.alignEnd,
   });
 
   final Animation<double> animation;
   final Rect anchorRect;
-  final List<ContextMenuEntry> contextMenuEntries;
+  final List<MessageAction> actions;
   final Widget messageContent;
   final bool alignEnd;
 
@@ -80,9 +96,9 @@ class _MobileMessageActionView extends StatelessWidget {
     final messageWidth = anchorRect.width;
 
     // Height of the action sheet that may appear below the bubble.
-    final double sheetHeight = contextMenuEntries.isEmpty
+    final double sheetHeight = actions.isEmpty
         ? 0.0
-        : contextMenuEntries.length * _mobileActionRowHeight;
+        : actions.length * _mobileActionRowHeight;
 
     // Downscale bubble if it cannot fit into the available viewport space and
     // reserve space for the action sheet when present.
@@ -208,7 +224,7 @@ class _MobileMessageActionView extends StatelessWidget {
                 top: sheetTop,
                 child: _MobileContextMenu(
                   animation: animation,
-                  entries: contextMenuEntries,
+                  actions: actions,
                   alignEnd: alignEnd,
                 ),
               ),
@@ -222,16 +238,34 @@ class _MobileMessageActionView extends StatelessWidget {
 class _MobileContextMenu extends StatelessWidget {
   const _MobileContextMenu({
     required this.animation,
-    required this.entries,
+    required this.actions,
     required this.alignEnd,
   });
 
   final Animation<double> animation;
-  final List<ContextMenuEntry> entries;
+  final List<MessageAction> actions;
   final bool alignEnd;
 
   @override
   Widget build(BuildContext context) {
+    final menuItems = <ContextMenuEntry>[];
+    for (final action in actions) {
+      if (action.insertSeparatorBefore) {
+        menuItems.add(const ContextMenuSeparator());
+      }
+      menuItems.add(
+        ContextMenuItem(
+          label: action.label,
+          leading: action.leading,
+          isDestructive: action.isDestructive,
+          onPressed: () {
+            Navigator.of(context).pop();
+            action.onSelected();
+          },
+        ),
+      );
+    }
+
     final slideAnimation = animation.drive(
       Tween<Offset>(begin: const Offset(0, 0.12), end: Offset.zero),
     );
@@ -244,8 +278,10 @@ class _MobileContextMenu extends StatelessWidget {
           alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
           child: IntrinsicWidth(
             child: ContextMenuUi(
-              menuItems: entries,
-              onHide: () => Navigator.of(context).pop(),
+              menuItems: menuItems,
+              onHide: () {
+                Navigator.of(context).pop();
+              },
             ),
           ),
         ),
