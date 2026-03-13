@@ -17,11 +17,11 @@ pub enum QsEnqueueError<N: NetworkProvider> {
     /// Unseal error
     #[error(transparent)]
     UnsealError(#[from] DecryptionError),
-    /// An error ocurred enqueueing in a fan out queue
+    /// An error occurred enqueueing in a fan out queue
     #[error(transparent)]
     EnqueueError(#[from] EnqueueError),
-    /// An error ocurred while sending a message to the network
-    #[error("An error ocurred while sending a message to the network")]
+    /// An error occurred while sending a message to the network
+    #[error("An error occurred while sending a message to the network")]
     NetworkError(N::NetworkError),
     /// Storage provider error
     #[error("Storage provider error")]
@@ -39,7 +39,7 @@ pub enum QsEnqueueError<N: NetworkProvider> {
 pub enum EnqueueError {
     /// Unrecoverable implementation error
     #[error("Library Error")]
-    LibraryError, // E.g. an error while encoding a message before enqueing it.
+    LibraryError, // E.g. an error while encoding a message before enqueuing it.
     /// Error in the underlying storage provider
     #[error("Error in the underlying storage provider")]
     Storage,

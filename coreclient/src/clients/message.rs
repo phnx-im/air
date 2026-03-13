@@ -312,7 +312,7 @@ impl UnsentMessage<GroupUpdateNeeded> {
             group_update: GroupUpdateNeeded,
         } = self;
 
-        // Also, mark the message (and all messages preceeding it) as read, but
+        // Also, mark the message (and all messages preceding it) as read, but
         // skip for deletions.
         if message.status() != MessageStatus::Deleted {
             Chat::mark_as_read_until_message_id(txn, notifier, chat.id(), message.id(), own_user)

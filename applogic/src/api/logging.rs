@@ -45,7 +45,7 @@ pub fn read_app_logs() -> anyhow::Result<String> {
     read_logs_from_buffer(&buffer.lock())
 }
 
-/// Clears all pplication logs.
+/// Clears all application logs.
 ///
 /// The file is truncated to zero length, but is is kept open.
 pub fn clear_app_logs() -> anyhow::Result<()> {

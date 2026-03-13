@@ -560,10 +560,10 @@ impl From<AsVerifyingKey> for credentials::keys::AsVerifyingKey {
 
 impl From<credentials::AsIntermediateCredential> for AsIntermediateCredential {
     fn from(value: credentials::AsIntermediateCredential) -> Self {
-        let (body, fingerpint) = value.into_parts();
+        let (body, fingerprint) = value.into_parts();
         Self {
             body: Some(body.into()),
-            fingerprint: Some(fingerpint.into()),
+            fingerprint: Some(fingerprint.into()),
         }
     }
 }
