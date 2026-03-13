@@ -33,11 +33,7 @@ impl OutboundService {
         statuses: impl Iterator<Item = (MessageId, &'a MimiId, MessageStatus)> + Send,
     ) -> anyhow::Result<()> {
         let mut connection = self.context.pool.acquire().await?;
-
-        let chat = Chat::load(&mut connection, &chat_id)
-            .await?
-            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
-        if let ChatStatus::Blocked = chat.status() {
+        if Chat::is_blocked(connection.as_mut(), chat_id).await? {
             return Ok(());
         }
 

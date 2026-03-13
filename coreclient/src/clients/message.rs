@@ -8,7 +8,7 @@ use mimi_content::{MessageStatus, MimiContent, NestedPartContent};
 use sqlx::SqliteTransaction;
 
 use crate::{
-    Chat, ChatId, ChatMessage, ChatStatus, ContentMessage, MessageId,
+    Chat, ChatId, ChatMessage, ContentMessage, MessageId,
     chats::{StatusRecord, messages::edit::MessageEdit},
     clients::{attachment::AttachmentRecord, block_contact::BlockedContactError},
     utils::connection_ext::StoreExt,
@@ -123,16 +123,12 @@ impl CoreUser {
     ) -> anyhow::Result<ChatMessage> {
         let needs_update = {
             let mut connection = self.pool().acquire().await?;
-            let chat = Chat::load(connection.as_mut(), &chat_id)
-                .await?
-                .with_context(|| format!("Can't find chat with id {chat_id}"))?;
-            if let ChatStatus::Blocked = chat.status() {
+            if Chat::is_blocked(connection.as_mut(), chat_id).await? {
                 bail!(BlockedContactError);
             }
-            let group_id = chat.group_id;
-            let group = Group::load_clean(connection.as_mut(), &group_id)
+            let group = Group::load_with_chat_id_clean(connection.as_mut(), chat_id)
                 .await?
-                .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+                .with_context(|| format!("Can't find group with chat_id: {chat_id:?}"))?;
             group.mls_group().has_pending_proposals()
         };
 

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 Phoenix R&D GmbH <hello@phnx.im>
+// SPDX-FileCopyrightTexs_t: 2023 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -827,6 +827,29 @@ impl Chat {
         .await?;
         Ok(())
     }
+
+    /// Returnn `true` if the given chat is a 1:1 chat with a blocked contact.
+    ///
+    /// If the chat does not exist, returns `false`.
+    pub(crate) async fn is_blocked(
+        executor: impl SqliteExecutor<'_>,
+        chat_id: ChatId,
+    ) -> sqlx::Result<bool> {
+        let is_blocked = query_scalar!(
+            r#"SELECT
+                c.user_uuid IS NOT NULL AS "is_blocked!: bool"
+            FROM chat
+            LEFT JOIN blocked_contact c
+                ON c.user_uuid = chat.connection_user_uuid
+                AND c.user_domain = chat.connection_user_domain
+            WHERE chat_id = ?
+            "#,
+            chat_id,
+        )
+        .fetch_optional(executor)
+        .await?;
+        Ok(is_blocked.unwrap_or(false))
+    }
 }
 
 #[cfg(test)]
@@ -839,6 +862,7 @@ pub mod tests {
 
     use crate::{
         InactiveChat, MessageDraft, chats::messages::persistence::tests::test_chat_message,
+        clients::block_contact::BlockedContact,
     };
 
     use super::*;
@@ -1059,6 +1083,61 @@ pub mod tests {
         let loaded = Chat::load(&mut connection, &chat.id).await?;
         assert!(loaded.is_none());
 
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn is_blocked_nonexistent_chat(
+        mut connection: PoolConnection<Sqlite>,
+    ) -> anyhow::Result<()> {
+        let nonexistent_id = ChatId {
+            uuid: Uuid::new_v4(),
+        };
+        let result = Chat::is_blocked(&mut *connection, nonexistent_id).await?;
+        assert!(!result);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn is_blocked_group_chat(mut connection: PoolConnection<Sqlite>) -> anyhow::Result<()> {
+        let mut notifier = StoreNotifier::noop();
+        let chat = test_chat(); // ChatType::Group, no connection_user
+        chat.store(&mut connection, &mut notifier).await?;
+        let result = Chat::is_blocked(&mut *connection, chat.id).await?;
+        assert!(!result);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn is_blocked_unblocked_connection(
+        mut connection: PoolConnection<Sqlite>,
+    ) -> anyhow::Result<()> {
+        let mut notifier = StoreNotifier::noop();
+        let user_id = UserId::random("localhost".parse().unwrap());
+        let mut chat = test_chat();
+        chat.chat_type = ChatType::Connection(user_id.clone());
+        chat.store(&mut connection, &mut notifier).await?;
+        let result = Chat::is_blocked(&mut *connection, chat.id).await?;
+        assert!(!result);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn is_blocked_blocked_connection(
+        mut connection: PoolConnection<Sqlite>,
+    ) -> anyhow::Result<()> {
+        let mut notifier = StoreNotifier::noop();
+        let user_id = UserId::random("localhost".parse().unwrap());
+        let mut chat = test_chat();
+        chat.chat_type = ChatType::Connection(user_id.clone());
+        chat.store(&mut connection, &mut notifier).await?;
+
+        BlockedContact::new(user_id.clone())
+            .store(&mut *connection, &mut notifier)
+            .await?;
+
+        let result = Chat::is_blocked(&mut *connection, chat.id).await?;
+        assert!(result);
         Ok(())
     }
 

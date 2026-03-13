@@ -54,10 +54,7 @@ impl OutboundService {
         let chat_id = message.chat_id();
 
         // Load chat to check status
-        let chat = Chat::load(txn, &chat_id)
-            .await?
-            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
-        if let ChatStatus::Blocked = chat.status() {
+        if Chat::is_blocked(txn.as_mut(), chat_id).await? {
             return Ok(());
         }
 
@@ -83,10 +80,7 @@ impl OutboundService {
                 let chat_id = message.chat_id();
 
                 // Load chat to check status
-                let chat = Chat::load(txn, &chat_id)
-                    .await?
-                    .with_context(|| format!("Can't find chat with id {chat_id}"))?;
-                if let ChatStatus::Blocked = chat.status() {
+                if Chat::is_blocked(txn.as_mut(), chat_id).await? {
                     return Ok(());
                 }
 
