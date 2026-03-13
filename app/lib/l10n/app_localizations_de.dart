@@ -962,4 +962,7 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get contactRequestDialog_error_fatal =>
       'Kontaktanfrage konnte nicht angenommen werden';
+
+  @override
+  String get errorBanner_ok => 'OK';
 }

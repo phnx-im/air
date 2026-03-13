@@ -4,11 +4,11 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/main.dart';
 import 'package:air/theme/theme.dart' show ResponsiveScreen;
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
@@ -67,7 +67,6 @@ class ReportSpamButton extends StatelessWidget {
     );
 
     if (confirmed && context.mounted) {
-      final loc = AppLocalizations.of(context);
       try {
         await context.read<UserCubit>().reportSpam(userId);
         showSnackBarStandalone(
@@ -75,9 +74,7 @@ class ReportSpamButton extends StatelessWidget {
         );
       } catch (e) {
         _log.severe("Failed to report spam: $e");
-        if (context.mounted) {
-          showErrorBanner(context, loc.reportSpamDialog_error);
-        }
+        showErrorBannerStandalone((loc) => loc.reportSpamDialog_error);
       }
     }
   }

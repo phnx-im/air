@@ -13,6 +13,7 @@ import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/debouncer.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -456,8 +457,9 @@ class _HelpSection extends HookWidget {
           onTap: () {
             // copy to clipboard
             Clipboard.setData(ClipboardData(text: version));
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(loc.settingsScreen_copiedToClipboard)),
+            showSnackBarStandalone(
+              (loc) =>
+                  SnackBar(content: Text(loc.settingsScreen_copiedToClipboard)),
             );
           },
           child: Row(

@@ -1694,6 +1694,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to accept contact request'**
   String get contactRequestDialog_error_fatal;
+
+  /// No description provided for @errorBanner_ok.
+  ///
+  /// In en, this message translates to:
+  /// **'OK'**
+  String get errorBanner_ok;
 }
 
 class _AppLocalizationsDelegate

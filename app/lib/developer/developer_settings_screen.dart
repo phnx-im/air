@@ -4,6 +4,7 @@
 
 import 'dart:io';
 
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -136,8 +137,8 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                                     Clipboard.setData(
                                       ClipboardData(text: deviceToken!),
                                     );
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
+                                    showSnackBarStandalone(
+                                      (loc) => const SnackBar(
                                         content: Text('Device token copied'),
                                       ),
                                     );

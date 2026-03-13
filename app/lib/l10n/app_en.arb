@@ -358,5 +358,7 @@
   "contactRequestDialog_avatarHint": "Tap to reveal their picture",
   "contactRequestDialog_cancel": "Later",
   "contactRequestDialog_confirm": "Accept",
-  "contactRequestDialog_error_fatal": "Failed to accept contact request"
+  "contactRequestDialog_error_fatal": "Failed to accept contact request",
+
+  "errorBanner_ok": "OK"
 }

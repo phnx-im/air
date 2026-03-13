@@ -956,4 +956,7 @@ class AppLocalizationsSv extends AppLocalizations {
   @override
   String get contactRequestDialog_error_fatal =>
       'Kunde inte acceptera kontaktförfrågan';
+
+  @override
+  String get errorBanner_ok => 'OK';
 }
