@@ -828,7 +828,7 @@ impl Chat {
         Ok(())
     }
 
-    /// Returnn `true` if the given chat is a 1:1 chat with a blocked contact.
+    /// Return `true` if the given chat is a 1:1 chat with a blocked contact.
     ///
     /// If the chat does not exist, returns `false`.
     pub(crate) async fn is_blocked(
