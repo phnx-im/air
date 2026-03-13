@@ -902,41 +902,47 @@ class _MessageContent extends StatelessWidget {
                 : colors.message.otherBackground,
           ),
           child: DefaultTextStyle.merge(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (inReplyTo != null)
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      left: Spacings.xs,
-                      right: Spacings.xs,
-                      top: Spacings.xs,
+            child: IntrinsicWidth(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (inReplyTo != null)
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        left: Spacings.xs,
+                        right: Spacings.xs,
+                        top: Spacings.xs,
+                      ),
+                      child: InReplyToBubble(
+                        inReplyTo: inReplyTo,
+                        backgroundColor: colors.fill.secondary,
+                      ),
                     ),
-                    child: InReplyToBubble(
-                      inReplyTo: inReplyTo,
-                      backgroundColor: colors.fill.secondary,
-                    ),
-                  ),
-                ...columnChildren,
-                if (isEdited)
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      left: Spacings.s,
-                      right: Spacings.s,
-                      bottom: Spacings.xxs,
-                    ),
-                    child: SelectionContainer.disabled(
-                      child: Text(
-                        loc.textMessage_edited,
-                        style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                          color: isSender
-                              ? colors.message.selfEditedLabel
-                              : colors.message.otherEditedLabel,
+                  ...columnChildren,
+                  if (isEdited)
+                    Align(
+                      alignment: AlignmentGeometry.centerRight,
+                      child: Padding(
+                        padding: const EdgeInsets.only(
+                          left: Spacings.s,
+                          right: Spacings.s,
+                          bottom: Spacings.xxs,
+                        ),
+                        child: SelectionContainer.disabled(
+                          child: Text(
+                            loc.textMessage_edited,
+                            style: Theme.of(context).textTheme.bodySmall!
+                                .copyWith(
+                                  color: isSender
+                                      ? colors.message.selfEditedLabel
+                                      : colors.message.otherEditedLabel,
+                                ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
