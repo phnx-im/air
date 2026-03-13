@@ -42,7 +42,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: ". -> app/build/linux/x64/release/plugins/airapplogic/cargokit_build"
+          workspaces: ". -> app/build/linux/x64/release/plugins/airapplogic/cargokit_build/release"
           # save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install build dependencies
