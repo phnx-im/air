@@ -443,12 +443,17 @@ impl ChatDetailsCubitBase {
             let Some(chat) = state.chat.as_mut() else {
                 return false;
             };
-            let draft = chat.draft.get_or_insert_with(UiMessageDraft::empty);
-            if draft.editing_id.is_some() {
+
+            // if we already have a staged draft with a reply, do not edit
+            if chat.draft.as_ref().is_some_and(|d| d.in_reply_to.is_some()) {
                 return false;
             }
+
+            let draft: &mut UiMessageDraft = chat.draft.get_or_insert_with(UiMessageDraft::empty);
+
             draft.message = body.to_owned();
             draft.editing_id = Some(message.id());
+            draft.in_reply_to = None;
             draft.is_committed = false;
             true
         });
@@ -490,10 +495,12 @@ impl ChatDetailsCubitBase {
                 return false;
             };
 
-            let draft = chat.draft.get_or_insert_with(UiMessageDraft::empty);
-            if draft.editing_id.is_some() {
+            // if we already have a staged editing draft, do not stage a new reply
+            if chat.draft.as_ref().is_some_and(|d| d.editing_id.is_some()) {
                 return false;
             }
+
+            let draft = chat.draft.get_or_insert_with(UiMessageDraft::empty);
 
             draft.message = String::new();
             draft.in_reply_to = Some((
