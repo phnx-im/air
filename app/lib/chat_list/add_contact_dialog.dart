@@ -4,12 +4,12 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/main.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/components/button/button.dart';
 import 'package:air/ui/components/modal/app_dialog.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/widgets/user_handle_input_formatter.dart';
