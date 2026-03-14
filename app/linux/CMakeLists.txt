@@ -78,8 +78,6 @@ set_target_properties(${BINARY_NAME}
 )
 
 # Enable LTO when supported
-include(CheckIPOSupported)
-check_ipo_supported()
 set_target_properties(${BINARY_NAME} PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 # Generated plugin build rules, which manage building the plugins and adding
