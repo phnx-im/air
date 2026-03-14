@@ -28,8 +28,8 @@ runs:
         SCCACHE_CACHE_SIZE: ${{ inputs.cache-size }}
         SCCACHE_CACHE_DIR: .sccache
 
-    - if: github.ref == "refs/heads/main"
-      name: Persist GHA cache
+    - name: Persist GHA cache
+#      if: github.ref == "refs/heads/main"
       uses: actions/cache/save@v5
       with:
         path: .sccache
