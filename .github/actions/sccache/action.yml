@@ -24,7 +24,7 @@ runs:
       run: mkdir -p "${{ inputs.cache-dir }}"
 
     - name: Setup GHA cache
-      uses: actions/cache/restore@v5
+      uses: actions/cache@v5
       with:
         path: "${{ inputs.cache-dir }}"
         key: "${{ inputs.cache-key }}"
@@ -34,9 +34,6 @@ runs:
       with:
         run: |
           sccache --start-server
-          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-          echo "CMAKE_CXX_COMPILER_LAUNCHER=sccache" >> $GITHUB_ENV
-          echo "CMAKE_C_COMPILER_LAUNCHER=sccache" >> $GITHUB_ENV
         post: sccache --show-stats
       env:
         SCCACHE_CACHE_SIZE: ${{ inputs.cache-size }}
@@ -45,10 +42,7 @@ runs:
     - name: Run command
       shell: bash
       run: ${{ inputs.command }}
-
-    - name: Persist GHA cache
-    # if: github.ref == "refs/heads/main"
-      uses: actions/cache/save@v5
-      with:
-        path: "${{ inputs.cache-dir }}"
-        key: "${{ inputs.cache-key }}"
+      env:
+        RUSTC_WRAPPER: sccache
+        CMAKE_CXX_COMPILER_LAUNCHER: sccache
+        CMAKE_C_COMPILER_LAUNCHER: sccache

@@ -18,6 +18,14 @@ set(APPLICATION_ID "ms.air")
 # versions of CMake.
 cmake_policy(SET CMP0063 NEW)
 
+# Use mold to link the binary
+set(CMAKE_EXE_LINKER_FLAGS "-fuse-ld=lld")
+
+# Enable LTO when supported
+include(CheckIPOSupported)
+check_ipo_supported()
+set_target_properties(myProject PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+
 # Load bundled libraries from the lib/ directory relative to the binary.
 set(CMAKE_INSTALL_RPATH "$ORIGIN/lib")
 
