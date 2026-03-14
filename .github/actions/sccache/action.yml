@@ -17,6 +17,7 @@ runs:
   using: composite
   steps:
     - name: Create cache directory
+      shell: bash
       run: mkdir -p "${{ inputs.cache-dir }}"
 
     - name: Setup GHA cache
