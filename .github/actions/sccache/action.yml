@@ -19,11 +19,11 @@ runs:
 
     - name: Start sccache daemon
       uses: gacts/run-and-post-run@v1
-      shell: bash
-      run: |
-        sccache --start-server
-        echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-      post: sccache --show-stats
+      with:
+        run: |
+          sccache --start-server
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+        post: sccache --show-stats
       env:
         SCCACHE_CACHE_SIZE: ${{ inputs.cache-size }}
         SCCACHE_CACHE_DIR: .sccache
