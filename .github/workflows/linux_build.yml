@@ -52,13 +52,10 @@ jobs:
           cache: true
           cache-sdk: true
 
-      - uses: ./.github/actions/sccache
-
-      - name: Build Linux app
-        run: cd app && flutter build linux -v --build-number=$(git rev-list --count HEAD)
-        env:
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: "sccache"
+      - name: Build desktop app
+        uses: ./.github/actions/sccache
+        with:
+          command: cd app && flutter build linux -v --build-number=$(git rev-list --count HEAD)
 
       - name: Upload Linux app
         uses: actions/upload-artifact@v4
