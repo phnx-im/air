@@ -70,7 +70,7 @@ class AttachmentUploadView extends HookWidget {
                         p.basename(file.path),
                         style: TextStyle(
                           color: colors.text.primary,
-                          fontSize: FontSizes.base.size,
+                          fontSize: LabelFontSize.base.size,
                         ),
                       ),
                     ],
