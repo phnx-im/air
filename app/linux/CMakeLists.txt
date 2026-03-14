@@ -24,7 +24,7 @@ set(CMAKE_EXE_LINKER_FLAGS "-fuse-ld=lld")
 # Enable LTO when supported
 include(CheckIPOSupported)
 check_ipo_supported()
-set_target_properties(myProject PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+set_target_properties(${BINARY_NAME} PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 # Load bundled libraries from the lib/ directory relative to the binary.
 set(CMAKE_INSTALL_RPATH "$ORIGIN/lib")
