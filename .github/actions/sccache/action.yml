@@ -8,6 +8,7 @@ inputs:
   cache-key:
     description: "Key to use to restore and save the cache"
     required: true
+    default: "sccache-${{ runner.os }}-${{ runner.arch }}"
 runs:
   using: composite
   steps:
