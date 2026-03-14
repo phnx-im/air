@@ -13,6 +13,9 @@ inputs:
     description: "Location of cache files"
     required: false
     default: "${{ runner.temp }}/.sccache"
+  command:
+    description: "Command to run between restoring and saving the cache"
+    required: true
 runs:
   using: composite
   steps:
@@ -37,8 +40,12 @@ runs:
         SCCACHE_CACHE_SIZE: ${{ inputs.cache-size }}
         SCCACHE_CACHE_DIR: "${{ inputs.cache-dir }}"
 
+    - name: Run command
+      shell: bash
+      run: ${{ inputs.command }}
+
     - name: Persist GHA cache
-#      if: github.ref == "refs/heads/main"
+    # if: github.ref == "refs/heads/main"
       uses: actions/cache/save@v5
       with:
         path: "${{ inputs.cache-dir }}"
