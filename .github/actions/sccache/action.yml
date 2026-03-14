@@ -12,6 +12,9 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Create cache directory
+      run: mkdir -p .sccache
+
     - name: Setup GHA cache
       uses: actions/cache/restore@v5
       with:
