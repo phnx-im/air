@@ -13,9 +13,6 @@ inputs:
     description: "Location of cache files"
     required: false
     default: "${{ runner.temp }}/.sccache"
-  command:
-    description: "Command to run between restoring and saving the cache"
-    required: true
 runs:
   using: composite
   steps:
@@ -26,8 +23,10 @@ runs:
     - name: Setup GHA cache
       uses: actions/cache@v5
       with:
-        path: "${{ inputs.cache-dir }}"
-        key: "${{ runner.os }}-cache-${{ hashFiles('Cargo.lock', '.config/cargo.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
+        path: |
+          ${{ env.CARGO_HOME }}
+          ${{ inputs.cache-dir }}
+        key: "${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock', '.config/cargo.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
 
     - name: Start sccache daemon
       uses: gacts/run-and-post-run@v1
@@ -37,15 +36,7 @@ runs:
           echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
           echo "CMAKE_C_COMPILER_LAUNCHER=sccache" >> $GITHUB_ENV
           echo "CMAKE_CXX_COMPILER_LAUNCHER=sccache" >> $GITHUB_ENV
-
         post: sccache --show-stats
       env:
         SCCACHE_CACHE_SIZE: ${{ inputs.cache-size }}
         SCCACHE_DIR: "${{ inputs.cache-dir }}"
-
-    - name: Run command
-      shell: bash
-      run: ${{ inputs.command }}
-      env:
-        RUSTC_WRAPPER: sccache
-        
