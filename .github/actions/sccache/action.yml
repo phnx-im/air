@@ -34,15 +34,16 @@ runs:
       with:
         run: |
           sccache --start-server
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+
         post: sccache --show-stats
       env:
         SCCACHE_CACHE_SIZE: ${{ inputs.cache-size }}
-        SCCACHE_CACHE_DIR: "${{ inputs.cache-dir }}"
+        SCCACHE_DIR: "${{ inputs.cache-dir }}"
 
     - name: Run command
       shell: bash
       run: ${{ inputs.command }}
       env:
         RUSTC_WRAPPER: sccache
-        CMAKE_CXX_COMPILER_LAUNCHER: sccache
-        CMAKE_C_COMPILER_LAUNCHER: sccache
+        
