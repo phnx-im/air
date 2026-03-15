@@ -18,6 +18,9 @@ set(APPLICATION_ID "ms.air")
 # versions of CMake.
 cmake_policy(SET CMP0063 NEW)
 
+# Use lld to link binaries
+set(CMAKE_EXE_LINKER_FLAGS "-fuse-ld=lld")
+
 # Load bundled libraries from the lib/ directory relative to the binary.
 set(CMAKE_INSTALL_RPATH "$ORIGIN/lib")
 
@@ -73,6 +76,9 @@ set_target_properties(${BINARY_NAME}
   PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/intermediates_do_not_run"
 )
+
+# Enable LTO when supported
+set_target_properties(${BINARY_NAME} PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
