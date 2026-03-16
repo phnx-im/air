@@ -868,56 +868,51 @@ class _MessageContent extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 1.5),
-      child: Container(
-        alignment: isSender
-            ? AlignmentDirectional.topEnd
-            : AlignmentDirectional.topStart,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: _messageBorderRadius(isSender, flightPosition),
-            color: nakedContent
-                ? Colors.transparent
-                : isSender
-                ? colors.message.selfBackground
-                : colors.message.otherBackground,
-          ),
-          child: DefaultTextStyle.merge(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (inReplyTo != null)
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      left: Spacings.xs,
-                      right: Spacings.xs,
-                      top: Spacings.xs,
-                    ),
-                    child: InReplyToBubble(
-                      inReplyTo: inReplyTo,
-                      backgroundColor: colors.fill.secondary,
-                    ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: _messageBorderRadius(isSender, flightPosition),
+          color: nakedContent
+              ? Colors.transparent
+              : isSender
+              ? colors.message.selfBackground
+              : colors.message.otherBackground,
+        ),
+        child: DefaultTextStyle.merge(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (inReplyTo != null)
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: Spacings.xs,
+                    right: Spacings.xs,
+                    top: Spacings.xs,
                   ),
-                ...columnChildren,
-                if (isEdited)
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      left: Spacings.s,
-                      right: Spacings.s,
-                      bottom: Spacings.xxs,
-                    ),
-                    child: SelectionContainer.disabled(
-                      child: Text(
-                        loc.textMessage_edited,
-                        style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                          color: isSender
-                              ? colors.message.selfEditedLabel
-                              : colors.message.otherEditedLabel,
-                        ),
+                  child: InReplyToBubble(
+                    inReplyTo: inReplyTo,
+                    backgroundColor: colors.fill.secondary,
+                  ),
+                ),
+              ...columnChildren,
+              if (isEdited)
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: Spacings.s,
+                    right: Spacings.s,
+                    bottom: Spacings.xxs,
+                  ),
+                  child: SelectionContainer.disabled(
+                    child: Text(
+                      loc.textMessage_edited,
+                      style: Theme.of(context).textTheme.bodySmall!.copyWith(
+                        color: isSender
+                            ? colors.message.selfEditedLabel
+                            : colors.message.otherEditedLabel,
                       ),
                     ),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         ),
       ),
@@ -956,25 +951,20 @@ class _DeletedMessageContent extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 1.5),
-      child: Container(
-        alignment: isSender
-            ? AlignmentDirectional.topEnd
-            : AlignmentDirectional.topStart,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: _messageBorderRadius(isSender, flightPosition),
-            border: Border.all(color: borderColor),
-          ),
-          child: SelectionContainer.disabled(
-            child: Padding(
-              padding: _messagePadding,
-              child: Text(
-                deletedText,
-                style: TextStyle(
-                  fontStyle: FontStyle.italic,
-                  fontSize: BodyFontSize.base.size,
-                  color: colors.text.tertiary,
-                ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: _messageBorderRadius(isSender, flightPosition),
+          border: Border.all(color: borderColor),
+        ),
+        child: SelectionContainer.disabled(
+          child: Padding(
+            padding: _messagePadding,
+            child: Text(
+              deletedText,
+              style: TextStyle(
+                fontStyle: FontStyle.italic,
+                fontSize: BodyFontSize.base.size,
+                color: colors.text.tertiary,
               ),
             ),
           ),

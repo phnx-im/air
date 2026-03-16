@@ -19,6 +19,9 @@ const double _triggerThreshold = 60.0;
 /// rubber-band effect.
 const double _rubberBandFactor = 0.25;
 
+/// Padding between the reply icon and the bubble's visible left edge.
+const double _iconPadding = 12.0;
+
 /// Spring parameters for the snap-back animation.
 const double _springStiffness = 400.0;
 const double _springDamping = 28.0;
@@ -104,9 +107,13 @@ class _SwipeToReplyState extends State<SwipeToReply>
     );
     _controller.value = _dampedOffset(_rawDragOffset);
 
-    if (!_thresholdCrossed && _rawDragOffset >= _triggerThreshold) {
-      _thresholdCrossed = true;
-      HapticFeedback.mediumImpact();
+    if (_rawDragOffset >= _triggerThreshold) {
+      if (!_thresholdCrossed) {
+        _thresholdCrossed = true;
+        HapticFeedback.mediumImpact();
+      }
+    } else {
+      _thresholdCrossed = false;
     }
   }
 
@@ -167,18 +174,20 @@ class _SwipeToReplyState extends State<SwipeToReply>
           return Stack(
             clipBehavior: Clip.none,
             children: [
-              // Reply icon behind the bubble
+              // Reply icon fills the gap and is right-aligned within it
               Positioned(
                 left: 0,
                 top: 0,
                 bottom: 0,
+                width: offset,
                 child: Opacity(
                   opacity: iconProgress,
                   child: Transform.scale(
                     scale: iconScale,
-                    child: Center(
+                    child: Align(
+                      alignment: Alignment.centerRight,
                       child: Padding(
-                        padding: const EdgeInsets.only(left: 12.0),
+                        padding: const EdgeInsets.only(right: _iconPadding),
                         child: widget.icon,
                       ),
                     ),
