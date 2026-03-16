@@ -5,7 +5,7 @@ expression: policy
 Object {
     "conditions": Array [
         Object {
-            "bucket": String("data"),
+            "bucket": String("some-bucket"),
         },
         Object {
             "key": String("attachments/ba521fc61ec24f8ea85e3dacc1e96989"),
