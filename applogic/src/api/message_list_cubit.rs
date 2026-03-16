@@ -29,13 +29,13 @@ use super::{
     user_cubit::UserCubitBase,
 };
 
-/// The state reprensenting a list of messages in a chat
+/// The state representing a list of messages in a chat
 ///
-/// The state is cheaply clonable (internally reference counted).
+/// The state is cheaply cloneable (internally reference counted).
 #[frb(opaque)]
 #[derive(Debug, Default, Clone)]
 pub struct MessageListState {
-    /// Copy-on-write inner ref to make the state cheaply clonable when emitting new state
+    /// Copy-on-write inner ref to make the state cheaply cloneable when emitting new state
     inner: Arc<MessageListStateInner>,
 }
 

@@ -265,7 +265,7 @@ message QueueEvent {
   }
 }
 
-// Event notifying receipients that the queue is empty
+// Event notifying recipients that the queue is empty
 message QueueEmpty {}
 
 message QueueMessage {

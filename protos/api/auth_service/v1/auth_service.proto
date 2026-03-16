@@ -336,7 +336,7 @@ message ReportSpamPayload {
 
 message ReportSpamResponse {}
 
-// User Handles API common messsages
+// User Handles API common messages
 
 message UserHandleHash {
   bytes bytes = 1;

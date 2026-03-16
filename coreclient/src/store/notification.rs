@@ -111,7 +111,7 @@ pub(crate) struct StoreNotificationsSender {
 }
 
 impl StoreNotificationsSender {
-    /// Createa a new notification sender without any subscribers.
+    /// Create a new notification sender without any subscribers.
     pub(crate) fn new() -> Self {
         let (tx, _) = broadcast::channel(NOTIFICATION_CHANNEL_SIZE);
         Self { tx }
@@ -204,9 +204,9 @@ pub enum StoreOperation {
     Remove,
 }
 
-/// Identifier of an enitity of a [`super::Store`].
+/// Identifier of an entity of a [`super::Store`].
 ///
-/// Used to identify added, updated or removed entites in a [`StoreNotification`].
+/// Used to identify added, updated or removed entities in a [`StoreNotification`].
 // Note(perf): I would prefer this type to be copy and smaller in memory (currently 40 bytes), but
 // `UserId` is not copy and quite large.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::From)]
