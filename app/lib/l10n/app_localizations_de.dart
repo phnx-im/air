@@ -974,5 +974,5 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get contactRequestDialog_error_incompatibleClient =>
-      'Can\'t accept contact request because your client does not have enough capabilities. Please update the app and try again.';
+      'Failed to accept contact request. Update Air to the newest version, then try again.';
 }

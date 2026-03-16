@@ -1710,7 +1710,7 @@ abstract class AppLocalizations {
   /// No description provided for @contactRequestDialog_error_incompatibleClient.
   ///
   /// In en, this message translates to:
-  /// **'Can\'t accept contact request because your client does not have enough capabilities. Please update the app and try again.'**
+  /// **'Failed to accept contact request. Update Air to the newest version, then try again.'**
   String get contactRequestDialog_error_incompatibleClient;
 }
 
