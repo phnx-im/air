@@ -13,8 +13,8 @@ use aircommon::{
     messages::{EncryptedQsQueueMessageCtype, QueueMessage, client_ds::QsQueueMessagePayload},
 };
 use sqlx::{
-    Database, Decode, Encode, Sqlite, SqliteExecutor, Type, encode::IsNull, error::BoxDynError,
-    query, query_scalar,
+    Database, Decode, Encode, Sqlite, SqliteExecutor, SqliteTransaction, Type, encode::IsNull,
+    error::BoxDynError, query, query_scalar,
 };
 use tracing::error;
 
@@ -119,11 +119,10 @@ impl StorableQsQueueRatchet {
     ///
     /// This function is thread-safe via sqlite transactions.
     pub(crate) async fn decrypt_qs_queue_message(
-        pool: &SqlitePool,
+        txn: &mut SqliteTransaction<'_>,
         qs_message_ciphertext: QueueMessage,
     ) -> Result<QsQueueMessagePayload, DecryptQsQueueMessageError> {
         // Makes sure reading the ratchet and updating it is atomic.
-        let mut txn = pool.begin_with("BEGIN IMMEDIATE").await?;
 
         let mut qs_queue_ratchet = StorableQsQueueRatchet::load(txn.as_mut()).await?;
 
@@ -161,7 +160,6 @@ impl StorableQsQueueRatchet {
             })?;
         qs_queue_ratchet.update(txn.as_mut(), QueueType::Qs).await?;
 
-        txn.commit().await?;
         Ok(payload)
     }
 

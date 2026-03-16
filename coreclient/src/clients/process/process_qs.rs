@@ -117,6 +117,7 @@ impl CoreUser {
     ///   received from the QS as part of the AddInfo download.
     async fn process_qs_message(
         &self,
+        txn: SqliteTransaction<'_>,
         qs_queue_message: ExtractedQsQueueMessage,
         read_receipts_enabled: bool,
     ) -> Result<ProcessQsMessageResult> {
@@ -129,16 +130,16 @@ impl CoreUser {
         match qs_queue_message.payload {
             ExtractedQsQueueMessagePayload::WelcomeBundle(welcome_bundle) => {
                 // Box large future
-                Box::pin(self.handle_welcome_bundle(welcome_bundle, ds_timestamp)).await
+                Box::pin(self.handle_welcome_bundle(txn, welcome_bundle, ds_timestamp)).await
             }
             ExtractedQsQueueMessagePayload::MlsMessage(mls_message) => {
-                self.handle_mls_message(*mls_message, ds_timestamp, read_receipts_enabled)
+                self.handle_mls_message(txn, *mls_message, ds_timestamp, read_receipts_enabled)
                     .await
             }
             ExtractedQsQueueMessagePayload::UserProfileKeyUpdate(
                 user_profile_key_update_params,
             ) => {
-                self.handle_user_profile_key_update(user_profile_key_update_params)
+                self.handle_user_profile_key_update(txn, user_profile_key_update_params)
                     .await
             }
             ExtractedQsQueueMessagePayload::TargetedMessage(
@@ -146,17 +147,18 @@ impl CoreUser {
             ) => {
                 let mls_message = MlsMessageIn::tls_deserialize_exact_bytes(&mls_message_bytes)
                     .context("Failed to deserialize targeted MLS message")?;
-                self.handle_targeted_application_message(mls_message, ds_timestamp)
+                self.handle_targeted_application_message(txn, mls_message, ds_timestamp)
                     .await
             }
             ExtractedQsQueueMessagePayload::DsCommitResponse(ds_commit_response) => {
-                self.handle_commit_response(ds_commit_response).await
+                self.handle_commit_response(txn, ds_commit_response).await
             }
         }
     }
 
     async fn handle_commit_response(
         &self,
+        mut txn: SqliteTransaction<'_>,
         commit_response: DsCommitResponse,
     ) -> Result<ProcessQsMessageResult> {
         let DsCommitResponse {
@@ -166,8 +168,8 @@ impl CoreUser {
         } = commit_response;
 
         // Load the group by group_id
-        self.with_transaction_and_notifier(async |txn, notifier| {
-            let mut group = Group::load_verified(txn, &group_id)
+        self.with_notifier(async |notifier| {
+            let mut group = Group::load_verified(txn.as_mut(), &group_id)
                 .await?
                 .context("Can't find group for commit response")?;
 
@@ -185,8 +187,9 @@ impl CoreUser {
             }
 
             // If yes, merge the commit and store the updated group
-            let (mut group_messages, group_data_bytes) =
-                group.merge_pending_commit(txn, None, timestamp).await?;
+            let (mut group_messages, group_data_bytes) = group
+                .merge_pending_commit(&mut txn, None, timestamp)
+                .await?;
             group
                 .group_mut()
                 .store_update(txn.as_mut(), Some(timestamp))
@@ -204,7 +207,7 @@ impl CoreUser {
                 // No need to fetch the group profile: this is our own commit response, so the
                 // profile data is already available locally.
                 update_chat_attributes(
-                    txn,
+                    txn.as_mut(),
                     notifier,
                     &mut chat,
                     self.user_id().clone(),
@@ -214,10 +217,12 @@ impl CoreUser {
                 )
                 .await?;
             }
-            CoreUser::store_new_messages(txn, notifier, chat.id(), group_messages).await?;
+            CoreUser::store_new_messages(txn.as_mut(), notifier, chat.id(), group_messages).await?;
 
             // Delete the pending chat operation
             PendingChatOperation::delete(txn.as_mut(), &group_id).await?;
+
+            txn.commit().await?;
 
             Ok(())
         })
@@ -228,17 +233,18 @@ impl CoreUser {
 
     async fn handle_welcome_bundle(
         &self,
+        mut txn: SqliteTransaction<'_>,
         welcome_bundle: WelcomeBundle,
         ds_timestamp: TimeStamp,
     ) -> Result<ProcessQsMessageResult> {
         // WelcomeBundle Phase 1: Join the group. This might involve
         // loading AS credentials or fetching them from the AS.
         let (own_profile_key, own_profile_key_in_group, group, chat_id, system_message) =
-            Box::pin(self.with_transaction_and_notifier(async |txn, notifier| {
+            Box::pin(self.with_notifier(async |notifier| {
                 let (group, sender_user_id, member_profile_info) = Group::join_group(
                     welcome_bundle,
                     &self.inner.key_store.wai_ear_key,
-                    txn,
+                    &mut txn,
                     &self.inner.api_clients,
                     self.signing_key(),
                 )
@@ -301,6 +307,8 @@ impl CoreUser {
                 );
                 system_message.store(txn.as_mut(), notifier).await?;
 
+                txn.commit().await?;
+
                 Ok((
                     own_profile_key,
                     own_profile_key_in_group,
@@ -337,6 +345,7 @@ impl CoreUser {
 
     async fn handle_targeted_application_message(
         &self,
+        mut txn: SqliteTransaction<'_>,
         mls_message: MlsMessageIn,
         ds_timestamp: TimeStamp,
     ) -> Result<ProcessQsMessageResult> {
@@ -353,65 +362,65 @@ impl CoreUser {
             NeedsResync(Resync),
         }
 
-        let transaction_result = self
-            .with_transaction(async |txn| {
-                let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
-                    .await?
-                    .ok_or_else(|| anyhow!("No chat found for group ID {:?}", group_id))?;
-                let mut group = Group::load_verified(txn, &group_id)
-                    .await?
-                    .ok_or_else(|| anyhow!("No group found for group ID {:?}", group_id))?;
+        let transaction = async move || {
+            let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
+                .await?
+                .ok_or_else(|| anyhow!("No chat found for group ID {:?}", group_id))?;
+            let mut group = Group::load_verified(txn.as_mut(), &group_id)
+                .await?
+                .ok_or_else(|| anyhow!("No group found for group ID {:?}", group_id))?;
 
-                // MLSMessage Phase 2: Process the message
-                let Some(ProcessMessageResult {
-                    processed_message, ..
-                }) = group
-                    .group_mut()
-                    .process_message(txn, &self.inner.api_clients, protocol_message)
-                    .await?
-                else {
-                    let resync = Resync {
-                        chat_id: chat.id(),
-                        group_id: group.group_id().clone(),
-                        group_state_ear_key: group.group_state_ear_key().clone(),
-                        identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
-                        original_leaf_index: group.own_index(),
-                    };
-                    return Ok(TransactionResult::NeedsResync(resync));
+            // MLSMessage Phase 2: Process the message
+            let Some(ProcessMessageResult {
+                processed_message, ..
+            }) = group
+                .group_mut()
+                .process_message(&mut txn, &self.inner.api_clients, protocol_message)
+                .await?
+            else {
+                let resync = Resync {
+                    chat_id: chat.id(),
+                    group_id: group.group_id().clone(),
+                    group_state_ear_key: group.group_state_ear_key().clone(),
+                    identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
+                    original_leaf_index: group.own_index(),
                 };
+                return Ok(TransactionResult::NeedsResync(resync));
+            };
 
-                let Sender::Member(sender_index) = processed_message.sender() else {
-                    bail!("Sender is not a member");
-                };
-                let sender_client_credential = group
-                    .credential_at(*sender_index)?
-                    .context("No sender client credential found")?;
+            let Sender::Member(sender_index) = processed_message.sender() else {
+                bail!("Sender is not a member");
+            };
+            let sender_client_credential = group
+                .credential_at(*sender_index)?
+                .context("No sender client credential found")?;
 
-                let ProcessedMessageContent::ApplicationMessage(application_message) =
-                    processed_message.into_content()
-                else {
-                    bail!("Only application messages are expected in targeted messages");
-                };
+            let ProcessedMessageContent::ApplicationMessage(application_message) =
+                processed_message.into_content()
+            else {
+                bail!("Only application messages are expected in targeted messages");
+            };
 
-                let TargetedMessageContent::ConnectionRequest(connection_info) =
-                    TargetedMessageContent::tls_deserialize_exact_bytes(
-                        &application_message.into_bytes(),
-                    )?;
+            let TargetedMessageContent::ConnectionRequest(connection_info) =
+                TargetedMessageContent::tls_deserialize_exact_bytes(
+                    &application_message.into_bytes(),
+                )?;
 
-                // Extract connection info source from the targeted message
-                let connection_info_source =
-                    ConnectionInfoSource::TargetedMessage(Box::new(TargetedMessageSource {
-                        connection_info,
-                        sender_client_credential,
-                        origin_chat_id: chat.id(),
-                        sent_at: ds_timestamp,
-                    }));
+            // Extract connection info source from the targeted message
+            let connection_info_source =
+                ConnectionInfoSource::TargetedMessage(Box::new(TargetedMessageSource {
+                    connection_info,
+                    sender_client_credential,
+                    origin_chat_id: chat.id(),
+                    sent_at: ds_timestamp,
+                }));
 
-                Ok(TransactionResult::Ok(connection_info_source))
-            })
-            .await?;
+            txn.commit().await?;
 
-        let connection_info_source = match transaction_result {
+            Ok(TransactionResult::Ok(connection_info_source))
+        };
+
+        let connection_info_source = match transaction().await? {
             TransactionResult::Ok(connection_info_source) => connection_info_source,
             TransactionResult::NeedsResync(_resync) => {
                 // TODO: Once we have a UX for resyncs, we should schedule one
@@ -430,6 +439,7 @@ impl CoreUser {
 
     async fn handle_mls_message(
         &self,
+        mut txn: SqliteTransaction<'_>,
         mls_message: MlsMessageIn,
         ds_timestamp: TimeStamp,
         read_receipts_enabled: bool,
@@ -458,14 +468,14 @@ impl CoreUser {
         }
 
         let transaction_result = self
-            .with_transaction_and_notifier(async |txn, notifier| {
+            .with_notifier(async |notifier| {
                 let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
                     .await?
                     .ok_or_else(|| anyhow!("No chat found for group ID {:?}", group_id))?;
                 let chat_id = chat.id();
 
                 // Load the group regardless of whether it has a pending commit or not.
-                let mut group = Group::load_verified(txn, &group_id)
+                let mut group = Group::load_verified(txn.as_mut(), &group_id)
                     .await?
                     .ok_or_else(|| anyhow!("No group found for group ID {:?}", group_id))?;
 
@@ -477,7 +487,7 @@ impl CoreUser {
                     profile_infos,
                 }) = group
                     .group_mut()
-                    .process_message(txn, &self.inner.api_clients, protocol_message)
+                    .process_message(&mut txn, &self.inner.api_clients, protocol_message)
                     .await?
                 else {
                     let resync = Resync {
@@ -515,7 +525,7 @@ impl CoreUser {
                             chat_changed,
                         } = self
                             .handle_application_message(
-                                txn,
+                                &mut txn,
                                 notifier,
                                 &group,
                                 application_message,
@@ -528,7 +538,7 @@ impl CoreUser {
                     }
                     ProcessedMessageContent::ProposalMessage(proposal) => {
                         let (new_messages, updated) = self
-                            .handle_proposal_message(txn, &mut group, *proposal, ds_timestamp)
+                            .handle_proposal_message(&mut txn, &mut group, *proposal, ds_timestamp)
                             .await?;
                         group.group_mut().store_update(txn.as_mut(), None).await?;
                         (new_messages, Vec::new(), updated)
@@ -543,7 +553,7 @@ impl CoreUser {
                         .into();
                         let (new_messages, updated) = self
                             .handle_staged_commit_message(
-                                txn,
+                                &mut txn,
                                 &mut group,
                                 chat,
                                 *staged_commit,
@@ -565,11 +575,13 @@ impl CoreUser {
                 };
 
                 let mut messages =
-                    Self::store_new_messages(txn, notifier, chat_id, new_messages).await?;
+                    Self::store_new_messages(txn.as_mut(), notifier, chat_id, new_messages).await?;
                 for updated_message in updated_messages {
                     updated_message.update(txn.as_mut(), notifier).await?;
                     messages.push(updated_message);
                 }
+
+                txn.commit().await?;
 
                 Ok(TransactionResult::Ok {
                     messages,
@@ -949,41 +961,39 @@ impl CoreUser {
 
     async fn handle_user_profile_key_update(
         &self,
+        mut txn: SqliteTransaction<'_>,
         params: UserProfileKeyUpdateParams,
     ) -> anyhow::Result<ProcessQsMessageResult> {
-        self.with_transaction(async |txn| {
-            // Don't update the profile if the chat is blocked
-            let chat_id = ChatId::try_from(&params.group_id)?;
-            if BlockedContact::check_blocked_chat(txn.as_mut(), chat_id).await? {
-                bail!(BlockedContactError);
-            }
+        // Don't update the profile if the chat is blocked
+        let chat_id = ChatId::try_from(&params.group_id)?;
+        if BlockedContact::check_blocked_chat(txn.as_mut(), chat_id).await? {
+            txn.commit().await?;
+            bail!(BlockedContactError);
+        }
 
-            // Phase 1: Load the group and the sender.
-            let group = Group::load_verified(txn.as_mut(), &params.group_id)
-                .await?
-                .context("No group found")?;
-            let sender_credential = group
-                .credential_at(params.sender_index)?
-                .context("No sender credential found")?;
-            let sender = sender_credential.user_id();
+        // Phase 1: Load the group and the sender.
+        let group = Group::load_verified(txn.as_mut(), &params.group_id)
+            .await?
+            .context("No group found")?;
+        let sender_credential = group
+            .credential_at(params.sender_index)?
+            .context("No sender credential found")?;
+        let sender = sender_credential.user_id();
 
-            // Phase 2: Decrypt the new user profile key
-            let new_user_profile_key = UserProfileKey::decrypt(
-                group.identity_link_wrapper_key(),
-                &params.user_profile_key,
-                sender,
-            )?;
+        // Phase 2: Decrypt the new user profile key
+        let new_user_profile_key = UserProfileKey::decrypt(
+            group.identity_link_wrapper_key(),
+            &params.user_profile_key,
+            sender,
+        )?;
 
-            // Phase 3: Fetch and store the (new) user profile and key
-            Self::schedule_fetch_user_profile(
-                txn.as_mut(),
-                (sender_credential, new_user_profile_key),
-            )
+        // Phase 3: Fetch and store the (new) user profile and key
+        Self::schedule_fetch_user_profile(txn.as_mut(), (sender_credential, new_user_profile_key))
             .await?;
 
-            Ok(ProcessQsMessageResult::None)
-        })
-        .await
+        txn.commit().await?;
+
+        Ok(ProcessQsMessageResult::None)
     }
 
     fn handle_external_join_proposal_message(
@@ -1004,17 +1014,29 @@ impl CoreUser {
 
         // Process each qs message individually
         for (idx, qs_message) in qs_messages.into_iter().enumerate() {
-            let qs_message_payload =
-                match StorableQsQueueRatchet::decrypt_qs_queue_message(self.pool(), qs_message)
-                    .await
-                {
-                    Ok(plaintext) => plaintext,
-                    Err(error) => {
-                        error!(%error, "Decrypting message failed");
-                        result.processed = idx;
-                        return result;
-                    }
-                };
+            // Start a transaction for thread and cancel safety
+            let Ok(mut txn) = self
+                .pool()
+                .begin_with("BEGIN IMMEDIATE")
+                .await
+                .inspect_err(|error| error!(%error,"failed to acquire sqlite txn"))
+            else {
+                result.processed = idx;
+                return result;
+            };
+
+            let qs_message_payload = match StorableQsQueueRatchet::decrypt_qs_queue_message(
+                &mut txn, qs_message,
+            )
+            .await
+            {
+                Ok(plaintext) => plaintext,
+                Err(error) => {
+                    error!(%error, "Decrypting message failed");
+                    result.processed = idx;
+                    return result;
+                }
+            };
             let qs_message_plaintext = match qs_message_payload.extract() {
                 Ok(extracted) => extracted,
                 Err(error) => {
@@ -1024,7 +1046,7 @@ impl CoreUser {
             };
 
             let processed = match self
-                .process_qs_message(qs_message_plaintext, read_receipts_enabled)
+                .process_qs_message(txn, qs_message_plaintext, read_receipts_enabled)
                 .await
             {
                 Ok(processed) => processed,
@@ -1298,6 +1320,19 @@ impl QsProcessEventResult {
 
     pub fn is_partially_processed(&self) -> bool {
         matches!(self, Self::PartiallyProcessed { .. })
+    }
+}
+
+async fn commit_if_ok<'a, T>(
+    mut txn: SqliteTransaction<'a>,
+    work: impl AsyncFnOnce(&mut SqliteTransaction<'a>) -> anyhow::Result<T>,
+) -> anyhow::Result<T> {
+    match work(&mut txn).await {
+        Ok(result) => {
+            txn.commit().await?;
+            Ok(result)
+        }
+        Err(error) => Err(error),
     }
 }
 
