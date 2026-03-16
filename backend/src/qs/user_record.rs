@@ -277,7 +277,7 @@ pub(crate) mod persistence {
             let user_record_1 = store_random_user_record(&pool).await?;
             let _client_record_1 = store_random_client_record(&pool, user_record_1.user_id).await?;
 
-            // acitive user in the last month
+            // active user in the last month
             let user_record_2 = store_random_user_record(&pool).await?;
             let client_record_2 = store_random_client_record(&pool, user_record_2.user_id).await?;
             QsClientRecord::update_activity_time(

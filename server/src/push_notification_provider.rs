@@ -476,6 +476,7 @@ mod test {
 
     use super::*;
 
+    // spellchecker:off
     const TEST_RSA_KEY: &str = r#"-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCMFtzXkOw+XPPg
 VIfbYMw8HTD/Vt38UBse60ssReCbxXWPHaHyiTSeSwDCrck7LxZTbmjGU6qOHlET
@@ -510,6 +511,7 @@ MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgHz3Iva44aHgSx7n0
 c5gHRTX9xPNNaAWBZLCP/wIXCn+hRANCAATXcnNCtSV8Qzeep3Ic3vTSyhCowC5G
 44VV2EXhUOa4n5RId2nzLFTbmAONqZm2vdhc5YJMd45b1+5jymRA70yy
 -----END PRIVATE KEY-----"#;
+    // spellchecker:on
 
     fn create_temp_fcm_file() -> NamedTempFile {
         let mut file = NamedTempFile::new().unwrap();

@@ -20,7 +20,7 @@ use super::{
 
 impl Qs {
     /// Enqueue the given message. This endpoint is called by the local DS
-    /// during a fanout operation. This endpoint does not necessairly return
+    /// during a fanout operation. This endpoint does not necessarily return
     /// quickly. It can attempt to do the full fanout and return potential
     /// failed transmissions to the DS.
     ///

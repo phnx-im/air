@@ -78,7 +78,7 @@ class ChatListView extends StatelessWidget {
   }
 }
 
-/// This widget fixes the isssue on Android, where the swipe from the bottom
+/// This widget fixes the issue on Android, where the swipe from the bottom
 /// of the screen opens the OS app switcher and the same time scrolls the chat list
 /// view.
 class _ScrollGestureFix extends StatelessWidget {

@@ -38,7 +38,7 @@ abstract class User implements RustOpaqueInterface {
   /// Loads the default user from the given database path
   ///
   /// Returns in this order:
-  /// * the default most recent user with finished registation, or if none
+  /// * the default most recent user with finished registration, or if none
   /// * the most recent user with finished registration, or if none
   /// * the most recent user, if any.
   static Future<User?> loadDefault({required String path}) =>
