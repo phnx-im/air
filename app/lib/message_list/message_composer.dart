@@ -31,7 +31,7 @@ import 'package:air/ui/typography/font_size.dart';
 import 'package:provider/provider.dart';
 
 import 'package:air/util/platform.dart'
-    show getClipboardFilePaths, getClipboardImage;
+    show getClipboardFilePaths, getClipboardImage, PlatformExtension;
 
 import 'message_renderer.dart';
 
@@ -109,6 +109,9 @@ class _MessageComposerState extends State<MessageComposer>
         return;
       }
 
+      // always request focus on chat draft loading on desktop
+      bool requestFocus = PlatformExtension.isDesktop;
+
       switch (state.chat?.draft) {
         // Initially loaded draft
         case final draft? when draft.isCommitted && !isDraftLoaded:
@@ -118,19 +121,23 @@ class _MessageComposerState extends State<MessageComposer>
           if (_inputController.text.isEmpty) {
             _inputController.text = draft.message;
           }
-          _focusNode.requestFocus(); // open keyboard when a chat has a draft
+          requestFocus = true; // open keyboard when a chat has a draft
         // Editing ID has changed
         case final draft when draft?.editingId != currentEditingId:
           _inputController.text = draft?.message ?? "";
           currentEditingId = draft?.editingId;
-          _focusNode.requestFocus(); // open keyboard when switching edits
+          requestFocus = true; // open keyboard when switching edits
         // Reply ID has changed
         case final draft when draft?.inReplyTo?.$1 != currentInReplyToId:
           currentInReplyToId = draft?.inReplyTo?.$1;
           // we purposefully do not reset the already typed text, as we
           // only want to (re)set the reply.
-          _focusNode.requestFocus(); // open keybord when switching reply to
+          requestFocus = true; // open keybord when switching reply to
         default:
+      }
+
+      if (requestFocus) {
+        _focusNode.requestFocus();
       }
     });
 
@@ -612,7 +619,7 @@ class _MessageInput extends StatelessWidget {
     final color = CustomColorScheme.of(context);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (isEditing)
           Padding(
@@ -652,6 +659,7 @@ class _MessageInput extends StatelessWidget {
                   child: InReplyToBubble(
                     inReplyTo: inReplyToMessage,
                     backgroundColor: color.fill.secondary,
+                    stretch: true,
                   ),
                 ),
                 Positioned(
@@ -793,10 +801,12 @@ class InReplyToBubble extends StatelessWidget {
     super.key,
     required this.inReplyTo,
     this.backgroundColor,
+    this.stretch = false,
   });
 
   final UiInReplyToMessage inReplyTo;
   final Color? backgroundColor;
+  final bool stretch;
 
   @override
   Widget build(BuildContext context) {
@@ -841,7 +851,7 @@ class InReplyToBubble extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: stretch ? .stretch : .start,
             children: [
               if (senderDisplayName != null)
                 Text(
