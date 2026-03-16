@@ -443,13 +443,22 @@ impl ChatDetailsCubitBase {
             let Some(chat) = state.chat.as_mut() else {
                 return false;
             };
-            let draft = chat.draft.get_or_insert_with(UiMessageDraft::empty);
-            if draft.editing_id.is_some() {
+
+            // if we already have a staged edit draft, and it is the same ID, change nothing
+            if let Some(editing_id) = chat.draft.as_ref().and_then(|d| d.editing_id)
+                && editing_id == message.id()
+            {
                 return false;
             }
+
+            // otherwise, reset the draft
+            let mut draft = UiMessageDraft::empty();
             draft.message = body.to_owned();
             draft.editing_id = Some(message.id());
+            draft.in_reply_to = None;
             draft.is_committed = false;
+            chat.draft = Some(draft);
+
             true
         });
 
@@ -490,10 +499,18 @@ impl ChatDetailsCubitBase {
                 return false;
             };
 
-            let draft = chat.draft.get_or_insert_with(UiMessageDraft::empty);
-            if draft.editing_id.is_some() {
+            // if we already have a staged reply draft, and it is the same ID, change nothing
+            if let Some((in_reply_to_mimi_id, _)) =
+                chat.draft.as_ref().and_then(|d| d.in_reply_to.as_ref())
+                && *in_reply_to_mimi_id == mimi_id.into()
+            {
                 return false;
             }
+
+            // if we already have a staged editing draft, reset it
+            chat.draft.take_if(|d| d.editing_id.is_some());
+
+            let draft = chat.draft.get_or_insert_with(UiMessageDraft::empty);
 
             draft.message = String::new();
             draft.in_reply_to = Some((
