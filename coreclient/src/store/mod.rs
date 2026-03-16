@@ -34,7 +34,7 @@ pub type StoreResult<T> = anyhow::Result<T>;
 /// Unified access to the client data
 ///
 /// This trait is used to access the client data, e.g. the user profile, the chats or the messages.
-/// Additionaly, it is used to listen to changes in the client data via the [`Self::subscribe`]
+/// Additionally, it is used to listen to changes in the client data via the [`Self::subscribe`]
 /// method and the [`StoreNotification`] type.
 #[allow(async_fn_in_trait, reason = "trait is only used in the workspace")]
 #[trait_variant::make(Send)]

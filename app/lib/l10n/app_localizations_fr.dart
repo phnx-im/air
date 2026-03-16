@@ -328,11 +328,11 @@ class AppLocalizationsFr extends AppLocalizations {
   String get usernameOnboarding_next => 'Suivant';
 
   @override
-  String get usernameOnboarding_userameInputName =>
+  String get usernameOnboarding_usernameInputName =>
       'Nom d\'utilisateur (facultatif)';
 
   @override
-  String get usernameOnboarding_userameInputHint =>
+  String get usernameOnboarding_usernameInputHint =>
       'Ajoutez un nom d\'utilisateur...';
 
   @override

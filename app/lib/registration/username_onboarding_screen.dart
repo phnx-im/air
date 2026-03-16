@@ -240,7 +240,7 @@ class _UsernameTextField extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(left: Spacings.xxs),
           child: Text(
-            loc.usernameOnboarding_userameInputName,
+            loc.usernameOnboarding_usernameInputName,
             style: TextStyle(
               fontSize: LabelFontSize.small2.size,
               color: colors.text.quaternary,
@@ -253,7 +253,7 @@ class _UsernameTextField extends StatelessWidget {
           focusNode: focusNode,
           textInputAction: TextInputAction.done,
           decoration: InputDecoration(
-            hintText: loc.usernameOnboarding_userameInputHint,
+            hintText: loc.usernameOnboarding_usernameInputHint,
             fillColor: colors.backgroundBase.tertiary,
           ),
           inputFormatters: const [UserHandleInputFormatter()],

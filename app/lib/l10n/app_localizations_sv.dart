@@ -323,10 +323,10 @@ class AppLocalizationsSv extends AppLocalizations {
   String get usernameOnboarding_next => 'Nästa';
 
   @override
-  String get usernameOnboarding_userameInputName => 'Användarnamn (valfritt)';
+  String get usernameOnboarding_usernameInputName => 'Användarnamn (valfritt)';
 
   @override
-  String get usernameOnboarding_userameInputHint =>
+  String get usernameOnboarding_usernameInputHint =>
       'Lägg till ett användarnamn...';
 
   @override

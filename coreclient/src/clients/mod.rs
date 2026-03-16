@@ -340,7 +340,7 @@ impl CoreUser {
         self.inner.store_notifications_tx.subscribe()
     }
 
-    /// Subcribes to pending store notifications.
+    /// Subscribes to pending store notifications.
     ///
     /// Unlike `subscribe_to_store_notifications`, this function does not remove stored
     /// notifications from the persisted queue.

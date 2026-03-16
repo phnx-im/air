@@ -642,17 +642,17 @@ abstract class AppLocalizations {
   /// **'Next'**
   String get usernameOnboarding_next;
 
-  /// No description provided for @usernameOnboarding_userameInputName.
+  /// No description provided for @usernameOnboarding_usernameInputName.
   ///
   /// In en, this message translates to:
   /// **'Username (optional)'**
-  String get usernameOnboarding_userameInputName;
+  String get usernameOnboarding_usernameInputName;
 
-  /// No description provided for @usernameOnboarding_userameInputHint.
+  /// No description provided for @usernameOnboarding_usernameInputHint.
   ///
   /// In en, this message translates to:
   /// **'Add a username...'**
-  String get usernameOnboarding_userameInputHint;
+  String get usernameOnboarding_usernameInputHint;
 
   /// No description provided for @userHandleScreen_title.
   ///
@@ -1656,7 +1656,7 @@ abstract class AppLocalizations {
   /// No description provided for @appOutdatedScreen_title.
   ///
   /// In en, this message translates to:
-  /// **'Sofware update required'**
+  /// **'Software update required'**
   String get appOutdatedScreen_title;
 
   /// No description provided for @appOutdatedScreen_message.

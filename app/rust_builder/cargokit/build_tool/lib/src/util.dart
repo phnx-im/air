@@ -124,8 +124,8 @@ ProcessResult runCommand(
       result: res,
     );
   } else {
-    log.info('Command ouput: ${res.stdout}');
-    log.info('Command err ouput: ${res.stderr}');
+    log.info('Command output: ${res.stdout}');
+    log.info('Command err output: ${res.stderr}');
     return res;
   }
 }

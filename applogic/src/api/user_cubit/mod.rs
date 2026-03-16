@@ -40,7 +40,7 @@ const DELETE_ACCOUNT_CONFIRMATION_TEXT: &str = "delete";
 
 /// State of the [`UserCubit`] which is the logged in user
 ///
-/// Opaque, cheaply clonable, copy-on-write type
+/// Opaque, cheaply cloneable, copy-on-write type
 ///
 /// Note: This has a prefix `Ui` to avoid conflicts with the `User`.
 //
@@ -123,7 +123,7 @@ pub enum AppState {
 /// system only once.
 ///
 /// Allows other cubits to listen to the messages fetched from the server. In this regard, it is
-/// special because it is a constuction entry point of other cubits.
+/// special because it is a construction entry point of other cubits.
 #[frb(opaque)]
 pub struct UserCubitBase {
     core: CubitCore<UiUser>,
@@ -192,7 +192,7 @@ impl UserCubitBase {
         &self.context.notification_service
     }
 
-    // Cubit inteface
+    // Cubit interface
 
     #[frb(getter, sync)]
     pub fn is_closed(&self) -> bool {
@@ -514,7 +514,7 @@ impl CubitContext {
 
 /// Places in the app where notifications in foreground are handled differently.
 ///
-/// Dervived from the [`NavigationState`].
+/// Derived from the [`NavigationState`].
 #[derive(Debug)]
 enum NotificationContext {
     Intro,

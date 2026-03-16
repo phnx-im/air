@@ -38,6 +38,18 @@ pub(crate) struct BlockedContact {
     blocked_at: DateTime<Utc>,
 }
 
+#[cfg(test)]
+impl BlockedContact {
+    pub(crate) fn new(user_id: UserId) -> Self {
+        use crate::user_profiles::display_name::DisplayName;
+        Self {
+            last_display_name: DisplayName::from_user_id(&user_id),
+            user_id,
+            blocked_at: Utc::now(),
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 #[error("Blocked contact")]
 pub struct BlockedContactError;
@@ -50,7 +62,7 @@ mod persistence {
     use super::*;
 
     impl BlockedContact {
-        pub(super) async fn store(
+        pub(crate) async fn store(
             &self,
             executor: impl SqliteExecutor<'_>,
             notifier: &mut StoreNotifier,

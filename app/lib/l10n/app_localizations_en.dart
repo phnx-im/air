@@ -321,10 +321,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get usernameOnboarding_next => 'Next';
 
   @override
-  String get usernameOnboarding_userameInputName => 'Username (optional)';
+  String get usernameOnboarding_usernameInputName => 'Username (optional)';
 
   @override
-  String get usernameOnboarding_userameInputHint => 'Add a username...';
+  String get usernameOnboarding_usernameInputHint => 'Add a username...';
 
   @override
   String get userHandleScreen_title => 'Add username';
@@ -933,7 +933,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Something went wrong on our end. Wait a moment, then try again.';
 
   @override
-  String get appOutdatedScreen_title => 'Sofware update required';
+  String get appOutdatedScreen_title => 'Software update required';
 
   @override
   String get appOutdatedScreen_message => 'Update to keep using Air';

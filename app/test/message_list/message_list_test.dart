@@ -21,7 +21,7 @@ import '../helpers.dart';
 import '../mocks.dart';
 
 // NB: do not forget to adjust this, when you add more content to render
-const highTestSize = Size(1080, 4050);
+const highTestSize = Size(1080, 4100);
 
 final chatId = 1.chatId();
 
@@ -36,6 +36,19 @@ final firstDeletedMessageContent = UiMimiContent(
   topicId: Uint8List(0),
   attachments: [],
   replaces: Uint8List(0),
+);
+
+final veryLongMimiContent = UiMimiContent(
+  topicId: Uint8List(0),
+  plainBody: '''Nice to see you both here! 👋
+
+This is a message with multiple lines. It should be properly displayed in the message bubble and split between multiple lines.''',
+  content: simpleMessage(
+    '''Nice to see you both here! 👋
+
+This is a message with multiple lines. It should be properly displayed in the message bubble and split between multiple lines.''',
+  ),
+  attachments: [],
 );
 
 final messages = [
@@ -146,18 +159,7 @@ final messages = [
         sender: 1.userId(),
         sent: true,
         edited: false,
-        content: UiMimiContent(
-          plainBody: '''Nice to see you both here! 👋
-
-This is a message with multiple lines. It should be properly displayed in the message bubble and split between multiple lines.''',
-          topicId: Uint8List(0),
-          content: simpleMessage(
-            '''Nice to see you both here! 👋
-
-This is a message with multiple lines. It should be properly displayed in the message bubble and split between multiple lines.''',
-          ),
-          attachments: [],
-        ),
+        content: veryLongMimiContent,
       ),
     ),
     position: UiFlightPosition.end,
@@ -295,7 +297,9 @@ This is a message with multiple lines. It should be properly displayed in the me
         content: UiMimiContent(
           topicId: Uint8List(0),
           plainBody: "This is an answer to a message I deleted locally",
-          content: simpleMessage("Hey, I am new here!"),
+          content: simpleMessage(
+            "This is an answer to a message I deleted locally",
+          ),
           attachments: [],
         ),
       ),
@@ -589,6 +593,118 @@ final attachmentMessages = [
   ),
 ];
 
+final replyMessages = [
+  // Long reply, short message
+  UiChatMessage(
+    id: 20.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:10:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 2.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          topicId: Uint8List(0),
+          plainBody: "Ok!",
+          content: simpleMessage("Ok!"),
+          attachments: [],
+        ),
+      ),
+    ),
+    inReplyToMessage: UiInReplyToMessage.resolved(
+      messageId: 1.messageId(),
+      sender: 3.userId(),
+      mimiContent: veryLongMimiContent,
+    ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.sent,
+  ),
+  // Short reply, long message
+  UiChatMessage(
+    id: 21.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:10:01.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 1.userId(),
+        sent: true,
+        edited: false,
+        content: veryLongMimiContent,
+      ),
+    ),
+    inReplyToMessage: UiInReplyToMessage.resolved(
+      messageId: 2.messageId(),
+      sender: 2.userId(),
+      mimiContent: UiMimiContent(
+        topicId: Uint8List(0),
+        plainBody: "Hi!",
+        content: simpleMessage("Hi!"),
+        attachments: [],
+      ),
+    ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.sent,
+  ),
+  // Reply and a single emoji message
+  UiChatMessage(
+    id: 22.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:10:02.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 2.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          topicId: Uint8List(0),
+          plainBody: "👍",
+          content: simpleMessage("👍"),
+          attachments: [],
+        ),
+      ),
+    ),
+    inReplyToMessage: UiInReplyToMessage.resolved(
+      messageId: 1.messageId(),
+      sender: 3.userId(),
+      mimiContent: firstMessageContent,
+    ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.sent,
+  ),
+  // Reply containing only emoji and some message
+  UiChatMessage(
+    id: 23.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:10:03.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 1.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          topicId: Uint8List(0),
+          plainBody: "That was exactly my reaction!",
+          content: simpleMessage("That was exactly my reaction!"),
+          attachments: [],
+        ),
+      ),
+    ),
+    inReplyToMessage: UiInReplyToMessage.resolved(
+      messageId: 3.messageId(),
+      sender: 2.userId(),
+      mimiContent: UiMimiContent(
+        topicId: Uint8List(0),
+        plainBody: "🎉🎊✨",
+        content: simpleMessage("🎉🎊✨"),
+        attachments: [],
+      ),
+    ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.sent,
+  ),
+];
+
 MessageCubit createMockMessageCubit({
   required UserCubit userCubit,
   required MessageState initialState,
@@ -714,14 +830,14 @@ void main() {
     });
 
     testWidgets('renders correctly with attachments', (tester) async {
-      tester.view.physicalSize = highTestSize;
+      tester.view.physicalSize = const Size(1080, 2400);
       addTearDown(() {
         tester.view.resetPhysicalSize();
       });
 
       when(
         () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(messages + attachmentMessages));
+      ).thenReturn(MockMessageListState(attachmentMessages));
       when(
         () => attachmentsRepository.loadImageAttachment(
           attachmentId: any(named: 'attachmentId'),
@@ -844,6 +960,28 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/message_list_disabled_read_receipts.png'),
+      );
+    });
+
+    testWidgets('renders correctly with replies of various sizes', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1080, 3000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      when(
+        () => messageListCubit.state,
+      ).thenReturn(MockMessageListState(replyMessages));
+
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+
+      await tester.pumpWidget(buildSubject());
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_list_with_replies.png'),
       );
     });
   });
