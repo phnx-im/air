@@ -445,7 +445,7 @@ async fn resync() {
 
     // Bob should have rejoined the group and should be able to send a message.
     setup
-        .send_message(chat_id, &bob, vec![&alice, &charlie])
+        .send_message(chat_id, &bob, vec![&alice, &charlie], None)
         .await;
 
     let alice_user = &setup.get_user(&alice).user;
@@ -521,7 +521,9 @@ async fn resync() {
     );
 
     // Messages should reach Charlie.
-    setup.send_message(chat_id, &bob, vec![&charlie]).await;
+    setup
+        .send_message(chat_id, &bob, vec![&charlie], None)
+        .await;
 
     // Charlie should also only see Bob in the group.
     let charlie_user = &setup.get_user(&charlie).user;

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use mimi_content::{MessageStatus, MimiContent};
+use mimi_content::{MessageStatus, MimiContent, NestedPart, NestedPartContent};
 use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
 
 use aircoreclient::{
@@ -22,7 +22,9 @@ async fn edit_message() {
     // Connect them
     let chat_alice_bob = setup.connect_users(&alice, &bob).await;
 
-    setup.send_message(chat_alice_bob, &alice, vec![&bob]).await;
+    setup
+        .send_message(chat_alice_bob, &alice, vec![&bob], None)
+        .await;
 
     setup.edit_message(chat_alice_bob, &alice, vec![&bob]).await;
 }
@@ -39,15 +41,18 @@ async fn delete_message() {
     // Connect them
     let chat_alice_bob = setup.connect_users(&alice, &bob).await;
 
-    setup.send_message(chat_alice_bob, &alice, vec![&bob]).await;
+    setup
+        .send_message(chat_alice_bob, &alice, vec![&bob], None)
+        .await;
+
+    let alice_user = &setup.get_user(&alice).user;
+    let last_message = alice_user
+        .last_message(chat_alice_bob)
+        .await
+        .unwrap()
+        .unwrap();
 
     let string = {
-        let alice_user = &setup.get_user(&alice).user;
-        let last_message = alice_user
-            .last_message(chat_alice_bob)
-            .await
-            .unwrap()
-            .unwrap();
         last_message
             .message()
             .mimi_content()
@@ -69,7 +74,7 @@ async fn delete_message() {
     assert_eq!(alice_user.global_unread_messages_count().await.unwrap(), 0);
 
     setup
-        .delete_message(chat_alice_bob, &alice, vec![&bob])
+        .delete_message(&alice, vec![&bob], last_message.id())
         .await;
 
     // After delete-for-everyone, Alice should still have 0 unread messages
@@ -83,6 +88,113 @@ async fn delete_message() {
             .await,
         Vec::<String>::new()
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Delete message that was replied to", skip_all)]
+async fn delete_replied_to_message() {
+    let mut setup = TestBackend::single().await;
+
+    // Create alice and bob
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    // Connect them
+    let chat_alice_bob = setup.connect_users(&alice, &bob).await;
+
+    // Alice says hi to Bob
+    let (alice_sent_message_id, alice_sent_message_mimi_id) = setup
+        .send_message(chat_alice_bob, &alice, vec![&bob], None)
+        .await;
+
+    // Bob says hi to Alice
+    let (bob_sent_message_id, bob_sent_message_mimi_id) = setup
+        .send_message(chat_alice_bob, &bob, vec![&alice], None)
+        .await;
+
+    // Bob replies to Alice
+    let (bob_replies_to_alice_message_id, _) = setup
+        .send_message(
+            chat_alice_bob,
+            &bob,
+            vec![&alice],
+            Some(&alice_sent_message_mimi_id),
+        )
+        .await;
+
+    // Bob replies to his own message
+    let (bob_replies_to_bob_message_id, _) = setup
+        .send_message(
+            chat_alice_bob,
+            &bob,
+            vec![&alice],
+            Some(&bob_sent_message_mimi_id),
+        )
+        .await;
+
+    // Alice (sender) should have 3 unread messages
+    {
+        let alice_user = &setup.get_user(&alice).user;
+        assert_eq!(alice_user.unread_messages_count(chat_alice_bob).await, 3);
+        assert_eq!(alice_user.global_unread_messages_count().await.unwrap(), 3);
+    }
+
+    // Alice deletes her original message for everyone
+    setup
+        .delete_message(&alice, vec![&bob], alice_sent_message_id)
+        .await;
+
+    // Check that the reply show that they're deleted on Alice's device
+    let alice_user = &setup.get_user(&alice).user;
+    let chat_messages_on_device_from_alice =
+        alice_user.messages(chat_alice_bob, 100).await.unwrap();
+
+    // Find all reply references on Alice's device and check them all
+    let all_in_reply_to_mimi_ids: Vec<_> = chat_messages_on_device_from_alice
+        .iter()
+        .filter_map(|cm| Some(cm.in_reply_to()?.0))
+        .collect();
+
+    // we still have two replies
+    assert_eq!(all_in_reply_to_mimi_ids.len(), 2);
+
+    // Now we do the same on Bob's device, with a twist
+    let bob_user = &setup.get_user(&bob).user;
+
+    // Bob deletes his original message locally
+    bob_user
+        .delete_message_locally(bob_sent_message_id)
+        .await
+        .unwrap();
+
+    let chat_messages_on_device_from_bob = bob_user.messages(chat_alice_bob, 100).await.unwrap();
+
+    let all_in_reply_to_mimi_ids: Vec<_> = chat_messages_on_device_from_bob
+        .iter()
+        .filter_map(|cm| Some(cm.in_reply_to()?.0))
+        .collect();
+
+    dbg!(&all_in_reply_to_mimi_ids);
+
+    // we should have only one reply (from alice, redacted)
+    assert_eq!(all_in_reply_to_mimi_ids.len(), 1);
+
+    // Check that the messages Bob replied to cannot be accessed (invalid record)
+    let chat_messages_on_device_from_bob = bob_user.messages(chat_alice_bob, 100).await.unwrap();
+    let bob_last_message = chat_messages_on_device_from_bob.last().unwrap();
+    match bob_last_message.in_reply_to() {
+        // we should not be able to find the original message (it has been deleted)
+        Some((mimi_id, None)) => {
+            assert_eq!(
+                chat_messages_on_device_from_bob
+                    .iter()
+                    .filter(|m| m.message().mimi_id() == Some(mimi_id))
+                    .count(),
+                0
+            );
+        }
+        _ => panic!("the last message on Bob's device should not be able to resolve the reply"),
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -376,7 +488,7 @@ async fn delete_message_in_group() {
 
     // Alice sends a message to the group
     setup
-        .send_message(group_chat, &alice, vec![&bob, &charlie])
+        .send_message(group_chat, &alice, vec![&bob, &charlie], None)
         .await;
 
     // Get the message content before deletion
@@ -399,7 +511,7 @@ async fn delete_message_in_group() {
 
     // Alice deletes the message
     setup
-        .delete_message(group_chat, &alice, vec![&bob, &charlie])
+        .delete_message(&alice, vec![&bob, &charlie], last_message.id())
         .await;
 
     // Verify the content is no longer in any database
@@ -559,16 +671,16 @@ async fn delete_edited_message() {
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     // Alice sends a message
-    setup.send_message(chat_id, &alice, vec![&bob]).await;
+    setup.send_message(chat_id, &alice, vec![&bob], None).await;
 
     // Alice edits the message
     setup.edit_message(chat_id, &alice, vec![&bob]).await;
 
+    let alice_user = &setup.get_user(&alice).user;
+    let last_message = alice_user.last_message(chat_id).await.unwrap().unwrap();
+
     // Get the edited content for verification
     let edited_content = {
-        let alice_user = &setup.get_user(&alice).user;
-        let last_message = alice_user.last_message(chat_id).await.unwrap().unwrap();
-
         // Verify the message has been edited
         assert!(
             last_message.edited_at().is_some(),
@@ -592,7 +704,9 @@ async fn delete_edited_message() {
     );
 
     // Alice deletes the edited message
-    setup.delete_message(chat_id, &alice, vec![&bob]).await;
+    setup
+        .delete_message(&alice, vec![&bob], last_message.id())
+        .await;
 
     // Verify the edited content is no longer present
     assert_eq!(

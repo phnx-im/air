@@ -12,7 +12,7 @@ use std::{
 use airbackend::settings::RateLimitsSettings;
 use aircommon::{
     OpenMlsRand, RustCrypto,
-    identifiers::{Fqdn, UserHandle, UserId},
+    identifiers::{Fqdn, MimiId, UserHandle, UserId},
 };
 use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, store::Store, *};
 use airserver::network_provider::MockNetworkProvider;
@@ -582,7 +582,7 @@ impl TestBackend {
         assert_eq!(user1_unread_messages, 0);
 
         // Send messages both ways to ensure it works.
-        self.send_message(user1_chat_id, user1_id, vec![&user2_id])
+        self.send_message(user1_chat_id, user1_id, vec![&user2_id], None)
             .await;
 
         let user1_unread_messages = self
@@ -594,7 +594,7 @@ impl TestBackend {
             .await;
         assert_eq!(user1_unread_messages, 0);
 
-        self.send_message(user1_chat_id, &user2_id, vec![user1_id])
+        self.send_message(user1_chat_id, &user2_id, vec![user1_id], None)
             .await;
 
         let user1_unread_messages = self
@@ -653,7 +653,8 @@ impl TestBackend {
         chat_id: ChatId,
         sender_id: &UserId,
         recipients: Vec<&UserId>,
-    ) -> MessageId {
+        in_reply_to: Option<&MimiId>,
+    ) -> (MessageId, MimiId) {
         let recipient_strings = recipients
             .iter()
             .map(|n| format!("{n:?}"))
@@ -668,7 +669,8 @@ impl TestBackend {
             .map(char::from)
             .collect();
         let salt: [u8; 16] = RustCrypto::default().random_array().unwrap();
-        let orig_message = MimiContent::simple_markdown_message(message, salt);
+        let mut orig_message = MimiContent::simple_markdown_message(message, salt);
+        orig_message.in_reply_to = in_reply_to.map(|id| ByteBuf::from(id.as_slice()));
         let test_sender = self.users.get_mut(sender_id).unwrap();
         let sender = &mut test_sender.user;
 
@@ -738,7 +740,7 @@ impl TestBackend {
         let delivery_receipts = sender.qs_fetch_messages().await.unwrap();
         sender.fully_process_qs_messages(delivery_receipts).await;
 
-        message.id()
+        (message.id(), *message.message().mimi_id().unwrap())
     }
 
     pub async fn edit_message(
@@ -817,17 +819,16 @@ impl TestBackend {
 
     pub async fn delete_message(
         &mut self,
-        chat_id: ChatId,
         sender_id: &UserId,
         recipients: Vec<&UserId>,
+        message_id: MessageId,
     ) -> MessageId {
         let test_sender = self.users.get_mut(sender_id).unwrap();
         let sender = &mut test_sender.user;
 
-        let last_messages = sender.messages(chat_id, 1).await.unwrap();
-        assert_eq!(last_messages.len(), 1);
-        let last_message = &last_messages[0];
-        let message_id = last_message.id();
+        let message = sender.message(message_id).await.unwrap().unwrap();
+        let chat_id = message.chat_id();
+        let message_id = message.id();
 
         // Before sending a message, the sender must first fetch and process its QS messages.
         let sender_qs_messages = sender.qs_fetch_messages().await.unwrap();
@@ -1194,7 +1195,7 @@ impl TestBackend {
         // Now send messages to check that the group works properly. This also
         // ensures that everyone involved has picked up their messages from the
         // QS and that notifications are flushed.
-        self.send_message(chat_id, inviter_id, invitees.clone())
+        self.send_message(chat_id, inviter_id, invitees.clone(), None)
             .await;
         for invitee_id in &invitees {
             let recipients: Vec<_> = invitees
@@ -1203,7 +1204,8 @@ impl TestBackend {
                 .chain([&inviter_id].into_iter())
                 .cloned()
                 .collect();
-            self.send_message(chat_id, invitee_id, recipients).await;
+            self.send_message(chat_id, invitee_id, recipients, None)
+                .await;
         }
     }
 
