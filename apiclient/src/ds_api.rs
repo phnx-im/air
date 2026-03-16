@@ -476,16 +476,24 @@ impl ApiClient {
 
     /// Request a group ID
     ///
-    /// Returns a new group ID and group profile provisioning response.
+    /// Returns a new group ID. A group profile provisioning response is returned if
+    /// `provision_group_profile_size` is set.
     pub async fn ds_request_group_id(
         &self,
-        provision_group_profile: bool,
+        provision_group_profile_size: Option<usize>,
     ) -> Result<(GroupId, Option<ProvisionAttachmentResponse>), DsRequestError> {
+        let group_profile_size: Option<i64> = provision_group_profile_size
+            .map(|size| size.try_into())
+            .transpose()
+            .inspect_err(|_| {
+                error!("Failed to convert group profile size to i64");
+            })
+            .map_err(|_| DsRequestError::LibraryError)?;
         let response = self
             .ds_grpc_client()
             .request_group_id(RequestGroupIdRequest {
                 client_metadata: Some(self.metadata().clone()),
-                provision_group_profile,
+                group_profile_size,
             })
             .await?
             .into_inner();

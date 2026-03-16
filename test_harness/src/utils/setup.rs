@@ -162,13 +162,25 @@ enum ServerUrl {
     Local(SocketAddr),
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct TestBackendParams {
     pub rate_limits: Option<RateLimitsSettings>,
     pub client_version_req: Option<VersionReq>,
     pub invitation_only: bool,
     pub unredeemable_code: Option<String>,
-    pub max_attachment_size: Option<u64>,
+    pub max_attachment_size: u64,
+}
+
+impl Default for TestBackendParams {
+    fn default() -> Self {
+        Self {
+            rate_limits: None,
+            client_version_req: None,
+            invitation_only: false,
+            unredeemable_code: None,
+            max_attachment_size: 20 * 1024 * 1024,
+        }
+    }
 }
 
 impl TestBackend {
