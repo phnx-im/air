@@ -242,7 +242,7 @@ impl PendingChatOperation {
 
                 // Check if this chat operation is still pending for the chat. It might be, that it
                 // was already processed and merged by the QS path. The queue handler is running
-                // concurrently and might have aquired a transaction *before* this handler.
+                // concurrently and might have acquired a transaction *before* this handler.
                 if is_commit
                     && !PendingChatOperation::is_pending_for_chat(txn.as_mut(), chat.id()).await?
                 {
