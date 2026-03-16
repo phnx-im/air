@@ -67,7 +67,7 @@ impl EventLoop {
         (event_loop, event_loop_sender, cancel)
     }
 
-    /// Spawns a taks running the event loop.
+    /// Spawns a task running the event loop.
     ///
     /// The task stops when one of the following conditions is met:
     /// * the cancellation token from the creation of the event loop is cancelled

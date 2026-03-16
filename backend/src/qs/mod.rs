@@ -58,7 +58,7 @@
 //!
 //! They can then request messages with a given range of sequence numbers. When
 //! receiving such a request, the QS deletes any messages with sequence numbers
-//! smaller than the smalles requested one and responds with the requested
+//! smaller than the smallest requested one and responds with the requested
 //! messages.
 
 use aircommon::{

@@ -41,7 +41,7 @@ split across multiple crates:
   protocol in the context of a messaging application. Just like the `backend`,
   the `coreclient` uses a type-based message verification approach. The crate
   can be used to instantiate and persist (via Sqlite) multiple clients
-  parallely.
+  parallelly.
 - `apiclient`: A shallow layer that the `coreclient` calls to interact with the
   `backend` via the `server` using gRPC.
 - `applogic`: A layer using cubits to expose the functionality of the
