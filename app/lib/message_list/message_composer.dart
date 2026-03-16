@@ -28,7 +28,6 @@ import 'package:air/l10n/l10n.dart' show AppLocalizations;
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/typography/font_size.dart';
-import 'package:air/util/platform.dart';
 import 'package:provider/provider.dart';
 
 import 'package:air/util/platform.dart'
@@ -113,25 +112,24 @@ class _MessageComposerState extends State<MessageComposer>
       switch (state.chat?.draft) {
         // Initially loaded draft
         case final draft? when draft.isCommitted && !isDraftLoaded:
-          // If input controller is not empty, then the user already typed something,
-          // and we don't want to overwrite it.
           isDraftLoaded = true;
+          // if input is not empty, then the user already typed something,
+          // and we don't want to overwrite it.
           if (_inputController.text.isEmpty) {
             _inputController.text = draft.message;
-            if (PlatformExtension.isDesktop) {
-              _focusNode.requestFocus();
-            }
           }
+          _focusNode.requestFocus(); // open keyboard when a chat has a draft
         // Editing ID has changed
         case final draft when draft?.editingId != currentEditingId:
           _inputController.text = draft?.message ?? "";
           currentEditingId = draft?.editingId;
-          _focusNode.requestFocus();
+          _focusNode.requestFocus(); // open keyboard when switching edits
         // Reply ID has changed
         case final draft when draft?.inReplyTo?.$1 != currentInReplyToId:
-          _inputController.text = draft?.message ?? "";
           currentInReplyToId = draft?.inReplyTo?.$1;
-          _focusNode.requestFocus();
+          // we purposefully do not reset the already typed text, as we
+          // only want to (re)set the reply.
+          _focusNode.requestFocus(); // open keybord when switching reply to
         default:
       }
     });
