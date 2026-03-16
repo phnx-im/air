@@ -132,7 +132,7 @@ class _MessageComposerState extends State<MessageComposer>
           currentInReplyToId = draft?.inReplyTo?.$1;
           // we purposefully do not reset the already typed text, as we
           // only want to (re)set the reply.
-          requestFocus = true; // open keybord when switching reply to
+          requestFocus = true; // open keyboard when switching reply to
         default:
       }
 
