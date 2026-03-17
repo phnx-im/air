@@ -98,10 +98,8 @@ pub(crate) async fn spawn_app(
         .storage
         .clone()
         .expect("no storage configuration");
-    if let Some(max_size) = max_attachment_size {
-        storage_config.max_attachment_size = max_size;
-        storage_config.require_content_length = true;
-    }
+    storage_config.max_attachment_size = max_attachment_size;
+    storage_config.require_content_length = true;
     ds.set_storage(Storage::new(storage_config));
 
     // New database name for the AS provider
