@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
 name: Setup sccache
 description: Install and start the sccache daemon
 inputs:
@@ -35,10 +38,7 @@ runs:
       uses: gacts/run-and-post-run@v1
       with:
         run: |
-          if [[ "$GITHUB_REF_NAME" == "main" ]]; then
-            # Overwrite the contents in the cache to start fresh from main
-            export SCCACHE_RECACHE=y
-          fi
+          if [[ "$GITHUB_REF_NAME" == "main" ]]; then export SCCACHE_RECACHE=y; fi
           sccache --start-server
           echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
           export CC="sccache /usr/lib/llvm-18/bin/clang"
