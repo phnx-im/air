@@ -879,21 +879,26 @@ class _MessageContent extends StatelessWidget {
         ),
         child: DefaultTextStyle.merge(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .end,
             children: [
-              if (inReplyTo != null)
-                Padding(
-                  padding: const EdgeInsets.only(
-                    left: Spacings.xs,
-                    right: Spacings.xs,
-                    top: Spacings.xs,
-                  ),
-                  child: InReplyToBubble(
-                    inReplyTo: inReplyTo,
-                    backgroundColor: colors.fill.secondary,
-                  ),
-                ),
-              ...columnChildren,
+              Column(
+                crossAxisAlignment: .start,
+                children: [
+                  if (inReplyTo != null)
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        left: Spacings.xs,
+                        right: Spacings.xs,
+                        top: Spacings.xs,
+                      ),
+                      child: InReplyToBubble(
+                        inReplyTo: inReplyTo,
+                        backgroundColor: colors.fill.secondary,
+                      ),
+                    ),
+                  ...columnChildren,
+                ],
+              ),
               if (isEdited)
                 Padding(
                   padding: const EdgeInsets.only(
