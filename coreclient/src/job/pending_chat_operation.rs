@@ -239,6 +239,15 @@ impl PendingChatOperation {
                     bail!("Chat not found for group: {:?}", self.group.group_id());
                 };
 
+                // Check if this chat operation is still pending for the chat. It might be, that it
+                // was already processed and merged by the QS path. The queue handler is running
+                // concurrently and might have acquired a transaction *before* this handler.
+                if is_commit
+                    && !PendingChatOperation::is_pending_for_chat(txn.as_mut(), chat.id()).await?
+                {
+                    return Ok(vec![]);
+                }
+
                 // Get the past members before merging the commit
                 let past_members: Vec<_> = if is_delete {
                     self.group.members().collect()

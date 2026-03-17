@@ -54,52 +54,55 @@ impl CreateChat {
             http_client,
             ..
         } = context;
-        // If we can't get a new group ID, we can't create the chat. Getting a
-        // new group ID is repeatable.
-        let api_client = api_clients.default_client()?;
-        let (group_id, group_profile_provisioning) = api_client.ds_request_group_id(true).await?;
-        let own_user_id = key_store.signing_key.credential().user_id();
 
-        // Encrypt and upload the group profile
+        // First encrypt the group profile to get its size
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()
             .context("Failed to generate identity link wrapper key")?;
         let encrypted_title =
             EncryptedGroupTitle::encrypt(&chat_attributes.title, &identity_link_wrapper_key)
                 .context("Failed to encrypt group title")?;
 
+        let group_profile = GroupProfile::new(
+            chat_attributes.title.clone(),
+            None,
+            chat_attributes
+                .picture
+                .as_ref()
+                .map(|p| p.as_slice().into()),
+        );
+        let (group_profile_bytes, group_profile_builder) = group_profile
+            .encrypt(&identity_link_wrapper_key)
+            .context("Failed to encrypt group profile")?;
+
+        // If we can't get a new group ID, we can't create the chat. Getting a
+        // new group ID is repeatable.
+        let api_client = api_clients.default_client()?;
+        let (group_id, group_profile_provisioning) = api_client
+            .ds_request_group_id(Some(group_profile_bytes.len()))
+            .await?;
+
         let external_group_profile = if let Some(provisioning) = group_profile_provisioning
             && let Some(object_id) = provisioning.object_id
         {
-            let group_profile = GroupProfile::new(
-                chat_attributes.title.clone(),
-                None,
-                chat_attributes
-                    .picture
-                    .as_ref()
-                    .map(|p| p.as_slice().into()),
-            );
-            let (bytes, builder) = group_profile
-                .encrypt(&identity_link_wrapper_key)
-                .context("Failed to encrypt group profile")?;
-
             let mut request = http_client.put(provisioning.upload_url);
             for header in provisioning.upload_headers {
                 request = request.header(header.key, header.value);
             }
             request
-                .body(bytes)
+                .body(group_profile_bytes)
                 .send()
                 .await
                 .context("Failed to upload group profile")?
                 .error_for_status()
                 .context("Failed to upload group profile")?;
 
-            Some(builder.build(object_id.into()))
+            Some(group_profile_builder.build(object_id.into()))
         } else {
             error!("Unexpected group profile provisioning response");
             None
         };
 
+        // Encode the group data to be stored in the group context
         let group_data_bytes = GroupData {
             title: chat_attributes.title.clone(),
             picture: chat_attributes.picture.clone(),
@@ -107,6 +110,8 @@ impl CreateChat {
             external_group_profile,
         }
         .encode()?;
+
+        let own_user_id = key_store.signing_key.credential().user_id();
 
         // Create the group. If the query to the DS fails later on, we just
         // clean up the group, so this is repeatable.

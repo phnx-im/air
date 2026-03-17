@@ -33,8 +33,12 @@ async fn communication_and_persistence() {
     let chat_alice_bob = setup.connect_users(&alice, &bob).await;
 
     // Test the connection chat by sending messages back and forth.
-    setup.send_message(chat_alice_bob, &alice, vec![&bob]).await;
-    setup.send_message(chat_alice_bob, &bob, vec![&alice]).await;
+    setup
+        .send_message(chat_alice_bob, &alice, vec![&bob], None)
+        .await;
+    setup
+        .send_message(chat_alice_bob, &bob, vec![&alice], None)
+        .await;
 
     let count_18 = setup
         .scan_database("\x18", true, vec![&alice, &bob])
