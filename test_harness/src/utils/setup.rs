@@ -171,6 +171,18 @@ pub struct TestBackendParams {
     pub max_attachment_size: Option<u64>,
 }
 
+pub struct SentMessage<'a> {
+    pub own_message_id: MessageId,
+    pub mimi_id: MimiId,
+    recipients_message_ids: HashMap<&'a UserId, MessageId>,
+}
+
+impl SentMessage<'_> {
+    pub fn recipient_message_id(&self, user_id: &UserId) -> MessageId {
+        *self.recipients_message_ids.get(user_id).unwrap()
+    }
+}
+
 impl TestBackend {
     pub async fn single() -> Self {
         Self::single_with_params(Default::default()).await
@@ -648,13 +660,13 @@ impl TestBackend {
     /// Sends a message from the given sender to the given recipients. Before
     /// sending a message, the sender picks up its QS messages to make sure it's
     /// up to date.
-    pub async fn send_message(
+    pub async fn send_message<'a>(
         &mut self,
         chat_id: ChatId,
-        sender_id: &UserId,
-        recipients: Vec<&UserId>,
-        in_reply_to: Option<&MimiId>,
-    ) -> (MessageId, MimiId) {
+        sender_id: &'a UserId,
+        recipients: Vec<&'a UserId>,
+        in_reply_to: Option<&'a MimiId>,
+    ) -> SentMessage<'a> {
         let recipient_strings = recipients
             .iter()
             .map(|n| format!("{n:?}"))
@@ -708,7 +720,8 @@ impl TestBackend {
             )))
         );
 
-        for recipient_id in &recipients {
+        let mut recipients_message_ids = HashMap::new();
+        for recipient_id in recipients {
             let recipient = self.users.get_mut(recipient_id).unwrap();
             let recipient_user = &mut recipient.user;
 
@@ -721,6 +734,8 @@ impl TestBackend {
             recipient_user.outbound_service().run_once().await;
 
             let message = messages.new_messages.last().unwrap();
+            recipients_message_ids.insert(recipient_id, message.id());
+
             let chat = recipient_user.chat(&message.chat_id()).await.unwrap();
             let group_id = chat.group_id();
 
@@ -740,7 +755,11 @@ impl TestBackend {
         let delivery_receipts = sender.qs_fetch_messages().await.unwrap();
         sender.fully_process_qs_messages(delivery_receipts).await;
 
-        (message.id(), *message.message().mimi_id().unwrap())
+        SentMessage {
+            own_message_id: message.id(),
+            mimi_id: *message.message().mimi_id().unwrap(),
+            recipients_message_ids,
+        }
     }
 
     pub async fn edit_message(
@@ -860,15 +879,7 @@ impl TestBackend {
 
             let received_message = messages.new_messages.last().unwrap();
             // Verify the message was deleted (has NullPart content)
-            assert_eq!(
-                received_message
-                    .message()
-                    .mimi_content()
-                    .unwrap()
-                    .nested_part
-                    .part,
-                NestedPartContent::NullPart
-            );
+            assert!(received_message.message().is_deleted());
         }
         message.id()
     }

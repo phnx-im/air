@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use mimi_content::{MessageStatus, MimiContent, NestedPart, NestedPartContent};
+use mimi_content::{MessageStatus, MimiContent, NestedPartContent};
 use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
 
 use aircoreclient::{
@@ -91,110 +91,134 @@ async fn delete_message() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Delete message that was replied to", skip_all)]
-async fn delete_replied_to_message() {
+#[tracing::instrument(name = "Delete messages that were replied to", skip_all)]
+async fn delete_messages_and_check_replies() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
 
-    // Create alice and bob
+    // Create Alice and Bob and connect them
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
-
-    // Connect them
     let chat_alice_bob = setup.connect_users(&alice, &bob).await;
 
-    // Alice says hi to Bob
-    let (alice_sent_message_id, alice_sent_message_mimi_id) = setup
+    let alice_says_hi_to_bob = setup
         .send_message(chat_alice_bob, &alice, vec![&bob], None)
         .await;
 
-    // Bob says hi to Alice
-    let (bob_sent_message_id, bob_sent_message_mimi_id) = setup
+    let bob_says_hi_to_alice = setup
         .send_message(chat_alice_bob, &bob, vec![&alice], None)
         .await;
 
-    // Bob replies to Alice
-    let (bob_replies_to_alice_message_id, _) = setup
+    let bob_replies_to_alice = setup
         .send_message(
             chat_alice_bob,
             &bob,
             vec![&alice],
-            Some(&alice_sent_message_mimi_id),
+            Some(&alice_says_hi_to_bob.mimi_id),
         )
         .await;
 
     // Bob replies to his own message
-    let (bob_replies_to_bob_message_id, _) = setup
+    let bob_replies_to_self = setup
         .send_message(
             chat_alice_bob,
             &bob,
             vec![&alice],
-            Some(&bob_sent_message_mimi_id),
+            Some(&bob_says_hi_to_alice.mimi_id),
         )
         .await;
 
-    // Alice (sender) should have 3 unread messages
-    {
-        let alice_user = &setup.get_user(&alice).user;
-        assert_eq!(alice_user.unread_messages_count(chat_alice_bob).await, 3);
-        assert_eq!(alice_user.global_unread_messages_count().await.unwrap(), 3);
-    }
-
     // Alice deletes her original message for everyone
     setup
-        .delete_message(&alice, vec![&bob], alice_sent_message_id)
+        .delete_message(&alice, vec![&bob], alice_says_hi_to_bob.own_message_id)
         .await;
 
     // Check that the reply show that they're deleted on Alice's device
     let alice_user = &setup.get_user(&alice).user;
-    let chat_messages_on_device_from_alice =
-        alice_user.messages(chat_alice_bob, 100).await.unwrap();
 
-    // Find all reply references on Alice's device and check them all
-    let all_in_reply_to_mimi_ids: Vec<_> = chat_messages_on_device_from_alice
-        .iter()
-        .filter_map(|cm| Some(cm.in_reply_to()?.0))
-        .collect();
+    let alice_says_hi_to_bob = alice_user
+        .message(alice_says_hi_to_bob.own_message_id)
+        .await?
+        .unwrap();
+    let alice_says_hi_to_bob_mimi_id = *alice_says_hi_to_bob.message().mimi_id().unwrap();
+    assert!(
+        alice_says_hi_to_bob.message().is_deleted(),
+        "Alice's first message should be redacted (deleted)"
+    );
 
-    // we still have two replies
-    assert_eq!(all_in_reply_to_mimi_ids.len(), 2);
-
-    // Now we do the same on Bob's device, with a twist
-    let bob_user = &setup.get_user(&bob).user;
-
-    // Bob deletes his original message locally
-    bob_user
-        .delete_message_locally(bob_sent_message_id)
-        .await
+    let bob_reply_to_alice = alice_user
+        .message(bob_replies_to_alice.recipient_message_id(&alice))
+        .await?
         .unwrap();
 
-    let chat_messages_on_device_from_bob = bob_user.messages(chat_alice_bob, 100).await.unwrap();
+    let (bob_reply_to_alice_irt_mimi_id, bob_reply_to_alice_irt) =
+        bob_reply_to_alice.in_reply_to().cloned().unwrap();
 
-    let all_in_reply_to_mimi_ids: Vec<_> = chat_messages_on_device_from_bob
-        .iter()
-        .filter_map(|cm| Some(cm.in_reply_to()?.0))
-        .collect();
+    assert_eq!(
+        bob_reply_to_alice_irt_mimi_id, alice_says_hi_to_bob_mimi_id,
+        "Bob's reply to Alice should point to the updated empty MIMI content"
+    );
 
-    dbg!(&all_in_reply_to_mimi_ids);
+    assert_eq!(
+        bob_reply_to_alice_irt
+            .unwrap()
+            .mimi_content
+            .as_ref()
+            .unwrap()
+            .nested_part
+            .part,
+        NestedPartContent::NullPart,
+        "Bob's reply to Alice should have a loaded empty MIMI content"
+    );
 
-    // we should have only one reply (from alice, redacted)
-    assert_eq!(all_in_reply_to_mimi_ids.len(), 1);
+    // Now we do the same on Bob's device, with a twist...
+    let bob_user = &setup.get_user(&bob).user;
 
-    // Check that the messages Bob replied to cannot be accessed (invalid record)
-    let chat_messages_on_device_from_bob = bob_user.messages(chat_alice_bob, 100).await.unwrap();
-    let bob_last_message = chat_messages_on_device_from_bob.last().unwrap();
-    match bob_last_message.in_reply_to() {
-        // we should not be able to find the original message (it has been deleted)
-        Some((mimi_id, None)) => {
-            assert_eq!(
-                chat_messages_on_device_from_bob
-                    .iter()
-                    .filter(|m| m.message().mimi_id() == Some(mimi_id))
-                    .count(),
-                0
-            );
-        }
-        _ => panic!("the last message on Bob's device should not be able to resolve the reply"),
-    }
+    // ...bob also deletes his original message locally
+    bob_user
+        .delete_message_locally(bob_says_hi_to_alice.own_message_id)
+        .await?;
+
+    // [1] check that the message that Alice deleted for everyone
+    // is also redacted (marked as deleted) on Bob's device
+    let bob_replies_to_alice = bob_user
+        .message(bob_replies_to_alice.own_message_id)
+        .await?
+        .unwrap();
+
+    let (bob_replies_to_alice_irt_mimi_id, bob_replies_to_alice_irt) =
+        bob_replies_to_alice.in_reply_to().cloned().unwrap();
+
+    assert_eq!(
+        bob_replies_to_alice_irt_mimi_id, alice_says_hi_to_bob_mimi_id,
+        "Bob's reply to Alice should point to "
+    );
+
+    assert_eq!(
+        bob_replies_to_alice_irt
+            .unwrap()
+            .mimi_content
+            .unwrap()
+            .nested_part
+            .part,
+        NestedPartContent::NullPart,
+        "Bob's reply to Alice should have a loaded empty MIMI content"
+    );
+
+    // [2] check that the reply from Bob to self has a dangling reply
+    // reference (invalid MIMI ID).
+    let bob_replies_to_self = bob_user
+        .message(bob_replies_to_self.own_message_id)
+        .await?
+        .unwrap();
+
+    let (_, bob_replies_to_self_irt) = bob_replies_to_self.in_reply_to().unwrap();
+
+    assert!(
+        bob_replies_to_self_irt.is_none(),
+        "Bob reply to self should not be loaded (invalid MIMI ID)"
+    );
+
+    Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -537,13 +561,7 @@ async fn delete_message_in_group() {
         );
         let deleted_message = content_messages.last().unwrap();
         assert!(
-            deleted_message
-                .message()
-                .mimi_content()
-                .unwrap()
-                .nested_part
-                .part
-                == mimi_content::NestedPartContent::NullPart,
+            deleted_message.message().is_deleted(),
             "Deleted message should have NullPart content"
         );
     }
@@ -648,12 +666,9 @@ async fn delete_message_preserves_other_messages() {
     assert!(third_msg.is_some(), "Third message should still exist");
 
     // Check that deleted message is now NullPart
-    let deleted_msg = bob_test_messages.iter().find(|m| {
-        m.message()
-            .mimi_content()
-            .map(|c| c.nested_part.part == mimi_content::NestedPartContent::NullPart)
-            .unwrap_or(false)
-    });
+    let deleted_msg = bob_test_messages
+        .into_iter()
+        .find(|m| m.message().is_deleted());
     assert!(
         deleted_msg.is_some(),
         "Deleted message should exist with NullPart"
@@ -727,13 +742,7 @@ async fn delete_edited_message() {
 
     let deleted_message = content_messages.last().unwrap();
     assert!(
-        deleted_message
-            .message()
-            .mimi_content()
-            .unwrap()
-            .nested_part
-            .part
-            == mimi_content::NestedPartContent::NullPart,
+        deleted_message.message().is_deleted(),
         "Deleted message should have NullPart content"
     );
     assert_eq!(
@@ -914,9 +923,8 @@ async fn delete_message_with_attachment() {
             .iter()
             .find(|m| m.id() == message_id)
             .expect("Alice should still have the message");
-        assert_eq!(
-            deleted.message().mimi_content().unwrap().nested_part.part,
-            mimi_content::NestedPartContent::NullPart,
+        assert!(
+            deleted.message().is_deleted(),
             "Deleted message should have NullPart content for Alice"
         );
     }
@@ -927,16 +935,12 @@ async fn delete_message_with_attachment() {
         let messages = bob_user.messages(chat_id, 10).await.unwrap();
         // Find the message that was originally an attachment but is now NullPart
         let deleted = messages
-            .iter()
+            .into_iter()
             .filter(|m| m.message().mimi_content().is_some())
-            .find(|m| {
-                m.message().mimi_content().unwrap().nested_part.part
-                    == mimi_content::NestedPartContent::NullPart
-            })
+            .find(|m| m.message().is_deleted())
             .expect("Bob should have a deleted (NullPart) message");
-        assert_eq!(
-            deleted.message().mimi_content().unwrap().nested_part.part,
-            mimi_content::NestedPartContent::NullPart,
+        assert!(
+            deleted.message().is_deleted(),
             "Deleted message should have NullPart content for Bob"
         );
     }
@@ -960,10 +964,7 @@ async fn delete_message_with_attachment() {
         let deleted_msg = messages
             .iter()
             .filter(|m| m.message().mimi_content().is_some())
-            .find(|m| {
-                m.message().mimi_content().unwrap().nested_part.part
-                    == mimi_content::NestedPartContent::NullPart
-            })
+            .find(|m| m.message().is_deleted())
             .expect("Bob should have the deleted message");
 
         let bob_attachment_ids = bob_user

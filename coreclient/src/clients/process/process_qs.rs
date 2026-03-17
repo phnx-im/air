@@ -1072,7 +1072,6 @@ async fn handle_message_edit(
     replaces: MimiId,
     content: MimiContent,
 ) -> anyhow::Result<ChatMessage> {
-    panic!("shit");
     let is_delete = content.nested_part.part == NestedPartContent::NullPart;
 
     // First try to directly load the original message by mimi id (non-edited message) and fallback

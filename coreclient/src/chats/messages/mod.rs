@@ -427,6 +427,13 @@ impl Message {
             _ => None,
         }
     }
+
+    pub fn is_deleted(&self) -> bool {
+        self.mimi_content().is_some_and(|c| {
+            c.nested_part.disposition == mimi_content::Disposition::Render
+                && c.nested_part.part == NestedPartContent::NullPart
+        })
+    }
 }
 
 enum AttachmentType {
