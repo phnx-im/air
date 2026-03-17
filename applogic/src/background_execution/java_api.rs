@@ -11,7 +11,7 @@ use jni::{
 use crate::background_execution::processing::init_environment;
 use tracing::error;
 
-/// This methos gets called from the Android Messaging Service
+/// This method gets called from the Android Messaging Service
 #[unsafe(export_name = "Java_ms_air_NativeLib_process_1new_1messages")]
 pub extern "C" fn process_new_messages(
     mut env: JNIEnv,

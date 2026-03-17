@@ -80,7 +80,7 @@ impl From<AsRequestError> for JobError {
 
 impl From<DsRequestError> for JobError {
     fn from(error: DsRequestError) -> Self {
-        // Network erros can occur without any fault of the job itself, so we
+        // Network errors can occur without any fault of the job itself, so we
         // only log info here.
         info!(?error, "Job failed due to network error");
         Self::NetworkError

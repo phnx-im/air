@@ -41,7 +41,7 @@ pub(crate) trait Cubit {
 ///
 /// Bundles a state, a set of sinks listening to state changes, a cancellation token and a
 /// background emitter task [`CubitCore::emitter_loop`]. The latter is spawned in the background on
-/// constuction.
+/// construction.
 ///
 /// The cancellation token is used to cancel all pending and background operations. It can be
 /// cancelled by calling [`Cubit::close`] or by dropping the [`CubitCore`].

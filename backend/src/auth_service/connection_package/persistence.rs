@@ -251,7 +251,7 @@ pub(crate) mod tests {
         .await?;
         assert_eq!(packages_remaining, 1);
 
-        // remaing package is loaded
+        // remaining package is loaded
         let loaded =
             StorableConnectionPackage::load_for_handle(pool.acquire().await?.as_mut(), &hash)
                 .await?;

@@ -14,7 +14,7 @@ use crate::{ChatId, MessageId, store::StoreNotifier};
 
 /// A record of an attachment.
 ///
-/// Content is intentially not included in this struct.
+/// Content is intentionally not included in this struct.
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub(crate) struct AttachmentRecord {

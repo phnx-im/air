@@ -121,7 +121,11 @@ async fn create_signed_put(
     let presigning_config = presigning_config.build()?;
 
     let key = storage_key(&storage.settings().storage_paths, object_id, object_type);
-    let request = storage.client().put_object().bucket("data").key(key);
+    let request = storage
+        .client()
+        .put_object()
+        .bucket(storage.settings().bucket.clone())
+        .key(key);
 
     let settings = storage.settings();
 
@@ -190,7 +194,7 @@ fn create_signed_post(
     let policy = Policy {
         expiration: not_after,
         conditions: [
-            json!({"bucket": "data"}),
+            json!({"bucket": settings.bucket}),
             json!({"key": key}),
             json!(["content-length-range", 0, settings.max_attachment_size]),
             json!({"x-amz-credential": x_amz_credential}),
@@ -214,7 +218,7 @@ fn create_signed_post(
     let upload_url = format!(
         "{endpoint}/{bucket}",
         endpoint = settings.endpoint,
-        bucket = "data",
+        bucket = settings.bucket,
     );
 
     let post_policy = SignedPostPolicy {
@@ -379,7 +383,7 @@ mod test {
             region: "example-region".to_owned(),
             access_key_id: "EXAMPLEKEY".to_owned(),
             secret_access_key: "EXMPLESECRET".to_owned().into(),
-            bucket: "data".to_owned(),
+            bucket: "some-bucket".to_owned(),
             force_path_style: false,
             upload_expiration: Duration::seconds(60),
             download_expiration: Duration::seconds(60),
