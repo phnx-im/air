@@ -33,7 +33,17 @@ impl OutboundService {
         statuses: impl Iterator<Item = (MessageId, &'a MimiId, MessageStatus)> + Send,
     ) -> anyhow::Result<()> {
         let mut connection = self.context.pool.acquire().await?;
-        if Chat::is_blocked(connection.as_mut(), chat_id).await? {
+        Self::schedule_receipts(&mut connection, chat_id, statuses).await?;
+        self.notify_work();
+        Ok(())
+    }
+
+    pub(crate) async fn schedule_receipts<'a>(
+        connection: &mut sqlx::SqliteConnection,
+        chat_id: ChatId,
+        statuses: impl Iterator<Item = (MessageId, &'a MimiId, MessageStatus)> + Send,
+    ) -> anyhow::Result<()> {
+        if Chat::is_blocked(&mut *connection, chat_id).await? {
             return Ok(());
         }
 
@@ -43,8 +53,6 @@ impl OutboundService {
                 .enqueue(&mut *connection, chat_id, mimi_id)
                 .await?;
         }
-
-        self.notify_work();
 
         Ok(())
     }
