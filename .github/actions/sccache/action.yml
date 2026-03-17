@@ -1,0 +1,43 @@
+name: Setup sccache
+description: Install and start the sccache daemon
+inputs:
+  cache-size:
+    description: "Maximum sccache size"
+    required: false
+    default: 5g
+  cache-key:
+    description: "Key to use to restore and save the cache"
+    required: true
+    default: "sccache-${{ runner.os }}-${{ runner.arch }}"
+  cache-dir:
+    description: "Location of cache files"
+    required: false
+    default: "${{ runner.temp }}/.sccache"
+runs:
+  using: composite
+  steps:
+    - name: Create cache directory
+      shell: bash
+      run: mkdir -p "${{ inputs.cache-dir }}"
+
+    - name: Setup GHA cache
+      uses: actions/cache@v5
+      with:
+        path: |
+          ${{ env.CARGO_HOME }}
+          ${{ env.PUB_CACHE }}
+          ${{ inputs.cache-dir }}
+        key: sccache-"${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock', '.config/cargo.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
+
+    - name: Start sccache daemon
+      uses: gacts/run-and-post-run@v1
+      with:
+        run: |
+          sccache --start-server
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+          export CC="sccache /usr/lib/llvm-18/bin/clang"
+          export CXX="sccache /usr/lib/llvm-18/bin/clang++"
+        post: sccache --show-stats
+      env:
+        SCCACHE_CACHE_SIZE: ${{ inputs.cache-size }}
+        SCCACHE_DIR: "${{ inputs.cache-dir }}"

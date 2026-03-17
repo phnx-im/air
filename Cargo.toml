@@ -137,5 +137,5 @@ openmls_traits = { git = "https://github.com/openmls/openmls", rev = "04c50d7fb1
 
 [profile.release]
 strip = true
-lto = true
+lto = "thin"
 codegen-units = 1
