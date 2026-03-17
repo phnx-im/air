@@ -32,13 +32,18 @@ impl OutboundService {
         chat_id: ChatId,
         statuses: impl Iterator<Item = (MessageId, &'a MimiId, MessageStatus)> + Send,
     ) -> anyhow::Result<()> {
-        let mut connection = self.context.pool.acquire().await?;
-        Self::schedule_receipts(&mut connection, chat_id, statuses).await?;
+        self.schedule_receipts(
+            self.context.pool.acquire().await?.as_mut(),
+            chat_id,
+            statuses,
+        )
+        .await?;
         self.notify_work();
         Ok(())
     }
 
     pub(crate) async fn schedule_receipts<'a>(
+        &self,
         connection: &mut sqlx::SqliteConnection,
         chat_id: ChatId,
         statuses: impl Iterator<Item = (MessageId, &'a MimiId, MessageStatus)> + Send,
@@ -53,6 +58,8 @@ impl OutboundService {
                 .enqueue(&mut *connection, chat_id, mimi_id)
                 .await?;
         }
+
+        self.notify_work();
 
         Ok(())
     }

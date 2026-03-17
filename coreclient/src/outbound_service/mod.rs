@@ -432,6 +432,22 @@ mod test {
     }
 
     #[tokio::test]
+    async fn notify_work_does_not_start_work_when_stopped() {
+        init_test_tracing();
+
+        let context = DelayedCounterContext::default();
+        let service = OutboundService::with_context(context.clone(), global_lock());
+
+        service.stop().await;
+        service.notify_work().await;
+
+        assert_eq!(0, context.counter.load(Ordering::SeqCst));
+
+        service.start().await;
+        assert_eq!(1, context.counter.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
     async fn stop_cancels_work() {
         init_test_tracing();
 

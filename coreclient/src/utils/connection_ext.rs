@@ -103,3 +103,21 @@ pub(crate) trait StoreExt {
         Ok(value)
     }
 }
+
+pub(crate) trait TransactionExt {
+    async fn commit_on_success<T: Send>(
+        self,
+        f: impl AsyncFnOnce(&mut SqliteTransaction<'_>) -> anyhow::Result<T>,
+    ) -> anyhow::Result<T>;
+}
+
+impl TransactionExt for SqliteTransaction<'_> {
+    async fn commit_on_success<T: Send>(
+        mut self,
+        f: impl AsyncFnOnce(&mut SqliteTransaction<'_>) -> anyhow::Result<T>,
+    ) -> anyhow::Result<T> {
+        let value = f(&mut self).await?;
+        self.commit().await?;
+        Ok(value)
+    }
+}
