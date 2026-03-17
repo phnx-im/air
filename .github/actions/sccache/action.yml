@@ -41,8 +41,8 @@ runs:
           if [[ "$GITHUB_REF_NAME" == "main" ]]; then export SCCACHE_RECACHE=y; fi
           sccache --start-server
           echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-          export CC="sccache /usr/lib/llvm-18/bin/clang"
-          export CXX="sccache /usr/lib/llvm-18/bin/clang++"
+          echo "CC=sccache /usr/bin/clang" >> $GITHUB_ENV
+          echo "CXX=sccache /usr/bin/clang++" >> $GITHUB_ENV
         post: sccache --show-stats
       env:
         SCCACHE_CACHE_SIZE: ${{ inputs.cache-size }}
