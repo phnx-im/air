@@ -37,7 +37,7 @@ async fn process_qs_messages_cancellation_safety() {
 
     let bob_user = setup.get_user(&bob).user.clone();
 
-    // Spawn a processing task and abort it after a random short delay.
+    // Abort a processing task after a random short delay.
     const MAX_ATTEMPTS: usize = 50;
     for _ in 0..MAX_ATTEMPTS {
         let messages = bob_user.qs_fetch_messages().await.unwrap();
@@ -46,16 +46,13 @@ async fn process_qs_messages_cancellation_safety() {
         }
         info!(num_messages = messages.len(), "processing messages");
 
-        let bob_clone = bob_user.clone();
-        let handle =
-            tokio::spawn(async move { bob_clone.fully_process_qs_messages(messages).await });
-
         // Random delay in [30, 500) µs
         let delay_us = thread_rng().gen_range(30u64..500);
-        tokio::time::sleep(Duration::from_micros(delay_us)).await;
 
-        handle.abort();
-        let _ = handle.await; // JoinError on abort is expected; ignore it
+        tokio::select! {
+            _ = tokio::time::sleep(Duration::from_micros(delay_us)) => {},
+            _ = bob_user.fully_process_qs_messages(messages) => {},
+        }
     }
 
     // Final pass without aborting
