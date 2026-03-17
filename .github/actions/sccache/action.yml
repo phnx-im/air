@@ -4,7 +4,7 @@ inputs:
   cache-size:
     description: "Maximum sccache size"
     required: false
-    default: 5g
+    default: 1g
   cache-key:
     description: "Key to use to restore and save the cache"
     required: true
@@ -27,12 +27,18 @@ runs:
           ${{ env.CARGO_HOME }}
           ${{ env.PUB_CACHE }}
           ${{ inputs.cache-dir }}
-        key: sccache-"${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock', '.config/cargo.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
+        key: "sccache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock', '.config/cargo.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
+        restore-keys: |
+          sccache-${{ runner.os }}-${{ runner.arch }}
 
     - name: Start sccache daemon
       uses: gacts/run-and-post-run@v1
       with:
         run: |
+          if [[ "$GITHUB_REF_NAME" == "main" ]]; then
+            # Overwrite the contents in the cache to start fresh from main
+            export SCCACHE_RECACHE=y
+          fi
           sccache --start-server
           echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
           export CC="sccache /usr/lib/llvm-18/bin/clang"

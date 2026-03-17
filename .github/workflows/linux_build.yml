@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # Fetch all commit metadata (build number is derived from number of commits)
@@ -33,16 +33,17 @@ jobs:
 
       - run: git lfs install && git lfs pull
 
-      - name: Set up Rust toolchain
+      - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@1.94.0
 
-      - uses: cargo-bins/cargo-binstall@main
-      - run: cargo binstall sccache just --no-confirm
-
+      - name: Setup cargo binstall
+        uses: cargo-bins/cargo-binstall@v1.17.7
+      
       - name: Install build dependencies
         run: |
+          cargo binstall sccache just --no-confirm
           sudo apt-get update -qq
-          sudo apt-get install -y lld ninja-build libgtk-3-dev
+          sudo apt-get install -yq lld ninja-build libgtk-3-dev
 
       - name: Setup Flutter SDK
         uses: flutter-actions/setup-flutter@v4
@@ -54,12 +55,12 @@ jobs:
 
       - name: Configure sccache
         uses: ./.github/actions/sccache
-      
-      - name: Build
+
+      - name: Build app
         working-directory: app
         run: flutter build linux -v --build-number=$(git rev-list --count HEAD)
 
-      - name: Upload Linux app
+      - name: Upload app bundle
         uses: actions/upload-artifact@v4
         with:
           name: linux-app-x64
