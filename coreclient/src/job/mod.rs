@@ -2,10 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::future;
+
 use airapiclient::{ApiClientInitError, as_api::AsRequestError, ds_api::DsRequestError};
 use aircommon::codec;
 use chrono::{DateTime, Utc};
-use sqlx::SqlitePool;
+use sqlx::SqliteConnection;
 use thiserror::Error;
 use tracing::info;
 
@@ -22,7 +24,7 @@ pub(crate) mod profile;
 pub(crate) struct JobContext<'a> {
     pub api_clients: &'a ApiClients,
     pub http_client: &'a reqwest::Client,
-    pub pool: SqlitePool,
+    pub connection: &'a mut SqliteConnection,
     pub notifier: &'a mut StoreNotifier,
     pub key_store: &'a MemoryUserKeyStore,
     pub now: DateTime<Utc>,
@@ -46,24 +48,33 @@ impl JobError {
     }
 }
 
-pub(crate) trait Job {
+pub(crate) trait Job: Send {
     type Output;
 
-    async fn execute(mut self, context: &mut JobContext<'_>) -> Result<Self::Output, JobError>
+    fn execute(
+        mut self,
+        context: &mut JobContext<'_>,
+    ) -> impl Future<Output = Result<Self::Output, JobError>> + Send
     where
         Self: Sized,
+        Self::Output: Send,
     {
-        Box::pin(self.execute_dependencies(context)).await?;
-        Box::pin(self.execute_logic(context)).await
+        async move {
+            Box::pin(self.execute_dependencies(context)).await?;
+            Box::pin(self.execute_logic(context)).await
+        }
     }
 
-    async fn execute_logic(self, context: &mut JobContext<'_>) -> Result<Self::Output, JobError>;
+    fn execute_logic(
+        self,
+        context: &mut JobContext<'_>,
+    ) -> impl Future<Output = Result<Self::Output, JobError>> + Send;
 
-    async fn execute_dependencies(
+    fn execute_dependencies(
         &mut self,
         _context: &mut JobContext<'_>,
-    ) -> Result<(), JobError> {
-        Ok(())
+    ) -> impl Future<Output = Result<(), JobError>> + Send {
+        future::ready(Ok(()))
     }
 }
 

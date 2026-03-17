@@ -22,6 +22,7 @@ use airprotos::{
     queue_service::v1::{QueueEvent, queue_event},
 };
 use anyhow::{Context, Result, bail, ensure};
+use chrono::Utc;
 use mimi_content::{
     Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPartContent,
 };
@@ -54,7 +55,7 @@ use crate::{
         Group, VerifiedGroup, client_auth_info::StorableClientCredential,
         process::ProcessMessageResult,
     },
-    job::pending_chat_operation::PendingChatOperation,
+    job::{JobContext, pending_chat_operation::PendingChatOperation},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::{OutboundService, resync::Resync},
     store::{Store, StoreNotifier},
@@ -344,7 +345,7 @@ impl CoreUser {
 
     async fn handle_targeted_application_message(
         &self,
-        mut txn: SqliteTransaction<'_>,
+        txn: SqliteTransaction<'_>,
         mls_message: MlsMessageIn,
         ds_timestamp: TimeStamp,
     ) -> Result<ProcessQsMessageResult> {
@@ -357,12 +358,12 @@ impl CoreUser {
         let group_id = protocol_message.group_id().clone();
 
         enum TransactionResult {
-            Ok(ConnectionInfoSource),
+            Ok(ChatId),
             NeedsResync(Resync),
         }
 
-        let savepoint = txn.begin().await?;
-        let transaction_result = commit_if_ok(savepoint, async |txn| {
+        let mut notifier = self.notifier();
+        let transaction_result = commit_if_ok(txn, async |txn| {
             let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
                 .await?
                 .ok_or_else(|| anyhow!("No chat found for group ID {:?}", group_id))?;
@@ -415,27 +416,30 @@ impl CoreUser {
                     sent_at: ds_timestamp,
                 }));
 
-            Ok(TransactionResult::Ok(connection_info_source))
+            let mut context = JobContext {
+                api_clients: &self.inner.api_clients,
+                http_client: &self.inner.http_client,
+                connection: txn.as_mut(),
+                notifier: &mut notifier,
+                key_store: &self.inner.key_store,
+                now: Utc::now(),
+            };
+            let chat_id =
+                CoreUser::process_connection_offer(&mut context, connection_info_source).await?;
+
+            Ok(TransactionResult::Ok(chat_id))
         })
         .await?;
+        notifier.notify();
 
-        let connection_info_source = match transaction_result {
-            TransactionResult::Ok(connection_info_source) => connection_info_source,
+        match transaction_result {
+            TransactionResult::Ok(chat_id) => Ok(ProcessQsMessageResult::NewConnection(chat_id)),
             TransactionResult::NeedsResync(_resync) => {
                 // TODO: Once we have a UX for resyncs, we should schedule one
                 // here and re-enable the resync test in integration.rs
-                return Ok(ProcessQsMessageResult::None);
+                Ok(ProcessQsMessageResult::None)
             }
-        };
-
-        // MlsMessage Phase 4: Process the connection offer
-        // TODO: This opens another write txn
-        let connection_chat_id = self
-            .process_connection_offer(connection_info_source)
-            .await?;
-        txn.commit().await?;
-
-        Ok(ProcessQsMessageResult::NewConnection(connection_chat_id))
+        }
     }
 
     async fn handle_mls_message(

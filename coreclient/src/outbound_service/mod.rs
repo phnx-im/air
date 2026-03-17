@@ -222,10 +222,11 @@ impl OutboundServiceContext {
         job: JobType,
     ) -> Result<T, JobError> {
         let mut notifier = self.notifier();
+        let mut connection = self.pool().acquire().await?;
         let mut context = JobContext {
             api_clients: &self.api_clients,
             http_client: &self.http_client,
-            pool: self.pool().clone(),
+            connection: &mut connection,
             notifier: &mut notifier,
             key_store: &self.key_store,
             now: Utc::now(),
