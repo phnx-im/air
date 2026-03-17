@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT message_id AS 'uuid: _' FROM message WHERE in_reply_to_mimi_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "uuid: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9878470798505663949cf2d9522ef58776498e0b9ed729240f151b0b6fc51852"
+}

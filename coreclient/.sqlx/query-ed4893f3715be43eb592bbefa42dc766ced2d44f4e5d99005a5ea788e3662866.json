@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM message WHERE message_id = ? RETURNING chat_id AS 'uuid: _'",
+  "describe": {
+    "columns": [
+      {
+        "name": "uuid: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ed4893f3715be43eb592bbefa42dc766ced2d44f4e5d99005a5ea788e3662866"
+}
