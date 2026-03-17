@@ -4,7 +4,6 @@
 
 use mls_assist::openmls_traits::types::HpkeCiphertext;
 
-use serde::{Deserialize, Serialize};
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 use crate::{
@@ -52,12 +51,12 @@ impl Hashable for EncryptedConnectionOffer {}
 
 pub type ConnectionOfferHash = Hash<EncryptedConnectionOffer>;
 
-#[derive(Debug, TlsDeserializeBytes, TlsSerialize, TlsSize, Serialize, Deserialize)]
+#[derive(Debug, TlsDeserializeBytes, TlsSerialize, TlsSize)]
 pub struct EncryptedConnectionOffer {
     ciphertext: HpkeCiphertext,
 }
 
-#[derive(Debug, TlsDeserializeBytes, TlsSerialize, TlsSize, Serialize, Deserialize)]
+#[derive(Debug, TlsDeserializeBytes, TlsSerialize, TlsSize)]
 pub struct ConnectionOfferMessage {
     connection_package_hash: ConnectionPackageHash,
     ciphertext: EncryptedConnectionOffer,

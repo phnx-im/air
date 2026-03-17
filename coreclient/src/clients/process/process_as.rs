@@ -19,7 +19,6 @@ use airprotos::auth_service::v1::{HandleQueueMessage, handle_queue_message};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use chrono::Utc;
 use openmls::group::GroupId;
-use serde::{Deserialize, Serialize};
 use sqlx::SqliteConnection;
 use tls_codec::DeserializeBytes;
 use tracing::{error, warn};
@@ -44,13 +43,11 @@ use crate::{
 
 use super::{AsCredentials, Chat, ChatAttributes, ChatId, CoreUser, FriendshipPackage};
 
-#[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum ConnectionInfoSource {
     ConnectionOffer(Box<ConnectionOfferSource>),
     TargetedMessage(Box<TargetedMessageSource>),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct ConnectionOfferSource {
     pub(crate) connection_offer: ConnectionOfferMessage,
     pub(crate) user_handle: UserHandle,
@@ -58,7 +55,6 @@ pub(crate) struct ConnectionOfferSource {
     pub(crate) sent_at: Option<TimeStamp>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct TargetedMessageSource {
     pub(crate) connection_info: ConnectionInfo,
     pub(crate) sender_client_credential: ClientCredential,

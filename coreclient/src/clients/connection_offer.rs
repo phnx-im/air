@@ -33,13 +33,11 @@ use aircommon::{
 };
 use openmls::group::GroupId;
 use payload::{ConnectionOfferPayload, ConnectionOfferPayloadIn};
-use serde::{Deserialize, Serialize};
 use tbs::{ConnectionOfferTbs, VerifiableConnectionOffer};
 use tls_codec::{Serialize as TlsSerializeTrait, TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 pub(crate) mod payload {
     use aircommon::{LibraryError, credentials::keys::ClientSigningKey, identifiers::UserHandle};
-    use serde::{Deserialize, Serialize};
 
     use crate::groups::Group;
 
@@ -78,7 +76,7 @@ pub(crate) mod payload {
         }
     }
 
-    #[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize, Clone, Serialize, Deserialize)]
+    #[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize, Clone)]
     #[cfg_attr(test, derive(PartialEq))]
     pub(crate) struct ConnectionInfo {
         pub(crate) connection_group_id: GroupId,
@@ -340,7 +338,7 @@ impl ConnectionOfferIn {
 
 impl HpkeDecryptable<ConnectionKeyType, EncryptedConnectionOffer> for ConnectionOfferIn {}
 
-#[derive(Debug, Clone, TlsDeserializeBytes, TlsSerialize, TlsSize, Serialize, Deserialize)]
+#[derive(Debug, Clone, TlsDeserializeBytes, TlsSerialize, TlsSize)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct FriendshipPackage {
     pub(crate) friendship_token: FriendshipToken,
@@ -352,7 +350,6 @@ impl EarEncryptable<FriendshipPackageEarKey, EncryptedFriendshipPackageCtype>
     for FriendshipPackage
 {
 }
-
 impl EarDecryptable<FriendshipPackageEarKey, EncryptedFriendshipPackageCtype>
     for FriendshipPackage
 {
