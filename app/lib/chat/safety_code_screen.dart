@@ -11,6 +11,7 @@ import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/ui/typography/monospace.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -116,8 +117,10 @@ class _SafetyCode extends HookWidget {
               Clipboard.setData(
                 ClipboardData(text: safetyCode.data!.textRepresentation),
               );
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(loc.safetyCodeScreen_copiedToClipboard)),
+              showSnackBarStandalone(
+                (loc) => SnackBar(
+                  content: Text(loc.safetyCodeScreen_copiedToClipboard),
+                ),
               );
             }
           : null,

@@ -951,4 +951,7 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get contactRequestDialog_error_fatal =>
       'Failed to accept contact request';
+
+  @override
+  String get errorBanner_ok => 'OK';
 }

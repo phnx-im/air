@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/main.dart';
 import 'package:air/ui/components/modal/app_dialog.dart';
 import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/typography/font_size.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:air/core/core.dart';
@@ -152,11 +152,10 @@ class DeleteAccountDialog extends HookWidget {
       await userCubit.deleteAccount(confirmationText: confirmationText);
       coreClient.logout();
     } catch (e) {
-      _log.severe("Failed to delete account: $e");
-      if (context.mounted) {
-        final loc = AppLocalizations.of(context);
-        showErrorBanner(context, loc.deleteAccountScreen_deleteAccountError);
-      }
+      _log.severe("Failed to delete account: $e", e);
+      showErrorBannerStandalone(
+        (loc) => loc.deleteAccountScreen_deleteAccountError,
+      );
     } finally {
       isDeleting.value = false;
     }

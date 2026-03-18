@@ -8,6 +8,7 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/app_scaffold.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/ui/typography/monospace.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -232,8 +233,8 @@ class _InfoRow extends StatelessWidget {
     return InkWell(
       onTap: () {
         Clipboard.setData(ClipboardData(text: value));
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+        showSnackBarStandalone(
+          (loc) => SnackBar(
             content: Text('Copied $label'),
             duration: const Duration(seconds: 2),
           ),
@@ -475,8 +476,8 @@ class _ChipListRow extends StatelessWidget {
     return InkWell(
       onTap: () {
         Clipboard.setData(ClipboardData(text: values.join(', ')));
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+        showSnackBarStandalone(
+          (loc) => SnackBar(
             content: Text('Copied $label'),
             duration: const Duration(seconds: 2),
           ),

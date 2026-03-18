@@ -970,4 +970,7 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get contactRequestDialog_error_fatal =>
       'Impossible d\'accepter la demande de contact';
+
+  @override
+  String get errorBanner_ok => 'OK';
 }
