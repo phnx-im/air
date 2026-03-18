@@ -290,6 +290,7 @@ InlineSpan buildInlineElement(
       recognizer: destUrl != null
           ? openLinkRecognizer(context, destUrl, field0)
           : null,
+      mouseCursor: SystemMouseCursors.text,
     ),
     InlineElement_Code(:final field0) => TextSpan(
       text: field0,
@@ -321,6 +322,7 @@ InlineSpan buildInlineElement(
           .toList(),
       style: const TextStyle(fontWeight: FontWeight.bold),
       recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
+      mouseCursor: SystemMouseCursors.text,
     ),
     InlineElement_Italic(:final field0) => TextSpan(
       children: field0
@@ -328,6 +330,7 @@ InlineSpan buildInlineElement(
           .toList(),
       style: const TextStyle(fontStyle: FontStyle.italic),
       recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
+      mouseCursor: SystemMouseCursors.text,
     ),
     InlineElement_Strikethrough(:final field0) => TextSpan(
       children: field0
@@ -335,6 +338,7 @@ InlineSpan buildInlineElement(
           .toList(),
       style: const TextStyle(decoration: TextDecoration.lineThrough),
       recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
+      mouseCursor: SystemMouseCursors.text,
     ),
     InlineElement_Spoiler(:final field0) => TextSpan(
       children: field0
