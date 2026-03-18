@@ -769,7 +769,7 @@ pub(crate) mod test {
         assert!(loaded_record.is_some());
 
         // Delete the message - FK cascade should delete the attachment
-        ChatMessage::delete(&pool, &mut notifier, message.id(), chat.id()).await?;
+        ChatMessage::delete(&pool, &mut notifier, message.id()).await?;
 
         // Verify the attachment is gone (FK cascade)
         let loaded_record = AttachmentRecord::load(&pool, record.attachment_id).await?;

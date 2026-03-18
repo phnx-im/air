@@ -11,3 +11,4 @@ storage:
   access_key_id: minioaccesskey
   secret_access_key: miniosecretkey
   force_path_style: true
+  require_content_length: true

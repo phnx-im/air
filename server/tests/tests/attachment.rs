@@ -209,7 +209,7 @@ async fn attachment_too_large() {
     const MAX_ATTACHMENT_SIZE: u64 = 1023;
 
     let mut setup = TestBackend::single_with_params(TestBackendParams {
-        max_attachment_size: Some(MAX_ATTACHMENT_SIZE),
+        max_attachment_size: MAX_ATTACHMENT_SIZE,
         ..Default::default()
     })
     .await;

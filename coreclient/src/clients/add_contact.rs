@@ -92,7 +92,7 @@ impl CoreUser {
         // Phase 3: Prepare the connection locally
         // No need to provision a group profile here, because we only have the group title and no
         // any additional data to upload.
-        let provision_group_profile = false;
+        let provision_group_profile = None;
         let (group_id, _) = client.ds_request_group_id(provision_group_profile).await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: verified_connection_package,
@@ -163,7 +163,7 @@ impl CoreUser {
         // Phase 1: Prepare the connection locally
         // No need to provision a group profile here, because we only have the group title and no
         // any additional data to upload.
-        let provision_group_profile = false;
+        let provision_group_profile = None;
         let (group_id, _) = client.ds_request_group_id(provision_group_profile).await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: user_id,
