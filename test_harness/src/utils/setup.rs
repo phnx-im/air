@@ -1113,7 +1113,7 @@ impl TestBackend {
                 &invitees.iter().cloned().cloned().collect::<Vec<_>>(),
             )
             .await
-            .expect("Fatala error inviting users")
+            .expect("Fatal error inviting users")
             .expect("Specific error inviting users");
 
         let mut expected_messages = HashSet::new();

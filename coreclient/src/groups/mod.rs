@@ -507,7 +507,7 @@ impl Group {
                 .build(provider.rand(), provider.crypto(), signer, |_| true);
             let (mls_group, commit) = match res {
                 Ok(builder) => builder.finalize(&provider)?,
-                // Exctract leaf node validation error if any
+                // Extract leaf node validation error if any
                 Err(error) => return Ok(Err(to_capabilities_mismatch(error)?)),
             };
 
@@ -617,7 +617,7 @@ impl Group {
                 .build(provider.rand(), provider.crypto(), signer, |_| true);
             match res {
                 Ok(builder) => builder.stage_commit(&provider)?.into_contents(),
-                // Exctract leaf node validation error if any
+                // Extract leaf node validation error if any
                 Err(error) => return Ok(Err(to_capabilities_mismatch(error)?)),
             }
         };

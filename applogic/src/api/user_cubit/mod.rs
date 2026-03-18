@@ -240,6 +240,9 @@ impl UserCubitBase {
     ///
     /// If one of the users cannot be added, an error is returned and the chat is not modified,
     /// that is, other users are *not* added to the chat too.
+    //
+    // Note: We use the `Result<Option<_>, _>` return type because FRB does not support generics
+    // and so we cannot propagate the result directly.
     #[frb(positional)]
     pub async fn add_users_to_chat(
         &self,
@@ -252,8 +255,7 @@ impl UserCubitBase {
             .core_user
             .invite_users(chat_id, &user_ids)
             .await?
-            .map(|_| None)
-            .unwrap_or_else(Some))
+            .err())
     }
 
     #[frb(positional)]

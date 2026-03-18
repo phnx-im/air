@@ -554,8 +554,7 @@ impl ChatDetailsCubitBase {
             .store
             .accept_contact_request(chat_id)
             .await?
-            .map(|_| None)
-            .unwrap_or_else(Some))
+            .err())
     }
 
     pub async fn chat_debug_info(&self) -> anyhow::Result<GroupDebugInfo> {
