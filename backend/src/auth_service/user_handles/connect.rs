@@ -81,7 +81,7 @@ async fn run_protocol_impl(
     mut incoming: impl Stream<Item = Result<ConnectRequest, Status>> + Unpin,
     outgoing: &mpsc::Sender<Result<ConnectResponse, Status>>,
 ) -> Result<(), ConnectProtocolError> {
-    // step 1: fetch connetion package for a handle hash
+    // step 1: fetch connection package for a handle hash
     debug!("step 1: waiting for fetch connection package step");
     let step = incoming.next().await;
     let fetch_connection_package = match step {
@@ -152,7 +152,7 @@ async fn run_protocol_impl(
 
     let connection_establishment_package = enqueue_offer
         .connection_offer
-        .ok_or_missing_field("connecton_offer")?;
+        .ok_or_missing_field("connection_offer")?;
 
     debug!("enqueue connection offer");
     protocol

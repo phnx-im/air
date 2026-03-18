@@ -39,6 +39,7 @@ import 'package:share_plus/share_plus.dart';
 
 import 'image_viewer.dart';
 import 'message_renderer.dart';
+import 'swipe_to_reply.dart';
 
 final _log = Logger('MessageTile');
 
@@ -271,7 +272,6 @@ class _MessageView extends HookWidget {
     final cursorPositionNotifier = useMemoized<ValueNotifier<Offset?>>(
       () => ValueNotifier<Offset?>(null),
     );
-    final bubbleKey = useMemoized(GlobalKey.new);
     final messageContainerKey = useMemoized(() => GlobalKey());
     final isDetached = useState(false);
     useEffect(() {
@@ -298,7 +298,7 @@ class _MessageView extends HookWidget {
         platform == TargetPlatform.linux ||
         platform == TargetPlatform.windows;
 
-    Widget buildMessageBubble({required bool enableSelection, GlobalKey? key}) {
+    Widget buildMessageBubble({required bool enableSelection}) {
       Widget child = _MessageContent(
         content: contentMessage.content,
         inReplyToMessage: inReplyToMessage,
@@ -309,29 +309,17 @@ class _MessageView extends HookWidget {
         isHidden: status == UiMessageStatus.hidden && !isRevealed.value,
         enableSelection: enableSelection,
       );
-      // when selection is enabled, it doesn't make sense to enable to drag to
-      // reply action implemented with Dismissible.
+      // When selection is enabled, dragging selects text instead of swiping
+      // to reply.
       return enableSelection
           ? child
-          : Dismissible(
-              key: key ?? Key(messageId.toString()),
-              direction: DismissDirection.startToEnd,
-              confirmDismiss: (direction) async {
+          : SwipeToReply(
+              onReply: () {
                 context.read<ChatDetailsCubit>().replyToMessage(
                   messageId: messageId,
                 );
-                HapticFeedback.lightImpact();
-                return false;
               },
-              dismissThresholds: const {DismissDirection.startToEnd: 0.4},
-              background: Container(
-                alignment: Alignment.centerLeft,
-                padding: const EdgeInsets.only(left: 50.0),
-                child: AppIcon.cornerLeft(
-                  size: 16,
-                  color: colors.function.black,
-                ),
-              ),
+              icon: AppIcon.cornerLeft(size: 16, color: colors.function.black),
               child: child,
             );
     }
@@ -431,13 +419,9 @@ class _MessageView extends HookWidget {
       required bool enableSelection,
       required GlobalKey messageKey,
       required bool detached,
-      GlobalKey? bubbleRenderKey,
       required bool includeMetadata,
     }) {
-      final bubble = buildMessageBubble(
-        enableSelection: enableSelection,
-        key: bubbleRenderKey,
-      );
+      final bubble = buildMessageBubble(enableSelection: enableSelection);
 
       return Container(
         key: messageKey,
@@ -499,11 +483,9 @@ class _MessageView extends HookWidget {
           onLongPress: actions.isEmpty
               ? null
               : () {
-                  HapticFeedback.lightImpact();
-
-                  final bubbleContext = bubbleKey.currentContext;
-                  if (bubbleContext == null) return;
-                  final renderObject = bubbleContext.findRenderObject();
+                  final shellContext = messageContainerKey.currentContext;
+                  if (shellContext == null) return;
+                  final renderObject = shellContext.findRenderObject();
                   if (renderObject is! RenderBox || !renderObject.hasSize) {
                     return;
                   }
@@ -531,7 +513,6 @@ class _MessageView extends HookWidget {
           enableSelection: false,
           messageKey: messageContainerKey,
           detached: isDetached.value,
-          bubbleRenderKey: bubbleKey,
           includeMetadata: showMetadata,
         ),
       );
@@ -562,7 +543,6 @@ class _MessageView extends HookWidget {
           enableSelection: isDesktopPlatform,
           messageKey: messageContainerKey,
           detached: false,
-          bubbleRenderKey: bubbleKey,
           includeMetadata: showMetadata,
         ),
       ),
@@ -885,56 +865,56 @@ class _MessageContent extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 1.5),
-      child: Container(
-        alignment: isSender
-            ? AlignmentDirectional.topEnd
-            : AlignmentDirectional.topStart,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: _messageBorderRadius(isSender, flightPosition),
-            color: nakedContent
-                ? Colors.transparent
-                : isSender
-                ? colors.message.selfBackground
-                : colors.message.otherBackground,
-          ),
-          child: DefaultTextStyle.merge(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (inReplyTo != null)
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      left: Spacings.xs,
-                      right: Spacings.xs,
-                      top: Spacings.xs,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: _messageBorderRadius(isSender, flightPosition),
+          color: nakedContent
+              ? Colors.transparent
+              : isSender
+              ? colors.message.selfBackground
+              : colors.message.otherBackground,
+        ),
+        child: DefaultTextStyle.merge(
+          child: Column(
+            crossAxisAlignment: .end,
+            children: [
+              Column(
+                crossAxisAlignment: .start,
+                children: [
+                  if (inReplyTo != null)
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        left: Spacings.xs,
+                        right: Spacings.xs,
+                        top: Spacings.xs,
+                      ),
+                      child: InReplyToBubble(
+                        inReplyTo: inReplyTo,
+                        backgroundColor: colors.fill.secondary,
+                      ),
                     ),
-                    child: InReplyToBubble(
-                      inReplyTo: inReplyTo,
-                      backgroundColor: colors.fill.secondary,
-                    ),
+                  ...columnChildren,
+                ],
+              ),
+              if (isEdited)
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: Spacings.s,
+                    right: Spacings.s,
+                    bottom: Spacings.xxs,
                   ),
-                ...columnChildren,
-                if (isEdited)
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      left: Spacings.s,
-                      right: Spacings.s,
-                      bottom: Spacings.xxs,
-                    ),
-                    child: SelectionContainer.disabled(
-                      child: Text(
-                        loc.textMessage_edited,
-                        style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                          color: isSender
-                              ? colors.message.selfEditedLabel
-                              : colors.message.otherEditedLabel,
-                        ),
+                  child: SelectionContainer.disabled(
+                    child: Text(
+                      loc.textMessage_edited,
+                      style: Theme.of(context).textTheme.bodySmall!.copyWith(
+                        color: isSender
+                            ? colors.message.selfEditedLabel
+                            : colors.message.otherEditedLabel,
                       ),
                     ),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         ),
       ),
@@ -973,25 +953,20 @@ class _DeletedMessageContent extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 1.5),
-      child: Container(
-        alignment: isSender
-            ? AlignmentDirectional.topEnd
-            : AlignmentDirectional.topStart,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: _messageBorderRadius(isSender, flightPosition),
-            border: Border.all(color: borderColor),
-          ),
-          child: SelectionContainer.disabled(
-            child: Padding(
-              padding: _messagePadding,
-              child: Text(
-                deletedText,
-                style: TextStyle(
-                  fontStyle: FontStyle.italic,
-                  fontSize: BodyFontSize.base.size,
-                  color: colors.text.tertiary,
-                ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: _messageBorderRadius(isSender, flightPosition),
+          border: Border.all(color: borderColor),
+        ),
+        child: SelectionContainer.disabled(
+          child: Padding(
+            padding: _messagePadding,
+            child: Text(
+              deletedText,
+              style: TextStyle(
+                fontStyle: FontStyle.italic,
+                fontSize: BodyFontSize.base.size,
+                color: colors.text.tertiary,
               ),
             ),
           ),

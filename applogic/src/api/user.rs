@@ -44,7 +44,7 @@ impl From<PlatformPushToken> for PushToken {
 
 /// The user of the app
 ///
-/// Reponsible for loading or creating/registering the user.
+/// Responsible for loading or creating/registering the user.
 // TODO: Most likely, it makes sense to move this to the `user_cubit` module. The loading and
 // creation can be free functions there. The other functionality can be attach to the `UserCubit`.
 //
@@ -118,7 +118,7 @@ impl User {
     /// Loads the default user from the given database path
     ///
     /// Returns in this order:
-    /// * the default most recent user with finished registation, or if none
+    /// * the default most recent user with finished registration, or if none
     /// * the most recent user with finished registration, or if none
     /// * the most recent user, if any.
     pub async fn load_default(path: String) -> Result<Option<Self>> {

@@ -72,8 +72,8 @@ pub(crate) enum QsUpdateUserError {
 
 #[derive(Debug, Error)]
 pub(crate) enum QsDeleteUserError {
-    /// Error deleteing user record
-    #[error("Error deleteing user record")]
+    /// Error deleting user record
+    #[error("Error deleting user record")]
     StorageError,
 }
 

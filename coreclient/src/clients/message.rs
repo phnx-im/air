@@ -8,7 +8,7 @@ use mimi_content::{MessageStatus, MimiContent, NestedPartContent};
 use sqlx::SqliteTransaction;
 
 use crate::{
-    Chat, ChatId, ChatMessage, ChatStatus, ContentMessage, MessageId,
+    Chat, ChatId, ChatMessage, ContentMessage, MessageId,
     chats::{StatusRecord, messages::edit::MessageEdit},
     clients::{attachment::AttachmentRecord, block_contact::BlockedContactError},
     utils::connection_ext::StoreExt,
@@ -28,20 +28,44 @@ impl CoreUser {
         message_id: MessageId,
     ) -> anyhow::Result<ChatMessage> {
         // Load the message to get its mimi_id
-        let message = self
-            .with_transaction(async |txn| {
-                ChatMessage::load(txn, message_id)
-                    .await?
-                    .with_context(|| format!("Can't find message with id {message_id:?}"))
-            })
-            .await?;
+        let message = ChatMessage::load(self.pool().acquire().await?.as_mut(), message_id)
+            .await?
+            .with_context(|| format!("Can't find message with id {message_id:?}"))?;
 
         // Create NullPart content
         let null_content = message.null_part_content()?;
 
+        let replaces_message_id = message.id();
+        let replaces_mimi_id = message.message().mimi_id().cloned();
+
         // Send the deletion message
-        self.send_message(chat_id, null_content, Some(message))
-            .await
+        let sent_message = self
+            .send_message(chat_id, null_content, Some(message))
+            .await?;
+
+        // Redact reply references to this message
+        if let Some(replaces_mimi_id) = replaces_mimi_id
+            && let Some(redacted_mimi_id) = sent_message.message().mimi_id()
+        {
+            self.with_transaction_and_notifier(async |txn, notifier| {
+                let updated_message_ids = ChatMessage::redact_all_in_reply_to_mimi_ids(
+                    txn.as_mut(),
+                    &replaces_message_id,
+                    &replaces_mimi_id,
+                    redacted_mimi_id,
+                )
+                .await?;
+
+                for message_id in updated_message_ids {
+                    notifier.add(message_id);
+                }
+
+                Ok(())
+            })
+            .await?;
+        }
+
+        Ok(sent_message)
     }
 
     /// Delete a message locally without sending a network message.
@@ -54,10 +78,23 @@ impl CoreUser {
                 .await?
                 .with_context(|| format!("Can't find message with id {message_id:?}"))?;
 
-            let chat_id = message.chat_id();
+            // Find the IDs of all messages that are replies to the message we're deleting
+            // and mark them as updated, to notify the UI.
+            if let Some(replaces_mimi_id) = message.message().mimi_id() {
+                dbg!("SHITE", &replaces_mimi_id);
+                let message_ids_replied_to = ChatMessage::load_message_ids_in_reply_to_mimi_id(
+                    txn.as_mut(),
+                    replaces_mimi_id,
+                )
+                .await?;
+
+                for message_id in message_ids_replied_to {
+                    notifier.add(message_id);
+                }
+            }
 
             // Delete the message (edit history and status records are cascade-deleted)
-            ChatMessage::delete(txn.as_mut(), notifier, message_id, chat_id).await?;
+            ChatMessage::delete(txn.as_mut(), notifier, message_id).await?;
 
             Ok(())
         })
@@ -125,21 +162,16 @@ impl CoreUser {
         content: MimiContent,
         replaces: Option<ChatMessage>,
     ) -> anyhow::Result<ChatMessage> {
-        let needs_update = self
-            .with_transaction(async |txn| {
-                let chat = Chat::load(txn.as_mut(), &chat_id)
-                    .await?
-                    .with_context(|| format!("Can't find chat with id {chat_id}"))?;
-                if let ChatStatus::Blocked = chat.status() {
-                    bail!(BlockedContactError);
-                }
-                let group_id = chat.group_id;
-                let group = Group::load_clean(txn, &group_id)
-                    .await?
-                    .with_context(|| format!("Can't find group with id {group_id:?}"))?;
-                Ok(group.mls_group().has_pending_proposals())
-            })
-            .await?;
+        let needs_update = {
+            let mut connection = self.pool().acquire().await?;
+            if Chat::is_blocked(connection.as_mut(), chat_id).await? {
+                bail!(BlockedContactError);
+            }
+            let group = Group::load_with_chat_id_clean(connection.as_mut(), chat_id)
+                .await?
+                .with_context(|| format!("Can't find group with chat_id: {chat_id:?}"))?;
+            group.mls_group().has_pending_proposals()
+        };
 
         if needs_update {
             // TODO race condition: Before or after this update, new proposals could arrive
@@ -321,7 +353,7 @@ impl UnsentMessage<GroupUpdateNeeded> {
             group_update: GroupUpdateNeeded,
         } = self;
 
-        // Also, mark the message (and all messages preceeding it) as read, but
+        // Also, mark the message (and all messages preceding it) as read, but
         // skip for deletions.
         if message.status() != MessageStatus::Deleted {
             Chat::mark_as_read_until_message_id(txn, notifier, chat.id(), message.id(), own_user)

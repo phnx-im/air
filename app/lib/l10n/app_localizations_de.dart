@@ -324,10 +324,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get usernameOnboarding_next => 'Weiter';
 
   @override
-  String get usernameOnboarding_userameInputName => 'Benutzername (optional)';
+  String get usernameOnboarding_usernameInputName => 'Benutzername (optional)';
 
   @override
-  String get usernameOnboarding_userameInputHint =>
+  String get usernameOnboarding_usernameInputHint =>
       'Benutzernamen hinzufügen...';
 
   @override

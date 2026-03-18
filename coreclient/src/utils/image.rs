@@ -87,7 +87,7 @@ pub(crate) fn load_attachment_image(
     let webp_image = webp::Encoder::from_rgba(&image_rgba, width, height)
         .encode(ATTACHMENT_IMAGE_QUALITY_PERCENT);
 
-    // `blurhash::encode` can only fail if the compoments dimension is out of range
+    // `blurhash::encode` can only fail if the components dimension is out of range
     // => We should never get an error here.
     let blurhash = blurhash::encode(4, 3, width, height, &image_rgba)?;
 

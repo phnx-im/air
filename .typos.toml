@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[files]
+ignore-files = true
+ignore-hidden = false
+extend-exclude = [
+    ".git/",
+
+    # Exclude localization except for english
+    "app/ios/Runner/de.lproj/InfoPlist.strings",
+    "app/ios/Runner/fr.lproj/InfoPlist.strings",
+    "app/ios/Runner/sv.lproj/InfoPlist.strings",
+    "app/lib/l10n/GLOSSARY_de.md",
+    "app/lib/l10n/GLOSSARY_fr.md",
+    "app/lib/l10n/GLOSSARY_sv.md",
+    "app/lib/l10n/app_de.arb",
+    "app/lib/l10n/app_fr.arb",
+    "app/lib/l10n/app_localizations*.dart",
+    "app/lib/l10n/app_sv.arb",
+
+    # Exclude iOS project
+    "app/ios/Runner.xcodeproj",
+    "app/macos/Runner.xcodeproj",
+    "app/macos/Runner/Base.lproj/MainMenu.xib",
+    "app/ios/Runner/Base.lproj/Main.storyboard",
+
+    # Exclude imported emoji list
+    "app/assets/emoji/emoji.json",
+
+    # Exclude license files
+    "LICENSES/",
+
+    # Cannot fix migrations
+    "coreclient/migrations/20251022122812_draft_message_is_commited.sql",
+    "coreclient/migrations/20250910110330_init.sql",
+]
+
+[default]
+extend-ignore-identifiers-re = [
+    # Identifiers ending with `_BASE64` are base64 encoded
+    "^[a-zA-Z]_BASE64$",
+]
+
+extend-ignore-re = [
+    # Ignore lines that end with `# spellchecker:disable-line`
+    "(?Rm)^.*(#|//)\\s*spellchecker:disable-line$",
+    # Ignore the line after `# spellchecker:ignore-next-line`:
+    "(#|//)\\s*spellchecker:ignore-next-line\\n.*",
+    # Ignore blocks between `# spellchecker:off` and `# spellchecker:on`
+    "(?s)(#|//)\\s*spellchecker:off.*?\\n\\s*(#|//)\\s*spellchecker:on",
+
+    # PNG is a file format, not a typo
+    "PNG",
+    # Stripped version of reserved keyword `type`
+    "typ",
+    # Push Notification
+    "PN",
+]
+check-filename = true

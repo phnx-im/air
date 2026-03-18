@@ -70,7 +70,7 @@ unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = [
     "https://github.com/raphaelrobert/privacypass",
-    "https://github.com/boxdot/openmls",
+    "https://github.com/openmls/openmls",
 ]
 
 [sources.allow-org]

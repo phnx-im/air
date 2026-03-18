@@ -115,8 +115,8 @@
   "usernameOnboarding_syntax": "Use letters, numbers, or dashes. Minimum 5 characters.",
   "usernameOnboarding_addButton": "Add",
   "usernameOnboarding_next": "Next",
-  "usernameOnboarding_userameInputName": "Username (optional)",
-  "usernameOnboarding_userameInputHint": "Add a username...",
+  "usernameOnboarding_usernameInputName": "Username (optional)",
+  "usernameOnboarding_usernameInputHint": "Add a username...",
 
   "userHandleScreen_title": "Add username",
   "userHandleScreen_inputHint": "Type a username...",
@@ -349,7 +349,7 @@
   "deleteAccountScreen_confirmButtonText": "Delete",
   "deleteAccountScreen_deleteAccountError": "Something went wrong on our end. Wait a moment, then try again.",
 
-  "appOutdatedScreen_title": "Sofware update required",
+  "appOutdatedScreen_title": "Software update required",
   "appOutdatedScreen_message": "Update to keep using Air",
   "appOutdatedScreen_description": "Open TestFlight on iOS or Google Play on Android, then update Air.",
   "appOutdatedScreen_action": "Update",

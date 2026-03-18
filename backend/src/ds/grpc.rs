@@ -380,22 +380,26 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         self.verify_client_version(request.client_metadata.as_ref())?;
         let qgid = self.ds.request_group_id().await;
 
-        let group_profile_provisioning = if request.provision_group_profile {
-            match self
-                .ds
-                .provision_object(StorageObjectType::GroupProfile, None, false)
-                .await
-            {
-                Ok(response) => Some(response),
-                Err(ProvisionObjectError::NoStorageConfigured) => None,
-                Err(error) => {
-                    error!(%error, "Failed to provision attachment");
-                    return Err(Status::internal("Failed to provision attachment"));
+        let group_profile_provisioning =
+            if let Some(group_profile_size) = request.group_profile_size {
+                let content_length = group_profile_size
+                    .try_into()
+                    .map_err(|_| Status::invalid_argument("invalid group profile size"))?;
+                match self
+                    .ds
+                    .provision_object(StorageObjectType::GroupProfile, Some(content_length), false)
+                    .await
+                {
+                    Ok(response) => Some(response),
+                    Err(ProvisionObjectError::NoStorageConfigured) => None,
+                    Err(error) => {
+                        error!(%error, "Failed to provision attachment");
+                        return Err(Status::internal("Failed to provision attachment"));
+                    }
                 }
-            }
-        } else {
-            None
-        };
+            } else {
+                None
+            };
 
         Ok(Response::new(RequestGroupIdResponse {
             group_id: Some(qgid.ref_into()),

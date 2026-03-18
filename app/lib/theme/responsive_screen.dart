@@ -48,7 +48,7 @@ class ResponsiveScreen extends StatefulWidget {
   /// Mobile layout: less than 800px
   final Widget mobile;
 
-  /// Tablet layout: greates than 800px and is touch device (iOS or Android)
+  /// Tablet layout: greats than 800px and is touch device (iOS or Android)
   final Widget tablet;
 
   /// Desktop layout: greater than 800px and is not touch device (macOS, Windows, Linux)

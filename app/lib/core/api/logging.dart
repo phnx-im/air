@@ -26,7 +26,7 @@ LogWriter initRustLogging({required String logFile}) =>
 Future<String> readAppLogs() =>
     RustLib.instance.api.crateApiLoggingReadAppLogs();
 
-/// Clears all pplication logs.
+/// Clears all application logs.
 ///
 /// The file is truncated to zero length, but is is kept open.
 Future<void> clearAppLogs() =>
