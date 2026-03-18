@@ -75,7 +75,7 @@ use crate::{
         targeted_message::TargetedMessageContent,
     },
     contacts::ContactAddInfos,
-    groups::client_auth_info::{ClientCredentialError, VerifiableClientCredentialExt},
+    groups::client_auth_info::VerifiableClientCredentialExt,
     key_stores::as_credentials::AsCredentials,
 };
 use std::collections::HashSet;
@@ -1214,8 +1214,8 @@ async fn verify_member_credentials(
     txn: &mut SqliteTransaction<'_>,
     api_clients: &ApiClients,
     mls_group: &MlsGroup,
-) -> Result<Vec<StorableClientCredential>, ClientCredentialError> {
-    let unverified_credentials: Vec<_> = mls_group
+) -> anyhow::Result<Vec<StorableClientCredential>> {
+    let unverified_credentials = mls_group
         .members()
         .map(|m| {
             Ok((
@@ -1223,7 +1223,7 @@ async fn verify_member_credentials(
                 SignaturePublicKey::from(m.signature_key),
             ))
         })
-        .collect::<Result<Vec<_>, ClientCredentialError>>()?;
+        .collect::<anyhow::Result<Vec<_>>>()?;
 
     let as_credentials = AsCredentials::fetch_for_verification(
         txn.as_mut(),
