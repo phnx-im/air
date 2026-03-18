@@ -1,5 +1,8 @@
 source "https://rubygems.org"
 
+gem "abbrev"
+gem "ostruct"
+gem "nkf"
 gem "fastlane"
 
 eval_gemfile "Pluginfile" if File.exist?("Pluginfile")

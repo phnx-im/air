@@ -59,9 +59,3 @@ jobs:
       - name: Build app
         working-directory: app
         run: flutter build linux -v --build-number=$(git rev-list --count HEAD)
-
-      - name: Upload app bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-app-x64
-          path: app/build/linux/x64/release/bundle
