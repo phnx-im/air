@@ -119,6 +119,7 @@ impl CoreUser {
     async fn process_qs_message(
         &self,
         txn: &mut SqliteTransaction<'_>,
+        notifier: &mut StoreNotifier,
         qs_queue_message: ExtractedQsQueueMessage,
         read_receipts_enabled: bool,
     ) -> Result<ProcessQsMessageResult> {
@@ -130,11 +131,18 @@ impl CoreUser {
         let ds_timestamp = qs_queue_message.timestamp;
         match qs_queue_message.payload {
             ExtractedQsQueueMessagePayload::WelcomeBundle(welcome_bundle) => {
-                Box::pin(self.handle_welcome_bundle(txn, welcome_bundle, ds_timestamp)).await
+                Box::pin(self.handle_welcome_bundle(txn, notifier, welcome_bundle, ds_timestamp))
+                    .await
             }
             ExtractedQsQueueMessagePayload::MlsMessage(mls_message) => {
-                self.handle_mls_message(txn, *mls_message, ds_timestamp, read_receipts_enabled)
-                    .await
+                self.handle_mls_message(
+                    txn,
+                    notifier,
+                    *mls_message,
+                    ds_timestamp,
+                    read_receipts_enabled,
+                )
+                .await
             }
             ExtractedQsQueueMessagePayload::UserProfileKeyUpdate(
                 user_profile_key_update_params,
@@ -147,11 +155,12 @@ impl CoreUser {
             ) => {
                 let mls_message = MlsMessageIn::tls_deserialize_exact_bytes(&mls_message_bytes)
                     .context("Failed to deserialize targeted MLS message")?;
-                self.handle_targeted_application_message(txn, mls_message, ds_timestamp)
+                self.handle_targeted_application_message(txn, notifier, mls_message, ds_timestamp)
                     .await
             }
             ExtractedQsQueueMessagePayload::DsCommitResponse(ds_commit_response) => {
-                self.handle_commit_response(txn, ds_commit_response).await
+                self.handle_commit_response(txn, notifier, ds_commit_response)
+                    .await
             }
         }
     }
@@ -159,6 +168,7 @@ impl CoreUser {
     async fn handle_commit_response(
         &self,
         txn: &mut SqliteTransaction<'_>,
+        notifier: &mut StoreNotifier,
         commit_response: DsCommitResponse,
     ) -> Result<ProcessQsMessageResult> {
         let DsCommitResponse {
@@ -168,7 +178,6 @@ impl CoreUser {
         } = commit_response;
 
         // Load the group by group_id
-        let mut notifier = self.notifier();
         txn.with_transaction(async |txn| {
             let mut group = Group::load_verified(txn, &group_id)
                 .await?
@@ -208,7 +217,7 @@ impl CoreUser {
                 // profile data is already available locally.
                 update_chat_attributes(
                     txn,
-                    &mut notifier,
+                    notifier,
                     &mut chat,
                     self.user_id().clone(),
                     chat_attributes,
@@ -217,7 +226,7 @@ impl CoreUser {
                 )
                 .await?;
             }
-            CoreUser::store_new_messages(txn, &mut notifier, chat.id(), group_messages).await?;
+            CoreUser::store_new_messages(txn, notifier, chat.id(), group_messages).await?;
 
             // Delete the pending chat operation
             PendingChatOperation::delete(txn.as_mut(), &group_id).await?;
@@ -225,7 +234,6 @@ impl CoreUser {
             Ok(())
         })
         .await?;
-        notifier.notify();
 
         Ok(ProcessQsMessageResult::None)
     }
@@ -233,13 +241,13 @@ impl CoreUser {
     async fn handle_welcome_bundle(
         &self,
         txn: &mut SqliteTransaction<'_>,
+        notifier: &mut StoreNotifier,
         welcome_bundle: WelcomeBundle,
         ds_timestamp: TimeStamp,
     ) -> Result<ProcessQsMessageResult> {
         // WelcomeBundle Phase 1: Join the group. This might involve
         // loading AS credentials or fetching them from the AS.
 
-        let mut notifier = self.notifier();
         let (own_profile_key, own_profile_key_in_group, group, chat_id, system_message) =
             Box::pin(txn.with_transaction(async |txn| {
                 let (group, sender_user_id, member_profile_info) = Group::join_group(
@@ -298,7 +306,7 @@ impl CoreUser {
                 // If we've been in that chat before, we delete the old chat
                 // first and then create a new one. We do leave the messages
                 // intact, though.
-                chat.store(txn.as_mut(), &mut notifier).await?;
+                chat.store(txn.as_mut(), notifier).await?;
 
                 // Add system message who added us to the group.
                 let system_message = ChatMessage::new_system_message(
@@ -306,7 +314,7 @@ impl CoreUser {
                     ds_timestamp,
                     SystemMessage::Add(sender_user_id, self.user_id().clone()),
                 );
-                system_message.store(txn.as_mut(), &mut notifier).await?;
+                system_message.store(txn.as_mut(), notifier).await?;
 
                 Ok((
                     own_profile_key,
@@ -317,7 +325,6 @@ impl CoreUser {
                 ))
             }))
             .await?;
-        notifier.notify();
 
         // WelcomeBundle Phase 4: Check whether our user profile key is up to
         // date and if not, update it.
@@ -346,6 +353,7 @@ impl CoreUser {
     async fn handle_targeted_application_message(
         &self,
         txn: &mut SqliteTransaction<'_>,
+        notifier: &mut StoreNotifier,
         mls_message: MlsMessageIn,
         ds_timestamp: TimeStamp,
     ) -> Result<ProcessQsMessageResult> {
@@ -362,7 +370,6 @@ impl CoreUser {
             NeedsResync(Resync),
         }
 
-        let mut notifier = self.notifier();
         let transaction_result = txn
             .with_transaction(async |txn| {
                 let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
@@ -421,7 +428,7 @@ impl CoreUser {
                     api_clients: &self.inner.api_clients,
                     http_client: &self.inner.http_client,
                     connection: txn.as_mut(),
-                    notifier: &mut notifier,
+                    notifier,
                     key_store: &self.inner.key_store,
                     now: Utc::now(),
                 };
@@ -432,7 +439,6 @@ impl CoreUser {
                 Ok(TransactionResult::Ok(chat_id))
             })
             .await?;
-        notifier.notify();
 
         match transaction_result {
             TransactionResult::Ok(chat_id) => Ok(ProcessQsMessageResult::NewConnection(chat_id)),
@@ -447,6 +453,7 @@ impl CoreUser {
     async fn handle_mls_message(
         &self,
         txn: &mut SqliteTransaction<'_>,
+        notifier: &mut StoreNotifier,
         mls_message: MlsMessageIn,
         ds_timestamp: TimeStamp,
         read_receipts_enabled: bool,
@@ -474,7 +481,6 @@ impl CoreUser {
             NeedsResync(Resync),
         }
 
-        let mut notifier = self.notifier();
         let transaction_result = txn
             .with_transaction(async |txn| {
                 let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
@@ -534,7 +540,7 @@ impl CoreUser {
                         } = self
                             .handle_application_message(
                                 txn,
-                                &mut notifier,
+                                notifier,
                                 &group,
                                 application_message,
                                 ds_timestamp,
@@ -583,9 +589,9 @@ impl CoreUser {
                 };
 
                 let mut messages =
-                    Self::store_new_messages(txn, &mut notifier, chat_id, new_messages).await?;
+                    Self::store_new_messages(txn, notifier, chat_id, new_messages).await?;
                 for updated_message in updated_messages {
-                    updated_message.update(txn.as_mut(), &mut notifier).await?;
+                    updated_message.update(txn.as_mut(), notifier).await?;
                     messages.push(updated_message);
                 }
 
@@ -597,7 +603,6 @@ impl CoreUser {
                 })
             })
             .await?;
-        notifier.notify();
 
         let (messages, chat_changed, chat_id, profile_infos) = match transaction_result {
             TransactionResult::Ok {
@@ -1038,8 +1043,10 @@ impl CoreUser {
             };
 
             // Decrypt and process the message (and Box the large future)
+            let mut notifier = self.notifier();
             let cont = Box::pin(self.decrypt_and_process_qs_message(
                 &mut txn,
+                &mut notifier,
                 qs_message,
                 &mut result,
                 read_receipts_enabled,
@@ -1056,7 +1063,11 @@ impl CoreUser {
 
             // Continue or break
             match cont {
-                Ok(()) => {}
+                Ok(()) => {
+                    // Only notify about store changes if the message was
+                    // successfully processed.
+                    notifier.notify();
+                }
                 Err(error) => {
                     error!(%error, "Failed to process QS message");
                     result.processed = idx;
@@ -1074,6 +1085,7 @@ impl CoreUser {
     async fn decrypt_and_process_qs_message(
         &self,
         txn: &mut SqliteTransaction<'_>,
+        notifier: &mut StoreNotifier,
         qs_message: QueueMessage,
         result: &mut ProcessedQsMessages,
         read_receipts_enabled: bool,
@@ -1091,6 +1103,7 @@ impl CoreUser {
 
         let processed = match Box::pin(self.process_qs_message(
             txn,
+            notifier,
             qs_message_plaintext,
             read_receipts_enabled,
         ))
