@@ -30,7 +30,7 @@ runs:
           ${{ env.CARGO_HOME }}
           ${{ env.PUB_CACHE }}
           ${{ inputs.cache-dir }}
-        key: "sccache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock', '.config/cargo.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
+        key: "sccache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
         restore-keys: |
           sccache-${{ runner.os }}-${{ runner.arch }}
 
