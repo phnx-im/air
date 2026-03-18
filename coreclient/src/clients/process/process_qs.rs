@@ -59,7 +59,7 @@ use crate::{
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
     store::{Store, StoreNotifier},
-    utils::connection_ext::{StoreExt, TransactionExt},
+    utils::connection_ext::{ConnectionExt, StoreExt},
 };
 
 use super::{Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow};
@@ -118,7 +118,7 @@ impl CoreUser {
     ///   received from the QS as part of the AddInfo download.
     async fn process_qs_message(
         &self,
-        txn: SqliteTransaction<'_>,
+        txn: &mut SqliteTransaction<'_>,
         qs_queue_message: ExtractedQsQueueMessage,
         read_receipts_enabled: bool,
     ) -> Result<ProcessQsMessageResult> {
@@ -158,7 +158,7 @@ impl CoreUser {
 
     async fn handle_commit_response(
         &self,
-        txn: SqliteTransaction<'_>,
+        txn: &mut SqliteTransaction<'_>,
         commit_response: DsCommitResponse,
     ) -> Result<ProcessQsMessageResult> {
         let DsCommitResponse {
@@ -169,7 +169,7 @@ impl CoreUser {
 
         // Load the group by group_id
         let mut notifier = self.notifier();
-        txn.commit_on_success(async |txn| {
+        txn.with_transaction(async |txn| {
             let mut group = Group::load_verified(txn, &group_id)
                 .await?
                 .context("Can't find group for commit response")?;
@@ -232,7 +232,7 @@ impl CoreUser {
 
     async fn handle_welcome_bundle(
         &self,
-        txn: SqliteTransaction<'_>,
+        txn: &mut SqliteTransaction<'_>,
         welcome_bundle: WelcomeBundle,
         ds_timestamp: TimeStamp,
     ) -> Result<ProcessQsMessageResult> {
@@ -241,7 +241,7 @@ impl CoreUser {
 
         let mut notifier = self.notifier();
         let (own_profile_key, own_profile_key_in_group, group, chat_id, system_message) =
-            Box::pin(txn.commit_on_success(async |txn| {
+            Box::pin(txn.with_transaction(async |txn| {
                 let (group, sender_user_id, member_profile_info) = Group::join_group(
                     welcome_bundle,
                     &self.inner.key_store.wai_ear_key,
@@ -345,7 +345,7 @@ impl CoreUser {
 
     async fn handle_targeted_application_message(
         &self,
-        txn: SqliteTransaction<'_>,
+        txn: &mut SqliteTransaction<'_>,
         mls_message: MlsMessageIn,
         ds_timestamp: TimeStamp,
     ) -> Result<ProcessQsMessageResult> {
@@ -364,7 +364,7 @@ impl CoreUser {
 
         let mut notifier = self.notifier();
         let transaction_result = txn
-            .commit_on_success(async |txn| {
+            .with_transaction(async |txn| {
                 let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
                     .await?
                     .ok_or_else(|| anyhow!("No chat found for group ID {:?}", group_id))?;
@@ -446,7 +446,7 @@ impl CoreUser {
 
     async fn handle_mls_message(
         &self,
-        mut txn: SqliteTransaction<'_>,
+        txn: &mut SqliteTransaction<'_>,
         mls_message: MlsMessageIn,
         ds_timestamp: TimeStamp,
         read_receipts_enabled: bool,
@@ -475,9 +475,8 @@ impl CoreUser {
         }
 
         let mut notifier = self.notifier();
-        let savepoint = txn.begin().await?;
-        let transaction_result = savepoint
-            .commit_on_success(async |txn| {
+        let transaction_result = txn
+            .with_transaction(async |txn| {
                 let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
                     .await?
                     .ok_or_else(|| anyhow!("No chat found for group ID {:?}", group_id))?;
@@ -639,7 +638,6 @@ impl CoreUser {
         for profile_info in profile_infos {
             Self::schedule_fetch_user_profile(txn.as_mut(), profile_info).await?;
         }
-        txn.commit().await?;
 
         Ok(res)
     }
@@ -966,10 +964,10 @@ impl CoreUser {
 
     async fn handle_user_profile_key_update(
         &self,
-        txn: SqliteTransaction<'_>,
+        txn: &mut SqliteTransaction<'_>,
         params: UserProfileKeyUpdateParams,
     ) -> anyhow::Result<ProcessQsMessageResult> {
-        txn.commit_on_success(async |txn| {
+        txn.with_transaction(async |txn| {
             // Don't update the profile if the chat is blocked
             let chat_id = ChatId::try_from(&params.group_id)?;
             if BlockedContact::check_blocked_chat(txn.as_mut(), chat_id).await? {
@@ -1091,11 +1089,8 @@ impl CoreUser {
             }
         };
 
-        // Pass a savepoint to the processing of the QS message s.t. it can be rolled back
-        // independently of the ratchet update.
-        let savepoint = txn.begin().await?;
         let processed = match Box::pin(self.process_qs_message(
-            savepoint,
+            txn,
             qs_message_plaintext,
             read_receipts_enabled,
         ))
