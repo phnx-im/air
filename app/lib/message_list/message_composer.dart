@@ -121,7 +121,10 @@ class _MessageComposerState extends State<MessageComposer>
           if (_inputController.text.isEmpty) {
             _inputController.text = draft.message;
           }
-          requestFocus = true; // open keyboard when a chat has a draft
+          if (draft.message.isNotEmpty) {
+            // open keyboard when a chat has a non-empty draft
+            requestFocus = true;
+          }
         // Editing ID has changed
         case final draft when draft?.editingId != currentEditingId:
           _inputController.text = draft?.message ?? "";
