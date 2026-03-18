@@ -85,7 +85,9 @@ fn benchmarks(c: &mut Criterion) {
                 let mut setup = setup.lock().await;
                 for _ in 0..iter {
                     let time = Instant::now();
-                    setup.send_message(chat_alice_bob, &alice, vec![&bob]).await;
+                    setup
+                        .send_message(chat_alice_bob, &alice, vec![&bob], None)
+                        .await;
                     elapsed += time.elapsed()
                 }
                 // update group, otherwise we get too far in to the future error from MLS
@@ -147,7 +149,7 @@ fn benchmarks(c: &mut Criterion) {
                 for _ in 0..iter {
                     let bobs = bobs.iter().collect();
                     let time = Instant::now();
-                    setup.send_message(chat_id, &alice, bobs).await;
+                    setup.send_message(chat_id, &alice, bobs, None).await;
                     elapsed += time.elapsed();
                 }
                 elapsed
