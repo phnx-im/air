@@ -9,7 +9,6 @@ import 'package:air/attachments/attachments.dart';
 import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/main.dart';
 import 'package:air/message_list/jumbo_emoji.dart';
 import 'package:air/message_list/message_composer.dart';
 import 'package:air/message_list/mobile_message_actions.dart';
@@ -25,6 +24,7 @@ import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/platform.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:path/path.dart' as p;
@@ -582,10 +582,7 @@ class _MessageView extends HookWidget {
         );
       } catch (e, stackTrace) {
         _log.severe("Failed to save attachment: $e", e, stackTrace);
-        if (context.mounted) {
-          final loc = AppLocalizations.of(context);
-          showErrorBanner(context, loc.messageContextMenu_saveError);
-        }
+        showErrorBannerStandalone((loc) => loc.messageContextMenu_saveError);
         return;
       }
     } else if (Platform.isIOS) {
