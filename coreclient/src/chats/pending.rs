@@ -26,7 +26,7 @@ use crate::{
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
     },
     contacts::HandleContact,
-    groups::{ExternalJoinError, Group},
+    groups::Group,
     key_stores::indexed_keys::StorableIndexedKey,
     user_handles::connection_packages::StorableConnectionPackage,
     utils::connection_ext::StoreExt,
@@ -114,7 +114,7 @@ impl CoreUser {
 
         // Create a new group by joining it (if group already exists, it will be replaced)
         let result = self
-            .with_transaction_and_notifier(async |txn, notifier| -> anyhow::Result<_> {
+            .with_transaction_and_notifier(async |txn, notifier| -> anyhow::Result<Result<_, _>> {
                 if Group::load_with_chat_id(txn.as_mut(), chat_id)
                     .await?
                     .is_some()
@@ -124,20 +124,23 @@ impl CoreUser {
                 }
 
                 // Join group
-                let (mut group, commit, group_info, mut member_profile_info) =
-                    Group::join_group_externally(
-                        txn,
-                        self.api_clients(),
-                        eci,
-                        self.signing_key(),
-                        connection_info.connection_group_ear_key.clone(),
-                        connection_info
-                            .connection_group_identity_link_wrapper_key
-                            .clone(),
-                        aad,
-                        connection_offer_hash,
-                    )
-                    .await?;
+                let res = Group::join_group_externally(
+                    txn,
+                    self.api_clients(),
+                    eci,
+                    self.signing_key(),
+                    connection_info.connection_group_ear_key.clone(),
+                    connection_info
+                        .connection_group_identity_link_wrapper_key
+                        .clone(),
+                    aad,
+                    connection_offer_hash,
+                )
+                .await?;
+                let (mut group, commit, group_info, mut member_profile_info) = match res {
+                    Ok(value) => value,
+                    Err(error) => return Ok(Err(error)),
+                };
 
                 // Verify that the group has only one other member and that it's
                 // the sender of the CEP.
@@ -202,23 +205,14 @@ impl CoreUser {
                     }
                 }
 
-                Ok((commit, group_info))
+                Ok(Ok((commit, group_info)))
             })
-            .await;
+            .await?;
 
         // Propagate the error to the caller if it is a leaf node validation error.
         let (commit, group_info) = match result {
             Ok(value) => value,
-            Err(error) => {
-                let join_error: ExternalJoinError = error.downcast()?;
-                return join_error
-                    .classify_leaf_validation_error()
-                    .map(|validation| {
-                        Err(AcceptContactRequestError::IncompatibleClient {
-                            reason: validation.to_string(),
-                        })
-                    });
-            }
+            Err(error) => return Ok(Err(error.into())),
         };
 
         // Send confirmation to DS

@@ -28,7 +28,6 @@ use aircommon::{
                 WelcomeAttributionInfoEarKey,
             },
         },
-        errors::{DecryptionError, EncryptionError},
         hpke::{HpkeDecryptable, JoinerInfoDecryptionKey},
         indexed_aead::keys::UserProfileKey,
         signatures::signable::{Signable, Verifiable},
@@ -83,19 +82,18 @@ use std::collections::HashSet;
 
 use openmls::{
     group::{
-        CommitBuilderStageError, CreateCommitError, ExternalCommitBuilder,
-        ExternalCommitBuilderError, ExternalCommitBuilderFinalizeError, JoinBuilder,
-        ProcessedWelcome, ProposalValidationError,
+        CreateCommitError, ExternalCommitBuilder, JoinBuilder, ProcessedWelcome,
+        ProposalValidationError,
     },
     key_packages::KeyPackageBundle,
     prelude::{
-        BasicCredentialError, CredentialWithKey, CryptoError, Extension, Extensions, GroupId,
-        KeyPackage, LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsMessageBodyIn, MlsMessageIn,
-        MlsMessageOut, OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal,
-        Proposal, ProposalType, ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey,
-        StagedCommit, UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
+        BasicCredentialError, CredentialWithKey, Extension, Extensions, GroupId, KeyPackage,
+        LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
+        OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal,
+        ProposalType, ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
+        UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
     },
-    schedule::{ExternalPsk, PreSharedKeyId, Psk, errors::PskError},
+    schedule::{ExternalPsk, PreSharedKeyId, Psk},
     treesync::{RatchetTree, errors::LeafNodeValidationError},
 };
 
@@ -431,7 +429,9 @@ impl Group {
         aad: AadMessage,
         // Should be Some if this join is in response to a connection offer.
         connection_offer_hash: Option<ConnectionOfferHash>,
-    ) -> Result<(Self, MlsMessageOut, MlsMessageOut, Vec<ProfileInfo>), ExternalJoinError> {
+    ) -> anyhow::Result<
+        Result<(Self, MlsMessageOut, MlsMessageOut, Vec<ProfileInfo>), LeafNodeValidationError>,
+    > {
         let mls_group_config = default_mls_group_join_config();
         let credential_with_key = CredentialWithKey {
             credential: signer.credential().try_into()?,
@@ -501,18 +501,22 @@ impl Group {
                 builder = builder.add_psk_proposal(psk_proposal);
             }
 
-            let (mls_group, commit) = builder
+            let res = builder
                 .load_psks(provider.storage())?
                 .create_group_info(true)
-                .build(provider.rand(), provider.crypto(), signer, |_| true)?
-                .finalize(&provider)?;
+                .build(provider.rand(), provider.crypto(), signer, |_| true);
+            let (mls_group, commit) = match res {
+                Ok(builder) => builder.finalize(&provider)?,
+                // Exctract leaf node validation error if any
+                Err(error) => return Ok(Err(to_capabilities_mismatch(error)?)),
+            };
 
             let (commit, _, group_info) = commit.into_contents();
 
             (
                 mls_group,
                 commit,
-                group_info.ok_or(ExternalJoinError::MissingGroupInfo)?,
+                group_info.context("No group info found")?,
             )
         };
 
@@ -543,7 +547,7 @@ impl Group {
             .await?;
 
         // Compile a list of user profile keys for the members.
-        let member_profile_info: Vec<_> = encrypted_user_profile_keys
+        let member_profile_info = encrypted_user_profile_keys
             .into_iter()
             .enumerate()
             .filter_map(|(index, eupk)| {
@@ -560,7 +564,7 @@ impl Group {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok((group, commit, group_info.into(), member_profile_info))
+        Ok(Ok((group, commit, group_info.into(), member_profile_info)))
     }
 
     /// Invite the given list of contacts to join the group.
@@ -575,7 +579,7 @@ impl Group {
         add_infos: Vec<ContactAddInfos>,
         wai_keys: Vec<WelcomeAttributionInfoEarKey>,
         client_credentials: Vec<ClientCredential>,
-    ) -> Result<GroupOperationParamsOut, StageInviteError> {
+    ) -> anyhow::Result<Result<GroupOperationParamsOut, LeafNodeValidationError>> {
         debug_assert!(add_infos.len() == wai_keys.len());
         debug_assert!(add_infos.len() == client_credentials.len());
         // Prepare KeyPackages
@@ -603,20 +607,24 @@ impl Group {
             let provider = AirOpenMlsProvider::new(&mut *connection);
             self.mls_group
                 .set_aad(aad_message.tls_serialize_detached()?);
-            self.mls_group
+            let res = self
+                .mls_group
                 .commit_builder()
                 .force_self_update(true)
                 .propose_adds(key_packages)
                 .load_psks(provider.storage())?
                 .create_group_info(true)
-                .build(provider.rand(), provider.crypto(), signer, |_| true)?
-                .stage_commit(&provider)?
-                .into_contents()
+                .build(provider.rand(), provider.crypto(), signer, |_| true);
+            match res {
+                Ok(builder) => builder.stage_commit(&provider)?.into_contents(),
+                // Exctract leaf node validation error if any
+                Err(error) => return Ok(Err(to_capabilities_mismatch(error)?)),
+            }
         };
 
-        let group_info = group_info_option.ok_or(StageInviteError::MissingGroupInfo)?;
+        let group_info = group_info_option.context("No group info found")?;
         let welcome = MlsMessageOut::from_welcome(
-            welcome_option.ok_or(StageInviteError::MissingWelcome)?,
+            welcome_option.context("No welcome message found")?,
             ProtocolVersion::default(),
         );
         let commit = AssistedMessageOut::new(mls_commit, Some(group_info.into()));
@@ -638,7 +646,7 @@ impl Group {
                 .sign(signer)?;
                 Ok(wai.encrypt(wai_key)?)
             })
-            .collect::<Result<Vec<_>, StageInviteError>>()?;
+            .collect::<anyhow::Result<Vec<_>>>()?;
 
         let add_users_info = AddUsersInfoOut {
             welcome,
@@ -650,7 +658,7 @@ impl Group {
             add_users_info_option: Some(add_users_info),
         };
 
-        Ok(params)
+        Ok(Ok(params))
     }
 
     pub(super) async fn stage_remove(
@@ -1390,99 +1398,26 @@ pub fn suppress_notifications(content: &MimiContent) -> bool {
     false
 }
 
-#[derive(Debug, thiserror::Error)]
-pub(crate) enum StageInviteError {
-    #[error(transparent)]
-    Encryption(#[from] EncryptionError),
-    #[error(transparent)]
-    Commit(#[from] CreateCommitError),
-    #[error(transparent)]
-    CommitBuilder(#[from] CommitBuilderStageError<sqlx::Error>),
-    #[error(transparent)]
-    ExternalCommitBuilder(#[from] ExternalCommitBuilderError<sqlx::Error>),
-    #[error(transparent)]
-    ExternalCommitFinalize(#[from] ExternalCommitBuilderFinalizeError<sqlx::Error>),
-    #[error("Missing welcome")]
-    MissingWelcome,
-    #[error("Missing group info")]
-    MissingGroupInfo,
-    #[error(transparent)]
-    TlsCodec(#[from] tls_codec::Error),
-    #[error(transparent)]
-    Library(#[from] aircommon::LibraryError),
-    #[error(transparent)]
-    CryptoError(#[from] CryptoError),
-    #[error(transparent)]
-    Psk(#[from] PskError),
-}
-
-impl StageInviteError {
-    /// Classifies the error as a leaf node validation error indicating a capabilities mismatch.
-    pub(crate) fn classify_leaf_validation_error(self) -> anyhow::Result<LeafNodeValidationError> {
-        match self {
-            Self::Commit(
-                CreateCommitError::LeafNodeValidation(error)
-                | CreateCommitError::ProposalValidationError(
-                    ProposalValidationError::LeafNodeValidation(error),
-                ),
-            ) if is_capabilities_mismatch(&error) => Ok(error),
-            other => Err(other.into()),
-        }
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub(crate) enum ExternalJoinError {
-    #[error(transparent)]
-    Decryption(#[from] DecryptionError),
-    #[error(transparent)]
-    Commit(#[from] CreateCommitError),
-    #[error(transparent)]
-    ExternalCommitBuilder(#[from] ExternalCommitBuilderError<sqlx::Error>),
-    #[error(transparent)]
-    ExternalCommitFinalize(#[from] ExternalCommitBuilderFinalizeError<sqlx::Error>),
-    #[error("Missing group info")]
-    MissingGroupInfo,
-    #[error(transparent)]
-    TlsCodec(#[from] tls_codec::Error),
-    #[error(transparent)]
-    Library(#[from] aircommon::LibraryError),
-    #[error(transparent)]
-    CryptoError(#[from] CryptoError),
-    #[error(transparent)]
-    Psk(#[from] PskError),
-    #[error(transparent)]
-    ClientCredential(#[from] ClientCredentialError),
-    #[error(transparent)]
-    Db(#[from] sqlx::Error),
-}
-
-impl ExternalJoinError {
-    /// Classifies the error as a leaf node validation error indicating a capabilities mismatch.
-    pub(crate) fn classify_leaf_validation_error(self) -> anyhow::Result<LeafNodeValidationError> {
-        match self {
-            Self::Commit(
-                CreateCommitError::LeafNodeValidation(error)
-                | CreateCommitError::ProposalValidationError(
-                    ProposalValidationError::LeafNodeValidation(error),
-                ),
-            ) if is_capabilities_mismatch(&error) => Ok(error),
-            other => Err(other.into()),
-        }
-    }
-}
-
-fn is_capabilities_mismatch(error: &LeafNodeValidationError) -> bool {
+fn to_capabilities_mismatch(error: CreateCommitError) -> anyhow::Result<LeafNodeValidationError> {
     use LeafNodeValidationError::*;
-    matches!(
-        error,
-        UnsupportedExtensions
-            | UnsupportedProposals
-            | UnsupportedCredentials
-            | CiphersuiteNotInCapabilities
-            | CredentialNotInCapabilities
-            | ExtensionsNotInCapabilities
-            | LeafNodeCredentialNotSupportedByMember
-            | MemberCredentialNotSupportedByLeafNode,
-    )
+    match error {
+        CreateCommitError::LeafNodeValidation(error)
+        | CreateCommitError::ProposalValidationError(
+            ProposalValidationError::LeafNodeValidation(error),
+        ) if matches!(
+            error,
+            UnsupportedExtensions
+                | UnsupportedProposals
+                | UnsupportedCredentials
+                | CiphersuiteNotInCapabilities
+                | CredentialNotInCapabilities
+                | ExtensionsNotInCapabilities
+                | LeafNodeCredentialNotSupportedByMember
+                | MemberCredentialNotSupportedByLeafNode,
+        ) =>
+        {
+            Ok(error)
+        }
+        other => Err(other.into()),
+    }
 }

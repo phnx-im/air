@@ -558,7 +558,7 @@ impl PendingChatOperation {
                 }
 
                 // Adds new member and stages commit
-                let result = group
+                let params = group
                     .group_mut()
                     .stage_invite(
                         txn,
@@ -567,15 +567,10 @@ impl PendingChatOperation {
                         contact_wai_keys,
                         client_credentials,
                     )
-                    .await;
-
-                // Check if we got a leaf node validation error which is domain specific and should
-                // be propagated to the user.
-                let params =
-                    result.map_err(|error| match error.classify_leaf_validation_error() {
-                        Ok(validation) => JobError::domain(ChatOperationError::from(validation)),
-                        Err(error) => JobError::fatal(error),
-                    })?;
+                    .await?
+                    // Check if we got a leaf node validation error which is domain specific and should
+                    // be propagated to the user.
+                    .map_err(|validation| JobError::domain(ChatOperationError::from(validation)))?;
 
                 // Create PendingChatOperation job
                 let pending_chat_operation = PendingChatOperation::new(group, Box::new(params));
