@@ -31,6 +31,10 @@ class Environment {
   /// Path to the rust-toolchain.toml file.
   static String get toolchainToml => _getEnvPath('CARGOKIT_TOOLCHAIN_TOML');
 
+  /// Profile to pass to cargo build --profile instead of --debug or --release
+  static String? get cargoProfile =>
+      String.fromEnvironment("CARGOKIT_CARGO_PROFILE");
+
   // Pod
 
   /// Platform name (macosx, iphoneos, iphonesimulator).

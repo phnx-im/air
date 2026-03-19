@@ -65,6 +65,7 @@ jobs:
           APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
           APP_STORE_KEY_P8_BASE64: ${{ secrets.APP_STORE_KEY_P8_BASE64 }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
+          CARGOKIT_CARGO_PROFILE: ci-release
           TEAM_ID: ${{ secrets.TEAM_ID }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}

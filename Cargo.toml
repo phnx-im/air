@@ -135,7 +135,8 @@ openmls = { git = "https://github.com/openmls/openmls", rev = "04c50d7fb12d52f4f
 openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "04c50d7fb12d52f4f9aee26de5f5234f3df29fa8" }
 openmls_traits = { git = "https://github.com/openmls/openmls", rev = "04c50d7fb12d52f4f9aee26de5f5234f3df29fa8" }
 
-[profile.release]
+[profile.ci-release]
+inherits = "release"
 strip = true
-lto = true
+lto = "thin"
 codegen-units = 1

@@ -85,9 +85,6 @@ platform :mac do
     # Set up CI
     setup_ci()
 
-    # Install flutter dependencies
-    sh "fvm flutter pub get"
-
     # Build the app with flutter first to create the necessary ephemeral files
     sh "fvm flutter build macos --config-only #{skip_signing ? '--debug' : '--release'} --build-number=#{build_number}"
 
