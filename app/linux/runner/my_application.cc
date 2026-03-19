@@ -23,6 +23,7 @@ G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 static void my_application_activate(GApplication *application)
 {
   MyApplication *self = MY_APPLICATION(application);
+
   GtkWindow *window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
 
@@ -80,18 +81,7 @@ static gboolean my_application_local_command_line(GApplication *application, gch
   // Strip out the first argument as it is the binary name.
   self->dart_entrypoint_arguments = g_strdupv(*arguments + 1);
 
-  g_autoptr(GError) error = nullptr;
-  if (!g_application_register(application, nullptr, &error))
-  {
-    g_warning("Failed to register: %s", error->message);
-    *exit_status = 1;
-    return TRUE;
-  }
-
-  g_application_activate(application);
-  *exit_status = 0;
-
-  return TRUE;
+  return G_APPLICATION_CLASS(my_application_parent_class)->local_command_line(application, arguments, exit_status);
 }
 
 // Implements GApplication::startup.
@@ -133,7 +123,7 @@ static void my_application_class_init(MyApplicationClass *klass)
 
 static void my_application_init(MyApplication *self) {}
 
-MyApplication *my_application_new()
+MyApplication *my_application_new(int argc, char** argv)
 {
   // Set the program name to the application ID, which helps various systems
   // like GTK and desktop environments map this running application to its
@@ -141,8 +131,16 @@ MyApplication *my_application_new()
   // the application to be recognized beyond its binary name.
   g_set_prgname(APPLICATION_ID);
 
+  gboolean is_service = FALSE;
+  for (int i = 1; i < argc; i++) {
+      if (g_strcmp0(argv[i], "--gapplication-service") == 0) {
+          is_service = TRUE;
+          break;
+      }
+  }
+
   return MY_APPLICATION(g_object_new(my_application_get_type(),
                                      "application-id", APPLICATION_ID,
-                                     "flags", G_APPLICATION_NON_UNIQUE,
+                                     "flags", is_service ? G_APPLICATION_DEFAULT_FLAGS : G_APPLICATION_NON_UNIQUE,
                                      nullptr));
 }

@@ -1,0 +1,104 @@
+# SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: Build Linux app
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main"]
+  merge_group:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  SQLX_OFFLINE: true
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      build_number: ${{ steps.git_commits_count.outputs.value }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Fetch all commit metadata (build number is derived from number of commits)
+          fetch-depth: 0
+          # Don't download historical file contents (blobs)
+          filter: blob:none
+      
+      - name: Extract build number
+        id: git_commits_count
+        run: echo "value=$(git rev-list --count HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Setup cargo binstall
+        uses: cargo-bins/cargo-binstall@v1.17.7
+      
+      - name: Install build dependencies
+        run: |
+          cargo binstall sccache just --no-confirm
+          sudo apt-get update -qq
+          sudo apt-get install -yqq lld ninja-build libgtk-3-dev
+
+      - name: Setup Flutter SDK
+        uses: flutter-actions/setup-flutter@v4
+        with:
+          channel: stable
+          version: 3.41.4
+          cache: true
+          cache-sdk: true
+
+      - name: Configure sccache
+        uses: ./.github/actions/sccache
+
+      - name: Build app
+        working-directory: app
+        run: flutter build linux -v --build-number=${{ steps.git_commits_count.outputs.value }}
+
+      - name: Upload app bundle
+        uses: actions/upload-artifact@v6
+        with:
+          name: linux-x64-app
+          path: app/build/linux/x64/release/bundle
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Download app bundle
+        uses: actions/download-artifact@v6
+        with:
+          name: linux-x64-app
+          path: app/build/linux/x64/release/bundle
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+
+      - name: Install nfpm
+        run: |
+          echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
+          sudo apt-get update && sudo apt-get install -y nfpm
+
+      - name: Build packages
+        run: RELEASE=${{ needs.build.outputs.build_number }} just build-deb build-rpm
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v6
+        with:
+          name: linux-x64-packages
+          path: |
+            app/linux/*.deb
+            app/linux/*.rpm

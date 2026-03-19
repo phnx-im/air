@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: "air"
+arch: "amd64"
+platform: "linux"
+version: 0.12.1
+release: "${RELEASE}"
+section: "misc"
+maintainer: "Phoenix R&D GmbH <hello@phnx.im>"
+description: Air is an easy-to-use, secure messenger for chatting 1:1 and in groups.
+vendor: "Phoenix R&D GmbH"
+homepage: "https://air.ms"
+license: "AGPL-3.0-or-later"
+# changelog: "changelog.md"
+overrides:
+  rpm:    
+    contents:
+    - src: ../build/linux/x64/release/bundle
+      dst: /usr/lib64/air/
+      type: tree
+    - src: /usr/lib64/air/air
+      dst: /usr/bin/air
+      type: symlink
+    - src: ./ms.air.desktop
+      dst: /usr/share/applications/ms.air.desktop
+    - src: ./ms.air.service
+      dst: /usr/share/dbus-1/services/ms.air.service
+    - src: ./ms.air.svg
+      dst: /usr/share/icons/hicolor/scalable/apps/ms.air.svg
+    - src: ./ms.air.png
+      dst: /usr/share/icons/hicolor/256x256/apps/ms.air.png
+    depends: 
+      - gtk3 >= 3.24.51
+  deb:
+    contents:
+    - src: ../build/linux/x64/release/bundle
+      dst: /usr/lib/x86_64-linux-gnu/air/
+      type: tree
+    - src: /usr/lib/x86_64-linux-gnu/air/air
+      dst: /usr/bin/air
+      type: symlink
+    - src: ./ms.air.desktop
+      dst: /usr/share/applications/ms.air.desktop
+    - src: ./ms.air.svg
+      dst: /usr/share/icons/hicolor/scalable/apps/ms.air.svg
+    - src: ./ms.air.png
+      dst: /usr/share/icons/hicolor/256x256/apps/ms.air.png
+    depends:
+      - libgtk-3
