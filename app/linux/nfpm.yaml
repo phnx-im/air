@@ -48,4 +48,4 @@ overrides:
     - src: ./ms.air.png
       dst: /usr/share/icons/hicolor/256x256/apps/ms.air.png
     depends:
-      - libgtk-3
+      - libgtk-3-0
