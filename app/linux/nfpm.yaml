@@ -35,14 +35,24 @@ overrides:
       - gtk3 >= 3.24.51
   deb:
     contents:
-    - src: ../build/linux/x64/release/bundle
-      dst: /usr/lib/x86_64-linux-gnu/air/
-      type: tree
+    # we have to mark binaries as executable in DEB packages
+    - src: ../build/linux/x64/release/bundle/air
+      dst: /usr/lib/x86_64-linux-gnu/air/air
+      file_info:
+        mode: 0755
     - src: /usr/lib/x86_64-linux-gnu/air/air
       dst: /usr/bin/air
       type: symlink
+    - src: ../build/linux/x64/release/bundle/data
+      dst: /usr/lib/x86_64-linux-gnu/air/data
+      type: tree
+    - src: ../build/linux/x64/release/bundle/lib
+      dst: /usr/lib/x86_64-linux-gnu/air/lib
+      type: tree
     - src: ./ms.air.desktop
       dst: /usr/share/applications/ms.air.desktop
+    - src: ./ms.air.service
+      dst: /usr/share/dbus-1/services/ms.air.service
     - src: ./ms.air.svg
       dst: /usr/share/icons/hicolor/scalable/apps/ms.air.svg
     - src: ./ms.air.png

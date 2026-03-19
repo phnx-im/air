@@ -22,7 +22,8 @@ env:
   RUSTFLAGS: "-D warnings"
 
 jobs:
-  build:
+  # TODO: rename me once we unify all workflows
+  linux-build:
     runs-on: ubuntu-latest
     outputs:
       build_number: ${{ steps.git_commits_count.outputs.value }}
@@ -71,7 +72,7 @@ jobs:
           path: app/build/linux/x64/release/bundle
 
   publish:
-    needs: build
+    needs: linux-build
     runs-on: ubuntu-latest
 
     steps:
