@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT unread_count AS \"count: _\" FROM chat WHERE chat_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "count: _",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "e89afa5acc3a052d94c27708fd78a003cc35f255d4821da5f2b3acddc4e23150"
+}

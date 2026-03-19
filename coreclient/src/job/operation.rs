@@ -52,7 +52,7 @@ pub(crate) struct Operation<T> {
     pub(crate) operation_id: OperationId,
     pub(crate) data: T,
     pub(crate) created_at: DateTime<Utc>,
-    pub(crate) scheduled_at: Option<DateTime<Utc>>,
+    pub(crate) scheduled_at: DateTime<Utc>,
     pub(crate) retries: usize,
 }
 
@@ -66,18 +66,19 @@ pub(crate) enum OperationKind {
 
 impl<T: OperationData> Operation<T> {
     pub(crate) fn new(data: T) -> Self {
+        let now = Utc::now();
         Self {
             operation_id: data.generate_id(),
             data,
-            created_at: Utc::now(),
-            scheduled_at: None,
+            created_at: now,
+            scheduled_at: now,
             retries: 0,
         }
     }
 
     #[cfg(any(feature = "test_utils", test))]
     pub(crate) fn schedule_at(mut self, due_at: DateTime<Utc>) -> Self {
-        self.scheduled_at = Some(due_at);
+        self.scheduled_at = due_at;
         self
     }
 
@@ -216,23 +217,25 @@ mod persistence {
             let kind = T::kind();
             query_as!(
                 SqlOperation,
-                r#"UPDATE operation
-                    SET locked_by = ?1
-                    WHERE operation_id = (
-                        SELECT operation_id
-                        FROM operation
-                        WHERE (locked_by IS NULL OR locked_by != ?1)
-                            AND (scheduled_at IS NULL OR scheduled_at <= ?2)
-                            AND kind = ?3
-                        ORDER BY scheduled_at ASC, created_at ASC
-                        LIMIT 1
-                    )
+                r#"WITH target_row AS (
+                    SELECT operation_id
+                    FROM operation
+                    WHERE kind = ?3
+                      AND scheduled_at <= ?2
+                      AND locked_by != ?1
+                    ORDER BY scheduled_at ASC, created_at ASC
+                    LIMIT 1
+                )
+                UPDATE operation
+                SET locked_by = ?1
+                FROM target_row
+                WHERE operation.operation_id = target_row.operation_id
                 RETURNING
                     operation_id AS "operation_id: _",
                     data AS "data: _",
                     created_at AS "created_at: _",
                     scheduled_at AS "scheduled_at: _",
-                    retries
+                    retries AS "retries: _"
                 "#,
                 task_id,
                 now,
@@ -260,7 +263,7 @@ mod persistence {
             executor: impl SqliteExecutor<'_>,
             schedule_at: DateTime<Utc>,
         ) -> sqlx::Result<()> {
-            self.scheduled_at = Some(schedule_at);
+            self.scheduled_at = schedule_at;
             self.retries += 1;
             let retries = self.retries as i64;
             query!(
@@ -282,8 +285,8 @@ mod persistence {
         operation_id: Vec<u8>,
         data: BlobDecoded<T>,
         created_at: DateTime<Utc>,
-        scheduled_at: Option<DateTime<Utc>>,
-        retries: i64,
+        scheduled_at: DateTime<Utc>,
+        retries: u32,
     }
 
     impl<T> From<SqlOperation<T>> for Operation<T> {
@@ -392,7 +395,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(op.retries, 1);
-        assert_eq!(op.scheduled_at, Some(retry_time));
+        assert_eq!(op.scheduled_at, retry_time);
     }
 
     #[sqlx::test]

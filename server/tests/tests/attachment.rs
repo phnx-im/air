@@ -77,6 +77,10 @@ async fn send_attachment() {
     let bob_test_user = setup.get_user(&bob);
     let bob = &bob_test_user.user;
 
+    let pending_attachments = bob.pending_attachments().await.unwrap();
+    assert_eq!(pending_attachments.len(), 1);
+    assert_eq!(pending_attachments[0], attachment_id);
+
     let (progress, download_task) = bob.download_attachment(attachment_id);
 
     let progress_events = progress.stream().collect::<Vec<_>>();

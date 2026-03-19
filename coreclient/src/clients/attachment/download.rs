@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::time::Duration;
+
 use aircommon::{
     crypto::ear::{AeadCiphertext, EarDecryptable, keys::AttachmentEarKey},
     identifiers::AttachmentId,
@@ -11,7 +13,7 @@ use anyhow::{Context, anyhow, ensure};
 use mimi_content::content_container::EncryptionAlgorithm;
 use sha2::{Digest, Sha256};
 use tokio_stream::StreamExt;
-use tracing::{debug, info};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     AttachmentProgress,
@@ -63,13 +65,16 @@ impl CoreUser {
                     );
                     return Ok(None);
                 };
-                let record = AttachmentRecord::load(txn.as_mut(), attachment_id)
-                    .await?
-                    .context("attachment record not found")?;
+                let Some(record) = AttachmentRecord::load(txn.as_mut(), attachment_id).await?
+                else {
+                    error!(?attachment_id, "Attachment record not found");
+                    return Ok(None);
+                };
                 let chat_id = record.chat_id;
-                let group = Group::load_with_chat_id(txn, chat_id)
-                    .await?
-                    .context("group not found")?;
+                let Some(group) = Group::load_with_chat_id(txn, chat_id).await? else {
+                    error!(?attachment_id, "Group not found");
+                    return Ok(None);
+                };
 
                 AttachmentRecord::update_status(
                     txn.as_mut(),
@@ -158,20 +163,45 @@ impl CoreUser {
         ensure!(hash.as_slice() == pending_record.hash, "hash mismatch");
 
         // Store the attachment and mark it as downloaded
-        self.with_transaction_and_notifier(async move |txn, notifier| {
-            AttachmentRecord::set_content(
-                txn.as_mut(),
-                notifier,
-                attachment_id,
-                content.bytes.as_slice(),
-            )
-            .await?;
-            PendingAttachmentRecord::delete(txn.as_mut(), attachment_id).await?;
-            Ok(())
-        })
-        .await?;
+        //
+        // When catching up with many messages, it might happen that the database is locked for a
+        // longer time. In this case, we retry the commit every second until it succeeds. Since
+        // this operation is in memory, we can retry indefinitely. It will be cleaned up in case
+        // the app closed. We just need to make sure that we don't run too many downloads at the
+        // same time, otherwise we might run out of memory.
+        const ATTACHMENT_COMMIT_RETRY_DELAY: Duration = Duration::from_secs(1);
+        let bytes = content.bytes.as_slice();
+        loop {
+            let res = self
+                .with_transaction_and_notifier(async |txn, notifier| {
+                    AttachmentRecord::set_content(txn.as_mut(), notifier, attachment_id, bytes)
+                        .await?;
+                    PendingAttachmentRecord::delete(txn.as_mut(), attachment_id).await?;
+                    Ok(())
+                })
+                .await;
 
-        progress_tx.finish();
+            match res {
+                Ok(()) => {
+                    progress_tx.finish();
+                    break;
+                }
+                Err(error) => {
+                    let sqlx_error: sqlx::Error = error.downcast()?;
+                    const DB_LOCKED_CODE: &str = "5";
+                    if let Some(db_error) = sqlx_error.as_database_error()
+                        && db_error.code().as_deref() == Some(DB_LOCKED_CODE)
+                    {
+                        warn!(
+                            ?attachment_id,
+                            "Database is locked; retrying in {ATTACHMENT_COMMIT_RETRY_DELAY:?}"
+                        );
+                    }
+                }
+            }
+
+            tokio::time::sleep(ATTACHMENT_COMMIT_RETRY_DELAY).await;
+        }
 
         Ok(())
     }
