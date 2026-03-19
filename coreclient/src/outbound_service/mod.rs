@@ -222,10 +222,11 @@ impl OutboundServiceContext {
         job: JobType,
     ) -> Result<T, JobError> {
         let mut notifier = self.notifier();
+        let mut connection = self.pool().acquire().await?;
         let mut context = JobContext {
             api_clients: &self.api_clients,
             http_client: &self.http_client,
-            pool: self.pool().clone(),
+            connection: &mut connection,
             notifier: &mut notifier,
             key_store: &self.key_store,
             now: Utc::now(),
@@ -427,6 +428,22 @@ mod test {
 
         service.start().await;
 
+        assert_eq!(1, context.counter.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn notify_work_does_not_start_work_when_stopped() {
+        init_test_tracing();
+
+        let context = DelayedCounterContext::default();
+        let service = OutboundService::with_context(context.clone(), global_lock());
+
+        service.stop().await;
+        service.notify_work().await;
+
+        assert_eq!(0, context.counter.load(Ordering::SeqCst));
+
+        service.start().await;
         assert_eq!(1, context.counter.load(Ordering::SeqCst));
     }
 
