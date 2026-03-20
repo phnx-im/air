@@ -22,14 +22,16 @@ pub(crate) fn run() -> Result<()> {
     let next = increment_minor(&current);
     println!("Bumping version {} -> {}", current, next);
 
-    cmd!(shell, "cargo set-version --version").quiet().run()?;
     cmd!(shell, "git-cliff --version").quiet().run()?;
 
     let next_string = next.to_string();
-    cmd!(shell, "cargo set-version --workspace {next_string}").run()?;
+    cmd!(shell, "cargo set-version {next_string}").run()?;
 
     update_flutter_version(repo_root.as_ref(), &next)?;
     println!("Updated Flutter version to {}+1", next);
+
+    update_nfpm_version(repo_root.as_ref(), &next)?;
+    println!("Updated nFPM version to {}+1", next);
 
     let changelog_section = cmd!(shell, "git-cliff --unreleased --tag v{next_string}").read()?;
     let trimmed = changelog_section.trim_end();
@@ -94,6 +96,29 @@ fn update_flutter_version(repo_root: &Utf8Path, new_version: &Version) -> Result
     let updated = regex.replace(&content, replacement).to_string();
     fs::write(&pubspec_path, updated)
         .with_context(|| format!("Failed to write {}", pubspec_path))?;
+    Ok(())
+}
+
+fn update_nfpm_version(repo_root: &Utf8Path, new_version: &Version) -> Result<()> {
+    let nfpm_config_path = repo_root.join("app/linux/nfpm.yaml");
+    ensure!(
+        nfpm_config_path.exists(),
+        "nfpm.yaml not found at {}",
+        nfpm_config_path
+    );
+
+    let content = fs::read_to_string(&nfpm_config_path)
+        .with_context(|| format!("Failed to read {}", nfpm_config_path))?;
+    let regex = Regex::new(r"(?m)^version:\s*.+$").expect("valid regex");
+    ensure!(
+        regex.is_match(&content),
+        "Could not locate version line in pubspec.yaml"
+    );
+
+    let replacement = format!("version: {}", new_version);
+    let updated = regex.replace(&content, replacement).to_string();
+    fs::write(&nfpm_config_path, updated)
+        .with_context(|| format!("Failed to write {}", nfpm_config_path))?;
     Ok(())
 }
 
