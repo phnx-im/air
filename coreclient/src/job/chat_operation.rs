@@ -46,7 +46,7 @@ impl Job for ChatOperation {
     async fn execute_dependencies(&mut self, context: &mut JobContext<'_>) -> Result<(), JobError> {
         // Execute any pending operation for this chat first.
         let pending_operation = context
-            .connection
+            .pool
             .with_transaction(async |txn| Ok(PendingChatOperation::load(txn, &self.chat_id).await?))
             .await?;
 
@@ -151,7 +151,10 @@ impl ChatOperation {
         // group state has changed, either due to a PendingChatOperation
         // executed as a dependency, or one or more commits arriving from the
         // QS.
-        self.check_validity_and_refine(context.connection).await?;
+        context
+            .pool
+            .with_connection(async |connection| self.check_validity_and_refine(connection).await)
+            .await?;
 
         match self.operation.clone() {
             ChatOperationType::AddMembers(user_ids) => {
@@ -175,18 +178,22 @@ impl ChatOperation {
     ) -> Result<Vec<ChatMessage>, JobError> {
         let JobContext {
             api_clients,
-            connection,
+            pool,
             key_store,
             ..
         } = context;
-        let job = PendingChatOperation::create_add(
-            connection,
-            api_clients,
-            &key_store.signing_key,
-            self.chat_id,
-            users,
-        )
-        .await?;
+        let job = pool
+            .with_connection(async |connection| {
+                PendingChatOperation::create_add(
+                    connection,
+                    api_clients,
+                    &key_store.signing_key,
+                    self.chat_id,
+                    users,
+                )
+                .await
+            })
+            .await?;
 
         job.execute(context).await
     }
@@ -198,11 +205,9 @@ impl ChatOperation {
         users: Vec<UserId>,
     ) -> Result<Vec<ChatMessage>, JobError> {
         let JobContext {
-            connection,
-            key_store,
-            ..
+            pool, key_store, ..
         } = context;
-        let job = connection
+        let job = pool
             .with_transaction(async |txn| {
                 PendingChatOperation::create_remove(
                     txn,
@@ -223,11 +228,9 @@ impl ChatOperation {
         context: &mut JobContext<'_>,
     ) -> Result<Vec<ChatMessage>, JobError> {
         let JobContext {
-            connection,
-            key_store,
-            ..
+            pool, key_store, ..
         } = context;
-        let job = connection
+        let job = pool
             .with_transaction(async |txn| {
                 PendingChatOperation::create_leave(txn, &key_store.signing_key, self.chat_id).await
             })
@@ -245,14 +248,14 @@ impl ChatOperation {
         let JobContext {
             api_clients,
             http_client,
-            connection,
+            pool,
             key_store,
             ..
         } = context;
 
         let group_data = if let Some(attributes) = chat_attributes {
             let chat_id = self.chat_id;
-            let group = Group::load_with_chat_id_clean(connection, chat_id)
+            let group = Group::load_with_chat_id_clean(pool.acquire().await?.as_mut(), chat_id)
                 .await?
                 .with_context(|| format!("No group with chat id {chat_id}"))?;
 
@@ -313,7 +316,7 @@ impl ChatOperation {
             None
         };
 
-        let job = connection
+        let job = pool
             .with_transaction(async |txn| {
                 PendingChatOperation::create_update(
                     txn,
@@ -333,12 +336,12 @@ impl ChatOperation {
         context: &mut JobContext<'_>,
     ) -> Result<Vec<ChatMessage>, JobError> {
         let JobContext {
-            connection,
+            pool,
             notifier,
             key_store,
             ..
         } = context;
-        let job = connection
+        let job = pool
             .with_transaction(async |txn| {
                 PendingChatOperation::create_delete(
                     txn,
