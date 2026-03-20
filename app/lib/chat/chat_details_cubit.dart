@@ -93,4 +93,6 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
   Future<void> acceptContactRequest() => _impl.acceptContactRequest();
 
   Future<GroupDebugInfo> chatDebugInfo() => _impl.chatDebugInfo();
+
+  Future<void> requestResync() => _impl.requestResync();
 }

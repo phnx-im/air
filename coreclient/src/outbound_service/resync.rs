@@ -8,22 +8,22 @@ use aircommon::{
     identifiers::QualifiedGroupId,
     messages::{client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use openmls::{
     group::GroupId,
     prelude::{LeafNodeIndex, MlsMessageOut},
 };
 use sqlx::{Connection, SqliteConnection, SqliteTransaction};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error};
+use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::{
     ChatId,
-    clients::api_clients::ApiClients,
+    clients::{CoreUser, api_clients::ApiClients},
     groups::{Group, ProfileInfo},
     job::{operation::OperationData, profile::FetchUserProfileOperation},
-    outbound_service::{OutboundService, OutboundServiceContext, error::OutboundServiceError},
+    outbound_service::{OutboundServiceContext, error::OutboundServiceError},
 };
 
 pub(crate) struct Resync {
@@ -32,6 +32,29 @@ pub(crate) struct Resync {
     pub(crate) group_state_ear_key: GroupStateEarKey,
     pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
     pub(crate) original_leaf_index: LeafNodeIndex,
+}
+
+impl CoreUser {
+    pub async fn enqueue_group_resync(&self, chat_id: ChatId) -> anyhow::Result<()> {
+        let mut connection = self.pool().acquire().await?;
+        let group = Group::load_with_chat_id(connection.as_mut(), chat_id)
+            .await?
+            .context("group not found")?;
+
+        let resync = Resync {
+            chat_id,
+            group_id: group.group_id().clone(),
+            group_state_ear_key: group.group_state_ear_key().clone(),
+            identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
+            original_leaf_index: group.own_index(),
+        };
+
+        resync.enqueue(&mut *connection).await?;
+
+        self.outbound_service().notify_work();
+
+        Ok(())
+    }
 }
 
 impl OutboundServiceContext {
@@ -49,7 +72,7 @@ impl OutboundServiceContext {
             let Some(resync) = Resync::dequeue(&self.pool, task_id).await? else {
                 return Ok(());
             };
-            debug!(?resync.chat_id, "dequeued resync");
+            info!(?resync.chat_id, "Performing chat resync");
 
             let mut connection = self.pool.acquire().await?;
 
@@ -60,6 +83,7 @@ impl OutboundServiceContext {
                 .await
             {
                 Ok(profile_infos) => {
+                    info!("Got profiles infos");
                     Resync::remove(&mut *connection, &group_id).await?;
                     // TODO: Schedule a job here that deals with fetching profile
                     // infos in the background.
@@ -198,19 +222,6 @@ impl Resync {
                 original_leaf_index,
             )
             .await?;
-        Ok(())
-    }
-}
-
-impl OutboundService {
-    #[allow(dead_code)]
-    pub(crate) async fn enqueue_resync(&self, resync: Resync) -> anyhow::Result<()> {
-        let mut connection = self.context.pool.acquire().await?;
-
-        resync.enqueue(&mut *connection).await?;
-
-        self.notify_work();
-
         Ok(())
     }
 }
