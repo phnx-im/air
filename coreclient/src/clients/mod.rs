@@ -574,10 +574,7 @@ impl CoreUser {
         chat_id: ChatId,
     ) -> Result<Option<HashSet<UserId>>> {
         let mut connection = self.pool().acquire().await?;
-        let Some(chat) = Chat::load(&mut connection, &chat_id).await? else {
-            return Ok(None);
-        };
-        let Some(group) = Group::load(&mut connection, chat.group_id()).await? else {
+        let Some(group) = Group::load_with_chat_id(&mut connection, chat_id).await? else {
             return Ok(None);
         };
         let users = group
