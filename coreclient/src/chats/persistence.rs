@@ -486,8 +486,9 @@ impl Chat {
                     message_id AS "message_id: _"
                 FROM message
                 INNER JOIN chat c ON c.chat_id = ?1
-                WHERE c.chat_id = ?1 AND timestamp > c.last_read"#,
+                WHERE message.chat_id = ?1 AND timestamp > c.last_read AND timestamp <= ?2"#,
                 chat_id,
+                timestamp,
             )
             .fetch_all(&mut *transaction)
             .await?;
@@ -564,10 +565,10 @@ impl Chat {
             FROM message m
             LEFT JOIN message_status s
                 ON s.message_id = m.message_id
-                AND s.sender_user_uuid = ?2
-                AND s.sender_user_domain = ?3
+                AND s.sender_user_uuid = ?3
+                AND s.sender_user_domain = ?4
             WHERE chat_id = ?1
-                AND m.timestamp > ?2
+                AND m.timestamp > ?2 AND m.timestamp <= ?7
                 AND (m.sender_user_uuid != ?3 OR m.sender_user_domain != ?4)
                 AND mimi_id IS NOT NULL
                 AND (s.status IS NULL OR s.status = ?5 OR s.status = ?6)"#,
@@ -577,6 +578,7 @@ impl Chat {
             our_user_domain,
             unread_status,
             delivered_status,
+            timestamp,
         )
         .fetch(txn.as_mut())
         .map(|record| record.map(|record| (record.message_id, record.mimi_id)))
