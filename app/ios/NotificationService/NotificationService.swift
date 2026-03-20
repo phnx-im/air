@@ -342,14 +342,14 @@ class NotificationService: UNNotificationServiceExtension {
         else {
             return nil
         }
-        
+
         // Prefer Library/Application Support for persistent, non-user‑visible data
         let dbsURL =
         containerURL
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Application Support", isDirectory: true)
             .appendingPathComponent("Databases", isDirectory: true)
-        
+
         do {
             try FileManager.default.createDirectory(at: dbsURL, withIntermediateDirectories: true)
             // exclude from backups
@@ -357,28 +357,53 @@ class NotificationService: UNNotificationServiceExtension {
             vals.isExcludedFromBackup = true
             var u = dbsURL
             try? u.setResourceValues(vals)
-            
-            // enforce protection class
+
+            // Enforce protection class on the directory and all existing SQLite files.
+            // SQLite WAL mode creates .db, .db-wal, and .db-shm files. These are created by
+            // the Rust/SQLite layer with default iOS file protection (.complete), which makes
+            // them inaccessible when the screen is locked. We need
+            // .completeUntilFirstUserAuthentication so the NSE can access them in the background.
             applyProtection(dbsURL)
-            
+            applyProtectionToFiles(in: dbsURL)
+
             return dbsURL
         } catch {
             return nil
         }
     }
+
+    // Apply protection to all files in a directory (non-recursive).
+    // Called before opening the DB so existing SQLite files get the right protection class.
+    private func applyProtectionToFiles(in dir: URL) {
+        let files = (try? FileManager.default.contentsOfDirectory(
+            at: dir,
+            includingPropertiesForKeys: nil,
+            options: .skipsHiddenFiles
+        )) ?? []
+        for file in files {
+            applyProtection(file)
+        }
+    }
     
-    // Check if protected data is available
+    // Check if protected data is available by probing the actual database file.
+    // The old approach used a `.probe` file that was never created, causing the check to
+    // always return true (file-not-found is not a permission error). Instead, we test
+    // `air.db` directly — the same file SQLite will need to open.
     func protectedDataAvailable(at dir: URL) -> Bool {
-        let probe = dir.appendingPathComponent(".probe")
-        // Try to read a byte or create+read; failures with EACCES/EPERM imply protected
+        let dbFile = dir.appendingPathComponent("air.db")
+        // If the DB has never been created yet (fresh install), let Rust handle "no user found"
+        guard FileManager.default.fileExists(atPath: dbFile.path) else {
+            return true
+        }
         do {
-            let _ = try Data(contentsOf: probe)  // or write Data() once at install time
+            let handle = try FileHandle(forReadingFrom: dbFile)
+            handle.closeFile()
             return true
         } catch let e as NSError {
-            // NSCocoaErrorDomain Code=257 or NSPOSIXErrorDomain (1/13) commonly appear
+            // EACCES (1), EPERM (13), or Cocoa 257 indicate file protection is blocking access
             if e.domain == NSPOSIXErrorDomain, e.code == 1 || e.code == 13 { return false }
-            if e.domain == NSCocoaErrorDomain, e.code == 257 { return false }  // no permission
-            return true  // other errors (e.g., file not found) shouldn't block
+            if e.domain == NSCocoaErrorDomain, e.code == 257 { return false }
+            return true
         }
     }
     

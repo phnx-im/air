@@ -242,9 +242,25 @@ private let kProtectedBlockedCategory = "protected-blocked"
 
     do {
       try createBackupExcludedDirectory(at: dbsURL)
+      // Apply protection to all existing SQLite files (.db, .db-wal, .db-shm).
+      // SQLite creates these with default iOS protection (.complete), which makes them
+      // inaccessible when the screen is locked and breaks the NSE. We upgrade them here
+      // so the NSE can open them in the background after first unlock.
+      applyProtectionToFiles(in: dbsURL)
       return dbsURL.path
     } catch {
       return nil
+    }
+  }
+
+  private func applyProtectionToFiles(in dir: URL) {
+    let files = (try? FileManager.default.contentsOfDirectory(
+      at: dir,
+      includingPropertiesForKeys: nil,
+      options: .skipsHiddenFiles
+    )) ?? []
+    for file in files {
+      applyProtection(file)
     }
   }
 
