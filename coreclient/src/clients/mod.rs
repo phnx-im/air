@@ -804,11 +804,10 @@ impl CoreUser {
         job: JobType,
     ) -> anyhow::Result<T> {
         let mut notifier = self.store_notifier();
-        let mut connection = self.pool().acquire().await?;
         let mut context = JobContext {
             api_clients: &self.inner.api_clients,
             http_client: &self.inner.http_client,
-            connection: &mut connection,
+            pool: self.pool().clone(),
             notifier: &mut notifier,
             key_store: &self.inner.key_store,
             now: Utc::now(),
