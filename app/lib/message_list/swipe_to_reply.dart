@@ -26,16 +26,17 @@ const double _iconPadding = 12.0;
 const double _springStiffness = 400.0;
 const double _springDamping = 28.0;
 
-/// A swipe-to-reply wrapper for message bubbles.
+/// Gesture area for swipe-to-reply.
 ///
-/// Swiping the child from left to right beyond [_triggerThreshold] fires
-/// [onReply]. The bubble is capped at [_maxOffset], resists further drag
-/// with a rubber-band curve, and springs back on release.
-class SwipeToReply extends StatefulWidget {
-  const SwipeToReply({
+/// Place this high in the widget tree to define the hit-test area for the
+/// swipe gesture (typically the full message row). A [SwipeToReplyBubble]
+/// descendant reads the animation state to render the icon and translation.
+///
+/// Swiping from left to right beyond [_triggerThreshold] fires [onReply].
+class SwipeToReplyScope extends StatefulWidget {
+  const SwipeToReplyScope({
     super.key,
     required this.onReply,
-    required this.icon,
     required this.child,
   });
 
@@ -43,17 +44,13 @@ class SwipeToReply extends StatefulWidget {
   /// user lifts their finger.
   final VoidCallback onReply;
 
-  /// Icon displayed behind the bubble while swiping.
-  final Widget icon;
-
-  /// The message bubble.
   final Widget child;
 
   @override
-  State<SwipeToReply> createState() => _SwipeToReplyState();
+  State<SwipeToReplyScope> createState() => _SwipeToReplyScopeState();
 }
 
-class _SwipeToReplyState extends State<SwipeToReply>
+class _SwipeToReplyScopeState extends State<SwipeToReplyScope>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
@@ -61,10 +58,10 @@ class _SwipeToReplyState extends State<SwipeToReply>
   double _rawDragOffset = 0.0;
 
   /// Whether the trigger threshold was already crossed during this drag.
-  bool _thresholdCrossed = false;
+  bool thresholdCrossed = false;
 
   /// Whether a drag gesture is in progress.
-  bool _isDragging = false;
+  bool isDragging = false;
 
   @override
   void initState() {
@@ -93,14 +90,14 @@ class _SwipeToReplyState extends State<SwipeToReply>
     // Ignore new drags while the spring-back animation is running to
     // prevent double-firing onReply on rapid re-swipes.
     if (_controller.isAnimating) return;
-    _isDragging = true;
-    _thresholdCrossed = false;
+    isDragging = true;
+    thresholdCrossed = false;
     _rawDragOffset = 0.0;
     _controller.stop();
   }
 
   void _onDragUpdate(DragUpdateDetails details) {
-    if (!_isDragging) return;
+    if (!isDragging) return;
     _rawDragOffset = (_rawDragOffset + details.delta.dx).clamp(
       0.0,
       double.infinity,
@@ -108,27 +105,27 @@ class _SwipeToReplyState extends State<SwipeToReply>
     _controller.value = _dampedOffset(_rawDragOffset);
 
     if (_rawDragOffset >= _triggerThreshold) {
-      if (!_thresholdCrossed) {
-        _thresholdCrossed = true;
+      if (!thresholdCrossed) {
+        thresholdCrossed = true;
         HapticFeedback.mediumImpact();
       }
     } else {
-      _thresholdCrossed = false;
+      thresholdCrossed = false;
     }
   }
 
   void _onDragEnd(DragEndDetails details) {
-    if (!_isDragging) return;
-    _isDragging = false;
-    if (_thresholdCrossed) {
+    if (!isDragging) return;
+    isDragging = false;
+    if (thresholdCrossed) {
       widget.onReply();
     }
     _springBack();
   }
 
   void _onDragCancel() {
-    if (!_isDragging) return;
-    _isDragging = false;
+    if (!isDragging) return;
+    isDragging = false;
     _springBack();
   }
 
@@ -148,59 +145,108 @@ class _SwipeToReplyState extends State<SwipeToReply>
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onHorizontalDragStart: _onDragStart,
-      onHorizontalDragUpdate: _onDragUpdate,
-      onHorizontalDragEnd: _onDragEnd,
-      onHorizontalDragCancel: _onDragCancel,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          final offset = _controller.value;
-          // Icon progress: 0 → 1 over the first triggerThreshold pixels.
-          final iconProgress = (offset / _triggerThreshold).clamp(0.0, 1.0);
-          // Pop effect: scale to 1.2 briefly when threshold is first crossed
-          // during an active drag.
-          final iconScale = (_isDragging && _thresholdCrossed)
-              ? 1.0 +
-                    0.2 *
-                        (1.0 -
-                            ((offset - _triggerThreshold).abs() /
-                                    (_maxOffset - _triggerThreshold))
-                                .clamp(0.0, 1.0))
-              : iconProgress;
-
-          return Stack(
-            clipBehavior: Clip.none,
-            children: [
-              // Reply icon fills the gap and is right-aligned within it
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: offset,
-                child: Opacity(
-                  opacity: iconProgress,
-                  child: Transform.scale(
-                    scale: iconScale,
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: _iconPadding),
-                        child: widget.icon,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              // The message bubble, translated right
-              Transform.translate(offset: Offset(offset, 0), child: child),
-            ],
-          );
-        },
+    return _SwipeToReplyInherited(
+      controller: _controller,
+      state: this,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragStart: _onDragStart,
+        onHorizontalDragUpdate: _onDragUpdate,
+        onHorizontalDragEnd: _onDragEnd,
+        onHorizontalDragCancel: _onDragCancel,
         child: widget.child,
       ),
     );
   }
+}
+
+/// Visual animation for swipe-to-reply.
+///
+/// Must be a descendant of [SwipeToReplyScope]. Renders the reply [icon]
+/// sliding in from the left and translates the [child] (the message bubble)
+/// to the right in sync with the drag.
+class SwipeToReplyBubble extends StatelessWidget {
+  const SwipeToReplyBubble({
+    super.key,
+    required this.icon,
+    required this.child,
+  });
+
+  /// Icon displayed behind the bubble while swiping.
+  final Widget icon;
+
+  /// The message bubble.
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final inherited = _SwipeToReplyInherited.of(context);
+    final controller = inherited.controller;
+    final state = inherited.state;
+
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, child) {
+        final offset = controller.value;
+        final iconProgress = (offset / _triggerThreshold).clamp(0.0, 1.0);
+        final iconScale = (state.isDragging && state.thresholdCrossed)
+            ? 1.0 +
+                  0.2 *
+                      (1.0 -
+                          ((offset - _triggerThreshold).abs() /
+                                  (_maxOffset - _triggerThreshold))
+                              .clamp(0.0, 1.0))
+            : iconProgress;
+
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: offset,
+              child: Opacity(
+                opacity: iconProgress,
+                child: Transform.scale(
+                  scale: iconScale,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: _iconPadding),
+                      child: icon,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Transform.translate(offset: Offset(offset, 0), child: child),
+          ],
+        );
+      },
+      child: child,
+    );
+  }
+}
+
+class _SwipeToReplyInherited extends InheritedWidget {
+  const _SwipeToReplyInherited({
+    required this.controller,
+    required this.state,
+    required super.child,
+  });
+
+  final AnimationController controller;
+  final _SwipeToReplyScopeState state;
+
+  static _SwipeToReplyInherited of(BuildContext context) {
+    final result = context
+        .dependOnInheritedWidgetOfExactType<_SwipeToReplyInherited>();
+    assert(result != null, 'No SwipeToReplyScope found in ancestors');
+    return result!;
+  }
+
+  @override
+  bool updateShouldNotify(_SwipeToReplyInherited oldWidget) =>
+      controller != oldWidget.controller;
 }
