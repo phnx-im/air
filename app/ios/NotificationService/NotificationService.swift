@@ -350,7 +350,7 @@ class NotificationService: UNNotificationServiceExtension {
        
         // It is the responsibility of the app to create this directory with the
         // necessary permissions.
-        if(FileManager.default.fileExists(atPath: dbsURL.absoluteString)) {
+        if(FileManager.default.fileExists(atPath: dbsURL.path)) {
             return dbsURL
         } else {
             return nil
