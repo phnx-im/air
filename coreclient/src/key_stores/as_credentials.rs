@@ -194,7 +194,6 @@ impl AsCredentials {
         domain: &Fqdn,
         fingerprint: &Hash<AsIntermediateCredentialBody>,
     ) -> Result<AsIntermediateCredential, AsCredentialStoreError> {
-        info!("Loading AS credential from db");
         // Phase 1: Check if there is a credential in the database.
         let credential_option =
             AsCredentials::load_intermediate(&mut *connection, Some(fingerprint), domain).await?;
@@ -204,6 +203,7 @@ impl AsCredentials {
             credential
         } else {
             // Phase 2a: Fetch the credential.
+            info!(%domain, "Fetching AS credential from server");
             let credential = Self::fetch_credentials(domain, api_clients)
                 .await?
                 .into_iter()
