@@ -62,7 +62,7 @@ class UpdateRequiredView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: .center,
                 children: [
-                  const Spacer(),
+                  const SizedBox(height: 3 * Spacings.xxxl),
 
                   SizedBox(
                     width: 104,
@@ -74,6 +74,8 @@ class UpdateRequiredView extends StatelessWidget {
                       ),
                     ),
                   ),
+
+                  const SizedBox(height: 2 * Spacings.xxxl),
 
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
