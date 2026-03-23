@@ -48,9 +48,9 @@ use aircommon::{
         },
     },
     mls_group_config::{
-        GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, default_capabilities,
-        default_mls_group_join_config, default_required_capabilities,
-        default_sender_ratchet_configuration,
+        GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, default_group_capabilities,
+        default_leaf_node_capabilities, default_mls_group_join_config,
+        default_required_capabilities, default_sender_ratchet_configuration,
     },
     time::TimeStamp,
     utils::removed_client,
@@ -195,7 +195,6 @@ impl Group {
 
         let required_capabilities =
             Extension::RequiredCapabilities(default_required_capabilities());
-        let leaf_node_capabilities = default_capabilities();
 
         let group_data_extension = Extension::Unknown(
             GROUP_DATA_EXTENSION_TYPE,
@@ -211,7 +210,7 @@ impl Group {
 
         let mls_group = MlsGroup::builder()
             .with_group_id(group_id.clone())
-            .with_capabilities(leaf_node_capabilities)
+            .with_capabilities(default_group_capabilities())
             .with_group_context_extensions(gc_extensions)
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
@@ -482,7 +481,7 @@ impl Group {
             };
 
             let leaf_node_parameters = LeafNodeParameters::builder()
-                .with_capabilities(default_capabilities())
+                .with_capabilities(default_leaf_node_capabilities())
                 .build();
             let mut builder = ExternalCommitBuilder::new()
                 .with_proposals(proposals)
@@ -960,7 +959,7 @@ impl Group {
             };
 
             let leaf_node_parameters = LeafNodeParameters::builder()
-                .with_capabilities(default_capabilities())
+                .with_capabilities(default_leaf_node_capabilities())
                 .build();
             let (mls_message, _welcome_option, group_info_option) = builder
                 .force_self_update(true)

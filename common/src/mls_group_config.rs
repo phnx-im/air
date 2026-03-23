@@ -43,39 +43,69 @@ pub const DEFAULT_MLS_VERSION: ProtocolVersion = ProtocolVersion::Mls10;
 pub const DEFAULT_CIPHERSUITE: Ciphersuite =
     Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
-pub const REQUIRED_EXTENSION_TYPES: [ExtensionType; 4] = [
+pub const REQUIRED_EXTENSION_TYPES: &[ExtensionType] = &[
+    ExtensionType::Unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE),
+    ExtensionType::Unknown(GROUP_DATA_EXTENSION_TYPE),
+    ExtensionType::LastResort,
+];
+pub const REQUIRED_PROPOSAL_TYPES: &[ProposalType] = &[
+    ProposalType::Custom(FRIENDSHIP_PACKAGE_PROPOSAL_TYPE),
+    ProposalType::SelfRemove,
+];
+pub const REQUIRED_CREDENTIAL_TYPES: &[CredentialType] = &[CredentialType::Basic];
+
+pub fn default_required_capabilities() -> RequiredCapabilitiesExtension {
+    RequiredCapabilitiesExtension::new(
+        REQUIRED_EXTENSION_TYPES,
+        REQUIRED_PROPOSAL_TYPES,
+        REQUIRED_CREDENTIAL_TYPES,
+    )
+}
+
+// Default capabilities for every leaf node we create.
+pub const SUPPORTED_PROTOCOL_VERSIONS: &[ProtocolVersion] = &[DEFAULT_MLS_VERSION];
+pub const SUPPORTED_CIPHERSUITES: &[Ciphersuite] = &[DEFAULT_CIPHERSUITE];
+pub const SUPPORTED_EXTENSIONS: &[ExtensionType] = REQUIRED_EXTENSION_TYPES;
+pub const SUPPORTED_PROPOSALS: &[ProposalType] = REQUIRED_PROPOSAL_TYPES;
+pub const SUPPORTED_CREDENTIALS: &[CredentialType] = REQUIRED_CREDENTIAL_TYPES;
+
+pub fn default_group_capabilities() -> Capabilities {
+    Capabilities::new(
+        Some(SUPPORTED_PROTOCOL_VERSIONS),
+        Some(SUPPORTED_CIPHERSUITES),
+        Some(SUPPORTED_EXTENSIONS),
+        Some(SUPPORTED_PROPOSALS),
+        Some(SUPPORTED_CREDENTIALS),
+    )
+}
+
+pub const SUPPORTED_LEAF_NODE_EXTENSIONS: &[ExtensionType] = &[
     ExtensionType::Unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE),
     ExtensionType::Unknown(GROUP_DATA_EXTENSION_TYPE),
     ExtensionType::LastResort,
     ExtensionType::AppDataDictionary,
 ];
-pub const REQUIRED_PROPOSAL_TYPES: [ProposalType; 2] = [
-    ProposalType::Custom(FRIENDSHIP_PACKAGE_PROPOSAL_TYPE),
-    ProposalType::SelfRemove,
-];
-pub const REQUIRED_CREDENTIAL_TYPES: [CredentialType; 1] = [CredentialType::Basic];
 
-pub fn default_required_capabilities() -> RequiredCapabilitiesExtension {
-    RequiredCapabilitiesExtension::new(
-        &REQUIRED_EXTENSION_TYPES,
-        &REQUIRED_PROPOSAL_TYPES,
-        &REQUIRED_CREDENTIAL_TYPES,
+pub fn default_leaf_node_capabilities() -> Capabilities {
+    Capabilities::new(
+        Some(SUPPORTED_PROTOCOL_VERSIONS),
+        Some(SUPPORTED_CIPHERSUITES),
+        Some(SUPPORTED_LEAF_NODE_EXTENSIONS),
+        Some(SUPPORTED_PROPOSALS),
+        Some(SUPPORTED_CREDENTIALS),
     )
 }
 
-// Default capabilities for every leaf node we create.
-pub const SUPPORTED_PROTOCOL_VERSIONS: [ProtocolVersion; 1] = [DEFAULT_MLS_VERSION];
-pub const SUPPORTED_CIPHERSUITES: [Ciphersuite; 1] = [DEFAULT_CIPHERSUITE];
-pub const SUPPORTED_EXTENSIONS: [ExtensionType; 4] = REQUIRED_EXTENSION_TYPES;
-pub const SUPPORTED_PROPOSALS: [ProposalType; 2] = REQUIRED_PROPOSAL_TYPES;
-pub const SUPPORTED_CREDENTIALS: [CredentialType; 1] = REQUIRED_CREDENTIAL_TYPES;
+#[cfg(test)]
+mod test {
+    use super::*;
 
-pub fn default_capabilities() -> Capabilities {
-    Capabilities::new(
-        Some(&SUPPORTED_PROTOCOL_VERSIONS),
-        Some(&SUPPORTED_CIPHERSUITES),
-        Some(&SUPPORTED_EXTENSIONS),
-        Some(&SUPPORTED_PROPOSALS),
-        Some(&SUPPORTED_CREDENTIALS),
-    )
+    #[test]
+    fn group_capabilities_is_subset_of_leaf_node_capabilities() {
+        let group_extensions = SUPPORTED_EXTENSIONS;
+        let leaf_node_extensions = SUPPORTED_LEAF_NODE_EXTENSIONS;
+        for capability in group_extensions {
+            assert!(leaf_node_extensions.contains(capability));
+        }
+    }
 }

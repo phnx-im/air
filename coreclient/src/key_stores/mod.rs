@@ -7,7 +7,7 @@ use std::{fmt, ops::Deref};
 use aircommon::{
     crypto::hpke::{ClientIdEncryptionKey, HpkeEncryptable},
     identifiers::{ClientConfig, QsClientId, QsReference},
-    mls_group_config::{QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_capabilities},
+    mls_group_config::{QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_leaf_node_capabilities},
 };
 use anyhow::Result;
 use openmls::prelude::{
@@ -87,7 +87,6 @@ impl MemoryUserKeyStore {
                 self.signing_key.credential().verifying_key().clone(),
             ),
         };
-        let capabilities = default_capabilities();
         let client_reference = self.create_own_client_reference(qs_client_id);
         let client_ref_extension = Extension::Unknown(
             QS_CLIENT_REFERENCE_EXTENSION_TYPE,
@@ -105,7 +104,7 @@ impl MemoryUserKeyStore {
 
         let kp = KeyPackage::builder()
             .key_package_extensions(key_package_extensions)
-            .leaf_node_capabilities(capabilities)
+            .leaf_node_capabilities(default_leaf_node_capabilities())
             .leaf_node_extensions(leaf_node_extensions)
             .build(
                 CIPHERSUITE,
