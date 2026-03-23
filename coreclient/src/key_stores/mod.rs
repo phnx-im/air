@@ -9,7 +9,7 @@ use aircommon::{
     identifiers::{ClientConfig, QsClientId, QsReference},
     mls_group_config::{
         QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_key_package_extensions,
-        default_leaf_node_capabilities, default_leaf_node_extensions,
+        default_leaf_node_capabilities,
     },
 };
 use anyhow::Result;
