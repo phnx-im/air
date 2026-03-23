@@ -4,13 +4,20 @@
 
 //! Configuration for MLS groups.
 
-use mls_assist::openmls::{
-    group::{MlsGroupJoinConfig, PURE_PLAINTEXT_WIRE_FORMAT_POLICY},
-    prelude::{
-        Capabilities, Ciphersuite, CredentialType, ExtensionType, ProposalType, ProtocolVersion,
-        RequiredCapabilitiesExtension, SenderRatchetConfiguration,
+use mls_assist::{
+    components::ComponentsList,
+    openmls::{
+        component::{ComponentId, ComponentType},
+        group::{MlsGroupJoinConfig, PURE_PLAINTEXT_WIRE_FORMAT_POLICY},
+        prelude::{
+            AppDataDictionary, AppDataDictionaryExtension, Capabilities, Ciphersuite,
+            CredentialType, Extension, ExtensionType, ExtensionValidator, Extensions,
+            InvalidExtensionError, KeyPackage, LeafNode, ProposalType, ProtocolVersion,
+            RequiredCapabilitiesExtension, SenderRatchetConfiguration,
+        },
     },
 };
+use tls_codec::Serialize;
 
 /// Dictates for how many past epochs we want to keep around message secrets.
 pub const MAX_PAST_EPOCHS: usize = 5;
@@ -69,7 +76,8 @@ pub const SUPPORTED_EXTENSIONS: &[ExtensionType] = REQUIRED_EXTENSION_TYPES;
 pub const SUPPORTED_PROPOSALS: &[ProposalType] = REQUIRED_PROPOSAL_TYPES;
 pub const SUPPORTED_CREDENTIALS: &[CredentialType] = REQUIRED_CREDENTIAL_TYPES;
 
-pub fn default_group_capabilities() -> Capabilities {
+/// Capabilities that are required to be a member of a group.
+pub fn default_required_group_capabilities() -> Capabilities {
     Capabilities::new(
         Some(SUPPORTED_PROTOCOL_VERSIONS),
         Some(SUPPORTED_CIPHERSUITES),
@@ -96,8 +104,61 @@ pub fn default_leaf_node_capabilities() -> Capabilities {
     )
 }
 
+/// The component id of the Air component.
+pub const AIR_COMPONENT_ID: ComponentId = 0x8000;
+
+pub fn default_leaf_node_extensions() -> Extensions<LeafNode> {
+    default_extensions()
+}
+
+pub fn default_key_package_extensions() -> Extensions<KeyPackage> {
+    default_extensions()
+}
+
+/// # Panics
+///
+/// Since we are building a single static essential extension here, we can assume that this
+/// function never panics. Panic-safety is additionally tested in the unit tests.
+fn default_extensions<T>() -> Extensions<T>
+where
+    T: ExtensionValidator,
+    InvalidExtensionError: From<T::Error>,
+{
+    Extensions::from_vec(vec![default_app_data_dictionary_extension()]).expect("invalid extensions")
+}
+
+/// # Panics
+///
+/// Since we are building a static list of components here, we can assume that this function never
+/// panics. Panic-safety is additionally tested in the unit tests.
+pub fn default_app_data_dictionary_extension() -> Extension {
+    let mut app_data_dictionary = AppDataDictionary::new();
+
+    // Advertise that we support the Air component in the app data dictionary.
+    app_data_dictionary.insert(
+        ComponentType::AppComponents.into(),
+        ComponentsList {
+            component_ids: vec![AIR_COMPONENT_ID],
+        }
+        .tls_serialize_detached()
+        .expect("invalid component list"),
+    );
+
+    // Add the Air component to the app data dictionary.
+    app_data_dictionary.insert(AIR_COMPONENT_ID, default_air_component());
+
+    Extension::AppDataDictionary(AppDataDictionaryExtension::new(app_data_dictionary))
+}
+
+pub fn default_air_component() -> Vec<u8> {
+    // TODO
+    vec![]
+}
+
 #[cfg(test)]
 mod test {
+    use mls_assist::openmls::component::PrivateComponentId;
+
     use super::*;
 
     #[test]
@@ -107,5 +168,18 @@ mod test {
         for capability in group_extensions {
             assert!(leaf_node_extensions.contains(capability));
         }
+    }
+
+    #[test]
+    fn air_component_id_is_private() {
+        PrivateComponentId::new(AIR_COMPONENT_ID).expect("Should be private");
+    }
+
+    #[test]
+    fn default_extensions_are_valid() {
+        // Checks that the function below never panic
+        let _ = default_app_data_dictionary_extension();
+        let _ = default_leaf_node_extensions();
+        let _ = default_key_package_extensions();
     }
 }

@@ -17,6 +17,7 @@ openmls_traits.workspace = true
 serde.workspace = true
 serde_bytes.workspace = true
 thiserror.workspace = true
+tls_codec.workspace = true
 
 [package.metadata.cargo-machete]
 # Included to enable the `extensions-draft-08` feature

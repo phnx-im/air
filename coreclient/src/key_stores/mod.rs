@@ -7,7 +7,10 @@ use std::{fmt, ops::Deref};
 use aircommon::{
     crypto::hpke::{ClientIdEncryptionKey, HpkeEncryptable},
     identifiers::{ClientConfig, QsClientId, QsReference},
-    mls_group_config::{QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_leaf_node_capabilities},
+    mls_group_config::{
+        QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_key_package_extensions,
+        default_leaf_node_capabilities, default_leaf_node_extensions,
+    },
 };
 use anyhow::Result;
 use openmls::prelude::{
@@ -94,10 +97,12 @@ impl MemoryUserKeyStore {
         );
         let leaf_node_extensions = Extensions::single(client_ref_extension)?;
         let key_package_extensions = if last_resort {
+            let mut extensions = default_key_package_extensions();
             let last_resort_extension = Extension::LastResort(LastResortExtension::new());
-            Extensions::single(last_resort_extension)?
+            extensions.add(last_resort_extension)?;
+            extensions
         } else {
-            Extensions::default()
+            default_key_package_extensions()
         };
 
         let provider = AirOpenMlsProvider::new(connection);

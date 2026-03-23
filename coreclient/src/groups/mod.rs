@@ -48,9 +48,10 @@ use aircommon::{
         },
     },
     mls_group_config::{
-        GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, default_group_capabilities,
-        default_leaf_node_capabilities, default_mls_group_join_config,
-        default_required_capabilities, default_sender_ratchet_configuration,
+        AIR_COMPONENT_ID, GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, default_air_component,
+        default_app_data_dictionary_extension, default_leaf_node_capabilities,
+        default_leaf_node_extensions, default_mls_group_join_config, default_required_capabilities,
+        default_required_group_capabilities, default_sender_ratchet_configuration,
     },
     time::TimeStamp,
     utils::removed_client,
@@ -58,10 +59,10 @@ use aircommon::{
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use mimi_content::MimiContent;
 use mimi_room_policy::{MimiProposal, RoleIndex, RoomPolicy, VerifiedRoomState};
-use mls_assist::messages::AssistedMessageOut;
+use mls_assist::{components::ComponentsList, messages::AssistedMessageOut};
 use openmls_provider::AirOpenMlsProvider;
 use openmls_traits::storage::StorageProvider;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use sqlx::{SqliteConnection, SqliteTransaction};
 use tls_codec::DeserializeBytes;
 use tracing::{Level, debug, enabled, error};
@@ -81,13 +82,15 @@ use crate::{
 use std::collections::HashSet;
 
 use openmls::{
+    component::ComponentType,
     group::{ExternalCommitBuilder, JoinBuilder, ProcessedWelcome},
     key_packages::KeyPackageBundle,
     prelude::{
-        BasicCredentialError, CredentialWithKey, Extension, Extensions, GroupId, KeyPackage,
-        LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
-        OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal,
-        ProposalType, ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
+        AppDataDictionaryExtension, BasicCredentialError, CredentialWithKey, Extension, Extensions,
+        GroupId, KeyPackage, LeafNode, LeafNodeIndex, LeafNodeParameters, MlsGroup,
+        MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
+        PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal, ProposalType,
+        ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
         UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
@@ -210,7 +213,7 @@ impl Group {
 
         let mls_group = MlsGroup::builder()
             .with_group_id(group_id.clone())
-            .with_capabilities(default_group_capabilities())
+            .with_capabilities(default_required_group_capabilities())
             .with_group_context_extensions(gc_extensions)
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
@@ -482,7 +485,9 @@ impl Group {
 
             let leaf_node_parameters = LeafNodeParameters::builder()
                 .with_capabilities(default_leaf_node_capabilities())
+                .with_extensions(default_leaf_node_extensions())
                 .build();
+
             let mut builder = ExternalCommitBuilder::new()
                 .with_proposals(proposals)
                 .with_aad(aad.tls_serialize_detached()?)
@@ -949,6 +954,9 @@ impl Group {
             })
             .transpose()?;
 
+        let own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
+        let leaf_node_parameters = Self::update_leaf_node_extensions(own_leaf_node)?;
+
         self.mls_group.set_aad(aad);
         let (mls_message, group_info) = {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
@@ -958,9 +966,6 @@ impl Group {
                 builder = builder.propose_group_context_extensions(extensions)?;
             };
 
-            let leaf_node_parameters = LeafNodeParameters::builder()
-                .with_capabilities(default_leaf_node_capabilities())
-                .build();
             let (mls_message, _welcome_option, group_info_option) = builder
                 .force_self_update(true)
                 .leaf_node_parameters(leaf_node_parameters)
@@ -981,6 +986,65 @@ impl Group {
             commit,
             add_users_info_option: None,
         })
+    }
+
+    fn update_leaf_node_extensions(own_leaf_node: &LeafNode) -> anyhow::Result<LeafNodeParameters> {
+        let leaf_node_extentions = own_leaf_node.extensions();
+
+        let mut leaf_node_parameters =
+            LeafNodeParameters::builder().with_capabilities(default_leaf_node_capabilities());
+
+        if let Some(app_data_dictionary) = leaf_node_extentions.app_data_dictionary() {
+            let dict = app_data_dictionary.dictionary();
+            let mut updated_dict = None;
+
+            if let Some(mut app_components) = dict
+                .get(&ComponentType::AppComponents.into())
+                .and_then(|data| ComponentsList::tls_deserialize_exact_bytes(data).ok())
+            {
+                if !app_components.component_ids.contains(&AIR_COMPONENT_ID) {
+                    // Add the Air component to the app components list
+                    app_components.component_ids.push(AIR_COMPONENT_ID);
+                    updated_dict.get_or_insert_with(|| dict.clone()).insert(
+                        ComponentType::AppComponents.into(),
+                        app_components.tls_serialize_detached()?,
+                    );
+                }
+            } else {
+                // Add app components list to the app data dictionary
+                updated_dict.get_or_insert_with(|| dict.clone()).insert(
+                    ComponentType::AppComponents.into(),
+                    ComponentsList {
+                        component_ids: vec![AIR_COMPONENT_ID],
+                    }
+                    .tls_serialize_detached()?,
+                );
+            }
+
+            if !dict.contains(&AIR_COMPONENT_ID) {
+                // Add the Air component to the app data dictionary
+                updated_dict
+                    .get_or_insert_with(|| dict.clone())
+                    .insert(AIR_COMPONENT_ID, default_air_component());
+            }
+
+            if let Some(dict) = updated_dict {
+                // Replace the app data dictionary with the updated one
+                let mut leaf_node_extentions = leaf_node_extentions.clone();
+                leaf_node_extentions.add_or_replace(Extension::AppDataDictionary(
+                    AppDataDictionaryExtension::new(dict),
+                ))?;
+                leaf_node_parameters =
+                    leaf_node_parameters.with_extensions(leaf_node_extentions.clone());
+            }
+        } else {
+            // App data extension is not present, add it with default values
+            let mut leaf_node_extentions = leaf_node_extentions.clone();
+            leaf_node_extentions.add(default_app_data_dictionary_extension())?;
+            leaf_node_parameters = leaf_node_parameters.with_extensions(leaf_node_extentions);
+        }
+
+        Ok(leaf_node_parameters.build())
     }
 
     pub(super) fn stage_leave_group(
