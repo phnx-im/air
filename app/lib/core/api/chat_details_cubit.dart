@@ -73,6 +73,8 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
 
   Future<void> replyToMessage({required MessageId messageId});
 
+  Future<void> requestResync();
+
   Future<void> resetDraft();
 
   Future<void> resetDraftReply();

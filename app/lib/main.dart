@@ -3,14 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/app.dart';
-import 'package:air/core/frb_generated.dart';
-import 'package:air/l10n/l10n.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/icons/app_icons.dart';
+import 'package:air/core/frb_generated.dart' show RustLib;
 import 'package:air/util/logging.dart';
 import 'package:air/util/platform.dart';
 import 'package:flutter/material.dart';
-import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 
 void main() async {
@@ -25,84 +21,4 @@ void main() async {
   initDartLogging(logWriter);
 
   runApp(const App());
-}
-
-void showErrorBanner(BuildContext context, String errorDescription) {
-  ScaffoldMessenger.of(context).showMaterialBanner(
-    MaterialBanner(
-      backgroundColor: CustomColorScheme.of(context).function.danger,
-      leading: AppIcon.circleAlert(
-        size: 32,
-        color: CustomColorScheme.of(context).function.white,
-      ),
-      padding: const EdgeInsets.all(20),
-      content: Text(errorDescription),
-      actions: [
-        TextButton(
-          child: Text(
-            'OK',
-            style: TextStyle(
-              color: CustomColorScheme.of(context).function.white,
-            ),
-          ),
-          onPressed: () {
-            ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
-          },
-        ),
-      ],
-    ),
-  );
-}
-
-/// TODO: Consolidate with [showErrorBanner]. Also, move into a separate file.
-void showErrorBannerStandalone(
-  String Function(AppLocalizations) errorDescription,
-) {
-  scaffoldMessengerKey.currentState?.removeCurrentMaterialBanner.call();
-
-  final context = scaffoldMessengerKey.currentContext!;
-  final colors = CustomColorScheme.of(context);
-  final loc = AppLocalizations.of(context);
-
-  scaffoldMessengerKey.currentState?.showMaterialBanner(
-    MaterialBanner(
-      backgroundColor: colors.function.danger,
-      elevation: 0,
-      dividerColor: Colors.transparent,
-      leading: AppIcon.circleAlert(size: 32, color: colors.function.white),
-      padding: const EdgeInsets.all(20),
-      content: Text(
-        errorDescription(loc),
-        style: TextStyle(color: colors.function.white),
-      ),
-      actions: [
-        Builder(
-          builder: (context) {
-            return TextButton(
-              child: Text('OK', style: TextStyle(color: colors.function.white)),
-              onPressed: () {
-                ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
-              },
-            );
-          },
-        ),
-      ],
-    ),
-  );
-}
-
-/// Shows a snackbar in the global scaffold messenger.
-///
-/// This function does not require a [BuildContext] to show a snackbar.
-void showSnackBarStandalone(SnackBar Function(AppLocalizations) snackBar) {
-  scaffoldMessengerKey.currentState?.removeCurrentSnackBar();
-
-  final context = scaffoldMessengerKey.currentContext;
-  if (context == null) {
-    Logger.detached('showSnackBar').severe("No context when showing snackbar");
-    return;
-  }
-
-  final loc = AppLocalizations.of(context);
-  scaffoldMessengerKey.currentState?.showSnackBar(snackBar(loc));
 }

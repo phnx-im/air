@@ -7,7 +7,6 @@ import 'dart:io';
 
 import 'package:air/attachments/attachments.dart';
 import 'package:air/l10n/app_localizations_extension.dart';
-import 'package:air/main.dart';
 import 'package:air/message_list/emoji_repository.dart';
 import 'package:air/message_list/emoji_autocomplete.dart';
 import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
@@ -16,6 +15,7 @@ import 'package:air/user/user_settings_cubit.dart';
 import 'package:air/user/users_cubit.dart';
 import 'package:air/util/debouncer.dart';
 import 'package:air/message_list/widgets/text_autocomplete.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -121,7 +121,10 @@ class _MessageComposerState extends State<MessageComposer>
           if (_inputController.text.isEmpty) {
             _inputController.text = draft.message;
           }
-          requestFocus = true; // open keyboard when a chat has a draft
+          if (draft.message.isNotEmpty) {
+            // open keyboard when a chat has a non-empty draft
+            requestFocus = true;
+          }
         // Editing ID has changed
         case final draft when draft?.editingId != currentEditingId:
           _inputController.text = draft?.message ?? "";
@@ -504,9 +507,7 @@ class _MessageComposerState extends State<MessageComposer>
               }
             } catch (e) {
               _log.severe("Failed to upload attachment: $e", e);
-              if (!context.mounted) return;
-              final loc = AppLocalizations.of(context);
-              showErrorBanner(context, loc.composer_error_attachment);
+              showErrorBannerStandalone((loc) => loc.composer_error_attachment);
             } finally {
               if (isTempFile) {
                 try {

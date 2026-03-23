@@ -969,4 +969,7 @@ class AppLocalizationsSv extends AppLocalizations {
   @override
   String get contactRequestDialog_error_incompatibleClient =>
       'Failed to accept contact request. Update Air to the newest version, then try again.';
+
+  @override
+  String get errorBanner_ok => 'OK';
 }

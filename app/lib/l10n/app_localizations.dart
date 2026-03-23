@@ -1712,6 +1712,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to accept contact request. Update Air to the newest version, then try again.'**
   String get contactRequestDialog_error_incompatibleClient;
+
+  /// No description provided for @errorBanner_ok.
+  ///
+  /// In en, this message translates to:
+  /// **'OK'**
+  String get errorBanner_ok;
 }
 
 class _AppLocalizationsDelegate

@@ -362,5 +362,7 @@
   "contactRequestDialog_cancel": "Later",
   "contactRequestDialog_confirm": "Accept",
   "contactRequestDialog_error_fatal": "Failed to accept contact request",
-  "contactRequestDialog_error_incompatibleClient": "Failed to accept contact request. Update Air to the newest version, then try again."
+  "contactRequestDialog_error_incompatibleClient": "Failed to accept contact request. Update Air to the newest version, then try again.",
+
+  "errorBanner_ok": "OK"
 }
