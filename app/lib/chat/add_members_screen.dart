@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/chat/widgets/app_bar_button.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/core/core.dart';
-import 'package:air/main.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/user/user.dart';
@@ -136,12 +136,9 @@ class _AddMembersScreenViewState extends State<AddMembersScreenView> {
         break;
       case InviteUsersError_IncompatibleClient(:final reason):
         _log.severe('Failed to add members: incompatible client', reason);
-        if (context.mounted) {
-          showErrorBanner(
-            context,
-            loc.addMembersScreen_error_incompatibleClient,
-          );
-        }
+        showErrorBannerStandalone(
+          (loc) => loc.addMembersScreen_error_incompatibleClient,
+        );
     }
   }
 }
