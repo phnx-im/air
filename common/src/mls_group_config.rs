@@ -43,10 +43,11 @@ pub const DEFAULT_MLS_VERSION: ProtocolVersion = ProtocolVersion::Mls10;
 pub const DEFAULT_CIPHERSUITE: Ciphersuite =
     Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
-pub const REQUIRED_EXTENSION_TYPES: [ExtensionType; 3] = [
+pub const REQUIRED_EXTENSION_TYPES: [ExtensionType; 4] = [
     ExtensionType::Unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE),
     ExtensionType::Unknown(GROUP_DATA_EXTENSION_TYPE),
     ExtensionType::LastResort,
+    ExtensionType::AppDataDictionary,
 ];
 pub const REQUIRED_PROPOSAL_TYPES: [ProposalType; 2] = [
     ProposalType::Custom(FRIENDSHIP_PACKAGE_PROPOSAL_TYPE),
@@ -65,7 +66,7 @@ pub fn default_required_capabilities() -> RequiredCapabilitiesExtension {
 // Default capabilities for every leaf node we create.
 pub const SUPPORTED_PROTOCOL_VERSIONS: [ProtocolVersion; 1] = [DEFAULT_MLS_VERSION];
 pub const SUPPORTED_CIPHERSUITES: [Ciphersuite; 1] = [DEFAULT_CIPHERSUITE];
-pub const SUPPORTED_EXTENSIONS: [ExtensionType; 3] = REQUIRED_EXTENSION_TYPES;
+pub const SUPPORTED_EXTENSIONS: [ExtensionType; 4] = REQUIRED_EXTENSION_TYPES;
 pub const SUPPORTED_PROPOSALS: [ProposalType; 2] = REQUIRED_PROPOSAL_TYPES;
 pub const SUPPORTED_CREDENTIALS: [CredentialType; 1] = REQUIRED_CREDENTIAL_TYPES;
 
