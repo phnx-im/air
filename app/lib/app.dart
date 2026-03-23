@@ -115,8 +115,10 @@ class _AppState extends State<App> with WidgetsBindingObserver {
 
     if (state == AppLifecycleState.resumed) {
       _appStateController.sink.add(AppState.foreground);
-      // Re-trigger visibility callbacks to mark visible messages as read
-      VisibilityDetectorController.instance.notifyNow();
+      // Re-trigger visibility callbacks to mark visible messages as read.
+      // Deferred to a microtask so that the foreground state has propagated
+      // through the async broadcast stream to UserCubit first.
+      Future.microtask(VisibilityDetectorController.instance.notifyNow);
       unawaited(_coreClient.refreshPushToken());
     }
   }
