@@ -96,7 +96,7 @@ private let kProtectedBlockedCategory = "protected-blocked"
     super.applicationDidBecomeActive(application)
   }
 
-  @objc private func handleprotectedDataAvailable(_ notification: Notification) {
+  @objc private func handleProtectedDataAvailable(_ notification: Notification) {
     clearProtectedBlockedNotifications()
   }
 
