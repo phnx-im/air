@@ -323,15 +323,6 @@ class NotificationService: UNNotificationServiceExtension {
         handler(outgoing)
     }
     
-    // Apply file protection
-    private func applyProtection(_ url: URL) {
-        let path = url.path
-        try? FileManager.default.setAttributes(
-            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-            ofItemAtPath: path
-        )
-    }
-    
     // Get a databases directory path that is NOT backed up to iCloud
     private func getDatabasesDirectoryPath() -> URL? {
         // Use the App Group container so extensions can also access it
@@ -343,26 +334,25 @@ class NotificationService: UNNotificationServiceExtension {
             return nil
         }
         
+        // Sqlite relies on temporary files in specific cases, which we will be denied access to
+        // after creating them because of the default protection level of the app
+        try? FileManager.default.setAttributes(
+            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+            ofItemAtPath: NSTemporaryDirectory()
+        )
+        
         // Prefer Library/Application Support for persistent, non-user‑visible data
         let dbsURL =
         containerURL
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Application Support", isDirectory: true)
             .appendingPathComponent("Databases", isDirectory: true)
-        
-        do {
-            try FileManager.default.createDirectory(at: dbsURL, withIntermediateDirectories: true)
-            // exclude from backups
-            var vals = URLResourceValues()
-            vals.isExcludedFromBackup = true
-            var u = dbsURL
-            try? u.setResourceValues(vals)
-            
-            // enforce protection class
-            applyProtection(dbsURL)
-            
+       
+        // It is the responsibility of the app to create this directory with the
+        // necessary permissions.
+        if(FileManager.default.fileExists(atPath: dbsURL.absoluteString)) {
             return dbsURL
-        } catch {
+        } else {
             return nil
         }
     }

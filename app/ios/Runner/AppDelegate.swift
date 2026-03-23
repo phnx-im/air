@@ -96,7 +96,7 @@ private let kProtectedBlockedCategory = "protected-blocked"
     super.applicationDidBecomeActive(application)
   }
 
-  @objc private func handleProtectedDataAvailable(_ notification: Notification) {
+  @objc private func handleprotectedDataAvailable(_ notification: Notification) {
     clearProtectedBlockedNotifications()
   }
 
@@ -232,6 +232,13 @@ private let kProtectedBlockedCategory = "protected-blocked"
     else {
       return nil
     }
+      
+    // Sqlite relies on temporary files in specific cases, which we will be denied access to
+    // after creating them because of the default protection level of the app
+    try? FileManager.default.setAttributes(
+        [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+        ofItemAtPath: NSTemporaryDirectory()
+    )
 
     // Prefer Library/Application Support for persistent, non-user‑visible data
     let dbsURL =
