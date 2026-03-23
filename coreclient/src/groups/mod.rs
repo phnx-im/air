@@ -989,12 +989,12 @@ impl Group {
     }
 
     fn update_leaf_node_extensions(own_leaf_node: &LeafNode) -> anyhow::Result<LeafNodeParameters> {
-        let leaf_node_extentions = own_leaf_node.extensions();
+        let leaf_node_extensions = own_leaf_node.extensions();
 
         let mut leaf_node_parameters =
             LeafNodeParameters::builder().with_capabilities(default_leaf_node_capabilities());
 
-        if let Some(app_data_dictionary) = leaf_node_extentions.app_data_dictionary() {
+        if let Some(app_data_dictionary) = leaf_node_extensions.app_data_dictionary() {
             let dict = app_data_dictionary.dictionary();
             let mut updated_dict = None;
 
@@ -1030,18 +1030,18 @@ impl Group {
 
             if let Some(dict) = updated_dict {
                 // Replace the app data dictionary with the updated one
-                let mut leaf_node_extentions = leaf_node_extentions.clone();
-                leaf_node_extentions.add_or_replace(Extension::AppDataDictionary(
+                let mut leaf_node_extensions = leaf_node_extensions.clone();
+                leaf_node_extensions.add_or_replace(Extension::AppDataDictionary(
                     AppDataDictionaryExtension::new(dict),
                 ))?;
                 leaf_node_parameters =
-                    leaf_node_parameters.with_extensions(leaf_node_extentions.clone());
+                    leaf_node_parameters.with_extensions(leaf_node_extensions.clone());
             }
         } else {
             // App data extension is not present, add it with default values
-            let mut leaf_node_extentions = leaf_node_extentions.clone();
-            leaf_node_extentions.add(default_app_data_dictionary_extension())?;
-            leaf_node_parameters = leaf_node_parameters.with_extensions(leaf_node_extentions);
+            let mut leaf_node_extensions = leaf_node_extensions.clone();
+            leaf_node_extensions.add(default_app_data_dictionary_extension())?;
+            leaf_node_parameters = leaf_node_parameters.with_extensions(leaf_node_extensions);
         }
 
         Ok(leaf_node_parameters.build())
