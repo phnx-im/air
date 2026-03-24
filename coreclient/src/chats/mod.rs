@@ -24,7 +24,7 @@ pub(crate) use {pending::PendingConnectionInfo, status::StatusRecord};
 
 mod draft;
 pub(crate) mod messages;
-mod pending;
+pub(crate) mod pending;
 pub(crate) mod persistence;
 mod sqlx_support;
 pub(crate) mod status;

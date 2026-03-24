@@ -89,7 +89,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 1348803413;
+  int get rustContentHash => -1261849954;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -135,7 +135,7 @@ abstract class RustLibApi extends BaseApi {
     required AttachmentId attachmentId,
   });
 
-  Future<void>
+  Future<AcceptContactRequestError?>
   crateApiChatDetailsCubitChatDetailsCubitBaseAcceptContactRequest({
     required ChatDetailsCubitBase that,
   });
@@ -472,10 +472,10 @@ abstract class RustLibApi extends BaseApi {
     required UiUserHandle userHandle,
   });
 
-  Future<void> crateApiUserCubitUserCubitBaseAddUserToChat({
+  Future<InviteUsersError?> crateApiUserCubitUserCubitBaseAddUsersToChat({
     required UserCubitBase that,
     required ChatId chatId,
-    required UiUserId userId,
+    required List<UiUserId> userIds,
   });
 
   Future<List<UiContact>> crateApiUserCubitUserCubitBaseAddableContacts({
@@ -1189,7 +1189,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void>
+  Future<AcceptContactRequestError?>
   crateApiChatDetailsCubitChatDetailsCubitBaseAcceptContactRequest({
     required ChatDetailsCubitBase that,
   }) {
@@ -1209,7 +1209,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
+          decodeSuccessData:
+              sse_decode_opt_box_autoadd_accept_contact_request_error,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta:
@@ -3969,10 +3970,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiUserCubitUserCubitBaseAddUserToChat({
+  Future<InviteUsersError?> crateApiUserCubitUserCubitBaseAddUsersToChat({
     required UserCubitBase that,
     required ChatId chatId,
-    required UiUserId userId,
+    required List<UiUserId> userIds,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -3983,7 +3984,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             serializer,
           );
           sse_encode_box_autoadd_chat_id(chatId, serializer);
-          sse_encode_box_autoadd_ui_user_id(userId, serializer);
+          sse_encode_list_ui_user_id(userIds, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -3992,20 +3993,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
+          decodeSuccessData: sse_decode_opt_box_autoadd_invite_users_error,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiUserCubitUserCubitBaseAddUserToChatConstMeta,
-        argValues: [that, chatId, userId],
+        constMeta: kCrateApiUserCubitUserCubitBaseAddUsersToChatConstMeta,
+        argValues: [that, chatId, userIds],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiUserCubitUserCubitBaseAddUserToChatConstMeta =>
+  TaskConstMeta get kCrateApiUserCubitUserCubitBaseAddUsersToChatConstMeta =>
       const TaskConstMeta(
-        debugName: "UserCubitBase_add_user_to_chat",
-        argNames: ["that", "chatId", "userId"],
+        debugName: "UserCubitBase_add_users_to_chat",
+        argNames: ["that", "chatId", "userIds"],
       );
 
   @override
@@ -7690,6 +7691,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AcceptContactRequestError dco_decode_accept_contact_request_error(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return AcceptContactRequestError_IncompatibleClient(
+          reason: dco_decode_String(raw[1]),
+        );
+      default:
+        throw Exception("unreachable");
+    }
+  }
+
+  @protected
   AddHandleContactError dco_decode_add_handle_contact_error(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return AddHandleContactError.values[raw as int];
@@ -7791,6 +7807,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AcceptContactRequestError dco_decode_box_autoadd_accept_contact_request_error(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_accept_contact_request_error(raw);
+  }
+
+  @protected
   AddHandleContactError dco_decode_box_autoadd_add_handle_contact_error(
     dynamic raw,
   ) {
@@ -7867,6 +7891,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   IntroScreenType dco_decode_box_autoadd_intro_screen_type(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_intro_screen_type(raw);
+  }
+
+  @protected
+  InviteUsersError dco_decode_box_autoadd_invite_users_error(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_invite_users_error(raw);
   }
 
   @protected
@@ -8256,6 +8286,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  InviteUsersError dco_decode_invite_users_error(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return InviteUsersError_IncompatibleClient(
+          reason: dco_decode_String(raw[1]),
+        );
+      default:
+        throw Exception("unreachable");
+    }
+  }
+
+  @protected
   PlatformInt64 dco_decode_isize(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dcoDecodeI64(raw);
@@ -8555,6 +8598,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AcceptContactRequestError?
+  dco_decode_opt_box_autoadd_accept_contact_request_error(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_accept_contact_request_error(raw);
+  }
+
+  @protected
   AddHandleContactError? dco_decode_opt_box_autoadd_add_handle_contact_error(
     dynamic raw,
   ) {
@@ -8623,6 +8675,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ImageData? dco_decode_opt_box_autoadd_image_data(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_image_data(raw);
+  }
+
+  @protected
+  InviteUsersError? dco_decode_opt_box_autoadd_invite_users_error(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_invite_users_error(raw);
   }
 
   @protected
@@ -10255,6 +10313,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AcceptContactRequestError sse_decode_accept_contact_request_error(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        var var_reason = sse_decode_String(deserializer);
+        return AcceptContactRequestError_IncompatibleClient(reason: var_reason);
+      default:
+        throw UnimplementedError('');
+    }
+  }
+
+  @protected
   AddHandleContactError sse_decode_add_handle_contact_error(
     SseDeserializer deserializer,
   ) {
@@ -10362,6 +10436,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AcceptContactRequestError sse_decode_box_autoadd_accept_contact_request_error(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_accept_contact_request_error(deserializer));
+  }
+
+  @protected
   AddHandleContactError sse_decode_box_autoadd_add_handle_contact_error(
     SseDeserializer deserializer,
   ) {
@@ -10450,6 +10532,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_intro_screen_type(deserializer));
+  }
+
+  @protected
+  InviteUsersError sse_decode_box_autoadd_invite_users_error(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_invite_users_error(deserializer));
   }
 
   @protected
@@ -10899,6 +10989,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  InviteUsersError sse_decode_invite_users_error(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        var var_reason = sse_decode_String(deserializer);
+        return InviteUsersError_IncompatibleClient(reason: var_reason);
+      default:
+        throw UnimplementedError('');
+    }
+  }
+
+  @protected
   PlatformInt64 sse_decode_isize(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getPlatformInt64();
@@ -11324,6 +11428,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AcceptContactRequestError?
+  sse_decode_opt_box_autoadd_accept_contact_request_error(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_accept_contact_request_error(
+        deserializer,
+      ));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   AddHandleContactError? sse_decode_opt_box_autoadd_add_handle_contact_error(
     SseDeserializer deserializer,
   ) {
@@ -11438,6 +11558,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_image_data(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  InviteUsersError? sse_decode_opt_box_autoadd_invite_users_error(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_invite_users_error(deserializer));
     } else {
       return null;
     }
@@ -13454,6 +13587,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_accept_contact_request_error(
+    AcceptContactRequestError self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case AcceptContactRequestError_IncompatibleClient(reason: final reason):
+        sse_encode_i_32(0, serializer);
+        sse_encode_String(reason, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_add_handle_contact_error(
     AddHandleContactError self,
     SseSerializer serializer,
@@ -13555,6 +13701,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_accept_contact_request_error(
+    AcceptContactRequestError self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_accept_contact_request_error(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_add_handle_contact_error(
     AddHandleContactError self,
     SseSerializer serializer,
@@ -13651,6 +13806,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_intro_screen_type(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_invite_users_error(
+    InviteUsersError self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_invite_users_error(self, serializer);
   }
 
   @protected
@@ -14083,6 +14247,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_invite_users_error(
+    InviteUsersError self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case InviteUsersError_IncompatibleClient(reason: final reason):
+        sse_encode_i_32(0, serializer);
+        sse_encode_String(reason, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_isize(PlatformInt64 self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putPlatformInt64(self);
@@ -14481,6 +14658,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_accept_contact_request_error(
+    AcceptContactRequestError? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_accept_contact_request_error(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_add_handle_contact_error(
     AddHandleContactError? self,
     SseSerializer serializer,
@@ -14591,6 +14781,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_image_data(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_invite_users_error(
+    InviteUsersError? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_invite_users_error(self, serializer);
     }
   }
 
@@ -15439,7 +15642,9 @@ class ChatDetailsCubitBaseImpl extends RustOpaque
         .rust_arc_decrement_strong_count_ChatDetailsCubitBasePtr,
   );
 
-  Future<void> acceptContactRequest() => RustLib.instance.api
+  Future<AcceptContactRequestError?> acceptContactRequest() => RustLib
+      .instance
+      .api
       .crateApiChatDetailsCubitChatDetailsCubitBaseAcceptContactRequest(
         that: this,
       );
@@ -16048,12 +16253,18 @@ class UserCubitBaseImpl extends RustOpaque implements UserCubitBase {
         userHandle: userHandle,
       );
 
-  Future<void> addUserToChat(ChatId chatId, UiUserId userId) =>
-      RustLib.instance.api.crateApiUserCubitUserCubitBaseAddUserToChat(
-        that: this,
-        chatId: chatId,
-        userId: userId,
-      );
+  /// Adds multiple users to the chat with the given [`ChatId`].
+  ///
+  /// If one of the users cannot be added, an error is returned and the chat is not modified,
+  /// that is, other users are *not* added to the chat too.
+  Future<InviteUsersError?> addUsersToChat(
+    ChatId chatId,
+    List<UiUserId> userIds,
+  ) => RustLib.instance.api.crateApiUserCubitUserCubitBaseAddUsersToChat(
+    that: this,
+    chatId: chatId,
+    userIds: userIds,
+  );
 
   Future<List<UiContact>> addableContacts({required ChatId chatId}) =>
       RustLib.instance.api.crateApiUserCubitUserCubitBaseAddableContacts(

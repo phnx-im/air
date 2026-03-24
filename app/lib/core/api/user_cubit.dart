@@ -11,9 +11,11 @@ import 'chat_list_cubit.dart';
 import 'navigation_cubit.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
 import 'types.dart';
 import 'user.dart';
+part 'user_cubit.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `core_user`, `emit_stored_notifications`, `new`, `notification_service`, `show_notifications`, `spawn_emit_stored_notifications`, `spawn_load`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CubitContext`, `NotificationContext`, `UiUserInner`
@@ -49,7 +51,14 @@ abstract class UserCubitBase implements RustOpaqueInterface {
 
   Future<bool> addUserHandle({required UiUserHandle userHandle});
 
-  Future<void> addUserToChat(ChatId chatId, UiUserId userId);
+  /// Adds multiple users to the chat with the given [`ChatId`].
+  ///
+  /// If one of the users cannot be added, an error is returned and the chat is not modified,
+  /// that is, other users are *not* added to the chat too.
+  Future<InviteUsersError?> addUsersToChat(
+    ChatId chatId,
+    List<UiUserId> userIds,
+  );
 
   Future<List<UiContact>> addableContacts({required ChatId chatId});
 
@@ -106,3 +115,11 @@ abstract class UserCubitBase implements RustOpaqueInterface {
 }
 
 enum AppState { mobileBackground, desktopBackground, foreground }
+
+@freezed
+sealed class InviteUsersError with _$InviteUsersError {
+  const InviteUsersError._();
+
+  const factory InviteUsersError.incompatibleClient({required String reason}) =
+      InviteUsersError_IncompatibleClient;
+}
