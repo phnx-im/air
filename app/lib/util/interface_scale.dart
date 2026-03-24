@@ -4,6 +4,7 @@
 
 import 'dart:io';
 
+import 'package:air/ui/theme/scale.dart';
 import 'package:flutter/widgets.dart';
 import 'package:air/user/user.dart';
 import 'package:provider/provider.dart';
@@ -20,24 +21,23 @@ class InterfaceScale extends StatelessWidget {
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
 
-    final interfaceScale = context.select(
+    final userDefinedUiScaleFactor = context.select(
       (UserSettingsCubit cubit) => cubit.state.interfaceScale ?? 1.0,
     );
 
-    final systemTextScale = mediaQuery.textScaler.scale(1.0);
+    final scalingFactors = getScalingFactors(context);
 
-    // On Linux, we never manually scale the text only to behave like other apps
-    // like Firefox. Historically, there was no fine control of UI scaling
-    // in GNOME for HiDPI, which is why there's today both UI scaling and
-    // (in GNOME Tweaks) the legacy text scale factor still in use by some.
-    final textScaleFactor = Platform.isLinux ? 1.0 : systemTextScale;
-    final uiScalingFactor =
-        (Platform.isLinux ? systemTextScale : 1.0) * interfaceScale;
+    final uiScalingFactor = scalingFactors.uiFactor * userDefinedUiScaleFactor;
+    final textScaleFactor = scalingFactors.textFactor;
 
-    final wrappedChild = MediaQuery(
-      data: mediaQuery.copyWith(textScaler: TextScaler.linear(textScaleFactor)),
-      child: child,
-    );
+    final wrappedChild = textScaleFactor == 1.0
+        ? child
+        : MediaQuery(
+            data: mediaQuery.copyWith(
+              textScaler: TextScaler.linear(textScaleFactor),
+            ),
+            child: child,
+          );
 
     return uiScalingFactor == 1.0
         ? wrappedChild
