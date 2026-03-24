@@ -4,6 +4,8 @@
 
 //! Fetching operations for user and group profiles.
 
+use std::convert::Infallible;
+
 use aircommon::{
     credentials::ClientCredential,
     crypto::indexed_aead::{ciphertexts::IndexDecryptable, keys::UserProfileKey},
@@ -67,7 +69,7 @@ impl CoreUser {
             user_profile_key,
         } = profile_info.into();
         let job = FetchUserProfileOperation::new(client_credential, user_profile_key);
-        self.execute_job(job).await
+        Ok(self.execute_job(job).await?)
     }
 
     /// Schedule a group profile fetch operation.
@@ -129,7 +131,12 @@ impl OperationData for FetchUserProfileOperation {
 impl Job for FetchUserProfileOperation {
     type Output = ();
 
-    async fn execute_logic(self, context: &mut JobContext<'_>) -> Result<Self::Output, JobError> {
+    type DomainError = Infallible;
+
+    async fn execute_logic(
+        self,
+        context: &mut JobContext<'_>,
+    ) -> Result<Self::Output, JobError<Self::DomainError>> {
         let Self {
             client_credential,
             user_profile_key,
@@ -162,7 +169,7 @@ impl Job for FetchUserProfileOperation {
         // Phase 4: Store the user profile and key in the database
         context
             .pool
-            .with_transaction(async |txn| {
+            .with_transaction(async |txn| -> sqlx::Result<_> {
                 user_profile_key.store(txn.as_mut()).await?;
                 persistable_user_profile
                     .persist(txn.as_mut(), context.notifier)
@@ -203,7 +210,12 @@ impl OperationData for FetchGroupProfileOperation {
 impl Job for FetchGroupProfileOperation {
     type Output = ();
 
-    async fn execute_logic(self, context: &mut JobContext<'_>) -> Result<Self::Output, JobError> {
+    type DomainError = Infallible;
+
+    async fn execute_logic(
+        self,
+        context: &mut JobContext<'_>,
+    ) -> Result<Self::Output, JobError<Self::DomainError>> {
         let Self {
             group_id,
             sender_id,
@@ -221,7 +233,7 @@ impl Job for FetchGroupProfileOperation {
         // Load chat and group
         let Some((mut chat, group)) = context
             .pool
-            .with_transaction(async |txn| {
+            .with_transaction(async |txn| -> anyhow::Result<_> {
                 let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
                     .await?
                     .context("Missing chat")?;
@@ -277,7 +289,7 @@ impl Job for FetchGroupProfileOperation {
         // Update chat attributes and store new messages
         context
             .pool
-            .with_transaction(async |txn| {
+            .with_transaction(async |txn| -> anyhow::Result<_> {
                 let mut messages = Vec::new();
 
                 let chat_attributes = ChatAttributes::new(

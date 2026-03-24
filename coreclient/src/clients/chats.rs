@@ -50,7 +50,7 @@ impl CoreUser {
     /// group. Note that these returned message have already been persisted.
     pub(crate) async fn delete_chat(&self, chat_id: ChatId) -> Result<Vec<ChatMessage>> {
         let job = ChatOperation::delete_chat(chat_id);
-        self.execute_job(job).await
+        Ok(self.execute_job(job).await?)
     }
 
     pub(crate) async fn erase_chat(&self, chat_id: ChatId) -> Result<()> {

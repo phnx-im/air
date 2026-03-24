@@ -24,7 +24,7 @@ use crate::{
     clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
     contacts::ContactAddInfos,
     groups::{Group, VerifiedGroup, client_auth_info::StorableClientCredential},
-    job::{Job, JobContext, JobError},
+    job::{Job, JobContext, JobError, chat_operation::ChatOperationError},
     store::StoreNotifier,
     utils::connection_ext::ConnectionExt,
 };
@@ -87,10 +87,12 @@ pub(crate) struct PendingChatOperation {
 impl Job for PendingChatOperation {
     type Output = Vec<ChatMessage>;
 
+    type DomainError = ChatOperationError;
+
     async fn execute_logic(
         mut self,
         context: &mut JobContext<'_>,
-    ) -> Result<Vec<ChatMessage>, JobError> {
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         match self.execute_internal(context).await {
             // Update retry_due at on network errors
             Err(JobError::NetworkError) => {
@@ -143,7 +145,7 @@ impl PendingChatOperation {
     pub async fn execute_internal(
         &mut self,
         context: &mut JobContext<'_>,
-    ) -> Result<Vec<ChatMessage>, JobError> {
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         if let PendingChatOperationStatus::WaitingForQueueResponse = self.status {
             info!(
                 group_id = ?self.group.group_id(),
@@ -342,7 +344,7 @@ impl PendingChatOperation {
         &mut self,
         pool: &mut SqlitePool,
         error: DsRequestError,
-    ) -> Result<JobError, JobError> {
+    ) -> Result<JobError<ChatOperationError>, JobError<ChatOperationError>> {
         debug!(?error, "DS request failed");
         const MAX_RETRIES: u32 = 5;
         if error.is_wrong_epoch() {
@@ -365,7 +367,7 @@ impl PendingChatOperation {
         } else {
             // For other errors or if the max number of retries has been
             // reached, we consider the operation failed and delete the job.
-            pool.with_transaction(async |txn| {
+            pool.with_transaction(async |txn| -> anyhow::Result<_> {
                 self.group.group_mut().discard_pending_commit(txn).await?;
                 Self::delete(txn.as_mut(), self.group.group_id()).await?;
                 Ok(())
@@ -381,7 +383,7 @@ impl PendingChatOperation {
             } else {
                 anyhow!("Job failed due to DS error: {:?}", error)
             };
-            Ok(JobError::FatalError(error))
+            Ok(JobError::Fatal(error))
         }
     }
 
@@ -504,7 +506,7 @@ impl PendingChatOperation {
         signer: &ClientSigningKey,
         chat_id: ChatId,
         new_members: Vec<UserId>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, JobError<ChatOperationError>> {
         // Load local data to prepare add operation
         let chat = Chat::load(&mut *connection, &chat_id)
             .await?
@@ -538,11 +540,13 @@ impl PendingChatOperation {
         }
 
         let group_id = chat.group_id();
-        let job = connection
+        connection
             .with_transaction(async |txn| {
                 let mut group = Group::load_clean_verified(txn, group_id)
-                    .await?
-                    .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+                    .await
+                    .map_err(JobError::fatal)?
+                    .with_context(|| format!("Can't find group with id {group_id:?}"))
+                    .map_err(JobError::fatal)?;
 
                 let own_id = signer.credential().user_id();
 
@@ -561,7 +565,10 @@ impl PendingChatOperation {
                         contact_wai_keys,
                         client_credentials,
                     )
-                    .await?;
+                    .await?
+                    // Check if we got a leaf node validation error which is domain specific and should
+                    // be propagated to the user.
+                    .map_err(|validation| JobError::domain(ChatOperationError::from(validation)))?;
 
                 // Create PendingChatOperation job
                 let pending_chat_operation = PendingChatOperation::new(group, Box::new(params));
@@ -569,9 +576,7 @@ impl PendingChatOperation {
 
                 Ok(pending_chat_operation)
             })
-            .await?;
-
-        Ok(job)
+            .await
     }
 }
 
@@ -972,10 +977,7 @@ mod tests {
         pending.store(&mut connection).await?;
 
         let loaded = connection
-            .with_transaction(async |txn| {
-                let loaded = PendingChatOperation::load(txn, &chat_id).await?;
-                Ok(loaded)
-            })
+            .with_transaction(async |txn| PendingChatOperation::load(txn, &chat_id).await)
             .await?
             .expect("Loading stored operation failed");
 
@@ -1003,7 +1005,7 @@ mod tests {
             .await?;
 
         let reloaded = connection
-            .with_transaction(async |txn| Ok(PendingChatOperation::load(txn, &chat_id).await?))
+            .with_transaction(async |txn| PendingChatOperation::load(txn, &chat_id).await)
             .await?
             .expect("should load");
         assert_eq!(reloaded.retry_due_at, Some(new_timestamp));

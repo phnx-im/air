@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{ops::ControlFlow, time::Duration};
+use std::{convert::Infallible, ops::ControlFlow, time::Duration};
 
 use chrono::{DateTime, Utc};
 use tokio_util::sync::CancellationToken;
@@ -71,11 +71,14 @@ impl OutboundServiceContext {
         Ok(())
     }
 
-    async fn fetch_profile<T: OperationData + Job<Output = ()>>(
+    async fn fetch_profile<T>(
         &self,
         op: Operation<T>,
         now: DateTime<Utc>,
-    ) -> anyhow::Result<ControlFlow<()>> {
+    ) -> anyhow::Result<ControlFlow<()>>
+    where
+        T: OperationData + Job<Output = (), DomainError = Infallible>,
+    {
         debug!(?op.operation_id, kind = ?T::kind(), "fetching profile");
 
         let (mut op, data) = op.take_data();
@@ -104,7 +107,12 @@ impl OutboundServiceContext {
                     return Ok(ControlFlow::Continue(()));
                 }
             }
-            Err(error @ (JobError::Blocked | JobError::FatalError(_) | JobError::NotFound)) => {
+            Err(
+                error @ (JobError::Blocked
+                | JobError::Fatal(_)
+                | JobError::NotFound
+                | JobError::Domain(_)),
+            ) => {
                 // These error cases must not happen when fetching profiles.
                 error!(?operation_id, %error, "Failed to fetch profile; deleting operation");
                 op.delete(&self.pool).await?;

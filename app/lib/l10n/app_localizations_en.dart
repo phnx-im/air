@@ -539,6 +539,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String newChatDialog_error_incompatibleClient(Object chatName) {
+    return 'Couldn\'t create new group chat with name $chatName because one of the contacts has an incompatible client.';
+  }
+
+  @override
   String get newConnectionDialog_newConnectionTitle => 'Add Air contact';
 
   @override
@@ -852,6 +857,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addMembersScreen_done => 'Done';
 
   @override
+  String get addMembersScreen_error_incompatibleClient =>
+      'Couldn\'t add member(s) because one of the contacts has an incompatible client';
+
+  @override
   String get leaveChatDialog_title => 'Leave group';
 
   @override
@@ -951,6 +960,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get contactRequestDialog_error_fatal =>
       'Failed to accept contact request';
+
+  @override
+  String get contactRequestDialog_error_incompatibleClient =>
+      'Failed to accept contact request. Update Air to the newest version, then try again.';
 
   @override
   String get errorBanner_ok => 'OK';

@@ -11,7 +11,7 @@ use aircommon::{
     identifiers::{AttachmentId, UserId},
 };
 pub use aircoreclient::{
-    AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
+    AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
     ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
 };
 use aircoreclient::{
@@ -545,10 +545,16 @@ impl ChatDetailsCubitBase {
         Ok(())
     }
 
-    pub async fn accept_contact_request(&self) -> anyhow::Result<()> {
+    pub async fn accept_contact_request(
+        &self,
+    ) -> anyhow::Result<Option<AcceptContactRequestError>> {
         let chat_id = self.context.chat_id;
-        self.context.store.accept_contact_request(chat_id).await?;
-        Ok(())
+        Ok(self
+            .context
+            .store
+            .accept_contact_request(chat_id)
+            .await?
+            .err())
     }
 
     pub async fn chat_debug_info(&self) -> anyhow::Result<GroupDebugInfo> {
@@ -758,6 +764,11 @@ pub enum UploadAttachmentError {
         max_size_bytes: u64,
         actual_size_bytes: u64,
     },
+}
+
+#[frb(mirror(AcceptContactRequestError))]
+pub enum _AcceptContactRequestError {
+    IncompatibleClient { reason: String },
 }
 
 #[frb(mirror(GroupDebugInfo))]

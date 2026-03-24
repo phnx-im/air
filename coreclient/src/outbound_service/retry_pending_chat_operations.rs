@@ -46,7 +46,7 @@ impl OutboundServiceContext {
                     // If we're getting a network error, error out of the loop and wait for the next run.
                     return Err(OutboundServiceRunError::NetworkError);
                 }
-                Err(JobError::FatalError(error)) => {
+                Err(error @ (JobError::Fatal(_) | JobError::Domain(_))) => {
                     error!(%error, ?group_id, "Failed to execute pending chat operation");
                     // This job has a fatal error. Continue with the next one.
                     continue;
