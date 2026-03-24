@@ -1014,7 +1014,13 @@ impl Group {
 
             if let Some(mut app_components) = dict
                 .get(&ComponentType::AppComponents.into())
-                .and_then(|data| ComponentsList::tls_deserialize_exact_bytes(data).ok())
+                .and_then(|data| {
+                    ComponentsList::tls_deserialize_exact_bytes(data)
+                        .inspect_err(|error| {
+                            error!(%error, "Failed to deserialize app data dictionary; will replace");
+                        })
+                        .ok()
+                })
             {
                 if !app_components.component_ids.contains(&AIR_COMPONENT_ID) {
                     // Advertise that we support the Air component in the app data dictionary.

@@ -181,7 +181,7 @@ mod test {
 
     #[test]
     fn group_capabilities_is_subset_of_leaf_node_capabilities() {
-        let group_extensions = SUPPORTED_EXTENSIONS;
+        let group_extensions = REQUIRED_EXTENSIONS;
         let leaf_node_extensions = SUPPORTED_EXTENSIONS;
         for capability in group_extensions {
             assert!(leaf_node_extensions.contains(capability));
