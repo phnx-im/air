@@ -2,7 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use sqlx::{Connection, SqliteConnection, SqlitePool, SqliteTransaction};
+use sqlx::{
+    Connection, SqliteConnection, SqlitePool, SqliteTransaction, TransactionManager,
+    sqlite::SqliteTransactionManager,
+};
+use tracing::debug;
 
 use crate::store::StoreNotifier;
 
@@ -15,14 +19,6 @@ pub(crate) trait ConnectionExt {
         self,
         f: impl AsyncFnOnce(&mut SqliteTransaction<'_>) -> Result<T, E>,
     ) -> Result<T, E>;
-
-    /// Executes a function with a connection.
-    ///
-    /// The connection is dropped at the end of the closure.
-    async fn with_connection<T: Send, E: From<sqlx::Error>>(
-        self,
-        f: impl AsyncFnOnce(&mut SqliteConnection) -> Result<T, E>,
-    ) -> Result<T, E>;
 }
 
 impl ConnectionExt for &mut SqliteConnection {
@@ -30,17 +26,16 @@ impl ConnectionExt for &mut SqliteConnection {
         self,
         f: impl AsyncFnOnce(&mut SqliteTransaction<'_>) -> Result<T, E>,
     ) -> Result<T, E> {
-        let mut txn = self.begin_with("BEGIN IMMEDIATE").await?;
+        let txn_depth = SqliteTransactionManager::get_transaction_depth(self);
+        let mut txn = if txn_depth == 0 {
+            self.begin_with("BEGIN IMMEDIATE").await?
+        } else {
+            debug!("Nested transaction detected; making a savepoint inside");
+            self.begin().await?
+        };
         let value = f(&mut txn).await?;
         txn.commit().await?;
         Ok(value)
-    }
-
-    async fn with_connection<T: Send, E: From<sqlx::Error>>(
-        self,
-        f: impl AsyncFnOnce(&mut SqliteConnection) -> Result<T, E>,
-    ) -> Result<T, E> {
-        f(self).await
     }
 }
 
@@ -53,14 +48,6 @@ impl ConnectionExt for &SqlitePool {
         let value = f(&mut txn).await?;
         txn.commit().await?;
         Ok(value)
-    }
-
-    async fn with_connection<T: Send, E: From<sqlx::Error>>(
-        self,
-        f: impl AsyncFnOnce(&mut SqliteConnection) -> Result<T, E>,
-    ) -> Result<T, E> {
-        let mut connection = self.acquire().await?;
-        f(&mut connection).await
     }
 }
 

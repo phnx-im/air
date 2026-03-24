@@ -7,5 +7,6 @@ mod connection;
 mod group;
 mod jobs;
 mod message;
+mod process;
 mod server;
 mod user;
