@@ -214,10 +214,10 @@ private let kProtectedBlockedCategory = "protected-blocked"
   }
 
   // Apply completeUntilFirstUserAuthentication file protection
-  private func applyProtection(path: String) {
+  private func applyProtection(_ url: URL) {
     try? FileManager.default.setAttributes(
       [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-      ofItemAtPath: path
+      ofItemAtPath: url.path
     )
   }
 
@@ -231,10 +231,6 @@ private let kProtectedBlockedCategory = "protected-blocked"
     else {
       return nil
     }
-      
-    // Sqlite relies on temporary files in specific cases, which we will be denied access to
-    // after creating them because of the default protection level of the app
-    applyProtection(path: NSTemporaryDirectory())
 
     // Prefer Library/Application Support for persistent, non-user‑visible data
     let dbsURL =
@@ -245,6 +241,11 @@ private let kProtectedBlockedCategory = "protected-blocked"
 
     do {
       try createBackupExcludedDirectory(at: dbsURL)
+      applyProtection(dbsURL)
+      // Note: Protection is also applied to the temp directory, because sqlite
+      // uses it to write statement journal files:
+      // <https://sqlite.org/tempfiles.html>
+      applyProtection(URL(fileURLWithPath: NSTemporaryDirectory()))
       return dbsURL.path
     } catch {
       return nil
@@ -279,9 +280,6 @@ private let kProtectedBlockedCategory = "protected-blocked"
     vals.isExcludedFromBackup = true
     var u = url
     try? u.setResourceValues(vals)
-
-    // enforce protection class
-    applyProtection(path: url.path)
   }
 
   // Set the badge count

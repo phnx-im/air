@@ -40,7 +40,7 @@ private func rustLog(_ level: RustLogLevel, _ message: String) {
     case .error:
         swiftLogger.error("\(message, privacy: .public)")
     }
-    
+
     message.withCString { cString in
         rust_log(level.rawValue, cString)
     }
@@ -72,10 +72,10 @@ struct ChatId: Codable {
 }
 
 class NotificationService: UNNotificationServiceExtension {
-    
+
     var contentHandler: ((UNNotificationContent) -> Void)?
     private var hasHandlingToken = false
-    
+
     override func didReceive(
         _ request: UNNotificationRequest,
         withContentHandler contentHandler: @escaping (UNNotificationContent) -> Void
@@ -86,10 +86,10 @@ class NotificationService: UNNotificationServiceExtension {
             completeNotification(releaseHandling: false, handler: contentHandler)
             return
         }
-        
+
         self.hasHandlingToken = true
         self.contentHandler = contentHandler
-        
+
         guard
             let sharedContainer = FileManager.default.containerURL(
                 forSecurityApplicationGroupIdentifier: "group.ms.air")
@@ -98,12 +98,12 @@ class NotificationService: UNNotificationServiceExtension {
             self.completeNotification()
             return
         }
-        
+
         let sharedCaches = sharedContainer.appendingPathComponent("Caches")
         let logFilePath = sharedCaches.appendingPathComponent("background.log").path
         initRustLogging(logFilePath)
         rustLog(.info, "Received notification")
-        
+
         guard
             let incomingNotification =
                 (request.content.mutableCopy() as? UNMutableNotificationContent)
@@ -112,7 +112,7 @@ class NotificationService: UNNotificationServiceExtension {
             self.completeNotification()
             return
         }
-        
+
         // Extract the "data" field from the push notification payload
         let userInfo = request.content.userInfo
         guard let data = userInfo["data"] as? String else {
@@ -120,13 +120,13 @@ class NotificationService: UNNotificationServiceExtension {
             self.completeNotification()
             return
         }
-        
+
         guard let dbUrl = getDatabasesDirectoryPath() else {
             rustLog(.error, "Could not find databases directory")
             self.completeNotification()
             return
         }
-        
+
         // If protected data is not yet available (e.g. device never unlocked after reboot),
         // show a minimal notification and skip DB access.
         if !protectedDataAvailable(at: dbUrl) {
@@ -142,12 +142,12 @@ class NotificationService: UNNotificationServiceExtension {
             completeNotification(fallback)
             return
         }
-        
+
         // Ensure any previously shown "blocked" notification is removed now that data is accessible
         clearProtectedBlockedNotifications()
-        
+
         rustLog(.info, "Log file path: \(logFilePath)")
-        
+
         // Create IncomingNotificationContent object
         let incomingContent = IncomingNotificationContent(
             title: incomingNotification.title,
@@ -156,7 +156,7 @@ class NotificationService: UNNotificationServiceExtension {
             path: dbUrl.path,
             logFilePath: logFilePath
         )
-        
+
         if let jsonData = try? JSONEncoder().encode(incomingContent),
            let jsonString = String(data: jsonData, encoding: .utf8)
         {
@@ -166,10 +166,10 @@ class NotificationService: UNNotificationServiceExtension {
                     self.completeNotification()
                     return
                 }
-                
+
                 let responseString = String(cString: responsePointer)
                 free_string(responsePointer)
-                
+
                 guard
                     let responseData = responseString.data(using: .utf8),
                     let notificationBatch = try? JSONDecoder().decode(
@@ -179,7 +179,7 @@ class NotificationService: UNNotificationServiceExtension {
                     self.completeNotification()
                     return
                 }
-                
+
                 self.handleNotificationBatch(notificationBatch, contentHandler: contentHandler)
                 rustLog(
                     .info,
@@ -191,27 +191,27 @@ class NotificationService: UNNotificationServiceExtension {
             completeNotification(request.content)
         }
     }
-    
+
     override func serviceExtensionTimeWillExpire() {
         rustLog(.warn, "Expiration handler invoked")
         self.completeNotification()
     }
-    
+
     func handleNotificationBatch(
         _ batch: NotificationBatch, contentHandler: @escaping (UNNotificationContent) -> Void
     ) {
         let center = UNUserNotificationCenter.current()
         let dispatchGroup = DispatchGroup()
-        
+
         // Remove notifications
         center.removeDeliveredNotifications(withIdentifiers: batch.removals)
-        
+
         // When Rust does not return any notifications, we don't want to show anything
         if batch.additions.isEmpty {
             completeNotification(nil, badge: batch.badgeCount)
             return
         }
-        
+
         // Add notifications
         var lastNotification: NotificationContent?
         for (index, notificationContent) in batch.additions.enumerated() {
@@ -242,7 +242,7 @@ class NotificationService: UNNotificationServiceExtension {
                 }
             }
         }
-        
+
         // Notify when all notifications are added
         dispatchGroup.notify(queue: DispatchQueue.main) {
             let content = UNMutableNotificationContent()
@@ -262,7 +262,7 @@ class NotificationService: UNNotificationServiceExtension {
             }
         }
     }
-    
+
     private static func beginHandling() -> Bool {
         var acquired = false
         reentryQueue.sync {
@@ -273,7 +273,7 @@ class NotificationService: UNNotificationServiceExtension {
         }
         return acquired
     }
-    
+
     private func finishHandlingIfNeeded(releaseHandling: Bool? = nil) {
         let shouldRelease = releaseHandling ?? hasHandlingToken
         guard shouldRelease else { return }
@@ -282,7 +282,7 @@ class NotificationService: UNNotificationServiceExtension {
         }
         hasHandlingToken = false
     }
-    
+
     private func completeNotification(
         _ content: UNNotificationContent? = nil,
         badge: UInt32? = nil,
@@ -294,7 +294,7 @@ class NotificationService: UNNotificationServiceExtension {
             finishHandlingIfNeeded(releaseHandling: releaseHandling)
             return
         }
-        
+
         let outgoing: UNNotificationContent
         if let content {
             if let badge = badge {
@@ -318,11 +318,19 @@ class NotificationService: UNNotificationServiceExtension {
             }
             outgoing = fallback
         }
-        
+
         finishHandlingIfNeeded(releaseHandling: releaseHandling)
         handler(outgoing)
     }
-    
+
+    // Allow to write to the given URL when the device is locked
+    private func applyProtection(_ url: URL) {
+        try? FileManager.default.setAttributes(
+            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+            ofItemAtPath: url.path
+        )
+    }
+
     // Get a databases directory path that is NOT backed up to iCloud
     private func getDatabasesDirectoryPath() -> URL? {
         // Use the App Group container so extensions can also access it
@@ -333,30 +341,36 @@ class NotificationService: UNNotificationServiceExtension {
         else {
             return nil
         }
-        
+
         // Sqlite relies on temporary files in specific cases, which we will be denied access to
         // after creating them because of the default protection level of the app
         try? FileManager.default.setAttributes(
             [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
             ofItemAtPath: NSTemporaryDirectory()
         )
-        
+
         // Prefer Library/Application Support for persistent, non-user‑visible data
         let dbsURL =
         containerURL
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Application Support", isDirectory: true)
             .appendingPathComponent("Databases", isDirectory: true)
-       
+
+
         // It is the responsibility of the app to create this directory with the
         // necessary permissions.
         if(FileManager.default.fileExists(atPath: dbsURL.path)) {
+            applyProtection(dbsURL)
+            // Note: Protection is also applied to the temp directory, because
+            // sqlite uses it to write statement journal files:
+            // <https://sqlite.org/tempfiles.html>
+            applyProtection(URL(fileURLWithPath: NSTemporaryDirectory()))
             return dbsURL
         } else {
             return nil
         }
     }
-    
+
     // Check if protected data is available
     func protectedDataAvailable(at dir: URL) -> Bool {
         let probe = dir.appendingPathComponent(".probe")
@@ -371,7 +385,7 @@ class NotificationService: UNNotificationServiceExtension {
             return true  // other errors (e.g., file not found) shouldn't block
         }
     }
-    
+
     // Remove any delivered notifications that were shown due to protected data being unavailable
     private func clearProtectedBlockedNotifications() {
         let center = UNUserNotificationCenter.current()
