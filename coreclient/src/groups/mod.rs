@@ -493,6 +493,7 @@ impl Group {
                 .with_proposals(proposals)
                 .with_aad(aad.tls_serialize_detached()?)
                 .with_config(mls_group_config)
+                .skip_lifetime_validation()
                 .with_ratchet_tree(ratchet_tree_in)
                 .build_group(&provider, verifiable_group_info, credential_with_key)?
                 .leaf_node_parameters(leaf_node_parameters);
