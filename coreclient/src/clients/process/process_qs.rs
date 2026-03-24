@@ -1045,6 +1045,10 @@ impl CoreUser {
                 info!("Dropping message from blocked contact");
                 return Ok(());
             }
+            Err(error) if error.downcast_ref::<sqlx::Error>().is_some() => {
+                error!(%error, "Persistence error while processing QS message, aborting loop");
+                return Err(error);
+            }
             Err(error) => {
                 error!(%error, "Processing message failed");
                 result.errors.push(error);
