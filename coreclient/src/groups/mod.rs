@@ -956,7 +956,7 @@ impl Group {
             .transpose()?;
 
         let own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
-        let leaf_node_parameters = Self::update_leaf_node_extensions(own_leaf_node)?;
+        let leaf_node_parameters = Self::update_leaf_node_extensions(own_leaf_node.extensions())?;
 
         self.mls_group.set_aad(aad);
         let (mls_message, group_info) = {
@@ -989,9 +989,9 @@ impl Group {
         })
     }
 
-    fn update_leaf_node_extensions(own_leaf_node: &LeafNode) -> anyhow::Result<LeafNodeParameters> {
-        let leaf_node_extensions = own_leaf_node.extensions();
-
+    fn update_leaf_node_extensions(
+        leaf_node_extensions: &Extensions<LeafNode>,
+    ) -> anyhow::Result<LeafNodeParameters> {
         let mut leaf_node_parameters =
             LeafNodeParameters::builder().with_capabilities(default_leaf_node_capabilities());
 
@@ -1442,4 +1442,80 @@ pub fn suppress_notifications(content: &MimiContent) -> bool {
     }
     // All other messages should trigger notifications.
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::mls_group_config::{AIR_COMPONENT_ID, default_app_data_dictionary_extension};
+    use mls_assist::components::ComponentsList;
+    use openmls::{
+        component::ComponentType,
+        prelude::{AppDataDictionary, AppDataDictionaryExtension, Extension, Extensions, LeafNode},
+    };
+    use tls_codec::{DeserializeBytes, Serialize as TlsSerializeTrait};
+
+    use super::Group;
+
+    fn air_component_ids(params_extensions: &Extensions<LeafNode>) -> Option<Vec<u16>> {
+        params_extensions
+            .app_data_dictionary()?
+            .dictionary()
+            .get(&ComponentType::AppComponents.into())
+            .and_then(|data| ComponentsList::tls_deserialize_exact_bytes(data).ok())
+            .map(|list| list.component_ids)
+    }
+
+    fn extensions_with_dict(dict: AppDataDictionary) -> Extensions<LeafNode> {
+        Extensions::from_vec(vec![Extension::AppDataDictionary(
+            AppDataDictionaryExtension::new(dict),
+        )])
+        .expect("valid extensions")
+    }
+
+    /// No app data dictionary -> add the default one containing AIR_COMPONENT_ID
+    #[test]
+    fn no_app_data_dictionary() {
+        let extensions = Extensions::empty();
+        let params = Group::update_leaf_node_extensions(&extensions).unwrap();
+        let ids = air_component_ids(params.extensions().unwrap()).unwrap();
+        assert!(ids.contains(&AIR_COMPONENT_ID));
+    }
+
+    /// App data dictionary present but no AppComponents key -> add AppComponents with AIR_COMPONENT_ID
+    #[test]
+    fn app_data_dictionary_without_app_components() {
+        let extensions = extensions_with_dict(AppDataDictionary::new());
+        let params = Group::update_leaf_node_extensions(&extensions).unwrap();
+        let ids = air_component_ids(params.extensions().unwrap()).unwrap();
+        assert!(ids.contains(&AIR_COMPONENT_ID));
+    }
+
+    /// AppComponents present but AIR_COMPONENT_ID missing -> add it
+    #[test]
+    fn app_components_without_air_component_id() {
+        let other_id: u16 = 0x0001;
+        let mut dict = AppDataDictionary::new();
+        dict.insert(
+            ComponentType::AppComponents.into(),
+            ComponentsList {
+                component_ids: vec![other_id],
+            }
+            .tls_serialize_detached()
+            .unwrap(),
+        );
+        let extensions = extensions_with_dict(dict);
+        let params = Group::update_leaf_node_extensions(&extensions).unwrap();
+        let ids = air_component_ids(params.extensions().unwrap()).unwrap();
+        assert!(ids.contains(&AIR_COMPONENT_ID));
+        assert!(ids.contains(&other_id));
+    }
+
+    /// AIR_COMPONENT_ID already present -> extensions in params are unchanged (None)
+    #[test]
+    fn app_components_with_air_component_id_already() {
+        let extensions = Extensions::from_vec(vec![default_app_data_dictionary_extension()])
+            .expect("valid extensions");
+        let params = Group::update_leaf_node_extensions(&extensions).unwrap();
+        assert!(params.extensions().is_none());
+    }
 }
