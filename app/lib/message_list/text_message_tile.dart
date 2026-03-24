@@ -299,7 +299,7 @@ class _MessageView extends HookWidget {
         platform == TargetPlatform.windows;
 
     Widget buildMessageBubble({required bool enableSelection}) {
-      Widget child = _MessageContent(
+      return _MessageContent(
         content: contentMessage.content,
         inReplyToMessage: inReplyToMessage,
         isSender: isSender,
@@ -309,19 +309,6 @@ class _MessageView extends HookWidget {
         isHidden: status == UiMessageStatus.hidden && !isRevealed.value,
         enableSelection: enableSelection,
       );
-      // When selection is enabled, dragging selects text instead of swiping
-      // to reply.
-      return enableSelection
-          ? child
-          : SwipeToReply(
-              onReply: () {
-                context.read<ChatDetailsCubit>().replyToMessage(
-                  messageId: messageId,
-                );
-              },
-              icon: AppIcon.cornerLeft(size: 16, color: colors.function.black),
-              child: child,
-            );
     }
 
     final attachments = contentMessage.content.attachments;
@@ -421,7 +408,13 @@ class _MessageView extends HookWidget {
       required bool detached,
       required bool includeMetadata,
     }) {
-      final bubble = buildMessageBubble(enableSelection: enableSelection);
+      Widget bubble = buildMessageBubble(enableSelection: enableSelection);
+      if (!enableSelection) {
+        bubble = SwipeToReplyBubble(
+          icon: AppIcon.cornerLeft(size: 16, color: colors.text.secondary),
+          child: bubble,
+        );
+      }
 
       return Container(
         key: messageKey,
@@ -477,43 +470,48 @@ class _MessageView extends HookWidget {
     }
 
     if (isMobilePlatform) {
-      return WrapWithBubbleWidth(
-        isSender: isSender,
-        child: buildMessageShell(
-          onLongPress: actions.isEmpty
-              ? null
-              : () {
-                  final shellContext = messageContainerKey.currentContext;
-                  if (shellContext == null) return;
-                  final renderObject = shellContext.findRenderObject();
-                  if (renderObject is! RenderBox || !renderObject.hasSize) {
-                    return;
-                  }
-                  final origin = renderObject.localToGlobal(Offset.zero);
-                  final anchorRect = origin & renderObject.size;
-                  final overlayBubble = buildMessageBubble(
-                    enableSelection: false,
-                  );
-                  ContextMenu.closeActiveMenu();
-                  isDetached.value = true;
-                  final future = showMobileMessageActions(
-                    context: context,
-                    anchorRect: anchorRect,
-                    actions: actions,
-                    messageContent: overlayBubble,
-                    alignEnd: isSender,
-                  );
-                  unawaited(
-                    future.whenComplete(() {
-                      isDetached.value = false;
-                    }),
-                  );
-                },
-          onSecondaryTapDown: null,
-          enableSelection: false,
-          messageKey: messageContainerKey,
-          detached: isDetached.value,
-          includeMetadata: showMetadata,
+      return SwipeToReplyScope(
+        onReply: () {
+          context.read<ChatDetailsCubit>().replyToMessage(messageId: messageId);
+        },
+        child: WrapWithBubbleWidth(
+          isSender: isSender,
+          child: buildMessageShell(
+            onLongPress: actions.isEmpty
+                ? null
+                : () {
+                    final shellContext = messageContainerKey.currentContext;
+                    if (shellContext == null) return;
+                    final renderObject = shellContext.findRenderObject();
+                    if (renderObject is! RenderBox || !renderObject.hasSize) {
+                      return;
+                    }
+                    final origin = renderObject.localToGlobal(Offset.zero);
+                    final anchorRect = origin & renderObject.size;
+                    final overlayBubble = buildMessageBubble(
+                      enableSelection: false,
+                    );
+                    ContextMenu.closeActiveMenu();
+                    isDetached.value = true;
+                    final future = showMobileMessageActions(
+                      context: context,
+                      anchorRect: anchorRect,
+                      actions: actions,
+                      messageContent: overlayBubble,
+                      alignEnd: isSender,
+                    );
+                    unawaited(
+                      future.whenComplete(() {
+                        isDetached.value = false;
+                      }),
+                    );
+                  },
+            onSecondaryTapDown: null,
+            enableSelection: false,
+            messageKey: messageContainerKey,
+            detached: isDetached.value,
+            includeMetadata: showMetadata,
+          ),
         ),
       );
     }

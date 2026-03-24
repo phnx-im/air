@@ -25,7 +25,7 @@ use openmls::{
 };
 use sqlx::SqliteTransaction;
 use tls_codec::DeserializeBytes as TlsDeserializeBytes;
-use tracing::debug;
+use tracing::{debug, instrument};
 
 use crate::{
     clients::api_clients::ApiClients, groups::client_auth_info::VerifiableClientCredentialExt,
@@ -45,6 +45,7 @@ impl Group {
     ///
     /// Returns the processed message, whether the group was deleted, as well as
     /// the sender's client credential.
+    #[instrument(skip_all, fields(group_id = ?self.group_id()))]
     pub(crate) async fn process_message(
         &mut self,
         txn: &mut SqliteTransaction<'_>,
