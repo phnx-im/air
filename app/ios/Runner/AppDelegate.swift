@@ -213,7 +213,7 @@ private let kProtectedBlockedCategory = "protected-blocked"
     }
   }
 
-  // Apply completeUntilFirstUserAuthentication file protection
+  // Allow to write to the given URL when the device is locked
   private func applyProtection(_ url: URL) {
     try? FileManager.default.setAttributes(
       [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
