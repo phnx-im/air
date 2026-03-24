@@ -61,3 +61,8 @@ ScalingFactors getScalingFactors(BuildContext context) {
     return ScalingFactors(uiFactor: 1.0, textFactor: 1.0 * systemTextScale);
   }
 }
+
+double actualUiSize(double size, BuildContext context) {
+  final scalingFactors = getScalingFactors(context);
+  return size * scalingFactors.uiFactor;
+}

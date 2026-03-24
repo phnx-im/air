@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:io';
-
 import 'package:air/ui/theme/scale.dart';
 import 'package:flutter/widgets.dart';
 import 'package:air/user/user.dart';
