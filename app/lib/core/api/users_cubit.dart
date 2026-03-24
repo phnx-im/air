@@ -36,7 +36,7 @@ abstract class UsersCubitBase implements RustOpaqueInterface {
 abstract class UsersState implements RustOpaqueInterface {
   /// Returns the display name of the given user.
   ///
-  /// If the user is not specificed, the display name of the logged-in user is returned.
+  /// If the user is not specified, the display name of the logged-in user is returned.
   ///
   /// If the profile is not yet loaded, the default display name is returned and loading of the
   /// profile is spawned in the background.
@@ -44,7 +44,7 @@ abstract class UsersState implements RustOpaqueInterface {
 
   /// Returns the profile of the given user.
   ///
-  /// If the user is not specificed, the profile of the logged-in user is returned.
+  /// If the user is not specified, the profile of the logged-in user is returned.
   ///
   /// If the profile is not yet loaded, the default profile is returned and loading is spawned in
   /// the background.
@@ -52,7 +52,7 @@ abstract class UsersState implements RustOpaqueInterface {
 
   /// Returns the profile picture of the given user if any is set.
   ///
-  /// If the user is not specificed, the profile picture of the logged-in user is returned.
+  /// If the user is not specified, the profile picture of the logged-in user is returned.
   ///
   /// If the profile is not yet loaded, `null` is returned and loading of the profile is spawned
   /// in the background.

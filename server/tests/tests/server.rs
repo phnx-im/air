@@ -401,6 +401,7 @@ async fn resync() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&charlie))
         .await
+        .unwrap()
         .unwrap();
 
     // Bob fetches the invite and acks it s.t. it's removed from the queue,
@@ -445,7 +446,7 @@ async fn resync() {
 
     // Bob should have rejoined the group and should be able to send a message.
     setup
-        .send_message(chat_id, &bob, vec![&alice, &charlie])
+        .send_message(chat_id, &bob, vec![&alice, &charlie], None)
         .await;
 
     let alice_user = &setup.get_user(&alice).user;
@@ -521,7 +522,9 @@ async fn resync() {
     );
 
     // Messages should reach Charlie.
-    setup.send_message(chat_id, &bob, vec![&charlie]).await;
+    setup
+        .send_message(chat_id, &bob, vec![&charlie], None)
+        .await;
 
     // Charlie should also only see Bob in the group.
     let charlie_user = &setup.get_user(&charlie).user;
@@ -550,6 +553,7 @@ async fn key_package_upload() {
         alice_user
             .invite_users(chat_id, slice::from_ref(&bob))
             .await
+            .unwrap()
             .unwrap();
         let bob_user = &setup.get_user(&bob).user;
         let messages = bob_user.qs_fetch_messages().await.unwrap();

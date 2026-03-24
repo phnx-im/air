@@ -120,6 +120,7 @@ async fn send_image_attachment() {
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     // A base64 encoded blue PNG image 100x75 pixels.
+    // spellchecker:off
     const SAMPLE_PNG_BASE64: &str = "\
     iVBORw0KGgoAAAANSUhEUgAAAGQAAABLAQMAAAC81rD0AAAABGdBTUEAALGPC/xhBQAAACBjSFJN\
     AAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABlBMVEUAAP7////DYP5JAAAA\
@@ -127,6 +128,7 @@ async fn send_image_attachment() {
     VDjLY2AYBaNgFIwCdAAABBoAAaNglfsAAAAZdEVYdGNvbW1lbnQAQ3JlYXRlZCB3aXRoIEdJTVDn\
     r0DLAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIwLTA4LTI0VDIzOjEwOjU1KzAzOjAwkHdeuQAAACV0\
     RVh0ZGF0ZTptb2RpZnkAMjAyMC0wOC0yNFQyMzoxMDo1NSswMzowMOEq5gUAAAAASUVORK5CYII=";
+    // spellchecker:on
 
     let attachment = BASE64_STANDARD.decode(SAMPLE_PNG_BASE64).unwrap();
     let (_message_id, external_part) = setup
@@ -207,7 +209,7 @@ async fn attachment_too_large() {
     const MAX_ATTACHMENT_SIZE: u64 = 1023;
 
     let mut setup = TestBackend::single_with_params(TestBackendParams {
-        max_attachment_size: Some(MAX_ATTACHMENT_SIZE),
+        max_attachment_size: MAX_ATTACHMENT_SIZE,
         ..Default::default()
     })
     .await;

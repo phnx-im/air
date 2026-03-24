@@ -10,13 +10,13 @@ use aircommon::{
     OpenMlsRand, RustCrypto,
     identifiers::{AttachmentId, UserId},
 };
+pub use aircoreclient::{
+    AcceptContactRequestError, DebugCapabilities, EncryptedGroupTitleDebugInfo,
+    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
+};
 use aircoreclient::{
     AttachmentProgress, Chat, ChatId, ChatMessage, MessageId, ProvisionAttachmentError,
     UploadTaskError, clients::CoreUser, store::Store,
-};
-pub use aircoreclient::{
-    DebugCapabilities, EncryptedGroupTitleDebugInfo, ExternalGroupProfileDebugInfo,
-    GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
 };
 use anyhow::{Context as _, bail};
 use chrono::{DateTime, Local, SubsecRound, Utc};
@@ -395,8 +395,8 @@ impl ChatDetailsCubitBase {
         });
     }
 
-    pub async fn reset_draft_reply(&self) {
-        self.core.state_tx().send_if_modified(|state| {
+    pub async fn reset_draft_reply(&self) -> anyhow::Result<()> {
+        let changed = self.core.state_tx().send_if_modified(|state| {
             let Some(chat) = state.chat.as_mut() else {
                 return false;
             };
@@ -406,6 +406,12 @@ impl ChatDetailsCubitBase {
 
             draft.in_reply_to.take().is_some()
         });
+
+        if changed {
+            self.store_draft_from_state().await?;
+        }
+
+        Ok(())
     }
 
     pub async fn edit_message(&self, message_id: Option<MessageId>) -> anyhow::Result<()> {
@@ -437,13 +443,22 @@ impl ChatDetailsCubitBase {
             let Some(chat) = state.chat.as_mut() else {
                 return false;
             };
-            let draft = chat.draft.get_or_insert_with(UiMessageDraft::empty);
-            if draft.editing_id.is_some() {
+
+            // if we already have a staged edit draft, and it is the same ID, change nothing
+            if let Some(editing_id) = chat.draft.as_ref().and_then(|d| d.editing_id)
+                && editing_id == message.id()
+            {
                 return false;
             }
+
+            // otherwise, reset the draft
+            let mut draft = UiMessageDraft::empty();
             draft.message = body.to_owned();
             draft.editing_id = Some(message.id());
+            draft.in_reply_to = None;
             draft.is_committed = false;
+            chat.draft = Some(draft);
+
             true
         });
 
@@ -484,10 +499,18 @@ impl ChatDetailsCubitBase {
                 return false;
             };
 
-            let draft = chat.draft.get_or_insert_with(UiMessageDraft::empty);
-            if draft.editing_id.is_some() {
+            // if we already have a staged reply draft, and it is the same ID, change nothing
+            if let Some((in_reply_to_mimi_id, _)) =
+                chat.draft.as_ref().and_then(|d| d.in_reply_to.as_ref())
+                && *in_reply_to_mimi_id == mimi_id.into()
+            {
                 return false;
             }
+
+            // if we already have a staged editing draft, reset it
+            chat.draft.take_if(|d| d.editing_id.is_some());
+
+            let draft = chat.draft.get_or_insert_with(UiMessageDraft::empty);
 
             draft.message = String::new();
             draft.in_reply_to = Some((
@@ -522,15 +545,26 @@ impl ChatDetailsCubitBase {
         Ok(())
     }
 
-    pub async fn accept_contact_request(&self) -> anyhow::Result<()> {
+    pub async fn accept_contact_request(
+        &self,
+    ) -> anyhow::Result<Option<AcceptContactRequestError>> {
         let chat_id = self.context.chat_id;
-        self.context.store.accept_contact_request(chat_id).await?;
-        Ok(())
+        Ok(self
+            .context
+            .store
+            .accept_contact_request(chat_id)
+            .await?
+            .err())
     }
 
     pub async fn chat_debug_info(&self) -> anyhow::Result<GroupDebugInfo> {
         let chat_id = self.context.chat_id;
         self.context.store.chat_debug_info(chat_id).await
+    }
+
+    pub async fn request_resync(&self) -> anyhow::Result<()> {
+        let chat_id = self.context.chat_id;
+        self.context.store.enqueue_group_resync(chat_id).await
     }
 }
 
@@ -730,6 +764,11 @@ pub enum UploadAttachmentError {
         max_size_bytes: u64,
         actual_size_bytes: u64,
     },
+}
+
+#[frb(mirror(AcceptContactRequestError))]
+pub enum _AcceptContactRequestError {
+    IncompatibleClient { reason: String },
 }
 
 #[frb(mirror(GroupDebugInfo))]

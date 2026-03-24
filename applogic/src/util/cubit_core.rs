@@ -41,7 +41,7 @@ pub(crate) trait Cubit {
 ///
 /// Bundles a state, a set of sinks listening to state changes, a cancellation token and a
 /// background emitter task [`CubitCore::emitter_loop`]. The latter is spawned in the background on
-/// constuction.
+/// construction.
 ///
 /// The cancellation token is used to cancel all pending and background operations. It can be
 /// cancelled by calling [`Cubit::close`] or by dropping the [`CubitCore`].
@@ -73,6 +73,9 @@ impl<S: Clone> Cubit for CubitCore<S> {
     }
 
     async fn stream(&mut self, sink: StreamSink<S>) {
+        if self.is_closed() {
+            return;
+        }
         if self.sinks_tx.send(sink).await.is_err() {
             self.close();
         }
@@ -148,7 +151,13 @@ where
 
             let state = state_rx.borrow_and_update().clone();
             trace!(num_sinks = sinks.len(), ?state, "emitting new state");
-            sinks.retain(|sink| sink.add(state.clone()).is_ok());
+            sinks.retain(|sink| {
+                if stop.is_cancelled() {
+                    false
+                } else {
+                    sink.add(state.clone()).is_ok()
+                }
+            });
         }
     }
 }

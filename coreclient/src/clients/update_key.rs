@@ -26,7 +26,7 @@ impl CoreUser {
         new_chat_attributes: Option<&ChatAttributes>,
     ) -> anyhow::Result<Vec<ChatMessage>> {
         let job = ChatOperation::update(chat_id, new_chat_attributes.cloned());
-        self.execute_job(job).await
+        Ok(self.execute_job(job).await?)
     }
 }
 

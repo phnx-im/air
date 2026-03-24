@@ -106,8 +106,8 @@ async fn re_add_client() {
             .unwrap();
         setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
     }
-    setup.send_message(chat_id, &alice, vec![&bob]).await;
-    setup.send_message(chat_id, &bob, vec![&alice]).await;
+    setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    setup.send_message(chat_id, &bob, vec![&alice], None).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -211,6 +211,7 @@ async fn update_user_profile_on_group_join() {
     bob_user
         .invite_users(chat_id, slice::from_ref(&charlie))
         .await
+        .unwrap()
         .unwrap();
 
     // Charlie accepts the invitation.
@@ -225,6 +226,7 @@ async fn update_user_profile_on_group_join() {
     bob_user
         .invite_users(chat_id, slice::from_ref(&alice))
         .await
+        .unwrap()
         .unwrap();
 
     // Charlie processes his messages again, fetching Alice's profile will fail because it tries to
@@ -284,10 +286,10 @@ async fn group_with_blocked_contact() {
 
     // Sending messages works before blocking
     setup
-        .send_message(chat_id, &alice, vec![&bob, &charlie])
+        .send_message(chat_id, &alice, vec![&bob, &charlie], None)
         .await;
     setup
-        .send_message(chat_id, &bob, vec![&alice, &charlie])
+        .send_message(chat_id, &bob, vec![&alice, &charlie], None)
         .await;
 
     // Block bob
@@ -296,10 +298,10 @@ async fn group_with_blocked_contact() {
 
     // Messages are still sent and received
     setup
-        .send_message(chat_id, &bob, vec![&alice, &charlie])
+        .send_message(chat_id, &bob, vec![&alice, &charlie], None)
         .await;
     setup
-        .send_message(chat_id, &alice, vec![&bob, &charlie])
+        .send_message(chat_id, &alice, vec![&bob, &charlie], None)
         .await;
 }
 
@@ -312,8 +314,8 @@ async fn send_message() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
-    setup.send_message(chat_id, &alice, vec![&bob]).await;
-    setup.send_message(chat_id, &bob, vec![&alice]).await;
+    setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    setup.send_message(chat_id, &bob, vec![&alice], None).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -418,6 +420,7 @@ async fn fetch_group_profile_on_invite() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&bob))
         .await
+        .unwrap()
         .unwrap();
 
     // Bob processes the invitation: this schedules a FetchGroupProfileOperation
@@ -528,6 +531,7 @@ async fn missed_commit() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&charlie))
         .await
+        .unwrap()
         .unwrap();
 
     let charlie_qs_messages = alice_user.qs_fetch_messages().await.unwrap();
@@ -592,6 +596,7 @@ async fn missed_commit() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&bob))
         .await
+        .unwrap()
         .unwrap();
     let messages = alice_user.qs_fetch_messages().await.unwrap();
     alice_user.fully_process_qs_messages(messages).await;

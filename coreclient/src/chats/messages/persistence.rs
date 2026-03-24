@@ -12,7 +12,7 @@ use aircommon::{
 use anyhow::bail;
 use mimi_content::{MessageStatus, MimiContent};
 use serde::{Deserialize, Serialize};
-use sqlx::{SqliteExecutor, SqliteTransaction, query, query_as, query_scalar};
+use sqlx::{SqliteConnection, SqliteExecutor, query, query_as, query_scalar};
 use tokio_stream::StreamExt;
 use tracing::{error, warn};
 use uuid::Uuid;
@@ -190,7 +190,7 @@ impl TryFrom<SqlChatMessage> for ChatMessage {
 
 impl ChatMessage {
     pub async fn load(
-        txn: &mut SqliteTransaction<'_>,
+        connection: &mut SqliteConnection,
         message_id: MessageId,
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
@@ -215,16 +215,16 @@ impl ChatMessage {
             "#,
             message_id,
         )
-        .fetch_optional(txn.as_mut())
+        .fetch_optional(&mut *connection)
         .await?
         .map(TryFrom::try_from)
         .transpose()?
-        .with_loaded_in_reply_to(txn)
+        .with_loaded_in_reply_to(&mut *connection)
         .await
     }
 
     pub(crate) async fn load_by_mimi_id(
-        txn: &mut SqliteTransaction<'_>,
+        connection: &mut SqliteConnection,
         mimi_id: &MimiId,
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
@@ -249,16 +249,16 @@ impl ChatMessage {
             "#,
             mimi_id,
         )
-        .fetch_optional(txn.as_mut())
+        .fetch_optional(&mut *connection)
         .await?
         .map(TryFrom::try_from)
         .transpose()?
-        .with_loaded_in_reply_to(txn)
+        .with_loaded_in_reply_to(&mut *connection)
         .await
     }
 
     pub(crate) async fn load_multiple(
-        txn: &mut SqliteTransaction<'_>,
+        connection: &mut SqliteConnection,
         chat_id: ChatId,
         number_of_messages: u32,
     ) -> sqlx::Result<Vec<ChatMessage>> {
@@ -287,7 +287,7 @@ impl ChatMessage {
             chat_id,
             number_of_messages,
         )
-        .fetch(txn.as_mut())
+        .fetch(&mut *connection)
         .filter_map(|res| {
             let message: sqlx::Result<ChatMessage> = res
                 // skip messages that we can't decode, but don't fail loading the rest of the
@@ -306,7 +306,7 @@ impl ChatMessage {
 
         for message in messages.iter_mut() {
             // we don't want to fail for all messages if one load operation fails
-            if let Err(error) = message.augment_in_reply_to(txn).await {
+            if let Err(error) = message.augment_in_reply_to(connection).await {
                 error!(%error, "failed to load reply for message");
             }
         }
@@ -315,9 +315,9 @@ impl ChatMessage {
     }
 
     /// Augments a chat message when it is a reply with the data from the referenced message
-    async fn augment_in_reply_to(&mut self, txn: &mut SqliteTransaction<'_>) -> sqlx::Result<()> {
+    async fn augment_in_reply_to(&mut self, connection: &mut SqliteConnection) -> sqlx::Result<()> {
         if let Some((mimi_id, message)) = self.in_reply_to.as_mut() {
-            *message = InReplyToMessage::load(txn, mimi_id).await?;
+            *message = InReplyToMessage::load(connection, mimi_id).await?;
         }
 
         Ok(())
@@ -445,13 +445,19 @@ impl ChatMessage {
         executor: impl SqliteExecutor<'_>,
         notifier: &mut StoreNotifier,
         message_id: MessageId,
-        chat_id: ChatId,
     ) -> sqlx::Result<()> {
-        query!("DELETE FROM message WHERE message_id = ?", message_id)
-            .execute(executor)
-            .await?;
-        notifier.remove(message_id);
-        notifier.update(chat_id);
+        let chat_id = query_as!(
+            ChatId,
+            "DELETE FROM message WHERE message_id = ? RETURNING chat_id AS 'uuid: _'",
+            message_id
+        )
+        .fetch_optional(executor)
+        .await?;
+
+        if let Some(chat_id) = chat_id {
+            notifier.remove(message_id);
+            notifier.update(chat_id);
+        }
         Ok(())
     }
 
@@ -479,7 +485,7 @@ impl ChatMessage {
 
     /// Get the last message in the chat.
     pub(crate) async fn last_message(
-        txn: &mut SqliteTransaction<'_>,
+        connection: &mut SqliteConnection,
         chat_id: ChatId,
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
@@ -504,17 +510,17 @@ impl ChatMessage {
             ORDER BY timestamp DESC LIMIT 1"#,
             chat_id,
         )
-        .fetch_optional(txn.as_mut())
+        .fetch_optional(&mut *connection)
         .await?
         .map(TryFrom::try_from)
         .transpose()?
-        .with_loaded_in_reply_to(txn)
+        .with_loaded_in_reply_to(connection)
         .await
     }
 
     /// Get the last content message in the chat which is owned by the given user.
     pub(crate) async fn last_content_message_by_user(
-        txn: &mut SqliteTransaction<'_>,
+        connection: &mut SqliteConnection,
         chat_id: ChatId,
         user_id: &UserId,
     ) -> sqlx::Result<Option<Self>> {
@@ -546,16 +552,16 @@ impl ChatMessage {
             user_uuid,
             user_domain,
         )
-        .fetch_optional(txn.as_mut())
+        .fetch_optional(&mut *connection)
         .await?
         .map(TryFrom::try_from)
         .transpose()?
-        .with_loaded_in_reply_to(txn)
+        .with_loaded_in_reply_to(connection)
         .await
     }
 
     pub(crate) async fn prev_message(
-        txn: &mut SqliteTransaction<'_>,
+        connection: &mut SqliteConnection,
         chat_id: ChatId,
         message_id: MessageId,
     ) -> sqlx::Result<Option<ChatMessage>> {
@@ -585,16 +591,16 @@ impl ChatMessage {
             message_id,
             chat_id,
         )
-        .fetch_optional(txn.as_mut())
+        .fetch_optional(&mut *connection)
         .await?
         .map(TryFrom::try_from)
         .transpose()?
-        .with_loaded_in_reply_to(txn)
+        .with_loaded_in_reply_to(connection)
         .await
     }
 
     pub(crate) async fn next_message(
-        txn: &mut SqliteTransaction<'_>,
+        connection: &mut SqliteConnection,
         chat_id: ChatId,
         message_id: MessageId,
     ) -> sqlx::Result<Option<ChatMessage>> {
@@ -624,11 +630,11 @@ impl ChatMessage {
             message_id,
             chat_id,
         )
-        .fetch_optional(txn.as_mut())
+        .fetch_optional(&mut *connection)
         .await?
         .map(TryFrom::try_from)
         .transpose()?
-        .with_loaded_in_reply_to(txn)
+        .with_loaded_in_reply_to(connection)
         .await
     }
 
@@ -653,6 +659,19 @@ impl ChatMessage {
             original_message_id,
             original_mimi_id,
             replaces
+        )
+        .fetch_all(executor)
+        .await
+    }
+
+    pub(crate) async fn load_message_ids_in_reply_to_mimi_id(
+        executor: impl SqliteExecutor<'_>,
+        mimi_id: &MimiId,
+    ) -> sqlx::Result<Vec<MessageId>> {
+        query_as!(
+            MessageId,
+            r#"SELECT message_id AS 'uuid: _' FROM message WHERE in_reply_to_mimi_id = ?"#,
+            mimi_id
         )
         .fetch_all(executor)
         .await
@@ -689,13 +708,17 @@ trait SqlChatMessageExt
 where
     Self: Sized,
 {
-    async fn with_loaded_in_reply_to(self, txn: &mut SqliteTransaction<'_>) -> sqlx::Result<Self>;
+    async fn with_loaded_in_reply_to(self, connection: &mut SqliteConnection)
+    -> sqlx::Result<Self>;
 }
 
 impl SqlChatMessageExt for &mut ChatMessage {
-    async fn with_loaded_in_reply_to(self, txn: &mut SqliteTransaction<'_>) -> sqlx::Result<Self> {
+    async fn with_loaded_in_reply_to(
+        self,
+        connection: &mut SqliteConnection,
+    ) -> sqlx::Result<Self> {
         if let Some((in_reply_to_mimi_id, in_reply_to_message)) = self.in_reply_to.as_mut() {
-            *in_reply_to_message = InReplyToMessage::load(txn, in_reply_to_mimi_id).await?;
+            *in_reply_to_message = InReplyToMessage::load(connection, in_reply_to_mimi_id).await?;
         }
 
         Ok(self)
@@ -705,10 +728,10 @@ impl SqlChatMessageExt for &mut ChatMessage {
 impl SqlChatMessageExt for Option<ChatMessage> {
     async fn with_loaded_in_reply_to(
         mut self,
-        txn: &mut SqliteTransaction<'_>,
+        connection: &mut SqliteConnection,
     ) -> sqlx::Result<Self> {
         if let Some(chat_message) = self.as_mut() {
-            chat_message.augment_in_reply_to(txn).await?;
+            chat_message.augment_in_reply_to(connection).await?;
         }
 
         Ok(self)
@@ -717,7 +740,7 @@ impl SqlChatMessageExt for Option<ChatMessage> {
 
 impl InReplyToMessage {
     pub(crate) async fn load(
-        txn: &mut SqliteTransaction<'_>,
+        connection: &mut SqliteConnection,
         mimi_id: &MimiId,
     ) -> sqlx::Result<Option<Self>> {
         let mimi_id = mimi_id.as_slice();
@@ -736,7 +759,7 @@ impl InReplyToMessage {
             "#,
             mimi_id,
         )
-        .fetch_optional(txn.as_mut())
+        .fetch_optional(&mut *connection)
         .await?
         {
             in_reply_to_message.into()
@@ -756,7 +779,7 @@ impl InReplyToMessage {
             "#,
             mimi_id,
         )
-        .fetch_optional(txn.as_mut())
+        .fetch_optional(&mut *connection)
         .await?
         {
             in_reply_to_message.into()
@@ -1039,7 +1062,7 @@ pub(crate) mod tests {
         assert!(loaded.is_some());
 
         // Delete message
-        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message.id(), chat.id()).await?;
+        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message.id()).await?;
 
         // Verify message is gone
         let loaded = ChatMessage::load(&mut txn, message.id()).await?;
@@ -1073,7 +1096,7 @@ pub(crate) mod tests {
         assert_eq!(found, Some(message.id()));
 
         // Delete message - should cascade to edit history
-        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message.id(), chat.id()).await?;
+        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message.id()).await?;
 
         // Verify message is gone
         let loaded = ChatMessage::load(&mut txn, message.id()).await?;
@@ -1126,7 +1149,7 @@ pub(crate) mod tests {
         assert_eq!(count, 1);
 
         // Delete message - should cascade to status records
-        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message.id(), chat.id()).await?;
+        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message.id()).await?;
 
         // Verify message is gone
         let loaded = ChatMessage::load(&mut txn, message.id()).await?;
@@ -1159,7 +1182,7 @@ pub(crate) mod tests {
         message_c.store(txn.as_mut(), &mut store_notifier).await?;
 
         // Delete only message_b
-        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message_b.id(), chat.id()).await?;
+        ChatMessage::delete(txn.as_mut(), &mut store_notifier, message_b.id()).await?;
 
         // Verify message_b is gone
         let loaded_b = ChatMessage::load(&mut txn, message_b.id()).await?;
@@ -1184,13 +1207,7 @@ pub(crate) mod tests {
 
         // Try to delete a message that doesn't exist
         let fake_message_id = MessageId::random();
-        let result = ChatMessage::delete(
-            txn.as_mut(),
-            &mut store_notifier,
-            fake_message_id,
-            chat.id(),
-        )
-        .await;
+        let result = ChatMessage::delete(txn.as_mut(), &mut store_notifier, fake_message_id).await;
 
         // Should succeed without error (no-op)
         assert!(result.is_ok());

@@ -82,7 +82,8 @@ message RoomState {
 
 message RequestGroupIdRequest {
   common.v1.ClientMetadata client_metadata = 1;
-  bool provision_group_profile = 2;
+  reserved 2; // removed provision_group_profile; use group_profile_size instead
+  optional int64 group_profile_size = 3;
 }
 
 message RequestGroupIdResponse {

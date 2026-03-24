@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/chat/chat_details.dart';
-import 'package:air/core/api/types.dart';
+import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/main.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
@@ -13,6 +12,7 @@ import 'package:air/ui/components/button/button.dart';
 import 'package:air/ui/components/modal/app_dialog.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/avatar.dart' show UserAvatar;
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -169,7 +169,18 @@ class _AcceptButton extends HookWidget {
 
     final chatDetailsCubit = context.read<ChatDetailsCubit>();
     try {
-      await chatDetailsCubit.acceptContactRequest();
+      switch (await chatDetailsCubit.acceptContactRequest()) {
+        case null:
+          break; // No error
+        case AcceptContactRequestError_IncompatibleClient(:final reason):
+          Logger.detached("ContactRequestDialog").severe(
+            "Failed to accept contact request due to incompatible client: $reason",
+          );
+          showErrorBannerStandalone(
+            (loc) => loc.contactRequestDialog_error_incompatibleClient,
+          );
+          break;
+      }
     } catch (e, stackTrace) {
       Logger.detached(
         "ContactRequestDialog",

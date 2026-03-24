@@ -321,10 +321,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get usernameOnboarding_next => 'Next';
 
   @override
-  String get usernameOnboarding_userameInputName => 'Username (optional)';
+  String get usernameOnboarding_usernameInputName => 'Username (optional)';
 
   @override
-  String get usernameOnboarding_userameInputHint => 'Add a username...';
+  String get usernameOnboarding_usernameInputHint => 'Add a username...';
 
   @override
   String get userHandleScreen_title => 'Add username';
@@ -536,6 +536,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String newChatDialog_error(Object chatName) {
     return 'Failed to create new group chat with name $chatName';
+  }
+
+  @override
+  String newChatDialog_error_incompatibleClient(Object chatName) {
+    return 'Couldn\'t create new group chat with name $chatName because one of the contacts has an incompatible client.';
   }
 
   @override
@@ -852,6 +857,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addMembersScreen_done => 'Done';
 
   @override
+  String get addMembersScreen_error_incompatibleClient =>
+      'Couldn\'t add member(s) because one of the contacts has an incompatible client';
+
+  @override
   String get leaveChatDialog_title => 'Leave group';
 
   @override
@@ -924,7 +933,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Something went wrong on our end. Wait a moment, then try again.';
 
   @override
-  String get appOutdatedScreen_title => 'Sofware update required';
+  String get appOutdatedScreen_title => 'Software update required';
 
   @override
   String get appOutdatedScreen_message => 'Update to keep using Air';
@@ -951,4 +960,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get contactRequestDialog_error_fatal =>
       'Failed to accept contact request';
+
+  @override
+  String get contactRequestDialog_error_incompatibleClient =>
+      'Failed to accept contact request. Update Air to the newest version, then try again.';
+
+  @override
+  String get errorBanner_ok => 'OK';
 }

@@ -14,7 +14,7 @@ use crate::{ChatId, MessageId, store::StoreNotifier};
 
 /// A record of an attachment.
 ///
-/// Content is intentially not included in this struct.
+/// Content is intentionally not included in this struct.
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub(crate) struct AttachmentRecord {
@@ -769,7 +769,7 @@ pub(crate) mod test {
         assert!(loaded_record.is_some());
 
         // Delete the message - FK cascade should delete the attachment
-        ChatMessage::delete(&pool, &mut notifier, message.id(), chat.id()).await?;
+        ChatMessage::delete(&pool, &mut notifier, message.id()).await?;
 
         // Verify the attachment is gone (FK cascade)
         let loaded_record = AttachmentRecord::load(&pool, record.attachment_id).await?;

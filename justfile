@@ -199,3 +199,17 @@ install-fvm:
         "f499535ce1f7ddf7948fd055d77e33f5d1aabf738f54844f6d6bc7a037408f5b" \
         "install-fvm.sh" | sha256sum -c -
     bash install-fvm.sh 4.0.5
+
+[working-directory: 'app']
+build platform:
+    if [[ "${CI:-false}" != "true" ]]; then fvm flutter build {{ platform }}; fi
+
+[linux]
+[working-directory: 'app/linux']
+build-rpm: (build "linux")
+    nfpm package -p rpm
+
+[linux]
+[working-directory: 'app/linux']
+build-deb: (build "linux")
+    nfpm package -p deb

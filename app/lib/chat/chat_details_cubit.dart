@@ -8,6 +8,7 @@ import 'dart:typed_data';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/core/core.dart';
 import 'package:air/user/user.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
 class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
   ChatDetailsCubit({
@@ -90,7 +91,11 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
   Future<void> replyToMessage({required MessageId messageId}) =>
       _impl.replyToMessage(messageId: messageId);
 
-  Future<void> acceptContactRequest() => _impl.acceptContactRequest();
+  @useResult
+  Future<AcceptContactRequestError?> acceptContactRequest() =>
+      _impl.acceptContactRequest();
 
   Future<GroupDebugInfo> chatDebugInfo() => _impl.chatDebugInfo();
+
+  Future<void> requestResync() => _impl.requestResync();
 }

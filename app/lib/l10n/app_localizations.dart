@@ -642,17 +642,17 @@ abstract class AppLocalizations {
   /// **'Next'**
   String get usernameOnboarding_next;
 
-  /// No description provided for @usernameOnboarding_userameInputName.
+  /// No description provided for @usernameOnboarding_usernameInputName.
   ///
   /// In en, this message translates to:
   /// **'Username (optional)'**
-  String get usernameOnboarding_userameInputName;
+  String get usernameOnboarding_usernameInputName;
 
-  /// No description provided for @usernameOnboarding_userameInputHint.
+  /// No description provided for @usernameOnboarding_usernameInputHint.
   ///
   /// In en, this message translates to:
   /// **'Add a username...'**
-  String get usernameOnboarding_userameInputHint;
+  String get usernameOnboarding_usernameInputHint;
 
   /// No description provided for @userHandleScreen_title.
   ///
@@ -974,6 +974,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to create new group chat with name {chatName}'**
   String newChatDialog_error(Object chatName);
+
+  /// No description provided for @newChatDialog_error_incompatibleClient.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t create new group chat with name {chatName} because one of the contacts has an incompatible client.'**
+  String newChatDialog_error_incompatibleClient(Object chatName);
 
   /// No description provided for @newConnectionDialog_newConnectionTitle.
   ///
@@ -1509,6 +1515,12 @@ abstract class AppLocalizations {
   /// **'Done'**
   String get addMembersScreen_done;
 
+  /// No description provided for @addMembersScreen_error_incompatibleClient.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t add member(s) because one of the contacts has an incompatible client'**
+  String get addMembersScreen_error_incompatibleClient;
+
   /// No description provided for @leaveChatDialog_title.
   ///
   /// In en, this message translates to:
@@ -1644,7 +1656,7 @@ abstract class AppLocalizations {
   /// No description provided for @appOutdatedScreen_title.
   ///
   /// In en, this message translates to:
-  /// **'Sofware update required'**
+  /// **'Software update required'**
   String get appOutdatedScreen_title;
 
   /// No description provided for @appOutdatedScreen_message.
@@ -1694,6 +1706,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to accept contact request'**
   String get contactRequestDialog_error_fatal;
+
+  /// No description provided for @contactRequestDialog_error_incompatibleClient.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to accept contact request. Update Air to the newest version, then try again.'**
+  String get contactRequestDialog_error_incompatibleClient;
+
+  /// No description provided for @errorBanner_ok.
+  ///
+  /// In en, this message translates to:
+  /// **'OK'**
+  String get errorBanner_ok;
 }
 
 class _AppLocalizationsDelegate

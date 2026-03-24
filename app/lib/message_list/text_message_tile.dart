@@ -9,7 +9,6 @@ import 'package:air/attachments/attachments.dart';
 import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/main.dart';
 import 'package:air/message_list/jumbo_emoji.dart';
 import 'package:air/message_list/message_composer.dart';
 import 'package:air/message_list/mobile_message_actions.dart';
@@ -25,6 +24,7 @@ import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/platform.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:path/path.dart' as p;
@@ -39,6 +39,7 @@ import 'package:share_plus/share_plus.dart';
 
 import 'image_viewer.dart';
 import 'message_renderer.dart';
+import 'swipe_to_reply.dart';
 
 final _log = Logger('MessageTile');
 
@@ -271,7 +272,6 @@ class _MessageView extends HookWidget {
     final cursorPositionNotifier = useMemoized<ValueNotifier<Offset?>>(
       () => ValueNotifier<Offset?>(null),
     );
-    final bubbleKey = useMemoized(GlobalKey.new);
     final messageContainerKey = useMemoized(() => GlobalKey());
     final isDetached = useState(false);
     useEffect(() {
@@ -298,8 +298,8 @@ class _MessageView extends HookWidget {
         platform == TargetPlatform.linux ||
         platform == TargetPlatform.windows;
 
-    Widget buildMessageBubble({required bool enableSelection, GlobalKey? key}) {
-      Widget child = _MessageContent(
+    Widget buildMessageBubble({required bool enableSelection}) {
+      return _MessageContent(
         content: contentMessage.content,
         inReplyToMessage: inReplyToMessage,
         isSender: isSender,
@@ -309,30 +309,6 @@ class _MessageView extends HookWidget {
         isHidden: status == UiMessageStatus.hidden && !isRevealed.value,
         enableSelection: enableSelection,
       );
-      // when selection is enabled, it doesn't make sense to enable to drag to
-      // reply action implemented with Dismissible.
-      return enableSelection
-          ? child
-          : Dismissible(
-              key: key ?? Key(messageId.toString()),
-              direction: DismissDirection.startToEnd,
-              confirmDismiss: (direction) async {
-                context.read<ChatDetailsCubit>().replyToMessage(
-                  messageId: messageId,
-                );
-                return false;
-              },
-              dismissThresholds: const {DismissDirection.startToEnd: 0.1},
-              background: Container(
-                alignment: Alignment.centerLeft,
-                padding: const EdgeInsets.only(left: 20.0),
-                child: AppIcon.cornerLeft(
-                  size: 16,
-                  color: colors.function.black,
-                ),
-              ),
-              child: child,
-            );
     }
 
     final attachments = contentMessage.content.attachments;
@@ -340,65 +316,79 @@ class _MessageView extends HookWidget {
 
     const iconSize = 16.0;
 
-    final actions = <ContextMenuEntry>[
+    final actions = [
       if (!isDeleted)
-        ContextMenuItem(
+        MessageAction(
           label: loc.messageContextMenu_reply,
           leading: const AppIcon.cornerLeft(size: iconSize),
-          onPressed: () {
+          onSelected: () {
             context.read<ChatDetailsCubit>().replyToMessage(
               messageId: messageId,
             );
           },
         ),
       if (plainBody != null && plainBody.isNotEmpty)
-        ContextMenuItem(
+        MessageAction(
           label: loc.messageContextMenu_copy,
           leading: const AppIcon.copy(size: iconSize),
-          onPressed: () {
+          onSelected: () {
             Clipboard.setData(ClipboardData(text: plainBody));
           },
         ),
       if (isSender && attachments.isEmpty && !isDeleted)
-        ContextMenuItem(
+        MessageAction(
           label: loc.messageContextMenu_edit,
           leading: const AppIcon.pencil(size: iconSize),
-          onPressed: () {
+          onSelected: () {
             context.read<ChatDetailsCubit>().editMessage(messageId: messageId);
           },
         ),
-      if (!isDeleted) ...[
-        const ContextMenuSeparator(),
-        ContextMenuItem(
+      if (!isDeleted)
+        MessageAction(
           label: loc.messageContextMenu_delete,
           leading: AppIcon.trash(size: iconSize, color: colors.function.danger),
           isDestructive: true,
-          onPressed: () => isSender
+          insertSeparatorBefore: true,
+          onSelected: () => isSender
               ? _showDeleteMessageDialog(context: context, messageId: messageId)
               : _showDeleteForMeDialog(context: context, messageId: messageId),
         ),
-      ],
       if (isDeleted)
-        ContextMenuItem(
+        MessageAction(
           label: loc.messageContextMenu_delete,
           leading: AppIcon.trash(size: iconSize, color: colors.function.danger),
           isDestructive: true,
-          onPressed: () =>
+          onSelected: () =>
               _showDeleteForMeDialog(context: context, messageId: messageId),
         ),
       if (attachments.isNotEmpty && !Platform.isIOS)
-        ContextMenuItem(
+        MessageAction(
           label: loc.messageContextMenu_save,
           leading: const AppIcon.download(size: iconSize),
-          onPressed: () => _handleFileSave(context, attachments.first),
+          onSelected: () => _handleFileSave(context, attachments.first),
         ),
       if (attachments.isNotEmpty && Platform.isIOS)
-        ContextMenuItem(
+        MessageAction(
           label: loc.messageContextMenu_share,
           leading: const AppIcon.share(size: iconSize),
-          onPressed: () => _handleFileShare(context, attachments),
+          onSelected: () => _handleFileShare(context, attachments),
         ),
     ];
+
+    final menuItems = <ContextMenuEntry>[];
+    for (final action in actions) {
+      if (action.insertSeparatorBefore) {
+        menuItems.add(const ContextMenuSeparator());
+      }
+      menuItems.add(
+        ContextMenuItem(
+          label: action.label,
+          leading: action.leading,
+          onPressed: action.onSelected,
+          isDestructive: action.isDestructive,
+        ),
+      );
+    }
 
     final metadata = Padding(
       padding: EdgeInsets.only(left: isSender ? 0 : messageHorizontalPadding),
@@ -416,13 +406,15 @@ class _MessageView extends HookWidget {
       required bool enableSelection,
       required GlobalKey messageKey,
       required bool detached,
-      GlobalKey? bubbleRenderKey,
       required bool includeMetadata,
     }) {
-      final bubble = buildMessageBubble(
-        enableSelection: enableSelection,
-        key: bubbleRenderKey,
-      );
+      Widget bubble = buildMessageBubble(enableSelection: enableSelection);
+      if (!enableSelection) {
+        bubble = SwipeToReplyBubble(
+          icon: AppIcon.cornerLeft(size: 16, color: colors.text.secondary),
+          child: bubble,
+        );
+      }
 
       return Container(
         key: messageKey,
@@ -478,44 +470,48 @@ class _MessageView extends HookWidget {
     }
 
     if (isMobilePlatform) {
-      return WrapWithBubbleWidth(
-        isSender: isSender,
-        child: buildMessageShell(
-          onLongPress: actions.isEmpty
-              ? null
-              : () {
-                  final bubbleContext = bubbleKey.currentContext;
-                  if (bubbleContext == null) return;
-                  final renderObject = bubbleContext.findRenderObject();
-                  if (renderObject is! RenderBox || !renderObject.hasSize) {
-                    return;
-                  }
-                  final origin = renderObject.localToGlobal(Offset.zero);
-                  final anchorRect = origin & renderObject.size;
-                  final overlayBubble = buildMessageBubble(
-                    enableSelection: false,
-                  );
-                  ContextMenu.closeActiveMenu();
-                  isDetached.value = true;
-                  final future = showMobileMessageActions(
-                    context: context,
-                    anchorRect: anchorRect,
-                    actions: actions,
-                    messageContent: overlayBubble,
-                    alignEnd: isSender,
-                  );
-                  unawaited(
-                    future.whenComplete(() {
-                      isDetached.value = false;
-                    }),
-                  );
-                },
-          onSecondaryTapDown: null,
-          enableSelection: false,
-          messageKey: messageContainerKey,
-          detached: isDetached.value,
-          bubbleRenderKey: bubbleKey,
-          includeMetadata: showMetadata,
+      return SwipeToReplyScope(
+        onReply: () {
+          context.read<ChatDetailsCubit>().replyToMessage(messageId: messageId);
+        },
+        child: WrapWithBubbleWidth(
+          isSender: isSender,
+          child: buildMessageShell(
+            onLongPress: actions.isEmpty
+                ? null
+                : () {
+                    final shellContext = messageContainerKey.currentContext;
+                    if (shellContext == null) return;
+                    final renderObject = shellContext.findRenderObject();
+                    if (renderObject is! RenderBox || !renderObject.hasSize) {
+                      return;
+                    }
+                    final origin = renderObject.localToGlobal(Offset.zero);
+                    final anchorRect = origin & renderObject.size;
+                    final overlayBubble = buildMessageBubble(
+                      enableSelection: false,
+                    );
+                    ContextMenu.closeActiveMenu();
+                    isDetached.value = true;
+                    final future = showMobileMessageActions(
+                      context: context,
+                      anchorRect: anchorRect,
+                      actions: actions,
+                      messageContent: overlayBubble,
+                      alignEnd: isSender,
+                    );
+                    unawaited(
+                      future.whenComplete(() {
+                        isDetached.value = false;
+                      }),
+                    );
+                  },
+            onSecondaryTapDown: null,
+            enableSelection: false,
+            messageKey: messageContainerKey,
+            detached: isDetached.value,
+            includeMetadata: showMetadata,
+          ),
         ),
       );
     }
@@ -528,7 +524,7 @@ class _MessageView extends HookWidget {
             : ContextMenuDirection.right,
         offset: const Offset(Spacings.xxs, 0),
         controller: contextMenuController,
-        menuItems: actions,
+        menuItems: menuItems,
         cursorPosition: cursorPositionNotifier,
         child: buildMessageShell(
           onLongPress: null,
@@ -545,7 +541,6 @@ class _MessageView extends HookWidget {
           enableSelection: isDesktopPlatform,
           messageKey: messageContainerKey,
           detached: false,
-          bubbleRenderKey: bubbleKey,
           includeMetadata: showMetadata,
         ),
       ),
@@ -585,10 +580,7 @@ class _MessageView extends HookWidget {
         );
       } catch (e, stackTrace) {
         _log.severe("Failed to save attachment: $e", e, stackTrace);
-        if (context.mounted) {
-          final loc = AppLocalizations.of(context);
-          showErrorBanner(context, loc.messageContextMenu_saveError);
-        }
+        showErrorBannerStandalone((loc) => loc.messageContextMenu_saveError);
         return;
       }
     } else if (Platform.isIOS) {
@@ -768,9 +760,11 @@ class _MessageContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final colors = CustomColorScheme.of(context);
+    final inReplyTo = inReplyToMessage;
+    final bool isReply = inReplyTo != null;
     final bool isDeleted = content.isDeleted;
     final bool isJumboEmoji =
-        !isDeleted && !isHidden && isJumboEmojiMessage(content);
+        !isDeleted && !isHidden && !isReply && isJumboEmojiMessage(content);
     // Hide the bubble background and padding for jumbo emoji
     final nakedContent = isJumboEmoji;
     // Adjust padding when sender label is not shown
@@ -867,71 +861,58 @@ class _MessageContent extends StatelessWidget {
       }
     }
 
-    final inReplyTo = inReplyToMessage;
-    final color = CustomColorScheme.of(context);
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 1.5),
-      child: Container(
-        alignment: isSender
-            ? AlignmentDirectional.topEnd
-            : AlignmentDirectional.topStart,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: _messageBorderRadius(isSender, flightPosition),
-            color: nakedContent
-                ? Colors.transparent
-                : isSender
-                ? colors.message.selfBackground
-                : colors.message.otherBackground,
-          ),
-          child: DefaultTextStyle.merge(
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                // Main content (reserves space if edited)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (inReplyTo != null)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          left: Spacings.xs,
-                          right: Spacings.xs,
-                          top: Spacings.xs,
-                        ),
-                        child: InReplyToBubble(
-                          inReplyTo: inReplyTo,
-                          backgroundColor: color.fill.secondary,
-                        ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: _messageBorderRadius(isSender, flightPosition),
+          color: nakedContent
+              ? Colors.transparent
+              : isSender
+              ? colors.message.selfBackground
+              : colors.message.otherBackground,
+        ),
+        child: DefaultTextStyle.merge(
+          child: Column(
+            crossAxisAlignment: .end,
+            children: [
+              Column(
+                crossAxisAlignment: .start,
+                children: [
+                  if (inReplyTo != null)
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        left: Spacings.xs,
+                        right: Spacings.xs,
+                        top: Spacings.xs,
                       ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: columnChildren,
+                      child: InReplyToBubble(
+                        inReplyTo: inReplyTo,
+                        backgroundColor: colors.fill.secondary,
+                      ),
                     ),
-                    if (isEdited)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          left: Spacings.s,
-                          right: Spacings.s,
-                          bottom: Spacings.xxs,
-                        ),
-                        child: SelectionContainer.disabled(
-                          child: Text(
-                            loc.textMessage_edited,
-                            style: Theme.of(context).textTheme.bodySmall!
-                                .copyWith(
-                                  color: isSender
-                                      ? colors.message.selfEditedLabel
-                                      : colors.message.otherEditedLabel,
-                                ),
-                          ),
-                        ),
+                  ...columnChildren,
+                ],
+              ),
+              if (isEdited)
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: Spacings.s,
+                    right: Spacings.s,
+                    bottom: Spacings.xxs,
+                  ),
+                  child: SelectionContainer.disabled(
+                    child: Text(
+                      loc.textMessage_edited,
+                      style: Theme.of(context).textTheme.bodySmall!.copyWith(
+                        color: isSender
+                            ? colors.message.selfEditedLabel
+                            : colors.message.otherEditedLabel,
                       ),
-                  ],
+                    ),
+                  ),
                 ),
-              ],
-            ),
+            ],
           ),
         ),
       ),
@@ -970,25 +951,20 @@ class _DeletedMessageContent extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 1.5),
-      child: Container(
-        alignment: isSender
-            ? AlignmentDirectional.topEnd
-            : AlignmentDirectional.topStart,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: _messageBorderRadius(isSender, flightPosition),
-            border: Border.all(color: borderColor),
-          ),
-          child: SelectionContainer.disabled(
-            child: Padding(
-              padding: _messagePadding,
-              child: Text(
-                deletedText,
-                style: TextStyle(
-                  fontStyle: FontStyle.italic,
-                  fontSize: BodyFontSize.base.size,
-                  color: colors.text.tertiary,
-                ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: _messageBorderRadius(isSender, flightPosition),
+          border: Border.all(color: borderColor),
+        ),
+        child: SelectionContainer.disabled(
+          child: Padding(
+            padding: _messagePadding,
+            child: Text(
+              deletedText,
+              style: TextStyle(
+                fontStyle: FontStyle.italic,
+                fontSize: BodyFontSize.base.size,
+                color: colors.text.tertiary,
               ),
             ),
           ),

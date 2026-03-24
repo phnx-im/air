@@ -15,8 +15,9 @@ use tracing::error;
 use uuid::Uuid;
 
 use crate::{
-    AddHandleContactError, AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact,
-    MessageDraft, MessageId, ProvisionAttachmentError, UploadTaskError,
+    AcceptContactRequestError, AddHandleContactError, AttachmentContent, AttachmentStatus, Chat,
+    ChatId, ChatMessage, Contact, InviteUsersError, MessageDraft, MessageId,
+    ProvisionAttachmentError, UploadTaskError,
     clients::{
         CoreUser,
         attachment::{AttachmentRecord, progress::AttachmentProgress},
@@ -27,7 +28,7 @@ use crate::{
     store::UserSetting,
     user_handles::UserHandleRecord,
     user_profiles::UserProfile,
-    utils::connection_ext::{ConnectionExt, StoreExt},
+    utils::connection_ext::StoreExt,
 };
 
 use super::{Store, StoreNotification, StoreResult};
@@ -158,7 +159,7 @@ impl Store for CoreUser {
         &self,
         chat_id: ChatId,
         invited_users: &[UserId],
-    ) -> StoreResult<Vec<ChatMessage>> {
+    ) -> StoreResult<Result<Vec<ChatMessage>, InviteUsersError>> {
         self.invite_users(chat_id, invited_users).await
     }
 
@@ -191,8 +192,12 @@ impl Store for CoreUser {
         self.unblock_contact(user_id).await
     }
 
-    async fn accept_contact_request(&self, chat_id: ChatId) -> StoreResult<()> {
-        self.accept_contact_request(chat_id).await
+    async fn accept_contact_request(
+        &self,
+        chat_id: ChatId,
+    ) -> StoreResult<Result<(), AcceptContactRequestError>> {
+        // boxing large future
+        Box::pin(self.accept_contact_request(chat_id)).await
     }
 
     async fn contacts(&self) -> StoreResult<Vec<Contact>> {
@@ -250,8 +255,7 @@ impl Store for CoreUser {
     }
 
     async fn last_message(&self, chat_id: ChatId) -> StoreResult<Option<ChatMessage>> {
-        let mut txn = self.pool().begin_with("BEGIN IMMEDIATE").await?;
-        Ok(ChatMessage::last_message(&mut txn, chat_id).await?)
+        Ok(ChatMessage::last_message(self.pool().acquire().await?.as_mut(), chat_id).await?)
     }
 
     async fn last_message_by_user(
@@ -259,20 +263,16 @@ impl Store for CoreUser {
         chat_id: ChatId,
         user_id: &UserId,
     ) -> StoreResult<Option<ChatMessage>> {
-        self.pool()
-            .with_transaction(async |txn| {
-                ChatMessage::last_content_message_by_user(txn, chat_id, user_id)
-                    .await
-                    .map_err(Into::into)
-            })
-            .await
+        Ok(ChatMessage::last_content_message_by_user(
+            self.pool().acquire().await?.as_mut(),
+            chat_id,
+            user_id,
+        )
+        .await?)
     }
 
     async fn message_draft(&self, chat_id: ChatId) -> StoreResult<Option<MessageDraft>> {
-        self.with_transaction(async |txn| {
-            MessageDraft::load(txn, chat_id).await.map_err(From::from)
-        })
-        .await
+        Ok(MessageDraft::load(self.pool().acquire().await?.as_mut(), chat_id).await?)
     }
 
     async fn store_message_draft(

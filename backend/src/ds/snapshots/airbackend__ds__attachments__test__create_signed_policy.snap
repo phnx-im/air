@@ -25,12 +25,12 @@ ProvisionAttachmentResponse {
             ),
         },
     ),
-    upload_url: "https://region.example.com/data",
+    upload_url: "https://region.example.com/some-bucket",
     upload_headers: [],
     post_policy: Some(
         SignedPostPolicy {
-            base64: "eyJleHBpcmF0aW9uIjoiMjAyMy0wMS0wMVQwMDowMTowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJkYXRhIn0seyJrZXkiOiJhdHRhY2htZW50cy9iYTUyMWZjNjFlYzI0ZjhlYTg1ZTNkYWNjMWU5Njk4OSJ9LFsiY29udGVudC1sZW5ndGgtcmFuZ2UiLDAsMjA5NzE1MjBdLHsieC1hbXotY3JlZGVudGlhbCI6IkVYQU1QTEVLRVkvMjAyMzAxMDEvZXhhbXBsZS1yZWdpb24vczMvYXdzNF9yZXF1ZXN0In0seyJ4LWFtei1hbGdvcml0aG0iOiJBV1M0LUhNQUMtU0hBMjU2In0seyJ4LWFtei1kYXRlIjoiMjAyMzAxMDFUMDAwMDAwWiJ9XX0=",
-            signature: "98024a62330bbfa93b9e5233ce6c98ea57dae57c5aa99f88eea7a58af332e4a1",
+            base64: "eyJleHBpcmF0aW9uIjoiMjAyMy0wMS0wMVQwMDowMTowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJzb21lLWJ1Y2tldCJ9LHsia2V5IjoiYXR0YWNobWVudHMvYmE1MjFmYzYxZWMyNGY4ZWE4NWUzZGFjYzFlOTY5ODkifSxbImNvbnRlbnQtbGVuZ3RoLXJhbmdlIiwwLDIwOTcxNTIwXSx7IngtYW16LWNyZWRlbnRpYWwiOiJFWEFNUExFS0VZLzIwMjMwMTAxL2V4YW1wbGUtcmVnaW9uL3MzL2F3czRfcmVxdWVzdCJ9LHsieC1hbXotYWxnb3JpdGhtIjoiQVdTNC1ITUFDLVNIQTI1NiJ9LHsieC1hbXotZGF0ZSI6IjIwMjMwMTAxVDAwMDAwMFoifV19",
+            signature: "5dbe7aa446ea848f8a1d26fd0283a65ef723c93cbeddd1ac23a4ca215f64cb4a",
         },
     ),
 }

@@ -17,7 +17,7 @@ use tokio_util::sync::{CancellationToken, DropGuard, WaitForCancellationFutureOw
 /// cancelled or the underlying stream ends.
 ///
 /// Note: Cancellation wakes up the task polling the stream (if any), that is, cancellation is
-/// **not** lazy in the sense that the underlaying stream first has to yield an item to observe
+/// **not** lazy in the sense that the underlying stream first has to yield an item to observe
 /// cancellation.
 #[pin_project]
 pub(crate) struct CancellableStream<S> {

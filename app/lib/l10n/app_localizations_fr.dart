@@ -328,11 +328,11 @@ class AppLocalizationsFr extends AppLocalizations {
   String get usernameOnboarding_next => 'Suivant';
 
   @override
-  String get usernameOnboarding_userameInputName =>
+  String get usernameOnboarding_usernameInputName =>
       'Nom d\'utilisateur (facultatif)';
 
   @override
-  String get usernameOnboarding_userameInputHint =>
+  String get usernameOnboarding_usernameInputHint =>
       'Ajoutez un nom d\'utilisateur...';
 
   @override
@@ -546,6 +546,11 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String newChatDialog_error(Object chatName) {
     return 'Impossible d\'ajouter une discussion avec le nom $chatName';
+  }
+
+  @override
+  String newChatDialog_error_incompatibleClient(Object chatName) {
+    return 'Couldn\'t create new group chat with name $chatName because one of the contacts has an incompatible client.';
   }
 
   @override
@@ -869,6 +874,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get addMembersScreen_done => 'Terminé';
 
   @override
+  String get addMembersScreen_error_incompatibleClient =>
+      'Couldn\'t add member(s) because one of the contacts has an incompatible client';
+
+  @override
   String get leaveChatDialog_title => 'Quitter la discussion';
 
   @override
@@ -970,4 +979,11 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get contactRequestDialog_error_fatal =>
       'Impossible d\'accepter la demande de contact';
+
+  @override
+  String get contactRequestDialog_error_incompatibleClient =>
+      'Failed to accept contact request. Update Air to the newest version, then try again.';
+
+  @override
+  String get errorBanner_ok => 'OK';
 }

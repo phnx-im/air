@@ -43,7 +43,7 @@ mod timed_tasks;
 
 /// A service which is responsible for processing outbound messages.
 ///
-/// The service starts a background task which dequeues messages from the correspoding work queues.
+/// The service starts a background task which dequeues messages from the corresponding work queues.
 /// The initial state of the service is `Stopped`, that is, the background task is not running. The
 /// background task only runs when the service is started, and when there is a notification to run.
 /// After doing the work once, it wait for the next notification, or stops if it is stopped.
@@ -217,10 +217,12 @@ pub struct OutboundServiceContext {
 }
 
 impl OutboundServiceContext {
-    async fn execute_job<T: Send, JobType: Job<Output = T>>(
-        &self,
-        job: JobType,
-    ) -> Result<T, JobError> {
+    async fn execute_job<T, E, JobType>(&self, job: JobType) -> Result<T, JobError<E>>
+    where
+        T: Send,
+        E: std::error::Error + Send + Sync + 'static,
+        JobType: Job<Output = T, DomainError = E>,
+    {
         let mut notifier = self.notifier();
         let mut context = JobContext {
             api_clients: &self.api_clients,

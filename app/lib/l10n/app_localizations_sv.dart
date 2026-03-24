@@ -323,10 +323,10 @@ class AppLocalizationsSv extends AppLocalizations {
   String get usernameOnboarding_next => 'Nästa';
 
   @override
-  String get usernameOnboarding_userameInputName => 'Användarnamn (valfritt)';
+  String get usernameOnboarding_usernameInputName => 'Användarnamn (valfritt)';
 
   @override
-  String get usernameOnboarding_userameInputHint =>
+  String get usernameOnboarding_usernameInputHint =>
       'Lägg till ett användarnamn...';
 
   @override
@@ -539,6 +539,11 @@ class AppLocalizationsSv extends AppLocalizations {
   @override
   String newChatDialog_error(Object chatName) {
     return 'Kunde inte skapa en ny gruppchatt med namnet $chatName';
+  }
+
+  @override
+  String newChatDialog_error_incompatibleClient(Object chatName) {
+    return 'Couldn\'t create new group chat with name $chatName because one of the contacts has an incompatible client.';
   }
 
   @override
@@ -856,6 +861,10 @@ class AppLocalizationsSv extends AppLocalizations {
   String get addMembersScreen_done => 'Klar';
 
   @override
+  String get addMembersScreen_error_incompatibleClient =>
+      'Couldn\'t add member(s) because one of the contacts has an incompatible client';
+
+  @override
   String get leaveChatDialog_title => 'Lämna grupp';
 
   @override
@@ -956,4 +965,11 @@ class AppLocalizationsSv extends AppLocalizations {
   @override
   String get contactRequestDialog_error_fatal =>
       'Kunde inte acceptera kontaktförfrågan';
+
+  @override
+  String get contactRequestDialog_error_incompatibleClient =>
+      'Failed to accept contact request. Update Air to the newest version, then try again.';
+
+  @override
+  String get errorBanner_ok => 'OK';
 }

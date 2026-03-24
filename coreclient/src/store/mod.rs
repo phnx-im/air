@@ -13,8 +13,9 @@ use tokio_stream::Stream;
 use uuid::Uuid;
 
 use crate::{
-    AddHandleContactError, AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact,
-    MessageDraft, MessageId, ProvisionAttachmentError, UploadTaskError,
+    AcceptContactRequestError, AddHandleContactError, AttachmentContent, AttachmentStatus, Chat,
+    ChatId, ChatMessage, Contact, InviteUsersError, MessageDraft, MessageId,
+    ProvisionAttachmentError, UploadTaskError,
     clients::{attachment::progress::AttachmentProgress, safety_code::SafetyCode},
     contacts::{ContactType, HandleContact, TargetedMessageContact},
     user_handles::UserHandleRecord,
@@ -33,7 +34,7 @@ pub type StoreResult<T> = anyhow::Result<T>;
 /// Unified access to the client data
 ///
 /// This trait is used to access the client data, e.g. the user profile, the chats or the messages.
-/// Additionaly, it is used to listen to changes in the client data via the [`Self::subscribe`]
+/// Additionally, it is used to listen to changes in the client data via the [`Self::subscribe`]
 /// method and the [`StoreNotification`] type.
 #[allow(async_fn_in_trait, reason = "trait is only used in the workspace")]
 #[trait_variant::make(Send)]
@@ -163,7 +164,7 @@ pub trait Store {
         &self,
         chat_id: ChatId,
         invited_users: &[UserId],
-    ) -> StoreResult<Vec<ChatMessage>>;
+    ) -> StoreResult<Result<Vec<ChatMessage>, InviteUsersError>>;
 
     async fn load_room_state(&self, chat_id: ChatId) -> StoreResult<(UserId, VerifiedRoomState)>;
 
@@ -193,7 +194,10 @@ pub trait Store {
 
     async fn unblock_contact(&self, user_id: UserId) -> StoreResult<()>;
 
-    async fn accept_contact_request(&self, chat_id: ChatId) -> StoreResult<()>;
+    async fn accept_contact_request(
+        &self,
+        chat_id: ChatId,
+    ) -> StoreResult<Result<(), AcceptContactRequestError>>;
 
     async fn contacts(&self) -> StoreResult<Vec<Contact>>;
 

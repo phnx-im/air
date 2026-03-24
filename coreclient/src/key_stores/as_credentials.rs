@@ -91,14 +91,14 @@ impl AsCredentials {
     }
 
     async fn store(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
-        let fingerpint = self.fingerprint();
+        let fingerprint = self.fingerprint();
         let domain = self.domain();
         let credential_type = self.credential_type();
         let body = self.body();
         query!(
             "INSERT OR REPLACE INTO as_credential
                 (fingerprint, user_domain, credential_type, credential) VALUES (?, ?, ?, ?)",
-            fingerpint,
+            fingerprint,
             domain,
             credential_type,
             body,
@@ -194,7 +194,6 @@ impl AsCredentials {
         domain: &Fqdn,
         fingerprint: &Hash<AsIntermediateCredentialBody>,
     ) -> Result<AsIntermediateCredential, AsCredentialStoreError> {
-        info!("Loading AS credential from db");
         // Phase 1: Check if there is a credential in the database.
         let credential_option =
             AsCredentials::load_intermediate(&mut *connection, Some(fingerprint), domain).await?;
@@ -204,6 +203,7 @@ impl AsCredentials {
             credential
         } else {
             // Phase 2a: Fetch the credential.
+            info!(%domain, "Fetching AS credential from server");
             let credential = Self::fetch_credentials(domain, api_clients)
                 .await?
                 .into_iter()

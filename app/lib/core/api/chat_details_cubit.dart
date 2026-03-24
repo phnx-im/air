@@ -28,7 +28,7 @@ part 'chat_details_cubit.freezed.dart';
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>>
 abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
-  Future<void> acceptContactRequest();
+  Future<AcceptContactRequestError?> acceptContactRequest();
 
   Future<GroupDebugInfo> chatDebugInfo();
 
@@ -73,6 +73,8 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
 
   Future<void> replyToMessage({required MessageId messageId});
 
+  Future<void> requestResync();
+
   Future<void> resetDraft();
 
   Future<void> resetDraftReply();
@@ -104,6 +106,15 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   Stream<ChatDetailsState> stream();
 
   Future<UploadAttachmentError?> uploadAttachment({required String path});
+}
+
+@freezed
+sealed class AcceptContactRequestError with _$AcceptContactRequestError {
+  const AcceptContactRequestError._();
+
+  const factory AcceptContactRequestError.incompatibleClient({
+    required String reason,
+  }) = AcceptContactRequestError_IncompatibleClient;
 }
 
 /// The state of a single chat

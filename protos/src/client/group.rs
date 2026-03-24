@@ -50,7 +50,7 @@ pub struct GroupData {
 /// ## CDDL Definition
 ///
 /// ```cddl
-/// ExtenalGroupProfile = {
+/// ExternalGroupProfile = {
 ///   object_id: bytes .size 16 .tag 1,
 ///   size: uint .size 8 .tag 2,
 ///   encAlg: uint .size 2 .tag 3,

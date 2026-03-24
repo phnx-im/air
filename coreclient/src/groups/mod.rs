@@ -81,7 +81,10 @@ use crate::{
 use std::collections::HashSet;
 
 use openmls::{
-    group::{ExternalCommitBuilder, JoinBuilder, ProcessedWelcome},
+    group::{
+        CreateCommitError, ExternalCommitBuilder, JoinBuilder, ProcessedWelcome,
+        ProposalValidationError,
+    },
     key_packages::KeyPackageBundle,
     prelude::{
         BasicCredentialError, CredentialWithKey, Extension, Extensions, GroupId, KeyPackage,
@@ -91,7 +94,7 @@ use openmls::{
         UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
-    treesync::RatchetTree,
+    treesync::{RatchetTree, errors::LeafNodeValidationError},
 };
 
 use self::{client_auth_info::StorableClientCredential, diff::StagedGroupDiff};
@@ -212,7 +215,7 @@ impl Group {
         let mls_group = MlsGroup::builder()
             .with_group_id(group_id.clone())
             .with_capabilities(leaf_node_capabilities)
-            .with_group_context_extensions(gc_extensions)?
+            .with_group_context_extensions(gc_extensions)
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
             .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
@@ -426,7 +429,9 @@ impl Group {
         aad: AadMessage,
         // Should be Some if this join is in response to a connection offer.
         connection_offer_hash: Option<ConnectionOfferHash>,
-    ) -> Result<(Self, MlsMessageOut, MlsMessageOut, Vec<ProfileInfo>)> {
+    ) -> anyhow::Result<
+        Result<(Self, MlsMessageOut, MlsMessageOut, Vec<ProfileInfo>), LeafNodeValidationError>,
+    > {
         let mls_group_config = default_mls_group_join_config();
         let credential_with_key = CredentialWithKey {
             credential: signer.credential().try_into()?,
@@ -440,16 +445,16 @@ impl Group {
             proposals,
         } = external_commit_info;
 
-        let proposals = proposals
+        let proposals: Vec<_> = proposals
             .iter()
             .filter_map(|b| {
                 let mls_message = MlsMessageIn::tls_deserialize_exact_bytes(b);
                 let MlsMessageBodyIn::PublicMessage(pm) = mls_message.ok()?.extract() else {
                     return None;
                 };
-                Some(anyhow::Ok(pm))
+                Some(pm)
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect();
 
         // Figure out who was removed so we can filter out the encrypted profile keys later.
         let removed_members: Vec<_> = proposals
@@ -488,6 +493,7 @@ impl Group {
                 .with_proposals(proposals)
                 .with_aad(aad.tls_serialize_detached()?)
                 .with_config(mls_group_config)
+                .skip_lifetime_validation()
                 .with_ratchet_tree(ratchet_tree_in)
                 .build_group(&provider, verifiable_group_info, credential_with_key)?
                 .leaf_node_parameters(leaf_node_parameters);
@@ -496,18 +502,22 @@ impl Group {
                 builder = builder.add_psk_proposal(psk_proposal);
             }
 
-            let (mls_group, commit) = builder
-                .create_group_info(true)
+            let res = builder
                 .load_psks(provider.storage())?
-                .build(provider.rand(), provider.crypto(), signer, |_| true)?
-                .finalize(&provider)?;
+                .create_group_info(true)
+                .build(provider.rand(), provider.crypto(), signer, |_| true);
+            let (mls_group, commit) = match res {
+                Ok(builder) => builder.finalize(&provider)?,
+                // Extract leaf node validation error if any
+                Err(error) => return Ok(Err(to_capabilities_mismatch(error)?)),
+            };
 
             let (commit, _, group_info) = commit.into_contents();
 
             (
                 mls_group,
                 commit,
-                group_info.context("No group info found")?.into(),
+                group_info.context("No group info found")?,
             )
         };
 
@@ -555,7 +565,7 @@ impl Group {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok((group, commit, group_info, member_profile_info))
+        Ok(Ok((group, commit, group_info.into(), member_profile_info)))
     }
 
     /// Invite the given list of contacts to join the group.
@@ -570,7 +580,7 @@ impl Group {
         add_infos: Vec<ContactAddInfos>,
         wai_keys: Vec<WelcomeAttributionInfoEarKey>,
         client_credentials: Vec<ClientCredential>,
-    ) -> Result<GroupOperationParamsOut> {
+    ) -> anyhow::Result<Result<GroupOperationParamsOut, LeafNodeValidationError>> {
         debug_assert!(add_infos.len() == wai_keys.len());
         debug_assert!(add_infos.len() == client_credentials.len());
         // Prepare KeyPackages
@@ -598,20 +608,24 @@ impl Group {
             let provider = AirOpenMlsProvider::new(&mut *connection);
             self.mls_group
                 .set_aad(aad_message.tls_serialize_detached()?);
-            self.mls_group
+            let res = self
+                .mls_group
                 .commit_builder()
                 .force_self_update(true)
-                .create_group_info(true)
                 .propose_adds(key_packages)
                 .load_psks(provider.storage())?
-                .build(provider.rand(), provider.crypto(), signer, |_| true)?
-                .stage_commit(&provider)?
-                .into_contents()
+                .create_group_info(true)
+                .build(provider.rand(), provider.crypto(), signer, |_| true);
+            match res {
+                Ok(builder) => builder.stage_commit(&provider)?.into_contents(),
+                // Extract leaf node validation error if any
+                Err(error) => return Ok(Err(to_capabilities_mismatch(error)?)),
+            }
         };
 
-        let group_info = group_info_option.ok_or(anyhow!("Commit didn't return a group info"))?;
+        let group_info = group_info_option.context("No group info found")?;
         let welcome = MlsMessageOut::from_welcome(
-            welcome_option.ok_or(anyhow!("Commit didn't return a welcome"))?,
+            welcome_option.context("No welcome message found")?,
             ProtocolVersion::default(),
         );
         let commit = AssistedMessageOut::new(mls_commit, Some(group_info.into()));
@@ -633,7 +647,7 @@ impl Group {
                 .sign(signer)?;
                 Ok(wai.encrypt(wai_key)?)
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<anyhow::Result<Vec<_>>>()?;
 
         let add_users_info = AddUsersInfoOut {
             welcome,
@@ -645,7 +659,7 @@ impl Group {
             add_users_info_option: Some(add_users_info),
         };
 
-        Ok(params)
+        Ok(Ok(params))
     }
 
     pub(super) async fn stage_remove(
@@ -680,9 +694,9 @@ impl Group {
             .mls_group
             .commit_builder()
             .force_self_update(true)
-            .create_group_info(true)
             .propose_removals(remove_indices)
             .load_psks(provider.storage())?
+            .create_group_info(true)
             .build(provider.rand(), provider.crypto(), signer, |_| true)?
             .stage_commit(&provider)?
             .into_contents();
@@ -726,9 +740,9 @@ impl Group {
             .mls_group
             .commit_builder()
             .force_self_update(true)
-            .create_group_info(true)
             .propose_removals(remove_indices)
             .load_psks(provider.storage())?
+            .create_group_info(true)
             .build(provider.rand(), provider.crypto(), signer, |_| true)?
             .stage_commit(provider)?
             .into_contents();
@@ -939,13 +953,15 @@ impl Group {
         }))
         .tls_serialize_detached()?;
 
-        let extensions = new_group_data.map(|gd| {
-            let group_data_extension =
-                Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, UnknownExtension(gd.bytes));
-            let mut exts = self.mls_group().extensions().clone();
-            exts.add_or_replace(group_data_extension);
-            exts
-        });
+        let extensions = new_group_data
+            .map(|gd| -> Result<_> {
+                let group_data_extension =
+                    Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, UnknownExtension(gd.bytes));
+                let mut exts = self.mls_group().extensions().clone();
+                exts.add_or_replace(group_data_extension)?;
+                Ok(exts)
+            })
+            .transpose()?;
 
         self.mls_group.set_aad(aad);
         let (mls_message, group_info) = {
@@ -953,7 +969,7 @@ impl Group {
 
             let mut builder = self.mls_group.commit_builder();
             if let Some(extensions) = extensions {
-                builder = builder.propose_group_context_extensions(extensions);
+                builder = builder.propose_group_context_extensions(extensions)?;
             };
 
             let leaf_node_parameters = LeafNodeParameters::builder()
@@ -961,9 +977,9 @@ impl Group {
                 .build();
             let (mls_message, _welcome_option, group_info_option) = builder
                 .force_self_update(true)
-                .create_group_info(true)
                 .leaf_node_parameters(leaf_node_parameters)
                 .load_psks(provider.storage())?
+                .create_group_info(true)
                 .build(provider.rand(), provider.crypto(), signer, |_| true)?
                 .stage_commit(&provider)?
                 .into_contents();
@@ -1199,7 +1215,7 @@ async fn verify_member_credentials(
     txn: &mut SqliteTransaction<'_>,
     api_clients: &ApiClients,
     mls_group: &MlsGroup,
-) -> Result<Vec<StorableClientCredential>, anyhow::Error> {
+) -> anyhow::Result<Vec<StorableClientCredential>> {
     let unverified_credentials = mls_group
         .members()
         .map(|m| {
@@ -1217,7 +1233,7 @@ async fn verify_member_credentials(
     )
     .await?;
 
-    let credentials = unverified_credentials
+    unverified_credentials
         .into_iter()
         .map(|(credential, leaf_verifying_key)| {
             VerifiableClientCredential::verify_and_validate(
@@ -1227,8 +1243,7 @@ async fn verify_member_credentials(
                 &as_credentials,
             )
         })
-        .collect::<Result<Vec<_>>>()?;
-    Ok(credentials)
+        .collect()
 }
 
 #[cfg(feature = "test_utils")]
@@ -1382,4 +1397,28 @@ pub fn suppress_notifications(content: &MimiContent) -> bool {
     }
     // All other messages should trigger notifications.
     false
+}
+
+fn to_capabilities_mismatch(error: CreateCommitError) -> anyhow::Result<LeafNodeValidationError> {
+    use LeafNodeValidationError::*;
+    match error {
+        CreateCommitError::LeafNodeValidation(error)
+        | CreateCommitError::ProposalValidationError(
+            ProposalValidationError::LeafNodeValidation(error),
+        ) if matches!(
+            error,
+            UnsupportedExtensions
+                | UnsupportedProposals
+                | UnsupportedCredentials
+                | CiphersuiteNotInCapabilities
+                | CredentialNotInCapabilities
+                | ExtensionsNotInCapabilities
+                | LeafNodeCredentialNotSupportedByMember
+                | MemberCredentialNotSupportedByLeafNode,
+        ) =>
+        {
+            Ok(error)
+        }
+        other => Err(other.into()),
+    }
 }

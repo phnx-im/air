@@ -64,7 +64,7 @@ sealed class Toolchain {
 
   factory Toolchain.stable() = Stable;
   factory Toolchain.beta() = Beta;
-  factory Toolchain.nigthly() = Nightly;
+  factory Toolchain.nightly() = Nightly;
 
   factory Toolchain._fromToolchainToml(String toolchainToml) {
     final toolchainFile = File(toolchainToml);

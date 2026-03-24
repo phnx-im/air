@@ -50,7 +50,7 @@ use crate::{
     clients::event_loop::{EventLoop, EventLoopSender},
     contacts::{HandleContact, TargetedMessageContact},
     groups::Group,
-    job::{Job, JobContext},
+    job::{Job, JobContext, JobError},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
     outbound_service::OutboundService,
     store::Store,
@@ -89,7 +89,7 @@ mod create_user;
 mod delete_account;
 mod event_loop;
 mod invitation_code;
-mod invite_users;
+pub(crate) mod invite_users;
 mod message;
 pub(crate) mod own_client_info;
 mod persistence;
@@ -340,7 +340,7 @@ impl CoreUser {
         self.inner.store_notifications_tx.subscribe()
     }
 
-    /// Subcribes to pending store notifications.
+    /// Subscribes to pending store notifications.
     ///
     /// Unlike `subscribe_to_store_notifications`, this function does not remove stored
     /// notifications from the persisted queue.
@@ -799,10 +799,12 @@ impl CoreUser {
         .await
     }
 
-    pub(crate) async fn execute_job<T: Send, JobType: Job<Output = T>>(
-        &self,
-        job: JobType,
-    ) -> anyhow::Result<T> {
+    pub(crate) async fn execute_job<T, E, JobType>(&self, job: JobType) -> Result<T, JobError<E>>
+    where
+        T: Send,
+        E: std::error::Error + Send + Sync + 'static,
+        JobType: Job<Output = T, DomainError = E>,
+    {
         let mut notifier = self.store_notifier();
         let mut context = JobContext {
             api_clients: &self.inner.api_clients,

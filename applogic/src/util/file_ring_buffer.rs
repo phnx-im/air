@@ -73,7 +73,7 @@ impl FileRingBuffer {
         self.data().len()
     }
 
-    /// Returns a `Buf` implemenation for reading the data.
+    /// Returns a `Buf` implementation for reading the data.
     ///
     /// Full buffer is read, starting at the last non-overwritten position.
     pub fn buf(&self) -> impl Buf + '_ {

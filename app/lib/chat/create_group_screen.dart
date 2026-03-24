@@ -10,12 +10,12 @@ import 'package:air/chat/widgets/member_search_field.dart';
 import 'package:air/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
-import 'package:air/main.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/avatar.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -358,14 +358,33 @@ class _CreateGroupDetailsStep extends HookWidget {
         groupName: groupName,
         picture: picture,
       );
-      for (final userId in selectedContacts) {
-        await userCubit.addUserToChat(chatId, userId);
+      final error = await userCubit.addUserToChat(
+        chatId,
+        selectedContacts.toList(),
+      );
+      switch (error) {
+        // No error
+        case null:
+          if (!context.mounted) return;
+          navigationCubit.pop();
+          await navigationCubit.openChat(chatId);
+          break;
+        case InviteUsersError_IncompatibleClient(:final reason):
+          _log.severe(
+            'Failed to create group "$groupName" due to incompatible client: $reason',
+            reason,
+          );
+          showErrorBannerStandalone(
+            (loc) => loc.newChatDialog_error_incompatibleClient(groupName),
+          );
+          break;
       }
-      if (!context.mounted) return;
-      navigationCubit.pop();
-      await navigationCubit.openChat(chatId);
     } catch (error, stackTrace) {
-      _log.severe('Failed to create group "$groupName"', error, stackTrace);
+      _log.severe(
+        'Failed to create group "$groupName": $error',
+        error,
+        stackTrace,
+      );
       showErrorBannerStandalone((loc) => loc.newChatDialog_error(groupName));
     } finally {
       isCreating.value = false;
