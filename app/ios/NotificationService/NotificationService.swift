@@ -8,7 +8,8 @@ import UserNotifications
 import os
 
 private let kProtectedBlockedCategory = "protected-blocked"
-private let reentryQueue = DispatchQueue(label: "ms.air.NotificationService.reentry")
+private let reentryQueue = DispatchQueue(
+    label: "ms.air.NotificationService.reentry")
 private var isHandlingNotification = false
 private let swiftLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "NotificationService",
@@ -78,12 +79,14 @@ class NotificationService: UNNotificationServiceExtension {
 
     override func didReceive(
         _ request: UNNotificationRequest,
-        withContentHandler contentHandler: @escaping (UNNotificationContent) -> Void
+        withContentHandler contentHandler: @escaping (UNNotificationContent) ->
+            Void
     ) {
         let acquired = NotificationService.beginHandling()
         if !acquired {
             rustLog(.warn, "Re-entry detected")
-            completeNotification(releaseHandling: false, handler: contentHandler)
+            completeNotification(
+                releaseHandling: false, handler: contentHandler)
             return
         }
 
@@ -100,7 +103,8 @@ class NotificationService: UNNotificationServiceExtension {
         }
 
         let sharedCaches = sharedContainer.appendingPathComponent("Caches")
-        let logFilePath = sharedCaches.appendingPathComponent("background.log").path
+        let logFilePath = sharedCaches.appendingPathComponent("background.log")
+            .path
         initRustLogging(logFilePath)
         rustLog(.info, "Received notification")
 
@@ -130,14 +134,17 @@ class NotificationService: UNNotificationServiceExtension {
         // If protected data is not yet available (e.g. device never unlocked after reboot),
         // show a minimal notification and skip DB access.
         if !protectedDataAvailable(at: dbUrl) {
-            rustLog(.warn, "Protected data unavailable; sending fallback notification")
+            rustLog(
+                .warn,
+                "Protected data unavailable; sending fallback notification")
             // Always remove any previously delivered "blocked" notifications to avoid duplicates
             clearProtectedBlockedNotifications()
             let fallback = UNMutableNotificationContent()
             fallback.categoryIdentifier = kProtectedBlockedCategory
             // TODO: This needs localization
             fallback.title = "Unlock your device"
-            fallback.body = "You may have new messages, unlock your device to see them."
+            fallback.body =
+                "You may have new messages, unlock your device to see them."
             fallback.sound = UNNotificationSound.default
             completeNotification(fallback)
             return
@@ -158,7 +165,7 @@ class NotificationService: UNNotificationServiceExtension {
         )
 
         if let jsonData = try? JSONEncoder().encode(incomingContent),
-           let jsonString = String(data: jsonData, encoding: .utf8)
+            let jsonString = String(data: jsonData, encoding: .utf8)
         {
             jsonString.withCString { cString in
                 guard let responsePointer = process_new_messages(cString) else {
@@ -175,19 +182,26 @@ class NotificationService: UNNotificationServiceExtension {
                     let notificationBatch = try? JSONDecoder().decode(
                         NotificationBatch.self, from: responseData)
                 else {
-                    rustLog(.error, "Could not decode response from Rust: \(responseString)")
+                    rustLog(
+                        .error,
+                        "Could not decode response from Rust: \(responseString)"
+                    )
                     self.completeNotification()
                     return
                 }
 
-                self.handleNotificationBatch(notificationBatch, contentHandler: contentHandler)
+                self.handleNotificationBatch(
+                    notificationBatch, contentHandler: contentHandler)
                 rustLog(
                     .info,
                     "Number of successfully processed messages: \(notificationBatch.additions.count)"
                 )
             }
         } else {
-            rustLog(.warn, "Failed to encode incoming notification content; sending original")
+            rustLog(
+                .warn,
+                "Failed to encode incoming notification content; sending original"
+            )
             completeNotification(request.content)
         }
     }
@@ -198,7 +212,8 @@ class NotificationService: UNNotificationServiceExtension {
     }
 
     func handleNotificationBatch(
-        _ batch: NotificationBatch, contentHandler: @escaping (UNNotificationContent) -> Void
+        _ batch: NotificationBatch,
+        contentHandler: @escaping (UNNotificationContent) -> Void
     ) {
         let center = UNUserNotificationCenter.current()
         let dispatchGroup = DispatchGroup()
@@ -299,7 +314,9 @@ class NotificationService: UNNotificationServiceExtension {
         if let content {
             if let badge = badge {
                 rustLog(.info, "Setting badge count to \(badge)")
-                if let mutableContent = content.mutableCopy() as? UNMutableNotificationContent {
+                if let mutableContent = content.mutableCopy()
+                    as? UNMutableNotificationContent
+                {
                     mutableContent.badge = NSNumber(value: badge)
                     outgoing = mutableContent
                 } else {
@@ -313,7 +330,10 @@ class NotificationService: UNNotificationServiceExtension {
         } else {
             let fallback = UNMutableNotificationContent()
             if let badge = badge {
-                rustLog(.info, "Setting badge count to \(badge) while suppressing notifications")
+                rustLog(
+                    .info,
+                    "Setting badge count to \(badge) while suppressing notifications"
+                )
                 fallback.badge = NSNumber(value: badge)
             }
             outgoing = fallback
@@ -326,7 +346,10 @@ class NotificationService: UNNotificationServiceExtension {
     // Allow to write to the given URL when the device is locked
     private func applyProtection(_ url: URL) {
         try? FileManager.default.setAttributes(
-            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+            [
+                .protectionKey: FileProtectionType
+                    .completeUntilFirstUserAuthentication
+            ],
             ofItemAtPath: url.path
         )
     }
@@ -344,20 +367,19 @@ class NotificationService: UNNotificationServiceExtension {
 
         // Prefer Library/Application Support for persistent, non-user‑visible data
         let dbsURL =
-        containerURL
+            containerURL
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Application Support", isDirectory: true)
             .appendingPathComponent("Databases", isDirectory: true)
 
-
         // It is the responsibility of the app to create this directory with the
         // necessary permissions.
-        if(FileManager.default.fileExists(atPath: dbsURL.path)) {
+        if FileManager.default.fileExists(atPath: dbsURL.path) {
             applyProtection(dbsURL)
             // Note: Protection is also applied to the temp directory, because
             // sqlite uses it to write statement journal files:
             // <https://sqlite.org/tempfiles.html>
-            applyProtection(URL(fileURLWithPath: NSTemporaryDirectory()))
+            //            applyProtection(URL(fileURLWithPath: NSTemporaryDirectory()))
             return dbsURL
         } else {
             return nil
@@ -373,7 +395,9 @@ class NotificationService: UNNotificationServiceExtension {
             return true
         } catch let e as NSError {
             // NSCocoaErrorDomain Code=257 or NSPOSIXErrorDomain (1/13) commonly appear
-            if e.domain == NSPOSIXErrorDomain, e.code == 1 || e.code == 13 { return false }
+            if e.domain == NSPOSIXErrorDomain, e.code == 1 || e.code == 13 {
+                return false
+            }
             if e.domain == NSCocoaErrorDomain, e.code == 257 { return false }  // no permission
             return true  // other errors (e.g., file not found) shouldn't block
         }
@@ -384,8 +408,11 @@ class NotificationService: UNNotificationServiceExtension {
         let center = UNUserNotificationCenter.current()
         center.getDeliveredNotifications { notes in
             let ids =
-            notes
-                .filter { $0.request.content.categoryIdentifier == kProtectedBlockedCategory }
+                notes
+                .filter {
+                    $0.request.content.categoryIdentifier
+                        == kProtectedBlockedCategory
+                }
                 .map { $0.request.identifier }
             if !ids.isEmpty {
                 center.removeDeliveredNotifications(withIdentifiers: ids)
