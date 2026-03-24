@@ -48,10 +48,11 @@ use aircommon::{
         },
     },
     mls_group_config::{
-        AIR_COMPONENT_ID, GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, default_air_component,
-        default_app_data_dictionary_extension, default_leaf_node_capabilities,
-        default_leaf_node_extensions, default_mls_group_join_config, default_required_capabilities,
-        default_required_group_capabilities, default_sender_ratchet_configuration,
+        AIR_COMPONENT_ID, GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS,
+        default_app_data_dictionary_extension, default_group_required_extensions,
+        default_leaf_node_capabilities, default_leaf_node_extensions,
+        default_mls_group_join_config, default_required_group_capabilities,
+        default_sender_ratchet_configuration,
     },
     time::TimeStamp,
     utils::removed_client,
@@ -197,7 +198,7 @@ impl Group {
         let group_state_ear_key = GroupStateEarKey::random()?;
 
         let required_capabilities =
-            Extension::RequiredCapabilities(default_required_capabilities());
+            Extension::RequiredCapabilities(default_group_required_extensions());
 
         let group_data_extension = Extension::Unknown(
             GROUP_DATA_EXTENSION_TYPE,
@@ -1003,7 +1004,7 @@ impl Group {
                 .and_then(|data| ComponentsList::tls_deserialize_exact_bytes(data).ok())
             {
                 if !app_components.component_ids.contains(&AIR_COMPONENT_ID) {
-                    // Add the Air component to the app components list
+                    // Advertise that we support the Air component in the app data dictionary.
                     app_components.component_ids.push(AIR_COMPONENT_ID);
                     updated_dict.get_or_insert_with(|| dict.clone()).insert(
                         ComponentType::AppComponents.into(),
@@ -1011,7 +1012,7 @@ impl Group {
                     );
                 }
             } else {
-                // Add app components list to the app data dictionary
+                // Add app components list to the app data dictionary.
                 updated_dict.get_or_insert_with(|| dict.clone()).insert(
                     ComponentType::AppComponents.into(),
                     ComponentsList {
@@ -1019,13 +1020,6 @@ impl Group {
                     }
                     .tls_serialize_detached()?,
                 );
-            }
-
-            if !dict.contains(&AIR_COMPONENT_ID) {
-                // Add the Air component to the app data dictionary
-                updated_dict
-                    .get_or_insert_with(|| dict.clone())
-                    .insert(AIR_COMPONENT_ID, default_air_component());
             }
 
             if let Some(dict) = updated_dict {
