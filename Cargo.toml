@@ -129,6 +129,8 @@ zeroize = "1.8.1"
 
 
 [patch.crates-io]
+# Use the several commits after the 0.8.1 release exposing methods as public APIs, in particular:
+# <https://github.com/openmls/openmls/commit/04c50d7fb12d52f4f9aee26de5f5234f3df29fa8>
 openmls = { git = "https://github.com/openmls/openmls", rev = "04c50d7fb12d52f4f9aee26de5f5234f3df29fa8" }
 openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "04c50d7fb12d52f4f9aee26de5f5234f3df29fa8" }
 openmls_traits = { git = "https://github.com/openmls/openmls", rev = "04c50d7fb12d52f4f9aee26de5f5234f3df29fa8" }

@@ -84,17 +84,15 @@ pub(crate) struct PendingChatOperation {
     number_of_attempts: u32,
 }
 
-type DomainError = ChatOperationError;
-
 impl Job for PendingChatOperation {
     type Output = Vec<ChatMessage>;
 
-    type DomainError = DomainError;
+    type DomainError = ChatOperationError;
 
     async fn execute_logic(
         mut self,
         context: &mut JobContext<'_>,
-    ) -> Result<Vec<ChatMessage>, JobError<DomainError>> {
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         match self.execute_internal(context).await {
             // Update retry_due at on network errors
             Err(JobError::NetworkError) => {
@@ -147,7 +145,7 @@ impl PendingChatOperation {
     pub async fn execute_internal(
         &mut self,
         context: &mut JobContext<'_>,
-    ) -> Result<Vec<ChatMessage>, JobError<DomainError>> {
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         if let PendingChatOperationStatus::WaitingForQueueResponse = self.status {
             info!(
                 group_id = ?self.group.group_id(),
@@ -346,7 +344,7 @@ impl PendingChatOperation {
         &mut self,
         pool: &mut SqlitePool,
         error: DsRequestError,
-    ) -> Result<JobError<DomainError>, JobError<DomainError>> {
+    ) -> Result<JobError<ChatOperationError>, JobError<ChatOperationError>> {
         debug!(?error, "DS request failed");
         const MAX_RETRIES: u32 = 5;
         if error.is_wrong_epoch() {
