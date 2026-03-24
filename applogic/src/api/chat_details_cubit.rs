@@ -10,13 +10,13 @@ use aircommon::{
     OpenMlsRand, RustCrypto,
     identifiers::{AttachmentId, UserId},
 };
+pub use aircoreclient::{
+    AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
+    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
+};
 use aircoreclient::{
     AttachmentProgress, Chat, ChatId, ChatMessage, MessageId, ProvisionAttachmentError,
     UploadTaskError, clients::CoreUser, store::Store,
-};
-pub use aircoreclient::{
-    DebugCapabilities, EncryptedGroupTitleDebugInfo, ExternalGroupProfileDebugInfo,
-    GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
 };
 use anyhow::{Context as _, bail};
 use chrono::{DateTime, Local, SubsecRound, Utc};
@@ -808,6 +808,11 @@ pub struct _RequiredDebugCapabilities {
     pub credential_types: Vec<String>,
 }
 
+#[frb(mirror(AppDataDebugInfo))]
+pub struct _AppDataDebugInfo {
+    pub air_components: Vec<String>,
+}
+
 #[frb(mirror(DebugCapabilities))]
 pub struct _DebugCapabilities {
     pub user_id: String,
@@ -816,4 +821,5 @@ pub struct _DebugCapabilities {
     pub ciphersuites: Vec<String>,
     pub extensions: Vec<String>,
     pub proposals: Vec<String>,
+    pub app_data: Option<AppDataDebugInfo>,
 }

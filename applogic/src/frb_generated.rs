@@ -7764,6 +7764,10 @@ fn wire__crate__api__username_suggestions__username_from_display_impl(
 #[allow(clippy::unnecessary_literal_unwrap)]
 const _: fn() = || {
     {
+        let AppDataDebugInfo = None::<crate::api::chat_details_cubit::AppDataDebugInfo>.unwrap();
+        let _: Vec<String> = AppDataDebugInfo.air_components;
+    }
+    {
         let AttachmentId = None::<crate::api::message_content::AttachmentId>.unwrap();
         let _: uuid::Uuid = AttachmentId.uuid;
     }
@@ -7779,6 +7783,8 @@ const _: fn() = || {
         let _: Vec<String> = DebugCapabilities.ciphersuites;
         let _: Vec<String> = DebugCapabilities.extensions;
         let _: Vec<String> = DebugCapabilities.proposals;
+        let _: Option<crate::api::chat_details_cubit::AppDataDebugInfo> =
+            DebugCapabilities.app_data;
     }
     {
         let EncryptedGroupTitleDebugInfo =
@@ -8637,6 +8643,16 @@ impl SseDecode for crate::api::types::AddHandleContactError {
     }
 }
 
+impl SseDecode for crate::api::chat_details_cubit::AppDataDebugInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_airComponents = <Vec<String>>::sse_decode(deserializer);
+        return crate::api::chat_details_cubit::AppDataDebugInfo {
+            air_components: var_airComponents,
+        };
+    }
+}
+
 impl SseDecode for crate::api::user_cubit::AppState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -8775,6 +8791,8 @@ impl SseDecode for crate::api::chat_details_cubit::DebugCapabilities {
         let mut var_ciphersuites = <Vec<String>>::sse_decode(deserializer);
         let mut var_extensions = <Vec<String>>::sse_decode(deserializer);
         let mut var_proposals = <Vec<String>>::sse_decode(deserializer);
+        let mut var_appData =
+            <Option<crate::api::chat_details_cubit::AppDataDebugInfo>>::sse_decode(deserializer);
         return crate::api::chat_details_cubit::DebugCapabilities {
             user_id: var_userId,
             display_name: var_displayName,
@@ -8782,6 +8800,7 @@ impl SseDecode for crate::api::chat_details_cubit::DebugCapabilities {
             ciphersuites: var_ciphersuites,
             extensions: var_extensions,
             proposals: var_proposals,
+            app_data: var_appData,
         };
     }
 }
@@ -9490,6 +9509,19 @@ impl SseDecode for Option<crate::api::types::AddHandleContactError> {
             return Some(<crate::api::types::AddHandleContactError>::sse_decode(
                 deserializer,
             ));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::chat_details_cubit::AppDataDebugInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(
+                <crate::api::chat_details_cubit::AppDataDebugInfo>::sse_decode(deserializer),
+            );
         } else {
             return None;
         }
@@ -11185,6 +11217,25 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::AddHandleCo
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<crate::api::chat_details_cubit::AppDataDebugInfo>
+{
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [self.0.air_components.into_into_dart().into_dart()].into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::chat_details_cubit::AppDataDebugInfo>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::chat_details_cubit::AppDataDebugInfo>>
+    for crate::api::chat_details_cubit::AppDataDebugInfo
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::chat_details_cubit::AppDataDebugInfo> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::user_cubit::AppState {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -11342,6 +11393,7 @@ impl flutter_rust_bridge::IntoDart
             self.0.ciphersuites.into_into_dart().into_dart(),
             self.0.extensions.into_into_dart().into_dart(),
             self.0.proposals.into_into_dart().into_dart(),
+            self.0.app_data.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -13273,6 +13325,13 @@ impl SseEncode for crate::api::types::AddHandleContactError {
     }
 }
 
+impl SseEncode for crate::api::chat_details_cubit::AppDataDebugInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<String>>::sse_encode(self.air_components, serializer);
+    }
+}
+
 impl SseEncode for crate::api::user_cubit::AppState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -13396,6 +13455,10 @@ impl SseEncode for crate::api::chat_details_cubit::DebugCapabilities {
         <Vec<String>>::sse_encode(self.ciphersuites, serializer);
         <Vec<String>>::sse_encode(self.extensions, serializer);
         <Vec<String>>::sse_encode(self.proposals, serializer);
+        <Option<crate::api::chat_details_cubit::AppDataDebugInfo>>::sse_encode(
+            self.app_data,
+            serializer,
+        );
     }
 }
 
@@ -13965,6 +14028,16 @@ impl SseEncode for Option<crate::api::types::AddHandleContactError> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::types::AddHandleContactError>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::chat_details_cubit::AppDataDebugInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::chat_details_cubit::AppDataDebugInfo>::sse_encode(value, serializer);
         }
     }
 }
