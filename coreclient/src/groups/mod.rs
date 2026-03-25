@@ -48,7 +48,7 @@ use aircommon::{
         },
     },
     mls_group_config::{
-        AIR_COMPONENT_ID, GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS,
+        AIR_COMPONENT_ID, GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, SUPPORTED_COMPONENTS,
         default_app_data_dictionary_extension, default_group_required_extensions,
         default_leaf_node_capabilities, default_leaf_node_extensions,
         default_mls_group_join_config, default_required_group_capabilities,
@@ -57,6 +57,7 @@ use aircommon::{
     time::TimeStamp,
     utils::removed_client,
 };
+use airprotos::client::component::AirComponent;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use mimi_content::MimiContent;
 use mimi_room_policy::{MimiProposal, RoleIndex, RoomPolicy, VerifiedRoomState};
@@ -1012,12 +1013,13 @@ impl Group {
             let dict = app_data_dictionary.dictionary();
             let mut updated_dict = None;
 
+            // Augment app components
             if let Some(mut app_components) = dict
                 .get(&ComponentType::AppComponents.into())
                 .and_then(|data| {
                     ComponentsList::tls_deserialize_exact_bytes(data)
                         .inspect_err(|error| {
-                            error!(%error, "Failed to deserialize app data dictionary; will replace");
+                            error!(%error, "Failed to deserialize app components; will replace");
                         })
                         .ok()
                 })
@@ -1035,11 +1037,36 @@ impl Group {
                 updated_dict.get_or_insert_with(|| dict.clone()).insert(
                     ComponentType::AppComponents.into(),
                     ComponentsList {
-                        component_ids: vec![AIR_COMPONENT_ID],
+                        component_ids: SUPPORTED_COMPONENTS.to_vec(),
                     }
                     .tls_serialize_detached()?,
                 );
             }
+
+            // Augment Air component
+            if let Some(mut air_component) = dict.get(&AIR_COMPONENT_ID).and_then(|data| {
+                AirComponent::from_bytes(data)
+                    .inspect_err(|error| {
+                        error!(%error, "Failed to deserialize air component; will replace");
+                    })
+                    .ok()
+            }) {
+                // Enabled encrypted group profiles
+                if !air_component.features.encrypted_group_profiles {
+                    air_component.features.encrypted_group_profiles = true;
+                    updated_dict
+                        .get_or_insert_with(|| dict.clone())
+                        .insert(AIR_COMPONENT_ID, air_component.to_bytes()?);
+                }
+            } else {
+                // Add air component to the app data dictionary.
+                updated_dict.get_or_insert_with(|| dict.clone()).insert(
+                    AIR_COMPONENT_ID,
+                    AirComponent::default_leaf_or_key_package_component()
+                        .to_bytes()
+                        .expect("invalid Air component"),
+                );
+            };
 
             if let Some(dict) = updated_dict {
                 // Replace the app data dictionary with the updated one

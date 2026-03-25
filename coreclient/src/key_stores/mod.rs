@@ -9,13 +9,13 @@ use aircommon::{
     identifiers::{ClientConfig, QsClientId, QsReference},
     mls_group_config::{
         QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_key_package_extensions,
-        default_leaf_node_capabilities,
+        default_leaf_node_capabilities, default_leaf_node_extensions,
     },
 };
 use anyhow::Result;
 use openmls::prelude::{
-    CredentialWithKey, Extension, Extensions, KeyPackage, KeyPackageRef, LastResortExtension,
-    OpenMlsProvider, SignaturePublicKey, UnknownExtension,
+    CredentialWithKey, Extension, KeyPackage, KeyPackageRef, LastResortExtension, OpenMlsProvider,
+    SignaturePublicKey, UnknownExtension,
 };
 use openmls_traits::storage::StorageProvider;
 use sqlx::{SqliteConnection, SqlitePool};
@@ -90,12 +90,16 @@ impl MemoryUserKeyStore {
                 self.signing_key.credential().verifying_key().clone(),
             ),
         };
+
+        let mut leaf_node_extensions = default_leaf_node_extensions();
+
         let client_reference = self.create_own_client_reference(qs_client_id);
         let client_ref_extension = Extension::Unknown(
             QS_CLIENT_REFERENCE_EXTENSION_TYPE,
             UnknownExtension(client_reference.tls_serialize_detached()?),
         );
-        let leaf_node_extensions = Extensions::single(client_ref_extension)?;
+        leaf_node_extensions.add(client_ref_extension)?;
+
         let key_package_extensions = if last_resort {
             let mut extensions = default_key_package_extensions();
             let last_resort_extension = Extension::LastResort(LastResortExtension::new());

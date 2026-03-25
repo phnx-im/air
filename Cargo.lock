@@ -191,6 +191,7 @@ name = "aircommon"
 version = "0.12.1"
 dependencies = [
  "aes-gcm",
+ "airmacros",
  "argon2",
  "cbor-diag",
  "chrono",

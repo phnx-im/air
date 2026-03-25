@@ -19,6 +19,8 @@ use mls_assist::{
 };
 use tls_codec::Serialize;
 
+use crate::component::AirComponent;
+
 /// Dictates for how many past epochs we want to keep around message secrets.
 pub const MAX_PAST_EPOCHS: usize = 5;
 
@@ -82,6 +84,7 @@ pub const SUPPORTED_EXTENSIONS: &[ExtensionType] = &[
 ];
 pub const SUPPORTED_PROPOSALS: &[ProposalType] = REQUIRED_PROPOSALS;
 pub const SUPPORTED_CREDENTIALS: &[CredentialType] = REQUIRED_CREDENTIALS;
+pub const SUPPORTED_COMPONENTS: &[ComponentId] = &[AIR_COMPONENT_ID];
 
 /// Capabilities that are required to be a member of a group.
 ///
@@ -143,10 +146,18 @@ pub fn default_app_data_dictionary_extension() -> Extension {
     app_data_dictionary.insert(
         ComponentType::AppComponents.into(),
         ComponentsList {
-            component_ids: vec![AIR_COMPONENT_ID],
+            component_ids: SUPPORTED_COMPONENTS.to_vec(),
         }
         .tls_serialize_detached()
         .expect("invalid component list"),
+    );
+
+    // Add Air component to the app data dictionary.
+    app_data_dictionary.insert(
+        AIR_COMPONENT_ID,
+        AirComponent::default_leaf_or_key_package_component()
+            .to_bytes()
+            .expect("invalid Air component"),
     );
 
     Extension::AppDataDictionary(AppDataDictionaryExtension::new(app_data_dictionary))
@@ -205,6 +216,23 @@ mod test {
     fn default_required_group_capabilities_stability() {
         let capabilities = default_required_group_capabilities();
         let bytes = PersistenceCodec::to_vec(&capabilities).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    /// Default extensions can be extended by must be backwards compatible.
+    #[test]
+    fn default_extensions_stability() {
+        let leaf_node_extensions = default_leaf_node_extensions();
+        let key_package_extensions = default_key_package_extensions();
+        for (a, b) in leaf_node_extensions
+            .iter()
+            .zip(key_package_extensions.iter())
+        {
+            assert_eq!(a, b);
+        }
+
+        let bytes = PersistenceCodec::to_vec(&leaf_node_extensions).unwrap();
         let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
         insta::assert_snapshot!(diag);
     }
