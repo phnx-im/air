@@ -113,6 +113,7 @@ dependencies = [
  "deunicode",
  "flate2",
  "flutter_rust_bridge",
+ "futures-util",
  "image",
  "jni",
  "libc",
