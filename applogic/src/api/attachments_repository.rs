@@ -227,64 +227,47 @@ async fn attachment_downloads_loop(
 ) {
     info!("Starting attachments download loop");
 
-    // Maximum number of concurrent downloads to make sure we don't run out of memory and don't
-    // create too much pressure on the network.
-    const MAX_CONCURRENT_DOWNLOADS: usize = 5;
-
     let mut store_notifications = store.subscribe();
     loop {
         if cancel.is_cancelled() {
             return;
         }
 
-        // clean up finished tasks
-        in_progress.retain(|_id, task| !task.is_cancelled());
-        let in_progress_len = in_progress.len();
-
         // download pending attachments
-        if in_progress_len < MAX_CONCURRENT_DOWNLOADS {
-            match store.pending_attachments().await {
-                Ok(pending_attachments) => {
-                    debug!(
-                        ?pending_attachments,
-                        "Spawn download for pending attachments"
-                    );
-                    for attachment_id in pending_attachments {
-                        spawn_download_task(&store, &in_progress, &cancel, attachment_id);
-                    }
-                }
-                Err(error) => {
-                    error!(%error, "Failed to load pending attachments");
+        match store.pending_attachments().await {
+            Ok(pending_attachments) => {
+                debug!(
+                    ?pending_attachments,
+                    "Spawn download for pending attachments"
+                );
+                for attachment_id in pending_attachments {
+                    spawn_download_task(&store, &in_progress, &cancel, attachment_id);
                 }
             }
-        } else {
-            info!(
-                in_progress_len,
-                "Skipping downloading pending attachments; too many concurrent downloads"
-            );
+            Err(error) => {
+                error!(%error, "Failed to load pending attachments");
+            }
         }
 
-        // wait for the next store notification about new or updated attachments
-        loop {
-            let notification = tokio::select! {
-                _ = cancel.cancelled() => return,
-                notification = store_notifications.next() => notification,
-            };
-            let Some(notification) = notification else {
-                return;
-            };
+        // wait for the next store notification
+        let notification = tokio::select! {
+            _ = cancel.cancelled() => return,
+            notification = store_notifications.next() => notification,
+        };
+        let Some(notification) = notification else {
+            return;
+        };
 
-            debug!(?notification, "Received store notification");
+        debug!(?notification, "Received store notification");
 
-            if notification.ops.iter().any(|(id, ops)| {
-                matches!(
-                    id,
-                    StoreEntityId::Attachment(attachment_id)
-                        if ops.contains(StoreOperation::Add)
-                            || ops.contains(StoreOperation::Update)
-                )
-            }) {
-                break; // fetch the next batch of pending attachments
+        // download newly added attachments
+        for (id, ops) in &notification.ops {
+            match id {
+                StoreEntityId::Attachment(attachment_id) if ops.contains(StoreOperation::Add) => {
+                    debug!(?attachment_id, "Spawn download for added attachment");
+                    spawn_download_task(&store, &in_progress, &cancel, *attachment_id);
+                }
+                _ => (),
             }
         }
     }
