@@ -217,7 +217,10 @@ mod persistence {
             let kind = T::kind();
             query_as!(
                 SqlOperation,
-                r#"WITH target_row AS (
+                r#"
+                UPDATE operation
+                SET locked_by = ?1
+                WHERE operation_id = (
                     SELECT operation_id
                     FROM operation
                     WHERE kind = ?3
@@ -226,12 +229,8 @@ mod persistence {
                     ORDER BY scheduled_at ASC, created_at ASC
                     LIMIT 1
                 )
-                UPDATE operation
-                SET locked_by = ?1
-                FROM target_row
-                WHERE operation.operation_id = target_row.operation_id
                 RETURNING
-                    operation_id AS "operation_id: _",
+                    operation_id,
                     data AS "data: _",
                     created_at AS "created_at: _",
                     scheduled_at AS "scheduled_at: _",
