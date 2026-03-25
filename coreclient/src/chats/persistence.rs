@@ -615,14 +615,13 @@ impl Chat {
         chat_id: ChatId,
     ) -> sqlx::Result<usize> {
         query_scalar!(
-            r#"SELECT
-                COUNT(*) AS "count: _"
-            FROM
-                message m
-            WHERE
-                m.chat_id = ?
-                AND m.sender_user_uuid IS NOT NULL
-                AND m.sender_user_domain IS NOT NULL"#,
+            r#"
+            SELECT COUNT(*) AS "count: _" FROM message
+            INDEXED BY idx_message_non_system
+            WHERE chat_id = ?
+                AND sender_user_uuid IS NOT NULL
+                AND sender_user_domain IS NOT NULL
+            "#,
             chat_id
         )
         .fetch_one(executor)
