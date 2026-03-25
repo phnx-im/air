@@ -13,7 +13,8 @@ use aircoreclient::{
 use anyhow::{Context, bail};
 use dashmap::{DashMap, Entry};
 use flutter_rust_bridge::{DartFnFuture, frb};
-use tokio_stream::StreamExt;
+use futures_util::StreamExt;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::{CancellationToken, DropGuard};
 use tracing::{debug, error, info};
 
@@ -42,7 +43,8 @@ impl AttachmentsRepository {
 
         let cancel = CancellationToken::new();
         let in_progress = InProgressMap::default();
-        spawn_attachment_downloads(store.clone(), in_progress.clone(), cancel.clone());
+
+        spawn_attachment_downloads(store.clone(), cancel.clone(), in_progress.clone());
 
         Self {
             store,
@@ -129,8 +131,9 @@ impl AttachmentsRepository {
                 debug!(?attachment_id, "Attachment is pending; spawn download task");
                 let handle = spawn_download_task(
                     &self.store,
-                    &self.in_progress,
                     &self.cancel,
+                    None,
+                    &self.in_progress,
                     attachment_id,
                 );
                 self.track_attachment_download(attachment_id, handle, chunk_event_callback)
@@ -213,70 +216,65 @@ impl AttachmentsRepository {
 
 fn spawn_attachment_downloads(
     store: CoreUser,
-    in_progress: InProgressMap,
-
     cancel: CancellationToken,
+    in_progress: InProgressMap,
 ) {
-    spawn_from_sync(attachment_downloads_loop(store, in_progress, cancel));
+    spawn_from_sync(
+        cancel
+            .clone()
+            .run_until_cancelled_owned(attachment_downloads_loop(store, cancel, in_progress)),
+    );
 }
 
 async fn attachment_downloads_loop(
     store: CoreUser,
-    in_progress: InProgressMap,
     cancel: CancellationToken,
+    in_progress: InProgressMap,
 ) {
-    info!("Starting attachments download loop");
+    const NUM_CONCURRENT_DOWNLOADS: usize = 5;
+    let download_tasks_semaphore = Arc::new(Semaphore::new(NUM_CONCURRENT_DOWNLOADS));
 
-    let mut store_notifications = store.subscribe();
-    loop {
-        if cancel.is_cancelled() {
+    // filter the store notifications stream to only care about attachments
+    let store_notifications = store.subscribe().flat_map(|notification| {
+        let attachment_ids =
+            notification
+                .ops
+                .clone()
+                .into_iter()
+                .filter_map(|(id, ops)| match id {
+                    StoreEntityId::Attachment(attachment_id)
+                        if ops.contains(StoreOperation::Add) =>
+                    {
+                        Some(attachment_id)
+                    }
+                    _ => None,
+                });
+        futures_util::stream::iter(attachment_ids)
+    });
+
+    // download pending attachments once
+    let pending_attachment_ids = store
+        .pending_attachments()
+        .await
+        .inspect_err(|error| error!(%error, "failed to load pending attachments"))
+        .unwrap_or_default();
+
+    let mut attachment_ids = tokio_stream::iter(pending_attachment_ids).chain(store_notifications);
+
+    info!("starting attachments download task");
+    while let Some(attachment_id) = attachment_ids.next().await {
+        let Ok(permit) = download_tasks_semaphore.clone().acquire_owned().await else {
             return;
-        }
-
-        // download pending attachments
-        match store.pending_attachments().await {
-            Ok(pending_attachments) => {
-                debug!(
-                    ?pending_attachments,
-                    "Spawn download for pending attachments"
-                );
-                for attachment_id in pending_attachments {
-                    spawn_download_task(&store, &in_progress, &cancel, attachment_id);
-                }
-            }
-            Err(error) => {
-                error!(%error, "Failed to load pending attachments");
-            }
-        }
-
-        // wait for the next store notification
-        let notification = tokio::select! {
-            _ = cancel.cancelled() => return,
-            notification = store_notifications.next() => notification,
         };
-        let Some(notification) = notification else {
-            return;
-        };
-
-        debug!(?notification, "Received store notification");
-
-        // download newly added attachments
-        for (id, ops) in &notification.ops {
-            match id {
-                StoreEntityId::Attachment(attachment_id) if ops.contains(StoreOperation::Add) => {
-                    debug!(?attachment_id, "Spawn download for added attachment");
-                    spawn_download_task(&store, &in_progress, &cancel, *attachment_id);
-                }
-                _ => (),
-            }
-        }
+        spawn_download_task(&store, &cancel, Some(permit), &in_progress, attachment_id);
     }
 }
 
 fn spawn_download_task(
     store: &CoreUser,
-    in_progress: &InProgressMap,
     cancel: &CancellationToken,
+    permit: Option<OwnedSemaphorePermit>,
+    in_progress: &InProgressMap,
     attachment_id: AttachmentId,
 ) -> AttachmentTaskHandle {
     let (task, cancel, handle) = match in_progress.entry(attachment_id) {
@@ -303,6 +301,7 @@ fn spawn_download_task(
         if let Err(error) = task.await {
             error!(%error, "Failed to download attachment");
         }
+        drop(permit);
     }));
 
     handle
