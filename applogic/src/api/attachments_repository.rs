@@ -14,7 +14,10 @@ use anyhow::{Context, bail};
 use dashmap::{DashMap, Entry};
 use flutter_rust_bridge::{DartFnFuture, frb};
 use futures_util::StreamExt;
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tokio::{
+    sync::{OwnedSemaphorePermit, Semaphore},
+    task::JoinSet,
+};
 use tokio_util::sync::{CancellationToken, DropGuard};
 use tracing::{debug, error, info};
 
@@ -248,35 +251,8 @@ async fn attachment_downloads_loop(
     download_tasks_semaphore: Arc<Semaphore>,
     in_progress: InProgressMap,
 ) {
-    // download pending attachments once
-    match store.pending_attachments().await {
-        Ok(pending_attachments) => {
-            debug!(
-                ?pending_attachments,
-                "Spawn download for pending attachments"
-            );
-            for attachment_id in pending_attachments {
-                let Ok(semaphore_permit) = download_tasks_semaphore.clone().acquire_owned().await
-                else {
-                    error!("failed to acquire attachment download task semaphore permit");
-                    return;
-                };
-                spawn_download_task(
-                    &store,
-                    &cancel,
-                    semaphore_permit,
-                    &in_progress,
-                    attachment_id,
-                );
-            }
-        }
-        Err(error) => {
-            error!(%error, "Failed to load pending attachments");
-        }
-    }
-
     // filter the store notifications stream to only care about attachments
-    let mut store_notifications = store.subscribe().flat_map(|notification| {
+    let store_notifications = store.subscribe().flat_map(|notification| {
         let attachment_ids =
             notification
                 .ops
@@ -293,31 +269,29 @@ async fn attachment_downloads_loop(
         futures_util::stream::iter(attachment_ids)
     });
 
-    let attachments_download_task = async {
-        info!("starting attachments download task");
-        loop {
-            // wait for the next relevant notification
-            let Some(attachment_id) = store_notifications.next().await else {
-                return;
-            };
-            let Ok(semaphore_permit) = download_tasks_semaphore.clone().acquire_owned().await
-            else {
-                return;
-            };
-            spawn_download_task(
-                &store,
-                &cancel,
-                semaphore_permit,
-                &in_progress,
-                attachment_id,
-            );
-        }
-    };
+    // download pending attachments once
+    let pending_attachment_ids = store.pending_attachments().await.unwrap();
 
-    tokio::select! {
-        _ = cancel.cancelled() => return,
-        _ = attachments_download_task => return,
-    };
+    let mut attachment_ids = tokio_stream::iter(pending_attachment_ids).chain(store_notifications);
+
+    cancel
+        .run_until_cancelled(async {
+            info!("starting attachments download task");
+            while let Some(attachment_id) = attachment_ids.next().await {
+                let Ok(semaphore_permit) = download_tasks_semaphore.clone().acquire_owned().await
+                else {
+                    return;
+                };
+                spawn_download_task(
+                    &store,
+                    &cancel,
+                    semaphore_permit,
+                    &in_progress,
+                    attachment_id,
+                );
+            }
+        })
+        .await;
 }
 
 fn spawn_download_task(
