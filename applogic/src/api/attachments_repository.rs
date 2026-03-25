@@ -14,10 +14,7 @@ use anyhow::{Context, bail};
 use dashmap::{DashMap, Entry};
 use flutter_rust_bridge::{DartFnFuture, frb};
 use futures_util::StreamExt;
-use tokio::{
-    sync::{OwnedSemaphorePermit, Semaphore},
-    task::JoinSet,
-};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::{CancellationToken, DropGuard};
 use tracing::{debug, error, info};
 
@@ -34,8 +31,6 @@ pub(crate) type InProgressMap = Arc<DashMap<AttachmentId, AttachmentTaskHandle>>
 pub struct AttachmentsRepository {
     store: CoreUser,
     cancel: CancellationToken,
-    /// Limit the amount of concurrent tasks
-    download_tasks_semaphore: Arc<Semaphore>,
     /// Upload or download tasks that are currently in progress
     in_progress: InProgressMap,
     _cancel: DropGuard,
@@ -47,19 +42,12 @@ impl AttachmentsRepository {
         let store = user_cubit.core_user().clone();
 
         let cancel = CancellationToken::new();
-        let download_tasks_semaphore = Arc::new(Semaphore::new(5));
         let in_progress = InProgressMap::default();
 
-        spawn_attachment_downloads(
-            store.clone(),
-            cancel.clone(),
-            download_tasks_semaphore.clone(),
-            in_progress.clone(),
-        );
+        spawn_attachment_downloads(store.clone(), cancel.clone(), in_progress.clone());
 
         Self {
             store,
-            download_tasks_semaphore,
             in_progress,
             cancel: cancel.clone(),
             _cancel: cancel.drop_guard(),
@@ -141,15 +129,10 @@ impl AttachmentsRepository {
             AttachmentContent::UploadFailed(bytes) => Ok(bytes),
             AttachmentContent::Pending => {
                 debug!(?attachment_id, "Attachment is pending; spawn download task");
-                let semaphore_permit = self
-                    .download_tasks_semaphore
-                    .clone()
-                    .acquire_owned()
-                    .await?;
                 let handle = spawn_download_task(
                     &self.store,
                     &self.cancel,
-                    semaphore_permit,
+                    None,
                     &self.in_progress,
                     attachment_id,
                 );
@@ -234,23 +217,23 @@ impl AttachmentsRepository {
 fn spawn_attachment_downloads(
     store: CoreUser,
     cancel: CancellationToken,
-    download_tasks_semaphore: Arc<Semaphore>,
     in_progress: InProgressMap,
 ) {
-    spawn_from_sync(attachment_downloads_loop(
-        store,
-        cancel,
-        download_tasks_semaphore,
-        in_progress,
-    ));
+    spawn_from_sync(
+        cancel
+            .clone()
+            .run_until_cancelled_owned(attachment_downloads_loop(store, cancel, in_progress)),
+    );
 }
 
 async fn attachment_downloads_loop(
     store: CoreUser,
     cancel: CancellationToken,
-    download_tasks_semaphore: Arc<Semaphore>,
     in_progress: InProgressMap,
 ) {
+    const NUM_CONCURRENT_DOWNLOADS: usize = 5;
+    let download_tasks_semaphore = Arc::new(Semaphore::new(NUM_CONCURRENT_DOWNLOADS));
+
     // filter the store notifications stream to only care about attachments
     let store_notifications = store.subscribe().flat_map(|notification| {
         let attachment_ids =
@@ -270,34 +253,27 @@ async fn attachment_downloads_loop(
     });
 
     // download pending attachments once
-    let pending_attachment_ids = store.pending_attachments().await.unwrap();
+    let pending_attachment_ids = store
+        .pending_attachments()
+        .await
+        .inspect_err(|error| error!(%error, "failed to load pending attachments"))
+        .unwrap_or_default();
 
     let mut attachment_ids = tokio_stream::iter(pending_attachment_ids).chain(store_notifications);
 
-    cancel
-        .run_until_cancelled(async {
-            info!("starting attachments download task");
-            while let Some(attachment_id) = attachment_ids.next().await {
-                let Ok(semaphore_permit) = download_tasks_semaphore.clone().acquire_owned().await
-                else {
-                    return;
-                };
-                spawn_download_task(
-                    &store,
-                    &cancel,
-                    semaphore_permit,
-                    &in_progress,
-                    attachment_id,
-                );
-            }
-        })
-        .await;
+    info!("starting attachments download task");
+    while let Some(attachment_id) = attachment_ids.next().await {
+        let Ok(permit) = download_tasks_semaphore.clone().acquire_owned().await else {
+            return;
+        };
+        spawn_download_task(&store, &cancel, Some(permit), &in_progress, attachment_id);
+    }
 }
 
 fn spawn_download_task(
     store: &CoreUser,
     cancel: &CancellationToken,
-    semaphore_permit: OwnedSemaphorePermit,
+    permit: Option<OwnedSemaphorePermit>,
     in_progress: &InProgressMap,
     attachment_id: AttachmentId,
 ) -> AttachmentTaskHandle {
@@ -325,7 +301,7 @@ fn spawn_download_task(
         if let Err(error) = task.await {
             error!(%error, "Failed to download attachment");
         }
-        drop(semaphore_permit);
+        drop(permit);
     }));
 
     handle
