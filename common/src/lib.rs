@@ -19,6 +19,7 @@ use tls_codec::{
 
 pub mod assert_matches;
 pub mod codec;
+pub mod component;
 pub mod credentials;
 pub mod crypto;
 pub mod endpoint_paths;

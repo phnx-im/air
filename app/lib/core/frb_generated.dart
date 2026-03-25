@@ -7712,6 +7712,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AppDataDebugInfo dco_decode_app_data_debug_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 1)
+      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
+    return AppDataDebugInfo(airComponents: dco_decode_list_String(arr[0]));
+  }
+
+  @protected
   AppState dco_decode_app_state(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return AppState.values[raw as int];
@@ -7820,6 +7829,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_add_handle_contact_error(raw);
+  }
+
+  @protected
+  AppDataDebugInfo dco_decode_box_autoadd_app_data_debug_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_app_data_debug_info(raw);
   }
 
   @protected
@@ -8080,8 +8095,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   DebugCapabilities dco_decode_debug_capabilities(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return DebugCapabilities(
       userId: dco_decode_String(arr[0]),
       displayName: dco_decode_String(arr[1]),
@@ -8089,6 +8104,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ciphersuites: dco_decode_list_String(arr[3]),
       extensions: dco_decode_list_String(arr[4]),
       proposals: dco_decode_list_String(arr[5]),
+      appData: dco_decode_opt_box_autoadd_app_data_debug_info(arr[6]),
     );
   }
 
@@ -8614,6 +8630,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return raw == null
         ? null
         : dco_decode_box_autoadd_add_handle_contact_error(raw);
+  }
+
+  @protected
+  AppDataDebugInfo? dco_decode_opt_box_autoadd_app_data_debug_info(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_app_data_debug_info(raw);
   }
 
   @protected
@@ -10338,6 +10362,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AppDataDebugInfo sse_decode_app_data_debug_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_airComponents = sse_decode_list_String(deserializer);
+    return AppDataDebugInfo(airComponents: var_airComponents);
+  }
+
+  @protected
   AppState sse_decode_app_state(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_i_32(deserializer);
@@ -10449,6 +10482,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_add_handle_contact_error(deserializer));
+  }
+
+  @protected
+  AppDataDebugInfo sse_decode_box_autoadd_app_data_debug_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_app_data_debug_info(deserializer));
   }
 
   @protected
@@ -10754,6 +10795,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_ciphersuites = sse_decode_list_String(deserializer);
     var var_extensions = sse_decode_list_String(deserializer);
     var var_proposals = sse_decode_list_String(deserializer);
+    var var_appData = sse_decode_opt_box_autoadd_app_data_debug_info(
+      deserializer,
+    );
     return DebugCapabilities(
       userId: var_userId,
       displayName: var_displayName,
@@ -10761,6 +10805,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ciphersuites: var_ciphersuites,
       extensions: var_extensions,
       proposals: var_proposals,
+      appData: var_appData,
     );
   }
 
@@ -11451,6 +11496,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_add_handle_contact_error(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  AppDataDebugInfo? sse_decode_opt_box_autoadd_app_data_debug_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_app_data_debug_info(deserializer));
     } else {
       return null;
     }
@@ -13609,6 +13667,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_app_data_debug_info(
+    AppDataDebugInfo self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_String(self.airComponents, serializer);
+  }
+
+  @protected
   void sse_encode_app_state(AppState self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
@@ -13716,6 +13783,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_add_handle_contact_error(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_app_data_debug_info(
+    AppDataDebugInfo self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_app_data_debug_info(self, serializer);
   }
 
   @protected
@@ -14061,6 +14137,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_list_String(self.ciphersuites, serializer);
     sse_encode_list_String(self.extensions, serializer);
     sse_encode_list_String(self.proposals, serializer);
+    sse_encode_opt_box_autoadd_app_data_debug_info(self.appData, serializer);
   }
 
   @protected
@@ -14680,6 +14757,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_add_handle_contact_error(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_app_data_debug_info(
+    AppDataDebugInfo? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_app_data_debug_info(self, serializer);
     }
   }
 

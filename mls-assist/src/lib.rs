@@ -11,6 +11,7 @@ pub use openmls_traits;
 
 pub use memory_provider::MlsAssistRustCrypto;
 
+pub mod components;
 pub mod group;
 pub mod memory_provider;
 pub mod messages;
