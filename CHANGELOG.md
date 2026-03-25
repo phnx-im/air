@@ -1,3 +1,70 @@
+## [0.13.0] - 2026-03-25
+
+### 🚀 Features
+
+- *(server)* Extend the attachment API into a general storage API (#1066)
+- *(app)* Add group data protocol model (#1067)
+- *(app)* Implement inline replies (#1065)
+- *(app)* Show system notification when client version is unsupported (#1075)
+- *(app)* Upload and fetch encrypted group profiles (#1068)
+- *(ci)* Add workflow to check PR title format (#1084)
+- *(ci)* Add a workflow for linting (start with typos) (#1092)
+- *(app)* Swipe-to-reply refinements (#1081)
+- *(ci)* Build RPM and DEB packages (#1099)
+- *(app)* Add a button to request chat resync (#1104)
+- *(app)* More swipe-to-reply tweaks (#1106)
+- *(app)* Skip lifetime validation for external joins (#1109)
+- *(app)* Surface incompatible client errors (#1088)
+
+### 🐛 Bug Fixes
+
+- *(app)* Sometimes decreasing notification counts (#1063)
+- *(app)* Default capabilities not updated in self-update (#1069)
+- *(CI)* Cargo deny check is not working (#1060)
+- *(app)* Resolve performance regression introduced with replies support (#1078)
+- *(app)* Local db location on Linux (#1077)
+- *(app)* Fix crash on Android on expedited work to foreground (#1085)
+- *(test)* Always use in-source Roboto for Linux goldens (#1083)
+- *(app)* Inline replies design fixes (#1079)
+- *(server)* Storage bucket setting was not applied (#1094)
+- *(app)* Adjust behaviour when replying and editing a message (#1093)
+- *(app)* Fix race condition in merge commit handler (#1095)
+- *(app, server)* Cannot create group because content-length is required (#1096)
+- *(app)* Redact replied to messages on local delete operation (#1086)
+- *(ci)* Use sccache on Linux in CI (#1089)
+- *(app)* Skip opening keyboard on mobile if draft is not empty (#1101)
+- Set hover mouse cursor to text mode (#1100)
+- *(app)* Make QS message processing cancel-safe (#1097)
+- *(app)* Revert make QS message processing cancel-safe (#1097) (#1102)
+- *(app)* Race between app state & navigation (#1111)
+- *(app)* Fix protection of temporary directory on iOS (#1110)
+- *(app)* Cursor for links (#1113)
+
+### 💼 Other
+
+- *(app)* Disallow path traversal for attachment paths (#1072)
+
+### 🚜 Refactor
+
+- *(app)* Use context-independent error banner and snack bar (#1091)
+
+### ⚡ Performance
+
+- *(app)* Don't lock database when loading messages (#1082)
+- *(app)* Avoid write locks for read-only db queries (#1090)
+
+### 🧪 Testing
+
+- Use CBOR hex diagnostic representation in insta snapshots (#1071)
+
+### ⚙️ Miscellaneous Tasks
+
+- Update Rust to 1.94 (#1074)
+- *(app)* Update to Flutter 3.41.4  incl. dependencies (#1055)
+- Update openmls to 0.8.1 (#1087)
+- Update dependencies (#1105)
+- *(app)* Log group id in process message (#1107)
+
 ## [0.12.1] - 2026-03-06
 
 ### 🐛 Bug Fixes
