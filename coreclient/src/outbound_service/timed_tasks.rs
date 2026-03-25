@@ -116,7 +116,11 @@ impl OutboundServiceContext {
 
             let now = Utc::now();
 
-            let Some(mut op) = Operation::<TimedTask>::dequeue(&self.pool, task_id, now).await?
+            let Some(mut op) = self
+                .with_transaction(async |txn| {
+                    Operation::<TimedTask>::dequeue(txn, task_id, now).await
+                })
+                .await?
             else {
                 return Ok(());
             };

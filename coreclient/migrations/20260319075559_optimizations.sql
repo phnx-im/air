@@ -2,18 +2,18 @@
 --
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 --
--- Missing indices
-CREATE INDEX IF NOT EXISTS idx_attachment_pending_ordered ON attachment (created_at)
-WHERE
-    status = 1;
-
+-- Missing or redundant indices
 CREATE INDEX IF NOT EXISTS idx_operation_worker_queue ON operation (kind, scheduled_at, created_at, locked_by);
 
 CREATE INDEX IF NOT EXISTS idx_receipt_queue_locked_by ON receipt_queue (locked_by)
 WHERE
     locked_by IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_message_content_only ON message (chat_id)
+DROP INDEX IF EXISTS idx_message_chat_id;
+
+DROP INDEX IF EXISTS idx_message_timetstamp;
+
+CREATE INDEX IF NOT EXISTS idx_message_non_system ON message (chat_id, timestamp DESC)
 WHERE
     sender_user_uuid IS NOT NULL
     AND sender_user_domain IS NOT NULL;
