@@ -1,6 +1,5 @@
 ---
 source: common/src/mls_group_config.rs
-assertion_line: 237
 expression: diag
 ---
 a1                                               # map(1)
