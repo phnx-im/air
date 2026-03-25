@@ -112,8 +112,9 @@ impl OutboundServiceContext {
                 return Ok(()); // the task is being stopped
             }
 
-            let Some((chat_id, message_id)) =
-                ChatMessageQueue::dequeue(&self.pool, task_id).await?
+            let Some((chat_id, message_id)) = self.pool.with_transaction(async |txn| {
+                ChatMessageQueue::dequeue(txn, task_id).await
+            }).await?
             else {
                 return Ok(());
             };

@@ -14,6 +14,7 @@ use openmls::{
     prelude::{LeafNodeIndex, MlsMessageOut},
 };
 use sqlx::{Connection, SqliteConnection, SqliteTransaction};
+use crate::utils::connection_ext::ConnectionExt as _;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -69,7 +70,9 @@ impl OutboundServiceContext {
                 return Ok(()); // the task is being stopped
             }
 
-            let Some(resync) = Resync::dequeue(&self.pool, task_id).await? else {
+            let Some(resync) = self.pool.with_transaction(async |txn| {
+                Resync::dequeue(txn, task_id).await
+            }).await? else {
                 return Ok(());
             };
             info!(?resync.chat_id, "Performing chat resync");
@@ -228,7 +231,7 @@ impl Resync {
 
 mod persistence {
 
-    use sqlx::{SqliteExecutor, query, query_as};
+    use sqlx::{SqliteExecutor, SqliteTransaction, query, query_as, query_scalar};
     use tracing::debug;
     use uuid::Uuid;
 
@@ -265,7 +268,7 @@ mod persistence {
         /// Dequeue a resync operation for processing that has not been locked
         /// by this task.
         pub(crate) async fn dequeue(
-            connection: impl SqliteExecutor<'_>,
+            txn: &mut SqliteTransaction<'_>,
             task_id: Uuid,
         ) -> anyhow::Result<Option<Resync>> {
             struct ResyncRecord {
@@ -276,16 +279,26 @@ mod persistence {
                 original_leaf_index: i32,
             }
 
+            let Some(group_id) = query_scalar!(
+                r#"
+                SELECT group_id
+                FROM resync_queue
+                WHERE locked_by IS NULL OR locked_by != ?1
+                LIMIT 1
+                "#,
+                task_id,
+            )
+            .fetch_optional(txn.as_mut())
+            .await?
+            else {
+                return Ok(None);
+            };
+
             let resync = query_as!(
                 ResyncRecord,
                 r#"UPDATE resync_queue
-                    SET locked_by = ?1
-                    WHERE group_id = (
-                      SELECT group_id
-                      FROM resync_queue
-                      WHERE locked_by IS NULL OR locked_by != ?1
-                      LIMIT 1
-                    )
+                    SET locked_by = ?2
+                    WHERE group_id = ?1
                 RETURNING
                     chat_id AS "chat_id: _",
                     group_id AS "group_id: _",
@@ -293,9 +306,10 @@ mod persistence {
                     identity_link_wrapper_key AS "identity_link_wrapper_key: _",
                     original_leaf_index AS "original_leaf_index: _"
                 "#,
+                group_id,
                 task_id,
             )
-            .fetch_optional(connection)
+            .fetch_optional(txn.as_mut())
             .await?
             .map(|record| Resync {
                 chat_id: record.chat_id,

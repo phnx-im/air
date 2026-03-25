@@ -15,7 +15,7 @@ use chrono::{DateTime, Duration, Utc};
 use mimi_room_policy::RoleIndex;
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
-use sqlx::{SqliteConnection, SqlitePool, SqliteTransaction, query, query_as};
+use sqlx::{SqliteConnection, SqlitePool, SqliteTransaction, query, query_as, query_scalar};
 use tracing::{debug, error, info};
 
 use crate::{
@@ -828,18 +828,30 @@ mod persistence {
             task_id: Uuid,
             now: DateTime<Utc>,
         ) -> anyhow::Result<Option<Self>> {
-            let sql_pending_operation = query_as!(
+            let Some(group_id) = query_scalar!(
+                r#"
+                SELECT group_id
+                FROM pending_chat_operation
+                WHERE (locked_by IS NULL OR locked_by != ?1)
+                    AND request_status = ?2
+                    AND retry_due_at <= ?3
+                LIMIT 1
+                "#,
+                task_id,
+                PendingChatOperationStatus::ReadyToRetry as _,
+                now
+            )
+            .fetch_optional(txn.as_mut())
+            .await?
+            else {
+                return Ok(None);
+            };
+
+            let Some(sql_pending_operation) = query_as!(
                 SqlPendingChatOperation,
                 r#"UPDATE pending_chat_operation
-                    SET locked_by = ?1
-                    WHERE group_id = (
-                      SELECT group_id
-                      FROM pending_chat_operation
-                      WHERE (locked_by IS NULL OR locked_by != ?1)
-                      AND request_status = ?2
-                      AND retry_due_at <= ?3
-                      LIMIT 1
-                    )
+                    SET locked_by = ?2
+                    WHERE group_id = ?1
                 RETURNING
                     group_id,
                     operation_data AS "operation_data: _",
@@ -847,14 +859,12 @@ mod persistence {
                     request_status AS "request_status: _",
                     number_of_attempts
                 "#,
+                group_id,
                 task_id,
-                PendingChatOperationStatus::ReadyToRetry as _,
-                now
             )
             .fetch_optional(txn.as_mut())
-            .await?;
-
-            let Some(sql_pending_operation) = sql_pending_operation else {
+            .await?
+            else {
                 return Ok(None);
             };
 
