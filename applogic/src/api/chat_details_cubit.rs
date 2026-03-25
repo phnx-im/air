@@ -11,7 +11,7 @@ use aircommon::{
     identifiers::{AttachmentId, UserId},
 };
 pub use aircoreclient::{
-    AcceptContactRequestError, DebugCapabilities, EncryptedGroupTitleDebugInfo,
+    AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
     ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
 };
 use aircoreclient::{
@@ -819,6 +819,11 @@ pub struct _RequiredDebugCapabilities {
     pub credential_types: Vec<String>,
 }
 
+#[frb(mirror(AppDataDebugInfo))]
+pub struct _AppDataDebugInfo {
+    pub air_components: Vec<String>,
+}
+
 #[frb(mirror(DebugCapabilities))]
 pub struct _DebugCapabilities {
     pub user_id: String,
@@ -827,4 +832,5 @@ pub struct _DebugCapabilities {
     pub ciphersuites: Vec<String>,
     pub extensions: Vec<String>,
     pub proposals: Vec<String>,
+    pub app_data: Option<AppDataDebugInfo>,
 }
