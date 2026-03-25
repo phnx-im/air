@@ -965,7 +965,7 @@ impl CoreUser {
 
             // Decrypt and process the message (and Box the large future)
             let mut notifier = self.notifier();
-            let cont = Box::pin(self.decrypt_and_process_qs_message(
+            let res = Box::pin(self.decrypt_and_process_qs_message(
                 &mut txn,
                 &mut notifier,
                 qs_message,
@@ -974,26 +974,47 @@ impl CoreUser {
             ))
             .await;
 
-            // Commit the ratchet update independently of the processing result
-            txn.commit()
-                .await
-                .inspect_err(|error| {
-                    error!(%error, "Failed to commit the ratchet transaction");
-                })
-                .ok();
+            // Classify the result
+            let (success, commit_ratchet) = match res {
+                Ok(_) => (true, true),
+                Err(error) => match error.downcast::<sqlx::Error>() {
+                    Ok(sqlx::Error::Database(db_error)) => {
+                        // Stop processing without committing the ratchet update => the message
+                        // will be retried
+                        error!(
+                            %db_error,
+                            "Failed to process QS message due to database error; \
+                            stopping processing");
+                        (false, false)
+                    }
+                    Ok(error) => {
+                        error!(%error, "Failed to process QS message");
+                        (false, true)
+                    }
+                    Err(error) => {
+                        error!(%error, "Failed to process QS message");
+                        (false, true)
+                    }
+                },
+            };
 
-            // Continue or break
-            match cont {
-                Ok(()) => {
-                    // Only notify about store changes if the message was
-                    // successfully processed.
-                    notifier.notify();
-                }
-                Err(error) => {
-                    error!(%error, "Failed to process QS message");
-                    result.processed = idx;
-                    return result;
-                }
+            // Commit the ratchet update
+            if commit_ratchet {
+                txn.commit()
+                    .await
+                    .inspect_err(|error| {
+                        error!(%error, "Failed to commit the ratchet transaction");
+                    })
+                    .ok();
+            }
+
+            if success {
+                // Only notify about store changes if the message was successfully processed and
+                // *after* the transaction was committed.
+                notifier.notify();
+            } else {
+                result.processed = idx;
+                return result; // stop the loop
             }
         }
 
