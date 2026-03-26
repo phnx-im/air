@@ -14,7 +14,7 @@ import 'package:uuid/uuid.dart';
 import 'types.dart';
 import 'user_cubit.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_messages`, `compute_flight_positions`, `handle_jump_to_bottom`, `handle_jump_to_message`, `handle_load_newer`, `handle_load_older`, `initial_load`, `load_bottom`, `load_is_connection_chat`, `new`, `notify_message_neighbors`, `process_store_notification`, `reload_current_window`, `run_loop`, `spawn`, `try_process_store_notification`, `update_message_in_place`
+// These functions are ignored because they are not marked as `pub`: `apply_messages`, `clear_first_unread_index`, `compute_flight_positions`, `handle_jump_to_bottom`, `handle_jump_to_message`, `handle_load_newer`, `handle_load_older`, `initial_load`, `load_bottom`, `load_is_connection_chat`, `new`, `notify_message_neighbors`, `process_store_notification`, `recompute_flight_positions_range`, `reload_current_window`, `run_loop`, `spawn`, `try_process_store_notification`, `update_message_in_place`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Command`, `LoadDirection`, `MessageListContext`, `MessageListStateInner`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`
