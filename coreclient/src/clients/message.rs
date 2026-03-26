@@ -81,7 +81,6 @@ impl CoreUser {
             // Find the IDs of all messages that are replies to the message we're deleting
             // and mark them as updated, to notify the UI.
             if let Some(replaces_mimi_id) = message.message().mimi_id() {
-                dbg!("SHITE", &replaces_mimi_id);
                 let message_ids_replied_to = ChatMessage::load_message_ids_in_reply_to_mimi_id(
                     txn.as_mut(),
                     replaces_mimi_id,
