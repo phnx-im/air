@@ -1013,7 +1013,7 @@ void main() {
       });
 
       // Index 2 = third oldest message, near maxScrollExtent in reversed list.
-      final targetIndex = 2;
+      const targetIndex = 2;
       final stateWithScroll = MockMessageListState(
         manyMessages,
         scrollToIndex: targetIndex,
