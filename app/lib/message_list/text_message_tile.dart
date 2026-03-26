@@ -875,6 +875,29 @@ class _MessageContent extends StatelessWidget {
       }
     }
 
+    Widget messageBubble = Column(
+      crossAxisAlignment: inReplyTo != null ? .stretch : .start,
+      children: [
+        if (inReplyTo != null)
+          Padding(
+            padding: const EdgeInsets.only(
+              left: Spacings.xs,
+              right: Spacings.xs,
+              top: Spacings.xs,
+            ),
+            child: InReplyToBubble(
+              inReplyTo: inReplyTo,
+              backgroundColor: colors.fill.secondary,
+            ),
+          ),
+        ...columnChildren,
+      ],
+    );
+
+    if (inReplyTo != null) {
+      messageBubble = IntrinsicWidth(child: messageBubble);
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 1.5),
       child: DecoratedBox(
@@ -890,26 +913,7 @@ class _MessageContent extends StatelessWidget {
           child: Column(
             crossAxisAlignment: .end,
             children: [
-              IntrinsicWidth(
-                child: Column(
-                  crossAxisAlignment: .stretch,
-                  children: [
-                    if (inReplyTo != null)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          left: Spacings.xs,
-                          right: Spacings.xs,
-                          top: Spacings.xs,
-                        ),
-                        child: InReplyToBubble(
-                          inReplyTo: inReplyTo,
-                          backgroundColor: colors.fill.secondary,
-                        ),
-                      ),
-                    ...columnChildren,
-                  ],
-                ),
-              ),
+              messageBubble,
               if (isEdited)
                 Padding(
                   padding: const EdgeInsets.only(
