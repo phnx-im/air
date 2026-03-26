@@ -2,7 +2,4 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Protocol types used in client to client communication.
-
-pub mod component;
-pub mod group;
+pub use aircommon::component::{AirComponent, AirFeatures};

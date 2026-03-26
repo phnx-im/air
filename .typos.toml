@@ -35,6 +35,9 @@ extend-exclude = [
     # Cannot fix migrations
     "coreclient/migrations/20251022122812_draft_message_is_commited.sql",
     "coreclient/migrations/20250910110330_init.sql",
+
+    # Exclude vendored code
+    "vendor/",
 ]
 
 [default]

@@ -10,16 +10,20 @@ use aircommon::{
     credentials::VerifiableClientCredential,
     identifiers::{QualifiedGroupId, UserId},
     mls_group_config::{
-        FRIENDSHIP_PACKAGE_PROPOSAL_TYPE, GROUP_DATA_EXTENSION_TYPE,
+        AIR_COMPONENT_ID, FRIENDSHIP_PACKAGE_PROPOSAL_TYPE, GROUP_DATA_EXTENSION_TYPE,
         QS_CLIENT_REFERENCE_EXTENSION_TYPE, SUPPORTED_PROTOCOL_VERSIONS,
     },
 };
 use airprotos::client::group::{EncryptedGroupTitle, ExternalGroupProfile, GroupData};
 use anyhow::Context as _;
 use hex::ToHex as _;
-use openmls::prelude::{
-    Capabilities, Ciphersuite, ExtensionType, ProposalType, RequiredCapabilitiesExtension,
+use mls_assist::components::ComponentsList;
+use openmls::{
+    component::ComponentType,
+    extensions::AppDataDictionary,
+    prelude::{Ciphersuite, ExtensionType, ProposalType, RequiredCapabilitiesExtension},
 };
+use tls_codec::DeserializeBytes as _;
 
 use crate::{
     ChatId, UserProfile,
@@ -88,6 +92,11 @@ pub struct RequiredDebugCapabilities {
 }
 
 #[derive(Debug, Clone)]
+pub struct AppDataDebugInfo {
+    pub air_components: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct DebugCapabilities {
     pub user_id: String,
     pub display_name: String,
@@ -95,6 +104,7 @@ pub struct DebugCapabilities {
     pub ciphersuites: Vec<String>,
     pub extensions: Vec<String>,
     pub proposals: Vec<String>,
+    pub app_data: Option<AppDataDebugInfo>,
 }
 
 impl GroupDebugInfo {
@@ -141,11 +151,7 @@ impl GroupDebugInfo {
             let user_profile = core_user.user_profile(user_id).await;
             members.insert(
                 member.index.u32(),
-                DebugCapabilities::from_capabilities(
-                    user_id,
-                    user_profile,
-                    leaf_node.capabilities(),
-                ),
+                DebugCapabilities::from_leaf_node(user_id, user_profile, leaf_node),
             );
         }
 
@@ -188,11 +194,16 @@ impl RequiredDebugCapabilities {
 }
 
 impl DebugCapabilities {
-    fn from_capabilities(
+    fn from_leaf_node(
         user_id: &UserId,
         user_profile: UserProfile,
-        capabilities: &Capabilities,
+        leaf_node: &openmls::prelude::LeafNode,
     ) -> Self {
+        let capabilities = leaf_node.capabilities();
+        let app_data = leaf_node
+            .extensions()
+            .app_data_dictionary()
+            .map(|ext| AppDataDebugInfo::from_app_data_dictionary(ext.dictionary()));
         Self {
             user_id: format!("{user_id:?}"),
             display_name: user_profile.display_name.to_string(),
@@ -220,7 +231,30 @@ impl DebugCapabilities {
                 .iter()
                 .map(format_proposal_type)
                 .collect(),
+            app_data,
         }
+    }
+}
+
+impl AppDataDebugInfo {
+    fn from_app_data_dictionary(dict: &AppDataDictionary) -> Self {
+        let air_components = dict
+            .get(&ComponentType::AppComponents.into())
+            .and_then(|data| ComponentsList::tls_deserialize_exact_bytes(data).ok())
+            .map(|list| {
+                list.component_ids
+                    .iter()
+                    .map(|id| {
+                        if *id == AIR_COMPONENT_ID {
+                            format!("Air({id:#06x})")
+                        } else {
+                            format!("{id:#06x}")
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        Self { air_components }
     }
 }
 

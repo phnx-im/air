@@ -20,6 +20,7 @@ pub(super) enum GroupDataType {
     OwnLeafIndex,
     UseRatchetTreeExtension,
     GroupEpochSecrets,
+    ApplicationExportTree,
 }
 
 impl GroupDataType {
@@ -36,6 +37,7 @@ impl GroupDataType {
             GroupDataType::OwnLeafIndex => "own_leaf_index",
             GroupDataType::UseRatchetTreeExtension => "use_ratchet_tree_extension",
             GroupDataType::GroupEpochSecrets => "group_epoch_secrets",
+            GroupDataType::ApplicationExportTree => "application_export_tree",
         }
     }
 
@@ -52,6 +54,7 @@ impl GroupDataType {
             "own_leaf_index" => Some(GroupDataType::OwnLeafIndex),
             "use_ratchet_tree_extension" => Some(GroupDataType::UseRatchetTreeExtension),
             "group_epoch_secrets" => Some(GroupDataType::GroupEpochSecrets),
+            "application_export_tree" => Some(GroupDataType::ApplicationExportTree),
             _ => None,
         }
     }

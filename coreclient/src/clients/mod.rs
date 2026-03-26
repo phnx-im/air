@@ -806,10 +806,11 @@ impl CoreUser {
         JobType: Job<Output = T, DomainError = E>,
     {
         let mut notifier = self.store_notifier();
+        let mut connection = self.pool().acquire().await?;
         let mut context = JobContext {
             api_clients: &self.inner.api_clients,
             http_client: &self.inner.http_client,
-            pool: self.pool().clone(),
+            connection: &mut connection,
             notifier: &mut notifier,
             key_store: &self.inner.key_store,
             now: Utc::now(),

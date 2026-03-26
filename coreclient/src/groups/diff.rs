@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use serde::Deserialize;
+
 use super::*;
 
 /// A struct that contains differences in group data when creating a commit.
