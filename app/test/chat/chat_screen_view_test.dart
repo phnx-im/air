@@ -121,6 +121,7 @@ void main() {
       VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
       await tester.pumpWidget(buildSubject());
+      await tester.pump();
 
       await expectLater(
         find.byType(MaterialApp),
@@ -144,6 +145,7 @@ void main() {
       VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
       await tester.pumpWidget(buildSubject());
+      await tester.pump();
 
       await expectLater(
         find.byType(MaterialApp),
