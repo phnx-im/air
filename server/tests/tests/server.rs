@@ -363,7 +363,6 @@ async fn client_sequence_number_race() {
                     };
 
                     let result = handler.process_event(&bob_user, event).await;
-                    dbg!(&result);
 
                     processed.send_modify(|processed| {
                         *processed += result.processed();
