@@ -11,7 +11,17 @@ double figmaToFlutterBlurRadius(double val) {
 const Color lightModeShadowColor = Color(0x16000000);
 const Color darkModeShadowColor = Color(0x80000000);
 
-List<BoxShadow> elevationBoxShadows(BuildContext context) {
+const List<BoxShadow> regularElevationBoxShadows = [
+  BoxShadow(color: Color(0x1A000000), offset: Offset(0, 1)),
+  BoxShadow(
+    color: Color(0x1A000000),
+    offset: Offset(0, 12),
+    blurRadius: 32,
+    spreadRadius: 12,
+  ),
+];
+
+List<BoxShadow> mediumElevationBoxShadows(BuildContext context) {
   final color = Theme.of(context).brightness == Brightness.dark
       ? darkModeShadowColor
       : lightModeShadowColor;

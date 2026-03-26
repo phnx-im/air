@@ -14,6 +14,12 @@ class MessageListCubit extends StateStreamableSource<MessageListState> {
 
   final MessageListCubitBase _impl;
 
+  Future<void> loadOlder() => _impl.loadOlder();
+  Future<void> loadNewer() => _impl.loadNewer();
+  Future<void> jumpToBottom() => _impl.jumpToBottom();
+  Future<void> jumpToMessage({required MessageId messageId}) =>
+      _impl.jumpToMessage(messageId: messageId);
+
   @override
   FutureOr<void> close() {
     _impl.close();

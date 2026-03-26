@@ -1700,6 +1700,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'OK'**
   String get errorBanner_ok;
+
+  /// No description provided for @messageList_unreadMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one {{count} unread message} other {{count} unread messages}}'**
+  String messageList_unreadMessages(int count);
 }
 
 class _AppLocalizationsDelegate

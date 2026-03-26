@@ -14,8 +14,8 @@ import 'package:uuid/uuid.dart';
 import 'types.dart';
 import 'user_cubit.dart';
 
-// These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `new`, `notify_message_neighbors`, `process_store_notification`, `rebuild_from_messages`, `spawn`, `store_notifications_loop`, `try_process_store_notification`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `MessageListContext`, `MessageListStateInner`
+// These functions are ignored because they are not marked as `pub`: `apply_messages`, `compute_flight_positions`, `handle_jump_to_bottom`, `handle_jump_to_message`, `handle_load_newer`, `handle_load_older`, `initial_load`, `load_bottom`, `load_is_connection_chat`, `new`, `notify_message_neighbors`, `process_store_notification`, `reload_current_window`, `run_loop`, `spawn`, `try_process_store_notification`, `update_message_in_place`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Command`, `LoadDirection`, `MessageListContext`, `MessageListStateInner`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`
 
@@ -24,6 +24,18 @@ abstract class MessageListCubitBase implements RustOpaqueInterface {
   Future<void> close();
 
   bool get isClosed;
+
+  /// Jump to the most recent messages.
+  Future<void> jumpToBottom();
+
+  /// Jump to a specific message (loads a window around it if not in view).
+  Future<void> jumpToMessage({required MessageId messageId});
+
+  /// Request loading of newer messages (append to window).
+  Future<void> loadNewer();
+
+  /// Request loading of older messages (prepend to window).
+  Future<void> loadOlder();
 
   factory MessageListCubitBase({
     required UserCubitBase userCubit,
@@ -43,6 +55,14 @@ abstract class MessageListState implements RustOpaqueInterface {
   static Future<MessageListState> default_() =>
       RustLib.instance.api.crateApiMessageListCubitMessageListStateDefault();
 
+  int? get firstUnreadIndex;
+
+  bool get hasNewer;
+
+  bool get hasOlder;
+
+  bool get isAtBottom;
+
   bool? get isConnectionChat;
 
   bool isNewMessage(MessageId messageId);
@@ -57,4 +77,6 @@ abstract class MessageListState implements RustOpaqueInterface {
 
   /// Returns the lookup table mapping a message id to the index in the list.
   int? messageIdIndex(MessageId messageId);
+
+  int? get scrollToIndex;
 }
