@@ -281,17 +281,29 @@ class _MessageComposerState extends State<MessageComposer>
           return Stack(
             children: [
               Positioned.fill(
-                child: ClipPath(
-                  clipper: _ComposerClipper(
-                    buttonSize: _buttonSize,
-                    spacing: Spacings.xs,
-                    inputBorderRadius: Spacings.l,
-                    trailingButtonCount: trailingButtonCount,
-                  ),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-                    child: const SizedBox.expand(),
-                  ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final clipper = _ComposerClipper(
+                      buttonSize: _buttonSize,
+                      spacing: Spacings.xs,
+                      inputBorderRadius: Spacings.l,
+                      trailingButtonCount: trailingButtonCount,
+                    );
+                    final clipBounds = clipper
+                        .getClip(constraints.smallest)
+                        .getBounds();
+                    return ClipPath(
+                      clipper: clipper,
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(
+                          sigmaX: 40,
+                          sigmaY: 40,
+                          bounds: clipBounds,
+                        ),
+                        child: const SizedBox.expand(),
+                      ),
+                    );
+                  },
                 ),
               ),
               Row(
