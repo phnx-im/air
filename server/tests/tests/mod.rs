@@ -10,3 +10,18 @@ mod message;
 mod process;
 mod server;
 mod user;
+
+#[cfg(test)]
+fn init_test_logging() {
+    use tracing::Level;
+    use tracing_subscriber::EnvFilter;
+
+    let _ = tracing_subscriber::fmt::fmt()
+        .with_test_writer()
+        .with_env_filter(
+            EnvFilter::builder()
+                .with_default_directive(Level::INFO.into())
+                .from_env_lossy(),
+        )
+        .try_init();
+}
