@@ -57,19 +57,17 @@ impl CoreUser {
             .await
     }
 
-    /// Immediately fetch user profile from the server.
+    /// Creates a [`FetchUserProfileOperation`] job
     ///
-    /// This will do a network request.
-    pub(crate) async fn fetch_user_profile(
-        &self,
+    /// It can be immediately executed for example in a context of another job.
+    pub(crate) fn fetch_user_profile_job(
         profile_info: impl Into<ProfileInfo>,
-    ) -> anyhow::Result<()> {
+    ) -> impl Job<Output = ()> {
         let ProfileInfo {
             client_credential,
             user_profile_key,
         } = profile_info.into();
-        let job = FetchUserProfileOperation::new(client_credential, user_profile_key);
-        Ok(self.execute_job(job).await?)
+        FetchUserProfileOperation::new(client_credential, user_profile_key)
     }
 
     /// Schedule a group profile fetch operation.
@@ -145,7 +143,8 @@ impl Job for FetchUserProfileOperation {
         let user_id = client_credential.user_id();
 
         // Phase 1: Check if the profile in the DB is up to date.
-        let existing_user_profile = ExistingUserProfile::load(&context.pool, user_id).await?;
+        let existing_user_profile =
+            ExistingUserProfile::load(&mut *context.connection, user_id).await?;
         if existing_user_profile.matches_index(user_profile_key.index()) {
             return Ok(());
         }
@@ -168,8 +167,8 @@ impl Job for FetchUserProfileOperation {
 
         // Phase 4: Store the user profile and key in the database
         context
-            .pool
-            .with_transaction(async |txn| -> sqlx::Result<_> {
+            .connection
+            .with_transaction(async |txn| -> anyhow::Result<()> {
                 user_profile_key.store(txn.as_mut()).await?;
                 persistable_user_profile
                     .persist(txn.as_mut(), context.notifier)
@@ -232,7 +231,7 @@ impl Job for FetchGroupProfileOperation {
 
         // Load chat and group
         let Some((mut chat, group)) = context
-            .pool
+            .connection
             .with_transaction(async |txn| -> anyhow::Result<_> {
                 let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
                     .await?
@@ -288,8 +287,8 @@ impl Job for FetchGroupProfileOperation {
 
         // Update chat attributes and store new messages
         context
-            .pool
-            .with_transaction(async |txn| -> anyhow::Result<_> {
+            .connection
+            .with_transaction(async |txn| -> anyhow::Result<()> {
                 let mut messages = Vec::new();
 
                 let chat_attributes = ChatAttributes::new(
