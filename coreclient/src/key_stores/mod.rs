@@ -18,7 +18,7 @@ use openmls::prelude::{
     SignaturePublicKey, UnknownExtension,
 };
 use openmls_traits::storage::StorageProvider;
-use sqlx::{SqliteConnection, SqlitePool};
+use sqlx::SqliteConnection;
 use tls_codec::Serialize as TlsSerializeTrait;
 
 use crate::{

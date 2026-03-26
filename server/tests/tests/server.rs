@@ -46,6 +46,8 @@ use tonic_health::pb::{
 };
 use tracing::{info, warn};
 
+use crate::tests::init_test_logging;
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Rate limit test", skip_all)]
 async fn rate_limit() {
@@ -291,6 +293,8 @@ async fn ratchet_tolerance() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Client sequence number race", skip_all)]
 async fn client_sequence_number_race() {
+    init_test_logging();
+
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
@@ -350,6 +354,7 @@ async fn client_sequence_number_race() {
                     let finished =
                         processed_rx.wait_for(|processed| *processed == NUM_SENDERS * NUM_MESSAGES);
                     let event = tokio::select! {
+                        _ = tokio::time::sleep(Duration::from_secs(30)) => panic!("timeout waiting for condition: test failed!"),
                         _ = finished => break,
                         event = stream.next() => event
                     };

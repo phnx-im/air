@@ -15,7 +15,7 @@ use chrono::{DateTime, Duration, Utc};
 use mimi_room_policy::RoleIndex;
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
-use sqlx::{SqliteConnection, SqlitePool, SqliteTransaction, query, query_as, query_scalar};
+use sqlx::{SqliteConnection, SqliteTransaction, query, query_as, query_scalar};
 use tracing::{debug, error, info};
 
 use crate::{
@@ -100,7 +100,8 @@ impl Job for PendingChatOperation {
                 let retry_due = context.now + RETRY_INTERVAL;
                 #[cfg(any(test, feature = "test_utils"))]
                 let retry_due = context.now + RETRY_INTERVAL;
-                self.update_retry_due_at(&context.pool, retry_due).await?;
+                self.update_retry_due_at(&mut *context.connection, retry_due)
+                    .await?;
                 let group_id = self.group.group_id();
                 info!(
                     ?group_id,
@@ -115,7 +116,7 @@ impl Job for PendingChatOperation {
                     ?group_id,
                     "Group not found; deleting pending chat operation"
                 );
-                Self::delete(&context.pool, group_id).await?;
+                Self::delete(&mut *context.connection, group_id).await?;
                 Err(JobError::NotFound)
             }
             res => res,
@@ -157,7 +158,7 @@ impl PendingChatOperation {
 
         let JobContext {
             api_clients,
-            pool,
+            connection,
             notifier,
             key_store,
             now,
@@ -184,10 +185,8 @@ impl PendingChatOperation {
             && message_epoch != self.group.mls_group().epoch()
             && self.number_of_attempts > 0
         {
-            *leave_params = pool
-                .with_transaction(async |connection| {
-                    self.group.group_mut().stage_leave_group(connection, signer)
-                })
+            *leave_params = connection
+                .with_transaction(async |txn| self.group.group_mut().stage_leave_group(txn, signer))
                 .await?;
         }
 
@@ -215,7 +214,7 @@ impl PendingChatOperation {
             Err(error) => {
                 self.number_of_attempts += 1;
                 if !is_leave {
-                    let job_error = self.handle_error(pool, error).await?;
+                    let job_error = self.handle_error(connection, error).await?;
                     return Err(job_error);
                 }
 
@@ -235,7 +234,7 @@ impl PendingChatOperation {
         };
 
         // If any of the following fails, something is very wrong.
-        let messages = pool
+        let messages = connection
             .with_transaction(async |txn| {
                 let Some(mut chat) = Chat::load_by_group_id(txn, self.group.group_id()).await?
                 else {
@@ -342,7 +341,7 @@ impl PendingChatOperation {
 
     async fn handle_error(
         &mut self,
-        pool: &mut SqlitePool,
+        connection: &mut SqliteConnection,
         error: DsRequestError,
     ) -> Result<JobError<ChatOperationError>, JobError<ChatOperationError>> {
         debug!(?error, "DS request failed");
@@ -351,7 +350,8 @@ impl PendingChatOperation {
             // If we get a WrongEpochError, we know the commit was
             // either accepted on a previous try, or the DS rejected
             // it because another one got there first.
-            self.mark_as_waiting_for_queue_response(&*pool).await?;
+            self.mark_as_waiting_for_queue_response(&mut *connection)
+                .await?;
 
             Err(JobError::Blocked)
         } else if error.is_not_found() {
@@ -367,12 +367,13 @@ impl PendingChatOperation {
         } else {
             // For other errors or if the max number of retries has been
             // reached, we consider the operation failed and delete the job.
-            pool.with_transaction(async |txn| -> anyhow::Result<_> {
-                self.group.group_mut().discard_pending_commit(txn).await?;
-                Self::delete(txn.as_mut(), self.group.group_id()).await?;
-                Ok(())
-            })
-            .await?;
+            connection
+                .with_transaction(async |txn| -> anyhow::Result<_> {
+                    self.group.group_mut().discard_pending_commit(txn).await?;
+                    Self::delete(txn.as_mut(), self.group.group_id()).await?;
+                    Ok(())
+                })
+                .await?;
 
             let error = if self.number_of_attempts >= MAX_RETRIES {
                 anyhow!(
