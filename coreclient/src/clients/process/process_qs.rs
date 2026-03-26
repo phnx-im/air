@@ -1306,6 +1306,7 @@ impl QsStreamProcessor {
     }
 }
 
+#[derive(Debug)]
 pub enum QsProcessEventResult {
     /// Event was accumulated to be processed later
     Accumulated,
