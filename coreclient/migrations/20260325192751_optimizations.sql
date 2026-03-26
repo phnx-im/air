@@ -3,8 +3,6 @@
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 --
 -- Missing or redundant indices
-CREATE INDEX IF NOT EXISTS idx_operation_worker_queue ON operation (kind, scheduled_at, created_at, locked_by);
-
 CREATE INDEX IF NOT EXISTS idx_receipt_queue_locked_by ON receipt_queue (locked_by)
 WHERE
     locked_by IS NOT NULL;

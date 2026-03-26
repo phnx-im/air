@@ -188,7 +188,7 @@ impl CoreUser {
                 }
                 Err(error) => {
                     let sqlx_error: sqlx::Error = error.downcast()?;
-                    const DB_LOCKED_CODE: &str = "5";
+                    const DB_LOCKED_CODE: &str = "5"; // SQLITE_BUSY
                     if let Some(db_error) = sqlx_error.as_database_error()
                         && db_error.code().as_deref() == Some(DB_LOCKED_CODE)
                     {
@@ -196,6 +196,8 @@ impl CoreUser {
                             ?attachment_id,
                             "Database is locked; retrying in {ATTACHMENT_COMMIT_RETRY_DELAY:?}"
                         );
+                    } else {
+                        return Err(sqlx_error.into());
                     }
                 }
             }
