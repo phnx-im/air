@@ -21,8 +21,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
-import 'package:visibility_detector/visibility_detector.dart';
-
 import 'user/update_required_screen.dart';
 
 final _appRouter = AppRouter();
@@ -115,10 +113,6 @@ class _AppState extends State<App> with WidgetsBindingObserver {
 
     if (state == AppLifecycleState.resumed) {
       _appStateController.sink.add(AppState.foreground);
-      // Re-trigger visibility callbacks to mark visible messages as read.
-      // Deferred to a microtask so that the foreground state has propagated
-      // through the async broadcast stream to UserCubit first.
-      Future.microtask(VisibilityDetectorController.instance.notifyNow);
       unawaited(_coreClient.refreshPushToken());
     }
   }

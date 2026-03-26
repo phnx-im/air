@@ -16,7 +16,6 @@ import 'package:air/message_list/message_list.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/user/user.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
-import 'package:visibility_detector/visibility_detector.dart';
 
 import 'chat/chat_screen_view_test.dart';
 import 'chat_list/chat_list_content_test.dart';
@@ -160,8 +159,6 @@ void main() {
         () => messageListCubit.state,
       ).thenReturn(MockMessageListState(messages));
 
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
-
       await tester.pumpWidget(buildSubject());
 
       await expectLater(
@@ -194,8 +191,6 @@ void main() {
       when(
         () => messageListCubit.state,
       ).thenReturn(MockMessageListState(messages));
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();
@@ -230,8 +225,6 @@ void main() {
       when(
         () => messageListCubit.state,
       ).thenReturn(MockMessageListState(messages));
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();

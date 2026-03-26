@@ -9,7 +9,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/user/user.dart';
-import 'package:visibility_detector/visibility_detector.dart';
 
 import 'chat_tile.dart';
 import 'message_cubit.dart';
@@ -39,7 +38,8 @@ class MessageListView extends StatefulWidget {
 
 /// Uses a reversed [ListView] so new messages appear at the bottom (offset 0)
 /// and older messages load as the user scrolls up (toward maxScrollExtent).
-class _MessageListViewState extends State<MessageListView> {
+class _MessageListViewState extends State<MessageListView>
+    with WidgetsBindingObserver {
   /// Messages that have already played their entrance animation.
   final _animatedMessages = <MessageId>{};
   final _scrollController = ScrollController();
@@ -51,6 +51,14 @@ class _MessageListViewState extends State<MessageListView> {
   /// Measured pixel heights fed to [_HeightCachingDelegate] so it can produce
   /// stable scroll-extent estimates and avoid scrollbar jitter.
   final _heightCache = <MessageId, double>{};
+
+  /// The last message ID passed to [markAsRead], used to avoid redundant calls
+  /// during rapid scroll updates.
+  MessageId? _lastMarkedAsReadId;
+
+  /// Reverse-index → MessageId lookup, rebuilt every [build] so that
+  /// [_markNewestVisibleMessageAsRead] can walk it without FFI calls.
+  var _reverseIndexIds = <MessageId?>[];
 
   /// Guards to prevent rapid-fire load requests while a load is in flight.
   bool _loadOlderPending = false;
@@ -69,16 +77,25 @@ class _MessageListViewState extends State<MessageListView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onScroll);
     widget.scrollToBottomController?.onScrollToBottom = _scrollToBottom;
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.scrollToBottomController?.onScrollToBottom = null;
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _markNewestVisibleMessageAsRead();
+    }
   }
 
   void _scrollToBottom() {
@@ -117,6 +134,56 @@ class _MessageListViewState extends State<MessageListView> {
         !_loadNewerPending) {
       _loadNewerPending = true;
       cubit.loadNewer();
+    }
+
+    _markNewestVisibleMessageAsRead();
+  }
+
+  /// Finds the newest message visible in the viewport and marks the
+  /// conversation as read up to that point.
+  ///
+  /// In the reversed list, reverse index 0 (newest message) sits at scroll
+  /// offset 0. We walk forward through reverse indices, accumulating cached
+  /// heights, until the cumulative height exceeds the current scroll offset —
+  /// that message is partially (or fully) visible at the viewport's visual
+  /// bottom.
+  void _markNewestVisibleMessageAsRead() {
+    if (!_scrollController.hasClients) return;
+
+    final userCubit = context.read<UserCubit>();
+    if (userCubit.appState != AppState.foreground) return;
+
+    final ids = _reverseIndexIds;
+    if (ids.isEmpty) return;
+
+    final offset = _scrollController.offset;
+    double cumulative = 0;
+
+    for (int ri = 0; ri < ids.length; ri++) {
+      final id = ids[ri];
+      if (id == null) continue;
+
+      final height = _heightCache[id];
+      if (height != null) {
+        cumulative += height;
+      }
+      // Once cumulative height exceeds the scroll offset, this message
+      // is at least partially visible at the visual bottom.
+      if (cumulative > offset) {
+        if (id == _lastMarkedAsReadId) return;
+        _lastMarkedAsReadId = id;
+
+        // Single FFI call to get the timestamp for the found message.
+        final state = context.read<MessageListCubit>().state;
+        final message = state.messageAt(ids.length - ri - 1);
+        if (message == null) return;
+
+        context.read<ChatDetailsCubit>().markAsRead(
+          untilMessageId: message.id,
+          untilTimestamp: message.timestamp,
+        );
+        return;
+      }
     }
   }
 
@@ -267,19 +334,20 @@ class _MessageListViewState extends State<MessageListView> {
     // Build reverse-index → MessageId lookup so the delegate can read
     // live cached heights during layout (not just at build-time).
     final totalChildCount = messageCount;
-    final reverseIndexIds = List<MessageId?>.filled(totalChildCount, null);
+    _reverseIndexIds = List<MessageId?>.filled(totalChildCount, null);
     for (int ri = 0; ri < messageCount; ri++) {
-      reverseIndexIds[ri] = state.messageAt(messageCount - ri - 1)?.id;
+      _reverseIndexIds[ri] = state.messageAt(messageCount - ri - 1)?.id;
     }
+    final reverseIndexIds = _reverseIndexIds;
 
-    // Update button visibility when hasNewer changes (e.g. after jumpToBottom).
-    // Deferred to avoid notifying ValueListenableBuilder during build.
+    // Deferred to avoid side-effects during build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       widget.scrollToBottomController?.showButton.value =
           (_scrollController.hasClients &&
               _scrollController.offset > _scrollToBottomThreshold) ||
           state.hasNewer;
+      _markNewestVisibleMessageAsRead();
     });
 
     final composerHeightListenable =
@@ -378,13 +446,9 @@ class _MessageListViewState extends State<MessageListView> {
                   initialState: MessageState(message: message),
                 );
               },
-              child: _VisibilityChatTile(
-                messageId: message.id,
-                timestamp: message.timestamp,
-                child: ChatTile(
-                  isConnectionChat: state.isConnectionChat ?? false,
-                  animated: animate,
-                ),
+              child: ChatTile(
+                isConnectionChat: state.isConnectionChat ?? false,
+                animated: animate,
               ),
             );
 
@@ -421,55 +485,6 @@ class _MessageListViewState extends State<MessageListView> {
       valueListenable: composerHeightListenable,
       builder: (context, height, _) => buildListView(height),
     );
-  }
-}
-
-class _VisibilityChatTile extends StatelessWidget {
-  const _VisibilityChatTile({
-    required this.messageId,
-    required this.timestamp,
-    required this.child,
-  });
-
-  final MessageId messageId;
-  final DateTime timestamp;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final userCubit = context.read<UserCubit>();
-    final chatDetailsCubit = context.read<ChatDetailsCubit>();
-    return VisibilityDetector(
-      key: ValueKey(VisibilityKeyValue(messageId)),
-      child: child,
-      onVisibilityChanged: (visibilityInfo) {
-        if (visibilityInfo.visibleFraction > 0 &&
-            userCubit.appState == AppState.foreground) {
-          chatDetailsCubit.markAsRead(
-            untilMessageId: messageId,
-            untilTimestamp: timestamp,
-          );
-        }
-      },
-    );
-  }
-}
-
-/// Wrapper so [VisibilityDetector] keys are unique per message without
-/// colliding with the [ValueKey<MessageId>] used by the list items themselves.
-class VisibilityKeyValue {
-  const VisibilityKeyValue(this.id);
-  final MessageId id;
-
-  @override
-  int get hashCode => id.hashCode;
-
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        (other.runtimeType == runtimeType &&
-            other is VisibilityKeyValue &&
-            other.id == id);
   }
 }
 

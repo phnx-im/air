@@ -15,7 +15,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:visibility_detector/visibility_detector.dart';
 
 import '../chat_list/chat_list_content_test.dart';
 import '../helpers.dart';
@@ -795,8 +794,6 @@ void main() {
         () => messageListCubit.state,
       ).thenReturn(MockMessageListState(messages));
 
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
-
       await tester.pumpWidget(buildSubject());
 
       await expectLater(
@@ -819,8 +816,6 @@ void main() {
       addTearDown(() {
         tester.platformDispatcher.clearPlatformBrightnessTestValue();
       });
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
       await tester.pumpWidget(buildSubject());
 
@@ -851,8 +846,6 @@ void main() {
         ),
       ).thenAnswer((_) => Stream.value(const UiAttachmentStatus.completed()));
 
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
-
       await tester.pumpWidget(buildSubject());
 
       await expectLater(
@@ -879,8 +872,6 @@ void main() {
       when(
         () => messageListCubit.state,
       ).thenReturn(MockMessageListState(messageWithBobBlocked));
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
       await tester.pumpWidget(buildSubject());
 
@@ -909,8 +900,6 @@ void main() {
         MockMessageListState(messageWithBobBlocked, isConnectionChat: true),
       );
 
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
-
       await tester.pumpWidget(buildSubject());
 
       await expectLater(
@@ -928,8 +917,6 @@ void main() {
       when(
         () => messageListCubit.state,
       ).thenReturn(MockMessageListState(jumboEmojiMessages));
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
       await tester.pumpWidget(buildSubject());
 
@@ -953,8 +940,6 @@ void main() {
       when(
         () => userSettingsCubit.state,
       ).thenReturn(const UserSettings(readReceipts: false));
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
       await tester.pumpWidget(buildSubject());
 
@@ -985,8 +970,6 @@ void main() {
       when(
         () => messageListCubit.state,
       ).thenReturn(MockMessageListState(unreadMessages, firstUnreadIndex: 2));
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
       await tester.pumpWidget(buildSubject());
 
@@ -1045,8 +1028,6 @@ void main() {
         initialState: initialState,
       );
 
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
-
       await tester.pumpWidget(buildSubject());
 
       // The target should not be visible initially (it's at the old end).
@@ -1072,8 +1053,6 @@ void main() {
       when(
         () => messageListCubit.state,
       ).thenReturn(MockMessageListState(replyMessages));
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
       await tester.pumpWidget(buildSubject());
 
