@@ -65,7 +65,7 @@ class _MessageComposerState extends State<MessageComposer>
   final LayerLink _inputFieldLink = LayerLink();
   final GlobalKey _inputFieldKey = GlobalKey();
   late final TextAutocompleteController<EmojiEntry> _emojiAutocomplete;
-  double _buttonSize = _maxButtonSize;
+  double _buttonSize = _minButtonSize;
   bool _buttonSizeUpdateScheduled = false;
 
   static const double _minButtonSize = 40;
