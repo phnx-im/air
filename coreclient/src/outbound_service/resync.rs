@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use crate::utils::connection_ext::ConnectionExt as _;
 use aircommon::{
     credentials::keys::ClientSigningKey,
     crypto::ear::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
@@ -14,7 +15,6 @@ use openmls::{
     prelude::{LeafNodeIndex, MlsMessageOut},
 };
 use sqlx::{Connection, SqliteConnection, SqliteTransaction};
-use crate::utils::connection_ext::ConnectionExt as _;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -70,9 +70,11 @@ impl OutboundServiceContext {
                 return Ok(()); // the task is being stopped
             }
 
-            let Some(resync) = self.pool.with_transaction(async |txn| {
-                Resync::dequeue(txn, task_id).await
-            }).await? else {
+            let Some(resync) = self
+                .pool
+                .with_transaction(async |txn| Resync::dequeue(txn, task_id).await)
+                .await?
+            else {
                 return Ok(());
             };
             info!(?resync.chat_id, "Performing chat resync");
