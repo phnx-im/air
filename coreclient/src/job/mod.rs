@@ -5,7 +5,7 @@
 use airapiclient::{ApiClientInitError, as_api::AsRequestError, ds_api::DsRequestError};
 use aircommon::codec;
 use chrono::{DateTime, Utc};
-use sqlx::SqlitePool;
+use sqlx::SqliteConnection;
 use thiserror::Error;
 use tracing::info;
 
@@ -22,63 +22,84 @@ pub(crate) mod profile;
 pub(crate) struct JobContext<'a> {
     pub api_clients: &'a ApiClients,
     pub http_client: &'a reqwest::Client,
-    pub pool: SqlitePool,
+    pub connection: &'a mut SqliteConnection,
     pub notifier: &'a mut StoreNotifier,
     pub key_store: &'a MemoryUserKeyStore,
     pub now: DateTime<Utc>,
 }
 
 #[derive(Debug, Error)]
-pub(crate) enum JobError {
+pub(crate) enum JobError<E> {
+    #[error(transparent)]
+    Domain(E),
     #[error("Network error")]
     NetworkError,
     #[error("Blocked")]
     Blocked,
     #[error("Not found")]
     NotFound,
-    #[error("Fatal error: {0}")]
-    FatalError(#[from] anyhow::Error),
+    #[error(transparent)]
+    Fatal(#[from] anyhow::Error),
 }
 
-impl JobError {
+impl<E> JobError<E> {
     pub(crate) fn fatal(error: impl Into<anyhow::Error>) -> Self {
-        Self::FatalError(error.into())
+        Self::Fatal(error.into())
+    }
+
+    pub(crate) fn domain(error: impl Into<E>) -> Self {
+        Self::Domain(error.into())
     }
 }
 
-pub(crate) trait Job {
+pub(crate) trait Job: Send {
     type Output;
 
-    async fn execute(mut self, context: &mut JobContext<'_>) -> Result<Self::Output, JobError>
+    /// Error which can occur when executing the job and is specific to the jobs domain.
+    ///
+    /// When such an error occurs, the job is considered to be failed and cannot be retried. The
+    /// error should be propagated to the user.
+    type DomainError: std::error::Error + Send + Sync + 'static;
+
+    fn execute(
+        mut self,
+        context: &mut JobContext<'_>,
+    ) -> impl Future<Output = Result<Self::Output, JobError<Self::DomainError>>> + Send
     where
         Self: Sized,
+        Self::Output: Send,
     {
-        Box::pin(self.execute_dependencies(context)).await?;
-        Box::pin(self.execute_logic(context)).await
+        async move {
+            Box::pin(self.execute_dependencies(context)).await?;
+            Box::pin(self.execute_logic(context)).await
+        }
     }
 
-    async fn execute_logic(self, context: &mut JobContext<'_>) -> Result<Self::Output, JobError>;
+    fn execute_logic(
+        self,
+        context: &mut JobContext<'_>,
+    ) -> impl Future<Output = Result<Self::Output, JobError<Self::DomainError>>> + Send;
 
-    async fn execute_dependencies(
+    fn execute_dependencies(
         &mut self,
         _context: &mut JobContext<'_>,
-    ) -> Result<(), JobError> {
-        Ok(())
+    ) -> impl Future<Output = Result<(), JobError<Self::DomainError>>> + Send {
+        async { Ok(()) }
     }
 }
 
-impl From<AsRequestError> for JobError {
+impl<E> From<AsRequestError> for JobError<E> {
     fn from(error: AsRequestError) -> Self {
         if error.is_network_error() {
             info!(?error, "Job failed due to network error");
             Self::NetworkError
         } else {
-            Self::FatalError(error.into())
+            Self::Fatal(error.into())
         }
     }
 }
 
-impl From<DsRequestError> for JobError {
+impl<E> From<DsRequestError> for JobError<E> {
     fn from(error: DsRequestError) -> Self {
         // Network errors can occur without any fault of the job itself, so we
         // only log info here.
@@ -87,38 +108,38 @@ impl From<DsRequestError> for JobError {
     }
 }
 
-impl From<reqwest::Error> for JobError {
+impl<E> From<reqwest::Error> for JobError<E> {
     fn from(error: reqwest::Error) -> Self {
         if error.is_connect() || error.is_timeout() {
             info!(?error, "Job failed due to network error");
             Self::NetworkError
         } else {
-            Self::FatalError(error.into())
+            Self::Fatal(error.into())
         }
     }
 }
 
 // The following errors are universally considered fatal for jobs.
-impl From<sqlx::Error> for JobError {
+impl<E> From<sqlx::Error> for JobError<E> {
     fn from(err: sqlx::Error) -> Self {
-        JobError::FatalError(anyhow::Error::new(err))
+        JobError::Fatal(anyhow::Error::new(err))
     }
 }
 
-impl From<ApiClientInitError> for JobError {
+impl<E> From<ApiClientInitError> for JobError<E> {
     fn from(err: ApiClientInitError) -> Self {
-        JobError::FatalError(anyhow::Error::new(err))
+        JobError::Fatal(anyhow::Error::new(err))
     }
 }
 
-impl From<codec::Error> for JobError {
+impl<E> From<codec::Error> for JobError<E> {
     fn from(err: codec::Error) -> Self {
-        JobError::FatalError(anyhow::Error::new(err))
+        JobError::Fatal(anyhow::Error::new(err))
     }
 }
 
-impl From<tls_codec::Error> for JobError {
+impl<E> From<tls_codec::Error> for JobError<E> {
     fn from(err: tls_codec::Error) -> Self {
-        JobError::FatalError(anyhow::Error::new(err))
+        JobError::Fatal(anyhow::Error::new(err))
     }
 }

@@ -731,6 +731,54 @@ impl StorageProvider<CURRENT_VERSION> for SqliteStorageProvider<'_> {
         let task = storable.delete(&mut **connection);
         block_async_in_place(task)
     }
+
+    fn write_application_export_tree<
+        GroupId: traits::GroupId<CURRENT_VERSION>,
+        ApplicationExportTree: traits::ApplicationExportTree<CURRENT_VERSION>,
+    >(
+        &self,
+        group_id: &GroupId,
+        application_export_tree: &ApplicationExportTree,
+    ) -> Result<(), Self::Error> {
+        let storable = StorableGroupDataRef(application_export_tree);
+        let mut connection = self.connection.borrow_mut();
+        let task = storable.store(
+            &mut **connection,
+            group_id,
+            GroupDataType::ApplicationExportTree,
+        );
+        block_async_in_place(task)
+    }
+
+    fn application_export_tree<
+        GroupId: traits::GroupId<CURRENT_VERSION>,
+        ApplicationExportTree: traits::ApplicationExportTree<CURRENT_VERSION>,
+    >(
+        &self,
+        group_id: &GroupId,
+    ) -> Result<Option<ApplicationExportTree>, Self::Error> {
+        let mut connection = self.connection.borrow_mut();
+        let task = StorableGroupData::load(
+            &mut **connection,
+            group_id,
+            GroupDataType::ApplicationExportTree,
+        );
+        block_async_in_place(task)
+    }
+
+    fn delete_application_export_tree<
+        GroupId: traits::GroupId<CURRENT_VERSION>,
+        ApplicationExportTree: traits::ApplicationExportTree<CURRENT_VERSION>,
+    >(
+        &self,
+        group_id: &GroupId,
+    ) -> Result<(), Self::Error> {
+        let storable = StorableGroupIdRef(group_id);
+        let mut connection = self.connection.borrow_mut();
+        let task =
+            storable.delete_group_data(&mut **connection, GroupDataType::ApplicationExportTree);
+        block_async_in_place(task)
+    }
 }
 
 impl<T: Key<CURRENT_VERSION>> Type<Sqlite> for KeyRefWrapper<'_, T> {

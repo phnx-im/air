@@ -131,16 +131,16 @@ class _GroupDebugInfoBody extends StatelessWidget {
           ),
         ],
         const SizedBox(height: Spacings.l),
-        _RequestResyncButton(onRequestResync: onRequestResync),
+        _RequestResyncButton(onTapped: onRequestResync),
       ],
     );
   }
 }
 
 class _RequestResyncButton extends HookWidget {
-  const _RequestResyncButton({required this.onRequestResync});
+  const _RequestResyncButton({required this.onTapped});
 
-  final VoidCallback onRequestResync;
+  final VoidCallback onTapped;
 
   @override
   Widget build(BuildContext context) {
@@ -148,7 +148,7 @@ class _RequestResyncButton extends HookWidget {
     return AppButton(
       onPressed: () {
         isTapped.value = true;
-        onRequestResync();
+        onTapped();
       },
       tone: AppButtonTone.danger,
       state: isTapped.value ? AppButtonState.inactive : AppButtonState.active,
@@ -482,6 +482,15 @@ class _MemberCard extends StatelessWidget {
             color: colors.separator.secondary,
           ),
           _ChipListRow(label: 'Proposals', values: caps.proposals),
+          Divider(
+            height: 1,
+            indent: Spacings.s,
+            color: colors.separator.secondary,
+          ),
+          _ChipListRow(
+            label: 'App Components',
+            values: caps.appData?.airComponents ?? [],
+          ),
         ],
       ),
     );

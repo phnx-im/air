@@ -4,7 +4,7 @@
 
 [package]
 name = "airapplogic"
-version = "0.12.1"
+version = "0.13.0"
 authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
 edition = "2024"
 publish = false
@@ -33,6 +33,7 @@ derive_more.workspace = true
 deunicode.workspace = true
 flate2.workspace = true
 flutter_rust_bridge.workspace = true
+futures-util.workspace = true
 image.workspace = true
 jni.workspace = true
 lru.workspace = true

@@ -5,6 +5,7 @@
 use std::{
     fmt::Display,
     fs::{self, File},
+    future::ready,
     path::{Path, PathBuf},
 };
 
@@ -13,11 +14,13 @@ use anyhow::{Context, Result, bail};
 use flate2::{Compression, bufread::GzDecoder, write::GzEncoder};
 use openmls::group::GroupId;
 use sqlx::{
-    Database, Encode, Sqlite, SqlitePool, Type,
+    Database, Encode, Sqlite, SqlitePool, TransactionManager, Type,
     encode::IsNull,
     error::BoxDynError,
     migrate,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
+    sqlite::{
+        SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteTransactionManager,
+    },
 };
 use tracing::{error, info};
 
@@ -248,6 +251,16 @@ pub async fn open_client_db(user_id: &UserId, client_db_path: &str) -> sqlx::Res
     let pool = SqlitePoolOptions::new()
         .idle_timeout(None)
         .max_lifetime(None)
+        .after_release(|conn, _meta| {
+            // Discard connections that are left in an open transaction.
+            //
+            // This can happen when a future holding a transaction is cancelled, causing the sqlx
+            // worker to crash internally (it tries to send an error back via a rendezvous channel but
+            // the receiver is gone). Discarding such connections prevents permanently-stuck
+            // `transaction_depth > 0` errors on subsequent use.
+            let return_to_pool = SqliteTransactionManager::get_transaction_depth(conn) == 0;
+            Box::pin(ready(Ok(return_to_pool)))
+        })
         .connect_with(opts)
         .await?;
 

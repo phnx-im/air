@@ -28,7 +28,7 @@ part 'chat_details_cubit.freezed.dart';
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>>
 abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
-  Future<void> acceptContactRequest();
+  Future<AcceptContactRequestError?> acceptContactRequest();
 
   Future<GroupDebugInfo> chatDebugInfo();
 
@@ -108,6 +108,31 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   Future<UploadAttachmentError?> uploadAttachment({required String path});
 }
 
+@freezed
+sealed class AcceptContactRequestError with _$AcceptContactRequestError {
+  const AcceptContactRequestError._();
+
+  const factory AcceptContactRequestError.incompatibleClient({
+    required String reason,
+  }) = AcceptContactRequestError_IncompatibleClient;
+}
+
+class AppDataDebugInfo {
+  final List<String> airComponents;
+
+  const AppDataDebugInfo({required this.airComponents});
+
+  @override
+  int get hashCode => airComponents.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AppDataDebugInfo &&
+          runtimeType == other.runtimeType &&
+          airComponents == other.airComponents;
+}
+
 /// The state of a single chat
 ///
 /// Contains the chat details and the list of members.
@@ -131,6 +156,7 @@ class DebugCapabilities {
   final List<String> ciphersuites;
   final List<String> extensions;
   final List<String> proposals;
+  final AppDataDebugInfo? appData;
 
   const DebugCapabilities({
     required this.userId,
@@ -139,6 +165,7 @@ class DebugCapabilities {
     required this.ciphersuites,
     required this.extensions,
     required this.proposals,
+    this.appData,
   });
 
   @override
@@ -148,7 +175,8 @@ class DebugCapabilities {
       versions.hashCode ^
       ciphersuites.hashCode ^
       extensions.hashCode ^
-      proposals.hashCode;
+      proposals.hashCode ^
+      appData.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -160,7 +188,8 @@ class DebugCapabilities {
           versions == other.versions &&
           ciphersuites == other.ciphersuites &&
           extensions == other.extensions &&
-          proposals == other.proposals;
+          proposals == other.proposals &&
+          appData == other.appData;
 }
 
 class EncryptedGroupTitleDebugInfo {

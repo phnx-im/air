@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 pub(crate) use aircommon::identifiers::UserHandleHash;
 use aircommon::identifiers::{UserHandle, UserId};
-use aircoreclient::{Asset, PartialContact};
-use aircoreclient::{ChatId, ContactType, clients::CoreUser, store::Store};
+pub(crate) use aircoreclient::InviteUsersError;
+use aircoreclient::{Asset, ChatId, ContactType, PartialContact, clients::CoreUser, store::Store};
 use anyhow::ensure;
 use flutter_rust_bridge::frb;
 use qs::QueueContext;
@@ -236,13 +236,26 @@ impl UserCubitBase {
         Ok(())
     }
 
+    /// Adds multiple users to the chat with the given [`ChatId`].
+    ///
+    /// If one of the users cannot be added, an error is returned and the chat is not modified,
+    /// that is, other users are *not* added to the chat too.
+    //
+    // Note: We use the `Result<Option<_>, _>` return type because FRB does not support generics
+    // and so we cannot propagate the result directly.
     #[frb(positional)]
-    pub async fn add_user_to_chat(&self, chat_id: ChatId, user_id: UiUserId) -> anyhow::Result<()> {
-        self.context
+    pub async fn add_users_to_chat(
+        &self,
+        chat_id: ChatId,
+        user_ids: Vec<UiUserId>,
+    ) -> anyhow::Result<Option<InviteUsersError>> {
+        let user_ids: Vec<_> = user_ids.into_iter().map(From::from).collect();
+        Ok(self
+            .context
             .core_user
-            .invite_users(chat_id, &[user_id.into()])
-            .await?;
-        Ok(())
+            .invite_users(chat_id, &user_ids)
+            .await?
+            .err())
     }
 
     #[frb(positional)]
@@ -570,4 +583,9 @@ impl CubitContext {
                 .await;
         }
     }
+}
+
+#[frb(mirror(InviteUsersError))]
+enum _InviteUsersError {
+    IncompatibleClient { reason: String },
 }

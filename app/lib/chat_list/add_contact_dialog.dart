@@ -19,6 +19,8 @@ import 'package:provider/provider.dart';
 
 import 'chat_list_cubit.dart';
 
+final _log = Logger("AddContactDialog");
+
 class AddContactDialog extends HookWidget {
   const AddContactDialog({super.key});
 
@@ -285,9 +287,7 @@ class _SubmitHandler {
       }
     } catch (e) {
       // fatal error
-      Logger.detached(
-        "AddContactDialog",
-      ).severe("Failed to create connection: $e", e);
+      _log.severe("Failed to create connection: $e", e);
       showErrorBannerStandalone(
         (loc) => loc.newConnectionDialog_error(handle.plaintext),
       );

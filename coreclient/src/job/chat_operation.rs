@@ -10,7 +10,9 @@ use airprotos::{
     delivery_service::v1::StorageObjectType,
 };
 use anyhow::{Context, anyhow, bail};
+use openmls::treesync::errors::LeafNodeValidationError;
 use sqlx::SqliteConnection;
+use thiserror::Error;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
@@ -33,21 +35,33 @@ pub(crate) struct ChatOperation {
     operation: ChatOperationType,
 }
 
+/// Specific errors which can occur when executing a [`ChatOperation`].
+#[derive(Debug, Error)]
+pub(crate) enum ChatOperationError {
+    #[error(transparent)]
+    LeafNodeValidation(#[from] LeafNodeValidationError),
+}
+
 impl Job for ChatOperation {
     type Output = Vec<ChatMessage>;
+
+    type DomainError = ChatOperationError;
 
     async fn execute_logic(
         self,
         context: &mut JobContext<'_>,
-    ) -> Result<Vec<ChatMessage>, JobError> {
+    ) -> Result<Vec<ChatMessage>, JobError<Self::DomainError>> {
         self.execute_internal(context).await
     }
 
-    async fn execute_dependencies(&mut self, context: &mut JobContext<'_>) -> Result<(), JobError> {
+    async fn execute_dependencies(
+        &mut self,
+        context: &mut JobContext<'_>,
+    ) -> Result<(), JobError<Self::DomainError>> {
         // Execute any pending operation for this chat first.
         let pending_operation = context
-            .pool
-            .with_transaction(async |txn| Ok(PendingChatOperation::load(txn, &self.chat_id).await?))
+            .connection
+            .with_transaction(async |txn| PendingChatOperation::load(txn, &self.chat_id).await)
             .await?;
 
         if let Some(pending_operation) = pending_operation {
@@ -146,15 +160,12 @@ impl ChatOperation {
     async fn execute_internal(
         mut self,
         context: &mut JobContext<'_>,
-    ) -> Result<Vec<ChatMessage>, JobError> {
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         // Check whether our operation is still. It may be refined in case the
         // group state has changed, either due to a PendingChatOperation
         // executed as a dependency, or one or more commits arriving from the
         // QS.
-        context
-            .pool
-            .with_connection(async |connection| self.check_validity_and_refine(connection).await)
-            .await?;
+        self.check_validity_and_refine(context.connection).await?;
 
         match self.operation.clone() {
             ChatOperationType::AddMembers(user_ids) => {
@@ -175,25 +186,21 @@ impl ChatOperation {
         &mut self,
         context: &mut JobContext<'_>,
         users: Vec<UserId>,
-    ) -> Result<Vec<ChatMessage>, JobError> {
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext {
             api_clients,
-            pool,
+            connection,
             key_store,
             ..
         } = context;
-        let job = pool
-            .with_connection(async |connection| {
-                PendingChatOperation::create_add(
-                    connection,
-                    api_clients,
-                    &key_store.signing_key,
-                    self.chat_id,
-                    users,
-                )
-                .await
-            })
-            .await?;
+        let job = PendingChatOperation::create_add(
+            connection,
+            api_clients,
+            &key_store.signing_key,
+            self.chat_id,
+            users,
+        )
+        .await?;
 
         job.execute(context).await
     }
@@ -203,11 +210,13 @@ impl ChatOperation {
         &mut self,
         context: &mut JobContext<'_>,
         users: Vec<UserId>,
-    ) -> Result<Vec<ChatMessage>, JobError> {
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext {
-            pool, key_store, ..
+            connection,
+            key_store,
+            ..
         } = context;
-        let job = pool
+        let job = connection
             .with_transaction(async |txn| {
                 PendingChatOperation::create_remove(
                     txn,
@@ -226,11 +235,13 @@ impl ChatOperation {
     async fn execute_leave_chat(
         &mut self,
         context: &mut JobContext<'_>,
-    ) -> Result<Vec<ChatMessage>, JobError> {
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext {
-            pool, key_store, ..
+            connection,
+            key_store,
+            ..
         } = context;
-        let job = pool
+        let job = connection
             .with_transaction(async |txn| {
                 PendingChatOperation::create_leave(txn, &key_store.signing_key, self.chat_id).await
             })
@@ -244,18 +255,18 @@ impl ChatOperation {
         self,
         context: &mut JobContext<'_>,
         chat_attributes: Option<ChatAttributes>,
-    ) -> Result<Vec<ChatMessage>, JobError> {
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext {
             api_clients,
             http_client,
-            pool,
+            connection,
             key_store,
             ..
         } = context;
 
         let group_data = if let Some(attributes) = chat_attributes {
             let chat_id = self.chat_id;
-            let group = Group::load_with_chat_id_clean(pool.acquire().await?.as_mut(), chat_id)
+            let group = Group::load_with_chat_id_clean(connection, chat_id)
                 .await?
                 .with_context(|| format!("No group with chat id {chat_id}"))?;
 
@@ -316,7 +327,7 @@ impl ChatOperation {
             None
         };
 
-        let job = pool
+        let job = connection
             .with_transaction(async |txn| {
                 PendingChatOperation::create_update(
                     txn,
@@ -334,14 +345,14 @@ impl ChatOperation {
     async fn execute_delete(
         self,
         context: &mut JobContext<'_>,
-    ) -> Result<Vec<ChatMessage>, JobError> {
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext {
-            pool,
+            connection,
             notifier,
             key_store,
             ..
         } = context;
-        let job = pool
+        let job = connection
             .with_transaction(async |txn| {
                 PendingChatOperation::create_delete(
                     txn,

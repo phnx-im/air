@@ -619,7 +619,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UuidValue dco_decode_Uuid(dynamic raw);
 
   @protected
+  AcceptContactRequestError dco_decode_accept_contact_request_error(
+    dynamic raw,
+  );
+
+  @protected
   AddHandleContactError dco_decode_add_handle_contact_error(dynamic raw);
+
+  @protected
+  AppDataDebugInfo dco_decode_app_data_debug_info(dynamic raw);
 
   @protected
   AppState dco_decode_app_state(dynamic raw);
@@ -652,9 +660,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  AcceptContactRequestError dco_decode_box_autoadd_accept_contact_request_error(
+    dynamic raw,
+  );
+
+  @protected
   AddHandleContactError dco_decode_box_autoadd_add_handle_contact_error(
     dynamic raw,
   );
+
+  @protected
+  AppDataDebugInfo dco_decode_box_autoadd_app_data_debug_info(dynamic raw);
 
   @protected
   AttachmentId dco_decode_box_autoadd_attachment_id(dynamic raw);
@@ -691,6 +707,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   IntroScreenType dco_decode_box_autoadd_intro_screen_type(dynamic raw);
+
+  @protected
+  InviteUsersError dco_decode_box_autoadd_invite_users_error(dynamic raw);
 
   @protected
   MessageContent dco_decode_box_autoadd_message_content(dynamic raw);
@@ -826,6 +845,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   IntroScreenType dco_decode_intro_screen_type(dynamic raw);
 
   @protected
+  InviteUsersError dco_decode_invite_users_error(dynamic raw);
+
+  @protected
   PlatformInt64 dco_decode_isize(dynamic raw);
 
   @protected
@@ -945,9 +967,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  AcceptContactRequestError?
+  dco_decode_opt_box_autoadd_accept_contact_request_error(dynamic raw);
+
+  @protected
   AddHandleContactError? dco_decode_opt_box_autoadd_add_handle_contact_error(
     dynamic raw,
   );
+
+  @protected
+  AppDataDebugInfo? dco_decode_opt_box_autoadd_app_data_debug_info(dynamic raw);
 
   @protected
   bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
@@ -977,6 +1006,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ImageData? dco_decode_opt_box_autoadd_image_data(dynamic raw);
+
+  @protected
+  InviteUsersError? dco_decode_opt_box_autoadd_invite_users_error(dynamic raw);
 
   @protected
   MessageContent? dco_decode_opt_box_autoadd_message_content(dynamic raw);
@@ -1649,9 +1681,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UuidValue sse_decode_Uuid(SseDeserializer deserializer);
 
   @protected
+  AcceptContactRequestError sse_decode_accept_contact_request_error(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   AddHandleContactError sse_decode_add_handle_contact_error(
     SseDeserializer deserializer,
   );
+
+  @protected
+  AppDataDebugInfo sse_decode_app_data_debug_info(SseDeserializer deserializer);
 
   @protected
   AppState sse_decode_app_state(SseDeserializer deserializer);
@@ -1684,7 +1724,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  AcceptContactRequestError sse_decode_box_autoadd_accept_contact_request_error(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   AddHandleContactError sse_decode_box_autoadd_add_handle_contact_error(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  AppDataDebugInfo sse_decode_box_autoadd_app_data_debug_info(
     SseDeserializer deserializer,
   );
 
@@ -1735,6 +1785,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   IntroScreenType sse_decode_box_autoadd_intro_screen_type(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  InviteUsersError sse_decode_box_autoadd_invite_users_error(
     SseDeserializer deserializer,
   );
 
@@ -1910,6 +1965,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   IntroScreenType sse_decode_intro_screen_type(SseDeserializer deserializer);
 
   @protected
+  InviteUsersError sse_decode_invite_users_error(SseDeserializer deserializer);
+
+  @protected
   PlatformInt64 sse_decode_isize(SseDeserializer deserializer);
 
   @protected
@@ -2053,7 +2111,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  AcceptContactRequestError?
+  sse_decode_opt_box_autoadd_accept_contact_request_error(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   AddHandleContactError? sse_decode_opt_box_autoadd_add_handle_contact_error(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  AppDataDebugInfo? sse_decode_opt_box_autoadd_app_data_debug_info(
     SseDeserializer deserializer,
   );
 
@@ -2091,6 +2160,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ImageData? sse_decode_opt_box_autoadd_image_data(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  InviteUsersError? sse_decode_opt_box_autoadd_invite_users_error(
     SseDeserializer deserializer,
   );
 
@@ -2911,8 +2985,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_Uuid(UuidValue self, SseSerializer serializer);
 
   @protected
+  void sse_encode_accept_contact_request_error(
+    AcceptContactRequestError self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_add_handle_contact_error(
     AddHandleContactError self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_app_data_debug_info(
+    AppDataDebugInfo self,
     SseSerializer serializer,
   );
 
@@ -2950,8 +3036,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_accept_contact_request_error(
+    AcceptContactRequestError self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_add_handle_contact_error(
     AddHandleContactError self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_app_data_debug_info(
+    AppDataDebugInfo self,
     SseSerializer serializer,
   );
 
@@ -3009,6 +3107,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_intro_screen_type(
     IntroScreenType self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_invite_users_error(
+    InviteUsersError self,
     SseSerializer serializer,
   );
 
@@ -3229,6 +3333,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_invite_users_error(
+    InviteUsersError self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_isize(PlatformInt64 self, SseSerializer serializer);
 
   @protected
@@ -3415,8 +3525,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_accept_contact_request_error(
+    AcceptContactRequestError? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_add_handle_contact_error(
     AddHandleContactError? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_app_data_debug_info(
+    AppDataDebugInfo? self,
     SseSerializer serializer,
   );
 
@@ -3459,6 +3581,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_image_data(
     ImageData? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_invite_users_error(
+    InviteUsersError? self,
     SseSerializer serializer,
   );
 

@@ -48,20 +48,23 @@ use aircommon::{
         },
     },
     mls_group_config::{
-        GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, default_capabilities,
-        default_mls_group_join_config, default_required_capabilities,
+        AIR_COMPONENT_ID, GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, SUPPORTED_COMPONENTS,
+        default_app_data_dictionary_extension, default_group_required_extensions,
+        default_leaf_node_capabilities, default_leaf_node_extensions,
+        default_mls_group_join_config, default_required_group_capabilities,
         default_sender_ratchet_configuration,
     },
     time::TimeStamp,
     utils::removed_client,
 };
+use airprotos::client::component::AirComponent;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use mimi_content::MimiContent;
 use mimi_room_policy::{MimiProposal, RoleIndex, RoomPolicy, VerifiedRoomState};
-use mls_assist::messages::AssistedMessageOut;
+use mls_assist::{components::ComponentsList, messages::AssistedMessageOut};
 use openmls_provider::AirOpenMlsProvider;
 use openmls_traits::storage::StorageProvider;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use sqlx::{SqliteConnection, SqliteTransaction};
 use tls_codec::DeserializeBytes;
 use tracing::{Level, debug, enabled, error};
@@ -81,17 +84,22 @@ use crate::{
 use std::collections::HashSet;
 
 use openmls::{
-    group::{ExternalCommitBuilder, JoinBuilder, ProcessedWelcome},
+    component::ComponentType,
+    group::{
+        CreateCommitError, ExternalCommitBuilder, JoinBuilder, ProcessedWelcome,
+        ProposalValidationError,
+    },
     key_packages::KeyPackageBundle,
     prelude::{
-        BasicCredentialError, CredentialWithKey, Extension, Extensions, GroupId, KeyPackage,
-        LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
-        OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal,
-        ProposalType, ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
+        AppDataDictionaryExtension, BasicCredentialError, CredentialWithKey, Extension, Extensions,
+        GroupId, KeyPackage, LeafNode, LeafNodeIndex, LeafNodeParameters, MlsGroup,
+        MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
+        PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal, ProposalType,
+        ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
         UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
-    treesync::RatchetTree,
+    treesync::{RatchetTree, errors::LeafNodeValidationError},
 };
 
 use self::{client_auth_info::StorableClientCredential, diff::StagedGroupDiff};
@@ -194,8 +202,7 @@ impl Group {
         let group_state_ear_key = GroupStateEarKey::random()?;
 
         let required_capabilities =
-            Extension::RequiredCapabilities(default_required_capabilities());
-        let leaf_node_capabilities = default_capabilities();
+            Extension::RequiredCapabilities(default_group_required_extensions());
 
         let group_data_extension = Extension::Unknown(
             GROUP_DATA_EXTENSION_TYPE,
@@ -211,7 +218,7 @@ impl Group {
 
         let mls_group = MlsGroup::builder()
             .with_group_id(group_id.clone())
-            .with_capabilities(leaf_node_capabilities)
+            .with_capabilities(default_required_group_capabilities())
             .with_group_context_extensions(gc_extensions)
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
@@ -426,7 +433,9 @@ impl Group {
         aad: AadMessage,
         // Should be Some if this join is in response to a connection offer.
         connection_offer_hash: Option<ConnectionOfferHash>,
-    ) -> Result<(Self, MlsMessageOut, MlsMessageOut, Vec<ProfileInfo>)> {
+    ) -> anyhow::Result<
+        Result<(Self, MlsMessageOut, MlsMessageOut, Vec<ProfileInfo>), LeafNodeValidationError>,
+    > {
         let mls_group_config = default_mls_group_join_config();
         let credential_with_key = CredentialWithKey {
             credential: signer.credential().try_into()?,
@@ -440,16 +449,16 @@ impl Group {
             proposals,
         } = external_commit_info;
 
-        let proposals = proposals
+        let proposals: Vec<_> = proposals
             .iter()
             .filter_map(|b| {
                 let mls_message = MlsMessageIn::tls_deserialize_exact_bytes(b);
                 let MlsMessageBodyIn::PublicMessage(pm) = mls_message.ok()?.extract() else {
                     return None;
                 };
-                Some(anyhow::Ok(pm))
+                Some(pm)
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect();
 
         // Figure out who was removed so we can filter out the encrypted profile keys later.
         let removed_members: Vec<_> = proposals
@@ -482,8 +491,10 @@ impl Group {
             };
 
             let leaf_node_parameters = LeafNodeParameters::builder()
-                .with_capabilities(default_capabilities())
+                .with_capabilities(default_leaf_node_capabilities())
+                .with_extensions(default_leaf_node_extensions())
                 .build();
+
             let mut builder = ExternalCommitBuilder::new()
                 .with_proposals(proposals)
                 .with_aad(aad.tls_serialize_detached()?)
@@ -497,18 +508,22 @@ impl Group {
                 builder = builder.add_psk_proposal(psk_proposal);
             }
 
-            let (mls_group, commit) = builder
+            let res = builder
                 .load_psks(provider.storage())?
                 .create_group_info(true)
-                .build(provider.rand(), provider.crypto(), signer, |_| true)?
-                .finalize(&provider)?;
+                .build(provider.rand(), provider.crypto(), signer, |_| true);
+            let (mls_group, commit) = match res {
+                Ok(builder) => builder.finalize(&provider)?,
+                // Extract leaf node validation error if any
+                Err(error) => return Ok(Err(to_capabilities_mismatch(error)?)),
+            };
 
             let (commit, _, group_info) = commit.into_contents();
 
             (
                 mls_group,
                 commit,
-                group_info.context("No group info found")?.into(),
+                group_info.context("No group info found")?,
             )
         };
 
@@ -556,7 +571,7 @@ impl Group {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok((group, commit, group_info, member_profile_info))
+        Ok(Ok((group, commit, group_info.into(), member_profile_info)))
     }
 
     /// Invite the given list of contacts to join the group.
@@ -571,7 +586,7 @@ impl Group {
         add_infos: Vec<ContactAddInfos>,
         wai_keys: Vec<WelcomeAttributionInfoEarKey>,
         client_credentials: Vec<ClientCredential>,
-    ) -> Result<GroupOperationParamsOut> {
+    ) -> anyhow::Result<Result<GroupOperationParamsOut, LeafNodeValidationError>> {
         debug_assert!(add_infos.len() == wai_keys.len());
         debug_assert!(add_infos.len() == client_credentials.len());
         // Prepare KeyPackages
@@ -599,20 +614,24 @@ impl Group {
             let provider = AirOpenMlsProvider::new(&mut *connection);
             self.mls_group
                 .set_aad(aad_message.tls_serialize_detached()?);
-            self.mls_group
+            let res = self
+                .mls_group
                 .commit_builder()
                 .force_self_update(true)
                 .propose_adds(key_packages)
                 .load_psks(provider.storage())?
                 .create_group_info(true)
-                .build(provider.rand(), provider.crypto(), signer, |_| true)?
-                .stage_commit(&provider)?
-                .into_contents()
+                .build(provider.rand(), provider.crypto(), signer, |_| true);
+            match res {
+                Ok(builder) => builder.stage_commit(&provider)?.into_contents(),
+                // Extract leaf node validation error if any
+                Err(error) => return Ok(Err(to_capabilities_mismatch(error)?)),
+            }
         };
 
-        let group_info = group_info_option.ok_or(anyhow!("Commit didn't return a group info"))?;
+        let group_info = group_info_option.context("No group info found")?;
         let welcome = MlsMessageOut::from_welcome(
-            welcome_option.ok_or(anyhow!("Commit didn't return a welcome"))?,
+            welcome_option.context("No welcome message found")?,
             ProtocolVersion::default(),
         );
         let commit = AssistedMessageOut::new(mls_commit, Some(group_info.into()));
@@ -634,7 +653,7 @@ impl Group {
                 .sign(signer)?;
                 Ok(wai.encrypt(wai_key)?)
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<anyhow::Result<Vec<_>>>()?;
 
         let add_users_info = AddUsersInfoOut {
             welcome,
@@ -646,7 +665,7 @@ impl Group {
             add_users_info_option: Some(add_users_info),
         };
 
-        Ok(params)
+        Ok(Ok(params))
     }
 
     pub(super) async fn stage_remove(
@@ -950,6 +969,9 @@ impl Group {
             })
             .transpose()?;
 
+        let own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
+        let leaf_node_parameters = Self::update_leaf_node_extensions(own_leaf_node.extensions())?;
+
         self.mls_group.set_aad(aad);
         let (mls_message, group_info) = {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
@@ -959,9 +981,6 @@ impl Group {
                 builder = builder.propose_group_context_extensions(extensions)?;
             };
 
-            let leaf_node_parameters = LeafNodeParameters::builder()
-                .with_capabilities(default_capabilities())
-                .build();
             let (mls_message, _welcome_option, group_info_option) = builder
                 .force_self_update(true)
                 .leaf_node_parameters(leaf_node_parameters)
@@ -982,6 +1001,90 @@ impl Group {
             commit,
             add_users_info_option: None,
         })
+    }
+
+    fn update_leaf_node_extensions(
+        leaf_node_extensions: &Extensions<LeafNode>,
+    ) -> anyhow::Result<LeafNodeParameters> {
+        let mut leaf_node_parameters =
+            LeafNodeParameters::builder().with_capabilities(default_leaf_node_capabilities());
+
+        if let Some(app_data_dictionary) = leaf_node_extensions.app_data_dictionary() {
+            let dict = app_data_dictionary.dictionary();
+            let mut updated_dict = None;
+
+            // Augment app components
+            if let Some(mut app_components) = dict
+                .get(&ComponentType::AppComponents.into())
+                .and_then(|data| {
+                    ComponentsList::tls_deserialize_exact_bytes(data)
+                        .inspect_err(|error| {
+                            error!(%error, "Failed to deserialize app components; will replace");
+                        })
+                        .ok()
+                })
+            {
+                if !app_components.component_ids.contains(&AIR_COMPONENT_ID) {
+                    // Advertise that we support the Air component in the app data dictionary.
+                    app_components.component_ids.push(AIR_COMPONENT_ID);
+                    updated_dict.get_or_insert_with(|| dict.clone()).insert(
+                        ComponentType::AppComponents.into(),
+                        app_components.tls_serialize_detached()?,
+                    );
+                }
+            } else {
+                // Add app components list to the app data dictionary.
+                updated_dict.get_or_insert_with(|| dict.clone()).insert(
+                    ComponentType::AppComponents.into(),
+                    ComponentsList {
+                        component_ids: SUPPORTED_COMPONENTS.to_vec(),
+                    }
+                    .tls_serialize_detached()?,
+                );
+            }
+
+            // Augment Air component
+            if let Some(mut air_component) = dict.get(&AIR_COMPONENT_ID).and_then(|data| {
+                AirComponent::from_bytes(data)
+                    .inspect_err(|error| {
+                        error!(%error, "Failed to deserialize air component; will replace");
+                    })
+                    .ok()
+            }) {
+                // Enabled encrypted group profiles
+                if !air_component.features.encrypted_group_profiles {
+                    air_component.features.encrypted_group_profiles = true;
+                    updated_dict
+                        .get_or_insert_with(|| dict.clone())
+                        .insert(AIR_COMPONENT_ID, air_component.to_bytes()?);
+                }
+            } else {
+                // Add air component to the app data dictionary.
+                updated_dict.get_or_insert_with(|| dict.clone()).insert(
+                    AIR_COMPONENT_ID,
+                    AirComponent::default_leaf_or_key_package_component()
+                        .to_bytes()
+                        .expect("invalid Air component"),
+                );
+            };
+
+            if let Some(dict) = updated_dict {
+                // Replace the app data dictionary with the updated one
+                let mut leaf_node_extensions = leaf_node_extensions.clone();
+                leaf_node_extensions.add_or_replace(Extension::AppDataDictionary(
+                    AppDataDictionaryExtension::new(dict),
+                ))?;
+                leaf_node_parameters =
+                    leaf_node_parameters.with_extensions(leaf_node_extensions.clone());
+            }
+        } else {
+            // App data extension is not present, add it with default values
+            let mut leaf_node_extensions = leaf_node_extensions.clone();
+            leaf_node_extensions.add(default_app_data_dictionary_extension())?;
+            leaf_node_parameters = leaf_node_parameters.with_extensions(leaf_node_extensions);
+        }
+
+        Ok(leaf_node_parameters.build())
     }
 
     pub(super) fn stage_leave_group(
@@ -1202,7 +1305,7 @@ async fn verify_member_credentials(
     txn: &mut SqliteTransaction<'_>,
     api_clients: &ApiClients,
     mls_group: &MlsGroup,
-) -> Result<Vec<StorableClientCredential>, anyhow::Error> {
+) -> anyhow::Result<Vec<StorableClientCredential>> {
     let unverified_credentials = mls_group
         .members()
         .map(|m| {
@@ -1220,7 +1323,7 @@ async fn verify_member_credentials(
     )
     .await?;
 
-    let credentials = unverified_credentials
+    unverified_credentials
         .into_iter()
         .map(|(credential, leaf_verifying_key)| {
             VerifiableClientCredential::verify_and_validate(
@@ -1230,8 +1333,7 @@ async fn verify_member_credentials(
                 &as_credentials,
             )
         })
-        .collect::<Result<Vec<_>>>()?;
-    Ok(credentials)
+        .collect()
 }
 
 #[cfg(feature = "test_utils")]
@@ -1385,4 +1487,104 @@ pub fn suppress_notifications(content: &MimiContent) -> bool {
     }
     // All other messages should trigger notifications.
     false
+}
+
+fn to_capabilities_mismatch(error: CreateCommitError) -> anyhow::Result<LeafNodeValidationError> {
+    use LeafNodeValidationError::*;
+    match error {
+        CreateCommitError::LeafNodeValidation(error)
+        | CreateCommitError::ProposalValidationError(
+            ProposalValidationError::LeafNodeValidation(error),
+        ) if matches!(
+            error,
+            UnsupportedExtensions
+                | UnsupportedProposals
+                | UnsupportedCredentials
+                | CiphersuiteNotInCapabilities
+                | CredentialNotInCapabilities
+                | ExtensionsNotInCapabilities
+                | LeafNodeCredentialNotSupportedByMember
+                | MemberCredentialNotSupportedByLeafNode,
+        ) =>
+        {
+            Ok(error)
+        }
+        other => Err(other.into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::mls_group_config::{AIR_COMPONENT_ID, default_app_data_dictionary_extension};
+    use mls_assist::components::ComponentsList;
+    use openmls::{
+        component::ComponentType,
+        prelude::{AppDataDictionary, AppDataDictionaryExtension, Extension, Extensions, LeafNode},
+    };
+    use tls_codec::{DeserializeBytes, Serialize as TlsSerializeTrait};
+
+    use super::Group;
+
+    fn air_component_ids(params_extensions: &Extensions<LeafNode>) -> Option<Vec<u16>> {
+        params_extensions
+            .app_data_dictionary()?
+            .dictionary()
+            .get(&ComponentType::AppComponents.into())
+            .and_then(|data| ComponentsList::tls_deserialize_exact_bytes(data).ok())
+            .map(|list| list.component_ids)
+    }
+
+    fn extensions_with_dict(dict: AppDataDictionary) -> Extensions<LeafNode> {
+        Extensions::from_vec(vec![Extension::AppDataDictionary(
+            AppDataDictionaryExtension::new(dict),
+        )])
+        .expect("valid extensions")
+    }
+
+    /// No app data dictionary -> add the default one containing AIR_COMPONENT_ID
+    #[test]
+    fn no_app_data_dictionary() {
+        let extensions = Extensions::empty();
+        let params = Group::update_leaf_node_extensions(&extensions).unwrap();
+        let ids = air_component_ids(params.extensions().unwrap()).unwrap();
+        assert!(ids.contains(&AIR_COMPONENT_ID));
+    }
+
+    /// App data dictionary present but no AppComponents key -> add AppComponents with AIR_COMPONENT_ID
+    #[test]
+    fn app_data_dictionary_without_app_components() {
+        let extensions = extensions_with_dict(AppDataDictionary::new());
+        let params = Group::update_leaf_node_extensions(&extensions).unwrap();
+        let ids = air_component_ids(params.extensions().unwrap()).unwrap();
+        assert!(ids.contains(&AIR_COMPONENT_ID));
+    }
+
+    /// AppComponents present but AIR_COMPONENT_ID missing -> add it
+    #[test]
+    fn app_components_without_air_component_id() {
+        let other_id: u16 = 0x0001;
+        let mut dict = AppDataDictionary::new();
+        dict.insert(
+            ComponentType::AppComponents.into(),
+            ComponentsList {
+                component_ids: vec![other_id],
+            }
+            .tls_serialize_detached()
+            .unwrap(),
+        );
+        let extensions = extensions_with_dict(dict);
+        let params = Group::update_leaf_node_extensions(&extensions).unwrap();
+        let ids = air_component_ids(params.extensions().unwrap()).unwrap();
+        assert!(ids.contains(&AIR_COMPONENT_ID));
+        assert!(ids.contains(&other_id));
+    }
+
+    /// AIR_COMPONENT_ID already present -> extensions in params are unchanged (None)
+    #[test]
+    fn app_components_with_air_component_id_already() {
+        let extensions = Extensions::from_vec(vec![default_app_data_dictionary_extension()])
+            .expect("valid extensions");
+        let params = Group::update_leaf_node_extensions(&extensions).unwrap();
+        assert!(params.extensions().is_none());
+    }
 }

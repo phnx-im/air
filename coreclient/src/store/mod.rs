@@ -14,8 +14,9 @@ use tokio_stream::Stream;
 use uuid::Uuid;
 
 use crate::{
-    AddHandleContactError, AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact,
-    MessageDraft, MessageId, ProvisionAttachmentError, UploadTaskError,
+    AcceptContactRequestError, AddHandleContactError, AttachmentContent, AttachmentStatus, Chat,
+    ChatId, ChatMessage, Contact, InviteUsersError, MessageDraft, MessageId,
+    ProvisionAttachmentError, UploadTaskError,
     clients::{attachment::progress::AttachmentProgress, safety_code::SafetyCode},
     contacts::{ContactType, HandleContact, TargetedMessageContact},
     user_handles::UserHandleRecord,
@@ -164,7 +165,7 @@ pub trait Store {
         &self,
         chat_id: ChatId,
         invited_users: &[UserId],
-    ) -> StoreResult<Vec<ChatMessage>>;
+    ) -> StoreResult<Result<Vec<ChatMessage>, InviteUsersError>>;
 
     async fn load_room_state(&self, chat_id: ChatId) -> StoreResult<(UserId, VerifiedRoomState)>;
 
@@ -194,7 +195,10 @@ pub trait Store {
 
     async fn unblock_contact(&self, user_id: UserId) -> StoreResult<()>;
 
-    async fn accept_contact_request(&self, chat_id: ChatId) -> StoreResult<()>;
+    async fn accept_contact_request(
+        &self,
+        chat_id: ChatId,
+    ) -> StoreResult<Result<(), AcceptContactRequestError>>;
 
     async fn contacts(&self) -> StoreResult<Vec<Contact>>;
 

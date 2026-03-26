@@ -197,7 +197,7 @@ impl Resync {
             aad,
             None, // This is not in response to a connection offer.
         )
-        .await?;
+        .await??;
 
         Ok((new_group, commit, group_info, member_profile_info))
     }

@@ -4,15 +4,21 @@
 
 [package]
 name = "mls-assist"
-version = "0.12.1"
+version = "0.13.0"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 
 [dependencies]
 chrono.workspace = true
 openmls.workspace = true
+openmls_memory_storage.workspace = true
 openmls_rust_crypto.workspace = true
 openmls_traits.workspace = true
 serde.workspace = true
 serde_bytes.workspace = true
 thiserror.workspace = true
+tls_codec.workspace = true
+
+[package.metadata.cargo-machete]
+# Included to enable the `extensions-draft-08` feature
+ignored = ["openmls_memory_storage"]

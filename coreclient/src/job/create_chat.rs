@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::convert::Infallible;
+
 use aircommon::{
     crypto::{ear::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
     identifiers::QsReference,
@@ -25,10 +27,17 @@ pub(crate) struct CreateChat {
     pub client_reference: QsReference,
 }
 
+type DomainError = Infallible;
+
 impl Job for CreateChat {
     type Output = ChatId;
 
-    async fn execute_logic(self, context: &mut JobContext<'_>) -> Result<ChatId, JobError> {
+    type DomainError = Infallible;
+
+    async fn execute_logic(
+        self,
+        context: &mut JobContext<'_>,
+    ) -> Result<ChatId, JobError<Self::DomainError>> {
         self.execute_internal(context).await
     }
 }
@@ -41,14 +50,17 @@ impl CreateChat {
         }
     }
 
-    async fn execute_internal(self, context: &mut JobContext<'_>) -> Result<ChatId, JobError> {
+    async fn execute_internal(
+        self,
+        context: &mut JobContext<'_>,
+    ) -> Result<ChatId, JobError<DomainError>> {
         let Self {
             chat_attributes,
             client_reference,
         } = self;
         let JobContext {
             api_clients,
-            pool,
+            connection,
             notifier,
             key_store,
             http_client,
@@ -111,13 +123,12 @@ impl CreateChat {
         }
         .encode()?;
 
-        let mut connection = pool.acquire().await?;
         let own_user_id = key_store.signing_key.credential().user_id();
 
         // Create the group. If the query to the DS fails later on, we just
         // clean up the group, so this is repeatable.
         let (group, chat, partial_params, encrypted_user_profile_key) = connection
-            .with_transaction(async |txn| {
+            .with_transaction(async |txn| -> anyhow::Result<_> {
                 let (group, partial_params) = Group::create_group(
                     txn,
                     &key_store.signing_key,
@@ -144,7 +155,7 @@ impl CreateChat {
             .await
         {
             connection
-                .with_transaction(async |txn| {
+                .with_transaction(async |txn| -> sqlx::Result<_> {
                     Group::delete_from_db(txn, group.group_id()).await?;
                     Chat::delete(txn.as_mut(), notifier, chat.id()).await?;
                     Ok(())
@@ -160,7 +171,7 @@ impl CreateChat {
             TimeStamp::now(),
             SystemMessage::CreateGroup(own_user_id.clone()),
         )
-        .store(connection.as_mut(), notifier)
+        .store(&mut **connection, notifier)
         .await?;
 
         Ok(chat.id())

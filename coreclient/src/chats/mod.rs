@@ -24,7 +24,7 @@ pub(crate) use {pending::PendingConnectionInfo, status::StatusRecord};
 
 mod draft;
 pub(crate) mod messages;
-mod pending;
+pub(crate) mod pending;
 pub(crate) mod persistence;
 mod sqlx_support;
 pub(crate) mod status;
@@ -176,10 +176,6 @@ impl Chat {
 
     pub fn status(&self) -> &ChatStatus {
         &self.status
-    }
-
-    pub fn status_mut(&mut self) -> &mut ChatStatus {
-        &mut self.status
     }
 
     pub fn attributes(&self) -> &ChatAttributes {

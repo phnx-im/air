@@ -3,8 +3,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::UserId;
+use displaydoc::Display;
 
-use crate::{ChatId, ChatMessage, job::chat_operation::ChatOperation};
+use crate::{
+    ChatId, ChatMessage,
+    job::{
+        JobError,
+        chat_operation::{ChatOperation, ChatOperationError},
+    },
+};
 
 use super::CoreUser;
 
@@ -19,8 +26,23 @@ impl CoreUser {
         &self,
         chat_id: ChatId,
         invited_users: &[UserId],
-    ) -> anyhow::Result<Vec<ChatMessage>> {
+    ) -> anyhow::Result<Result<Vec<ChatMessage>, InviteUsersError>> {
         let job = ChatOperation::add_members(chat_id, invited_users.to_vec());
-        self.execute_job(job).await
+        match self.execute_job(job).await {
+            Ok(messages) => Ok(Ok(messages)),
+            Err(JobError::Domain(ChatOperationError::LeafNodeValidation(leaf_node_validation))) => {
+                Ok(Err(InviteUsersError::IncompatibleClient {
+                    reason: leaf_node_validation.to_string(),
+                }))
+            }
+            Err(JobError::Fatal(error)) => Err(error),
+            Err(other) => Err(other.into()),
+        }
     }
+}
+
+#[derive(Debug, Display, thiserror::Error)]
+pub enum InviteUsersError {
+    /// The client is not compatible with the group
+    IncompatibleClient { reason: String },
 }

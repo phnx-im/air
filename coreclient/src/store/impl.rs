@@ -16,8 +16,9 @@ use tracing::error;
 use uuid::Uuid;
 
 use crate::{
-    AddHandleContactError, AttachmentContent, AttachmentStatus, Chat, ChatId, ChatMessage, Contact,
-    MessageDraft, MessageId, ProvisionAttachmentError, UploadTaskError,
+    AcceptContactRequestError, AddHandleContactError, AttachmentContent, AttachmentStatus, Chat,
+    ChatId, ChatMessage, Contact, InviteUsersError, MessageDraft, MessageId,
+    ProvisionAttachmentError, UploadTaskError,
     clients::{
         CoreUser,
         attachment::{AttachmentRecord, progress::AttachmentProgress},
@@ -159,7 +160,7 @@ impl Store for CoreUser {
         &self,
         chat_id: ChatId,
         invited_users: &[UserId],
-    ) -> StoreResult<Vec<ChatMessage>> {
+    ) -> StoreResult<Result<Vec<ChatMessage>, InviteUsersError>> {
         self.invite_users(chat_id, invited_users).await
     }
 
@@ -192,8 +193,12 @@ impl Store for CoreUser {
         self.unblock_contact(user_id).await
     }
 
-    async fn accept_contact_request(&self, chat_id: ChatId) -> StoreResult<()> {
-        self.accept_contact_request(chat_id).await
+    async fn accept_contact_request(
+        &self,
+        chat_id: ChatId,
+    ) -> StoreResult<Result<(), AcceptContactRequestError>> {
+        // boxing large future
+        Box::pin(self.accept_contact_request(chat_id)).await
     }
 
     async fn contacts(&self) -> StoreResult<Vec<Contact>> {

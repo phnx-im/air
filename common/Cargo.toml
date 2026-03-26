@@ -4,7 +4,7 @@
 
 [package]
 name = "aircommon"
-version = "0.12.1"
+version = "0.13.0"
 authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
 edition = "2024"
 publish = false
@@ -13,6 +13,7 @@ license = "AGPL-3.0-or-later"
 
 [dependencies]
 aes-gcm.workspace = true
+airmacros.workspace = true
 argon2 = { workspace = true, features = ["std"] }
 chrono = { workspace = true, features = ["serde"] }
 ciborium.workspace = true

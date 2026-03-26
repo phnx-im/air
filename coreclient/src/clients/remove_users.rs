@@ -21,6 +21,6 @@ impl CoreUser {
         target_users: Vec<UserId>,
     ) -> anyhow::Result<Vec<ChatMessage>> {
         let job = ChatOperation::remove_members(chat_id, target_users);
-        self.execute_job(job).await
+        Ok(self.execute_job(job).await?)
     }
 }

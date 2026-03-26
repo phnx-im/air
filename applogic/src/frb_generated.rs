@@ -51,7 +51,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -227481361;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1248344597;
 
 // Section: executor
 
@@ -4743,7 +4743,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_add_user_handle_impl(
         },
     )
 }
-fn wire__crate__api__user_cubit__UserCubitBase_add_user_to_chat_impl(
+fn wire__crate__api__user_cubit__UserCubitBase_add_users_to_chat_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -4751,7 +4751,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_add_user_to_chat_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "UserCubitBase_add_user_to_chat",
+            debug_name: "UserCubitBase_add_users_to_chat",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -4769,7 +4769,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_add_user_to_chat_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>,
             >>::sse_decode(&mut deserializer);
             let api_chat_id = <crate::api::types::ChatId>::sse_decode(&mut deserializer);
-            let api_user_id = <crate::api::types::UiUserId>::sse_decode(&mut deserializer);
+            let api_user_ids = <Vec<crate::api::types::UiUserId>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -4791,10 +4791,10 @@ fn wire__crate__api__user_cubit__UserCubitBase_add_user_to_chat_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::user_cubit::UserCubitBase::add_user_to_chat(
+                        let output_ok = crate::api::user_cubit::UserCubitBase::add_users_to_chat(
                             &*api_that_guard,
                             api_chat_id,
-                            api_user_id,
+                            api_user_ids,
                         )
                         .await?;
                         Ok(output_ok)
@@ -8223,6 +8223,17 @@ fn wire__crate__api__username_suggestions__username_from_display_impl(
 
 #[allow(clippy::unnecessary_literal_unwrap)]
 const _: fn() = || {
+    match None::<crate::api::chat_details_cubit::AcceptContactRequestError>.unwrap() {
+        crate::api::chat_details_cubit::AcceptContactRequestError::IncompatibleClient {
+            reason,
+        } => {
+            let _: String = reason;
+        }
+    }
+    {
+        let AppDataDebugInfo = None::<crate::api::chat_details_cubit::AppDataDebugInfo>.unwrap();
+        let _: Vec<String> = AppDataDebugInfo.air_components;
+    }
     {
         let AttachmentId = None::<crate::api::message_content::AttachmentId>.unwrap();
         let _: uuid::Uuid = AttachmentId.uuid;
@@ -8239,6 +8250,8 @@ const _: fn() = || {
         let _: Vec<String> = DebugCapabilities.ciphersuites;
         let _: Vec<String> = DebugCapabilities.extensions;
         let _: Vec<String> = DebugCapabilities.proposals;
+        let _: Option<crate::api::chat_details_cubit::AppDataDebugInfo> =
+            DebugCapabilities.app_data;
     }
     {
         let EncryptedGroupTitleDebugInfo =
@@ -8284,6 +8297,11 @@ const _: fn() = || {
             GroupDebugInfo.members;
         let _: Option<crate::api::chat_details_cubit::GroupDataDebugInfo> =
             GroupDebugInfo.group_data;
+    }
+    match None::<crate::api::user_cubit::InviteUsersError>.unwrap() {
+        crate::api::user_cubit::InviteUsersError::IncompatibleClient { reason } => {
+            let _: String = reason;
+        }
     }
     {
         let MessageId = None::<crate::api::types::MessageId>.unwrap();
@@ -9084,6 +9102,22 @@ impl SseDecode for uuid::Uuid {
     }
 }
 
+impl SseDecode for crate::api::chat_details_cubit::AcceptContactRequestError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                let mut var_reason = <String>::sse_decode(deserializer);
+                return crate::api::chat_details_cubit::AcceptContactRequestError::IncompatibleClient{reason: var_reason};
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+
 impl SseDecode for crate::api::types::AddHandleContactError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -9093,6 +9127,16 @@ impl SseDecode for crate::api::types::AddHandleContactError {
             1 => crate::api::types::AddHandleContactError::DuplicateRequest,
             2 => crate::api::types::AddHandleContactError::OwnHandle,
             _ => unreachable!("Invalid variant for AddHandleContactError: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::chat_details_cubit::AppDataDebugInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_airComponents = <Vec<String>>::sse_decode(deserializer);
+        return crate::api::chat_details_cubit::AppDataDebugInfo {
+            air_components: var_airComponents,
         };
     }
 }
@@ -9235,6 +9279,8 @@ impl SseDecode for crate::api::chat_details_cubit::DebugCapabilities {
         let mut var_ciphersuites = <Vec<String>>::sse_decode(deserializer);
         let mut var_extensions = <Vec<String>>::sse_decode(deserializer);
         let mut var_proposals = <Vec<String>>::sse_decode(deserializer);
+        let mut var_appData =
+            <Option<crate::api::chat_details_cubit::AppDataDebugInfo>>::sse_decode(deserializer);
         return crate::api::chat_details_cubit::DebugCapabilities {
             user_id: var_userId,
             display_name: var_displayName,
@@ -9242,6 +9288,7 @@ impl SseDecode for crate::api::chat_details_cubit::DebugCapabilities {
             ciphersuites: var_ciphersuites,
             extensions: var_extensions,
             proposals: var_proposals,
+            app_data: var_appData,
         };
     }
 }
@@ -9503,6 +9550,24 @@ impl SseDecode for crate::api::navigation_cubit::IntroScreenType {
                 return crate::api::navigation_cubit::IntroScreenType::DeveloperSettings(
                     var_field0,
                 );
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+
+impl SseDecode for crate::api::user_cubit::InviteUsersError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                let mut var_reason = <String>::sse_decode(deserializer);
+                return crate::api::user_cubit::InviteUsersError::IncompatibleClient {
+                    reason: var_reason,
+                };
             }
             _ => {
                 unimplemented!("");
@@ -9943,6 +10008,21 @@ impl SseDecode for Option<UserHandleHash> {
     }
 }
 
+impl SseDecode for Option<crate::api::chat_details_cubit::AcceptContactRequestError> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(
+                <crate::api::chat_details_cubit::AcceptContactRequestError>::sse_decode(
+                    deserializer,
+                ),
+            );
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::types::AddHandleContactError> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -9950,6 +10030,19 @@ impl SseDecode for Option<crate::api::types::AddHandleContactError> {
             return Some(<crate::api::types::AddHandleContactError>::sse_decode(
                 deserializer,
             ));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::chat_details_cubit::AppDataDebugInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(
+                <crate::api::chat_details_cubit::AppDataDebugInfo>::sse_decode(deserializer),
+            );
         } else {
             return None;
         }
@@ -10052,6 +10145,19 @@ impl SseDecode for Option<crate::api::types::ImageData> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::api::types::ImageData>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::user_cubit::InviteUsersError> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::user_cubit::InviteUsersError>::sse_decode(
+                deserializer,
+            ));
         } else {
             return None;
         }
@@ -11037,7 +11143,7 @@ fn pde_ffi_dispatcher_primary_impl(
 84 => wire__crate__api__navigation_cubit__NavigationCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
 89 => wire__crate__api__user_cubit__UserCubitBase_add_contact_from_group_impl(port, ptr, rust_vec_len, data_len),
 90 => wire__crate__api__user_cubit__UserCubitBase_add_user_handle_impl(port, ptr, rust_vec_len, data_len),
-91 => wire__crate__api__user_cubit__UserCubitBase_add_user_to_chat_impl(port, ptr, rust_vec_len, data_len),
+91 => wire__crate__api__user_cubit__UserCubitBase_add_users_to_chat_impl(port, ptr, rust_vec_len, data_len),
 92 => wire__crate__api__user_cubit__UserCubitBase_addable_contacts_impl(port, ptr, rust_vec_len, data_len),
 93 => wire__crate__api__user_cubit__UserCubitBase_block_contact_impl(port, ptr, rust_vec_len, data_len),
 94 => wire__crate__api__user_cubit__UserCubitBase_check_handle_exists_impl(port, ptr, rust_vec_len, data_len),
@@ -11652,6 +11758,36 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<UsersState>> for UsersState {
 }
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<crate::api::chat_details_cubit::AcceptContactRequestError>
+{
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self.0 {
+            crate::api::chat_details_cubit::AcceptContactRequestError::IncompatibleClient {
+                reason,
+            } => [0.into_dart(), reason.into_into_dart().into_dart()].into_dart(),
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::chat_details_cubit::AcceptContactRequestError>
+{
+}
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<crate::api::chat_details_cubit::AcceptContactRequestError>,
+    > for crate::api::chat_details_cubit::AcceptContactRequestError
+{
+    fn into_into_dart(
+        self,
+    ) -> FrbWrapper<crate::api::chat_details_cubit::AcceptContactRequestError> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AddHandleContactError> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self.0 {
@@ -11670,6 +11806,25 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::AddHandleCo
     for crate::api::types::AddHandleContactError
 {
     fn into_into_dart(self) -> FrbWrapper<crate::api::types::AddHandleContactError> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<crate::api::chat_details_cubit::AppDataDebugInfo>
+{
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [self.0.air_components.into_into_dart().into_dart()].into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::chat_details_cubit::AppDataDebugInfo>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::chat_details_cubit::AppDataDebugInfo>>
+    for crate::api::chat_details_cubit::AppDataDebugInfo
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::chat_details_cubit::AppDataDebugInfo> {
         self.into()
     }
 }
@@ -11831,6 +11986,7 @@ impl flutter_rust_bridge::IntoDart
             self.0.ciphersuites.into_into_dart().into_dart(),
             self.0.extensions.into_into_dart().into_dart(),
             self.0.proposals.into_into_dart().into_dart(),
+            self.0.app_data.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -12130,6 +12286,30 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::navigation_cubit::IntroScreen
 {
     fn into_into_dart(self) -> crate::api::navigation_cubit::IntroScreenType {
         self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::user_cubit::InviteUsersError> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self.0 {
+            crate::api::user_cubit::InviteUsersError::IncompatibleClient { reason } => {
+                [0.into_dart(), reason.into_into_dart().into_dart()].into_dart()
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::user_cubit::InviteUsersError>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::user_cubit::InviteUsersError>>
+    for crate::api::user_cubit::InviteUsersError
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::user_cubit::InviteUsersError> {
+        self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -13745,6 +13925,23 @@ impl SseEncode for uuid::Uuid {
     }
 }
 
+impl SseEncode for crate::api::chat_details_cubit::AcceptContactRequestError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::api::chat_details_cubit::AcceptContactRequestError::IncompatibleClient {
+                reason,
+            } => {
+                <i32>::sse_encode(0, serializer);
+                <String>::sse_encode(reason, serializer);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+
 impl SseEncode for crate::api::types::AddHandleContactError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -13759,6 +13956,13 @@ impl SseEncode for crate::api::types::AddHandleContactError {
             },
             serializer,
         );
+    }
+}
+
+impl SseEncode for crate::api::chat_details_cubit::AppDataDebugInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<String>>::sse_encode(self.air_components, serializer);
     }
 }
 
@@ -13885,6 +14089,10 @@ impl SseEncode for crate::api::chat_details_cubit::DebugCapabilities {
         <Vec<String>>::sse_encode(self.ciphersuites, serializer);
         <Vec<String>>::sse_encode(self.extensions, serializer);
         <Vec<String>>::sse_encode(self.proposals, serializer);
+        <Option<crate::api::chat_details_cubit::AppDataDebugInfo>>::sse_encode(
+            self.app_data,
+            serializer,
+        );
     }
 }
 
@@ -14095,6 +14303,21 @@ impl SseEncode for crate::api::navigation_cubit::IntroScreenType {
                 <crate::api::navigation_cubit::DeveloperSettingsScreenType>::sse_encode(
                     field0, serializer,
                 );
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+
+impl SseEncode for crate::api::user_cubit::InviteUsersError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::api::user_cubit::InviteUsersError::IncompatibleClient { reason } => {
+                <i32>::sse_encode(0, serializer);
+                <String>::sse_encode(reason, serializer);
             }
             _ => {
                 unimplemented!("");
@@ -14448,12 +14671,34 @@ impl SseEncode for Option<UserHandleHash> {
     }
 }
 
+impl SseEncode for Option<crate::api::chat_details_cubit::AcceptContactRequestError> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::chat_details_cubit::AcceptContactRequestError>::sse_encode(
+                value, serializer,
+            );
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::types::AddHandleContactError> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::types::AddHandleContactError>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::chat_details_cubit::AppDataDebugInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::chat_details_cubit::AppDataDebugInfo>::sse_encode(value, serializer);
         }
     }
 }
@@ -14540,6 +14785,16 @@ impl SseEncode for Option<crate::api::types::ImageData> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::types::ImageData>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::user_cubit::InviteUsersError> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::user_cubit::InviteUsersError>::sse_encode(value, serializer);
         }
     }
 }
