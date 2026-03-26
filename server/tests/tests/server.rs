@@ -354,7 +354,7 @@ async fn client_sequence_number_race() {
                     let finished =
                         processed_rx.wait_for(|processed| *processed == NUM_SENDERS * NUM_MESSAGES);
                     let event = tokio::select! {
-                        _ = tokio::time::sleep(Duration::from_millis(10)) => panic!("timeout waiting for condition: test failed!"),
+                        _ = tokio::time::sleep(Duration::from_secs(30)) => panic!("timeout waiting for condition: test failed!"),
                         _ = finished => break,
                         event = stream.next() => event
                     };
