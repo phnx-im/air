@@ -830,7 +830,7 @@ async fn self_update_skips_inactive_chats() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Invite to group test", skip_all)]
+#[tracing::instrument(name = "QS stream processor partially processes messages", skip_all)]
 async fn qs_stream_processor_partially_processes_messages() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;

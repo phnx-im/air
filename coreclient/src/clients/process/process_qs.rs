@@ -36,7 +36,7 @@ use openmls::{
 };
 use sqlx::{Acquire, SqliteTransaction};
 use tls_codec::DeserializeBytes;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     ChatMessage, ChatStatus, ContentMessage, Message, MimiContentExt, SystemMessage,
@@ -965,27 +965,16 @@ impl CoreUser {
 
             // Decrypt and process the message (and Box the large future)
             let mut notifier = self.notifier();
-            let res = Box::pin(self.decrypt_and_process_qs_message(
+            if let Err(error) = Box::pin(self.decrypt_and_process_qs_message(
                 &mut txn,
                 &mut notifier,
                 qs_message,
                 &mut result,
                 read_receipts_enabled,
             ))
-            .await;
-
-            // If we failed due to a database error, stop processing without committing the
-            // ratchet update => the message will be retried
-            if let Some(db_error) = res.as_ref().err().and_then(|error: &anyhow::Error| {
-                match error.downcast_ref::<sqlx::Error>() {
-                    Some(sqlx::Error::Database(db_error)) => Some(db_error),
-                    _ => None,
-                }
-            }) {
-                error!(
-                    %db_error,
-                    "Failed to process QS message due to database error; \
-                    stopping processing");
+            .await
+            {
+                error!(%error, "Fatal error when processsing a QS message; stopping loop");
                 result.processed = idx;
                 return result; // Stop processing
             }
@@ -998,12 +987,7 @@ impl CoreUser {
                 })
                 .ok();
 
-            // Either notify on success or accumulate error and continue
-            if let Err(error) = res {
-                result.errors.push(error);
-            } else {
-                notifier.notify();
-            }
+            notifier.notify();
         }
 
         result.processed = num_messages;
@@ -1038,13 +1022,32 @@ impl CoreUser {
         // committing the parent one.
         let mut savepoint_txn = txn.begin().await?;
 
-        let processed = Box::pin(self.process_qs_message(
+        let processed = match Box::pin(self.process_qs_message(
             &mut savepoint_txn,
             notifier,
             qs_message_plaintext,
             read_receipts_enabled,
         ))
-        .await?;
+        .await
+        {
+            Ok(processed) => {
+                savepoint_txn.commit().await?;
+                processed
+            }
+            Err(error) if error.downcast_ref::<BlockedContactError>().is_some() => {
+                info!("Dropping message from blocked contact");
+                return Ok(());
+            }
+            Err(error) if error.downcast_ref::<sqlx::Error>().is_some() => {
+                // Fatal error, stop processing
+                return Err(error);
+            }
+            Err(error) => {
+                error!(%error, "Processing message failed; continue");
+                result.errors.push(error);
+                return Ok(());
+            }
+        };
 
         match processed {
             ProcessQsMessageResult::Messages(messages) => {
