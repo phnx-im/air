@@ -974,7 +974,7 @@ impl CoreUser {
             ))
             .await
             {
-                error!(%error, "Fatal error when processsing a QS message; stopping loop");
+                error!(%error, "Fatal error when processing a QS message; stopping loop");
                 result.processed = idx;
                 return result; // Stop processing
             }
