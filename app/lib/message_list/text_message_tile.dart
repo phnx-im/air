@@ -134,7 +134,6 @@ class TextMessageTile extends StatelessWidget {
       inReplyToMessage: inReplyToMessage,
       timestamp: timestamp,
       isSender: isSender,
-      isError: status == UiMessageStatus.error,
       flightPosition: flightPosition,
       status: status,
       showMetadata: true,
@@ -217,7 +216,6 @@ class _IncomingMessageTile extends StatelessWidget {
                 inReplyToMessage: inReplyToMessage,
                 timestamp: timestamp,
                 isSender: false,
-                isError: status == UiMessageStatus.error,
                 flightPosition: flightPosition,
                 status: status,
                 showMetadata: false,
@@ -250,7 +248,6 @@ class _MessageView extends HookWidget {
     required this.timestamp,
     required this.flightPosition,
     required this.isSender,
-    required this.isError,
     required this.status,
     required this.showMetadata,
     required this.showSenderLabel,
@@ -262,7 +259,6 @@ class _MessageView extends HookWidget {
   final DateTime timestamp;
   final UiFlightPosition flightPosition;
   final bool isSender;
-  final bool isError;
   final UiMessageStatus status;
   final bool showMetadata;
   final bool showSenderLabel;
@@ -318,7 +314,7 @@ class _MessageView extends HookWidget {
 
     final attachments = contentMessage.content.attachments;
     final isDeleted = contentMessage.content.isDeleted;
-    final isReplyable = !isDeleted && !isError;
+    final isReplyable = !isDeleted && status != UiMessageStatus.error;
 
     const iconSize = 16.0;
 
