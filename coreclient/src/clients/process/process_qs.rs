@@ -1038,7 +1038,12 @@ impl CoreUser {
                 info!("Dropping message from blocked contact");
                 return Ok(());
             }
-            Err(error) if error.downcast_ref::<sqlx::Error>().is_some() => {
+            Err(error)
+                if error
+                    .downcast_ref::<sqlx::Error>()
+                    .map(|error| error.as_database_error().is_some())
+                    .unwrap_or(false) =>
+            {
                 // Fatal error, stop processing
                 return Err(error);
             }
