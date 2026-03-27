@@ -1240,8 +1240,6 @@ impl QsStreamProcessor {
 
                 let processed_messages = core_user.fully_process_qs_messages(messages).await;
 
-                dbg!(&processed_messages, num_messages);
-
                 let result = if processed_messages.processed < num_messages {
                     error!(
                         processed_messages.processed,
