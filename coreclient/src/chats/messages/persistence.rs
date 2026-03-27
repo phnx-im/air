@@ -1562,18 +1562,28 @@ pub(crate) mod tests {
         }
 
         // Load 2 messages before t=35 -> should get t=20, t=30
-        let (loaded, has_older) =
-            ChatMessage::load_before(&mut txn, chat.id(), TimeStamp::from(35_000_000_000_i64), MessageId::new(Uuid::max()), 2)
-                .await?;
+        let (loaded, has_older) = ChatMessage::load_before(
+            &mut txn,
+            chat.id(),
+            TimeStamp::from(35_000_000_000_i64),
+            MessageId::new(Uuid::max()),
+            2,
+        )
+        .await?;
         assert_eq!(loaded.len(), 2);
         assert_eq!(loaded[0].id(), msgs[1].id()); // t=20
         assert_eq!(loaded[1].id(), msgs[2].id()); // t=30
         assert!(has_older); // t=10 exists
 
         // Load 10 messages before t=35 -> should get t=10, t=20, t=30 with has_older=false
-        let (loaded, has_older) =
-            ChatMessage::load_before(&mut txn, chat.id(), TimeStamp::from(35_000_000_000_i64), MessageId::new(Uuid::max()), 10)
-                .await?;
+        let (loaded, has_older) = ChatMessage::load_before(
+            &mut txn,
+            chat.id(),
+            TimeStamp::from(35_000_000_000_i64),
+            MessageId::new(Uuid::max()),
+            10,
+        )
+        .await?;
         assert_eq!(loaded.len(), 3);
         assert!(!has_older);
 
@@ -1597,18 +1607,28 @@ pub(crate) mod tests {
         }
 
         // Load 2 messages after t=25 -> should get t=30, t=40
-        let (loaded, has_newer) =
-            ChatMessage::load_after(&mut txn, chat.id(), TimeStamp::from(25_000_000_000_i64), MessageId::new(Uuid::nil()), 2)
-                .await?;
+        let (loaded, has_newer) = ChatMessage::load_after(
+            &mut txn,
+            chat.id(),
+            TimeStamp::from(25_000_000_000_i64),
+            MessageId::new(Uuid::nil()),
+            2,
+        )
+        .await?;
         assert_eq!(loaded.len(), 2);
         assert_eq!(loaded[0].id(), msgs[2].id()); // t=30
         assert_eq!(loaded[1].id(), msgs[3].id()); // t=40
         assert!(has_newer); // t=50 exists
 
         // Load 10 messages after t=25 -> should get t=30, t=40, t=50 with has_newer=false
-        let (loaded, has_newer) =
-            ChatMessage::load_after(&mut txn, chat.id(), TimeStamp::from(25_000_000_000_i64), MessageId::new(Uuid::nil()), 10)
-                .await?;
+        let (loaded, has_newer) = ChatMessage::load_after(
+            &mut txn,
+            chat.id(),
+            TimeStamp::from(25_000_000_000_i64),
+            MessageId::new(Uuid::nil()),
+            10,
+        )
+        .await?;
         assert_eq!(loaded.len(), 3);
         assert!(!has_newer);
 
@@ -1634,9 +1654,14 @@ pub(crate) mod tests {
         // Load around t=30 with half_limit=2
         // Backward (<=30): t=30, t=20 (limit 2), has_older because t=10 exists
         // Forward (>30): t=40, t=50 (limit 2), has_newer=false
-        let (loaded, has_older, has_newer) =
-            ChatMessage::load_around(&mut txn, chat.id(), TimeStamp::from(30_000_000_000_i64), msgs[2].id(), 2)
-                .await?;
+        let (loaded, has_older, has_newer) = ChatMessage::load_around(
+            &mut txn,
+            chat.id(),
+            TimeStamp::from(30_000_000_000_i64),
+            msgs[2].id(),
+            2,
+        )
+        .await?;
         assert_eq!(loaded.len(), 4); // t=20, t=30, t=40, t=50
         assert_eq!(loaded[0].id(), msgs[1].id()); // t=20
         assert_eq!(loaded[1].id(), msgs[2].id()); // t=30 (anchor)
@@ -1646,9 +1671,14 @@ pub(crate) mod tests {
         assert!(!has_newer);
 
         // Load around t=30 with half_limit=10 -> all 5 messages, no more
-        let (loaded, has_older, has_newer) =
-            ChatMessage::load_around(&mut txn, chat.id(), TimeStamp::from(30_000_000_000_i64), msgs[2].id(), 10)
-                .await?;
+        let (loaded, has_older, has_newer) = ChatMessage::load_around(
+            &mut txn,
+            chat.id(),
+            TimeStamp::from(30_000_000_000_i64),
+            msgs[2].id(),
+            10,
+        )
+        .await?;
         assert_eq!(loaded.len(), 5);
         assert!(!has_older);
         assert!(!has_newer);
