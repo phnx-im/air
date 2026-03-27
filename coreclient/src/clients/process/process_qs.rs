@@ -1041,8 +1041,7 @@ impl CoreUser {
             Err(error)
                 if error
                     .downcast_ref::<sqlx::Error>()
-                    .map(|error| error.as_database_error().is_some())
-                    .unwrap_or(false) =>
+                    .is_some_and(|error| error.as_database_error().is_some()) =>
             {
                 // Fatal error, stop processing
                 return Err(error);
