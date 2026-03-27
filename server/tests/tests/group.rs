@@ -869,8 +869,6 @@ async fn qs_stream_processor_partially_processes_messages() {
     alice_user.outbound_service().run_once().await;
 
     let bob_user = &setup.get_user(&bob).user;
-    // let batch = bob_user.qs_fetch_messages().await.unwrap();
-    // bob_user.fully_process_qs_messages(batch).await;
 
     let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
     let mut processor = QsStreamProcessor::new(Some(responder));

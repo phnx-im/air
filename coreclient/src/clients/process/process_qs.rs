@@ -36,7 +36,7 @@ use openmls::{
 };
 use sqlx::{Acquire, SqliteTransaction};
 use tls_codec::DeserializeBytes;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, warn};
 
 use crate::{
     ChatMessage, ChatStatus, ContentMessage, Message, MimiContentExt, SystemMessage,
