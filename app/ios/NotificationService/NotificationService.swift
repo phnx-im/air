@@ -379,7 +379,7 @@ class NotificationService: UNNotificationServiceExtension {
             // Note: Protection is also applied to the temp directory, because
             // sqlite uses it to write statement journal files:
             // <https://sqlite.org/tempfiles.html>
-            //            applyProtection(URL(fileURLWithPath: NSTemporaryDirectory()))
+            applyProtection(URL(fileURLWithPath: NSTemporaryDirectory()))
             return dbsURL
         } else {
             return nil
