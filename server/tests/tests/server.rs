@@ -15,11 +15,7 @@ use aircommon::{
 };
 use aircoreclient::{
     ChatId,
-    clients::{
-        QueueEvent,
-        process::process_qs::{ProcessedQsMessages, QsStreamProcessor},
-        queue_event,
-    },
+    clients::{QueueEvent, process::process_qs::ProcessedQsMessages, queue_event},
     outbound_service::KEY_PACKAGES,
     store::Store,
 };
@@ -35,18 +31,13 @@ use chrono::Utc;
 use mimi_content::MimiContent;
 use rand::thread_rng;
 use semver::VersionReq;
-use tokio::{
-    task::JoinSet,
-    time::{sleep, timeout},
-};
+use tokio::time::{sleep, timeout};
 use tokio_stream::StreamExt;
 use tonic::transport::Channel;
 use tonic_health::pb::{
     HealthCheckRequest, health_check_response::ServingStatus, health_client::HealthClient,
 };
 use tracing::{info, warn};
-
-use crate::tests::init_test_logging;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Rate limit test", skip_all)]
