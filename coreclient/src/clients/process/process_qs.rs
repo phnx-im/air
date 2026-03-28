@@ -965,57 +965,29 @@ impl CoreUser {
 
             // Decrypt and process the message (and Box the large future)
             let mut notifier = self.notifier();
-            let res = Box::pin(self.decrypt_and_process_qs_message(
+            if let Err(error) = Box::pin(self.decrypt_and_process_qs_message(
                 &mut txn,
                 &mut notifier,
                 qs_message,
                 &mut result,
                 read_receipts_enabled,
             ))
-            .await;
-
-            // Classify the result
-            let (success, commit_ratchet) = match res {
-                Ok(_) => (true, true),
-                Err(error) => match error.downcast::<sqlx::Error>() {
-                    Ok(sqlx::Error::Database(db_error)) => {
-                        // Stop processing without committing the ratchet update => the message
-                        // will be retried
-                        error!(
-                            %db_error,
-                            "Failed to process QS message due to database error; \
-                            stopping processing");
-                        (false, false)
-                    }
-                    Ok(error) => {
-                        error!(%error, "Failed to process QS message");
-                        (false, true)
-                    }
-                    Err(error) => {
-                        error!(%error, "Failed to process QS message");
-                        (false, true)
-                    }
-                },
-            };
+            .await
+            {
+                error!(%error, "Fatal error when processing a QS message; stopping loop");
+                result.processed = idx;
+                return result; // Stop processing
+            }
 
             // Commit the ratchet update
-            if commit_ratchet {
-                txn.commit()
-                    .await
-                    .inspect_err(|error| {
-                        error!(%error, "Failed to commit the ratchet transaction");
-                    })
-                    .ok();
-            }
+            txn.commit()
+                .await
+                .inspect_err(|error| {
+                    error!(%error, "Failed to commit the ratchet transaction");
+                })
+                .ok();
 
-            if success {
-                // Only notify about store changes if the message was successfully processed and
-                // *after* the transaction was committed.
-                notifier.notify();
-            } else {
-                result.processed = idx;
-                return result; // stop the loop
-            }
+            notifier.notify();
         }
 
         result.processed = num_messages;
@@ -1066,12 +1038,16 @@ impl CoreUser {
                 info!("Dropping message from blocked contact");
                 return Ok(());
             }
-            Err(error) if error.downcast_ref::<sqlx::Error>().is_some() => {
-                error!(%error, "Persistence error while processing QS message, aborting loop");
+            Err(error)
+                if error
+                    .downcast_ref::<sqlx::Error>()
+                    .is_some_and(|error| error.as_database_error().is_some()) =>
+            {
+                // Fatal error, stop processing
                 return Err(error);
             }
             Err(error) => {
-                error!(%error, "Processing message failed");
+                error!(%error, "Processing message failed; continue");
                 result.errors.push(error);
                 return Ok(());
             }
@@ -1281,21 +1257,22 @@ impl QsStreamProcessor {
                         processed: processed_messages,
                     }
                 } else {
+                    if let Some(max_sequence_number) = max_sequence_number {
+                        // We received some messages, so we can ack them *after* they were fully
+                        // processed. In particular, the queue ratchet sequence number has been already
+                        // written back into the database.
+                        if let Some(responder) = self.responder.as_ref() {
+                            // Acks all messages before max_sequence_number + 1 (exclusive)
+                            responder.ack(max_sequence_number + 1).await;
+                        } else {
+                            error!("logic error: no responder to ack QS messages");
+                        }
+                    }
+
                     QsProcessEventResult::FullyProcessed {
                         processed: processed_messages,
                     }
                 };
-
-                if let Some(max_sequence_number) = max_sequence_number {
-                    // We received some messages, so we can ack them *after* they were fully
-                    // processed. In particular, the queue ratchet sequence number has been already
-                    // written back into the database.
-                    if let Some(responder) = self.responder.as_ref() {
-                        responder.ack(max_sequence_number + 1).await;
-                    } else {
-                        error!("logic error: no responder to ack QS messages");
-                    }
-                }
 
                 // Start the background task, but don't wait for it to start
                 drop(core_user.outbound_service().start());

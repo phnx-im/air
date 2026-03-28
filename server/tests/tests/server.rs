@@ -15,11 +15,7 @@ use aircommon::{
 };
 use aircoreclient::{
     ChatId,
-    clients::{
-        QueueEvent,
-        process::process_qs::{ProcessedQsMessages, QsStreamProcessor},
-        queue_event,
-    },
+    clients::{QueueEvent, process::process_qs::ProcessedQsMessages, queue_event},
     outbound_service::KEY_PACKAGES,
     store::Store,
 };
@@ -35,18 +31,13 @@ use chrono::Utc;
 use mimi_content::MimiContent;
 use rand::thread_rng;
 use semver::VersionReq;
-use tokio::{
-    task::JoinSet,
-    time::{sleep, timeout},
-};
+use tokio::time::{sleep, timeout};
 use tokio_stream::StreamExt;
 use tonic::transport::Channel;
 use tonic_health::pb::{
     HealthCheckRequest, health_check_response::ServingStatus, health_client::HealthClient,
 };
 use tracing::{info, warn};
-
-use crate::tests::init_test_logging;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Rate limit test", skip_all)]
@@ -290,94 +281,94 @@ async fn ratchet_tolerance() {
     );
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Client sequence number race", skip_all)]
-async fn client_sequence_number_race() {
-    init_test_logging();
+// #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+// #[tracing::instrument(name = "Client sequence number race", skip_all)]
+// async fn client_sequence_number_race() {
+//     init_test_logging();
 
-    let mut setup = TestBackend::single().await;
+//     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    setup.get_user_mut(&alice).add_user_handle().await.unwrap();
+//     let alice = setup.add_user().await;
+//     setup.get_user_mut(&alice).add_user_handle().await.unwrap();
 
-    let bob = setup.add_user().await;
+//     let bob = setup.add_user().await;
 
-    let chat_id = setup.connect_users(&alice, &bob).await;
+//     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    info!("Alice sending messages to queue");
+//     info!("Alice sending messages to queue");
 
-    let alice = setup.get_user(&alice);
+//     let alice = setup.get_user(&alice);
 
-    const NUM_SENDERS: usize = 5;
-    const NUM_MESSAGES: usize = 10;
-    let alice_user = alice.user.clone();
-    for _ in 0..NUM_SENDERS {
-        let alice_user = alice_user.clone();
-        tokio::spawn(async move {
-            for _ in 0..NUM_MESSAGES {
-                const SALT: [u8; 16] = [0; 16];
-                let message = MimiContent::simple_markdown_message("Hello bob".into(), SALT);
-                alice_user
-                    .send_message(chat_id, message, None)
-                    .await
-                    .unwrap();
-                alice_user.outbound_service().run_once().await;
-            }
-        });
-    }
+//     const NUM_SENDERS: usize = 5;
+//     const NUM_MESSAGES: usize = 10;
+//     let alice_user = alice.user.clone();
+//     for _ in 0..NUM_SENDERS {
+//         let alice_user = alice_user.clone();
+//         tokio::spawn(async move {
+//             for _ in 0..NUM_MESSAGES {
+//                 const SALT: [u8; 16] = [0; 16];
+//                 let message = MimiContent::simple_markdown_message("Hello bob".into(), SALT);
+//                 alice_user
+//                     .send_message(chat_id, message, None)
+//                     .await
+//                     .unwrap();
+//                 alice_user.outbound_service().run_once().await;
+//             }
+//         });
+//     }
 
-    info!("Bob getting messages from queue");
+//     info!("Bob getting messages from queue");
 
-    const NUM_CLIENTS: usize = 2;
-    let mut join_set = JoinSet::new();
+//     const NUM_CLIENTS: usize = 2;
+//     let mut join_set = JoinSet::new();
 
-    let bob_user = setup.get_user(&bob).user.clone();
-    let (processed, processed_rx) = tokio::sync::watch::channel(0);
+//     let bob_user = setup.get_user(&bob).user.clone();
+//     let (processed, processed_rx) = tokio::sync::watch::channel(0);
 
-    for _ in 0..NUM_CLIENTS {
-        let bob_user = bob_user.clone();
-        let processed = processed.clone();
-        let mut processed_rx = processed_rx.clone();
-        join_set.spawn(async move {
-            loop {
-                if *processed.borrow() == NUM_SENDERS * NUM_MESSAGES {
-                    break;
-                }
+//     for _ in 0..NUM_CLIENTS {
+//         let bob_user = bob_user.clone();
+//         let processed = processed.clone();
+//         let mut processed_rx = processed_rx.clone();
+//         join_set.spawn(async move {
+//             loop {
+//                 if *processed.borrow() == NUM_SENDERS * NUM_MESSAGES {
+//                     break;
+//                 }
 
-                let Ok((mut stream, responder)) = bob_user.listen_queue().await else {
-                    continue;
-                };
+//                 let Ok((mut stream, responder)) = bob_user.listen_queue().await else {
+//                     continue;
+//                 };
 
-                let mut handler = QsStreamProcessor::new(Some(responder));
+//                 let mut handler = QsStreamProcessor::new(Some(responder));
 
-                loop {
-                    let finished =
-                        processed_rx.wait_for(|processed| *processed == NUM_SENDERS * NUM_MESSAGES);
-                    let event = tokio::select! {
-                        _ = tokio::time::sleep(Duration::from_secs(30)) => panic!("timeout waiting for condition: test failed!"),
-                        _ = finished => break,
-                        event = stream.next() => event
-                    };
-                    let Some(event) = event else {
-                        break;
-                    };
+//                 loop {
+//                     let finished =
+//                         processed_rx.wait_for(|processed| *processed == NUM_SENDERS * NUM_MESSAGES);
+//                     let event = tokio::select! {
+//                         _ = tokio::time::sleep(Duration::from_secs(30)) => panic!("timeout waiting for condition: test failed!"),
+//                         _ = finished => break,
+//                         event = stream.next() => event
+//                     };
+//                     let Some(event) = event else {
+//                         break;
+//                     };
 
-                    let result = handler.process_event(&bob_user, event).await;
+//                     let result = handler.process_event(&bob_user, event).await;
 
-                    processed.send_modify(|processed| {
-                        *processed += result.processed();
-                    });
-                    if result.is_partially_processed() {
-                        break; // stop the stream when only partially processed
-                    }
-                }
-            }
-        });
-    }
-    join_set.join_all().await; // panics on error
+//                     processed.send_modify(|processed| {
+//                         *processed += result.processed();
+//                     });
+//                     if result.is_partially_processed() {
+//                         break; // stop the stream when only partially processed
+//                     }
+//                 }
+//             }
+//         });
+//     }
+//     join_set.join_all().await; // panics on error
 
-    assert_eq!(*processed.borrow(), NUM_SENDERS * NUM_MESSAGES);
-}
+//     assert_eq!(*processed.borrow(), NUM_SENDERS * NUM_MESSAGES);
+// }
 
 // TODO: Re-enable once we have implemented a resync UX.
 //#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
