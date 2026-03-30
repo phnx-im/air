@@ -10,6 +10,7 @@ import "common/v1/common.proto";
 
 service AuthService {
   rpc CheckInvitationCode(CheckInvitationCodeRequest) returns (CheckInvitationCodeResponse);
+  rpc GenerateInvitationCodes(GenerateInvitationCodesRequest) returns (GenerateInvitationCodesResponse);
 
   rpc RegisterUser(RegisterUserRequest) returns (RegisterUserResponse);
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
@@ -152,17 +153,28 @@ message Hash {
 
 // check invitation code
 
+message InvitationCode {
+  string code = 1;
+}
+
 message CheckInvitationCodeRequest {
   common.v1.ClientMetadata client_metadata = 1;
   InvitationCode invitation_code = 2;
 }
 
-message InvitationCode {
-  string code = 1;
-}
-
 message CheckInvitationCodeResponse {
   bool is_valid = 1;
+}
+
+// generate invitation codes
+
+message GenerateInvitationCodesRequest {
+  common.v1.ClientMetadata client_metadata = 1;
+  uint32 count = 2;
+}
+
+message GenerateInvitationCodesResponse {
+  repeated InvitationCode invitation_codes = 1;
 }
 
 // register user

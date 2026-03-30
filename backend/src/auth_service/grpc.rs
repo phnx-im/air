@@ -209,6 +209,15 @@ impl auth_service_server::AuthService for GrpcAs {
         }))
     }
 
+    async fn generate_invitation_codes(
+        &self,
+        request: Request<GenerateInvitationCodesRequest>,
+    ) -> Result<Response<GenerateInvitationCodesResponse>, Status> {
+        Ok(Response::new(GenerateInvitationCodesResponse {
+            invitation_codes: vec![],
+        }))
+    }
+
     async fn register_user(
         &self,
         request: Request<RegisterUserRequest>,
