@@ -35,7 +35,7 @@ jobs:
       ## CHECK FRB
       - uses: extractions/setup-just@v2
       - uses: cargo-bins/cargo-binstall@main
-      - run: cargo binstall flutter_rust_bridge_codegen@2.11.1 --no-confirm
+      - run: cargo binstall cargo-expand flutter_rust_bridge_codegen@2.11.1 --no-confirm
       - run: just install-fvm
       - run: echo /home/runner/fvm/bin >> $GITHUB_PATH
       - run: (cd app && fvm install)
