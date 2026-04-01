@@ -4,7 +4,7 @@
 
 use aircommon::{
     credentials::{ClientCredential, VerifiableClientCredential},
-    crypto::{ear::EarDecryptable, indexed_aead::keys::UserProfileKey},
+    crypto::{aead::AeadDecryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{MimiId, QualifiedGroupId, UserId},
     messages::{
         QueueMessage,

@@ -30,7 +30,7 @@ use aircommon::{
     credentials::keys::ClientSigningKey,
     crypto::{
         RatchetDecryptionKey,
-        ear::keys::{PushTokenEarKey, WelcomeAttributionInfoEarKey},
+        aead::keys::{PushTokenEarKey, WelcomeAttributionInfoEarKey},
         signatures::keys::{QsClientSigningKey, QsUserSigningKey},
     },
     messages::FriendshipToken,

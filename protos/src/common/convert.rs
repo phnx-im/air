@@ -8,7 +8,7 @@ use aircommon::{
     credentials::keys::{AsIntermediateSignature, AsSignature, ClientSignature, HandleSignature},
     crypto::{
         self,
-        ear::{self, AeadCiphertext},
+        aead::{self, AeadCiphertext},
         indexed_aead,
         kdf::KDF_KEY_SIZE,
         secrets::Secret,
@@ -128,21 +128,21 @@ impl FromRef<'_, openmls::group::GroupId> for GroupId {
     }
 }
 
-impl<CT> From<ear::Ciphertext<CT>> for Ciphertext {
-    fn from(value: ear::Ciphertext<CT>) -> Self {
+impl<CT> From<aead::Ciphertext<CT>> for Ciphertext {
+    fn from(value: aead::Ciphertext<CT>) -> Self {
         AeadCiphertext::from(value).into()
     }
 }
 
-impl<CT> TryFrom<Ciphertext> for ear::Ciphertext<CT> {
+impl<CT> TryFrom<Ciphertext> for aead::Ciphertext<CT> {
     type Error = InvalidNonceLen;
 
     fn try_from(proto: Ciphertext) -> Result<Self, Self::Error> {
-        Ok(ear::AeadCiphertext::try_from(proto)?.into())
+        Ok(aead::AeadCiphertext::try_from(proto)?.into())
     }
 }
 
-impl TryFrom<Ciphertext> for ear::AeadCiphertext {
+impl TryFrom<Ciphertext> for aead::AeadCiphertext {
     type Error = InvalidNonceLen;
 
     fn try_from(proto: Ciphertext) -> Result<Self, Self::Error> {
@@ -151,12 +151,12 @@ impl TryFrom<Ciphertext> for ear::AeadCiphertext {
             .nonce
             .try_into()
             .map_err(|_| InvalidNonceLen(nonce_len))?;
-        Ok(ear::AeadCiphertext::new(proto.ciphertext, nonce))
+        Ok(aead::AeadCiphertext::new(proto.ciphertext, nonce))
     }
 }
 
-impl From<ear::AeadCiphertext> for Ciphertext {
-    fn from(value: ear::AeadCiphertext) -> Self {
+impl From<aead::AeadCiphertext> for Ciphertext {
+    fn from(value: aead::AeadCiphertext) -> Self {
         let (ciphertext, nonce) = value.into_parts();
         Self {
             ciphertext,

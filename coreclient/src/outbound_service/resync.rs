@@ -4,7 +4,7 @@
 
 use aircommon::{
     credentials::keys::ClientSigningKey,
-    crypto::ear::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
+    crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     identifiers::QualifiedGroupId,
     messages::{client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
 };

@@ -8,8 +8,8 @@ use aircommon::{
         keys::{AsIntermediateVerifyingKey, ClientSignature},
     },
     crypto::{
-        ear::{
-            EarDecryptable, EarEncryptable,
+        aead::{
+            AeadDecryptable, AeadEncryptable,
             keys::{
                 FriendshipPackageEarKey, GroupStateEarKey, IdentityLinkWrapperKey,
                 WelcomeAttributionInfoEarKey,
@@ -346,11 +346,11 @@ pub(crate) struct FriendshipPackage {
     pub(crate) user_profile_base_secret: UserProfileBaseSecret,
 }
 
-impl EarEncryptable<FriendshipPackageEarKey, EncryptedFriendshipPackageCtype>
+impl AeadEncryptable<FriendshipPackageEarKey, EncryptedFriendshipPackageCtype>
     for FriendshipPackage
 {
 }
-impl EarDecryptable<FriendshipPackageEarKey, EncryptedFriendshipPackageCtype>
+impl AeadDecryptable<FriendshipPackageEarKey, EncryptedFriendshipPackageCtype>
     for FriendshipPackage
 {
 }

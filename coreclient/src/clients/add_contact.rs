@@ -6,7 +6,7 @@ use airapiclient::{ApiClient, as_api::AsConnectionOfferResponder};
 use aircommon::{
     credentials::keys::ClientSigningKey,
     crypto::{
-        ear::keys::{FriendshipPackageEarKey, GroupStateEarKey, IdentityLinkWrapperKey},
+        aead::keys::{FriendshipPackageEarKey, GroupStateEarKey, IdentityLinkWrapperKey},
         hash::Hashable as _,
         hpke::HpkeEncryptable,
         indexed_aead::keys::UserProfileKey,

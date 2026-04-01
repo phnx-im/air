@@ -13,7 +13,7 @@ use url::Host;
 use uuid::Uuid;
 
 use crate::crypto::{
-    ear::keys::PushTokenEarKey,
+    aead::keys::PushTokenEarKey,
     hpke::{ClientIdKeyType, HpkeDecryptable, HpkeEncryptable},
 };
 

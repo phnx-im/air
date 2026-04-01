@@ -6,7 +6,7 @@ use std::fmt::Display;
 
 use aircommon::{
     codec::{self, PersistenceCodec},
-    crypto::ear::keys::IdentityLinkWrapperKey,
+    crypto::aead::keys::IdentityLinkWrapperKey,
     identifiers::{Fqdn, QualifiedGroupId, UserHandle, UserId},
 };
 use airprotos::client::group::{ExternalGroupProfile, GroupData};

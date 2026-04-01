@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::crypto::ear::{Ciphertext, EarDecryptable, EarEncryptable, keys::AttachmentEarKey};
+use aircommon::crypto::aead::{Ciphertext, AeadDecryptable, AeadEncryptable, keys::AttachmentEarKey};
 use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
 
 use super::AttachmentBytes;
@@ -17,6 +17,6 @@ pub struct EncryptedAttachmentCtype;
 
 pub type EncryptedAttachment = Ciphertext<EncryptedAttachmentCtype>;
 
-impl EarEncryptable<AttachmentEarKey, EncryptedAttachmentCtype> for AttachmentBytes {}
+impl AeadEncryptable<AttachmentEarKey, EncryptedAttachmentCtype> for AttachmentBytes {}
 
-impl EarDecryptable<AttachmentEarKey, EncryptedAttachmentCtype> for AttachmentBytes {}
+impl AeadDecryptable<AttachmentEarKey, EncryptedAttachmentCtype> for AttachmentBytes {}

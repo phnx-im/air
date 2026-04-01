@@ -2,9 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! This module and its submodules contain structs and types to facilitate (EAR)
-//! encryption of other structs on the backend. See the individual submodules
-//! for details.
+//! This module and its submodules contain structs and types to facilitate AEAD
+//! symmetric encryption. See the individual submodules for details.
 
 pub mod keys;
 mod trait_impls;
@@ -13,7 +12,7 @@ mod traits;
 use std::marker::PhantomData;
 
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
-pub use traits::{EarDecryptable, EarEncryptable, EarKey};
+pub use traits::{AeadDecryptable, AeadEncryptable, AeadKey};
 
 use aes_gcm::Aes256Gcm;
 pub use aes_gcm::aead::Payload;

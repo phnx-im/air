@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! This module contains traits to facilitate EAR of other structs on the
-//! backend. Any struct that needs to be encrypted at rest needs to implement
-//! the [`EarEncryptable`] trait.
+//! This module contains traits to facilitate AEAD symmetric encryption of other
+//! structs. Any struct that needs to be encrypted needs to implement the
+//! [`AeadEncryptable`] trait.
 
 use aes_gcm::{
     KeyInit,
@@ -21,7 +21,7 @@ use super::{AEAD_KEY_SIZE, AEAD_NONCE_SIZE, Aead, AeadCiphertext, Ciphertext};
 
 /// A trait meant for structs holding a symmetric key of size [`AEAD_KEY_SIZE`].
 /// It enables use of these keys for encryption and decryption operations.
-pub trait EarKey: AsRef<Secret<AEAD_KEY_SIZE>> {
+pub trait AeadKey: AsRef<Secret<AEAD_KEY_SIZE>> {
     // Encrypt the given plaintext under the given key. Generates a random nonce internally.
     #[instrument(level = "trace", skip_all, fields(key_type = std::any::type_name::<Self>()))]
     fn encrypt<'msg, 'aad>(
@@ -96,22 +96,22 @@ fn decrypt<'ctxt, 'aad>(
 }
 
 /// A trait that can be derived for structs that are encryptable/decryptable by
-/// an EAR key.
-pub trait EarEncryptable<EarKeyType: EarKey, CT>: tls_codec::Serialize {
-    /// Encrypt the value under the given [`EarKey`]. Returns an
+/// an AEAD key.
+pub trait AeadEncryptable<KeyType: AeadKey, CT>: tls_codec::Serialize {
+    /// Encrypt the value under the given [`AeadKey`]. Returns an
     /// [`EncryptionError`] or the ciphertext.
-    fn encrypt(&self, ear_key: &EarKeyType) -> Result<Ciphertext<CT>, EncryptionError> {
+    fn encrypt(&self, key: &KeyType) -> Result<Ciphertext<CT>, EncryptionError> {
         let plaintext = self.tls_serialize_detached().map_err(|e| {
             tracing::error!("Could not serialize plaintext: {:?}", e);
             EncryptionError::SerializationError
         })?;
-        let ciphertext = ear_key.encrypt(plaintext.as_slice())?;
+        let ciphertext = key.encrypt(plaintext.as_slice())?;
         Ok(ciphertext.into())
     }
 
     fn encrypt_with_aad<Aad: tls_codec::Serialize>(
         &self,
-        ear_key: &EarKeyType,
+        key: &KeyType,
         aad: &Aad,
     ) -> Result<Ciphertext<CT>, EncryptionError> {
         let plaintext = self.tls_serialize_detached().map_err(|e| {
@@ -126,24 +126,24 @@ pub trait EarEncryptable<EarKeyType: EarKey, CT>: tls_codec::Serialize {
             msg: plaintext.as_slice(),
             aad: aad.as_slice(),
         };
-        let ciphertext = ear_key.encrypt(payload)?;
+        let ciphertext = key.encrypt(payload)?;
         Ok(ciphertext.into())
     }
 }
 
 /// A trait that can be derived for structs that are encryptable/decryptable by
-/// an EAR key.
-pub trait EarDecryptable<EarKeyType: EarKey, CT>: tls_codec::DeserializeBytes + Sized {
-    /// Decrypt the given ciphertext using the given [`EarKey`]. Returns a
+/// an AEAD key.
+pub trait AeadDecryptable<KeyType: AeadKey, CT>: tls_codec::DeserializeBytes + Sized {
+    /// Decrypt the given ciphertext using the given [`AeadKey`]. Returns a
     /// [`DecryptionError`] or the resulting plaintext.
-    fn decrypt(ear_key: &EarKeyType, ciphertext: &Ciphertext<CT>) -> Result<Self, DecryptionError> {
-        let plaintext = ear_key.decrypt(&ciphertext.ct)?;
+    fn decrypt(key: &KeyType, ciphertext: &Ciphertext<CT>) -> Result<Self, DecryptionError> {
+        let plaintext = key.decrypt(&ciphertext.ct)?;
         Self::tls_deserialize_exact_bytes(&plaintext)
             .map_err(|_| DecryptionError::DeserializationError)
     }
 
     fn decrypt_with_aad<Aad: tls_codec::Serialize>(
-        ear_key: &EarKeyType,
+        key: &KeyType,
         ciphertext: &Ciphertext<CT>,
         aad: &Aad,
     ) -> Result<Self, DecryptionError> {
@@ -151,7 +151,7 @@ pub trait EarDecryptable<EarKeyType: EarKey, CT>: tls_codec::DeserializeBytes + 
             tracing::error!(error = %e, "Could not serialize aad");
             DecryptionError::SerializationError
         })?;
-        let plaintext = ear_key.decrypt_with_aad(&ciphertext.ct, aad.as_slice())?;
+        let plaintext = key.decrypt_with_aad(&ciphertext.ct, aad.as_slice())?;
         Self::tls_deserialize_exact_bytes(&plaintext)
             .map_err(|_| DecryptionError::DeserializationError)
     }

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    crypto::ear::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
+    crypto::aead::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
     identifiers::{Fqdn, UserHandle, UserId},
     messages::FriendshipToken,
 };
@@ -420,7 +420,7 @@ mod tests {
 
     use aircommon::{
         crypto::{
-            ear::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
+            aead::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
             indexed_aead::keys::UserProfileKey,
         },
         messages::{FriendshipToken, client_as::ConnectionOfferHash},

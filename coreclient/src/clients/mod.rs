@@ -20,7 +20,7 @@ use aircommon::{
     },
     crypto::{
         RatchetDecryptionKey,
-        ear::keys::WelcomeAttributionInfoEarKey,
+        aead::keys::WelcomeAttributionInfoEarKey,
         hpke::HpkeEncryptable,
         kdf::keys::RatchetSecret,
         signatures::keys::{QsClientSigningKey, QsUserSigningKey},

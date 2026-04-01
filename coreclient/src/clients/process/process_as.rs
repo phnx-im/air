@@ -5,7 +5,7 @@
 use aircommon::{
     credentials::ClientCredential,
     crypto::{
-        ear::keys::FriendshipPackageEarKey, hpke::HpkeDecryptable,
+        aead::keys::FriendshipPackageEarKey, hpke::HpkeDecryptable,
         indexed_aead::keys::UserProfileKey,
     },
     identifiers::{QualifiedGroupId, UserHandle, UserId},

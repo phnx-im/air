@@ -915,7 +915,7 @@ pub mod test_utils {
 mod tests {
     use aircommon::{
         credentials::{keys::ClientSigningKey, test_utils::create_test_credentials},
-        crypto::ear::keys::IdentityLinkWrapperKey,
+        crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QualifiedGroupId, UserId},
     };
     use chrono::{Duration, Utc};

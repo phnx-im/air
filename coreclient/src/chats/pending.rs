@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    crypto::{ear::EarEncryptable, indexed_aead::keys::UserProfileKey},
+    crypto::{aead::AeadEncryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{QualifiedGroupId, UserHandle},
     messages::{
         client_as::ConnectionOfferHash,

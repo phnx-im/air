@@ -7,7 +7,7 @@ use std::iter;
 use aircommon::{
     credentials::VerifiableClientCredential,
     crypto::{
-        ear::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
+        aead::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
         indexed_aead::keys::UserProfileKey,
     },
     identifiers::{UserHandle, UserId},
