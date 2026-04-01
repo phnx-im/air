@@ -8,6 +8,8 @@ import 'package:convert/convert.dart';
 
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'package:uuid/uuid.dart';
+import 'types.dart';
 
 Future<bool> checkInvitationCode({
   required String domain,
@@ -15,4 +17,10 @@ Future<bool> checkInvitationCode({
 }) => RustLib.instance.api.crateApiInvitationCodeCheckInvitationCode(
   domain: domain,
   invitationCode: invitationCode,
+);
+
+Future<List<InvitationCode>> replenishInvitationCodes({
+  required UiUserId userId,
+}) => RustLib.instance.api.crateApiInvitationCodeReplenishInvitationCodes(
+  userId: userId,
 );

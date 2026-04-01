@@ -2,7 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::Fqdn;
+use aircommon::identifiers::{Fqdn, UserId};
+use airprotos::auth_service::v1::InvitationCode;
 
 use crate::clients::{CoreUser, api_clients::ApiClients};
 
@@ -18,5 +19,13 @@ impl CoreUser {
         let api_clients = ApiClients::new(domain, None);
         let api_client = api_clients.default_client()?;
         Ok(api_client.as_check_invitation_code(invitation_code).await?)
+    }
+
+    pub async fn replenish_invitation_codes(
+        user_id: UserId,
+    ) -> anyhow::Result<Vec<InvitationCode>> {
+        let api_clients = ApiClients::new(user_id.domain().clone(), None);
+        let api_client = api_clients.default_client()?;
+        Ok(api_client.as_replenish_invitation_codes(user_id).await?)
     }
 }

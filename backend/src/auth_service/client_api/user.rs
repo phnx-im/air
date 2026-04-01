@@ -92,9 +92,8 @@ impl AuthService {
                 RegisterUserError::StorageError
             })?;
 
-        if let Some(code_record) = code_record.as_mut() {
-            code_record.redeemed = true;
-            code_record.save(&self.db_pool).await.map_err(|error| {
+        if let Some(code_record) = code_record.take() {
+            code_record.redeem(&self.db_pool).await.map_err(|error| {
                 error!(%error, "Failed to save invitation code");
                 RegisterUserError::StorageError
             })?;

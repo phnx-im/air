@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircommon::identifiers::UserId;
+
 use crate::auth_service::{AuthService, invitation_code_record::InvitationCodeRecord};
 
 impl AuthService {
@@ -12,16 +14,17 @@ impl AuthService {
 
     pub async fn invitation_codes_list(
         &self,
+        user_id: &UserId,
         limit: usize,
         include_redeemed: bool,
     ) -> sqlx::Result<impl Iterator<Item = (String, bool)>> {
-        let codes = InvitationCodeRecord::load_all(&self.db_pool, include_redeemed, limit).await?;
+        let codes =
+            InvitationCodeRecord::load_all(&self.db_pool, user_id, include_redeemed, limit).await?;
         Ok(codes.into_iter().map(|code| (code.code, code.redeemed)))
     }
 
-    pub async fn invitation_codes_generate(&self, n: usize) -> sqlx::Result<()> {
-        let mut rng = rand::thread_rng();
-        InvitationCodeRecord::generate(&self.db_pool, &mut rng, n).await?;
+    pub async fn invitation_codes_insert(&self, code: &str) -> sqlx::Result<()> {
+        InvitationCodeRecord::insert(&self.db_pool, code).await?;
         Ok(())
     }
 }

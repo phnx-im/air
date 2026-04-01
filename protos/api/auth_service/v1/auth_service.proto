@@ -10,7 +10,7 @@ import "common/v1/common.proto";
 
 service AuthService {
   rpc CheckInvitationCode(CheckInvitationCodeRequest) returns (CheckInvitationCodeResponse);
-  rpc GenerateInvitationCodes(GenerateInvitationCodesRequest) returns (GenerateInvitationCodesResponse);
+  rpc ReplenishInvitationCodes(ReplenishInvitationCodesRequest) returns (ReplenishInvitationCodesResponse);
 
   rpc RegisterUser(RegisterUserRequest) returns (RegisterUserResponse);
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
@@ -168,12 +168,12 @@ message CheckInvitationCodeResponse {
 
 // generate invitation codes
 
-message GenerateInvitationCodesRequest {
+message ReplenishInvitationCodesRequest {
   common.v1.ClientMetadata client_metadata = 1;
-  uint32 count = 2;
+  UserId user_id = 2;
 }
 
-message GenerateInvitationCodesResponse {
+message ReplenishInvitationCodesResponse {
   repeated InvitationCode invitation_codes = 1;
 }
 

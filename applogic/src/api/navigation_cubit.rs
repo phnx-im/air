@@ -80,6 +80,7 @@ pub struct HomeNavigationState {
 #[frb(dart_metadata = ("freezed"))]
 pub enum DeveloperSettingsScreenType {
     Root,
+    InvitationCodes,
     ChangeUser,
     Logs,
 }

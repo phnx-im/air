@@ -11,7 +11,7 @@ use std::fmt;
 
 // Re-export for FRB-reasons
 pub(crate) use aircommon::identifiers::UserHandle;
-pub(crate) use aircoreclient::{AddHandleContactError, ChatId, MessageId};
+pub(crate) use aircoreclient::{AddHandleContactError, ChatId, MessageId, clients::InvitationCode};
 
 pub(crate) use aircommon::identifiers::UserHandleValidationError;
 use aircommon::identifiers::UserId;
@@ -792,4 +792,12 @@ impl From<UserHandle> for UiUserHandle {
             plaintext: user_handle.into_plaintext(),
         }
     }
+}
+
+/// Mirror of the [`InvitationCode`] type
+#[doc(hidden)]
+#[frb(mirror(InvitationCode))]
+pub struct _InvitationCode {
+    #[allow(dead_code)]
+    code: String,
 }

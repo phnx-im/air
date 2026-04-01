@@ -31,6 +31,7 @@ use aircommon::{
     },
 };
 use privacypass::{amortized_tokens::AmortizedBatchTokenRequest, private_tokens::Ristretto255};
+use rand::thread_rng;
 use semver::Version;
 use tls_codec::{Deserialize, Serialize};
 use tokio::sync::mpsc;
@@ -209,12 +210,41 @@ impl auth_service_server::AuthService for GrpcAs {
         }))
     }
 
-    async fn generate_invitation_codes(
+    async fn replenish_invitation_codes(
         &self,
-        request: Request<GenerateInvitationCodesRequest>,
-    ) -> Result<Response<GenerateInvitationCodesResponse>, Status> {
-        Ok(Response::new(GenerateInvitationCodesResponse {
-            invitation_codes: vec![],
+        request: Request<ReplenishInvitationCodesRequest>,
+    ) -> Result<Response<ReplenishInvitationCodesResponse>, Status> {
+        let ReplenishInvitationCodesRequest {
+            client_metadata,
+            user_id,
+        } = request.into_inner();
+        self.verify_client_version(client_metadata.as_ref())?;
+
+        let user_id: identifiers::UserId = user_id
+            .ok_or(Status::invalid_argument("user_id"))?
+            .try_into()?;
+
+        // TODO: make the amount of codes we generate at the time, and the timeout configurable?
+        InvitationCodeRecord::replenish(&self.inner.db_pool, &user_id)
+            .await
+            .map_err(|error| {
+                error!(%error, "failed to load invitation codes");
+                Status::internal("database error")
+            })?;
+
+        let invitation_codes =
+            InvitationCodeRecord::load_all(&self.inner.db_pool, &user_id, false, 100)
+                .await
+                .map_err(|error| {
+                    error!(%error, "failed to load invitation codes");
+                    Status::internal("database error")
+                })?;
+
+        Ok(Response::new(ReplenishInvitationCodesResponse {
+            invitation_codes: invitation_codes
+                .into_iter()
+                .map(|i| InvitationCode { code: i.code })
+                .collect(),
         }))
     }
 

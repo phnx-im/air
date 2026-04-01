@@ -27,14 +27,14 @@ pub struct CodeArgs {
 pub enum CodeCommand {
     #[default]
     Stats,
-    List {
-        /// Number of codes to list
-        #[arg(default_value_t = 1000)]
-        n: usize,
-        /// Include redeemed codes
-        #[arg(long, default_value_t = false)]
-        include_redeemed: bool,
-    },
+    // List {
+    //     /// Number of codes to list
+    //     #[arg(default_value_t = 1000)]
+    //     n: usize,
+    //     /// Include redeemed codes
+    //     #[arg(long, default_value_t = false)]
+    //     include_redeemed: bool,
+    // },
     Generate {
         /// Number of codes to generate
         n: usize,

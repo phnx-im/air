@@ -28,7 +28,7 @@ use aircommon::{
     identifiers::{ClientConfig, QsClientId, QsReference, QsUserId, UserId},
     messages::{FriendshipToken, QueueMessage, push_token::PushToken},
 };
-pub use airprotos::auth_service::v1::{HandleQueueMessage, handle_queue_message};
+pub use airprotos::auth_service::v1::{HandleQueueMessage, InvitationCode, handle_queue_message};
 pub use airprotos::queue_service::v1::{QueueEvent, QueueEventPayload, queue_event};
 use anyhow::{Context, Result, anyhow, ensure};
 use chrono::{DateTime, Utc};

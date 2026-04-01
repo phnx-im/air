@@ -2,8 +2,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airbackend::{air_service::BackendService, auth_service::AuthService, settings::Settings};
+use airbackend::{
+    air_service::BackendService,
+    auth_service::{AuthService, cli::InvitationCodeStats},
+    settings::Settings,
+};
 use aircommon::identifiers::Fqdn;
+use airprotos::auth_service::v1::InvitationCode;
 use anyhow::Context;
 
 use crate::args::{CodeArgs, CodeCommand};
@@ -23,25 +28,27 @@ pub async fn run_code_command(
 
     match args.cmd.unwrap_or_default() {
         CodeCommand::Stats => {
-            let stats = auth_service.invitation_code_stats().await?;
-            println!("Total codes: {}", stats.count);
-            println!("Redeemed codes: {}", stats.redeemed);
+            let InvitationCodeStats { count, redeemed } =
+                auth_service.invitation_code_stats().await?;
+            println!("Total codes: {count}");
+            println!("Redeemed codes: {redeemed}");
         }
-        CodeCommand::List {
-            n,
-            include_redeemed,
-        } => {
-            let codes = auth_service.invitation_codes_list(n, false).await?;
-            for (code, redeemed) in codes {
-                if include_redeemed {
-                    println!("{}{}", code, if redeemed { " x" } else { "" });
-                } else {
-                    println!("{}", code);
-                }
-            }
-        }
+        // CodeCommand::List {
+        //     user_id,
+        //     n,
+        //     include_redeemed,
+        // } => {
+        //     let codes = auth_service.invitation_codes_list(n, false).await?;
+        //     for (code, redeemed) in codes {
+        //         if include_redeemed {
+        //             println!("{}{}", code, if redeemed { " x" } else { "" });
+        //         } else {
+        //             println!("{}", code);
+        //         }
+        //     }
+        // }
         CodeCommand::Generate { n } => {
-            auth_service.invitation_codes_generate(n).await?;
+            auth_service.invitation_codes_insert("HA11HA00").await?;
             println!("Generated {} codes", n);
         }
     }

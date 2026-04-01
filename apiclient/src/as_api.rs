@@ -32,8 +32,8 @@ use airprotos::{
         FetchConnectionPackageStep, GetUserProfileRequest, HandleQueueMessage,
         InitListenHandlePayload, InvitationCode, ListenHandleRequest, MergeUserProfilePayload,
         PublishConnectionPackagesPayload, RefreshHandlePayload, RegisterUserRequest,
-        ReportSpamPayload, StageUserProfilePayload, connect_request, connect_response,
-        listen_handle_request,
+        ReplenishInvitationCodesRequest, ReportSpamPayload, StageUserProfilePayload,
+        connect_request, connect_response, listen_handle_request,
     },
     common::v1::{StatusDetails, StatusDetailsCode},
 };
@@ -253,6 +253,21 @@ impl ApiClient {
         let request = payload.sign(signing_key)?;
         self.as_grpc_client().report_spam(request).await?;
         Ok(())
+    }
+
+    pub async fn as_replenish_invitation_codes(
+        &self,
+        user_id: UserId,
+    ) -> Result<Vec<InvitationCode>, AsRequestError> {
+        let request = ReplenishInvitationCodesRequest {
+            client_metadata: Some(self.metadata().clone()),
+            user_id: Some(user_id.into()),
+        };
+        let response = self
+            .as_grpc_client()
+            .replenish_invitation_codes(request)
+            .await?;
+        Ok(response.into_inner().invitation_codes)
     }
 
     pub async fn as_connect_handle(
