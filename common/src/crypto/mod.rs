@@ -2,13 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! A module that provides various traits and structs that allow the use of
+//! This module provides various traits and structs that allow the use of
 //! cryptographic primitives such as AEAD, MACs and KDFs.
-//!
-//! TODO: Once const-generics allows the use of enums, we could get rid of a
-//! number of structs and boilerplate code.
-//! TODO: A proper RNG provider for use with all crypto functions that require
-//! randomness, i.e. mainly secret and nonce sampling.
+
 #![allow(unused_variables)]
 use std::marker::PhantomData;
 

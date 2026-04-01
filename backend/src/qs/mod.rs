@@ -2,64 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! This module contains the APIs of the queuing service (QS). It only performs
-//! a limited amount of rate-limiting, so it should only be deployed behind a
-//! rate-limiting module.
-//!
-//! NOTE: This document and the API stubs in this module represent a work in
-//! progress and will likely change in their details. However, barring the
-//! discovery of a major flaw in the current design, the general design of the
-//! QS should remain the same.
-//!
-//! # Overview
-//!
-//! The QS maintains the queues of clients of the homeserver and provides the
-//! following functionalities:
-//!
-//! * queue creation by clients (although each client can only create a single
-//!   queue)
-//! * enqueuing of messages by delivery services (either local or remote) that
-//!   are authorized to enqueue in a given queue
-//! * dequeuing of messages by the owner of a given queue
-//! * updating of queue information by the owner of a given queue
-//! * notification of the queue owner upon message enqueuing, either via a
-//!   Websocket or via a push token
-//! * queue deletion either by the queue owner or by another authorized client
-//!
-//! # Encryption-at-rest
-//!
-//! To protect the metadata visible in MLS PublicMessages, the QS encrypts
-//! messages in queues to the owning client. This is done using a simple
-//! construction, where the owning client provides an HPKE public key to which
-//! the QS can encrypt the symmetric key it uses to encrypt messages. This key
-//! is occasionally updated by sampling a fresh key and using an HKDF to combine
-//! it with the existing key. The fresh key is then encrypted to the HPKE key
-//! and enqueued. Additionally, with each encryption, the key is ratcheted
-//! forward using the same HKDF (but without fresh key material).
-//!
-//! # Queue creation
-//!
-//! Clients can create queues that are not associated with them and are
-//! therefore pseudonymous.
-//!
-//! # Message enqueuing
-//!
-//! Delivery services that want to enqueue a message in a queue with a given
-//! QueueID have to prove that they are authorized by the owner of the queue by
-//! providing a signature over the enqueuing request.
-//!
-//! The QS then encrypts the messages (see above on how messages are encrypted
-//! at rest), marks them with a sequence number and enqueues them.
-//!
-//! # Message dequeuing
-//!
-//! Clients that want to dequeue messages first have to authenticate themselves
-//! as the owner of the given queue.
-//!
-//! They can then request messages with a given range of sequence numbers. When
-//! receiving such a request, the QS deletes any messages with sequence numbers
-//! smaller than the smallest requested one and responds with the requested
-//! messages.
+//! This module contains the implementation of the queue service.
 
 use aircommon::{
     identifiers::{Fqdn, QsClientId},
