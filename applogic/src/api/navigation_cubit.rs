@@ -334,7 +334,8 @@ impl NavigationCubitBase {
                         developer_settings_screen:
                             Some(
                                 DeveloperSettingsScreenType::ChangeUser
-                                | DeveloperSettingsScreenType::Logs,
+                                | DeveloperSettingsScreenType::Logs
+                                | DeveloperSettingsScreenType::InvitationCodes,
                             ),
                         ..
                     },

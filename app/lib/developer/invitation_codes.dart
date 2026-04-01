@@ -18,22 +18,21 @@ class InvitationCodesScreen extends StatefulWidget {
 }
 
 class _InvitationCodesState extends State<InvitationCodesScreen> {
-  List<InvitationCode> _invitationCodes = [];
-  bool _loaded = false;
+  Future<List<InvitationCode>>? _invitationCodes;
 
   @override
   void initState() {
     super.initState();
-    if (_loaded) return;
-    _loaded = true;
     _loadInvitationCodes();
   }
 
-  void _loadInvitationCodes() async {
+  void _loadInvitationCodes() {
     final user = context.read<LoadableUserCubit>().state.loadedUser;
     if (user == null) return;
-    final codes = await replenishInvitationCodes(userId: user.userId);
-    setState(() => _invitationCodes = codes);
+    final invitationCodes = replenishInvitationCodes(userId: user.userId);
+    setState(() {
+      _invitationCodes = invitationCodes;
+    });
   }
 
   @override
@@ -47,7 +46,7 @@ const _maxDesktopWidth = 800.0;
 class InvitationCodesView extends StatefulWidget {
   const InvitationCodesView({super.key, required this.invitationCodes});
 
-  final List<InvitationCode> invitationCodes;
+  final Future<List<InvitationCode>>? invitationCodes;
 
   @override
   State<InvitationCodesView> createState() => _InvitationCodesViewState();
@@ -58,6 +57,8 @@ class _InvitationCodesViewState extends State<InvitationCodesView> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.read<LoadableUserCubit>().state.loadedUser;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Invitation Codes'),
@@ -69,29 +70,60 @@ class _InvitationCodesViewState extends State<InvitationCodesView> {
           constraints: isPointer()
               ? const BoxConstraints(maxWidth: _maxDesktopWidth)
               : null,
-          child: ListView.builder(
-            itemCount: widget.invitationCodes.length,
-            itemBuilder: (context, index) {
-              final code = widget.invitationCodes[index].code;
-              final used = _usedIndices.contains(index);
-              return ListTile(
-                title: Text(
-                  code,
-                  style: used
-                      ? const TextStyle(
-                          decoration: TextDecoration.lineThrough,
-                          decorationThickness: 2,
-                        )
-                      : null,
-                ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.copy),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: code));
-                    setState(() => _usedIndices.add(index));
-                  },
-                ),
-              );
+          child: FutureBuilder(
+            future: widget.invitationCodes,
+            builder: (context, snapshot) {
+              if (snapshot.hasData) {
+                final invitationCodes = snapshot.data!;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        Clipboard.setData(
+                          ClipboardData(
+                            text: "${user?.userId.uuid}@${user?.userId.domain}",
+                          ),
+                        );
+                      },
+                      child: Text(
+                        "${invitationCodes.length} invitation codes available to share for ${user?.userId.uuid}@${user?.userId.domain}.",
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: invitationCodes.length,
+                        itemBuilder: (context, index) {
+                          final code = invitationCodes[index].code;
+                          final used = _usedIndices.contains(index);
+                          return ListTile(
+                            title: Text(
+                              code,
+                              style: used
+                                  ? const TextStyle(
+                                      decoration: TextDecoration.lineThrough,
+                                      decorationThickness: 2,
+                                    )
+                                  : null,
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.copy),
+                              onPressed: () {
+                                Clipboard.setData(ClipboardData(text: code));
+                                setState(() => _usedIndices.add(index));
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              } else if (snapshot.hasError) {
+                return const Text("Failed to load invitation codes");
+              } else {
+                return const CircularProgressIndicator();
+              }
             },
           ),
         ),

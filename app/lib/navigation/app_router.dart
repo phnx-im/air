@@ -252,7 +252,7 @@ extension on HomeNavigationState {
         ],
         DeveloperSettingsScreenType.invitationCodes => [
           const MaterialPage(
-            key: ValueKey("developer-settings-screen-root"),
+            key: ValueKey("developer-settings-screen"),
             child: DeveloperSettingsScreen(),
           ),
           const MaterialPage(
@@ -262,7 +262,7 @@ extension on HomeNavigationState {
         ],
         DeveloperSettingsScreenType.changeUser => [
           const MaterialPage(
-            key: ValueKey("developer-settings-screen-root"),
+            key: ValueKey("developer-settings-screen"),
             child: DeveloperSettingsScreen(),
           ),
           const MaterialPage(
@@ -272,7 +272,7 @@ extension on HomeNavigationState {
         ],
         DeveloperSettingsScreenType.logs => [
           const MaterialPage(
-            key: ValueKey("developer-settings-screen-root"),
+            key: ValueKey("developer-settings-screen"),
             child: DeveloperSettingsScreen(),
           ),
           const MaterialPage(

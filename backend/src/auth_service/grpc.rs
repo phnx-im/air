@@ -31,7 +31,6 @@ use aircommon::{
     },
 };
 use privacypass::{amortized_tokens::AmortizedBatchTokenRequest, private_tokens::Ristretto255};
-use rand::thread_rng;
 use semver::Version;
 use tls_codec::{Deserialize, Serialize};
 use tokio::sync::mpsc;
@@ -233,7 +232,7 @@ impl auth_service_server::AuthService for GrpcAs {
             })?;
 
         let invitation_codes =
-            InvitationCodeRecord::load_all(&self.inner.db_pool, &user_id, false, 100)
+            InvitationCodeRecord::load_all(&self.inner.db_pool, Some(&user_id), false)
                 .await
                 .map_err(|error| {
                     error!(%error, "failed to load invitation codes");
@@ -264,10 +263,10 @@ impl auth_service_server::AuthService for GrpcAs {
                 return Err(Status::invalid_argument("invalid invitation code"));
             }
             let code_record = if self.inner.is_unredeemable_code(&code.code) {
-                Some(InvitationCodeRecord {
+                InvitationCodeRecord {
                     code: code.code,
                     redeemed: false,
-                })
+                }
             } else {
                 InvitationCodeRecord::load(&self.inner.db_pool, &code.code)
                     .await
@@ -276,9 +275,10 @@ impl auth_service_server::AuthService for GrpcAs {
                         Status::internal("database error")
                     })?
                     .filter(|r| !r.redeemed)
-            };
-            let Some(code_record) = code_record else {
-                return Err(Status::invalid_argument("invalid invitation code"));
+                    .ok_or(Status::invalid_argument("invalid invitation code"))?
+                    .redeem(&self.inner.db_pool)
+                    .await
+                    .map_err(|_| Status::invalid_argument("failed to redeem invitation code"))?
             };
             Some(code_record)
         } else {

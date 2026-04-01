@@ -10,7 +10,7 @@ use airbackend::{
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
-    ServerRunParams, code_command::run_code_command, configurations::*,
+    ServerRunParams, code_command::run_invitation_code_command, configurations::*,
     enqueue_provider::SimpleEnqueueProvider, logging::init_logging,
     network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
@@ -40,9 +40,9 @@ async fn main() -> anyhow::Result<()> {
 
     match args.cmd.unwrap_or_default() {
         airserver::args::Command::Run => (),
-        airserver::args::Command::Code(code_args) => {
+        airserver::args::Command::InvitationCodes(code_args) => {
             configuration.database.name = format!("{base_db_name}_as");
-            return run_code_command(code_args, configuration, domain).await;
+            return run_invitation_code_command(code_args, configuration, domain).await;
         }
     }
 

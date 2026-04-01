@@ -8,13 +8,12 @@ use airbackend::{
     settings::Settings,
 };
 use aircommon::identifiers::Fqdn;
-use airprotos::auth_service::v1::InvitationCode;
 use anyhow::Context;
 
-use crate::args::{CodeArgs, CodeCommand};
+use crate::args::{CodeCommand, InvitationCodeArgs};
 
-pub async fn run_code_command(
-    args: CodeArgs,
+pub async fn run_invitation_code_command(
+    args: InvitationCodeArgs,
     configuration: Settings,
     domain: Fqdn,
 ) -> anyhow::Result<()> {
@@ -33,23 +32,28 @@ pub async fn run_code_command(
             println!("Total codes: {count}");
             println!("Redeemed codes: {redeemed}");
         }
-        // CodeCommand::List {
-        //     user_id,
-        //     n,
-        //     include_redeemed,
-        // } => {
-        //     let codes = auth_service.invitation_codes_list(n, false).await?;
-        //     for (code, redeemed) in codes {
-        //         if include_redeemed {
-        //             println!("{}{}", code, if redeemed { " x" } else { "" });
-        //         } else {
-        //             println!("{}", code);
-        //         }
-        //     }
-        // }
-        CodeCommand::Generate { n } => {
-            auth_service.invitation_codes_insert("HA11HA00").await?;
-            println!("Generated {} codes", n);
+        CodeCommand::List {
+            user_id,
+            include_redeemed,
+        } => {
+            let codes = auth_service
+                .invitation_codes_list(user_id.as_ref(), include_redeemed)
+                .await?;
+
+            for code in codes {
+                if include_redeemed {
+                    println!("{}{}", code.code(), if code.redeemed() { " x" } else { "" });
+                } else {
+                    println!("{}", code.code());
+                }
+            }
+        }
+        CodeCommand::Delete { user_id } => {
+            let codes_deleted = auth_service.invitation_codes_delete_all(&user_id).await?;
+            println!("💣 Deleted {codes_deleted} invitation codes!");
+        }
+        CodeCommand::Replenish { user_id } => {
+            auth_service.invitation_codes_replenish(&user_id).await?;
         }
     }
 

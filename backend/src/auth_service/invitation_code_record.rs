@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::UserId;
+use chrono::{DateTime, Utc};
 use rand::{CryptoRng, Rng, thread_rng};
-use sqlx::PgPool;
+use sqlx::{PgExecutor, PgPool, query, query_scalar};
 use tracing::warn;
 
 use crate::auth_service::cli::InvitationCodeStats;
@@ -13,6 +14,16 @@ use crate::auth_service::cli::InvitationCodeStats;
 pub struct InvitationCodeRecord {
     pub(crate) code: String,
     pub(crate) redeemed: bool,
+}
+
+impl InvitationCodeRecord {
+    pub fn code(&self) -> &str {
+        self.code.as_str()
+    }
+
+    pub fn redeemed(&self) -> bool {
+        self.redeemed
+    }
 }
 
 const ALPHABET: &[u8] = b"0123456789ABCDEFGHJKMNPQRSTUVWXYZ";
@@ -34,11 +45,43 @@ impl InvitationCodeRecord {
         })
     }
 
+    pub(crate) async fn delete_all(
+        executor: impl PgExecutor<'_>,
+        user_id: &UserId,
+    ) -> sqlx::Result<u64> {
+        let result = query!(
+            "
+            DELETE FROM invitation_code
+            WHERE user_uuid = $1 AND user_domain = $2
+        ",
+            user_id.uuid(),
+            user_id.domain() as _
+        )
+        .execute(executor)
+        .await?;
+
+        Ok(result.rows_affected())
+    }
+
     // Make sure a given user has enough invitation codes available to be redeemed
     pub(crate) async fn replenish(pool: &PgPool, user_id: &UserId) -> sqlx::Result<()> {
         let mut txn = pool.begin().await?;
+
+        // Phase 1: get the amount of redeemable codes
         let redeemable_count = Self::redeemable_count(txn.as_mut(), user_id).await?;
 
+        // Phase 2: if it hasn't been long enough (hardcoded 1 day), do nothing
+        if let Some(most_recent_issue_at) =
+            Self::most_recent_issued_at(txn.as_mut(), user_id).await?
+            && Utc::now()
+                .signed_duration_since(most_recent_issue_at)
+                .num_days()
+                < 1
+        {
+            return Ok(());
+        }
+
+        // Phase 3: generate extra codes
         for _ in redeemable_count..CODES_PER_USER {
             loop {
                 let code = Self::generate_code(&mut thread_rng());
@@ -49,6 +92,19 @@ impl InvitationCodeRecord {
                 warn!("invite code collision, generating another one.");
             }
         }
+
+        // Phase 4: mark all codes for this user with the same issued at timestamp
+        query!(
+            "
+            UPDATE invitation_code
+            SET created_at = NOW()
+            WHERE user_uuid = $1 AND user_domain = $2
+        ",
+            user_id.uuid(),
+            user_id.domain() as _,
+        )
+        .execute(txn.as_mut())
+        .await?;
 
         txn.commit().await?;
         Ok(())
@@ -64,6 +120,23 @@ impl InvitationCodeRecord {
 
     pub(crate) fn validate_code(code: &str) -> bool {
         code.len() == CODE_LEN && code.bytes().all(|c| ALPHABET.contains(&c))
+    }
+
+    async fn most_recent_issued_at(
+        executor: impl PgExecutor<'_>,
+        user_id: &UserId,
+    ) -> sqlx::Result<Option<DateTime<Utc>>> {
+        query_scalar!(
+            "
+                SELECT MAX(created_at)
+                FROM invitation_code
+                WHERE user_uuid = $1 AND user_domain = $2 AND redeemed = FALSE
+                    ",
+            user_id.uuid(),
+            user_id.domain() as _,
+        )
+        .fetch_one(executor)
+        .await
     }
 }
 
@@ -93,10 +166,11 @@ mod persistence {
 
         pub(crate) async fn load_all(
             executor: impl PgExecutor<'_>,
-            user_id: &UserId,
-            include_redeemed: bool, // TODO: remove?
-            limit: usize,
+            user_id: Option<&UserId>,
+            include_redeemed: bool,
         ) -> sqlx::Result<Vec<InvitationCodeRecord>> {
+            let uuid = user_id.map(UserId::uuid);
+            let domain = user_id.map(UserId::domain);
             if include_redeemed {
                 query_as!(
                     InvitationCodeRecord,
@@ -105,11 +179,9 @@ mod persistence {
                         FROM invitation_code
                         WHERE user_uuid = $1 AND user_domain = $2
                         ORDER BY created_at
-                        LIMIT $3
                     ",
-                    user_id.uuid(),
-                    user_id.domain() as _,
-                    limit as i64,
+                    uuid,
+                    domain as _,
                 )
                 .fetch_all(executor)
                 .await
@@ -121,11 +193,9 @@ mod persistence {
                         FROM invitation_code
                         WHERE user_uuid = $1 AND user_domain = $2 AND redeemed = FALSE
                         ORDER BY created_at
-                        LIMIT $3
                     ",
-                    user_id.uuid(),
-                    user_id.domain() as _,
-                    limit as i64,
+                    uuid,
+                    domain as _,
                 )
                 .fetch_all(executor)
                 .await
@@ -227,7 +297,7 @@ mod persistence {
             InvitationCodeRecord::insert_for_user(&pool, user_id, "CODE_B").await?;
             let code_b = InvitationCodeRecord::load(&pool, "CODE_B").await?.unwrap();
 
-            let records = InvitationCodeRecord::load_all(&pool, user_id, true, 10).await?;
+            let records = InvitationCodeRecord::load_all(&pool, Some(user_id), true).await?;
             dbg!(&records);
 
             assert_eq!(records.len(), 2);
@@ -250,7 +320,7 @@ mod persistence {
                 .await?;
             InvitationCodeRecord::insert_for_user(&pool, user_id, "CODE_D").await?;
 
-            let records = InvitationCodeRecord::load_all(&pool, user_id, false, 10).await?;
+            let records = InvitationCodeRecord::load_all(&pool, Some(user_id), false).await?;
 
             assert_eq!(records.len(), 1);
             assert_eq!(records[0].code, "CODE_D");
@@ -295,7 +365,7 @@ mod persistence {
             assert!(loaded.redeemed); // Should be updated
 
             // Check that no duplicate was created
-            let all = InvitationCodeRecord::load_all(&pool, user_id, true, 10).await?;
+            let all = InvitationCodeRecord::load_all(&pool, Some(user_id), true).await?;
             assert_eq!(all.len(), 1);
 
             Ok(())
@@ -303,15 +373,13 @@ mod persistence {
 
         #[sqlx::test]
         async fn replenish_codes(pool: PgPool) -> anyhow::Result<()> {
-            let mut rng = rand::thread_rng();
             let user_record = store_random_user_record(&pool).await?;
             let user_id = user_record.user_id();
 
             // Generate the initial set
-            InvitationCodeRecord::replenish(&pool, &mut rng, user_id).await?;
+            InvitationCodeRecord::replenish(&pool, user_id).await?;
 
-            let mut all_codes =
-                InvitationCodeRecord::load_all(&pool, user_id, true, CODES_PER_USER).await?;
+            let mut all_codes = InvitationCodeRecord::load_all(&pool, Some(user_id), true).await?;
             assert_eq!(all_codes.len(), CODES_PER_USER);
             assert_eq!(
                 all_codes
@@ -329,16 +397,16 @@ mod persistence {
 
             // Reload the set
             let redeemable_codes =
-                InvitationCodeRecord::load_all(&pool, user_id, false, 100).await?;
+                InvitationCodeRecord::load_all(&pool, Some(user_id), false).await?;
             let redeemable_codes_count =
                 InvitationCodeRecord::redeemable_count(&pool, user_id).await?;
             assert_eq!(redeemable_codes.len(), redeemable_codes_count);
             assert_eq!(redeemable_codes_count, CODES_PER_USER - CODES_TO_REDEEM);
 
             // Replenish codes
-            InvitationCodeRecord::replenish(&pool, &mut rng, user_id).await?;
+            InvitationCodeRecord::replenish(&pool, user_id).await?;
             let redeemable_codes =
-                InvitationCodeRecord::load_all(&pool, user_id, false, 100).await?;
+                InvitationCodeRecord::load_all(&pool, Some(user_id), false).await?;
             let redeemable_codes_count =
                 InvitationCodeRecord::redeemable_count(&pool, user_id).await?;
             assert_eq!(redeemable_codes.len(), redeemable_codes_count);

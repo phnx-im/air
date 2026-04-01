@@ -278,6 +278,29 @@ impl UserId {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum UserIdParseError {
+    #[error("wrong parts number, expected uuid@fqdn")]
+    MissingParts,
+    #[error("invalid UUID: {0}")]
+    InvalidUuid(#[from] uuid::Error),
+    #[error("invalid FQDN")]
+    InvalidFqdn(#[from] FqdnError),
+    #[error("too many @ separated parts")]
+    WrongPartsNumber,
+}
+
+impl FromStr for UserId {
+    type Err = UserIdParseError;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        let (uuid, fqdn) = input
+            .split_once('@')
+            .ok_or(UserIdParseError::MissingParts)?;
+        Ok(Self::new(uuid.parse()?, fqdn.parse()?))
+    }
+}
+
 #[derive(
     Clone,
     Debug,

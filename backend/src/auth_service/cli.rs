@@ -14,17 +14,21 @@ impl AuthService {
 
     pub async fn invitation_codes_list(
         &self,
-        user_id: &UserId,
-        limit: usize,
+        user_id: Option<&UserId>,
         include_redeemed: bool,
-    ) -> sqlx::Result<impl Iterator<Item = (String, bool)>> {
+    ) -> sqlx::Result<Vec<InvitationCodeRecord>> {
         let codes =
-            InvitationCodeRecord::load_all(&self.db_pool, user_id, include_redeemed, limit).await?;
-        Ok(codes.into_iter().map(|code| (code.code, code.redeemed)))
+            InvitationCodeRecord::load_all(&self.db_pool, user_id, include_redeemed).await?;
+        Ok(codes)
     }
 
-    pub async fn invitation_codes_insert(&self, code: &str) -> sqlx::Result<()> {
-        InvitationCodeRecord::insert(&self.db_pool, code).await?;
+    pub async fn invitation_codes_delete_all(&self, user_id: &UserId) -> sqlx::Result<u64> {
+        let codes_deleted = InvitationCodeRecord::delete_all(&self.db_pool, user_id).await?;
+        Ok(codes_deleted)
+    }
+
+    pub async fn invitation_codes_replenish(&self, user_id: &UserId) -> sqlx::Result<()> {
+        InvitationCodeRecord::replenish(&self.db_pool, user_id).await?;
         Ok(())
     }
 }
