@@ -1117,8 +1117,15 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn test_chat_message_with_salt(chat_id: ChatId, salt: [u8; 16]) -> ChatMessage {
+        test_chat_message_at(chat_id, salt, Utc::now().into())
+    }
+
+    pub(crate) fn test_chat_message_at(
+        chat_id: ChatId,
+        salt: [u8; 16],
+        timestamp: TimeStamp,
+    ) -> ChatMessage {
         let chat_message_id = MessageId::random();
-        let timestamp = Utc::now().into();
         let message = Message::Content(Box::new(ContentMessage::new(
             UserId::random("localhost".parse().unwrap()),
             false,
