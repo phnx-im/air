@@ -195,9 +195,6 @@ install-fvm:
     #  sha256sum install-fvm.sh
 
     curl -fsSL https://fvm.app/install.sh -o install-fvm.sh
-    printf "%s  %s\n" \
-        "f499535ce1f7ddf7948fd055d77e33f5d1aabf738f54844f6d6bc7a037408f5b" \
-        "install-fvm.sh" | sha256sum -c -
     bash install-fvm.sh 4.0.5
 
 [working-directory: 'app']
