@@ -85,7 +85,14 @@ impl AuthService {
                 error!(%error, "Storage provider error");
                 RegisterUserError::StorageError
             })?;
-        ClientRecord::new_and_store(txn.as_mut(), client_credential.clone())
+        let current_epoch = crate::auth_service::privacy_pass::load_current_key_id(txn.as_mut())
+            .await
+            .map_err(|error| {
+                error!(%error, "Failed to load current VOPRF key id");
+                RegisterUserError::StorageError
+            })?
+            .unwrap_or(0);
+        ClientRecord::new_and_store(txn.as_mut(), client_credential.clone(), current_epoch)
             .await
             .map_err(|error| {
                 error!(%error, "Storage provider error");

@@ -26,7 +26,7 @@ mod connection_package;
 mod credentials;
 pub mod grpc;
 mod invitation_code_record;
-mod privacy_pass;
+pub mod privacy_pass;
 mod user_handles;
 pub mod user_record;
 
@@ -108,6 +108,19 @@ impl BackendService for AuthService {
         }
         transaction.commit().await?;
 
+        // Ensure a VOPRF key exists for Privacy Pass (creates one if missing
+        // or rotates if the current key is stale).
+        privacy_pass::rotate_keys_if_needed(&auth_service.db_pool)
+            .await
+            .map_err(ServiceCreationError::init_error)?;
+
         Ok(auth_service)
+    }
+}
+
+impl AuthService {
+    /// Returns a reference to the database pool for spawning background tasks.
+    pub fn db_pool(&self) -> &PgPool {
+        &self.db_pool
     }
 }

@@ -15,7 +15,10 @@ use aircommon::{
     crypto::{indexed_aead::keys::UserProfileKeyIndex, signatures::signable::Signable},
     identifiers::{UserHandle, UserHandleHash, UserId},
     messages::{
-        client_as::ConnectionOfferMessage,
+        client_as::{
+            BatchedTokenKeyResponse, ConnectionOfferMessage, SerializedToken,
+            SerializedTokenRequest, SerializedTokenResponse,
+        },
         client_as_out::{
             AsCredentialsResponseIn, EncryptedUserProfile, GetUserProfileResponse,
             RegisterUserResponseIn, UserHandleDeleteResponse,
@@ -30,10 +33,10 @@ use airprotos::{
         CheckInvitationCodeRequest, ConnectRequest, ConnectResponse, CreateHandlePayload,
         DeleteHandlePayload, DeleteUserPayload, EnqueueConnectionOfferStep,
         FetchConnectionPackageStep, GetUserProfileRequest, HandleQueueMessage,
-        InitListenHandlePayload, InvitationCode, ListenHandleRequest, MergeUserProfilePayload,
-        PublishConnectionPackagesPayload, RefreshHandlePayload, RegisterUserRequest,
-        ReportSpamPayload, StageUserProfilePayload, connect_request, connect_response,
-        listen_handle_request,
+        InitListenHandlePayload, InvitationCode, IssueTokensPayload, ListenHandleRequest,
+        MergeUserProfilePayload, PublishConnectionPackagesPayload, RefreshHandlePayload,
+        RegisterUserRequest, ReportSpamPayload, StageUserProfilePayload, connect_request,
+        connect_response, listen_handle_request,
     },
     common::v1::{StatusDetails, StatusDetailsCode},
 };
@@ -75,6 +78,19 @@ impl AsRequestError {
                 status.code() == Code::FailedPrecondition
                     && StatusDetails::from_status(status)
                         .map(|details| details.code() == StatusDetailsCode::VersionUnsupported)
+                        .unwrap_or(false)
+            }
+            _ => false,
+        }
+    }
+
+    /// Returns true if the token was rejected because the key ID is unknown.
+    pub fn is_unknown_token_key_id(&self) -> bool {
+        match self {
+            AsRequestError::Tonic(status) => {
+                status.code() == Code::Unauthenticated
+                    && StatusDetails::from_status(status)
+                        .map(|d| d.code() == StatusDetailsCode::UnknownTokenKeyId)
                         .unwrap_or(false)
             }
             _ => false,
@@ -424,6 +440,14 @@ impl ApiClient {
                     error!(%error, "invalid AS intermediate credential");
                     AsRequestError::UnexpectedResponse
                 })?,
+            batched_token_keys: response
+                .batched_token_keys
+                .into_iter()
+                .map(|k| BatchedTokenKeyResponse {
+                    token_key_id: k.token_key_id as u8,
+                    public_key: k.public_key,
+                })
+                .collect(),
         })
     }
 
@@ -448,12 +472,14 @@ impl ApiClient {
         user_handle: &UserHandle,
         hash: UserHandleHash,
         signing_key: &HandleSigningKey,
+        token: SerializedToken,
     ) -> Result<bool, AsRequestError> {
         let payload = CreateHandlePayload {
             client_metadata: Some(self.metadata().clone()),
             verifying_key: Some(signing_key.verifying_key().clone().into()),
             plaintext: user_handle.plaintext().into(),
             hash: Some(hash.into()),
+            token: Some(token.into_bytes()),
         };
         let request = payload.sign(signing_key)?;
         match self.as_grpc_client().create_handle(request).await {
@@ -467,10 +493,12 @@ impl ApiClient {
         &self,
         hash: UserHandleHash,
         signing_key: &HandleSigningKey,
+        token: SerializedToken,
     ) -> Result<(), AsRequestError> {
         let payload = RefreshHandlePayload {
             client_metadata: Some(self.metadata().clone()),
             hash: Some(hash.into()),
+            token: Some(token.into_bytes()),
         };
         let request = payload.sign(signing_key)?;
         self.as_grpc_client().refresh_handle(request).await?;
@@ -481,20 +509,48 @@ impl ApiClient {
         &self,
         hash: UserHandleHash,
         signing_key: &HandleSigningKey,
-    ) -> Result<UserHandleDeleteResponse, AsRequestError> {
+        token_request: SerializedTokenRequest,
+    ) -> Result<(UserHandleDeleteResponse, Option<SerializedTokenResponse>), AsRequestError> {
         let payload = DeleteHandlePayload {
             client_metadata: Some(self.metadata().clone()),
             hash: Some(hash.into()),
+            token_request: Some(token_request.into_bytes()),
         };
         let request = payload.sign(signing_key)?;
         let res = self.as_grpc_client().delete_handle(request).await;
         match res {
-            Ok(_) => Ok(UserHandleDeleteResponse::Success),
+            Ok(response) => {
+                let token_response = response
+                    .into_inner()
+                    .token_response
+                    .map(SerializedTokenResponse::new);
+                Ok((UserHandleDeleteResponse::Success, token_response))
+            }
             Err(status) => match status.code() {
-                Code::NotFound => Ok(UserHandleDeleteResponse::NotFound),
+                Code::NotFound => Ok((UserHandleDeleteResponse::NotFound, None)),
                 _ => Err(status.into()),
             },
         }
+    }
+
+    pub async fn as_issue_tokens(
+        &self,
+        user_id: UserId,
+        signing_key: &ClientSigningKey,
+        token_request: SerializedTokenRequest,
+    ) -> Result<SerializedTokenResponse, AsRequestError> {
+        let payload = IssueTokensPayload {
+            client_metadata: Some(self.metadata().clone()),
+            user_id: Some(user_id.into()),
+            token_request: token_request.into_bytes(),
+        };
+        let request = payload.sign(signing_key)?;
+        let response = self
+            .as_grpc_client()
+            .issue_tokens(request)
+            .await?
+            .into_inner();
+        Ok(SerializedTokenResponse::new(response.token_response))
     }
 }
 

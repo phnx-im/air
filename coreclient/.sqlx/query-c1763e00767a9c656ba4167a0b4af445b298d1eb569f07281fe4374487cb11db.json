@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT token_key_id, public_key FROM batched_token_key",
+  "describe": {
+    "columns": [
+      {
+        "name": "token_key_id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "public_key",
+        "ordinal": 1,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "c1763e00767a9c656ba4167a0b4af445b298d1eb569f07281fe4374487cb11db"
+}

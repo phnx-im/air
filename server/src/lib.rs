@@ -118,6 +118,20 @@ pub async fn run<
 
     serve_metrics(metrics_listener);
 
+    // Background task: daily VOPRF key rotation check.
+    // Jitter based on process ID staggers checks across server instances.
+    let rotation_pool = auth_service.db_pool().clone();
+    tokio::spawn(async move {
+        use airbackend::auth_service::privacy_pass::rotate_keys_if_needed;
+        let jitter = Duration::from_secs(u64::from(std::process::id()) % 3600);
+        loop {
+            tokio::time::sleep(Duration::from_secs(24 * 60 * 60) + jitter).await;
+            if let Err(e) = rotate_keys_if_needed(&rotation_pool).await {
+                tracing::error!(%e, "VOPRF key rotation check failed");
+            }
+        }
+    });
+
     // GRPC server
     let grpc_as = GrpcAs::new(auth_service);
     let grpc_ds = GrpcDs::new(ds, qs_connector);

@@ -6,15 +6,21 @@ use aircommon::{
     credentials::keys::HandleSigningKey,
     crypto::ConnectionDecryptionKey,
     identifiers::{UserHandle, UserHandleHash},
-    messages::{client_as_out::UserHandleDeleteResponse, connection_package::ConnectionPackage},
+    messages::{
+        client_as::SerializedToken, client_as_out::UserHandleDeleteResponse,
+        connection_package::ConnectionPackage,
+    },
 };
 use anyhow::Context;
 pub use persistence::UserHandleRecord;
 use tokio::task::spawn_blocking;
-use tracing::error;
+use tracing::{error, warn};
+
+use airapiclient::ApiClient;
 
 use crate::{
     clients::{CONNECTION_PACKAGES, CoreUser},
+    privacy_pass,
     store::StoreResult,
     user_handles::connection_packages::StorableConnectionPackage,
 };
@@ -35,9 +41,23 @@ impl CoreUser {
         let hash = spawn_blocking(move || handle_inner.calculate_hash()).await??;
 
         let api_client = self.api_client()?;
-        let created = api_client
-            .as_create_handle(&handle, hash, &signing_key)
-            .await?;
+        let token = self.consume_or_replenish_token(&api_client).await?;
+
+        let result = api_client
+            .as_create_handle(&handle, hash, &signing_key, token)
+            .await;
+
+        // If the server says our token key is stale, purge and replenish
+        // but don't retry immediately — the caller should retry later to
+        // maintain timing decorrelation between issuance and redemption.
+        let created = match result {
+            Err(e) if e.is_unknown_token_key_id() => {
+                warn!("unknown token key ID, purging stale tokens");
+                self.purge_and_replenish_tokens(&api_client).await?;
+                anyhow::bail!("token key rotated; replenished — retry to use decorrelated tokens")
+            }
+            other => other?,
+        };
         if !created {
             return Ok(None);
         }
@@ -45,13 +65,20 @@ impl CoreUser {
         let record = UserHandleRecord::new(handle.clone(), hash, signing_key);
 
         let rollback = async |delete_locally: bool| {
-            api_client
-                .as_delete_handle(record.hash, &record.signing_key)
-                .await
-                .inspect_err(|error| {
-                    error!(%error, "failed to delete user handle on the server in rollback");
-                })
-                .ok();
+            let domain = self.user_id().domain();
+            if let Ok(Some((token_req, _))) =
+                privacy_pass::prepare_delete_token_request(self.pool(), domain).await
+            {
+                api_client
+                    .as_delete_handle(record.hash, &record.signing_key, token_req)
+                    .await
+                    .inspect_err(|error| {
+                        error!(%error, "failed to delete user handle on the server in rollback");
+                    })
+                    .ok();
+            } else {
+                error!("failed to prepare token request for rollback delete");
+            }
             if delete_locally {
                 UserHandleRecord::delete(self.pool(), &record.handle)
                     .await
@@ -107,10 +134,26 @@ impl CoreUser {
         let record = UserHandleRecord::load(self.pool(), handle)
             .await?
             .context("no user handle found")?;
+
+        let domain = self.user_id().domain();
+        let (token_request_bytes, token_state) =
+            privacy_pass::prepare_delete_token_request(self.pool(), domain)
+                .await?
+                .context("no VOPRF keys available for delete token request")?;
+
         let api_client = self.api_client()?;
-        let res = api_client
-            .as_delete_handle(record.hash, &record.signing_key)
+        let (res, token_response_bytes) = api_client
+            .as_delete_handle(record.hash, &record.signing_key, token_request_bytes)
             .await?;
+
+        // Finalize the refund token if we got one back.
+        if let Some(response) = token_response_bytes
+            && let Err(e) =
+                privacy_pass::finalize_delete_token_response(self.pool(), &response, token_state)
+                    .await
+        {
+            warn!("failed to finalize delete refund token: {e}");
+        }
 
         self.remove_user_handle_locally(handle).await?;
         Ok(res)
@@ -120,6 +163,73 @@ impl CoreUser {
         let mut txn = self.pool().begin().await?;
         UserHandleRecord::delete(txn.as_mut(), handle).await?;
         txn.commit().await?;
+        Ok(())
+    }
+
+    /// Consumes a token from the local cache.
+    ///
+    /// Returns an error if the cache is empty. Callers must NOT replenish
+    /// and consume in the same request chain — doing so lets the server
+    /// correlate the authenticated issuance with the anonymous redemption
+    /// by timing. The background `TokenReplenishment` task keeps the cache
+    /// warm; if the cache is empty, replenish and let the caller retry
+    /// later.
+    async fn consume_or_replenish_token(
+        &self,
+        api_client: &ApiClient,
+    ) -> anyhow::Result<SerializedToken> {
+        if let Some(token) = privacy_pass::consume_token(self.pool()).await? {
+            return Ok(token);
+        }
+
+        // Cache empty — replenish for future attempts but don't consume
+        // immediately. The caller should propagate this error and retry,
+        // providing a natural timing gap between issuance and redemption.
+        privacy_pass::replenish_if_needed(
+            self.pool(),
+            api_client,
+            self.user_id().clone(),
+            self.signing_key(),
+            self.user_id().domain(),
+        )
+        .await?;
+
+        anyhow::bail!(
+            "privacy pass token cache was empty; \
+             replenished — retry to use decorrelated tokens"
+        )
+    }
+
+    /// Purges all cached tokens (key rotation) and replenishes.
+    ///
+    /// Does NOT consume a token immediately — the caller should retry later
+    /// to maintain timing decorrelation between issuance and redemption.
+    async fn purge_and_replenish_tokens(&self, api_client: &ApiClient) -> anyhow::Result<()> {
+        privacy_pass::purge_and_replenish(
+            self.pool(),
+            api_client,
+            self.user_id().clone(),
+            self.signing_key(),
+            self.user_id().domain(),
+        )
+        .await
+    }
+
+    /// Pre-fills the local token cache so that handle operations can proceed
+    /// without inline replenishment. In production, the background
+    /// `TokenReplenishment` task does this; in tests, call this explicitly
+    /// after user creation.
+    #[cfg(feature = "test_utils")]
+    pub async fn replenish_privacy_pass_tokens(&self) -> anyhow::Result<()> {
+        let api_client = self.api_client()?;
+        privacy_pass::replenish_if_needed(
+            self.pool(),
+            &api_client,
+            self.user_id().clone(),
+            self.signing_key(),
+            self.user_id().domain(),
+        )
+        .await?;
         Ok(())
     }
 }
