@@ -41,7 +41,10 @@ impl CoreUser {
         let hash = spawn_blocking(move || handle_inner.calculate_hash()).await??;
 
         let api_client = self.api_client()?;
-        let token = self.consume_or_replenish_token(&api_client).await?;
+        let token = self
+            .consume_or_replenish_token(&api_client)
+            .await
+            .inspect_err(|e| warn!(%e, "no privacy pass token available for handle creation"))?;
 
         let result = api_client
             .as_create_handle(&handle, hash, &signing_key, token)
@@ -138,7 +141,10 @@ impl CoreUser {
         let domain = self.user_id().domain();
         let (token_request_bytes, token_state) =
             privacy_pass::prepare_delete_token_request(self.pool(), domain)
-                .await?
+                .await
+                .inspect_err(
+                    |e| warn!(%e, "failed to prepare privacy pass token for handle deletion"),
+                )?
                 .context("no VOPRF keys available for delete token request")?;
 
         let api_client = self.api_client()?;

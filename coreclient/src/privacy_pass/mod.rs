@@ -19,12 +19,31 @@ use privacypass::{
 };
 use sqlx::SqlitePool;
 use tls_codec::{Deserialize, Serialize};
-use tracing::info;
+use tracing::{error, info};
 
 pub(crate) mod persistence;
 
 /// Requests a batch of Privacy Pass tokens from the AS and stores them locally.
 pub(crate) async fn request_and_store_tokens(
+    pool: &SqlitePool,
+    api_client: &ApiClient,
+    user_id: UserId,
+    signing_key: &ClientSigningKey,
+    count: u16,
+) -> anyhow::Result<usize> {
+    info!(%count, "requesting privacy pass tokens");
+
+    let result = request_tokens_inner(pool, api_client, user_id, signing_key, count).await;
+
+    match &result {
+        Ok(stored) => info!(%stored, "stored privacy pass tokens"),
+        Err(e) => error!(%e, "failed to request privacy pass tokens"),
+    }
+
+    result
+}
+
+async fn request_tokens_inner(
     pool: &SqlitePool,
     api_client: &ApiClient,
     user_id: UserId,
@@ -68,7 +87,6 @@ pub(crate) async fn request_and_store_tokens(
     }
     tx.commit().await?;
 
-    info!(%stored, "stored privacy pass tokens");
     Ok(stored)
 }
 
@@ -103,7 +121,13 @@ pub(crate) async fn store_batched_token_keys(
         return Ok(());
     }
 
-    info!("VOPRF key set changed, discarding cached tokens");
+    let discarded = persistence::token_count(pool).await?;
+    info!(
+        ?existing_ids,
+        ?new_ids,
+        %discarded,
+        "VOPRF key set changed, discarding cached tokens"
+    );
     persistence::delete_all_tokens(pool).await?;
     persistence::delete_all_batched_token_keys(pool).await?;
 
@@ -199,7 +223,8 @@ pub(crate) async fn purge_and_replenish(
     user_id: UserId,
     signing_key: &ClientSigningKey,
 ) -> anyhow::Result<()> {
-    info!("purging stale tokens after key rotation");
+    let discarded = persistence::token_count(pool).await?;
+    info!(%discarded, "purging stale tokens after server rejected key");
     persistence::delete_all_tokens(pool).await?;
     persistence::delete_all_batched_token_keys(pool).await?;
     replenish_if_needed(pool, api_client, user_id, signing_key).await?;
