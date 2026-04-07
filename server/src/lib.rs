@@ -118,17 +118,24 @@ pub async fn run<
 
     serve_metrics(metrics_listener);
 
-    // Background task: daily VOPRF key rotation check.
-    // Jitter based on process ID staggers checks across server instances.
+    // Background task: VOPRF key rotation check.
+    // Waits a cooldown period after startup, then checks daily with random
+    // jitter to stagger rotation across server instances.
     let rotation_pool = auth_service.db_pool().clone();
     tokio::spawn(async move {
         use airbackend::auth_service::privacy_pass::rotate_keys_if_needed;
-        let jitter = Duration::from_secs(u64::from(std::process::id()) % 3600);
+        use rand::Rng;
+
+        let cooldown = Duration::from_secs(15 * 60);
+        tokio::time::sleep(cooldown).await;
+
         loop {
-            tokio::time::sleep(Duration::from_secs(24 * 60 * 60) + jitter).await;
             if let Err(e) = rotate_keys_if_needed(&rotation_pool).await {
                 tracing::error!(%e, "VOPRF key rotation check failed");
             }
+            let jitter = rand::thread_rng().gen_range(0..3600);
+            let interval = Duration::from_secs(24 * 60 * 60 + jitter);
+            tokio::time::sleep(interval).await;
         }
     });
 
