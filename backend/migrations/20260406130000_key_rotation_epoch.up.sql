@@ -1,3 +1,7 @@
+-- SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+--
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+
 -- Add creation timestamp to VOPRF keys for rotation tracking
 ALTER TABLE as_batched_key ADD COLUMN created_at TIMESTAMPTZ NOT NULL DEFAULT now();
 

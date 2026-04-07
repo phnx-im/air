@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE as_token_nonce SET status = 'committed' WHERE nonce = $1 AND status = 'reserved'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ea5d74274db6907b1814fecd01b6d2caa2274154bc2c3204e7dc4e13bcb731a1"
+}
