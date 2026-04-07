@@ -12,6 +12,7 @@ mod server;
 mod user;
 
 #[cfg(test)]
+#[allow(dead_code)]
 fn init_test_logging() {
     use tracing::Level;
     use tracing_subscriber::EnvFilter;
