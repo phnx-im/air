@@ -443,11 +443,20 @@ impl ApiClient {
             batched_token_keys: response
                 .batched_token_keys
                 .into_iter()
-                .map(|k| BatchedTokenKeyResponse {
-                    token_key_id: k.token_key_id as u8,
-                    public_key: k.public_key,
+                .map(|k| {
+                    let token_key_id = u8::try_from(k.token_key_id).map_err(|_| {
+                        error!(
+                            token_key_id = k.token_key_id,
+                            "token_key_id does not fit in u8"
+                        );
+                        AsRequestError::UnexpectedResponse
+                    })?;
+                    Ok::<_, AsRequestError>(BatchedTokenKeyResponse {
+                        token_key_id,
+                        public_key: k.public_key,
+                    })
                 })
-                .collect(),
+                .collect::<Result<Vec<_>, _>>()?,
         })
     }
 

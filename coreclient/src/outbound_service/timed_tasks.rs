@@ -214,7 +214,6 @@ impl OutboundServiceContext {
                             &api_client,
                             self.user_id().clone(),
                             self.signing_key(),
-                            self.user_id().domain(),
                         )
                         .await?;
                         // Don't consume and retry immediately — that would
@@ -248,7 +247,6 @@ impl OutboundServiceContext {
             &api_client,
             self.user_id().clone(),
             self.signing_key(),
-            self.user_id().domain(),
         )
         .await?;
 

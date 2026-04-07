@@ -190,7 +190,6 @@ impl CoreUser {
             api_client,
             self.user_id().clone(),
             self.signing_key(),
-            self.user_id().domain(),
         )
         .await?;
 
@@ -210,7 +209,6 @@ impl CoreUser {
             api_client,
             self.user_id().clone(),
             self.signing_key(),
-            self.user_id().domain(),
         )
         .await
     }
@@ -227,7 +225,6 @@ impl CoreUser {
             &api_client,
             self.user_id().clone(),
             self.signing_key(),
-            self.user_id().domain(),
         )
         .await?;
         Ok(())

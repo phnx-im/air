@@ -5,6 +5,8 @@
 -- Add creation timestamp to VOPRF keys for rotation tracking
 ALTER TABLE as_batched_key ADD COLUMN created_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
+CREATE INDEX idx_as_batched_key_created_at ON as_batched_key (created_at DESC);
+
 -- Track which epoch (key) the user's allowance was last set against
 ALTER TABLE as_client_record ADD COLUMN allowance_epoch SMALLINT;
 

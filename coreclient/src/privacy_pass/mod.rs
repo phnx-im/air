@@ -29,7 +29,6 @@ pub(crate) async fn request_and_store_tokens(
     api_client: &ApiClient,
     user_id: UserId,
     signing_key: &ClientSigningKey,
-    domain: &Fqdn,
     count: u16,
 ) -> anyhow::Result<usize> {
     let keys = persistence::load_batched_token_keys(pool).await?;
@@ -40,11 +39,12 @@ pub(crate) async fn request_and_store_tokens(
     let public_key: PublicKey<Ristretto255> = deserialize_public_key::<Ristretto255>(pk_bytes)
         .map_err(|_| anyhow::anyhow!("failed to deserialize VOPRF public key"))?;
 
+    let domain = user_id.domain().to_string();
     let challenge = TokenChallenge::new(
         TokenType::PrivateRistretto255,
-        &domain.to_string(),
+        &domain,
         None,
-        &[domain.to_string()],
+        std::slice::from_ref(&domain),
     );
 
     let (token_request, token_state) =
@@ -61,10 +61,12 @@ pub(crate) async fn request_and_store_tokens(
     let tokens = token_response.issue_tokens(&token_state)?;
     let stored = tokens.len();
 
+    let mut tx = pool.begin().await?;
     for token in tokens {
         let token_bytes = token.tls_serialize_detached()?;
-        persistence::store_token(pool, &token_bytes).await?;
+        persistence::store_token(&mut *tx, &token_bytes).await?;
     }
+    tx.commit().await?;
 
     info!(%stored, "stored privacy pass tokens");
     Ok(stored)
@@ -127,11 +129,12 @@ pub(crate) async fn prepare_delete_token_request(
     let public_key: PublicKey<Ristretto255> = deserialize_public_key::<Ristretto255>(pk_bytes)
         .map_err(|_| anyhow::anyhow!("failed to deserialize VOPRF public key"))?;
 
+    let domain = domain.to_string();
     let challenge = TokenChallenge::new(
         TokenType::PrivateRistretto255,
-        &domain.to_string(),
+        &domain,
         None,
-        &[domain.to_string()],
+        std::slice::from_ref(&domain),
     );
 
     let (token_request, token_state) =
@@ -174,7 +177,6 @@ pub(crate) async fn replenish_if_needed(
     api_client: &ApiClient,
     user_id: UserId,
     signing_key: &ClientSigningKey,
-    domain: &Fqdn,
 ) -> anyhow::Result<i64> {
     let credentials_response = api_client.as_as_credentials().await?;
     store_batched_token_keys(pool, &credentials_response.batched_token_keys).await?;
@@ -182,7 +184,7 @@ pub(crate) async fn replenish_if_needed(
     let count = token_count(pool).await?;
     if count < LOW_TOKEN_THRESHOLD {
         let needed = (TARGET_TOKEN_COUNT - count).min(TARGET_TOKEN_COUNT) as u16;
-        request_and_store_tokens(pool, api_client, user_id, signing_key, domain, needed).await?;
+        request_and_store_tokens(pool, api_client, user_id, signing_key, needed).await?;
     }
     token_count(pool).await
 }
@@ -196,12 +198,11 @@ pub(crate) async fn purge_and_replenish(
     api_client: &ApiClient,
     user_id: UserId,
     signing_key: &ClientSigningKey,
-    domain: &Fqdn,
 ) -> anyhow::Result<()> {
     info!("purging stale tokens after key rotation");
     persistence::delete_all_tokens(pool).await?;
     persistence::delete_all_batched_token_keys(pool).await?;
-    replenish_if_needed(pool, api_client, user_id, signing_key, domain).await?;
+    replenish_if_needed(pool, api_client, user_id, signing_key).await?;
     Ok(())
 }
 
