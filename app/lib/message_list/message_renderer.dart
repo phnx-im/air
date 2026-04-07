@@ -498,6 +498,7 @@ class CustomTextEditingController extends TextEditingController {
   List<({int start, int end})> widgetRanges = [];
   int lastKnownRawTextLength = 0;
   int previousCursorPosition = 0;
+  int previousBasePosition = 0;
   Uint8List raw = Uint8List(0);
 
   // Cache for buildTextSpan to avoid re-parsing on selection-only changes
@@ -518,6 +519,7 @@ class CustomTextEditingController extends TextEditingController {
     if (lastKnownRawTextLength < text.length) {
       // Do nothing when writing text
       previousCursorPosition = cursorPosition;
+      previousBasePosition = selection.baseOffset;
       return;
     }
 
@@ -544,7 +546,7 @@ class CustomTextEditingController extends TextEditingController {
 
             text = newText;
 
-            moveCursorTo(startUtf16);
+            moveCursorTo(startUtf16, forceCollapse: true);
           } else {
             // The cursor did not move, this was a delete, not a backspace
             int endUtf16 = utf8.decode(raw.sublist(0, range.end)).length;
@@ -561,7 +563,7 @@ class CustomTextEditingController extends TextEditingController {
 
             text = newText;
 
-            moveCursorTo(startUtf16);
+            moveCursorTo(startUtf16, forceCollapse: true);
           }
 
           break;
@@ -569,6 +571,7 @@ class CustomTextEditingController extends TextEditingController {
       }
 
       previousCursorPosition = cursorPosition;
+      previousBasePosition = selection.baseOffset;
       return;
     }
 
@@ -587,14 +590,21 @@ class CustomTextEditingController extends TextEditingController {
       }
     }
     previousCursorPosition = cursorPosition;
+    previousBasePosition = selection.baseOffset;
   }
 
   /// Move cursor/extent to [newPosition], avoiding re-entrant listener calls
   /// by temporarily removing the listener before setting the selection.
-  void moveCursorTo(int newPosition) {
+  void moveCursorTo(int newPosition, {bool forceCollapse = false}) {
     removeListener(_handleCursorMovement);
-    previousCursorPosition = newPosition;
-    if (selection.baseOffset == selection.extentOffset) {
+    // Use the previously-observed base to determine if the cursor was collapsed.
+    // Checking the current selection.baseOffset is unreliable on Android because
+    // the IME can transiently report a non-collapsed selection while the user is
+    // simply tapping to reposition the cursor, which would incorrectly pin the
+    // base and create an unintended selection.
+    final wasCollapsed = previousBasePosition == previousCursorPosition;
+    if (forceCollapse || wasCollapsed) {
+      previousBasePosition = newPosition;
       selection = TextSelection(
         extentOffset: newPosition,
         baseOffset: newPosition,
@@ -602,6 +612,7 @@ class CustomTextEditingController extends TextEditingController {
         isDirectional: selection.isDirectional,
       );
     } else {
+      previousBasePosition = selection.baseOffset;
       selection = TextSelection(
         extentOffset: newPosition,
         baseOffset: selection.baseOffset,
@@ -609,6 +620,7 @@ class CustomTextEditingController extends TextEditingController {
         isDirectional: selection.isDirectional,
       );
     }
+    previousCursorPosition = newPosition;
     addListener(_handleCursorMovement);
   }
 

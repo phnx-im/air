@@ -10,9 +10,19 @@ project(runner LANGUAGES CXX)
 # the on-disk name of your application.
 set(BINARY_NAME "air")
 
+if(NOT DEFINED APP_FLAVOR)
+    set(APP_FLAVOR "dev")
+endif()
+
 # The unique GTK application identifier for this application. See:
 # https://wiki.gnome.org/HowDoI/ChooseApplicationID
-set(APPLICATION_ID "ms.air")
+if(APP_FLAVOR STREQUAL "production")
+  set(APPLICATION_ID "ms.air")
+elseif(APP_FLAVOR STREQUAL "dev")
+  set(APPLICATION_ID "ms.air.dev")
+else()
+  message(FATAL_ERROR "Unrecognized APP_FLAVOR")
+endif()
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.

@@ -20,6 +20,8 @@ env:
   CARGO_INCREMENTAL: 0
   SQLX_OFFLINE: true
   RUSTFLAGS: "-D warnings"
+  # Unfortunately, flutter doesn't support flavors on Linux, so we do with env variables and CMake
+  APP_FLAVOR: "${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}"
 
 jobs:
   # TODO: rename me once we unify all workflows

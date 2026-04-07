@@ -79,6 +79,9 @@ dev_dependencies:
 
 # The following section is specific to Flutter.
 flutter:
+  # Build the test version by default, prevents accidental overwrite of the Play Store version on Android.
+  default-flavor: staging
+
   generate: true
 
   # The following line ensures that the Material Icons font is
@@ -99,15 +102,3 @@ flutter:
 
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/custom-fonts/#from-packages
-
-flutter_launcher_icons:
-  android: true
-  ios: true
-  image_path: "assets/images/icon.png"
-  windows:
-    generate: true
-    image_path: "assets/images/icon.png"
-    icon_size: 256 # min:48, max:256, default: 48
-  macos:
-    generate: true
-    image_path: "assets/images/mac-icon.png"

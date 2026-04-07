@@ -47,6 +47,28 @@ android {
         versionName = flutter.versionName
     }
 
+    flavorDimensions += "default"
+    productFlavors {
+        create("staging") {
+            dimension = "default"
+            resValue(
+                type = "string",
+                name = "app_name",
+                value = "Air (staging)"
+            )
+            applicationIdSuffix = ".staging"
+        }
+        create("production") {
+            dimension = "default"
+            resValue(
+                type = "string",
+                name = "app_name",
+                value = "Air"
+            )
+            applicationIdSuffix = ""
+        }
+    }
+
     // Create a release signing configuration only if required keys are present
     signingConfigs {
         val keyAlias = keystoreProperties["keyAlias"] as? String ?: return@signingConfigs
