@@ -5,6 +5,8 @@
 package ms.air
 
 import android.util.Log
+import androidx.work.Constraints
+import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
@@ -30,8 +32,14 @@ class BackgroundFirebaseMessagingService : FirebaseMessagingService() {
             workDataOf(
                 PushProcessingWorker.KEY_DATA_PAYLOAD to (data["data"] ?: ""),
             )
+
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
         val requestBuilder =
-            OneTimeWorkRequestBuilder<PushProcessingWorker>().setInputData(workData)
+            OneTimeWorkRequestBuilder<PushProcessingWorker>().setConstraints(constraints)
+                .setInputData(workData)
         if (isHighPriority) {
             requestBuilder.setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
         }
