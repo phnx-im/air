@@ -114,6 +114,42 @@ impl From<IssueTokensError> for Status {
 }
 
 #[derive(Error, Debug)]
+pub(crate) enum RedeemTokenError {
+    /// Storage provider error
+    #[error("Storage provider error")]
+    StorageError,
+    /// Token key ID not recognized
+    #[error("Unknown token key ID")]
+    UnknownKeyId,
+    /// Invalid token (double-spend, bad authenticator, etc.)
+    #[error("Invalid token")]
+    InvalidToken,
+}
+
+impl From<RedeemTokenError> for Status {
+    fn from(e: RedeemTokenError) -> Self {
+        use airprotos::common::v1::{StatusDetails, StatusDetailsCode};
+        use prost::Message;
+
+        let msg = e.to_string();
+        match e {
+            RedeemTokenError::StorageError => Status::internal(msg),
+            RedeemTokenError::UnknownKeyId => Status::with_details(
+                tonic::Code::Unauthenticated,
+                msg,
+                StatusDetails {
+                    code: StatusDetailsCode::UnknownTokenKeyId.into(),
+                    detail: None,
+                }
+                .encode_to_vec()
+                .into(),
+            ),
+            RedeemTokenError::InvalidToken => Status::unauthenticated(msg),
+        }
+    }
+}
+
+#[derive(Error, Debug)]
 pub(crate) enum AsCredentialsError {
     /// Storage provider error
     #[error("Storage provider error")]

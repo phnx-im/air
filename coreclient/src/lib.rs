@@ -13,6 +13,7 @@ mod groups;
 mod job;
 mod key_stores;
 pub mod outbound_service;
+pub(crate) mod privacy_pass;
 pub mod store;
 mod user_handles;
 mod user_profiles;
