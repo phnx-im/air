@@ -47,6 +47,7 @@ pub(super) enum OperationType {
         ///
         /// It was already uploaded as part of the external group profile but is not yet set as the
         /// chat picture.
+        #[serde(with = "serde_bytes")]
         new_chat_picture: Option<Vec<u8>>,
     },
 }
