@@ -365,6 +365,7 @@ impl GroupDataExt for GroupData {
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
     ) -> (Option<String>, Option<ExternalGroupProfile>) {
         let Self {
+            legacy_title,
             encrypted_title,
             external_group_profile,
         } = self;
@@ -377,7 +378,7 @@ impl GroupDataExt for GroupData {
                 }) {
             Some(decrypted_title)
         } else {
-            None
+            legacy_title
         };
         (title, external_group_profile)
     }

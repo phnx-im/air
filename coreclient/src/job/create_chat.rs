@@ -118,6 +118,7 @@ impl CreateChat {
         let group_data_bytes = GroupData {
             encrypted_title: Some(encrypted_title),
             external_group_profile,
+            legacy_title: None,
         }
         .encode()?;
 

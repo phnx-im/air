@@ -27,6 +27,9 @@ use uuid::Uuid;
 /// from `serde`.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GroupData {
+    /// Only set by older clients and deserialized as a fallback
+    #[serde(rename = "title", skip_serializing_if = "Option::is_none")]
+    pub legacy_title: Option<String>,
     /// Encrypted group title
     ///
     /// It is encrypted with the same key and algorithm as the external group profile. It is
@@ -354,6 +357,7 @@ mod test {
                 hash_alg: HashAlgorithm::Sha256,
                 content_hash: [0xCC; 32].to_vec(),
             }),
+            legacy_title: None,
         }
     }
 
@@ -399,6 +403,37 @@ mod test {
         let encrypted = EncryptedGroupTitle::encrypt(original, &key).unwrap();
         let decrypted = encrypted.decrypt(&key).unwrap();
         assert_eq!(decrypted, original);
+    }
+
+    #[test]
+    fn group_data_backward_compatibility() {
+        #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+        struct OldGroupData {
+            title: String,
+            picture: Option<Vec<u8>>,
+        }
+
+        let group_data = test_group_data();
+        let old_group_data = OldGroupData {
+            title: "My Chat".to_string(),
+            picture: None,
+        };
+
+        let bytes = PersistenceCodec::to_vec(&group_data).unwrap();
+        let value: Result<OldGroupData, _> = PersistenceCodec::from_slice(&bytes);
+        // Old clients cannot join a group without a title
+        assert!(value.is_err(), "Old group data cannot be deserialized");
+
+        let bytes = PersistenceCodec::to_vec(&old_group_data).unwrap();
+        let value: GroupData = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            value,
+            GroupData {
+                encrypted_title: None,
+                external_group_profile: None,
+                legacy_title: Some("My Chat".to_string()),
+            }
+        );
     }
 
     #[test]
