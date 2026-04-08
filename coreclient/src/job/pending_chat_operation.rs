@@ -43,6 +43,10 @@ pub(super) enum OperationType {
     Delete(DeleteGroupParamsOut),
     Other {
         params: Box<GroupOperationParamsOut>,
+        /// New chat picture (if any)
+        ///
+        /// It was already uploaded as part of the external group profile but is not yet set as the
+        /// chat picture.
         new_chat_picture: Option<Vec<u8>>,
     },
 }
@@ -438,13 +442,7 @@ impl PendingChatOperation {
             .stage_remove(txn.as_mut(), signer, target_users)
             .await?;
 
-        let job = Self::new(
-            group,
-            OperationType::Other {
-                params: Box::new(params),
-                new_chat_picture: None,
-            },
-        );
+        let job = Self::new(group, OperationType::other(params));
         job.store(txn.as_mut()).await?;
         Ok(job)
     }

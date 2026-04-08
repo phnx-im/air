@@ -788,7 +788,7 @@ impl CoreUser {
                 )
                 .await?;
             }
-            // Update chat attributes according to new group data
+            // Update chat title according to new group data
             update_chat_title(
                 txn,
                 &mut notifier,
