@@ -24,15 +24,6 @@ const SECOND_THREAD_STACK_SIZE: usize = 1024 * 1024; // 1 MB
 const TOKIO_THREAD_STACK_SIZE: usize = 1024 * 1024; // 1 MB
 const TOKIO_WORKER_THREADS: usize = 2; // Two threads for background tasks should be enough
 
-pub(crate) fn error_batch(error: anyhow::Error) -> NotificationBatch {
-    error!(%error, "Error notification batch");
-    NotificationBatch {
-        badge_count: 0,
-        removals: Vec::new(),
-        additions: Vec::new(),
-    }
-}
-
 pub(crate) fn init_environment(content: &str) -> Option<NotificationBatch> {
     let incoming_content: IncomingNotificationContent = match serde_json::from_str(content) {
         Ok(value) => value,
