@@ -8,8 +8,8 @@ use mimi_room_policy::RoleIndex;
 use tracing::{error, info};
 
 use crate::{
-    UserHandleRecord, clients::CoreUser, delete_client_database, groups::Group, store::Store,
-    utils::connection_ext::StoreExt,
+    UserHandleRecord, clients::CoreUser, delete_client_database, groups::Group, privacy_pass,
+    store::Store, utils::connection_ext::StoreExt,
 };
 
 impl CoreUser {
@@ -113,9 +113,14 @@ impl CoreUser {
         );
 
         let records = UserHandleRecord::load_all(self.pool()).await?;
+        let domain = self.user_id().domain();
         for record in records {
+            let (token_request, _token_state) =
+                privacy_pass::prepare_delete_token_request(self.pool(), domain)
+                    .await?
+                    .context("no VOPRF keys available for delete token request")?;
             api_client
-                .as_delete_handle(record.hash, &record.signing_key)
+                .as_delete_handle(record.hash, &record.signing_key, token_request)
                 .await?;
         }
 

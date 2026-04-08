@@ -1,17 +1,12 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT\n                    activity_time,\n                    credential AS \"credential: FlatClientCredential\",\n                    remaining_tokens\n                FROM as_client_record\n                WHERE user_uuid = $1 AND user_domain = $2",
+  "query": "UPDATE as_client_record SET\n                    activity_time = $1,\n                    credential = $2,\n                    remaining_tokens = $3,\n                    allowance_epoch = $4\n                WHERE user_uuid = $5 AND user_domain = $6",
   "describe": {
-    "columns": [
-      {
-        "ordinal": 0,
-        "name": "activity_time",
-        "type_info": "Timestamptz"
-      },
-      {
-        "ordinal": 1,
-        "name": "credential: FlatClientCredential",
-        "type_info": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        {
           "Custom": {
             "name": "client_credential",
             "kind": {
@@ -59,25 +54,14 @@
               ]
             }
           }
-        }
-      },
-      {
-        "ordinal": 2,
-        "name": "remaining_tokens",
-        "type_info": "Int4"
-      }
-    ],
-    "parameters": {
-      "Left": [
+        },
+        "Int4",
+        "Int2",
         "Uuid",
         "Text"
       ]
     },
-    "nullable": [
-      false,
-      false,
-      false
-    ]
+    "nullable": []
   },
-  "hash": "7cc5f15959c2af6b6f8f90cfcd66d86c9cc1c78f8346a9a1dfc9fc07f63c13e4"
+  "hash": "7cbf43b4583b07d35cff3ad79b914beb7d4a960b3979ef66055c020c022caa9b"
 }
