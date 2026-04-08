@@ -44,13 +44,13 @@ pub(crate) async fn update_chat_attributes(
         notifier,
         chat,
         sender_id,
-        new_chat_attributes.title,
+        new_chat_attributes.title().to_owned(),
         ds_timestamp,
         message_buffer,
     )
     .await?;
-    if chat.attributes.picture != new_chat_attributes.picture {
-        chat.set_picture(connection, notifier, new_chat_attributes.picture)
+    if chat.attributes.picture() != new_chat_attributes.picture() {
+        chat.set_picture(connection, notifier, new_chat_attributes.picture())
             .await?;
         let system_message = SystemMessage::ChangePicture(sender_id.clone());
         let group_message = TimestampedMessage::system_message(system_message, ds_timestamp);
@@ -69,12 +69,12 @@ pub(crate) async fn update_chat_title(
     ds_timestamp: TimeStamp,
     message_buffer: &mut Vec<TimestampedMessage>,
 ) -> anyhow::Result<()> {
-    if chat.attributes.title != new_title {
+    if chat.attributes.title() != new_title {
         chat.set_title(connection, notifier, new_title.clone())
             .await?;
         let system_message = SystemMessage::ChangeTitle {
             user_id: sender_id.clone(),
-            old_title: chat.attributes.title.clone(),
+            old_title: chat.attributes.title().to_owned(),
             new_title,
         };
         let group_message = TimestampedMessage::system_message(system_message, ds_timestamp);

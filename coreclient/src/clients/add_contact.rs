@@ -250,7 +250,7 @@ impl VerifiedConnectionPackagesWithGroupId<ConnectionPackage> {
         let attributes = ChatAttributes::new(title, None);
 
         let (group, partial_params) = self
-            .create_connection_group_internal(txn, signing_key, attributes.title.clone())
+            .create_connection_group_internal(txn, signing_key, attributes.title().to_owned())
             .await?;
 
         let Self {
@@ -292,7 +292,7 @@ impl VerifiedConnectionPackagesWithGroupId<UserId> {
         let attributes = ChatAttributes::new(title, None);
 
         let (group, partial_params) = self
-            .create_connection_group_internal(txn, signing_key, attributes.title.clone())
+            .create_connection_group_internal(txn, signing_key, attributes.title().to_owned())
             .await?;
 
         let Self {

@@ -20,7 +20,7 @@ use tracing::{debug, error, info};
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
-    chats::{GroupDataExt, messages::TimestampedMessage},
+    chats::{ChatPicture, GroupDataExt, messages::TimestampedMessage},
     clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
     contacts::ContactAddInfos,
     groups::{Group, VerifiedGroup, client_auth_info::StorableClientCredential},
@@ -47,7 +47,7 @@ pub(super) enum OperationType {
         ///
         /// It was already uploaded as part of the external group profile but is not yet set as the
         /// chat picture.
-        new_chat_picture: Option<Vec<u8>>,
+        new_chat_picture: Option<ChatPicture>,
     },
 }
 
@@ -68,7 +68,7 @@ impl OperationType {
 
     fn other_with_picture(
         params: GroupOperationParamsOut,
-        new_chat_picture: Option<Vec<u8>>,
+        new_chat_picture: Option<ChatPicture>,
     ) -> Self {
         Self::Other {
             params: Box::new(params),
@@ -474,7 +474,7 @@ impl PendingChatOperation {
         signer: &ClientSigningKey,
         chat_id: ChatId,
         new_group_data: Option<GroupData>,
-        new_chat_picture: Option<Vec<u8>>,
+        new_chat_picture: Option<ChatPicture>,
     ) -> anyhow::Result<Self> {
         let chat = Chat::load(txn.as_mut(), &chat_id)
             .await?

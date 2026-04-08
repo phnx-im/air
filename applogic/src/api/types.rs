@@ -314,8 +314,8 @@ impl From<ChatAttributes> for UiChatAttributes {
         Self {
             title: attributes.title().to_string(),
             picture: attributes
-                .picture()
-                .map(|a| ImageData::from_bytes(a.to_vec())),
+                .picture_bytes()
+                .map(|bytes| ImageData::from_bytes(bytes.to_vec())),
         }
     }
 }

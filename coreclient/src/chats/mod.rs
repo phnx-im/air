@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
 
 use aircommon::{
     codec::{self, PersistenceCodec},
@@ -199,10 +199,16 @@ impl Chat {
         &mut self,
         executor: impl SqliteExecutor<'_>,
         notifier: &mut StoreNotifier,
-        picture: Option<Vec<u8>>,
+        picture: Option<&ChatPicture>,
     ) -> sqlx::Result<()> {
-        Self::update_picture(executor, notifier, self.id, picture.as_deref()).await?;
-        self.attributes.set_picture(picture);
+        Self::update_picture(
+            executor,
+            notifier,
+            self.id,
+            picture.map(|picture| picture.as_bytes()),
+        )
+        .await?;
+        self.attributes.set_picture(picture.cloned());
         Ok(())
     }
 
@@ -306,13 +312,34 @@ impl ChatType {
 /// communicated with other clients. For that, see its counterpart [`GroupData`].
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct ChatAttributes {
-    pub title: String,
-    pub picture: Option<Vec<u8>>,
+    title: Arc<str>,
+    picture: Option<ChatPicture>,
+}
+
+/// A chat picture
+///
+/// Reference counted and cheaply cloneable.
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ChatPicture(#[serde(with = "arc_bytes")] Arc<Vec<u8>>);
+
+impl ChatPicture {
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl From<Vec<u8>> for ChatPicture {
+    fn from(bytes: Vec<u8>) -> Self {
+        Self(Arc::new(bytes))
+    }
 }
 
 impl ChatAttributes {
-    pub fn new(title: String, picture: Option<Vec<u8>>) -> Self {
-        Self { title, picture }
+    pub fn new(title: String, picture: Option<ChatPicture>) -> Self {
+        Self {
+            title: Arc::from(title),
+            picture,
+        }
     }
 
     pub fn title(&self) -> &str {
@@ -320,14 +347,18 @@ impl ChatAttributes {
     }
 
     pub fn set_title(&mut self, title: String) {
-        self.title = title;
+        self.title = Arc::from(title);
     }
 
-    pub fn picture(&self) -> Option<&[u8]> {
-        self.picture.as_deref()
+    pub fn picture(&self) -> Option<&ChatPicture> {
+        self.picture.as_ref()
     }
 
-    pub fn set_picture(&mut self, picture: Option<Vec<u8>>) {
+    pub fn picture_bytes(&self) -> Option<&[u8]> {
+        self.picture().map(|picture| picture.as_bytes())
+    }
+
+    pub fn set_picture(&mut self, picture: Option<ChatPicture>) {
         self.picture = picture;
     }
 }
@@ -383,5 +414,43 @@ impl GroupDataExt for GroupData {
             title
         };
         (title, external_group_profile)
+    }
+}
+
+mod arc_bytes {
+    use serde::{Deserialize, Deserializer, Serializer};
+    use serde_bytes::ByteBuf;
+    use std::sync::Arc;
+
+    pub fn serialize<S>(data: &Arc<Vec<u8>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_bytes(data.as_slice())
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Arc<Vec<u8>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let buf = ByteBuf::deserialize(deserializer)?;
+        Ok(Arc::new(buf.into_vec()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chat_picture_serde_stability() {
+        let picture: ChatPicture = vec![1, 2, 3].into();
+        let bytes = PersistenceCodec::to_vec(&picture).unwrap();
+
+        let deserialized_picture: ChatPicture = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(picture, deserialized_picture);
+
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
     }
 }

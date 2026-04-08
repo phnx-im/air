@@ -313,7 +313,7 @@ impl CoreUser {
                             .context("no origin chat")?;
                         SystemMessage::ReceivedDirectConnectionRequest {
                             sender: contact.user_id.clone(),
-                            chat_name: origin_chat.attributes.title.clone(),
+                            chat_name: origin_chat.attributes.title().to_owned(),
                         }
                     }
                 };

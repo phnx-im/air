@@ -71,16 +71,13 @@ impl CreateChat {
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()
             .context("Failed to generate identity link wrapper key")?;
         let encrypted_title =
-            EncryptedGroupTitle::encrypt(&chat_attributes.title, &identity_link_wrapper_key)
+            EncryptedGroupTitle::encrypt(chat_attributes.title(), &identity_link_wrapper_key)
                 .context("Failed to encrypt group title")?;
 
         let group_profile = GroupProfile::new(
-            chat_attributes.title.clone(),
+            chat_attributes.title().to_owned(),
             None,
-            chat_attributes
-                .picture
-                .as_ref()
-                .map(|p| p.as_slice().into()),
+            chat_attributes.picture_bytes().map(From::from),
         );
         let (group_profile_bytes, group_profile_builder) = group_profile
             .encrypt(&identity_link_wrapper_key)
@@ -116,7 +113,7 @@ impl CreateChat {
 
         // Encode the group data to be stored in the group context
         let group_data_bytes = GroupData {
-            title: chat_attributes.title.clone(),
+            title: chat_attributes.title().to_owned(),
             encrypted_title: Some(encrypted_title),
             external_group_profile,
         }

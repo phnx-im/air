@@ -134,8 +134,8 @@ async fn connect_users_via_targeted_message() {
         "System message should indicate connection from Bob"
     );
     assert_eq!(
-        *chat_name,
-        group_chat.attributes().title,
+        chat_name,
+        group_chat.attributes().title(),
         "System message should have the correct chat title"
     );
     let Message::Event(EventMessage::System(SystemMessage::AcceptedConnectionRequest {

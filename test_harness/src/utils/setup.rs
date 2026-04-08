@@ -1069,7 +1069,7 @@ impl TestBackend {
         assert_eq!(chat.attributes().title(), &group_name);
         let stored_picture = chat.attributes().picture();
         assert!(
-            stored_picture.is_some() && !stored_picture.unwrap().is_empty(),
+            stored_picture.is_some() && !stored_picture.unwrap().as_bytes().is_empty(),
             "stored chat picture should be present"
         );
         user_chats_before

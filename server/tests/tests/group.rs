@@ -356,7 +356,7 @@ async fn update_group_data() {
         .await
         .unwrap()
         .attributes
-        .picture
+        .picture()
         .unwrap()
         .clone();
 
@@ -377,7 +377,7 @@ async fn update_group_data() {
             .await
             .unwrap()
             .attributes
-            .picture
+            .picture()
             .unwrap()
             .clone();
         assert_eq!(actual_picture, expected_picture);
@@ -401,7 +401,8 @@ async fn update_group_data() {
             "{:?} should process Bob's update without errors",
             user_id
         );
-        let actual_title = user.chat(&chat_id).await.unwrap().attributes.title.clone();
+        let chat = user.chat(&chat_id).await.unwrap();
+        let actual_title = chat.attributes.title();
         assert_eq!(actual_title, title);
     }
 }
@@ -423,7 +424,7 @@ async fn fetch_group_profile_on_invite() {
     let alice_user = &setup.get_user(&alice).user;
     let alice_chat = alice_user.chat(&chat_id).await.unwrap();
     let expected_title = alice_chat.attributes().title().to_owned();
-    let expected_picture = alice_chat.attributes().picture.clone();
+    let expected_picture = alice_chat.attributes().picture().cloned();
 
     // Alice invites Bob; the encrypted group profile is already uploaded from group creation
     alice_user
@@ -453,7 +454,7 @@ async fn fetch_group_profile_on_invite() {
     // Bob should have the correct group attributes after fetching the encrypted profile
     let bob_chat = bob_user.chat(&chat_id).await.unwrap();
     assert_eq!(bob_chat.attributes().title(), &expected_title);
-    assert_eq!(bob_chat.attributes().picture, expected_picture);
+    assert_eq!(bob_chat.attributes().picture(), expected_picture.as_ref());
 }
 
 /// Tests that after a group title and picture update, other members fetch the new encrypted group
@@ -495,8 +496,8 @@ async fn fetch_group_profile_on_update() {
         .await
         .unwrap()
         .attributes
-        .picture
-        .clone();
+        .picture()
+        .cloned();
 
     // Bob fetches Alice's commits: this schedules FetchGroupProfileOperations
     let bob_user = &setup.get_user(&bob).user;
@@ -515,7 +516,7 @@ async fn fetch_group_profile_on_update() {
     // Bob should see the updated title and picture
     let bob_chat = bob_user.chat(&chat_id).await.unwrap();
     assert_eq!(bob_chat.attributes().title(), &new_title);
-    assert_eq!(bob_chat.attributes().picture, expected_picture);
+    assert_eq!(bob_chat.attributes().picture(), expected_picture.as_ref());
 }
 
 /// This test checks that bob can leave a group where he missed a commit. He leaves the group only

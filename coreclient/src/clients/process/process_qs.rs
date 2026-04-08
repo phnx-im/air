@@ -284,10 +284,9 @@ impl CoreUser {
         let group_data = GroupData::decode(&group_data_bytes)?;
         let (title, external_group_profile) =
             group_data.into_parts(group.identity_link_wrapper_key());
-        let attributes = ChatAttributes {
-            title,
-            picture: None, // Group picture is not yet available
-        };
+        let attributes = ChatAttributes::new(
+            title, None, // Group picture is not yet available
+        );
         if let Some(external_group_profile) = external_group_profile {
             Self::schedule_fetch_group_profile(
                 txn.as_mut(),

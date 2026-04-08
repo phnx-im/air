@@ -33,7 +33,7 @@ impl CoreUser {
             None => None,
         };
 
-        let chat_attributes = ChatAttributes::new(title, resized_picture);
+        let chat_attributes = ChatAttributes::new(title, resized_picture.map(From::from));
         let client_reference = self.create_own_client_reference();
 
         let job = CreateChat::new(chat_attributes, client_reference);
@@ -87,15 +87,16 @@ impl CoreUser {
                 let id = chat_id.uuid();
                 anyhow!("Can't find chat with id {id}")
             })?;
-        let resized_picture_option = tokio::task::spawn_blocking(|| {
+        let resized_picture = tokio::task::spawn_blocking(|| {
             picture.and_then(|picture| resize_profile_image(&picture).ok())
         })
         .await?;
-        if resized_picture_option == chat.attributes().picture {
+        if resized_picture.as_deref() == chat.attributes().picture_bytes() {
             // No change
             return Ok(());
         }
-        let new_attributes = ChatAttributes::new(chat.attributes.title, resized_picture_option);
+        let mut new_attributes = chat.attributes.clone();
+        new_attributes.set_picture(resized_picture.map(From::from));
 
         // Update the group and send out the update
         self.update_key(chat_id, Some(new_attributes)).await?;
@@ -110,11 +111,13 @@ impl CoreUser {
                 let id = chat_id.uuid();
                 anyhow!("Can't find chat with id {id}")
             })?;
-        if title == chat.attributes().title {
+        if title == chat.attributes().title() {
             // No change
             return Ok(());
         }
-        let new_attributes = ChatAttributes::new(title, chat.attributes.picture);
+
+        let mut new_attributes = chat.attributes.clone();
+        new_attributes.set_title(title);
 
         // Update the group and send out the update
         self.update_key(chat_id, Some(new_attributes)).await?;

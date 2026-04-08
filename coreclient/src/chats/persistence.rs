@@ -88,10 +88,7 @@ impl SqlChat {
             last_message_at,
             status,
             chat_type,
-            attributes: ChatAttributes {
-                title: chat_title,
-                picture: chat_picture,
-            },
+            attributes: ChatAttributes::new(chat_title, chat_picture.map(From::from)),
         })
     }
 
@@ -137,7 +134,7 @@ impl Chat {
             "Storing chat"
         );
         let title = self.attributes().title();
-        let picture = self.attributes().picture();
+        let picture = self.attributes().picture_bytes();
         let group_id = self.group_id.as_slice();
         let (is_active, past_members) = match self.status() {
             ChatStatus::Inactive(inactive_chat) => (false, inactive_chat.past_members().to_vec()),
@@ -880,10 +877,7 @@ pub mod tests {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::Group,
-            attributes: ChatAttributes {
-                title: "Test chat".to_string(),
-                picture: None,
-            },
+            attributes: ChatAttributes::new("Test chat".to_string(), None),
         }
     }
 
@@ -1040,7 +1034,7 @@ pub mod tests {
         )
         .await?;
 
-        chat.attributes.picture = Some(new_picture.to_vec());
+        chat.attributes.picture = Some(new_picture.to_vec().into());
 
         let loaded = Chat::load(&mut connection, &chat.id).await?.unwrap();
         assert_eq!(loaded, chat);

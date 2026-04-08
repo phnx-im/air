@@ -293,7 +293,7 @@ impl Job for FetchGroupProfileOperation {
 
                 let chat_attributes = ChatAttributes::new(
                     group_profile.title,
-                    group_profile.picture.map(|p| p.into()),
+                    group_profile.picture.map(|p| p.into_owned().into()),
                 );
                 update_chat_attributes(
                     txn.as_mut(),
