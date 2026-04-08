@@ -51,5 +51,5 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_PLAYSTORE_KEY_JSON: ${{ secrets.ANDROID_PLAYSTORE_KEY_JSON }}
-        working-directory: app/fastlane
+        working-directory: app
         run: bundle exec fastlane android beta_android upload_to_play_store:true --verbose

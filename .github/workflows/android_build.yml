@@ -39,7 +39,7 @@ jobs:
           cargo-binstall-tools: cargo-ndk
 
       - name: Build Android app
-        working-directory: app/fastlane
+        working-directory: app
         run: bundle exec fastlane android beta_android --verbose
 
       - name: Upload Android app APK

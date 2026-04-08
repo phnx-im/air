@@ -147,6 +147,11 @@ runs:
         bundler-cache: true
         working-directory: app/fastlane
 
+    - if: inputs.fastlane == 'true'
+      name: Setup Bundler Gemfile globally
+      shell: bash
+      run: echo "BUNDLE_GEMFILE=${{ github.workspace }}/app/fastlane/Gemfile" >> $GITHUB_ENV
+
     ## Python packages
 
     - if: inputs.pypi-packages

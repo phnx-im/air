@@ -53,7 +53,7 @@ jobs:
       - name: Build iOS app
         if: ${{ steps.detect_fork.outputs.is_fork == 'true' || github.actor == 'dependabot[bot]' }}
         working-directory: app
-        run: fastlane ios build_ios --verbose
+        run: bundle exec fastlane ios build_ios --verbose
 
       - name: Build and sign iOS app
         if: ${{ steps.detect_fork.outputs.is_fork == 'false' && github.actor != 'dependabot[bot]' }}
@@ -66,7 +66,7 @@ jobs:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
-        working-directory: app/fastlane
+        working-directory: app
         run: bundle exec fastlane ios beta_ios --verbose
 
       - name: Upload build logs on failure

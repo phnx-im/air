@@ -50,5 +50,5 @@ jobs:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
-        working-directory: app/fastlane
+        working-directory: app
         run: bundle exec fastlane mac beta_macos upload_to_test_flight:true --verbose
