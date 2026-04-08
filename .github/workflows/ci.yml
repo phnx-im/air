@@ -82,6 +82,7 @@ jobs:
         with:
           cargo-binstall-tools: cargo-deny@0.19.0 sqlx-cli@0.8.6 cargo-machete@0.9.1
           pypi-packages: reuse~=6.2 podman-compose~=1.5
+          flutter: false
  
       - name: Rust checks
         run: just check-rust
