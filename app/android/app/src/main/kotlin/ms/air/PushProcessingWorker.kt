@@ -38,20 +38,19 @@ class PushProcessingWorker(
             try {
                 Log.d(WORKER_LOGTAG, "Starting to process messages in Rust")
                 val notificationBatch = NativeLib().processNewMessages(notificationContent)
+                    ?: return@withContext Result.retry()
                 Log.d(WORKER_LOGTAG, "Finished to process messages in Rust")
 
                 // Show the notifications
-                notificationBatch?.additions?.forEach { content ->
+                notificationBatch.additions.forEach { content ->
                     Notifications.showNotification(applicationContext, content)
                 }
 
                 // Remove the notifications
-                if (notificationBatch?.removals != null) {
-                    Notifications.cancelNotifications(
-                        applicationContext,
-                        ArrayList(notificationBatch.removals)
-                    )
-                }
+                Notifications.cancelNotifications(
+                    applicationContext,
+                    ArrayList(notificationBatch.removals)
+                )
 
                 Result.success()
             } catch (t: Throwable) {
