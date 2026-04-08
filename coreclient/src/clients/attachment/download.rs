@@ -165,12 +165,14 @@ impl CoreUser {
         // Store the attachment and mark it as downloaded
         //
         // When catching up with many messages, it might happen that the database is locked for a
-        // longer time. In this case, we retry the commit every second until it succeeds. Since
-        // this operation is in memory, we can retry indefinitely. It will be cleaned up in case
-        // the app closed. We just need to make sure that we don't run too many downloads at the
-        // same time, otherwise we might run out of memory.
+        // longer time. In this case, we retry the commit every second until it succeeds. Since this
+        // operation is in memory, we can retry many times. It will be cleaned up in case the app
+        // closed. We just need to make sure that we don't run too many downloads at the same time,
+        // otherwise we might run out of memory.
         const ATTACHMENT_COMMIT_RETRY_DELAY: Duration = Duration::from_secs(1);
+        const ATTACHMENT_COMMIT_MAX_RETRIES: u32 = 30;
         let bytes = content.bytes.as_slice();
+        let mut retries = 0u32;
         loop {
             let res = self
                 .with_transaction_and_notifier(async |txn, notifier| {
@@ -192,8 +194,13 @@ impl CoreUser {
                     if let Some(db_error) = sqlx_error.as_database_error()
                         && db_error.code().as_deref() == Some(DB_LOCKED_CODE)
                     {
+                        retries += 1;
+                        if retries >= ATTACHMENT_COMMIT_MAX_RETRIES {
+                            return Err(sqlx_error.into());
+                        }
                         warn!(
                             ?attachment_id,
+                            retries,
                             "Database is locked; retrying in {ATTACHMENT_COMMIT_RETRY_DELAY:?}"
                         );
                     } else {
