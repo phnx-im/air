@@ -55,7 +55,7 @@ class BackgroundFirebaseMessagingService : FirebaseMessagingService() {
         }
         WorkManager.getInstance(applicationContext).enqueueUniqueWork(
             TAG,
-            ExistingWorkPolicy.APPEND_OR_REPLACE, requestBuilder.build()
+            ExistingWorkPolicy.REPLACE, requestBuilder.build()
         )
         Log.d(TAG, "background process task queued")
     }
