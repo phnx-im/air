@@ -56,8 +56,8 @@ pub extern "C" fn process_new_messages(
     match env.new_string(response) {
         Ok(output) => output.into_raw(),
         Err(error) => {
-            env.throw_new(
-                "java/lang/IllegalArgumentException",
+            let _ = env.throw_new(
+                "java/lang/RuntimeException",
                 "Failed to create Java string from Rust",
             );
             std::ptr::null_mut()
