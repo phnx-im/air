@@ -299,7 +299,7 @@ impl Job for FetchGroupProfileOperation {
                     txn.as_mut(),
                     context.notifier,
                     &mut chat,
-                    sender_id,
+                    &sender_id,
                     chat_attributes,
                     uploaded_at,
                     &mut messages,

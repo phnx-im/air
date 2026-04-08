@@ -23,9 +23,9 @@ impl CoreUser {
     pub(crate) async fn update_key(
         &self,
         chat_id: ChatId,
-        new_chat_attributes: Option<&ChatAttributes>,
+        new_chat_attributes: Option<ChatAttributes>,
     ) -> anyhow::Result<Vec<ChatMessage>> {
-        let job = ChatOperation::update(chat_id, new_chat_attributes.cloned());
+        let job = ChatOperation::update(chat_id, new_chat_attributes);
         Ok(self.execute_job(job).await?)
     }
 }
@@ -34,31 +34,51 @@ pub(crate) async fn update_chat_attributes(
     connection: &mut SqliteConnection,
     notifier: &mut StoreNotifier,
     chat: &mut Chat,
-    sender_id: UserId,
+    sender_id: &UserId,
     new_chat_attributes: ChatAttributes,
     ds_timestamp: TimeStamp,
     message_buffer: &mut Vec<TimestampedMessage>,
 ) -> anyhow::Result<()> {
-    let new_title = new_chat_attributes.title;
-    let old_title = chat.attributes.title.clone();
+    update_chat_title(
+        connection,
+        notifier,
+        chat,
+        sender_id,
+        new_chat_attributes.title,
+        ds_timestamp,
+        message_buffer,
+    )
+    .await?;
+    if chat.attributes.picture != new_chat_attributes.picture {
+        chat.set_picture(connection, notifier, new_chat_attributes.picture)
+            .await?;
+        let system_message = SystemMessage::ChangePicture(sender_id.clone());
+        let group_message = TimestampedMessage::system_message(system_message, ds_timestamp);
+        message_buffer.push(group_message);
+    }
+
+    Ok(())
+}
+
+pub(crate) async fn update_chat_title(
+    connection: &mut SqliteConnection,
+    notifier: &mut StoreNotifier,
+    chat: &mut Chat,
+    sender_id: &UserId,
+    new_title: String,
+    ds_timestamp: TimeStamp,
+    message_buffer: &mut Vec<TimestampedMessage>,
+) -> anyhow::Result<()> {
     if chat.attributes.title != new_title {
-        chat.set_title(&mut *connection, notifier, new_title.clone())
+        chat.set_title(connection, notifier, new_title.clone())
             .await?;
         let system_message = SystemMessage::ChangeTitle {
             user_id: sender_id.clone(),
-            old_title,
+            old_title: chat.attributes.title.clone(),
             new_title,
         };
         let group_message = TimestampedMessage::system_message(system_message, ds_timestamp);
         message_buffer.push(group_message);
     }
-    if chat.attributes.picture != new_chat_attributes.picture {
-        chat.set_picture(connection, notifier, new_chat_attributes.picture)
-            .await?;
-        let system_message = SystemMessage::ChangePicture(sender_id);
-        let group_message = TimestampedMessage::system_message(system_message, ds_timestamp);
-        message_buffer.push(group_message);
-    }
-
     Ok(())
 }

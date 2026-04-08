@@ -61,7 +61,6 @@ pub struct GroupDebugInfo {
 #[derive(Debug, Clone)]
 pub struct GroupDataDebugInfo {
     pub title: String,
-    pub has_picture: bool,
     pub encrypted_title: Option<EncryptedGroupTitleDebugInfo>,
     pub external_group_profile: Option<ExternalGroupProfileDebugInfo>,
 }
@@ -132,7 +131,6 @@ impl GroupDebugInfo {
             .and_then(|ext| GroupData::decode(&GroupDataBytes::from(ext.0.clone())).ok())
             .map(|gd| GroupDataDebugInfo {
                 title: gd.title,
-                has_picture: gd.picture.is_some(),
                 encrypted_title: gd.encrypted_title.map(EncryptedGroupTitleDebugInfo::from),
                 external_group_profile: gd
                     .external_group_profile

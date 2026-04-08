@@ -217,7 +217,6 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
         let group_data_bytes = GroupData {
             title,
             encrypted_title: Some(encrypted_title),
-            picture: None,
             // No group profile is uploaded, because there is no additational data except for the
             // title.
             external_group_profile: None,

@@ -302,10 +302,9 @@ impl ChatType {
 
 /// Attributes of a chat.
 ///
-/// This type is an in-memory representation of the chat attributes and is only persisted in the
-/// local database. It is not used to be communicated with other clients. For that, see its
-/// counterpart [`GroupData`].
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+/// This type is only an in-memory representation of the chat attributes. It is not used to be
+/// communicated with other clients. For that, see its counterpart [`GroupData`].
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct ChatAttributes {
     pub title: String,
     pub picture: Option<Vec<u8>>,
@@ -343,10 +342,14 @@ pub(crate) trait GroupDataExt {
     /// Encodes the group data as bytes to be stored in the group data extension.
     fn encode(&self) -> Result<GroupDataBytes, codec::Error>;
 
+    /// Returns the chat title and the external group profile.
+    ///
+    /// The title is decrypted from the external group profile if it is present, otherwise we
+    /// fallback to the plaintext title.
     fn into_parts(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> (ChatAttributes, Option<ExternalGroupProfile>);
+    ) -> (String, Option<ExternalGroupProfile>);
 }
 
 impl GroupDataExt for GroupData {
@@ -361,10 +364,9 @@ impl GroupDataExt for GroupData {
     fn into_parts(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> (ChatAttributes, Option<ExternalGroupProfile>) {
+    ) -> (String, Option<ExternalGroupProfile>) {
         let Self {
             title,
-            picture,
             encrypted_title,
             external_group_profile,
         } = self;
@@ -380,6 +382,6 @@ impl GroupDataExt for GroupData {
         } else {
             title
         };
-        (ChatAttributes { title, picture }, external_group_profile)
+        (title, external_group_profile)
     }
 }

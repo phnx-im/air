@@ -28,7 +28,6 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GroupData {
     pub title: String,
-    pub picture: Option<Vec<u8>>,
     /// Encrypted group title
     ///
     /// It is encrypted with the same key and algorithm as the external group profile. It is
@@ -343,7 +342,6 @@ mod test {
     fn test_group_data() -> GroupData {
         GroupData {
             title: "Group Title".to_string(),
-            picture: Some(vec![1, 2, 3]),
             encrypted_title: Some(EncryptedGroupTitle {
                 ciphertext: b"title-ciphertext".to_vec(),
                 nonce: [0xAA; _],
@@ -430,7 +428,7 @@ mod test {
         let group_data = test_group_data();
         let old_group_data = OldGroupData {
             title: group_data.title.clone(),
-            picture: group_data.picture.clone(),
+            picture: None,
         };
 
         let bytes = PersistenceCodec::to_vec(&group_data).unwrap();

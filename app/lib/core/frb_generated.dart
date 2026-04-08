@@ -8166,15 +8166,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   GroupDataDebugInfo dco_decode_group_data_debug_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
     return GroupDataDebugInfo(
       title: dco_decode_String(arr[0]),
-      hasPicture: dco_decode_bool(arr[1]),
       encryptedTitle:
-          dco_decode_opt_box_autoadd_encrypted_group_title_debug_info(arr[2]),
+          dco_decode_opt_box_autoadd_encrypted_group_title_debug_info(arr[1]),
       externalGroupProfile:
-          dco_decode_opt_box_autoadd_external_group_profile_debug_info(arr[3]),
+          dco_decode_opt_box_autoadd_external_group_profile_debug_info(arr[2]),
     );
   }
 
@@ -10875,7 +10874,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_title = sse_decode_String(deserializer);
-    var var_hasPicture = sse_decode_bool(deserializer);
     var var_encryptedTitle =
         sse_decode_opt_box_autoadd_encrypted_group_title_debug_info(
           deserializer,
@@ -10886,7 +10884,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
     return GroupDataDebugInfo(
       title: var_title,
-      hasPicture: var_hasPicture,
       encryptedTitle: var_encryptedTitle,
       externalGroupProfile: var_externalGroupProfile,
     );
@@ -14194,7 +14191,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.title, serializer);
-    sse_encode_bool(self.hasPicture, serializer);
     sse_encode_opt_box_autoadd_encrypted_group_title_debug_info(
       self.encryptedTitle,
       serializer,

@@ -7815,7 +7815,6 @@ const _: fn() = || {
         let GroupDataDebugInfo =
             None::<crate::api::chat_details_cubit::GroupDataDebugInfo>.unwrap();
         let _: String = GroupDataDebugInfo.title;
-        let _: bool = GroupDataDebugInfo.has_picture;
         let _: Option<crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo> =
             GroupDataDebugInfo.encrypted_title;
         let _: Option<crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo> =
@@ -8905,7 +8904,6 @@ impl SseDecode for crate::api::chat_details_cubit::GroupDataDebugInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_title = <String>::sse_decode(deserializer);
-        let mut var_hasPicture = <bool>::sse_decode(deserializer);
         let mut var_encryptedTitle = <Option<
             crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo,
         >>::sse_decode(deserializer);
@@ -8914,7 +8912,6 @@ impl SseDecode for crate::api::chat_details_cubit::GroupDataDebugInfo {
         >>::sse_decode(deserializer);
         return crate::api::chat_details_cubit::GroupDataDebugInfo {
             title: var_title,
-            has_picture: var_hasPicture,
             encrypted_title: var_encryptedTitle,
             external_group_profile: var_externalGroupProfile,
         };
@@ -11621,7 +11618,6 @@ impl flutter_rust_bridge::IntoDart
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.title.into_into_dart().into_dart(),
-            self.0.has_picture.into_into_dart().into_dart(),
             self.0.encrypted_title.into_into_dart().into_dart(),
             self.0.external_group_profile.into_into_dart().into_dart(),
         ]
@@ -13673,7 +13669,6 @@ impl SseEncode for crate::api::chat_details_cubit::GroupDataDebugInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.title, serializer);
-        <bool>::sse_encode(self.has_picture, serializer);
         <Option<crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo>>::sse_encode(
             self.encrypted_title,
             serializer,

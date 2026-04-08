@@ -39,7 +39,8 @@ use tls_codec::DeserializeBytes;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    ChatMessage, ChatStatus, ContentMessage, Message, MimiContentExt, SystemMessage,
+    ChatAttributes, ChatMessage, ChatStatus, ContentMessage, Message, MimiContentExt,
+    SystemMessage,
     chats::{GroupDataExt, StatusRecord, messages::edit::MessageEdit},
     clients::{
         QsListenResponder,
@@ -47,7 +48,7 @@ use crate::{
         block_contact::{BlockedContact, BlockedContactError},
         process::process_as::{ConnectionInfoSource, TargetedMessageSource},
         targeted_message::TargetedMessageContent,
-        update_key::update_chat_attributes,
+        update_key::update_chat_title,
         user_settings::ReadReceiptsSetting,
     },
     contacts::{PartialContact, PartialContactType},
@@ -210,16 +211,16 @@ impl CoreUser {
         // Update group data in chat attributes if present
         if let Some(group_data_bytes) = group_data_bytes {
             let group_data = GroupData::decode(&group_data_bytes)?;
-            let (chat_attributes, _external_group_profile) =
+            let (chat_title, _external_group_profile) =
                 group_data.into_parts(group.identity_link_wrapper_key());
             // No need to fetch the group profile: this is our own commit response, so the
             // profile data is already available locally.
-            update_chat_attributes(
+            update_chat_title(
                 txn,
                 notifier,
                 &mut chat,
-                self.user_id().clone(),
-                chat_attributes,
+                self.user_id(),
+                chat_title,
                 timestamp,
                 &mut group_messages,
             )
@@ -281,8 +282,12 @@ impl CoreUser {
         // group data.
         let group_data_bytes = group.group_data().context("No group data")?;
         let group_data = GroupData::decode(&group_data_bytes)?;
-        let (attributes, external_group_profile) =
+        let (title, external_group_profile) =
             group_data.into_parts(group.identity_link_wrapper_key());
+        let attributes = ChatAttributes {
+            title,
+            picture: None, // Group picture is not yet available
+        };
         if let Some(external_group_profile) = external_group_profile {
             Self::schedule_fetch_group_profile(
                 txn.as_mut(),
@@ -771,7 +776,7 @@ impl CoreUser {
 
         if let Some(group_data_bytes) = group_data_bytes {
             let group_data = GroupData::decode(&group_data_bytes)?;
-            let (chat_attributes, external_group_profile) =
+            let (chat_title, external_group_profile) =
                 group_data.into_parts(group.identity_link_wrapper_key());
             if let Some(external_group_profile) = external_group_profile {
                 Self::schedule_fetch_group_profile(
@@ -784,12 +789,12 @@ impl CoreUser {
                 .await?;
             }
             // Update chat attributes according to new group data
-            update_chat_attributes(
+            update_chat_title(
                 txn,
                 &mut notifier,
                 &mut chat,
-                sender_client_credential.user_id().clone(),
-                chat_attributes,
+                sender_client_credential.user_id(),
+                chat_title,
                 ds_timestamp,
                 &mut group_messages,
             )
