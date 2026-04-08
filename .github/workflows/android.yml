@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: 2024 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: Build Android app
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  merge_group:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  SQLX_OFFLINE: true
+
+jobs:
+  android-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          # Fetch all commit metadata (build number is derived from number of commits)
+          fetch-depth: 0
+          # Don't download historical file contents (blobs)
+          filter: blob:none
+
+      - name: Setup build environment
+        uses: ./.github/actions/setup-buildenv
+        with:
+          fastlane: true
+          jdk: true
+          cargo-binstall-tools: cargo-ndk
+
+      - if: github.event_name == 'pull_request'
+        name: Build Android app (PR)
+        working-directory: app/fastlane
+        run: bundle exec fastlane android beta_android --verbose
+
+      - if: github.event_name == 'pull_request'
+        name: Upload APK (PR)
+        uses: actions/upload-artifact@v4
+        with:
+          name: air-android
+          path: app/build/app/outputs/flutter-apk/app-release.apk
+
+      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        # TODO: use environments
+        name: Build and upload to Google Play Store
+        env:
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_PLAYSTORE_KEY_JSON: ${{ secrets.ANDROID_PLAYSTORE_KEY_JSON }}
+        working-directory: app/fastlane
+        run: bundle exec fastlane android beta_android upload_to_play_store:true --verbose

@@ -1,0 +1,173 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+name: Setup build environment
+description: Sets up platform specific tools we need for our CI workflows
+inputs:
+  git-lfs:
+    description: "Whether to init and pull Git LFS blobs"
+    default: "true"
+    required: false
+  fastlane:
+    description: "Whether to setup Ruby and gems for Fastlane" 
+    default: "false"
+    required: false
+  jdk:
+    description: "Whether to install a JDK"
+    default: "false"
+    required: false
+  flutter:
+    description: "Whether to install Flutter"
+    default: "true"
+    required: false
+  cargo-binstall-default-tools:
+    description: "Default tools to install with cargo-binstall"
+    default: "sccache@0.14.0 just@1.48.1"
+    required: false
+  cargo-binstall-tools:
+    description: "Space separated list of cargo-binstall tools to install"
+    default: ""
+    required: false
+  pypi-packages:
+    description: "Python packages to install with pip3"
+    default: ""
+    required: false
+  sccache-dir:
+    description: "Location of cache files"
+    required: false
+    default: "${{ runner.temp }}/.sccache"
+  sccache-size:
+    description: "Max. size of sccache"
+    required: false
+    default: "2g"
+outputs:
+  build-number:
+    description: "Build number derived from the count of git commit in the repository"
+    value: ${{ steps.git-commits-count.outputs.value }}
+runs:
+  using: composite
+  steps:
+    # git
+
+    - if: inputs.git-lfs == 'true'
+      name: Fetch Git LFS blobs
+      shell: bash
+      run: |
+        git lfs install
+        git lfs pull
+
+    - name: Count git commits
+      id: git-commits-count
+      shell: bash
+      run: echo "value=$(git rev-list --count HEAD)" >> $GITHUB_OUTPUT
+      
+    ## cargo-binstall (as a side-effect: setup Rust toolchain using rust-toolchain.toml)
+
+    - name: Setup cargo binstall
+      uses: cargo-bins/cargo-binstall@v1.17.7
+      
+    - name: Install Rust tools with cargo-binstall
+      shell: bash
+      run: cargo binstall --no-confirm ${{ inputs.cargo-binstall-default-tools }} ${{ inputs.cargo-binstall-tools }}
+
+    ## sccache
+
+    - name: Create sccache cache directory
+      shell: bash
+      run: mkdir -p "${{ inputs.sccache-dir }}"
+
+    - name: Setup Rust GitHub Actions cache
+      uses: actions/cache@v5
+      with:
+        path: |
+          ${{ inputs.sccache-dir }}
+          ~/.cargo
+          ~/.rustup
+        key: "sccache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
+        restore-keys: |
+          sccache-${{ runner.os }}-${{ runner.arch }}
+
+    - name: Start sccache daemon
+      shell: bash
+      run: |
+          if [[ "$GITHUB_REF_NAME" == "main" ]]; then export SCCACHE_RECACHE=y; fi
+          sccache --start-server
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+      env:
+        SCCACHE_CACHE_SIZE: ${{ inputs.sccache-size }}
+        SCCACHE_DIR: "${{ inputs.sccache-dir }}"
+
+    - if: runner.os == 'Linux' || runner.os == 'macOS'
+      name: Enable sccache wrapper for Unix
+      shell: bash
+      run: |
+        echo "CC=sccache /usr/bin/clang" >> $GITHUB_ENV
+        echo "CXX=sccache /usr/bin/clang++" >> $GITHUB_ENV
+
+    - if: runner.os == 'Windows'
+      name: Enable sccache wrapper for Windows
+      shell: bash
+      run: |
+        echo "CC=sccache cl.exe" >> $GITHUB_ENV
+        echo "CXX=sccache cl.exe" >> $GITHUB_ENV
+
+    ## Xcode
+
+    - if: runner.os == 'macOS'
+      name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: 26.1.1
+
+    ## rustup
+
+    - name: Configure Rust toolchain cache
+      uses: actions/cache@v5
+      with:
+        path: ~/.rustup
+        key: rust-toolchain-${{ hashFiles('rust-toolchain.toml' ) }}
+    
+    ## JDK
+
+    - if: inputs.jdk == 'true'
+      name: Install JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: "temurin"
+        java-version: "17"
+        cache: "gradle"
+
+    ## Ruby & Fastlane
+
+    - if: inputs.fastlane == 'true'
+      name: Install Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: "3.4"
+        bundler-cache: true
+        working-directory: app/fastlane
+
+    ## Python packages
+
+    - if: inputs.pypi-packages
+      name: Install PyPI packages
+      shell: bash
+      run: pip3 install --user --no-cache-dir ${{ inputs.pypi-packages }}
+
+    ## Flutter
+
+    - if: inputs.flutter == 'true'
+      name: Setup Flutter SDK
+      uses: flutter-actions/setup-flutter@v4
+      with:
+        channel: stable
+        version: 3.41.4
+        cache: true
+        cache-sdk: true
+
+    - if: inputs.flutter == 'true' && runner.os == 'Linux'
+      name: Install Linux Flutter build dependencies
+      shell: bash
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -yqq lld ninja-build libgtk-3-dev
