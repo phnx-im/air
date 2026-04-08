@@ -31,7 +31,7 @@ class BackgroundFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     private fun enqueueDataMessage(data: Map<String, String>, isHighPriority: Boolean) {
-        Log.d(LOGTAG, "enqueueDataMessage highPriority=$isHighPriority")
+        Log.d(TAG, "enqueueDataMessage highPriority=$isHighPriority")
         val workData =
             workDataOf(
                 PushProcessingWorker.KEY_DATA_PAYLOAD to (data["data"] ?: ""),
@@ -55,8 +55,9 @@ class BackgroundFirebaseMessagingService : FirebaseMessagingService() {
         }
         WorkManager.getInstance(applicationContext).enqueueUniqueWork(
             TAG,
-            ExistingWorkPolicy.APPEND, requestBuilder.build()
+            ExistingWorkPolicy.APPEND_OR_REPLACE, requestBuilder.build()
         )
+        Log.d(TAG, "background process task queued")
     }
 
     override fun onNewToken(token: String) {
