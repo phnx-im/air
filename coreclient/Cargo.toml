@@ -71,4 +71,5 @@ test_utils = ["tempfile"]
 [package.metadata.cargo-machete]
 ignored = [
     "kamadak-exif", # false positive due to a different crate name: exif
+    "serde_bytes",  # false positive because used as a field attribute
 ]
