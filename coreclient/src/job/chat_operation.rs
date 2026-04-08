@@ -318,7 +318,6 @@ impl ChatOperation {
             .context("Failed to encrypt group title")?;
 
             let group_data = GroupData {
-                title: group_profile.title,
                 encrypted_title: Some(encrypted_title),
                 external_group_profile: Some(external),
             };

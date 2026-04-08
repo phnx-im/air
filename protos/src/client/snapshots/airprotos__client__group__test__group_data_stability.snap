@@ -2,11 +2,7 @@
 source: protos/src/client/group.rs
 expression: diag
 ---
-a3                                                 # map(3)
-   65                                              #   text(5)
-      7469746c65                                   #     "title"
-   6b                                              #   text(11)
-      47726f7570205469746c65                       #     "Group Title"
+a2                                                 # map(2)
    6f                                              #   text(15)
       656e637279707465645f7469746c65               #     "encrypted_title"
    a3                                              #   map(3)

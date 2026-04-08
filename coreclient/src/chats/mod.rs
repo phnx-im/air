@@ -344,12 +344,11 @@ pub(crate) trait GroupDataExt {
 
     /// Returns the chat title and the external group profile.
     ///
-    /// The title is decrypted from the external group profile if it is present, otherwise we
-    /// fallback to the plaintext title.
+    /// The title is decrypted from the external group profile if it is present.
     fn into_parts(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> (String, Option<ExternalGroupProfile>);
+    ) -> (Option<String>, Option<ExternalGroupProfile>);
 }
 
 impl GroupDataExt for GroupData {
@@ -364,23 +363,21 @@ impl GroupDataExt for GroupData {
     fn into_parts(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> (String, Option<ExternalGroupProfile>) {
+    ) -> (Option<String>, Option<ExternalGroupProfile>) {
         let Self {
-            title,
             encrypted_title,
             external_group_profile,
         } = self;
 
-        // Always prefer the encrypted title over the plaintext title
         let title = if let Some(encrypted_title) = encrypted_title
             && let Ok(decrypted_title) = encrypted_title
                 .decrypt(identity_link_wrapper_key)
                 .inspect_err(|error| {
                     error!(%error, "Failed to decrypt group title; fallback to plaintext");
                 }) {
-            decrypted_title
+            Some(decrypted_title)
         } else {
-            title
+            None
         };
         (title, external_group_profile)
     }

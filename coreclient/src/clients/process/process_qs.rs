@@ -215,16 +215,18 @@ impl CoreUser {
                 group_data.into_parts(group.identity_link_wrapper_key());
             // No need to fetch the group profile: this is our own commit response, so the
             // profile data is already available locally.
-            update_chat_title(
-                txn,
-                notifier,
-                &mut chat,
-                self.user_id(),
-                chat_title,
-                timestamp,
-                &mut group_messages,
-            )
-            .await?;
+            if let Some(title) = chat_title {
+                update_chat_title(
+                    txn,
+                    notifier,
+                    &mut chat,
+                    self.user_id(),
+                    title,
+                    timestamp,
+                    &mut group_messages,
+                )
+                .await?;
+            }
         }
         CoreUser::store_new_messages(txn, notifier, chat.id(), group_messages).await?;
 
@@ -284,6 +286,7 @@ impl CoreUser {
         let group_data = GroupData::decode(&group_data_bytes)?;
         let (title, external_group_profile) =
             group_data.into_parts(group.identity_link_wrapper_key());
+        let title = title.context("No group title")?;
         let attributes = ChatAttributes {
             title,
             picture: None, // Group picture is not yet available
@@ -788,17 +791,19 @@ impl CoreUser {
                 )
                 .await?;
             }
-            // Update chat title according to new group data
-            update_chat_title(
-                txn,
-                &mut notifier,
-                &mut chat,
-                sender_client_credential.user_id(),
-                chat_title,
-                ds_timestamp,
-                &mut group_messages,
-            )
-            .await?;
+            if let Some(title) = chat_title {
+                // Update chat title according to new group data
+                update_chat_title(
+                    txn,
+                    &mut notifier,
+                    &mut chat,
+                    sender_client_credential.user_id(),
+                    title,
+                    ds_timestamp,
+                    &mut group_messages,
+                )
+                .await?;
+            }
         }
 
         notifier.notify();

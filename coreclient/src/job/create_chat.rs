@@ -116,7 +116,6 @@ impl CreateChat {
 
         // Encode the group data to be stored in the group context
         let group_data_bytes = GroupData {
-            title: chat_attributes.title.clone(),
             encrypted_title: Some(encrypted_title),
             external_group_profile,
         }

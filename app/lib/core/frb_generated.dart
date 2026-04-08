@@ -8166,14 +8166,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   GroupDataDebugInfo dco_decode_group_data_debug_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
     return GroupDataDebugInfo(
-      title: dco_decode_String(arr[0]),
       encryptedTitle:
-          dco_decode_opt_box_autoadd_encrypted_group_title_debug_info(arr[1]),
+          dco_decode_opt_box_autoadd_encrypted_group_title_debug_info(arr[0]),
       externalGroupProfile:
-          dco_decode_opt_box_autoadd_external_group_profile_debug_info(arr[2]),
+          dco_decode_opt_box_autoadd_external_group_profile_debug_info(arr[1]),
     );
   }
 
@@ -10873,7 +10872,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_title = sse_decode_String(deserializer);
     var var_encryptedTitle =
         sse_decode_opt_box_autoadd_encrypted_group_title_debug_info(
           deserializer,
@@ -10883,7 +10881,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           deserializer,
         );
     return GroupDataDebugInfo(
-      title: var_title,
       encryptedTitle: var_encryptedTitle,
       externalGroupProfile: var_externalGroupProfile,
     );
@@ -14190,7 +14187,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.title, serializer);
     sse_encode_opt_box_autoadd_encrypted_group_title_debug_info(
       self.encryptedTitle,
       serializer,

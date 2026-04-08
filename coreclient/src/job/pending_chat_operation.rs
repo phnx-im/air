@@ -294,19 +294,21 @@ impl PendingChatOperation {
                         let group_data = GroupData::decode(&bytes)?;
                         let (chat_title, _external_group_profile) =
                             group_data.into_parts(self.group.identity_link_wrapper_key());
-                        let attributes = ChatAttributes::new(chat_title, new_chat_picture);
-                        // No need to fetch the group profile: this is our own pending commit, so
-                        // the profile data is already available locally.
-                        update_chat_attributes(
-                            txn,
-                            notifier,
-                            &mut chat,
-                            &own_user_id,
-                            attributes,
-                            ds_timestamp,
-                            &mut group_messages,
-                        )
-                        .await?;
+                        if let Some(chat_title) = chat_title {
+                            let attributes = ChatAttributes::new(chat_title, new_chat_picture);
+                            // No need to fetch the group profile: this is our own pending commit, so
+                            // the profile data is already available locally.
+                            update_chat_attributes(
+                                txn,
+                                notifier,
+                                &mut chat,
+                                &own_user_id,
+                                attributes,
+                                ds_timestamp,
+                                &mut group_messages,
+                            )
+                            .await?;
+                        }
                     }
 
                     group_messages

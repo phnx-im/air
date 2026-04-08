@@ -70,11 +70,12 @@ pub(crate) async fn update_chat_title(
     message_buffer: &mut Vec<TimestampedMessage>,
 ) -> anyhow::Result<()> {
     if chat.attributes.title != new_title {
+        let old_title = chat.attributes.title.clone();
         chat.set_title(connection, notifier, new_title.clone())
             .await?;
         let system_message = SystemMessage::ChangeTitle {
             user_id: sender_id.clone(),
-            old_title: chat.attributes.title.clone(),
+            old_title,
             new_title,
         };
         let group_message = TimestampedMessage::system_message(system_message, ds_timestamp);

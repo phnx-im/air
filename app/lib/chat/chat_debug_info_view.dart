@@ -305,7 +305,6 @@ class _GroupDataInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return _InfoCard(
       children: [
-        _InfoRow(label: 'Title', value: data.title),
         if (data.encryptedTitle != null) ...[
           const _CardSectionHeader('Encrypted Title'),
           _InfoRow(
