@@ -63,7 +63,7 @@ dev_dependencies:
     sdk: flutter
   vector_graphics_compiler: ^1.1.19
   freezed: ^3.0.6
-  flutter_launcher_icons: ^0.14.2
+  flutter_launcher_icons: ^0.14.4
   integration_test:
     sdk: flutter
   flutter_driver:

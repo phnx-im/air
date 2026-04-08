@@ -8,5 +8,4 @@ flutter_launcher_icons:
   windows:
     generate: false
   macos:
-    generate: true
-    image_path: "assets/icons/staging/mac-icon.png"
+    generate: false
