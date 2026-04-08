@@ -296,7 +296,7 @@ mod persistence {
         data: BlobDecoded<T>,
         created_at: DateTime<Utc>,
         scheduled_at: DateTime<Utc>,
-        retries: u32,
+        retries: i64,
     }
 
     impl<T> From<SqlOperation<T>> for Operation<T> {

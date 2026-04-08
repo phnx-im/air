@@ -189,14 +189,15 @@ impl CoreUser {
                     break;
                 }
                 Err(error) => {
-                    let sqlx_error: sqlx::Error = error.downcast()?;
                     const DB_LOCKED_CODE: &str = "5"; // SQLITE_BUSY
-                    if let Some(db_error) = sqlx_error.as_database_error()
-                        && db_error.code().as_deref() == Some(DB_LOCKED_CODE)
-                    {
+                    let is_db_locked = error
+                        .downcast_ref::<sqlx::Error>()
+                        .and_then(|e| e.as_database_error())
+                        .is_some_and(|e| e.code().as_deref() == Some(DB_LOCKED_CODE));
+                    if is_db_locked {
                         retries += 1;
                         if retries >= ATTACHMENT_COMMIT_MAX_RETRIES {
-                            return Err(sqlx_error.into());
+                            return Err(error);
                         }
                         warn!(
                             ?attachment_id,
@@ -204,7 +205,7 @@ impl CoreUser {
                             "Database is locked; retrying in {ATTACHMENT_COMMIT_RETRY_DELAY:?}"
                         );
                     } else {
-                        return Err(sqlx_error.into());
+                        return Err(error);
                     }
                 }
             }
