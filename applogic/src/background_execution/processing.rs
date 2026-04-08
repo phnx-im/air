@@ -77,6 +77,9 @@ pub(crate) fn init_environment(content: &str) -> Option<NotificationBatch> {
             }
         })
         .flatten()
+        .inspect_err(|error| {
+            error!(%error, "Failed to process new messages in the background");
+        })
         .ok()
 }
 
