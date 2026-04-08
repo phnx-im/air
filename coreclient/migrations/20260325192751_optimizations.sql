@@ -20,6 +20,20 @@ WHERE
 ALTER TABLE chat
 ADD COLUMN unread_count INTEGER DEFAULT 0;
 
+-- Backfill unread_count for existing chats
+UPDATE chat
+SET
+    unread_count = (
+        SELECT COUNT(*)
+        FROM message
+        WHERE
+            message.chat_id = chat.chat_id
+            AND message.sender_user_uuid IS NOT NULL
+            AND message.sender_user_domain IS NOT NULL
+            AND message.status != 1
+            AND message.timestamp > chat.last_read
+    );
+
 CREATE TRIGGER IF NOT EXISTS chat_increment_unread_count AFTER INSERT ON message FOR EACH ROW WHEN (
     NEW.sender_user_uuid IS NOT NULL
     AND NEW.sender_user_domain IS NOT NULL
@@ -30,7 +44,24 @@ UPDATE chat
 SET
     unread_count = unread_count + 1
 WHERE
-    chat_id = NEW.chat_id;
+    chat_id = NEW.chat_id
+    AND last_read < NEW.timestamp;
+
+END;
+
+CREATE TRIGGER IF NOT EXISTS chat_decrement_unread_on_delete AFTER
+UPDATE OF status ON message
+WHEN NEW.status = 1
+    AND OLD.status != 1
+    AND NEW.sender_user_uuid IS NOT NULL
+    AND NEW.sender_user_domain IS NOT NULL
+BEGIN
+UPDATE chat
+SET
+    unread_count = MAX(0, unread_count - 1)
+WHERE
+    chat_id = NEW.chat_id
+    AND last_read < NEW.timestamp;
 
 END;
 
@@ -38,7 +69,16 @@ CREATE TRIGGER IF NOT EXISTS chat_reset_unread_count AFTER
 UPDATE OF last_read ON chat BEGIN
 UPDATE chat
 SET
-    unread_count = 0
+    unread_count = (
+        SELECT COUNT(*)
+        FROM message
+        WHERE
+            message.chat_id = NEW.chat_id
+            AND message.sender_user_uuid IS NOT NULL
+            AND message.sender_user_domain IS NOT NULL
+            AND message.status != 1
+            AND message.timestamp > NEW.last_read
+    )
 WHERE
     chat_id = NEW.chat_id;
 
