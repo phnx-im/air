@@ -11,8 +11,9 @@ use aircommon::{
     identifiers::{AttachmentId, UserId},
 };
 pub use aircoreclient::{
-    AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
-    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
+    AcceptContactRequestError, AirComponentDebugInfo, AppDataDebugInfo, DebugCapabilities,
+    EncryptedGroupTitleDebugInfo, ExternalGroupProfileDebugInfo, GroupDataDebugInfo,
+    GroupDebugInfo, RequiredDebugCapabilities,
 };
 use aircoreclient::{
     AttachmentProgress, Chat, ChatId, ChatMessage, MessageId, ProvisionAttachmentError,
@@ -819,7 +820,13 @@ pub struct _RequiredDebugCapabilities {
 
 #[frb(mirror(AppDataDebugInfo))]
 pub struct _AppDataDebugInfo {
-    pub air_components: Vec<String>,
+    pub components: Vec<String>,
+    pub air_component: Option<AirComponentDebugInfo>,
+}
+
+#[frb(mirror(AirComponentDebugInfo))]
+pub struct _AirComponentDebugInfo {
+    pub encrypted_group_profiles: bool,
 }
 
 #[frb(mirror(DebugCapabilities))]

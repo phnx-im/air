@@ -12,8 +12,10 @@
 # The following line activates a set of recommended lints for Flutter apps,
 # packages, and plugins designed to encourage good coding practices.
 analyzer:
+  exclude: [rust_builder/**]
   errors:
     invalid_internal_annotation: ignore
+
 include: package:flutter_lints/flutter.yaml
 
 linter:

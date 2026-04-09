@@ -14,6 +14,7 @@ use aircommon::{
         QS_CLIENT_REFERENCE_EXTENSION_TYPE, SUPPORTED_PROTOCOL_VERSIONS,
     },
 };
+use airprotos::client::component::AirComponent;
 use airprotos::client::group::{EncryptedGroupTitle, ExternalGroupProfile, GroupData};
 use anyhow::Context as _;
 use hex::ToHex as _;
@@ -90,8 +91,14 @@ pub struct RequiredDebugCapabilities {
 }
 
 #[derive(Debug, Clone)]
+pub struct AirComponentDebugInfo {
+    pub encrypted_group_profiles: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct AppDataDebugInfo {
-    pub air_components: Vec<String>,
+    pub components: Vec<String>,
+    pub air_component: Option<AirComponentDebugInfo>,
 }
 
 #[derive(Debug, Clone)]
@@ -234,7 +241,7 @@ impl DebugCapabilities {
 
 impl AppDataDebugInfo {
     fn from_app_data_dictionary(dict: &AppDataDictionary) -> Self {
-        let air_components = dict
+        let components = dict
             .get(&ComponentType::AppComponents.into())
             .and_then(|data| ComponentsList::tls_deserialize_exact_bytes(data).ok())
             .map(|list| {
@@ -250,7 +257,16 @@ impl AppDataDebugInfo {
                     .collect()
             })
             .unwrap_or_default();
-        Self { air_components }
+        let air_component = dict
+            .get(&AIR_COMPONENT_ID)
+            .and_then(|data| AirComponent::from_bytes(data).ok())
+            .map(|c| AirComponentDebugInfo {
+                encrypted_group_profiles: c.features.encrypted_group_profiles,
+            });
+        Self {
+            components,
+            air_component,
+        }
     }
 }
 

@@ -117,20 +117,38 @@ sealed class AcceptContactRequestError with _$AcceptContactRequestError {
   }) = AcceptContactRequestError_IncompatibleClient;
 }
 
-class AppDataDebugInfo {
-  final List<String> airComponents;
+class AirComponentDebugInfo {
+  final bool encryptedGroupProfiles;
 
-  const AppDataDebugInfo({required this.airComponents});
+  const AirComponentDebugInfo({required this.encryptedGroupProfiles});
 
   @override
-  int get hashCode => airComponents.hashCode;
+  int get hashCode => encryptedGroupProfiles.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AirComponentDebugInfo &&
+          runtimeType == other.runtimeType &&
+          encryptedGroupProfiles == other.encryptedGroupProfiles;
+}
+
+class AppDataDebugInfo {
+  final List<String> components;
+  final AirComponentDebugInfo? airComponent;
+
+  const AppDataDebugInfo({required this.components, this.airComponent});
+
+  @override
+  int get hashCode => components.hashCode ^ airComponent.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is AppDataDebugInfo &&
           runtimeType == other.runtimeType &&
-          airComponents == other.airComponents;
+          components == other.components &&
+          airComponent == other.airComponent;
 }
 
 /// The state of a single chat

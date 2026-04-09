@@ -44,8 +44,8 @@ use tracing::{info, warn};
 async fn rate_limit() {
     let mut setup = TestBackend::single_with_params(TestBackendParams {
         rate_limits: Some(RateLimitsSettings {
-            period: Duration::from_secs(1), // replenish one token every second
-            burst: 60,                      // allow total 60 request
+            period: Duration::from_secs(1),
+            burst: 100, // must be large enough to survive setup calls
         }),
         ..Default::default()
     })

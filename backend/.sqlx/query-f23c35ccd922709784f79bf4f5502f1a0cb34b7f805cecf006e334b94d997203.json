@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM as_batched_key WHERE token_key_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int2"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f23c35ccd922709784f79bf4f5502f1a0cb34b7f805cecf006e334b94d997203"
+}
