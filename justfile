@@ -134,8 +134,10 @@ regenerate-sqlx-server: start-docker-compose
     cargo sqlx prepare --no-dotenv --database-url {{SERVER_DATABASE_URL}} -- --tests
 
 # Recompile svg icons for rendering.
+[working-directory: 'app']
 regenerate-icons:
-    cd app && just dart run tool/compile_svg_icons.dart
+    just dart run tool/compile_svg_icons.dart
+    just dart run flutter_launcher_icons
 
 # Run cargo build, clippy and test.
 @test-rust: start-docker-compose
