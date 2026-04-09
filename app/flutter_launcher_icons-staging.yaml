@@ -1,8 +1,6 @@
 flutter_launcher_icons:
   image_path: "assets/icons/staging/icon.png"
-  android: true
-  adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/icons/staging/icon.png"
+  android: false
   ios: true
   remove_alpha_ios: true
   windows:
