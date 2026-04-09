@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n            COUNT(*) AS \"count: _\"\n            FROM\n                message m\n            WHERE\n                m.chat_id = ?\n                AND m.sender_user_uuid IS NOT NULL\n                AND m.sender_user_domain IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "count: _",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "71f9f02266711f772253b0d24db01dfde0a9aabbdc7940589bb7f5fa8e92fb9e"
+}
