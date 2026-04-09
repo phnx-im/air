@@ -13,6 +13,7 @@ mod groups;
 mod job;
 mod key_stores;
 pub mod outbound_service;
+pub(crate) mod privacy_pass;
 pub mod store;
 mod user_handles;
 mod user_profiles;
@@ -41,7 +42,7 @@ pub use crate::{
     },
     contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},
     groups::debug_info::{
-        AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
+        AirComponentDebugInfo, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
         ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo,
         RequiredDebugCapabilities,
     },

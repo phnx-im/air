@@ -8,6 +8,7 @@ export RUST_BACKTRACE := "1"
 export RUSTFLAGS := "-D warnings"
 
 build_number := `git rev-list --count HEAD`
+ci := env_var_or_default("CI", "false")
 
 _default:
     just --list
@@ -19,6 +20,13 @@ CLIENT_DATABASE_URL := if os() == "windows" {
     "sqlite://" + justfile_directory() + "/coreclient/client.db"
 }
 
+[working-directory('app')]
+@dart *args:
+    {{ if ci == "true" { "dart" } else { "fvm dart" } }} {{ args }}
+
+[working-directory('app')]
+@flutter *args:
+    {{ if ci == "true" { "flutter" } else { "fvm flutter" } }} {{ args }}
 
 # Reset and migrate databases.
 reset-dev:
@@ -45,10 +53,9 @@ migrate-dev:
 @check-flutter:
     just _check-status "git lfs --version"
     just _check-unstaged-changes "git --no-pager diff"
-    just _check-unstaged-changes "cd app && fvm flutter pub get"
-    just _check-unstaged-changes "cd app/rust_builder/cargokit/build_tool && fvm flutter pub get"
-    just _check-unstaged-changes "cd app && fvm dart format ."
-    just _check-status "cd app && fvm flutter analyze --no-pub"
+    just _check-unstaged-changes "just flutter pub get"
+    just _check-unstaged-changes "just dart format ."
+    just _check-status "just flutter analyze --no-pub"
     just _check-unstaged-changes "just regenerate-l10n"
     just _check-unstaged-changes "just regenerate-icons"
     echo "✅ {{BOLD}}check-flutter done{{NORMAL}}"
@@ -109,7 +116,7 @@ regenerate-frb:
 # Regenerate localization files.
 regenerate-l10n:
     cd app && cargo xtask prune-unused-l10n # pass --apply and optionally --safe to prevent data loss
-    cd app && fvm flutter gen-l10n
+    cd app && just flutter gen-l10n
 
 # Regenerate database query metadata.
 regenerate-sqlx: regenerate-sqlx-client regenerate-sqlx-server
@@ -140,7 +147,7 @@ regenerate-icons:
 
 # Run flutter test.
 test-flutter:
-    cd app && fvm flutter test
+    cd app && just flutter test
     @echo "{{BOLD}}test-flutter done{{NORMAL}}"
 
 # Run all lints and tests.
@@ -168,11 +175,11 @@ _generate-db-certs:
 
 # Use the current test results as new reference images.
 update-flutter-goldens:
-    cd app && fvm flutter test --update-goldens
+    cd app && just flutter test --update-goldens
 
 # Start the app in debug mode.
 run-app *args='':
-    cd app && fvm flutter run {{args}}
+    cd app && just flutter run {{args}}
 
 # Start the app from the last debug build.
 run-app-cached:
@@ -201,7 +208,7 @@ install-fvm:
 
 [working-directory: 'app']
 build platform:
-    if [[ "${CI:-false}" != "true" ]]; then fvm flutter build {{ platform }}; fi
+    if [[ "${CI:-false}" != "true" ]]; then just flutter build {{ platform }}; fi
 
 [linux]
 [working-directory: 'app/linux']

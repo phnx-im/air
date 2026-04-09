@@ -24,30 +24,23 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # Fetch all commit metadata (build number is derived from number of commits)
           fetch-depth: 0
           # Don't download historical file contents (blobs)
           filter: blob:none
 
-      - run: git lfs install && git lfs pull
-
-      - run: choco install fvm
-      - run: cd app && fvm install
-
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@1.94.0
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-directories: app/build/windows/x64/plugins/airapplogic/cargokit_build
+      - id: setup-buildenv
+        name: Setup build environment
+        uses: ./.github/actions/setup-buildenv
 
       - name: Build Windows app
-        run: cd app && fvm flutter build windows -v --build-number=$(git rev-list --count HEAD)
+        working-directory: app
+        run: flutter build windows -v --build-number=${{ steps.setup-buildenv.outputs.build-number }}
 
       - name: Upload Windows app
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: windows-app-x64
           path: app/build/windows/x64/runner/Release

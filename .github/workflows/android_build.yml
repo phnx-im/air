@@ -31,61 +31,19 @@ jobs:
           # Don't download historical file contents (blobs)
           filter: blob:none
 
-      - run: git lfs install && git lfs pull
-
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+      - name: Setup build environment
+        uses: ./.github/actions/setup-buildenv
         with:
-          ruby-version: "3.3"
-          bundler-cache: true
-
-      - uses: extractions/setup-just@v2
-      - run: just install-fvm
-      - run: echo /home/runner/fvm/bin >> $GITHUB_PATH
-
-      - name: Install required Java version
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: "17"
-
-      - name: Cache Gradle dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@1.94.0
-        with:
-          targets: aarch64-linux-android
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-directories: app/build/airapplogic/build
-
-      - uses: cargo-bins/cargo-binstall@main
-      - run: cargo binstall cargo-ndk --no-confirm
-
-      - name: Set up Android CI
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cd app/fastlane && bundle install
+          fastlane: true
+          jdk: true
+          cargo-binstall-tools: cargo-ndk
 
       - name: Build Android app
-        run: |
-          cd app/fastlane && bundle exec fastlane android beta_android --verbose
-
-      - name: Calculate short SHA
-        id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        working-directory: app
+        run: bundle exec fastlane android beta_android --verbose
 
       - name: Upload Android app APK
         uses: actions/upload-artifact@v4
         with:
-          name: air-android-${{ steps.vars.outputs.sha_short }}
+          name: air-android
           path: app/build/app/outputs/flutter-apk/app-release.apk
