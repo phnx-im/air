@@ -100,7 +100,7 @@ class _MessageListViewState extends State<MessageListView>
 
   void _scrollToBottom() {
     final cubit = context.read<MessageListCubit>();
-    if (cubit.state.hasNewer) {
+    if (cubit.state.meta.hasNewer) {
       cubit.jumpToBottom();
     } else if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -119,18 +119,18 @@ class _MessageListViewState extends State<MessageListView>
     // Reversed list: offset 0 = newest messages, high offset = oldest
     final isScrolledUp = pos.pixels > _scrollToBottomThreshold;
     widget.scrollToBottomController?.showButton.value =
-        isScrolledUp || state.hasNewer;
+        isScrolledUp || state.meta.hasNewer;
 
     // Reversed list: pixels near maxScrollExtent = oldest messages
     if (pos.pixels >= pos.maxScrollExtent - _loadMoreThreshold &&
-        state.hasOlder &&
+        state.meta.hasOlder &&
         !_loadOlderPending) {
       _loadOlderPending = true;
       cubit.loadOlder();
     }
     // Reversed list: pixels near 0 = newest messages
     if (pos.pixels <= _loadMoreThreshold &&
-        state.hasNewer &&
+        state.meta.hasNewer &&
         !_loadNewerPending) {
       _loadNewerPending = true;
       cubit.loadNewer();
@@ -346,7 +346,7 @@ class _MessageListViewState extends State<MessageListView>
       widget.scrollToBottomController?.showButton.value =
           (_scrollController.hasClients &&
               _scrollController.offset > _scrollToBottomThreshold) ||
-          state.hasNewer;
+          state.meta.hasNewer;
       _markNewestVisibleMessageAsRead();
     });
 
@@ -355,15 +355,15 @@ class _MessageListViewState extends State<MessageListView>
 
     return BlocListener<MessageListCubit, MessageListState>(
       listenWhen: (prev, curr) =>
-          curr.scrollToIndex != null && !identical(curr, _lastScrolledState),
+          curr.meta.scrollToIndex != null && !identical(curr, _lastScrolledState),
       listener: (context, state) {
         _lastScrolledState = state;
-        final scrollTo = state.scrollToIndex!;
+        final scrollTo = state.meta.scrollToIndex!;
         final message = state.messageAt(scrollTo);
         if (message == null) return;
 
         final isNewest = scrollTo == state.loadedMessagesCount - 1;
-        if (state.isAtBottom && isNewest) {
+        if (state.meta.isAtBottom && isNewest) {
           // Jump to newest (offset 0 in reversed list) — jumpToBottom case
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted && _scrollController.hasClients) {
@@ -429,8 +429,8 @@ class _MessageListViewState extends State<MessageListView>
             }
 
             final isFirstUnread =
-                state.firstUnreadIndex != null &&
-                index == state.firstUnreadIndex;
+                state.meta.firstUnreadIndex != null &&
+                index == state.meta.firstUnreadIndex;
 
             final globalKey = _messageKeys.putIfAbsent(
               message.id,
@@ -447,7 +447,7 @@ class _MessageListViewState extends State<MessageListView>
                 );
               },
               child: ChatTile(
-                isConnectionChat: state.isConnectionChat ?? false,
+                isConnectionChat: state.meta.isConnectionChat ?? false,
                 animated: animate,
               ),
             );
@@ -455,7 +455,7 @@ class _MessageListViewState extends State<MessageListView>
             // Insert "N unread messages" divider above the first unread message
             if (isFirstUnread) {
               final unreadCount =
-                  state.loadedMessagesCount - state.firstUnreadIndex!;
+                  state.loadedMessagesCount - state.meta.firstUnreadIndex!;
               tile = Column(
                 children: [
                   UnreadDivider(count: unreadCount),

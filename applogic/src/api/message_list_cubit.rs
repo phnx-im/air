@@ -67,6 +67,18 @@ struct MessageListStateInner {
     first_unread_index: Option<usize>,
 }
 
+/// Attributes of the message list state.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[frb(dart_metadata = ("freezed"), type_64bit_int)]
+pub struct MessageListMeta {
+    pub is_connection_chat: Option<bool>,
+    pub has_older: bool,
+    pub has_newer: bool,
+    pub is_at_bottom: bool,
+    pub scroll_to_index: Option<usize>,
+    pub first_unread_index: Option<usize>,
+}
+
 #[frb(ignore)]
 enum LoadDirection {
     /// Full replacement (initial load, jump-to-message, jump-to-bottom)
@@ -318,33 +330,15 @@ impl MessageListState {
     }
 
     #[frb(sync, getter)]
-    pub fn is_connection_chat(&self) -> Option<bool> {
-        self.inner.is_connection_chat
-    }
-
-    #[frb(sync, getter)]
-    pub fn has_older(&self) -> bool {
-        self.inner.has_older
-    }
-
-    #[frb(sync, getter)]
-    pub fn has_newer(&self) -> bool {
-        self.inner.has_newer
-    }
-
-    #[frb(sync, getter)]
-    pub fn is_at_bottom(&self) -> bool {
-        self.inner.is_at_bottom
-    }
-
-    #[frb(sync, getter, type_64bit_int)]
-    pub fn scroll_to_index(&self) -> Option<usize> {
-        self.inner.scroll_to_index
-    }
-
-    #[frb(sync, getter, type_64bit_int)]
-    pub fn first_unread_index(&self) -> Option<usize> {
-        self.inner.first_unread_index
+    pub fn meta(&self) -> MessageListMeta {
+        MessageListMeta {
+            is_connection_chat: self.inner.is_connection_chat,
+            has_older: self.inner.has_older,
+            has_newer: self.inner.has_newer,
+            is_at_bottom: self.inner.is_at_bottom,
+            scroll_to_index: self.inner.scroll_to_index,
+            first_unread_index: self.inner.first_unread_index,
+        }
     }
 }
 

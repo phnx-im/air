@@ -936,6 +936,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MessageId dco_decode_message_id(dynamic raw);
 
   @protected
+  MessageListMeta dco_decode_message_list_meta(dynamic raw);
+
+  @protected
   MessageState dco_decode_message_state(dynamic raw);
 
   @protected
@@ -2089,6 +2092,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageId sse_decode_message_id(SseDeserializer deserializer);
+
+  @protected
+  MessageListMeta sse_decode_message_list_meta(SseDeserializer deserializer);
 
   @protected
   MessageState sse_decode_message_state(SseDeserializer deserializer);
@@ -3506,6 +3512,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_message_id(MessageId self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_message_list_meta(
+    MessageListMeta self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_message_state(MessageState self, SseSerializer serializer);

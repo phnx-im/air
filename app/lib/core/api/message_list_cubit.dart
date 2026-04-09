@@ -10,13 +10,15 @@ import '../frb_generated.dart';
 import 'markdown.dart';
 import 'message_content.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
 import 'types.dart';
 import 'user_cubit.dart';
+part 'message_list_cubit.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `apply_messages`, `clear_first_unread_index`, `compute_flight_positions`, `handle_jump_to_bottom`, `handle_jump_to_message`, `handle_load_newer`, `handle_load_older`, `initial_load`, `load_bottom`, `load_is_connection_chat`, `new`, `notify_message_neighbors`, `process_store_notification`, `recompute_flight_positions_range`, `reload_current_window`, `run_loop`, `spawn`, `try_process_store_notification`, `update_message_in_place`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Command`, `LoadDirection`, `MessageListContext`, `MessageListStateInner`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MessageListCubitBase>>
@@ -55,16 +57,6 @@ abstract class MessageListState implements RustOpaqueInterface {
   static Future<MessageListState> default_() =>
       RustLib.instance.api.crateApiMessageListCubitMessageListStateDefault();
 
-  int? get firstUnreadIndex;
-
-  bool get hasNewer;
-
-  bool get hasOlder;
-
-  bool get isAtBottom;
-
-  bool? get isConnectionChat;
-
   bool isNewMessage(MessageId messageId);
 
   /// The number of loaded messages in the list
@@ -78,5 +70,21 @@ abstract class MessageListState implements RustOpaqueInterface {
   /// Returns the lookup table mapping a message id to the index in the list.
   int? messageIdIndex(MessageId messageId);
 
-  int? get scrollToIndex;
+  MessageListMeta get meta;
+}
+
+/// Attributes of the message list state.
+@freezed
+sealed class MessageListMeta with _$MessageListMeta {
+  const MessageListMeta._();
+  const factory MessageListMeta({
+    bool? isConnectionChat,
+    required bool hasOlder,
+    required bool hasNewer,
+    required bool isAtBottom,
+    int? scrollToIndex,
+    int? firstUnreadIndex,
+  }) = _MessageListMeta;
+  static Future<MessageListMeta> default_() =>
+      RustLib.instance.api.crateApiMessageListCubitMessageListMetaDefault();
 }
