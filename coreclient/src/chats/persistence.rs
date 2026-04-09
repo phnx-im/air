@@ -604,10 +604,26 @@ impl Chat {
     pub(crate) async fn global_unread_message_count(
         executor: impl SqliteExecutor<'_>,
     ) -> sqlx::Result<usize> {
-        query_scalar!(r#"SELECT SUM(unread_count) AS "count: _" FROM chat"#,)
-            .fetch_one(executor)
-            .await
-            .map(|n: Option<u32>| n.unwrap_or(0).try_into().expect("usize overflow"))
+        // We exclude deleted messages from the unread count.
+        let excluded_status = MessageStatus::Deleted.repr();
+        query_scalar!(
+            r#"SELECT
+                COUNT(m.chat_id) AS "count: _"
+            FROM
+                chat c
+            LEFT JOIN
+                message m
+            ON
+                c.chat_id = m.chat_id
+                AND m.sender_user_uuid IS NOT NULL
+                AND m.sender_user_domain IS NOT NULL
+                AND m.timestamp > c.last_read
+                AND m.status != ?1"#,
+            excluded_status
+        )
+        .fetch_one(executor)
+        .await
+        .map(|n: u32| n.try_into().expect("usize overflow"))
     }
 
     pub(crate) async fn messages_count(
@@ -615,13 +631,14 @@ impl Chat {
         chat_id: ChatId,
     ) -> sqlx::Result<usize> {
         query_scalar!(
-            r#"
-            SELECT COUNT(*) AS "count: _" FROM message
-            INDEXED BY idx_message_non_system
-            WHERE chat_id = ?
-                AND sender_user_uuid IS NOT NULL
-                AND sender_user_domain IS NOT NULL
-            "#,
+            r#"SELECT
+            COUNT(*) AS "count: _"
+            FROM
+                message m
+            WHERE
+                m.chat_id = ?
+                AND m.sender_user_uuid IS NOT NULL
+                AND m.sender_user_domain IS NOT NULL"#,
             chat_id
         )
         .fetch_one(executor)
@@ -633,9 +650,29 @@ impl Chat {
         executor: impl SqliteExecutor<'_>,
         chat_id: ChatId,
     ) -> sqlx::Result<usize> {
+        // We exclude deleted messages from the unread count.
+        let excluded_status = MessageStatus::Deleted.repr();
         query_scalar!(
-            r#"SELECT unread_count AS "count: _" FROM chat WHERE chat_id = ?"#,
-            chat_id
+            r#"SELECT
+                COUNT(*) AS "count: _"
+            FROM
+                message
+            WHERE
+                chat_id = ?1
+                AND sender_user_uuid IS NOT NULL
+                AND sender_user_domain IS NOT NULL
+                AND status != ?2
+                AND timestamp >
+                (
+                    SELECT
+                        last_read
+                    FROM
+                        chat
+                    WHERE
+                        chat_id = ?1
+                )"#,
+            chat_id,
+            excluded_status
         )
         .fetch_one(executor)
         .await
