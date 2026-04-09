@@ -97,7 +97,7 @@ runs:
         SCCACHE_CACHE_SIZE: ${{ inputs.sccache-size }}
         SCCACHE_DIR: "${{ inputs.sccache-dir }}"
 
-    - if: runner.os == 'Linux' || runner.os == 'macOS'
+    - if: runner.os == 'Linux'
       name: Enable sccache wrapper for Unix
       shell: bash
       run: |
