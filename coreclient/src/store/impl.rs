@@ -9,6 +9,7 @@ use aircommon::{
     messages::client_as_out::UserHandleDeleteResponse,
     time::TimeStamp,
 };
+use anyhow::Context;
 use mimi_room_policy::VerifiedRoomState;
 use tokio::task::spawn_blocking;
 use tokio_stream::Stream;
@@ -304,14 +305,16 @@ impl Store for CoreUser {
     }
 
     async fn first_unread_message(&self, chat_id: ChatId) -> StoreResult<Option<ChatMessage>> {
-        let mut conn = self.pool().acquire().await?;
-        let chat = Chat::load(conn.as_mut(), &chat_id)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("chat not found: {chat_id}"))?;
-        Ok(
-            ChatMessage::first_unread_message(conn.as_mut(), chat_id, chat.last_read.into())
-                .await?,
-        )
+        self.with_transaction(async |txn| {
+            let chat = Chat::load(txn.as_mut(), &chat_id)
+                .await?
+                .with_context(|| format!("chat not found: {chat_id}"))?;
+            Ok(
+                ChatMessage::first_unread_message(txn.as_mut(), chat_id, chat.last_read.into())
+                    .await?,
+            )
+        })
+        .await
     }
 
     async fn message(&self, message_id: MessageId) -> StoreResult<Option<ChatMessage>> {

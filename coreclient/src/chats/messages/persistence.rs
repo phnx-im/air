@@ -5,7 +5,7 @@
 use std::fmt;
 
 use aircommon::{
-    codec::{self, BlobDecoded, BlobEncoded, PersistenceCodec},
+    codec::{BlobDecoded, BlobEncoded, PersistenceCodec},
     identifiers::{Fqdn, MimiId, UserId},
     time::TimeStamp,
 };
@@ -108,22 +108,8 @@ struct SqlChatMessage {
     in_reply_to_mimi_id: Option<MimiId>,
 }
 
-#[derive(thiserror::Error, Debug)]
-enum VersionedMessageError {
-    #[error(transparent)]
-    Codec(#[from] codec::Error),
-}
-
-impl From<VersionedMessageError> for sqlx::Error {
-    fn from(value: VersionedMessageError) -> Self {
-        sqlx::Error::Decode(Box::new(value))
-    }
-}
-
-impl TryFrom<SqlChatMessage> for ChatMessage {
-    type Error = VersionedMessageError;
-
-    fn try_from(
+impl From<SqlChatMessage> for ChatMessage {
+    fn from(
         SqlChatMessage {
             message_id,
             mimi_id,
@@ -138,7 +124,7 @@ impl TryFrom<SqlChatMessage> for ChatMessage {
             is_blocked,
             in_reply_to_mimi_id,
         }: SqlChatMessage,
-    ) -> Result<Self, Self::Error> {
+    ) -> Self {
         let message = match (sender_user_uuid, sender_user_domain) {
             // user message
             (Some(sender_user_uuid), Some(sender_user_domain)) => {
@@ -178,13 +164,13 @@ impl TryFrom<SqlChatMessage> for ChatMessage {
                 .unwrap_or(MessageStatus::Unread)
         };
 
-        Ok(ChatMessage {
+        ChatMessage {
             message_id,
             chat_id,
             in_reply_to: in_reply_to_mimi_id.map(|id| (id, None)),
             timestamped_message,
             status,
-        })
+        }
     }
 }
 
@@ -217,8 +203,7 @@ impl ChatMessage {
         )
         .fetch_optional(&mut *connection)
         .await?
-        .map(TryFrom::try_from)
-        .transpose()?
+        .map(ChatMessage::from)
         .with_loaded_in_reply_to(&mut *connection)
         .await
     }
@@ -251,29 +236,24 @@ impl ChatMessage {
         )
         .fetch_optional(&mut *connection)
         .await?
-        .map(TryFrom::try_from)
-        .transpose()?
+        .map(ChatMessage::from)
         .with_loaded_in_reply_to(&mut *connection)
         .await
     }
 
     /// Decode a single row from the query stream, skipping rows that fail.
     fn decode_row(res: sqlx::Result<SqlChatMessage>) -> Option<sqlx::Result<ChatMessage>> {
-        let message: sqlx::Result<ChatMessage> = res
+        let message = res
             .inspect_err(|e| warn!("Error loading message: {e}"))
-            .ok()?
-            .try_into()
-            .map_err(From::from);
-        Some(message)
+            .ok()?;
+        Some(Ok(message.into()))
     }
 
     /// Trim the extra sentinel row used to detect more messages,
     /// optionally reverse, and return whether more messages exist.
     fn trim_sentinel(messages: &mut Vec<ChatMessage>, limit: u32, reverse: bool) -> bool {
         let has_more = messages.len() > limit as usize;
-        if has_more {
-            messages.pop();
-        }
+        messages.truncate(limit as usize);
         if reverse {
             messages.reverse();
         }
@@ -601,8 +581,7 @@ impl ChatMessage {
         )
         .fetch_optional(&mut *connection)
         .await?
-        .map(TryFrom::try_from)
-        .transpose()?
+        .map(ChatMessage::from)
         .with_loaded_in_reply_to(connection)
         .await
     }
@@ -805,8 +784,7 @@ impl ChatMessage {
         )
         .fetch_optional(&mut *connection)
         .await?
-        .map(TryFrom::try_from)
-        .transpose()?
+        .map(ChatMessage::from)
         .with_loaded_in_reply_to(connection)
         .await
     }
@@ -847,8 +825,7 @@ impl ChatMessage {
         )
         .fetch_optional(&mut *connection)
         .await?
-        .map(TryFrom::try_from)
-        .transpose()?
+        .map(ChatMessage::from)
         .with_loaded_in_reply_to(connection)
         .await
     }
@@ -886,8 +863,7 @@ impl ChatMessage {
         )
         .fetch_optional(&mut *connection)
         .await?
-        .map(TryFrom::try_from)
-        .transpose()?
+        .map(ChatMessage::from)
         .with_loaded_in_reply_to(connection)
         .await
     }
@@ -925,8 +901,7 @@ impl ChatMessage {
         )
         .fetch_optional(&mut *connection)
         .await?
-        .map(TryFrom::try_from)
-        .transpose()?
+        .map(ChatMessage::from)
         .with_loaded_in_reply_to(connection)
         .await
     }
@@ -1024,8 +999,8 @@ impl SqlChatMessageExt for Vec<ChatMessage> {
         connection: &mut SqliteConnection,
     ) -> sqlx::Result<Self> {
         for message in &mut self {
-            if let Err(e) = message.augment_in_reply_to(connection).await {
-                error!(%e, "failed to load reply for message");
+            if let Err(error) = message.augment_in_reply_to(connection).await {
+                error!(%error, "failed to load reply for message");
             }
         }
         Ok(self)
