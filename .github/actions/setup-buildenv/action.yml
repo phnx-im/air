@@ -101,8 +101,8 @@ runs:
       name: Enable sccache wrapper for Unix
       shell: bash
       run: |
-        echo "CC=sccache /usr/bin/clang" >> $GITHUB_ENV
-        echo "CXX=sccache /usr/bin/clang++" >> $GITHUB_ENV
+        echo "CC=sccache clang" >> $GITHUB_ENV
+        echo "CXX=sccache clang++" >> $GITHUB_ENV
 
     - if: runner.os == 'Windows'
       name: Enable sccache wrapper for Windows
