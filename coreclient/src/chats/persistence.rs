@@ -632,7 +632,7 @@ impl Chat {
     ) -> sqlx::Result<usize> {
         query_scalar!(
             r#"SELECT
-            COUNT(*) AS "count: _"
+                COUNT(*) AS "count: _"
             FROM
                 message m
             WHERE
