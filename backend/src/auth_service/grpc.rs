@@ -30,7 +30,10 @@ use aircommon::{
         },
     },
 };
-use privacypass::{amortized_tokens::AmortizedBatchTokenRequest, private_tokens::Ristretto255};
+use privacypass::{
+    amortized_tokens::{AmortizedBatchTokenRequest, AmortizedToken},
+    private_tokens::Ristretto255,
+};
 use semver::Version;
 use tls_codec::{Deserialize, Serialize};
 use tokio::sync::mpsc;
@@ -338,6 +341,14 @@ impl auth_service_server::AuthService for GrpcAs {
                 .into_iter()
                 .map(From::from)
                 .collect(),
+            batched_token_keys: response
+                .batched_token_keys
+                .into_iter()
+                .map(|k| BatchedTokenKey {
+                    token_key_id: k.token_key_id.into(),
+                    public_key: k.public_key,
+                })
+                .collect(),
         }))
     }
 
@@ -465,8 +476,14 @@ impl auth_service_server::AuthService for GrpcAs {
 
         let hash = payload.hash.ok_or_missing_field("hash")?.try_into()?;
 
+        let token = payload
+            .token
+            .map(|bytes| AmortizedToken::<Ristretto255>::tls_deserialize_exact(bytes.as_slice()))
+            .transpose()
+            .map_err(|_| Status::invalid_argument("invalid token"))?;
+
         self.inner
-            .as_create_handle(verifying_key, payload.plaintext, hash)
+            .as_create_handle(verifying_key, payload.plaintext, hash, token)
             .await?;
 
         Ok(Response::new(CreateHandleResponse {}))
@@ -483,9 +500,24 @@ impl auth_service_server::AuthService for GrpcAs {
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
-        self.inner.as_delete_handle(hash).await?;
+        let token_request = payload
+            .token_request
+            .map(|bytes| {
+                AmortizedBatchTokenRequest::<Ristretto255>::tls_deserialize_exact(bytes.as_slice())
+            })
+            .transpose()
+            .map_err(|_| Status::invalid_argument("invalid token request"))?;
 
-        Ok(Response::new(DeleteHandleResponse {}))
+        let token_response = self.inner.as_delete_handle(hash, token_request).await?;
+
+        let token_response_bytes = token_response
+            .map(|resp| resp.tls_serialize_detached())
+            .transpose()
+            .map_err(|_| Status::internal("failed to serialize token response"))?;
+
+        Ok(Response::new(DeleteHandleResponse {
+            token_response: token_response_bytes,
+        }))
     }
 
     async fn refresh_handle(
@@ -499,7 +531,13 @@ impl auth_service_server::AuthService for GrpcAs {
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
-        self.inner.as_refresh_handle(hash).await?;
+        let token = payload
+            .token
+            .map(|bytes| AmortizedToken::<Ristretto255>::tls_deserialize_exact(bytes.as_slice()))
+            .transpose()
+            .map_err(|_| Status::invalid_argument("invalid token"))?;
+
+        self.inner.as_refresh_handle(hash, token).await?;
 
         Ok(Response::new(RefreshHandleResponse {}))
     }

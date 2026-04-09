@@ -489,7 +489,19 @@ class _MemberCard extends StatelessWidget {
           ),
           _ChipListRow(
             label: 'App Components',
-            values: caps.appData?.airComponents ?? [],
+            values: caps.appData?.components ?? [],
+          ),
+          Divider(
+            height: 1,
+            indent: Spacings.s,
+            color: colors.separator.secondary,
+          ),
+          _ChipListRow(
+            label: 'Air Component',
+            values: [
+              if (caps.appData?.airComponent?.encryptedGroupProfiles == true)
+                'encrypted_group_profiles',
+            ],
           ),
         ],
       ),

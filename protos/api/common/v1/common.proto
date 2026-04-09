@@ -93,6 +93,8 @@ enum StatusDetailsCode {
   STATUS_DETAILS_CODE_ATTACHMENT_TOO_LARGE = 2;
   /// Message epoch differs from the group's epoch
   STATUS_DETAILS_CODE_WRONG_EPOCH = 3;
+  /// Token key ID not recognized
+  STATUS_DETAILS_CODE_UNKNOWN_TOKEN_KEY_ID = 4;
 }
 
 message VersionUnsupportedDetail {
