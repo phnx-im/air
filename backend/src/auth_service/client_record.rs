@@ -16,8 +16,6 @@ pub(super) struct ClientRecord {
     pub(super) allowance_epoch: i16,
 }
 
-pub(crate) const DEFAULT_TOKEN_ALLOWANCE: i32 = 10;
-
 impl ClientRecord {
     pub(super) async fn new_and_store(
         connection: impl PgExecutor<'_>,

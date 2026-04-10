@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::UserId;
+use airprotos::common::v1::OperationType;
 use privacypass::{
     amortized_tokens::{
         AmortizedBatchTokenRequest, AmortizedBatchTokenResponse, AmortizedToken, server::Server,
@@ -16,7 +17,7 @@ use tokio::sync::Mutex;
 use crate::{
     auth_service::{
         AuthService,
-        client_record::{ClientRecord, DEFAULT_TOKEN_ALLOWANCE},
+        client_record::ClientRecord,
         privacy_pass::{
             AuthServiceBatchedKeyStoreProvider, AuthServiceNonceStore, load_current_key_id,
         },
@@ -30,6 +31,7 @@ impl AuthService {
     pub(crate) async fn as_issue_tokens(
         &self,
         user_id: &UserId,
+        operation_type: OperationType,
         token_request: AmortizedBatchTokenRequest<Ristretto255>,
     ) -> Result<AmortizedBatchTokenResponse<Ristretto255>, IssueTokensError> {
         let tokens_requested = token_request.nr() as i32;

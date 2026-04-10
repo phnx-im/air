@@ -1,0 +1,6 @@
+-- Restore privacypass columns on as_client_record and drop the operation-type table
+DROP TABLE as_token_allowance;
+
+ALTER TABLE as_client_record
+    ADD COLUMN remaining_tokens INTEGER NOT NULL DEFAULT 10,
+    ADD COLUMN allowance_epoch SMALLINT NOT NULL DEFAULT 0;
