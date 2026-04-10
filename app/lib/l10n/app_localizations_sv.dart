@@ -95,7 +95,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get addMembersScreen_error_noActiveChat => 'en aktiv chatt krävs';
 
   @override
-  String get contactDetailsScreen_chat => 'Chat';
+  String get contactDetailsScreen_chat => 'Chatt';
 
   @override
   String get contactDetailsScreen_viewSafetyCode => 'Visa säkerhetskod';
@@ -543,7 +543,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String newChatDialog_error_incompatibleClient(Object chatName) {
-    return 'Couldn\'t create new group chat with name $chatName because one of the contacts has an incompatible client.';
+    return 'Kunde inte skapa en ny gruppchatt med namnet $chatName eftersom en av kontakterna har en inkompatibel klient.';
   }
 
   @override
@@ -612,7 +612,7 @@ class AppLocalizationsSv extends AppLocalizations {
     Object actualSize,
     Object maxSize,
   ) {
-    return 'Attachment is too large. The maximum size is $maxSize and the actual size is $actualSize.';
+    return 'Bilagan är för stor. Maxstorleken är $maxSize och den faktiska storleken är $actualSize.';
   }
 
   @override
@@ -862,7 +862,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get addMembersScreen_error_incompatibleClient =>
-      'Couldn\'t add member(s) because one of the contacts has an incompatible client';
+      'Kunde inte lägga till medlem(mar) eftersom en av kontakterna har en inkompatibel klient';
 
   @override
   String get leaveChatDialog_title => 'Lämna grupp';
@@ -968,7 +968,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get contactRequestDialog_error_incompatibleClient =>
-      'Failed to accept contact request. Update Air to the newest version, then try again.';
+      'Kunde inte acceptera kontaktförfrågan. Uppdatera Air till den senaste versionen och försök sedan igen.';
 
   @override
   String get errorBanner_ok => 'OK';

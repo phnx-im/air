@@ -546,7 +546,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String newChatDialog_error_incompatibleClient(Object chatName) {
-    return 'Couldn\'t create new group chat with name $chatName because one of the contacts has an incompatible client.';
+    return 'Gruppenchat mit dem Namen $chatName konnte nicht erstellt werden, da einer der Kontakte einen inkompatiblen Client hat.';
   }
 
   @override
@@ -616,7 +616,7 @@ class AppLocalizationsDe extends AppLocalizations {
     Object actualSize,
     Object maxSize,
   ) {
-    return 'Attachment is too large. The maximum size is $maxSize and the actual size is $actualSize.';
+    return 'Der Anhang ist zu groß. Die maximale Größe beträgt $maxSize, die tatsächliche Größe beträgt $actualSize.';
   }
 
   @override
@@ -868,7 +868,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get addMembersScreen_error_incompatibleClient =>
-      'Couldn\'t add member(s) because one of the contacts has an incompatible client';
+      'Mitglied(er) konnten nicht hinzugefügt werden, da einer der Kontakte einen inkompatiblen Client hat';
 
   @override
   String get leaveChatDialog_title => 'Chat verlassen';
@@ -974,7 +974,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get contactRequestDialog_error_incompatibleClient =>
-      'Failed to accept contact request. Update Air to the newest version, then try again.';
+      'Kontaktanfrage konnte nicht angenommen werden. Aktualisiere Air auf die neueste Version und versuche es dann erneut.';
 
   @override
   String get errorBanner_ok => 'OK';

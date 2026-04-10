@@ -24,6 +24,7 @@
   "removeUsernameDialog_remove": "Ta bort",
   "addMembersScreen_addMembers": "Lägg till medlemmar",
   "addMembersScreen_error_noActiveChat": "en aktiv chatt krävs",
+  "contactDetailsScreen_chat": "Chatt",
   "contactDetailsScreen_viewSafetyCode": "Visa säkerhetskod",
   "safetyCodeScreen_title": "Säkerhetskod",
   "safetyCodeScreen_tapToCopy": "Tryck för att kopiera",
@@ -146,6 +147,7 @@
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blockerad",
   "newChatDialog_error": "Kunde inte skapa en ny gruppchatt med namnet {chatName}",
+  "newChatDialog_error_incompatibleClient": "Kunde inte skapa en ny gruppchatt med namnet {chatName} eftersom en av kontakterna har en inkompatibel klient.",
   "newConnectionDialog_newConnectionTitle": "Lägg till Air-kontakt",
   "newConnectionDialog_newConnectionDescription": "Skriv in användarnamnet på personen du vill skicka meddelanden till.",
   "newConnectionDialog_inputLabel": "Användarnamn (obligatoriskt)",
@@ -162,6 +164,7 @@
   "composer_inputHint": "Meddelande till {chatTitle}",
   "composer_editMessage": "Redigera meddelande",
   "composer_error_attachment": "Kunde inte ladda upp bilagan. Försök igen.",
+  "composer_error_attachment_too_large": "Bilagan är för stor. Maxstorleken är {maxSize} och den faktiska storleken är {actualSize}.",
   "composer_reply_deleted_message_placeholder": "Ursprungligt meddelande har raderats",
   "composer_reply_noaccess_message_user": "Okänd användare",
   "composer_reply_noaccess_message_placeholder": "Du har inte tillgång till det här meddelandet.",
@@ -263,6 +266,7 @@
   "groupCreationDetails_create": "Skapa",
   "groupCreationDetails_emptySelection": "Inga medlemmar",
   "addMembersScreen_done": "Klar",
+  "addMembersScreen_error_incompatibleClient": "Kunde inte lägga till medlem(mar) eftersom en av kontakterna har en inkompatibel klient",
   "leaveChatDialog_title": "Lämna grupp",
   "leaveChatDialog_content": "Är du säker på att du vill lämna {chatName}?",
   "leaveChatDialog_cancel": "Avbryt",
@@ -293,5 +297,8 @@
   "contactRequestDialog_avatarHint": "Tryck för att visa bilden",
   "contactRequestDialog_cancel": "Senare",
   "contactRequestDialog_confirm": "Acceptera",
-  "contactRequestDialog_error_fatal": "Kunde inte acceptera kontaktförfrågan"
+  "contactRequestDialog_error_fatal": "Kunde inte acceptera kontaktförfrågan",
+  "contactRequestDialog_error_incompatibleClient": "Kunde inte acceptera kontaktförfrågan. Uppdatera Air till den senaste versionen och försök sedan igen.",
+
+  "errorBanner_ok": "OK"
 }

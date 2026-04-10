@@ -96,7 +96,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'une discussion active est obligatoire';
 
   @override
-  String get contactDetailsScreen_chat => 'Chat';
+  String get contactDetailsScreen_chat => 'Discussion';
 
   @override
   String get contactDetailsScreen_viewSafetyCode => 'Voir le code de sécurité';
@@ -550,7 +550,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String newChatDialog_error_incompatibleClient(Object chatName) {
-    return 'Couldn\'t create new group chat with name $chatName because one of the contacts has an incompatible client.';
+    return 'Impossible de créer une discussion de groupe avec le nom $chatName car l\'un des contacts a un client incompatible.';
   }
 
   @override
@@ -621,7 +621,7 @@ class AppLocalizationsFr extends AppLocalizations {
     Object actualSize,
     Object maxSize,
   ) {
-    return 'Attachment is too large. The maximum size is $maxSize and the actual size is $actualSize.';
+    return 'La pièce jointe est trop volumineuse. La taille maximale est de $maxSize et la taille réelle est de $actualSize.';
   }
 
   @override
@@ -875,7 +875,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get addMembersScreen_error_incompatibleClient =>
-      'Couldn\'t add member(s) because one of the contacts has an incompatible client';
+      'Impossible d\'ajouter le(s) membre(s) car l\'un des contacts a un client incompatible';
 
   @override
   String get leaveChatDialog_title => 'Quitter la discussion';
@@ -982,7 +982,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get contactRequestDialog_error_incompatibleClient =>
-      'Failed to accept contact request. Update Air to the newest version, then try again.';
+      'Impossible d\'accepter la demande de contact. Mettez Air à jour vers la dernière version, puis réessayez.';
 
   @override
   String get errorBanner_ok => 'OK';

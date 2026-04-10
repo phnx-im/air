@@ -24,6 +24,7 @@
   "removeUsernameDialog_remove": "Supprimer",
   "addMembersScreen_addMembers": "Ajouter des membres",
   "addMembersScreen_error_noActiveChat": "une discussion active est obligatoire",
+  "contactDetailsScreen_chat": "Discussion",
   "contactDetailsScreen_viewSafetyCode": "Voir le code de sécurité",
   "safetyCodeScreen_title": "Code de sécurité",
   "safetyCodeScreen_tapToCopy": "Touchez pour copier",
@@ -146,6 +147,7 @@
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Bloqué",
   "newChatDialog_error": "Impossible d'ajouter une discussion avec le nom {chatName}",
+  "newChatDialog_error_incompatibleClient": "Impossible de créer une discussion de groupe avec le nom {chatName} car l'un des contacts a un client incompatible.",
   "newConnectionDialog_newConnectionTitle": "Ajouter un contact Air",
   "newConnectionDialog_newConnectionDescription": "Saisissez le nom d'utilisateur de la personne à qui vous voulez envoyer un message.",
   "newConnectionDialog_inputLabel": "Nom d'utilisateur (obligatoire)",
@@ -162,6 +164,7 @@
   "composer_inputHint": "Message à {chatTitle}",
   "composer_editMessage": "Modifier le message",
   "composer_error_attachment": "Échec du téléchargement de la pièce jointe. Veuillez réessayer.",
+  "composer_error_attachment_too_large": "La pièce jointe est trop volumineuse. La taille maximale est de {maxSize} et la taille réelle est de {actualSize}.",
   "composer_reply_deleted_message_placeholder": "Message supprimé",
   "composer_reply_noaccess_message_user": "Utilisateur inconnu",
   "composer_reply_noaccess_message_placeholder": "Vous n'avez pas accès à ce message.",
@@ -264,6 +267,7 @@
   "groupCreationDetails_create": "Créer",
   "groupCreationDetails_emptySelection": "Aucun membre",
   "addMembersScreen_done": "Terminé",
+  "addMembersScreen_error_incompatibleClient": "Impossible d'ajouter le(s) membre(s) car l'un des contacts a un client incompatible",
   "leaveChatDialog_title": "Quitter la discussion",
   "leaveChatDialog_content": "Êtes-vous sûr de vouloir quitter {chatName} ?",
   "leaveChatDialog_cancel": "Annuler",
@@ -294,5 +298,8 @@
   "contactRequestDialog_avatarHint": "Touchez pour afficher sa photo",
   "contactRequestDialog_cancel": "Plus tard",
   "contactRequestDialog_confirm": "Accepter",
-  "contactRequestDialog_error_fatal": "Impossible d'accepter la demande de contact"
+  "contactRequestDialog_error_fatal": "Impossible d'accepter la demande de contact",
+  "contactRequestDialog_error_incompatibleClient": "Impossible d'accepter la demande de contact. Mettez Air à jour vers la dernière version, puis réessayez.",
+
+  "errorBanner_ok": "OK"
 }
