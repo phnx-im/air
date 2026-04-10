@@ -18,7 +18,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
-import 'package:visibility_detector/visibility_detector.dart';
 
 import '../chat_list/chat_list_content_test.dart'
     show createMockChatDetailsCubitFactory;
@@ -302,8 +301,6 @@ void main() {
       hostPlatform: "macos",
       physicalSize: iosPhysicalSize,
       (tester) async {
-        VisibilityDetectorController.instance.updateInterval = Duration.zero;
-
         await tester.pumpWidget(buildSubject(ProductShotPlatform.ios));
         await _precacheImages(tester);
         await tester.pumpAndSettle();
@@ -321,8 +318,6 @@ void main() {
       hostPlatform: "linux",
       physicalSize: androidPhysicalSize,
       (tester) async {
-        VisibilityDetectorController.instance.updateInterval = Duration.zero;
-
         await tester.pumpWidget(buildSubject(ProductShotPlatform.android));
         await _precacheImages(tester);
         await tester.pumpAndSettle();
@@ -445,8 +440,6 @@ void main() {
       hostPlatform: "macos",
       physicalSize: iosPhysicalSize,
       (tester) async {
-        VisibilityDetectorController.instance.updateInterval = Duration.zero;
-
         await tester.pumpWidget(buildSubject(ProductShotPlatform.ios));
         await _precacheImages(tester);
         await tester.pumpAndSettle();
@@ -464,8 +457,6 @@ void main() {
       hostPlatform: "linux",
       physicalSize: androidPhysicalSize,
       (tester) async {
-        VisibilityDetectorController.instance.updateInterval = Duration.zero;
-
         await tester.pumpWidget(buildSubject(ProductShotPlatform.android));
         await _precacheImages(tester);
         await tester.pumpAndSettle();

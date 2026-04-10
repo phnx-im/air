@@ -37,7 +37,7 @@ jobs:
         with:
           git-fetch-depth: 1
           git-lfs: false
-          cargo-binstall-tools: cargo-expand flutter_rust_bridge_codegen@2.11.1
+          cargo-binstall-tools: cargo-expand flutter_rust_bridge_codegen@2.12.0
 
       - name: Check generated Flutter Rust Bridge (FRB) files
         run: just check-frb
@@ -59,7 +59,7 @@ jobs:
 
       - name: Flutter tests
         run: just test-flutter
-      
+
       - if: failure()
         name: Upload failed tests screenshots
         uses: actions/upload-artifact@v4
@@ -83,7 +83,7 @@ jobs:
           cargo-binstall-tools: cargo-deny@0.19.0 sqlx-cli@0.8.6 cargo-machete@0.9.1
           pypi-packages: reuse~=6.2 podman-compose~=1.5
           flutter: false
- 
+
       - name: Rust checks
         run: just check-rust
 

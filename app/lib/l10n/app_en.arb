@@ -364,5 +364,14 @@
   "contactRequestDialog_error_fatal": "Failed to accept contact request",
   "contactRequestDialog_error_incompatibleClient": "Failed to accept contact request. Update Air to the newest version, then try again.",
 
-  "errorBanner_ok": "OK"
+  "errorBanner_ok": "OK",
+
+  "messageList_unreadMessages": "{count, plural, one {{count} unread message} other {{count} unread messages}}",
+  "@messageList_unreadMessages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

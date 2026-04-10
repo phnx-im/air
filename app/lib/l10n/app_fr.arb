@@ -294,5 +294,7 @@
   "contactRequestDialog_avatarHint": "Touchez pour afficher sa photo",
   "contactRequestDialog_cancel": "Plus tard",
   "contactRequestDialog_confirm": "Accepter",
-  "contactRequestDialog_error_fatal": "Impossible d'accepter la demande de contact"
+  "contactRequestDialog_error_fatal": "Impossible d'accepter la demande de contact",
+
+  "messageList_unreadMessages": "{count, plural, one {{count} message non lu} other {{count} messages non lus}}"
 }
