@@ -967,4 +967,8 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get errorBanner_ok => 'OK';
+
+  @override
+  String get memberSelectionList_client_not_supported =>
+      'This contact has an incompatible client which needs to be updated.';
 }

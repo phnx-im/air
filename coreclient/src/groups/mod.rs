@@ -190,6 +190,28 @@ impl Group {
         &self.mls_group
     }
 
+    /// Returns the [`AirComponent`] from the leaf node of the given member, or `None` if the member
+    /// is not in the group.
+    pub(crate) fn member_air_component(&self, user_id: &UserId) -> Option<AirComponent> {
+        let member = self.mls_group.members().find(|m| {
+            VerifiableClientCredential::from_basic_credential(&m.credential)
+                .map(|c| c.user_id() == user_id)
+                .unwrap_or(false)
+        })?;
+        let leaf_node = self.mls_group.public_group().leaf(member.index)?;
+        leaf_node
+            .extensions()
+            .app_data_dictionary()
+            .and_then(|dict| dict.dictionary().get(&AIR_COMPONENT_ID))
+            .and_then(|data| {
+                AirComponent::from_bytes(data)
+                    .inspect_err(|error| {
+                        error!(%error, "Failed to deserialize member air component");
+                    })
+                    .ok()
+            })
+    }
+
     /// Create a group.
     pub(super) fn create_group(
         connection: &mut SqliteConnection,

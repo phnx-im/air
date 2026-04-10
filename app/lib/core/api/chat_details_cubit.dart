@@ -117,25 +117,9 @@ sealed class AcceptContactRequestError with _$AcceptContactRequestError {
   }) = AcceptContactRequestError_IncompatibleClient;
 }
 
-class AirComponentDebugInfo {
-  final bool encryptedGroupProfiles;
-
-  const AirComponentDebugInfo({required this.encryptedGroupProfiles});
-
-  @override
-  int get hashCode => encryptedGroupProfiles.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is AirComponentDebugInfo &&
-          runtimeType == other.runtimeType &&
-          encryptedGroupProfiles == other.encryptedGroupProfiles;
-}
-
 class AppDataDebugInfo {
   final List<String> components;
-  final AirComponentDebugInfo? airComponent;
+  final AirComponent? airComponent;
 
   const AppDataDebugInfo({required this.components, this.airComponent});
 

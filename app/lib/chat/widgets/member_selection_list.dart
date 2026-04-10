@@ -6,6 +6,7 @@ import 'package:air/core/core.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -65,24 +66,39 @@ class MemberSelectionList extends HookWidget {
         final contact = sortedContacts[index];
         final profile = profiles[contact.userId]!;
         final isSelected = selectedContacts.contains(contact.userId);
+        final hashSupportedClient =
+            contact.supportedFeatures?.encryptedGroupProfiles ?? false;
 
-        return MemberListItem(
-          profile: profile,
-          onTap: () => onToggle(contact),
-          trailing: Checkbox(
-            value: isSelected,
-            checkColor: CustomColorScheme.of(context).text.secondary,
-            fillColor: WidgetStateProperty.all(
-              CustomColorScheme.of(context).fill.tertiary,
-            ),
-            focusColor: Colors.transparent,
-            hoverColor: Colors.transparent,
-            overlayColor: WidgetStateProperty.all(Colors.transparent),
-            side: BorderSide.none,
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(4)),
-            ),
-            onChanged: (_) => onToggle(contact),
+        return Opacity(
+          opacity: hashSupportedClient ? 1.0 : 0.5,
+          child: MemberListItem(
+            profile: profile,
+            onTap: hashSupportedClient
+                ? () => onToggle(contact)
+                : () => showSnackBarStandalone(
+                    (loc) => SnackBar(
+                      content: Text(
+                        loc.memberSelectionList_client_not_supported,
+                      ),
+                    ),
+                  ),
+            trailing: hashSupportedClient
+                ? Checkbox(
+                    value: isSelected,
+                    checkColor: CustomColorScheme.of(context).text.secondary,
+                    fillColor: WidgetStateProperty.all(
+                      CustomColorScheme.of(context).fill.tertiary,
+                    ),
+                    focusColor: Colors.transparent,
+                    hoverColor: Colors.transparent,
+                    overlayColor: WidgetStateProperty.all(Colors.transparent),
+                    side: BorderSide.none,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(4)),
+                    ),
+                    onChanged: (_) => onToggle(contact),
+                  )
+                : null,
           ),
         );
       },

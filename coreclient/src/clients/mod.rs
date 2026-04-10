@@ -507,6 +507,15 @@ impl CoreUser {
         Ok(contacts)
     }
 
+    pub async fn contacts_with_supported_features(&self) -> sqlx::Result<Vec<Contact>> {
+        let mut connection = self.pool().acquire().await?;
+        let mut contacts = Contact::load_all(connection.as_mut()).await?;
+        for contact in contacts.iter_mut() {
+            contact.augment_supported_features(&mut connection).await?;
+        }
+        Ok(contacts)
+    }
+
     pub async fn contact(&self, user_id: &UserId) -> Option<Contact> {
         self.try_contact(user_id).await.ok().flatten()
     }
@@ -573,11 +582,9 @@ impl CoreUser {
         &self,
         chat_id: ChatId,
     ) -> Result<Option<HashSet<UserId>>> {
-        let mut connection = self.pool().acquire().await?;
-        let Some(chat) = Chat::load(&mut connection, &chat_id).await? else {
-            return Ok(None);
-        };
-        let Some(group) = Group::load(&mut connection, chat.group_id()).await? else {
+        let Some(group) =
+            Group::load_with_chat_id(self.pool().acquire().await?.as_mut(), chat_id).await?
+        else {
             return Ok(None);
         };
         let users = group

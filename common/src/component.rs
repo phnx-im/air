@@ -12,7 +12,7 @@ use crate::codec::{self, PersistenceCodec};
 /// Custom component storing client-specific features and data.
 ///
 /// Stored in the app data extension of the group context, leaf node or key package.
-#[derive(Debug, Default, SerializeTaggedMap, DeserializeTaggedMap)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct AirComponent {
     /// Features supported by the client in the corresponding context (group, leaf node or key
     /// package).
@@ -21,7 +21,7 @@ pub struct AirComponent {
 }
 
 /// List of features supported by the client.
-#[derive(Debug, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct AirFeatures {
     /// Whether the client supports encrypted group profiles.
     #[tag(1)]

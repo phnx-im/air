@@ -5,6 +5,7 @@
 use std::iter;
 
 use aircommon::{
+    component::AirFeatures,
     credentials::VerifiableClientCredential,
     crypto::{
         ear::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
@@ -20,7 +21,7 @@ use sqlx::SqliteConnection;
 use crate::{
     ChatId,
     clients::api_clients::ApiClients,
-    groups::client_auth_info::StorableClientCredential,
+    groups::{Group, client_auth_info::StorableClientCredential},
     key_stores::{as_credentials::AsCredentials, indexed_keys::StorableIndexedKey},
     user_profiles::IndexedUserProfile,
 };
@@ -31,11 +32,16 @@ pub(crate) mod persistence;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Contact {
     pub user_id: UserId,
-    // Encryption key for WelcomeAttributionInfos
+    /// Encryption key for WelcomeAttributionInfos
     pub(crate) wai_ear_key: WelcomeAttributionInfoEarKey,
     pub(crate) friendship_token: FriendshipToken,
-    // ID of the connection chat with this contact.
+    /// ID of the connection chat with this contact.
     pub chat_id: ChatId,
+    /// Features supported by the contact
+    ///
+    /// `None` means that the features are not yet loaded. Load on demand with
+    /// [`Contact::augment_supported_features`].
+    pub supported_features: Option<AirFeatures>,
 }
 
 #[derive(Debug, Clone)]
@@ -103,6 +109,19 @@ impl Contact {
 
     pub(crate) fn wai_ear_key(&self) -> &WelcomeAttributionInfoEarKey {
         &self.wai_ear_key
+    }
+
+    /// Augment the supported features from the contact's connection group.
+    pub async fn augment_supported_features(
+        &mut self,
+        connection: &mut SqliteConnection,
+    ) -> sqlx::Result<()> {
+        if let Some(group) = Group::load_by_connection_user_id(connection, &self.user_id).await?
+            && let Some(air_component) = group.member_air_component(&self.user_id)
+        {
+            self.supported_features = Some(air_component.features);
+        }
+        Ok(())
     }
 }
 

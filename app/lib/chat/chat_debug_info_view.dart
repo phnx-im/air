@@ -499,7 +499,8 @@ class _MemberCard extends StatelessWidget {
           _ChipListRow(
             label: 'Air Component',
             values: [
-              if (caps.appData?.airComponent?.encryptedGroupProfiles == true)
+              if (caps.appData?.airComponent?.features.encryptedGroupProfiles ==
+                  true)
                 'encrypted_group_profiles',
             ],
           ),
