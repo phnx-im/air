@@ -5,7 +5,6 @@
 use std::sync::Arc;
 
 use aircommon::{crypto::signatures::DEFAULT_SIGNATURE_SCHEME, identifiers::Fqdn};
-use airprotos::common::v1::OperationType;
 use credentials::{
     CredentialGenerationError, intermediate_signing_key::IntermediateSigningKey,
     signing_key::StorableSigningKey,
@@ -109,13 +108,12 @@ impl BackendService for AuthService {
         }
         transaction.commit().await?;
 
-        for operation_type in OperationType::all() {
-            // Ensure a VOPRF key exists for Privacy Pass (creates one if missing
-            // or rotates if the current key is stale).
-            privacy_pass::rotate_keys_if_needed(&auth_service.db_pool, operation_type)
-                .await
-                .map_err(ServiceCreationError::init_error)?;
-        }
+        // Ensure a VOPRF key exists for Privacy Pass (creates one if missing
+        // or rotates if the current key is stale).
+        let mut connection = auth_service.db_pool.acquire().await?;
+        privacy_pass::rotate_keys_if_needed(connection.as_mut())
+            .await
+            .map_err(ServiceCreationError::init_error)?;
 
         Ok(auth_service)
     }

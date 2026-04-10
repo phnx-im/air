@@ -11,7 +11,7 @@ use privacypass::{
     common::{private::serialize_public_key, store::PrivateKeyStore},
     private_tokens::{Ristretto255, VoprfServer},
 };
-use sqlx::{PgConnection, PgExecutor, PgPool};
+use sqlx::{Acquire, PgConnection, PgExecutor, PgPool};
 use tokio::sync::Mutex;
 use tracing::{error, info};
 
@@ -192,8 +192,23 @@ pub(crate) async fn load_current_key_id(
 /// period plus the overlap window.
 ///
 /// Returns `true` if a new key was created.
-pub async fn rotate_keys_if_needed(
-    pool: &PgPool,
+pub async fn rotate_keys_if_needed(connection: &mut PgConnection) -> Result<(), RotateKeysError> {
+    for operation_type in OperationType::all() {
+        rotate_keys_if_needed_for_operation_type(connection, operation_type).await?;
+    }
+
+    Ok(())
+}
+
+/// Checks whether key rotation is needed and performs it if so.
+///
+/// Creates a new VOPRF keypair if no key exists or if the current key is older
+/// than [`KEY_ROTATION_PERIOD_DAYS`]. Removes keys older than the rotation
+/// period plus the overlap window.
+///
+/// Returns `true` if a new key was created.
+async fn rotate_keys_if_needed_for_operation_type(
+    connection: &mut PgConnection,
     operation_type: OperationType,
 ) -> Result<bool, RotateKeysError> {
     let needs_rotation = sqlx::query_scalar!(
@@ -204,13 +219,13 @@ pub async fn rotate_keys_if_needed(
         operation_type as i16,
         KEY_ROTATION_PERIOD_DAYS as i32
     )
-    .fetch_one(pool)
+    .fetch_one(&mut *connection)
     .await
     .map_err(RotateKeysError::Storage)?
     .unwrap_or(true);
 
     let rotated = if needs_rotation {
-        let mut transaction = pool.begin().await.map_err(RotateKeysError::Storage)?;
+        let mut transaction = connection.begin().await.map_err(RotateKeysError::Storage)?;
         {
             let conn_mutex = Mutex::new(&mut *transaction);
             let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex);
@@ -224,7 +239,7 @@ pub async fn rotate_keys_if_needed(
             .commit()
             .await
             .map_err(RotateKeysError::Storage)?;
-        info!("created new VOPRF keypair");
+        info!(%operation_type, "created new VOPRF keypair");
         true
     } else {
         false
@@ -237,7 +252,7 @@ pub async fn rotate_keys_if_needed(
          WHERE created_at < now() - make_interval(days => $1)",
         max_age_days
     )
-    .execute(pool)
+    .execute(&mut *connection)
     .await
     .map_err(RotateKeysError::Storage)?;
 
@@ -256,7 +271,7 @@ pub async fn rotate_keys_if_needed(
          WHERE created_at < now() - make_interval(days => $1)",
         max_age_days
     )
-    .execute(pool)
+    .execute(&mut *connection)
     .await
     .map_err(RotateKeysError::Storage)?;
 

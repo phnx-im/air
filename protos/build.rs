@@ -8,7 +8,10 @@ fn main() {
     let protoc_path = protoc_bin_vendored::protoc_bin_path().unwrap();
     let mut config = Config::new();
     config.protoc_executable(protoc_path);
-    config.enum_attribute("common.v1.OperationType", "#[derive(strum::VariantArray)]");
+    config.enum_attribute(
+        "common.v1.OperationType",
+        "#[derive(strum::VariantArray, strum::Display)]",
+    );
     tonic_prost_build::configure()
         .compile_with_config(
             config,

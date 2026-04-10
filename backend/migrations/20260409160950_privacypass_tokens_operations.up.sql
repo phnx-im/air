@@ -11,4 +11,4 @@ CREATE TABLE as_token_allowance(
     FOREIGN KEY (user_uuid, user_domain) REFERENCES as_user_record (user_uuid, user_domain) ON DELETE CASCADE
 );
 
-ALTER TABLE as_batched_key ADD COLUMN operation_type SMALLINT NOT NULL;
+ALTER TABLE as_batched_key ADD COLUMN operation_type SMALLINT NOT NULL DEFAULT 0;

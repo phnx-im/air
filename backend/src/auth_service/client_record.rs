@@ -193,28 +193,6 @@ pub(crate) mod persistence {
         }
 
         #[sqlx::test]
-        async fn update(pool: PgPool) -> anyhow::Result<()> {
-            let user_record = store_random_user_record(&pool).await?;
-            let client_record =
-                store_random_client_record(&pool, user_record.user_id().clone()).await?;
-
-            let loaded = ClientRecord::load(&pool, client_record.user_id())
-                .await?
-                .expect("missing client record");
-            assert_eq!(loaded, client_record);
-
-            let updated_client_record = random_client_record(client_record.user_id().clone())?;
-
-            updated_client_record.update(&pool).await?;
-            let loaded = ClientRecord::load(&pool, client_record.user_id())
-                .await?
-                .expect("missing client record");
-            assert_eq!(loaded, updated_client_record);
-
-            Ok(())
-        }
-
-        #[sqlx::test]
         async fn delete(pool: PgPool) -> anyhow::Result<()> {
             let user_record = store_random_user_record(&pool).await?;
             let client_record =

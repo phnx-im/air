@@ -129,8 +129,13 @@ pub async fn run<
         let cooldown = Duration::from_secs(15 * 60);
         tokio::time::sleep(cooldown).await;
 
+        let Ok(mut connection) = rotation_pool.acquire().await else {
+            tracing::error!("could not acquire DB connection to rotate VOPRF keys");
+            return;
+        };
+
         loop {
-            if let Err(e) = rotate_keys_if_needed(&rotation_pool).await {
+            if let Err(e) = rotate_keys_if_needed(connection.as_mut()).await {
                 tracing::error!(%e, "VOPRF key rotation check failed");
             }
             let jitter = rand::thread_rng().gen_range(0..3600);

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT\n                    activity_time,\n                    credential AS \"credential: FlatClientCredential\",\n                    remaining_tokens,\n                    allowance_epoch\n                FROM as_client_record\n                WHERE user_uuid = $1 AND user_domain = $2",
+  "query": "SELECT\n                    activity_time,\n                    credential AS \"credential: FlatClientCredential\"\n                FROM as_client_record\n                WHERE user_uuid = $1 AND user_domain = $2",
   "describe": {
     "columns": [
       {
@@ -60,16 +60,6 @@
             }
           }
         }
-      },
-      {
-        "ordinal": 2,
-        "name": "remaining_tokens",
-        "type_info": "Int4"
-      },
-      {
-        "ordinal": 3,
-        "name": "allowance_epoch",
-        "type_info": "Int2"
       }
     ],
     "parameters": {
@@ -80,10 +70,8 @@
     },
     "nullable": [
       false,
-      false,
-      false,
       false
     ]
   },
-  "hash": "8f6bfcd71201b57af9cffef49791514b08ee47bc5b3c6f3756380692d18ab617"
+  "hash": "f7a879f1f6e2178f9bd32ac55d9a9a4bc81e986db004327be2d27bf7808be60c"
 }
