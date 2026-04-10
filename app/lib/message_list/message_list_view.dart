@@ -355,7 +355,8 @@ class _MessageListViewState extends State<MessageListView>
 
     return BlocListener<MessageListCubit, MessageListState>(
       listenWhen: (prev, curr) =>
-          curr.meta.scrollToIndex != null && !identical(curr, _lastScrolledState),
+          curr.meta.scrollToIndex != null &&
+          !identical(curr, _lastScrolledState),
       listener: (context, state) {
         _lastScrolledState = state;
         final scrollTo = state.meta.scrollToIndex!;

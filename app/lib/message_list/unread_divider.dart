@@ -44,7 +44,7 @@ class UnreadDivider extends StatelessWidget {
                 child: Text(
                   label,
                   style: TextTheme.of(context).bodySmall?.copyWith(
-                    color: CustomColorScheme.of(context).text.primary,
+                    color: CustomColorScheme.of(context).function.toggleWhite,
                   ),
                 ),
               ),

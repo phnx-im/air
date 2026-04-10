@@ -98,13 +98,13 @@ class MockMessageListState implements MessageListState {
     int? scrollToIndex,
     int? firstUnreadIndex,
   }) : meta = MessageListMeta(
-          isConnectionChat: isConnectionChat,
-          hasOlder: hasOlder,
-          hasNewer: hasNewer,
-          isAtBottom: isAtBottom,
-          scrollToIndex: scrollToIndex,
-          firstUnreadIndex: firstUnreadIndex,
-        );
+         isConnectionChat: isConnectionChat,
+         hasOlder: hasOlder,
+         hasNewer: hasNewer,
+         isAtBottom: isAtBottom,
+         scrollToIndex: scrollToIndex,
+         firstUnreadIndex: firstUnreadIndex,
+       );
 
   final List<UiChatMessage> messages;
 

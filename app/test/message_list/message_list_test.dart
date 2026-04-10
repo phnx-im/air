@@ -950,16 +950,17 @@ void main() {
     });
 
     testWidgets('renders unread divider', (tester) async {
-      tester.view.physicalSize = highTestSize;
+      tester.view.physicalSize = const Size(1080, 2400);
       addTearDown(() {
         tester.view.resetPhysicalSize();
       });
 
+      // Use a small subset so the golden stays compact.
       // Place the unread divider at index 2, which is mid-flight for
       // Eve (indices 1=start, 2=end). The divider should break the
       // flight: 1→single | divider | 2→single.
       final unreadMessages = [
-        for (final (i, msg) in messages.indexed)
+        for (final (i, msg) in messages.take(6).indexed)
           switch (i) {
             1 => msg.copyWith(position: UiFlightPosition.single),
             2 => msg.copyWith(position: UiFlightPosition.single),
