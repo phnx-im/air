@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::collections::HashSet;
+use std::{borrow::Cow, collections::HashSet};
 
 use aircommon::identifiers::UserId;
 use airprotos::{
@@ -264,15 +264,15 @@ impl ChatOperation {
             ..
         } = context;
 
-        let group_data = if let Some(attributes) = chat_attributes {
+        let (group_data, new_chat_picture) = if let Some(attributes) = chat_attributes {
             let chat_id = self.chat_id;
             let group = Group::load_with_chat_id_clean(connection, chat_id)
                 .await?
                 .with_context(|| format!("No group with chat id {chat_id}"))?;
 
             // Encrypt
-            let group_profile =
-                GroupProfile::new(attributes.title, None, attributes.picture.map(From::from));
+            let picture = attributes.picture.as_deref().map(Cow::Borrowed);
+            let group_profile = GroupProfile::new(attributes.title, None, picture);
             let (ciphertext, external) = group_profile
                 .encrypt(group.identity_link_wrapper_key())
                 .context("Failed to encrypt group profile")?;
@@ -317,14 +317,14 @@ impl ChatOperation {
             )
             .context("Failed to encrypt group title")?;
 
-            Some(GroupData {
-                title: group_profile.title,
-                picture: group_profile.picture.map(|p| p.into_owned()),
+            let group_data = GroupData {
                 encrypted_title: Some(encrypted_title),
                 external_group_profile: Some(external),
-            })
+                legacy_title: None,
+            };
+            (Some(group_data), attributes.picture)
         } else {
-            None
+            (None, None)
         };
 
         let job = connection
@@ -334,6 +334,7 @@ impl ChatOperation {
                     &key_store.signing_key,
                     self.chat_id,
                     group_data,
+                    new_chat_picture,
                 )
                 .await
             })

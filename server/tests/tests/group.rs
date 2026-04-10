@@ -371,6 +371,7 @@ async fn update_group_data() {
             "{:?} should process Alice's update without errors",
             user_id
         );
+        user.outbound_service().run_once().await;
         let actual_picture = user
             .chat(&chat_id)
             .await

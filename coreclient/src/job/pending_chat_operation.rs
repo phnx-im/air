@@ -19,7 +19,7 @@ use sqlx::{SqliteConnection, SqliteTransaction, query, query_as};
 use tracing::{debug, error, info};
 
 use crate::{
-    Chat, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
+    Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
     chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
     contacts::ContactAddInfos,
@@ -37,11 +37,19 @@ const RETRY_INTERVAL: Duration = Duration::seconds(5);
 #[cfg(any(test, feature = "test_utils"))]
 const RETRY_INTERVAL: Duration = Duration::seconds(1);
 
-#[derive(Clone, derive_more::From, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub(super) enum OperationType {
     Leave(SelfRemoveParamsOut),
     Delete(DeleteGroupParamsOut),
-    Other(Box<GroupOperationParamsOut>),
+    Other {
+        params: Box<GroupOperationParamsOut>,
+        /// New chat picture (if any)
+        ///
+        /// It was already uploaded as part of the external group profile but is not yet set as the
+        /// chat picture.
+        #[serde(with = "serde_bytes")]
+        new_chat_picture: Option<Vec<u8>>,
+    },
 }
 
 impl std::fmt::Display for OperationType {
@@ -49,16 +57,30 @@ impl std::fmt::Display for OperationType {
         match self {
             OperationType::Leave(_) => write!(f, "leave"),
             OperationType::Delete(_) => write!(f, "delete"),
-            OperationType::Other(_) => write!(f, "other"),
+            OperationType::Other { .. } => write!(f, "other"),
         }
     }
 }
 
 impl OperationType {
+    fn other(params: GroupOperationParamsOut) -> Self {
+        Self::other_with_picture(params, None)
+    }
+
+    fn other_with_picture(
+        params: GroupOperationParamsOut,
+        new_chat_picture: Option<Vec<u8>>,
+    ) -> Self {
+        Self::Other {
+            params: Box::new(params),
+            new_chat_picture,
+        }
+    }
+
     fn is_commit(&self) -> bool {
         match self {
             OperationType::Leave(_) => false,
-            OperationType::Delete(_) | OperationType::Other(_) => true,
+            OperationType::Delete(_) | OperationType::Other { .. } => true,
         }
     }
 
@@ -125,10 +147,10 @@ impl Job for PendingChatOperation {
 }
 
 impl PendingChatOperation {
-    pub(super) fn new(group: VerifiedGroup, message: impl Into<OperationType>) -> Self {
+    pub(super) fn new(group: VerifiedGroup, operation: OperationType) -> Self {
         Self {
             group,
-            operation: message.into(),
+            operation,
             retry_due_at: Utc::now().into(),
             status: PendingChatOperationStatus::ReadyToRetry,
             number_of_attempts: 0,
@@ -190,6 +212,7 @@ impl PendingChatOperation {
                 .await?;
         }
 
+        let mut new_chat_picture = None;
         let res = match self.operation.clone() {
             OperationType::Leave(params) => {
                 api_client
@@ -201,7 +224,11 @@ impl PendingChatOperation {
                     .ds_delete_group(params, signer, self.group.group_state_ear_key())
                     .await
             }
-            OperationType::Other(params) => {
+            OperationType::Other {
+                params,
+                new_chat_picture: chat_picture,
+            } => {
+                new_chat_picture = chat_picture;
                 api_client
                     .ds_group_operation(*params, signer, self.group.group_state_ear_key())
                     .await
@@ -265,20 +292,23 @@ impl PendingChatOperation {
 
                     if let Some(bytes) = group_data_bytes {
                         let group_data = GroupData::decode(&bytes)?;
-                        let (chat_attributes, _external_group_profile) =
+                        let (chat_title, _external_group_profile) =
                             group_data.into_parts(self.group.identity_link_wrapper_key());
-                        // No need to fetch the group profile: this is our own pending commit, so
-                        // the profile data is already available locally.
-                        update_chat_attributes(
-                            txn,
-                            notifier,
-                            &mut chat,
-                            own_user_id,
-                            chat_attributes,
-                            ds_timestamp,
-                            &mut group_messages,
-                        )
-                        .await?;
+                        if let Some(chat_title) = chat_title {
+                            let attributes = ChatAttributes::new(chat_title, new_chat_picture);
+                            // No need to fetch the group profile: this is our own pending commit, so
+                            // the profile data is already available locally.
+                            update_chat_attributes(
+                                txn,
+                                notifier,
+                                &mut chat,
+                                &own_user_id,
+                                attributes,
+                                ds_timestamp,
+                                &mut group_messages,
+                            )
+                            .await?;
+                        }
                     }
 
                     group_messages
@@ -415,7 +445,7 @@ impl PendingChatOperation {
             .stage_remove(txn.as_mut(), signer, target_users)
             .await?;
 
-        let job = Self::new(group, Box::new(params));
+        let job = Self::new(group, OperationType::other(params));
         job.store(txn.as_mut()).await?;
         Ok(job)
     }
@@ -437,7 +467,7 @@ impl PendingChatOperation {
 
         let params = group.group_mut().stage_leave_group(txn, signer)?;
 
-        let job = Self::new(group, params);
+        let job = Self::new(group, OperationType::Leave(params));
         job.store(txn.as_mut()).await?;
         Ok(job)
     }
@@ -447,6 +477,7 @@ impl PendingChatOperation {
         signer: &ClientSigningKey,
         chat_id: ChatId,
         new_group_data: Option<GroupData>,
+        new_chat_picture: Option<Vec<u8>>,
     ) -> anyhow::Result<Self> {
         let chat = Chat::load(txn.as_mut(), &chat_id)
             .await?
@@ -462,7 +493,10 @@ impl PendingChatOperation {
             .update(txn, signer, group_data_bytes)
             .await?;
 
-        let job = Self::new(group, Box::new(params));
+        let job = Self::new(
+            group,
+            OperationType::other_with_picture(params, new_chat_picture),
+        );
         job.store(txn.as_mut()).await?;
 
         Ok(job)
@@ -495,7 +529,7 @@ impl PendingChatOperation {
         } else {
             let message = group.group_mut().stage_delete(txn, signer).await?;
 
-            let job = Self::new(group, message);
+            let job = Self::new(group, OperationType::Delete(message));
             job.store(txn.as_mut()).await?;
             Ok(Some(job))
         }
@@ -572,7 +606,8 @@ impl PendingChatOperation {
                     .map_err(|validation| JobError::domain(ChatOperationError::from(validation)))?;
 
                 // Create PendingChatOperation job
-                let pending_chat_operation = PendingChatOperation::new(group, Box::new(params));
+                let pending_chat_operation =
+                    PendingChatOperation::new(group, OperationType::other(params));
                 pending_chat_operation.store(txn).await?;
 
                 Ok(pending_chat_operation)
@@ -973,7 +1008,7 @@ mod tests {
         let leave_params = group
             .group_mut()
             .stage_leave_group(&mut connection, &signing_key)?;
-        let pending = PendingChatOperation::new(group, leave_params);
+        let pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
 
         pending.store(&mut connection).await?;
 
@@ -997,7 +1032,7 @@ mod tests {
         let leave_params = group
             .group_mut()
             .stage_leave_group(&mut connection, &signing_key)?;
-        let mut pending = PendingChatOperation::new(group, leave_params);
+        let mut pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
         pending.store(&mut connection).await?;
 
         let new_timestamp = Utc::now() + Duration::seconds(30);
@@ -1022,7 +1057,7 @@ mod tests {
         let leave_params = group
             .group_mut()
             .stage_leave_group(&mut connection, &signing_key)?;
-        let pending = PendingChatOperation::new(group, leave_params);
+        let pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
         pending.store(&mut connection).await?;
 
         // Initially the job is ready to retry.
@@ -1055,7 +1090,7 @@ mod tests {
         let leave_params = group
             .group_mut()
             .stage_leave_group(&mut connection, &signing_key)?;
-        let pending = PendingChatOperation::new(group, leave_params);
+        let pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
         pending.store(&mut connection).await?;
 
         // Delete and ensure the row is gone.

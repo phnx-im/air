@@ -176,6 +176,18 @@ pub struct TestBackendParams {
     pub max_attachment_size: u64,
 }
 
+impl TestBackendParams {
+    pub fn no_rate_limits() -> Self {
+        Self {
+            rate_limits: Some(RateLimitsSettings {
+                period: Duration::from_millis(100),
+                burst: 10_000,
+            }),
+            ..Default::default()
+        }
+    }
+}
+
 impl Default for TestBackendParams {
     fn default() -> Self {
         Self {
@@ -1156,6 +1168,7 @@ impl TestBackend {
                 "Errors processing QS messages for {invitee_id:?}: {:?}",
                 res.errors
             );
+            invitee.outbound_service().run_once().await;
 
             let mut invitee_chats_after = invitee.chats().await;
             let chat_uuid = chat_id.uuid();
