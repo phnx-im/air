@@ -14,6 +14,7 @@ class CustomColorScheme {
   final FillColors fill;
   final FunctionColors function;
   final MessageColors message;
+  final MaterialColors material;
   final AccentColors accent;
 
   CustomColorScheme({
@@ -24,6 +25,7 @@ class CustomColorScheme {
     required this.fill,
     required this.function,
     required this.message,
+    required this.material,
     required this.accent,
   });
 
@@ -94,6 +96,7 @@ final CustomColorScheme lightCustomColorScheme = CustomColorScheme(
     selfEditedLabel: AppColors.neutral[600]!,
     otherEditedLabel: AppColors.neutral[600]!,
   ),
+  material: MaterialColors(tertiary: const Color(0x80FFFFFF)),
   accent: AccentColors(
     primary: AppColors.neutral[1000]!,
     secondary: AppColors.neutral[700]!,
@@ -162,6 +165,7 @@ final CustomColorScheme darkCustomColorScheme = CustomColorScheme(
     selfEditedLabel: AppColors.neutral[400]!,
     otherEditedLabel: AppColors.neutral[400]!,
   ),
+  material: MaterialColors(tertiary: const Color(0x803C3B3B)),
   accent: AccentColors(
     primary: AppColors.neutral[0]!,
     secondary: AppColors.neutral[300]!,

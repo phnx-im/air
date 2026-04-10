@@ -133,6 +133,12 @@ class MessageColors {
   });
 }
 
+class MaterialColors {
+  final Color tertiary;
+
+  MaterialColors({required this.tertiary});
+}
+
 class AccentColors {
   final Color primary;
   final Color secondary;
