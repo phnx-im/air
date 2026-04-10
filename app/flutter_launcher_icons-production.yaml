@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+flutter_launcher_icons:
+  image_path: "assets/icons/production/icon.png"
+  android: false
+  ios: true
+  remove_alpha_ios: true
+  windows:
+    generate: true
+    image_path: "assets/icons/production/icon.png"
+    icon_size: 256 # min:48, max:256, default: 48
+  macos:
+    generate: true
+    image_path: "assets/icons/production/mac-icon.png"
