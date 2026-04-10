@@ -44,7 +44,7 @@ impl From<SqlContact> for Contact {
             wai_ear_key,
             friendship_token,
             chat_id,
-            // By default, suported features are not loaded
+            // By default, supported features are not loaded
             supported_features: None,
         }
     }
