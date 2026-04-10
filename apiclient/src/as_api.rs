@@ -38,7 +38,7 @@ use airprotos::{
         RegisterUserRequest, ReportSpamPayload, StageUserProfilePayload, connect_request,
         connect_response, listen_handle_request,
     },
-    common::v1::{StatusDetails, StatusDetailsCode},
+    common::v1::{OperationType, StatusDetails, StatusDetailsCode},
 };
 use futures_util::{FutureExt, future::BoxFuture};
 use thiserror::Error;
@@ -544,12 +544,14 @@ impl ApiClient {
 
     pub async fn as_issue_tokens(
         &self,
+        operation_type: OperationType,
         user_id: UserId,
         signing_key: &ClientSigningKey,
         token_request: SerializedTokenRequest,
     ) -> Result<SerializedTokenResponse, AsRequestError> {
         let payload = IssueTokensPayload {
             client_metadata: Some(self.metadata().clone()),
+            operation_type: operation_type.into(),
             user_id: Some(user_id.into()),
             token_request: token_request.into_bytes(),
         };

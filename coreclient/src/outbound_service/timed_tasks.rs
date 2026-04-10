@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::USER_HANDLE_REFRESH_THRESHOLD;
+use airprotos::common::v1::OperationType;
 use chrono::{DateTime, Duration, Utc};
 use openmls::prelude::OpenMlsProvider;
 use openmls_rust_crypto::OpenMlsRustCrypto;
@@ -247,6 +248,7 @@ impl OutboundServiceContext {
             &api_client,
             self.user_id().clone(),
             self.signing_key(),
+            OperationType::AddUsername, // TODO: also get for the other types!
         )
         .await?;
 

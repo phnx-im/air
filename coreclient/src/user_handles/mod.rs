@@ -11,6 +11,7 @@ use aircommon::{
         connection_package::ConnectionPackage,
     },
 };
+use airprotos::common::v1::OperationType;
 use anyhow::Context;
 pub use persistence::UserHandleRecord;
 use tokio::task::spawn_blocking;
@@ -42,7 +43,7 @@ impl CoreUser {
 
         let api_client = self.api_client()?;
         let token = self
-            .consume_or_replenish_token(&api_client)
+            .consume_or_replenish_token(&api_client, OperationType::AddUsername)
             .await
             .inspect_err(|e| warn!(%e, "no privacy pass token available for handle creation"))?;
 
@@ -183,6 +184,7 @@ impl CoreUser {
     async fn consume_or_replenish_token(
         &self,
         api_client: &ApiClient,
+        operation_type: OperationType,
     ) -> anyhow::Result<SerializedToken> {
         if let Some(token) = privacy_pass::consume_token(self.pool()).await? {
             return Ok(token);
@@ -196,6 +198,7 @@ impl CoreUser {
             api_client,
             self.user_id().clone(),
             self.signing_key(),
+            operation_type,
         )
         .await?;
 
@@ -224,13 +227,17 @@ impl CoreUser {
     /// `TokenReplenishment` task does this; in tests, call this explicitly
     /// after user creation.
     #[cfg(feature = "test_utils")]
-    pub async fn replenish_privacy_pass_tokens(&self) -> anyhow::Result<()> {
+    pub async fn replenish_privacy_pass_tokens(
+        &self,
+        operation_type: OperationType,
+    ) -> anyhow::Result<()> {
         let api_client = self.api_client()?;
         privacy_pass::replenish_if_needed(
             self.pool(),
             &api_client,
             self.user_id().clone(),
             self.signing_key(),
+            operation_type,
         )
         .await?;
         Ok(())

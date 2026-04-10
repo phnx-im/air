@@ -9,13 +9,15 @@ use aircommon::{
     messages::{client_as::RegisterUserResponse, client_as_out::RegisterUserParamsIn},
     time::TimeStamp,
 };
+use airprotos::common::v1::OperationType;
 use tracing::error;
 
 use crate::{
     auth_service::{
         AuthService, client_record::ClientRecord,
         credentials::intermediate_signing_key::IntermediateSigningKey,
-        invitation_code_record::InvitationCodeRecord, user_record::UserRecord,
+        invitation_code_record::InvitationCodeRecord, privacy_pass::TokenAllowance,
+        user_record::UserRecord,
     },
     errors::auth_service::{DeleteUserError, RegisterUserError},
 };
@@ -85,19 +87,34 @@ impl AuthService {
                 error!(%error, "Storage provider error");
                 RegisterUserError::StorageError
             })?;
-        let current_epoch = crate::auth_service::privacy_pass::load_current_key_id(txn.as_mut())
+
+        ClientRecord::new_and_store(txn.as_mut(), client_credential.clone())
+            .await
+            .map_err(|error| {
+                error!(%error, "Storage provider error");
+                RegisterUserError::StorageError
+            })?;
+
+        for operation_type in OperationType::all() {
+            let current_epoch = crate::auth_service::privacy_pass::load_current_key_id(
+                txn.as_mut(),
+                operation_type,
+            )
             .await
             .map_err(|error| {
                 error!(%error, "Failed to load current VOPRF key id");
                 RegisterUserError::StorageError
             })?
             .unwrap_or(0);
-        ClientRecord::new_and_store(txn.as_mut(), client_credential.clone(), current_epoch)
-            .await
-            .map_err(|error| {
-                error!(%error, "Storage provider error");
-                RegisterUserError::StorageError
-            })?;
+
+            TokenAllowance::new(operation_type, current_epoch)
+                .store(txn.as_mut(), user_id)
+                .await
+                .map_err(|error| {
+                    error!(%error, "Storage provider error");
+                    RegisterUserError::StorageError
+                })?;
+        }
 
         if let Some(code_record) = code_record.as_mut() {
             code_record.redeemed = true;

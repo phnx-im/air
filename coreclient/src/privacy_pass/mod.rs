@@ -10,6 +10,7 @@ use aircommon::{
         BatchedTokenKeyResponse, SerializedToken, SerializedTokenRequest, SerializedTokenResponse,
     },
 };
+use airprotos::{VariantArray, common::v1::OperationType};
 use privacypass::{
     TokenType,
     amortized_tokens::{AmortizedBatchTokenRequest, AmortizedBatchTokenResponse},
@@ -29,11 +30,20 @@ pub(crate) async fn request_and_store_tokens(
     api_client: &ApiClient,
     user_id: UserId,
     signing_key: &ClientSigningKey,
+    operation_type: OperationType,
     count: u16,
 ) -> anyhow::Result<usize> {
     info!(%count, "requesting privacy pass tokens");
 
-    let result = request_tokens_inner(pool, api_client, user_id, signing_key, count).await;
+    let result = request_tokens_inner(
+        pool,
+        api_client,
+        user_id,
+        signing_key,
+        operation_type,
+        count,
+    )
+    .await;
 
     match &result {
         Ok(stored) => info!(%stored, "stored privacy pass tokens"),
@@ -48,6 +58,7 @@ async fn request_tokens_inner(
     api_client: &ApiClient,
     user_id: UserId,
     signing_key: &ClientSigningKey,
+    operation_type: OperationType,
     count: u16,
 ) -> anyhow::Result<usize> {
     let keys = persistence::load_batched_token_keys(pool).await?;
@@ -71,7 +82,7 @@ async fn request_tokens_inner(
 
     let request_bytes = SerializedTokenRequest::new(token_request.tls_serialize_detached()?);
     let response = api_client
-        .as_issue_tokens(user_id, signing_key, request_bytes)
+        .as_issue_tokens(operation_type, user_id, signing_key, request_bytes)
         .await?;
 
     let token_response =
@@ -201,6 +212,7 @@ pub(crate) async fn replenish_if_needed(
     api_client: &ApiClient,
     user_id: UserId,
     signing_key: &ClientSigningKey,
+    operation_type: OperationType,
 ) -> anyhow::Result<i64> {
     let credentials_response = api_client.as_as_credentials().await?;
     store_batched_token_keys(pool, &credentials_response.batched_token_keys).await?;
@@ -208,7 +220,15 @@ pub(crate) async fn replenish_if_needed(
     let count = token_count(pool).await?;
     if count < LOW_TOKEN_THRESHOLD {
         let needed = (TARGET_TOKEN_COUNT - count).min(TARGET_TOKEN_COUNT) as u16;
-        request_and_store_tokens(pool, api_client, user_id, signing_key, needed).await?;
+        request_and_store_tokens(
+            pool,
+            api_client,
+            user_id,
+            signing_key,
+            operation_type,
+            needed,
+        )
+        .await?;
     }
     token_count(pool).await
 }
@@ -227,7 +247,16 @@ pub(crate) async fn purge_and_replenish(
     info!(%discarded, "purging stale tokens after server rejected key");
     persistence::delete_all_tokens(pool).await?;
     persistence::delete_all_batched_token_keys(pool).await?;
-    replenish_if_needed(pool, api_client, user_id, signing_key).await?;
+    for operation_type in OperationType::VARIANTS {
+        replenish_if_needed(
+            pool,
+            api_client,
+            user_id.clone(),
+            signing_key,
+            *operation_type,
+        )
+        .await?;
+    }
     Ok(())
 }
 

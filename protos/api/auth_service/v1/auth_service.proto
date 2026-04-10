@@ -319,6 +319,7 @@ message IssueTokensRequest {
 
 message IssueTokensPayload {
   common.v1.ClientMetadata client_metadata = 3;
+  common.v1.OperationType operation_type = 4;
   UserId user_id = 1;
   bytes token_request = 2;
 }

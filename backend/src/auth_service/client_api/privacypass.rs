@@ -17,15 +17,13 @@ use tokio::sync::Mutex;
 use crate::{
     auth_service::{
         AuthService,
-        client_record::ClientRecord,
         privacy_pass::{
-            AuthServiceBatchedKeyStoreProvider, AuthServiceNonceStore, load_current_key_id,
+            AuthServiceBatchedKeyStoreProvider, AuthServiceNonceStore, TokenAllowance,
+            load_current_key_id,
         },
     },
     errors::auth_service::{IssueTokensError, RedeemTokenError},
 };
-
-pub(crate) const MAX_TOKENS_PER_REQUEST: i32 = 100;
 
 impl AuthService {
     pub(crate) async fn as_issue_tokens(
@@ -44,26 +42,28 @@ impl AuthService {
             .map_err(|_| IssueTokensError::StorageError)?;
 
         // Lock the row to prevent concurrent over-issuance.
-        let mut client_record = ClientRecord::load_for_update(&mut *transaction, user_id)
-            .await
-            .map_err(|error| {
-                error!(%error, "Error loading client record");
-                IssueTokensError::StorageError
-            })?
-            .ok_or(IssueTokensError::UnknownUser)?;
+        let mut token_allowance =
+            TokenAllowance::load_for_update(&mut *transaction, user_id, operation_type)
+                .await
+                .map_err(|error| {
+                    error!(%error, "Error loading client record");
+                    IssueTokensError::StorageError
+                })?
+                .ok_or(IssueTokensError::UnknownUser)?;
 
         // Reset allowance if the epoch (current key) has changed.
-        let current_epoch = load_current_key_id(&mut *transaction)
+        let current_epoch = load_current_key_id(&mut *transaction, operation_type)
             .await
             .map_err(|_| IssueTokensError::StorageError)?
             .unwrap_or(0);
-        if client_record.allowance_epoch != current_epoch {
-            client_record.token_allowance = DEFAULT_TOKEN_ALLOWANCE;
-            client_record.allowance_epoch = current_epoch;
+
+        if token_allowance.epoch != current_epoch {
+            token_allowance.remaining = operation_type.tokens_allowance();
+            token_allowance.epoch = current_epoch;
         }
 
-        if tokens_requested > client_record.token_allowance
-            || tokens_requested > MAX_TOKENS_PER_REQUEST
+        if tokens_requested > token_allowance.remaining
+            || tokens_requested > operation_type.max_tokens_per_request()
         {
             return Err(IssueTokensError::TooManyTokens);
         }
@@ -79,11 +79,14 @@ impl AuthService {
         };
 
         // Reduce the token allowance by the number of tokens issued.
-        client_record.token_allowance -= tokens_requested;
-        client_record.update(&mut *transaction).await.map_err(|e| {
-            error!("Error updating client record: {:?}", e);
-            IssueTokensError::StorageError
-        })?;
+        token_allowance.remaining -= tokens_requested;
+        token_allowance
+            .update(&mut *transaction, user_id)
+            .await
+            .map_err(|e| {
+                error!("Error updating client record: {:?}", e);
+                IssueTokensError::StorageError
+            })?;
 
         transaction
             .commit()

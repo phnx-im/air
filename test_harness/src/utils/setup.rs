@@ -15,6 +15,7 @@ use aircommon::{
     identifiers::{Fqdn, MimiId, UserHandle, UserId},
 };
 use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, store::Store, *};
+use airprotos::common::v1::OperationType;
 use airserver::network_provider::MockNetworkProvider;
 use anyhow::Context;
 use mimi_content::{
@@ -117,7 +118,9 @@ impl TestUser {
         // In production the background TokenReplenishment task keeps the
         // cache warm. Tests don't run the outbound service, so we
         // replenish explicitly before the first handle operation.
-        self.user.replenish_privacy_pass_tokens().await?;
+        self.user
+            .replenish_privacy_pass_tokens(OperationType::AddUsername)
+            .await?;
 
         let user_id_str = format!("uuid-{:?}", self.user.user_id()).replace(['@', '.'], "-");
         let handle = UserHandle::new(user_id_str)?;

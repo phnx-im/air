@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::codec::{BlobDecoded, BlobEncoded};
+use airprotos::common::v1::OperationType;
 use async_trait::async_trait;
 use privacypass::{
     Nonce, NonceStore, TruncatedTokenKeyId,
@@ -169,10 +170,16 @@ const KEY_OVERLAP_DAYS: i64 = 7;
 /// Returns the `token_key_id` of the most recently created VOPRF key.
 pub(crate) async fn load_current_key_id(
     executor: impl PgExecutor<'_>,
+    operation_type: OperationType,
 ) -> Result<Option<i16>, sqlx::Error> {
     sqlx::query_scalar!(
-        "SELECT token_key_id FROM as_batched_key \
-         ORDER BY created_at DESC LIMIT 1"
+        "
+        SELECT token_key_id
+        FROM as_batched_key
+        WHERE operation_type = $1
+        ORDER BY created_at DESC LIMIT 1
+        ",
+        operation_type as i16,
     )
     .fetch_optional(executor)
     .await
@@ -185,12 +192,16 @@ pub(crate) async fn load_current_key_id(
 /// period plus the overlap window.
 ///
 /// Returns `true` if a new key was created.
-pub async fn rotate_keys_if_needed(pool: &PgPool) -> Result<bool, RotateKeysError> {
+pub async fn rotate_keys_if_needed(
+    pool: &PgPool,
+    operation_type: OperationType,
+) -> Result<bool, RotateKeysError> {
     let needs_rotation = sqlx::query_scalar!(
-        "SELECT NOT EXISTS(\
-             SELECT 1 FROM as_batched_key \
-             WHERE created_at > now() - make_interval(days => $1)\
-         )",
+        "SELECT NOT EXISTS(
+            SELECT 1 FROM as_batched_key 
+            WHERE operation_type = $1 AND created_at > now() - make_interval(days => $2)
+        )",
+        operation_type as i16,
         KEY_ROTATION_PERIOD_DAYS as i32
     )
     .fetch_one(pool)
@@ -306,6 +317,107 @@ pub(super) async fn load_batched_token_keys(
 struct BatchedKeyRow {
     token_key_id: i16,
     voprf_server: BlobDecoded<VoprfServer<Ristretto255>>,
+}
+
+#[derive(Debug)]
+pub(in crate::auth_service) struct TokenAllowance {
+    pub(super) operation_type: OperationType,
+    pub(super) remaining: i32,
+    pub(super) epoch: i16,
+}
+
+impl TokenAllowance {
+    pub(super) fn new(operation_type: OperationType, epoch: i16) -> Self {
+        Self {
+            operation_type,
+            remaining: operation_type.tokens_allowance(),
+            epoch,
+        }
+    }
+}
+
+mod persistence {
+    use aircommon::identifiers::UserId;
+    use airprotos::common::v1::OperationType;
+    use sqlx::{PgExecutor, query};
+
+    use super::TokenAllowance;
+    use crate::errors::StorageError;
+
+    impl TokenAllowance {
+        pub(in crate::auth_service) async fn store(
+            &self,
+            connection: impl PgExecutor<'_>,
+            user_id: &UserId,
+        ) -> Result<(), StorageError> {
+            query!(
+                "INSERT INTO as_token_allowance (
+                    user_uuid,
+                    user_domain,
+                    operation_type,
+                    remaining,
+                    epoch
+                ) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING",
+                user_id.uuid(),
+                user_id.domain() as _,
+                self.operation_type as i64,
+                self.remaining,
+                self.epoch,
+            )
+            .execute(connection)
+            .await?;
+            Ok(())
+        }
+
+        pub(in crate::auth_service) async fn update(
+            &self,
+            connection: impl PgExecutor<'_>,
+            user_id: &UserId,
+        ) -> Result<(), StorageError> {
+            query!(
+                "UPDATE as_token_allowance SET
+                    remaining = $4,
+                    epoch = $5
+                WHERE user_uuid = $1 AND user_domain = $2 AND operation_type = $3",
+                user_id.uuid(),
+                user_id.domain() as _,
+                self.operation_type as i16,
+                self.remaining,
+                self.epoch
+            )
+            .execute(connection)
+            .await?;
+            Ok(())
+        }
+
+        pub(in crate::auth_service) async fn load_for_update(
+            connection: impl PgExecutor<'_>,
+            user_id: &UserId,
+            operation_type: OperationType,
+        ) -> Result<Option<Self>, StorageError> {
+            query!(
+                r#"SELECT
+                    remaining,
+                    epoch
+                FROM as_token_allowance
+                WHERE user_uuid = $1 AND user_domain = $2 AND operation_type = $3
+                FOR UPDATE"#,
+                user_id.uuid(),
+                user_id.domain() as _,
+                operation_type as i16,
+            )
+            .fetch_optional(connection)
+            .await?
+            .map(|record| {
+                Ok(Self {
+                    operation_type,
+                    remaining: record.remaining,
+                    epoch: record.epoch,
+                })
+            })
+            .transpose()
+        }
+    }
 }
 
 #[cfg(test)]

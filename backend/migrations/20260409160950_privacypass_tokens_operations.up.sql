@@ -6,7 +6,9 @@ CREATE TABLE as_token_allowance(
     user_uuid uuid PRIMARY KEY,
     user_domain TEXT NOT NULL,
     operation_type SMALLINT NOT NULL,
-    remaining_tokens INTEGER NOT NULL,
-    allowance_epoch SMALLINT NOT NULL,
+    remaining INTEGER NOT NULL,
+    epoch SMALLINT NOT NULL,
     FOREIGN KEY (user_uuid, user_domain) REFERENCES as_user_record (user_uuid, user_domain) ON DELETE CASCADE
 );
+
+ALTER TABLE as_batched_key ADD COLUMN operation_type SMALLINT NOT NULL;

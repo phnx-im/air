@@ -10,6 +10,7 @@ use aircoreclient::{
     AddHandleContactError, Asset, BlockedContactError, DisplayName, EventMessage, Message,
     SystemMessage, UserProfile, clients::CoreUser, store::Store,
 };
+use airprotos::common::v1::OperationType;
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use mimi_content::MimiContent;
 use rand::Rng;
@@ -402,7 +403,10 @@ async fn check_handle_exists() {
         .unwrap();
     assert!(hash.is_none(), "Alice's handle should not exist yet");
 
-    alice_user.replenish_privacy_pass_tokens().await.unwrap();
+    alice_user
+        .replenish_privacy_pass_tokens(OperationType::AddUsername)
+        .await
+        .unwrap();
     alice_user
         .add_user_handle(alice_handle.clone())
         .await
