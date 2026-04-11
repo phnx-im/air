@@ -80,6 +80,7 @@ use crate::{
     contacts::ContactAddInfos,
     groups::client_auth_info::VerifiableClientCredentialExt,
     key_stores::as_credentials::AsCredentials,
+    outbound_service::resync::Resync,
 };
 use std::collections::HashSet;
 
@@ -1350,8 +1351,6 @@ pub(crate) async fn handle_group_not_found_on_ds(
     notifier: &mut crate::store::StoreNotifier,
     group_id: &GroupId,
 ) -> anyhow::Result<()> {
-    use crate::outbound_service::resync::Resync;
-
     // Collect past members before deleting the group.
     let past_members = match Group::load(txn.as_mut(), group_id).await? {
         Some(group) => group.members().collect(),
