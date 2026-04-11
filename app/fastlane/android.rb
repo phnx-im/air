@@ -42,10 +42,11 @@ platform :android do
         # When not uploading to the Play Store, we just build the app as APK to
         # allow manual installation
         build_target = upload_to_play_store ? "appbundle" : "apk"
+        flavor = upload_to_play_store ? "production" : "staging"
 
-        sh "fvm flutter precache --android"
-        sh "fvm flutter pub get"
-        sh "fvm flutter build #{build_target} --release --target-platform android-arm64 --build-number=#{current_build_number}"
+        sh "just flutter precache --android"
+        sh "just flutter pub get"
+        sh "just flutter build #{build_target} --flavor #{flavor} --release --target-platform android-arm64 --build-number=#{current_build_number}"
 
         if upload_to_play_store
           metadata_path = File.expand_path("../stores/android/metadata", __dir__)

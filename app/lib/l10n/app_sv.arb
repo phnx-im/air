@@ -293,5 +293,7 @@
   "contactRequestDialog_avatarHint": "Tryck för att visa bilden",
   "contactRequestDialog_cancel": "Senare",
   "contactRequestDialog_confirm": "Acceptera",
-  "contactRequestDialog_error_fatal": "Kunde inte acceptera kontaktförfrågan"
+  "contactRequestDialog_error_fatal": "Kunde inte acceptera kontaktförfrågan",
+
+  "messageList_unreadMessages": "{count, plural, one {{count} oläst meddelande} other {{count} olästa meddelanden}}"
 }

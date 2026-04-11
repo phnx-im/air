@@ -113,10 +113,10 @@ platform :ios do
     setup_ci()
 
     # Install flutter dependencies
-    sh "fvm flutter pub get"
+    sh "just flutter pub get"
 
     # Build the app with flutter first to create the necessary ephemeral files
-    sh "fvm flutter build ios --config-only #{skip_signing ? '--debug --no-codesign' : '--release'} --build-number #{build_number}"
+    sh "just flutter build ios --flavor production --config-only #{skip_signing ? '--debug --no-codesign' : '--release'} --build-number #{build_number}"
 
     # Install CocoaPods dependencies
     cocoapods(

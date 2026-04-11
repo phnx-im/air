@@ -7,7 +7,9 @@ use std::{collections::HashSet, path::Path, sync::Arc};
 use aircommon::{
     identifiers::{AttachmentId, MimiId, UserHandle, UserHandleHash, UserId},
     messages::client_as_out::UserHandleDeleteResponse,
+    time::TimeStamp,
 };
+use anyhow::Context;
 use mimi_room_policy::VerifiedRoomState;
 use tokio::task::spawn_blocking;
 use tokio_stream::Stream;
@@ -232,6 +234,87 @@ impl Store for CoreUser {
 
     async fn messages(&self, chat_id: ChatId, limit: usize) -> StoreResult<Vec<ChatMessage>> {
         self.get_messages(chat_id, limit).await
+    }
+
+    async fn messages_before(
+        &self,
+        chat_id: ChatId,
+        before: TimeStamp,
+        before_id: MessageId,
+        limit: usize,
+    ) -> StoreResult<(Vec<ChatMessage>, bool)> {
+        Ok(ChatMessage::load_before(
+            self.pool().acquire().await?.as_mut(),
+            chat_id,
+            before,
+            before_id,
+            limit as u32,
+        )
+        .await?)
+    }
+
+    async fn messages_after(
+        &self,
+        chat_id: ChatId,
+        after: TimeStamp,
+        after_id: MessageId,
+        limit: usize,
+    ) -> StoreResult<(Vec<ChatMessage>, bool)> {
+        Ok(ChatMessage::load_after(
+            self.pool().acquire().await?.as_mut(),
+            chat_id,
+            after,
+            after_id,
+            limit as u32,
+        )
+        .await?)
+    }
+
+    async fn messages_from(
+        &self,
+        chat_id: ChatId,
+        from: TimeStamp,
+        from_id: MessageId,
+        limit: usize,
+    ) -> StoreResult<(Vec<ChatMessage>, bool)> {
+        Ok(ChatMessage::load_starting_from(
+            self.pool().acquire().await?.as_mut(),
+            chat_id,
+            from,
+            from_id,
+            limit as u32,
+        )
+        .await?)
+    }
+
+    async fn messages_around(
+        &self,
+        chat_id: ChatId,
+        anchor: TimeStamp,
+        anchor_id: MessageId,
+        half_limit: usize,
+    ) -> StoreResult<(Vec<ChatMessage>, bool, bool)> {
+        Ok(ChatMessage::load_around(
+            self.pool().acquire().await?.as_mut(),
+            chat_id,
+            anchor,
+            anchor_id,
+            half_limit as u32,
+        )
+        .await?)
+    }
+
+    async fn first_unread_message(&self, chat_id: ChatId) -> StoreResult<Option<ChatMessage>> {
+        self.with_transaction(async |txn| {
+            let chat = Chat::load(txn.as_mut(), &chat_id)
+                .await?
+                .with_context(|| format!("chat not found: {chat_id}"))?;
+            Ok(
+                ChatMessage::first_unread_message(txn.as_mut(), chat_id, chat.last_read.into())
+                    .await?,
+            )
+        })
+        .await
     }
 
     async fn message(&self, message_id: MessageId) -> StoreResult<Option<ChatMessage>> {

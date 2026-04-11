@@ -89,12 +89,27 @@ class MockMessageListCubit extends MockCubit<MessageListState>
     implements MessageListCubit {}
 
 class MockMessageListState implements MessageListState {
-  MockMessageListState(this.messages, {this.isConnectionChat = false});
+  MockMessageListState(
+    this.messages, {
+    bool isConnectionChat = false,
+    bool hasOlder = false,
+    bool hasNewer = false,
+    bool isAtBottom = false,
+    int? scrollToIndex,
+    int? firstUnreadIndex,
+  }) : meta = MessageListMeta(
+         isConnectionChat: isConnectionChat,
+         hasOlder: hasOlder,
+         hasNewer: hasNewer,
+         isAtBottom: isAtBottom,
+         scrollToIndex: scrollToIndex,
+         firstUnreadIndex: firstUnreadIndex,
+       );
 
   final List<UiChatMessage> messages;
 
   @override
-  final bool isConnectionChat;
+  final MessageListMeta meta;
 
   @override
   void dispose() {}

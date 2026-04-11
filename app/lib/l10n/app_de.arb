@@ -295,5 +295,7 @@
   "contactRequestDialog_avatarHint": "Tippe, um das Bild anzuzeigen",
   "contactRequestDialog_cancel": "Später",
   "contactRequestDialog_confirm": "Annehmen",
-  "contactRequestDialog_error_fatal": "Kontaktanfrage konnte nicht angenommen werden"
+  "contactRequestDialog_error_fatal": "Kontaktanfrage konnte nicht angenommen werden",
+
+  "messageList_unreadMessages": "{count, plural, one {{count} ungelesene Nachricht} other {{count} ungelesene Nachrichten}}"
 }
