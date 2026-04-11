@@ -986,4 +986,15 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get errorBanner_ok => 'OK';
+
+  @override
+  String messageList_unreadMessages(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count messages non lus',
+      one: '$count message non lu',
+    );
+    return '$_temp0';
+  }
 }

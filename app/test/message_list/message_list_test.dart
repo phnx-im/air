@@ -5,6 +5,7 @@
 import 'dart:typed_data';
 
 import 'package:air/chat/chat_details.dart';
+import 'package:bloc_test/bloc_test.dart';
 import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
@@ -14,7 +15,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:visibility_detector/visibility_detector.dart';
 
 import '../chat_list/chat_list_content_test.dart';
 import '../helpers.dart';
@@ -794,8 +794,6 @@ void main() {
         () => messageListCubit.state,
       ).thenReturn(MockMessageListState(messages));
 
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
-
       await tester.pumpWidget(buildSubject());
 
       await expectLater(
@@ -818,8 +816,6 @@ void main() {
       addTearDown(() {
         tester.platformDispatcher.clearPlatformBrightnessTestValue();
       });
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
       await tester.pumpWidget(buildSubject());
 
@@ -850,8 +846,6 @@ void main() {
         ),
       ).thenAnswer((_) => Stream.value(const UiAttachmentStatus.completed()));
 
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
-
       await tester.pumpWidget(buildSubject());
 
       await expectLater(
@@ -878,8 +872,6 @@ void main() {
       when(
         () => messageListCubit.state,
       ).thenReturn(MockMessageListState(messageWithBobBlocked));
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
       await tester.pumpWidget(buildSubject());
 
@@ -908,8 +900,6 @@ void main() {
         MockMessageListState(messageWithBobBlocked, isConnectionChat: true),
       );
 
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
-
       await tester.pumpWidget(buildSubject());
 
       await expectLater(
@@ -927,8 +917,6 @@ void main() {
       when(
         () => messageListCubit.state,
       ).thenReturn(MockMessageListState(jumboEmojiMessages));
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
       await tester.pumpWidget(buildSubject());
 
@@ -953,14 +941,106 @@ void main() {
         () => userSettingsCubit.state,
       ).thenReturn(const UserSettings(readReceipts: false));
 
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
-
       await tester.pumpWidget(buildSubject());
 
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/message_list_disabled_read_receipts.png'),
       );
+    });
+
+    testWidgets('renders unread divider', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      // Use a small subset so the golden stays compact.
+      // Place the unread divider at index 2, which is mid-flight for
+      // Eve (indices 1=start, 2=end). The divider should break the
+      // flight: 1→single | divider | 2→single.
+      final unreadMessages = [
+        for (final (i, msg) in messages.take(6).indexed)
+          switch (i) {
+            1 => msg.copyWith(position: UiFlightPosition.single),
+            2 => msg.copyWith(position: UiFlightPosition.single),
+            _ => msg,
+          },
+      ];
+
+      when(
+        () => messageListCubit.state,
+      ).thenReturn(MockMessageListState(unreadMessages, firstUnreadIndex: 2));
+
+      await tester.pumpWidget(buildSubject());
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_list_unread_divider.png'),
+      );
+    });
+
+    testWidgets('scrollToMessage reaches off-screen target', (tester) async {
+      // Small viewport so most messages are off-screen.
+      tester.view.physicalSize = const Size(400, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      // Generate enough messages so the oldest ones are far off-screen.
+      final manyMessages = List.generate(30, (i) {
+        return UiChatMessage(
+          id: (200 + i).messageId(),
+          chatId: chatId,
+          timestamp: DateTime(2023, 1, 1, 0, i),
+          message: UiMessage_Content(
+            UiContentMessage(
+              sender: 2.userId(),
+              sent: true,
+              edited: false,
+              content: UiMimiContent(
+                plainBody: 'Message number $i',
+                topicId: Uint8List(0),
+                content: simpleMessage('Message number $i'),
+                attachments: [],
+              ),
+            ),
+          ),
+          position: UiFlightPosition.single,
+          status: UiMessageStatus.sent,
+        );
+      });
+
+      // Index 2 = third oldest message, near maxScrollExtent in reversed list.
+      const targetIndex = 2;
+      final stateWithScroll = MockMessageListState(
+        manyMessages,
+        scrollToIndex: targetIndex,
+      );
+
+      // Start with no scroll request, then emit the scroll state.
+      final initialState = MockMessageListState(manyMessages);
+      when(() => messageListCubit.state).thenReturn(initialState);
+      whenListen(
+        messageListCubit,
+        Stream.value(stateWithScroll),
+        initialState: initialState,
+      );
+
+      await tester.pumpWidget(buildSubject());
+
+      // The target should not be visible initially (it's at the old end).
+      expect(find.text('Message number 2'), findsNothing);
+
+      // Pump enough frames for the iterative scroll to converge.
+      for (var i = 0; i < 15; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      // The target message should now be visible.
+      expect(find.text('Message number 2'), findsOneWidget);
     });
 
     testWidgets('renders correctly with replies of various sizes', (
@@ -974,8 +1054,6 @@ void main() {
       when(
         () => messageListCubit.state,
       ).thenReturn(MockMessageListState(replyMessages));
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
       await tester.pumpWidget(buildSubject());
 

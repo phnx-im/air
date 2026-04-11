@@ -301,6 +301,6 @@
   "contactRequestDialog_confirm": "Annehmen",
   "contactRequestDialog_error_fatal": "Kontaktanfrage konnte nicht angenommen werden",
   "contactRequestDialog_error_incompatibleClient": "Kontaktanfrage konnte nicht angenommen werden. Aktualisiere Air auf die neueste Version und versuche es dann erneut.",
-
-  "errorBanner_ok": "OK"
+  "errorBanner_ok": "OK",
+  "messageList_unreadMessages": "{count, plural, one {{count} ungelesene Nachricht} other {{count} ungelesene Nachrichten}}"
 }

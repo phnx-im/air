@@ -7,5 +7,6 @@ library;
 
 export 'message_list_view.dart';
 export 'message_composer.dart';
+export 'scroll_to_bottom_controller.dart';
 export 'message_list_cubit.dart';
 export 'message_cubit.dart';
