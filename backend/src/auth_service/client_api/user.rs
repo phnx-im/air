@@ -94,16 +94,6 @@ impl AuthService {
                 RegisterUserError::StorageError
             })?;
 
-        for operation_type in OperationType::all() {
-            crate::auth_service::privacy_pass::load_current_key_id(txn.as_mut(), operation_type)
-                .await
-                .map_err(|error| {
-                    error!(%error, "Failed to load current VOPRF key id");
-                    RegisterUserError::StorageError
-                })?
-                .unwrap_or(0);
-        }
-
         if let Some(code_record) = code_record.as_mut() {
             code_record.redeemed = true;
             code_record.save(&self.db_pool).await.map_err(|error| {
