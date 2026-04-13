@@ -12,6 +12,7 @@ import 'package:air/user/user.dart';
 import 'package:air/widgets/app_bar_back_button.dart';
 import 'package:air/widgets/avatar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'chat_details_cubit.dart';
@@ -76,10 +77,23 @@ class _EmptyChatPane extends StatelessWidget {
   }
 }
 
-class ChatScreenView extends StatelessWidget {
+class ChatScreenView extends StatefulWidget {
   const ChatScreenView({super.key, this.createMessageCubit = MessageCubit.new});
 
   final MessageCubitCreate createMessageCubit;
+
+  @override
+  State<ChatScreenView> createState() => _ChatScreenViewState();
+}
+
+class _ChatScreenViewState extends State<ChatScreenView> {
+  final _scrollToBottomController = ScrollToBottomController();
+
+  @override
+  void dispose() {
+    _scrollToBottomController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -133,7 +147,9 @@ class ChatScreenView extends StatelessWidget {
     final bool showBlockedFooter =
         blockedUserId != null && blockedUserDisplayName != null;
 
-    Widget footer = const MessageComposer();
+    Widget footer = MessageComposer(
+      scrollToBottomController: _scrollToBottomController,
+    );
     if (showInactiveFooter) {
       footer = const _InactiveChatFooter();
     } else if (showBlockedFooter) {
@@ -150,12 +166,23 @@ class ChatScreenView extends StatelessWidget {
       appBar: _ChatHeader(),
       body: SafeArea(
         minimum: const EdgeInsets.only(bottom: Spacings.xs),
-        child: Column(
+        child: Stack(
           children: [
-            Expanded(
-              child: MessageListView(createMessageCubit: createMessageCubit),
+            MessageListView(
+              createMessageCubit: widget.createMessageCubit,
+              scrollToBottomController: _scrollToBottomController,
             ),
-            footer,
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _MeasureHeight(
+                onChange: (height) {
+                  _scrollToBottomController.composerHeight.value = height;
+                },
+                child: footer,
+              ),
+            ),
           ],
         ),
       ),
@@ -279,6 +306,43 @@ class _BlockedChatFooter extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Reports its child's height via [onChange] after every layout pass.
+class _MeasureHeight extends SingleChildRenderObjectWidget {
+  const _MeasureHeight({required this.onChange, required super.child});
+
+  final ValueChanged<double> onChange;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) {
+    return _RenderMeasureHeight(onChange);
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant _RenderMeasureHeight renderObject,
+  ) {
+    renderObject.onChange = onChange;
+  }
+}
+
+class _RenderMeasureHeight extends RenderProxyBox {
+  _RenderMeasureHeight(this.onChange);
+
+  ValueChanged<double> onChange;
+  double? _lastHeight;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    final h = size.height;
+    if (_lastHeight == null || (_lastHeight! - h).abs() > 0.5) {
+      _lastHeight = h;
+      WidgetsBinding.instance.addPostFrameCallback((_) => onChange(h));
+    }
   }
 }
 

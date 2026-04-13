@@ -11,6 +11,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/jumbo_emoji.dart';
 import 'package:air/message_list/message_composer.dart';
+import 'package:air/message_list/message_list_cubit.dart';
 import 'package:air/message_list/mobile_message_actions.dart';
 import 'package:air/message_list/timestamp.dart';
 import 'package:air/navigation/navigation.dart';
@@ -875,15 +876,31 @@ class _MessageContent extends StatelessWidget {
       crossAxisAlignment: inReplyTo != null ? .stretch : .start,
       children: [
         if (inReplyTo != null)
-          Padding(
-            padding: const EdgeInsets.only(
-              left: Spacings.xs,
-              right: Spacings.xs,
-              top: Spacings.xs,
-            ),
-            child: InReplyToBubble(
-              inReplyTo: inReplyTo,
-              backgroundColor: colors.fill.secondary,
+          MouseRegion(
+            cursor: inReplyTo is UiInReplyToMessage_Resolved
+                ? SystemMouseCursors.click
+                : MouseCursor.defer,
+            child: GestureDetector(
+              onTap: () {
+                if (inReplyTo case UiInReplyToMessage_Resolved(
+                  :final messageId,
+                )) {
+                  context.read<MessageListCubit>().jumpToMessage(
+                    messageId: messageId,
+                  );
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  left: Spacings.xs,
+                  right: Spacings.xs,
+                  top: Spacings.xs,
+                ),
+                child: InReplyToBubble(
+                  inReplyTo: inReplyTo,
+                  backgroundColor: colors.fill.secondary,
+                ),
+              ),
             ),
           ),
         ...columnChildren,

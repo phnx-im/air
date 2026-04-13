@@ -5,7 +5,7 @@
 use airapiclient::ApiClient;
 use anyhow::Context;
 use mimi_room_policy::RoleIndex;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::{
     UserHandleRecord, clients::CoreUser, delete_client_database, groups::Group, privacy_pass,
@@ -90,9 +90,16 @@ impl CoreUser {
             .await?;
 
         for (params, ear_key) in removals {
-            api_client
+            match api_client
                 .ds_self_remove(params, self.signing_key(), &ear_key)
-                .await?;
+                .await
+            {
+                Ok(_) => {}
+                Err(e) if e.is_not_found() => {
+                    warn!("Group already gone from server; skipping");
+                }
+                Err(e) => return Err(e.into()),
+            }
         }
 
         info!("Left all chats");

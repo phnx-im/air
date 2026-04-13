@@ -23,7 +23,10 @@ use crate::{
     chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
     contacts::ContactAddInfos,
-    groups::{Group, VerifiedGroup, client_auth_info::StorableClientCredential},
+    groups::{
+        Group, VerifiedGroup, client_auth_info::StorableClientCredential,
+        handle_group_not_found_on_ds,
+    },
     job::{Job, JobContext, JobError, chat_operation::ChatOperationError},
     store::StoreNotifier,
     utils::connection_ext::ConnectionExt,
@@ -111,12 +114,14 @@ impl Job for PendingChatOperation {
                 Err(JobError::NetworkError)
             }
             Err(JobError::NotFound) => {
-                let group_id = self.group.group_id();
-                error!(
-                    ?group_id,
-                    "Group not found; deleting pending chat operation"
-                );
-                Self::delete(&mut *context.connection, group_id).await?;
+                let group_id = self.group.group_id().clone();
+                error!(?group_id, "Group not found on DS; cleaning up local state");
+                context
+                    .connection
+                    .with_transaction(async |txn| {
+                        handle_group_not_found_on_ds(txn, context.notifier, &group_id).await
+                    })
+                    .await?;
                 Err(JobError::NotFound)
             }
             res => res,

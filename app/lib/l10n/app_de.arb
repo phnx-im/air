@@ -24,6 +24,7 @@
   "removeUsernameDialog_remove": "Entfernen",
   "addMembersScreen_addMembers": "Mitglieder hinzufügen",
   "addMembersScreen_error_noActiveChat": "ein aktiver Chat ist erforderlich",
+  "contactDetailsScreen_chat": "Chat",
   "contactDetailsScreen_viewSafetyCode": "Sicherheitscode anzeigen",
   "safetyCodeScreen_title": "Sicherheitscode",
   "safetyCodeScreen_tapToCopy": "Zum Kopieren tippen",
@@ -146,6 +147,7 @@
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blockiert",
   "newChatDialog_error": "Chat mit dem Namen {chatName} konnte nicht hinzugefügt werden",
+  "newChatDialog_error_incompatibleClient": "Gruppenchat mit dem Namen {chatName} konnte nicht erstellt werden, da einer der Kontakte einen inkompatiblen Client hat.",
   "newConnectionDialog_newConnectionTitle": "Air-Kontakt hinzufügen",
   "newConnectionDialog_newConnectionDescription": "Gib den Benutzernamen der Person ein, der du eine Nachricht senden möchtest.",
   "newConnectionDialog_inputLabel": "Benutzername (erforderlich)",
@@ -163,6 +165,7 @@
   "composer_inputHint": "Nachricht an {chatTitle}",
   "composer_editMessage": "Nachricht bearbeiten",
   "composer_error_attachment": "Anhang konnte nicht hochgeladen werden. Bitte versuche es erneut.",
+  "composer_error_attachment_too_large": "Der Anhang ist zu groß. Die maximale Größe beträgt {maxSize}, die tatsächliche Größe beträgt {actualSize}.",
 
   "composer_reply_deleted_message_placeholder": "Ursprüngliche Nachricht gelöscht",
   "composer_reply_noaccess_message_user": "Unbekannter Nutzer",
@@ -265,6 +268,7 @@
   "groupCreationDetails_create": "Erstellen",
   "groupCreationDetails_emptySelection": "Keine Mitglieder",
   "addMembersScreen_done": "Fertig",
+  "addMembersScreen_error_incompatibleClient": "Mitglied(er) konnten nicht hinzugefügt werden, da einer der Kontakte einen inkompatiblen Client hat",
   "leaveChatDialog_title": "Chat verlassen",
   "leaveChatDialog_content": "Möchtest du {chatName} wirklich verlassen?",
   "leaveChatDialog_cancel": "Abbrechen",
@@ -295,5 +299,8 @@
   "contactRequestDialog_avatarHint": "Tippe, um das Bild anzuzeigen",
   "contactRequestDialog_cancel": "Später",
   "contactRequestDialog_confirm": "Annehmen",
-  "contactRequestDialog_error_fatal": "Kontaktanfrage konnte nicht angenommen werden"
+  "contactRequestDialog_error_fatal": "Kontaktanfrage konnte nicht angenommen werden",
+  "contactRequestDialog_error_incompatibleClient": "Kontaktanfrage konnte nicht angenommen werden. Aktualisiere Air auf die neueste Version und versuche es dann erneut.",
+  "errorBanner_ok": "OK",
+  "messageList_unreadMessages": "{count, plural, one {{count} ungelesene Nachricht} other {{count} ungelesene Nachrichten}}"
 }

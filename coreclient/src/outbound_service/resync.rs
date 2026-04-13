@@ -22,9 +22,13 @@ use uuid::Uuid;
 use crate::{
     ChatId,
     clients::{CoreUser, api_clients::ApiClients},
-    groups::{Group, ProfileInfo},
+    groups::{Group, ProfileInfo, handle_group_not_found_on_ds},
     job::{operation::OperationData, profile::FetchUserProfileOperation},
-    outbound_service::{OutboundServiceContext, error::OutboundServiceError},
+    outbound_service::{
+        OutboundServiceContext,
+        error::{OutboundServiceError, classify_ds_error, is_ds_not_found_error},
+    },
+    utils::connection_ext::StoreExt,
 };
 
 pub(crate) struct Resync {
@@ -79,23 +83,36 @@ impl OutboundServiceContext {
             };
             info!(?resync.chat_id, "Performing chat resync");
 
-            let mut connection = self.pool.acquire().await?;
-
             let group_id = resync.group_id.clone();
 
-            let profile_infos = match resync
-                .create_and_send_commit(&mut connection, &self.api_clients, self.signing_key())
-                .await
-            {
-                Ok(profile_infos) => {
+            let result = {
+                let mut connection = self.pool.acquire().await?;
+                let result = resync
+                    .create_and_send_commit(&mut connection, &self.api_clients, self.signing_key())
+                    .await;
+                if result.is_ok() {
                     info!("Got profiles infos");
                     Resync::remove(&mut *connection, &group_id).await?;
                     // TODO: Schedule a job here that deals with fetching profile
                     // infos in the background.
-                    profile_infos
                 }
+                result
+            };
+
+            let profile_infos = match result {
+                Ok(profile_infos) => profile_infos,
                 Err(OutboundServiceError::Fatal(error)) => {
+                    if is_ds_not_found_error(&error) {
+                        error!(%error, "Group not found during resync; cleaning up local state");
+                        self.with_transaction_and_notifier(async |txn, notifier| {
+                            handle_group_not_found_on_ds(txn, notifier, &group_id).await
+                        })
+                        .await?;
+                        continue;
+                    }
+
                     error!(%error, "Failed to send resync; dropping");
+                    let mut connection = self.pool.acquire().await?;
                     Resync::remove(&mut *connection, &group_id).await?;
                     return Err(error);
                 }
@@ -105,6 +122,7 @@ impl OutboundServiceContext {
                 }
             };
 
+            let mut connection = self.pool.acquire().await?;
             for ProfileInfo {
                 client_credential,
                 user_profile_key,
@@ -134,10 +152,7 @@ impl Resync {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
         // reflect that in the UI.
 
-        let external_commit_info = self
-            .fetch_group_info(api_clients)
-            .await
-            .map_err(OutboundServiceError::recoverable)?;
+        let external_commit_info = self.fetch_group_info(api_clients).await?;
 
         let original_leaf_index = self.original_leaf_index;
 
@@ -161,18 +176,27 @@ impl Resync {
             group_info,
             original_leaf_index,
         )
-        .await
-        .map_err(OutboundServiceError::recoverable)?;
+        .await?;
 
         Ok(member_profile_infos)
     }
 
-    async fn fetch_group_info(&self, api_clients: &ApiClients) -> Result<ExternalCommitInfoIn> {
-        let qgid: QualifiedGroupId = self.group_id.clone().try_into()?;
-        let api_client = api_clients.get(qgid.owning_domain())?;
+    async fn fetch_group_info(
+        &self,
+        api_clients: &ApiClients,
+    ) -> Result<ExternalCommitInfoIn, OutboundServiceError> {
+        let qgid: QualifiedGroupId = self
+            .group_id
+            .clone()
+            .try_into()
+            .map_err(OutboundServiceError::fatal)?;
+        let api_client = api_clients
+            .get(qgid.owning_domain())
+            .map_err(OutboundServiceError::fatal)?;
         let external_commit_info = api_client
             .ds_external_commit_info(self.group_id.clone(), &self.group_state_ear_key)
-            .await?;
+            .await
+            .map_err(classify_ds_error)?;
 
         Ok(external_commit_info)
     }
@@ -214,9 +238,14 @@ impl Resync {
         commit: MlsMessageOut,
         group_info: MlsMessageOut,
         original_leaf_index: LeafNodeIndex,
-    ) -> Result<()> {
-        let qgid: QualifiedGroupId = group.group_id().try_into()?;
-        let api_client = api_clients.get(qgid.owning_domain())?;
+    ) -> Result<(), OutboundServiceError> {
+        let qgid: QualifiedGroupId = group
+            .group_id()
+            .try_into()
+            .map_err(OutboundServiceError::fatal)?;
+        let api_client = api_clients
+            .get(qgid.owning_domain())
+            .map_err(OutboundServiceError::fatal)?;
 
         api_client
             .ds_resync(
@@ -226,7 +255,8 @@ impl Resync {
                 group.group_state_ear_key(),
                 original_leaf_index,
             )
-            .await?;
+            .await
+            .map_err(classify_ds_error)?;
         Ok(())
     }
 }

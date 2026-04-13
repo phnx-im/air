@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:visibility_detector/visibility_detector.dart';
 import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
@@ -226,8 +225,6 @@ void main() {
       addTearDown(() {
         tester.view.resetPhysicalSize();
       });
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();

@@ -28,36 +28,17 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # Fetch all commit metadata (build number is derived from number of commits)
           fetch-depth: 0
           # Don't download historical file contents (blobs)
           filter: blob:none
-
-      - run: git lfs install && git lfs pull
-
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+  
+      - name: Setup build environment
+        uses: ./.github/actions/setup-buildenv
         with:
-          ruby-version: "3.3"
-
-      - uses: extractions/setup-just@v2
-      - run: just install-fvm
-      - run: echo /Users/runner/fvm/bin >> $GITHUB_PATH
-
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@1.94.0
-
-      - name: Set up iOS CI
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cd app/fastlane && bundle install
-
-      - name: Setup Xcode
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: 26.1.1
+          fastlane: true
 
       - name: Build and upload to TestFlight
         env:
@@ -69,5 +50,5 @@ jobs:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
-        run: |
-          cd app && fastlane ios beta_ios upload_to_test_flight:true --verbose
+        working-directory: app
+        run: bundle exec fastlane ios beta_ios upload_to_test_flight:true --verbose
