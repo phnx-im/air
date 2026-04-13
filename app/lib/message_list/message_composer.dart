@@ -55,7 +55,7 @@ class _MessageComposerState extends State<MessageComposer>
     with WidgetsBindingObserver, TickerProviderStateMixin {
   final TextEditingController _inputController = CustomTextEditingController();
   final Debouncer _storeDraftDebouncer = Debouncer(
-    delay: const Duration(milliseconds: 300),
+    delay: const Duration(seconds: 1),
   );
   StreamSubscription<ChatDetailsState>? _draftLoadingSubscription;
   final _focusNode = FocusNode();

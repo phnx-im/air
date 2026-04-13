@@ -61,9 +61,25 @@ mod persistence {
         }
 
         pub(crate) async fn dequeue(
-            executor: impl SqliteExecutor<'_>,
+            txn: &mut SqliteTransaction<'_>,
             task_id: Uuid,
         ) -> anyhow::Result<Option<(ChatId, MessageId)>> {
+            let Some(message_id) = query_scalar!(
+                r#"
+                SELECT message_id
+                FROM chat_message_queue
+                WHERE locked_by IS NULL OR locked_by != ?1
+                ORDER BY created_at ASC
+                LIMIT 1
+                "#,
+                task_id
+            )
+            .fetch_optional(txn.as_mut())
+            .await?
+            else {
+                return Ok(None);
+            };
+
             struct DequeuedMessage {
                 message_id: Uuid,
                 chat_id: Uuid,
@@ -73,18 +89,13 @@ mod persistence {
                 r#"
                 UPDATE chat_message_queue
                 SET locked_by = ?1
-                WHERE message_id = (
-                    SELECT message_id
-                    FROM chat_message_queue
-                    WHERE locked_by IS NULL OR locked_by != ?1
-                    ORDER BY created_at ASC
-                    LIMIT 1
-                )
+                WHERE message_id = ?2
                 RETURNING message_id AS "message_id: _", chat_id AS "chat_id: _"
                 "#,
-                task_id
+                task_id,
+                message_id
             )
-            .fetch_optional(executor)
+            .fetch_optional(txn.as_mut())
             .await?;
 
             if let Some(DequeuedMessage {
