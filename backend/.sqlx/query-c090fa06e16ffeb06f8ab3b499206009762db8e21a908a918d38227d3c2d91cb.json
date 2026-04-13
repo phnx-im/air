@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT voprf_server AS \"voprf_server: BlobDecoded<VoprfServer<Ristretto255>>\"\n            FROM as_batched_key\n            WHERE token_key_id = $1",
+  "query": "SELECT voprf_server AS \"voprf_server: BlobDecoded<VoprfServer<Ristretto255>>\"\n            FROM as_batched_key\n            WHERE token_key_id = $1 AND operation_type = $2",
   "describe": {
     "columns": [
       {
@@ -11,6 +11,7 @@
     ],
     "parameters": {
       "Left": [
+        "Int2",
         "Int2"
       ]
     },
@@ -18,5 +19,5 @@
       false
     ]
   },
-  "hash": "1f52ade12e1cd920fd90a3bcced57e55812767b665e085ac6fa57b1b8690a5a7"
+  "hash": "c090fa06e16ffeb06f8ab3b499206009762db8e21a908a918d38227d3c2d91cb"
 }

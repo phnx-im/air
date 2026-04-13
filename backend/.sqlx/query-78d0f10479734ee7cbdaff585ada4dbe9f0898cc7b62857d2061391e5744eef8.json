@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n                    remaining,\n                    epoch\n                FROM as_token_allowance\n                WHERE user_uuid = $1 AND user_domain = $2 AND operation_type = $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "remaining",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "epoch",
+        "type_info": "Int2"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "78d0f10479734ee7cbdaff585ada4dbe9f0898cc7b62857d2061391e5744eef8"
+}

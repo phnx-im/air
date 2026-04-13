@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n            token_key_id,\n            operation_type,\n            voprf_server AS \"voprf_server: BlobDecoded<VoprfServer<Ristretto255>>\"\n        FROM as_batched_key\n        ORDER BY created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "token_key_id",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 1,
+        "name": "operation_type",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 2,
+        "name": "voprf_server: BlobDecoded<VoprfServer<Ristretto255>>",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "aa1782821ecbbf1d6adb2768c9212a1a31236a8dc5ddfb4cce4986565a64776f"
+}

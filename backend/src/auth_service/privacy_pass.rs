@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use aircommon::codec::{BlobDecoded, BlobEncoded};
 use airprotos::common::v1::OperationType;
@@ -13,7 +13,7 @@ use privacypass::{
     common::{private::serialize_public_key, store::PrivateKeyStore},
     private_tokens::{Ristretto255, VoprfServer},
 };
-use sqlx::{Acquire, PgConnection, PgExecutor, PgPool};
+use sqlx::{PgConnection, PgExecutor, PgPool};
 use tokio::sync::Mutex;
 use tracing::{error, info};
 
@@ -22,11 +22,19 @@ pub(super) struct AuthServiceBatchedKeyStoreProvider<'a> {
     /// library accesses key store and nonce store sequentially, never
     /// holding borrows on both simultaneously.
     connection: &'a Mutex<&'a mut PgConnection>,
+
+    operation_type: OperationType,
 }
 
 impl<'a> AuthServiceBatchedKeyStoreProvider<'a> {
-    pub(super) fn new(connection: &'a Mutex<&'a mut PgConnection>) -> Self {
-        Self { connection }
+    pub(super) fn new(
+        connection: &'a Mutex<&'a mut PgConnection>,
+        operation_type: OperationType,
+    ) -> Self {
+        Self {
+            connection,
+            operation_type,
+        }
     }
 }
 
@@ -43,10 +51,11 @@ impl PrivateKeyStore for AuthServiceBatchedKeyStoreProvider<'_> {
     ) -> bool {
         let server = BlobEncoded(server);
         match sqlx::query!(
-            "INSERT INTO as_batched_key (token_key_id, voprf_server)
-            VALUES ($1, $2)",
+            "INSERT INTO as_batched_key (token_key_id, voprf_server, operation_type)
+            VALUES ($1, $2, $3)",
             truncated_token_key_id as i16,
-            server as _
+            server as _,
+            self.operation_type as i16,
         )
         .execute(&mut **self.connection.lock().await)
         .await
@@ -68,8 +77,9 @@ impl PrivateKeyStore for AuthServiceBatchedKeyStoreProvider<'_> {
         sqlx::query_scalar!(
             r#"SELECT voprf_server AS "voprf_server: BlobDecoded<VoprfServer<Ristretto255>>"
             FROM as_batched_key
-            WHERE token_key_id = $1"#,
-            token_key_id
+            WHERE token_key_id = $1 AND operation_type = $2"#,
+            token_key_id,
+            self.operation_type as i16,
         )
         .fetch_optional(&mut **self.connection.lock().await)
         .await
@@ -81,8 +91,9 @@ impl PrivateKeyStore for AuthServiceBatchedKeyStoreProvider<'_> {
     async fn remove(&self, truncated_token_key_id: &TruncatedTokenKeyId) -> bool {
         let token_key_id: i16 = (*truncated_token_key_id).into();
         match sqlx::query!(
-            "DELETE FROM as_batched_key WHERE token_key_id = $1",
-            token_key_id
+            "DELETE FROM as_batched_key WHERE token_key_id = $1 AND operation_type = $2",
+            token_key_id,
+            self.operation_type as i16,
         )
         .execute(&mut **self.connection.lock().await)
         .await
@@ -226,25 +237,18 @@ async fn rotate_keys_if_needed_for_operation_type(
         KEY_ROTATION_PERIOD_DAYS as i32
     )
     .fetch_one(pool)
-    .await
-    .map_err(RotateKeysError::Storage)?
+    .await?
     .unwrap_or(true);
 
     let rotated = if needs_rotation {
-        let mut transaction = pool.begin().await.map_err(RotateKeysError::Storage)?;
+        let mut transaction = pool.begin().await?;
         {
             let conn_mutex = Mutex::new(&mut *transaction);
-            let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex);
+            let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, operation_type);
             let server = Server::<Ristretto255>::new();
-            server
-                .create_keypair(&key_store)
-                .await
-                .map_err(RotateKeysError::KeyGeneration)?;
+            server.create_keypair(&key_store).await?;
         }
-        transaction
-            .commit()
-            .await
-            .map_err(RotateKeysError::Storage)?;
+        transaction.commit().await?;
         info!(%operation_type, "created new VOPRF keypair");
         true
     } else {
@@ -278,8 +282,7 @@ async fn rotate_keys_if_needed_for_operation_type(
         max_age_days
     )
     .execute(pool)
-    .await
-    .map_err(RotateKeysError::Storage)?;
+    .await?;
 
     if nonces_removed.rows_affected() > 0 {
         info!(
@@ -294,9 +297,9 @@ async fn rotate_keys_if_needed_for_operation_type(
 #[derive(Debug, thiserror::Error)]
 pub enum RotateKeysError {
     #[error("storage error: {0}")]
-    Storage(sqlx::Error),
+    Storage(#[from] sqlx::Error),
     #[error("key generation error: {0}")]
-    KeyGeneration(privacypass::common::errors::CreateKeypairError),
+    KeyGeneration(#[from] privacypass::common::errors::CreateKeypairError),
 }
 
 // --- Public Key Retrieval ---
@@ -304,6 +307,7 @@ pub enum RotateKeysError {
 /// Batched token key for distribution to clients.
 pub(super) struct BatchedTokenKeyRecord {
     pub(super) token_key_id: u8,
+    pub(super) operation_type: OperationType,
     pub(super) public_key: Vec<u8>,
 }
 
@@ -311,10 +315,10 @@ pub(super) struct BatchedTokenKeyRecord {
 pub(super) async fn load_batched_token_keys(
     pool: &PgPool,
 ) -> Result<Vec<BatchedTokenKeyRecord>, sqlx::Error> {
-    let rows = sqlx::query_as!(
-        BatchedKeyRow,
+    let rows = sqlx::query!(
         r#"SELECT
             token_key_id,
+            operation_type,
             voprf_server AS "voprf_server: BlobDecoded<VoprfServer<Ristretto255>>"
         FROM as_batched_key
         ORDER BY created_at DESC"#
@@ -329,15 +333,12 @@ pub(super) async fn load_batched_token_keys(
                 serialize_public_key::<Ristretto255>(row.voprf_server.0.get_public_key());
             BatchedTokenKeyRecord {
                 token_key_id: row.token_key_id as u8,
+                operation_type: OperationType::try_from(row.operation_type as i32)
+                    .unwrap_or_default(),
                 public_key,
             }
         })
         .collect())
-}
-
-struct BatchedKeyRow {
-    token_key_id: i16,
-    voprf_server: BlobDecoded<VoprfServer<Ristretto255>>,
 }
 
 #[derive(Debug)]
@@ -366,7 +367,7 @@ mod persistence {
     use crate::errors::StorageError;
 
     impl TokenAllowance {
-        pub(in crate::auth_service) async fn store(
+        pub(in crate::auth_service) async fn upsert(
             &self,
             connection: impl PgExecutor<'_>,
             user_id: &UserId,
@@ -378,28 +379,15 @@ mod persistence {
                     operation_type,
                     remaining,
                     epoch
-                ) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING",
-                user_id.uuid(),
-                user_id.domain() as _,
-                self.operation_type as i64,
-                self.remaining,
-                self.epoch,
-            )
-            .execute(connection)
-            .await?;
-            Ok(())
-        }
-
-        pub(in crate::auth_service) async fn update(
-            &self,
-            connection: impl PgExecutor<'_>,
-            user_id: &UserId,
-        ) -> Result<(), StorageError> {
-            query!(
-                "UPDATE as_token_allowance SET
+                ) VALUES($1, $2, $3, $4, $5)
+                ON CONFLICT (
+                    user_uuid,
+                    user_domain,
+                    operation_type
+                ) 
+                DO UPDATE SET
                     remaining = $4,
-                    epoch = $5
-                WHERE user_uuid = $1 AND user_domain = $2 AND operation_type = $3",
+                    epoch = $5",
                 user_id.uuid(),
                 user_id.domain() as _,
                 self.operation_type as i16,
@@ -484,7 +472,8 @@ mod tests {
     async fn insert_get(pool: PgPool) -> anyhow::Result<()> {
         let mut connection = pool.acquire().await?;
         let conn_mutex = Mutex::new(&mut *connection);
-        let provider = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex);
+        let provider =
+            AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, OperationType::AddUsername);
 
         let mut rng = rand::thread_rng();
 
@@ -508,7 +497,8 @@ mod tests {
     async fn no_insert_on_conflict(pool: PgPool) -> anyhow::Result<()> {
         let mut connection = pool.acquire().await?;
         let conn_mutex = Mutex::new(&mut *connection);
-        let provider = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex);
+        let provider =
+            AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, OperationType::AddUsername);
 
         let mut rng = rand::thread_rng();
 
@@ -532,7 +522,8 @@ mod tests {
     async fn remove_key(pool: PgPool) -> anyhow::Result<()> {
         let mut connection = pool.acquire().await?;
         let conn_mutex = Mutex::new(&mut *connection);
-        let provider = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex);
+        let provider =
+            AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, OperationType::AddUsername);
         let mut rng = rand::thread_rng();
 
         let value = VoprfServer::new(&mut rng).unwrap();
@@ -595,7 +586,8 @@ mod tests {
         {
             let mut connection = pool.acquire().await?;
             let conn_mutex = Mutex::new(&mut *connection);
-            let provider = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex);
+            let provider =
+                AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, OperationType::AddUsername);
             let mut rng = rand::thread_rng();
 
             let server_a = VoprfServer::new(&mut rng).unwrap();

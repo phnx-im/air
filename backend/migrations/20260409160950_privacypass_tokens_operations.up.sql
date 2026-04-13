@@ -8,7 +8,10 @@ CREATE TABLE as_token_allowance(
     operation_type SMALLINT NOT NULL,
     remaining INTEGER NOT NULL,
     epoch SMALLINT NOT NULL,
-    FOREIGN KEY (user_uuid, user_domain) REFERENCES as_user_record (user_uuid, user_domain) ON DELETE CASCADE
+    FOREIGN KEY (user_uuid, user_domain) REFERENCES as_user_record (user_uuid, user_domain) ON DELETE CASCADE,
+    CONSTRAINT unique_user_operation UNIQUE (user_uuid, user_domain, operation_type)
 );
 
-ALTER TABLE as_batched_key ADD COLUMN operation_type SMALLINT NOT NULL DEFAULT 0;
+ALTER TABLE as_batched_key
+    ADD COLUMN operation_type SMALLINT NOT NULL DEFAULT 0,
+    ALTER COLUMN operation_type SET DEFAULT NULL;

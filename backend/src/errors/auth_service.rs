@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::time::TimeStamp;
+use privacypass::common::errors::IssueTokenResponseError;
 use thiserror::Error;
 use tonic::Status;
 use tracing::error;
@@ -89,26 +90,28 @@ impl From<PublishConnectionPackageError> for Status {
 pub(crate) enum IssueTokensError {
     /// Storage provider error
     #[error("Storage provider error")]
-    StorageError,
+    StorageError(#[from] StorageError),
     /// Too many tokens
-    #[error("Too many tokens")]
-    TooManyTokens,
-    /// Unknown user
-    #[error("Unknown user")]
-    UnknownUser,
+    #[error("Too many tokens requested")]
+    TooManyTokensRequested,
     /// PrivacyPass protocol error
     #[error("PrivacyPass protocol error")]
-    PrivacyPassError,
+    PrivacyPassError(#[from] IssueTokenResponseError),
+}
+
+impl From<sqlx::Error> for IssueTokensError {
+    fn from(error: sqlx::Error) -> Self {
+        Self::StorageError(StorageError::Database(error.into()))
+    }
 }
 
 impl From<IssueTokensError> for Status {
     fn from(e: IssueTokensError) -> Self {
         let msg = e.to_string();
         match e {
-            IssueTokensError::StorageError => Status::internal(msg),
-            IssueTokensError::TooManyTokens => Status::resource_exhausted(msg),
-            IssueTokensError::UnknownUser => Status::internal(msg),
-            IssueTokensError::PrivacyPassError => Status::internal(msg),
+            IssueTokensError::StorageError(_) => Status::internal(msg),
+            IssueTokensError::TooManyTokensRequested => Status::resource_exhausted(msg),
+            IssueTokensError::PrivacyPassError(_) => Status::internal(msg),
         }
     }
 }

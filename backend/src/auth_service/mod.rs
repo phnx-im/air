@@ -110,8 +110,7 @@ impl BackendService for AuthService {
 
         // Ensure a VOPRF key exists for Privacy Pass (creates one if missing
         // or rotates if the current key is stale).
-        let mut connection = auth_service.db_pool.acquire().await?;
-        privacy_pass::rotate_keys_if_needed(connection.as_mut())
+        privacy_pass::rotate_keys_if_needed(&auth_service.db_pool)
             .await
             .map_err(ServiceCreationError::init_error)?;
 

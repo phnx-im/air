@@ -35,27 +35,18 @@ impl AuthService {
         let tokens_requested = token_request.nr() as i32;
 
         // Start a transaction
-        let mut transaction = self
-            .db_pool
-            .begin()
-            .await
-            .map_err(|_| IssueTokensError::StorageError)?;
+        let mut transaction = self.db_pool.begin().await?;
+
+        // Reset allowance if the epoch (current key) has changed.
+        let current_epoch = load_current_key_id(&mut *transaction, operation_type)
+            .await?
+            .unwrap_or(0);
 
         // Lock the row to prevent concurrent over-issuance.
         let mut token_allowance =
             TokenAllowance::load_for_update(&mut *transaction, user_id, operation_type)
-                .await
-                .map_err(|error| {
-                    error!(%error, "Error loading client record");
-                    IssueTokensError::StorageError
-                })?
-                .ok_or(IssueTokensError::UnknownUser)?;
-
-        // Reset allowance if the epoch (current key) has changed.
-        let current_epoch = load_current_key_id(&mut *transaction, operation_type)
-            .await
-            .map_err(|_| IssueTokensError::StorageError)?
-            .unwrap_or(0);
+                .await?
+                .unwrap_or_else(|| TokenAllowance::new(operation_type, current_epoch));
 
         if token_allowance.epoch != current_epoch {
             token_allowance.remaining = operation_type.tokens_allowance();
@@ -65,33 +56,23 @@ impl AuthService {
         if tokens_requested > token_allowance.remaining
             || tokens_requested > operation_type.max_tokens_per_request()
         {
-            return Err(IssueTokensError::TooManyTokens);
+            return Err(IssueTokensError::TooManyTokensRequested);
         }
 
         let pp_server = Server::<Ristretto255>::new();
         let token_response = {
             let conn_mutex = Mutex::new(&mut *transaction);
-            let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex);
+            let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, operation_type);
             pp_server
                 .issue_token_response(&key_store, token_request)
-                .await
-                .map_err(|_| IssueTokensError::PrivacyPassError)?
+                .await?
         };
 
         // Reduce the token allowance by the number of tokens issued.
         token_allowance.remaining -= tokens_requested;
-        token_allowance
-            .update(&mut *transaction, user_id)
-            .await
-            .map_err(|e| {
-                error!("Error updating client record: {:?}", e);
-                IssueTokensError::StorageError
-            })?;
+        token_allowance.upsert(&mut *transaction, user_id).await?;
 
-        transaction
-            .commit()
-            .await
-            .map_err(|_| IssueTokensError::StorageError)?;
+        transaction.commit().await?;
 
         Ok(token_response)
     }
@@ -106,6 +87,7 @@ impl AuthService {
     pub(crate) async fn as_redeem_token(
         &self,
         token: AmortizedToken<Ristretto255>,
+        operation_type: OperationType,
     ) -> Result<(), RedeemTokenError> {
         let mut conn = self
             .db_pool
@@ -114,7 +96,7 @@ impl AuthService {
             .map_err(|_| RedeemTokenError::StorageError)?;
 
         let conn_mutex = Mutex::new(&mut *conn);
-        let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex);
+        let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, operation_type);
         let nonce_store = AuthServiceNonceStore::new(&conn_mutex);
         let server = Server::<Ristretto255>::new();
 
@@ -138,31 +120,24 @@ impl AuthService {
     pub(crate) async fn as_issue_single_token(
         &self,
         token_request: AmortizedBatchTokenRequest<Ristretto255>,
+        operation_type: OperationType,
     ) -> Result<AmortizedBatchTokenResponse<Ristretto255>, IssueTokensError> {
         if token_request.nr() != 1 {
-            return Err(IssueTokensError::TooManyTokens);
+            return Err(IssueTokensError::TooManyTokensRequested);
         }
 
-        let mut transaction = self
-            .db_pool
-            .begin()
-            .await
-            .map_err(|_| IssueTokensError::StorageError)?;
+        let mut transaction = self.db_pool.begin().await?;
 
         let pp_server = Server::<Ristretto255>::new();
         let token_response = {
             let conn_mutex = Mutex::new(&mut *transaction);
-            let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex);
+            let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, operation_type);
             pp_server
                 .issue_token_response(&key_store, token_request)
-                .await
-                .map_err(|_| IssueTokensError::PrivacyPassError)?
+                .await?
         };
 
-        transaction
-            .commit()
-            .await
-            .map_err(|_| IssueTokensError::StorageError)?;
+        transaction.commit().await?;
 
         Ok(token_response)
     }
@@ -170,6 +145,8 @@ impl AuthService {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use airprotos::common::v1::OperationType;
     use privacypass::{
         amortized_tokens::{AmortizedBatchTokenRequest, server::Server},
@@ -180,9 +157,12 @@ mod tests {
     use sqlx::PgPool;
     use tls_codec::{Deserialize, Serialize};
 
-    use crate::auth_service::{
-        AuthService, client_record::persistence::tests::store_random_client_record,
-        privacy_pass::TokenAllowance,
+    use crate::{
+        auth_service::{
+            AuthService, client_record::persistence::tests::store_random_client_record,
+            privacy_pass::TokenAllowance,
+        },
+        errors::auth_service::IssueTokensError,
     };
 
     use crate::air_service::BackendService;
@@ -194,17 +174,24 @@ mod tests {
     /// returns the public key of the current key.
     async fn setup_with_keypair(
         pool: &PgPool,
-    ) -> anyhow::Result<(AuthService, PublicKey<Ristretto255>)> {
+    ) -> anyhow::Result<(AuthService, HashMap<OperationType, PublicKey<Ristretto255>>)> {
         // initialize() calls rotate_keys_if_needed() which creates the first key.
         let service = AuthService::initialize(pool.clone(), "example.com".parse()?, None).await?;
 
-        let keys = crate::auth_service::privacy_pass::load_batched_token_keys(pool).await?;
-        let first = keys.first().expect("no VOPRF key after init");
-        let public_key = privacypass::common::private::deserialize_public_key::<Ristretto255>(
-            &first.public_key,
-        )?;
+        let public_keys = crate::auth_service::privacy_pass::load_batched_token_keys(pool)
+            .await?
+            .into_iter()
+            .filter_map(|btr| {
+                let public_key =
+                    privacypass::common::private::deserialize_public_key::<Ristretto255>(
+                        &btr.public_key,
+                    )
+                    .ok()?;
+                Some((btr.operation_type, public_key))
+            })
+            .collect();
 
-        Ok((service, public_key))
+        Ok((service, public_keys))
     }
 
     fn build_challenge() -> TokenChallenge {
@@ -219,7 +206,8 @@ mod tests {
     /// Issue a batch of tokens, redeem each one, and verify the allowance is decremented.
     #[sqlx::test]
     async fn issue_and_redeem_tokens(pool: PgPool) -> anyhow::Result<()> {
-        let (service, public_key) = setup_with_keypair(&pool).await?;
+        let (service, public_keys) = setup_with_keypair(&pool).await?;
+        let public_key = *public_keys.get(&OperationType::AddUsername).unwrap();
 
         // Register a user + client record so we have a token allowance.
         let user_record = store_random_user_record(&pool).await?;
@@ -248,7 +236,9 @@ mod tests {
 
         // Server: redeem each token.
         for token in &tokens {
-            service.as_redeem_token(token.clone()).await?;
+            service
+                .as_redeem_token(token.clone(), OperationType::AddUsername)
+                .await?;
         }
 
         // Server: token allowance was decremented.
@@ -265,7 +255,8 @@ mod tests {
     /// Redeeming the same token twice is rejected (double-spend protection).
     #[sqlx::test]
     async fn double_spend_rejected(pool: PgPool) -> anyhow::Result<()> {
-        let (service, public_key) = setup_with_keypair(&pool).await?;
+        let (service, public_keys) = setup_with_keypair(&pool).await?;
+        let public_key = *public_keys.get(&OperationType::GetInviteCode).unwrap();
 
         let user_record = store_random_user_record(&pool).await?;
         let _client_record =
@@ -287,10 +278,14 @@ mod tests {
         let token = tokens.into_iter().next().unwrap();
 
         // First redemption succeeds.
-        service.as_redeem_token(token.clone()).await?;
+        service
+            .as_redeem_token(token.clone(), OperationType::GetInviteCode)
+            .await?;
 
         // Second redemption of the same token fails.
-        let err = service.as_redeem_token(token).await;
+        let err = service
+            .as_redeem_token(token, OperationType::GetInviteCode)
+            .await;
         assert!(err.is_err());
 
         Ok(())
@@ -299,7 +294,8 @@ mod tests {
     /// Requesting more tokens than the per-epoch allowance is rejected.
     #[sqlx::test]
     async fn issue_tokens_exceeds_allowance(pool: PgPool) -> anyhow::Result<()> {
-        let (service, public_key) = setup_with_keypair(&pool).await?;
+        let (service, public_keys) = setup_with_keypair(&pool).await?;
+        let public_key = *public_keys.get(&OperationType::AddUsername).unwrap();
 
         let user_record = store_random_user_record(&pool).await?;
         let _client_record =
@@ -328,7 +324,8 @@ mod tests {
     /// `as_issue_single_token` issues exactly one token without checking allowance.
     #[sqlx::test]
     async fn issue_single_token_for_delete(pool: PgPool) -> anyhow::Result<()> {
-        let (service, public_key) = setup_with_keypair(&pool).await?;
+        let (service, public_keys) = setup_with_keypair(&pool).await?;
+        let public_key = *public_keys.get(&OperationType::GetInviteCode).unwrap();
 
         let challenge = build_challenge();
         let (token_request, token_state) =
@@ -336,14 +333,19 @@ mod tests {
 
         // issue_single_token does NOT check user allowance — it's for handle
         // delete refunds.
-        let token_response = service.as_issue_single_token(token_request).await?;
+        let token_response = service
+            .as_issue_single_token(token_request, OperationType::GetInviteCode)
+            .await?;
 
         let tokens = token_response.issue_tokens(&token_state)?;
         assert_eq!(tokens.len(), 1);
 
         // The issued token is redeemable.
         service
-            .as_redeem_token(tokens.into_iter().next().unwrap())
+            .as_redeem_token(
+                tokens.into_iter().next().unwrap(),
+                OperationType::GetInviteCode,
+            )
             .await?;
 
         Ok(())
@@ -352,13 +354,17 @@ mod tests {
     /// `as_issue_single_token` rejects requests for more than one token.
     #[sqlx::test]
     async fn issue_single_token_rejects_batch(pool: PgPool) -> anyhow::Result<()> {
-        let (service, public_key) = setup_with_keypair(&pool).await?;
+        let (service, public_keys) = setup_with_keypair(&pool).await?;
+        let public_key = *public_keys.get(&OperationType::GetInviteCode).unwrap();
 
         let challenge = build_challenge();
         let (token_request, _token_state) =
             AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, 5)?;
 
-        let err = service.as_issue_single_token(token_request).await;
+        let err = service
+            .as_issue_single_token(token_request, OperationType::GetInviteCode)
+            .await;
+
         assert!(err.is_err());
 
         Ok(())
@@ -370,7 +376,9 @@ mod tests {
     async fn token_roundtrip_through_tls_codec(pool: PgPool) -> anyhow::Result<()> {
         use privacypass::amortized_tokens::AmortizedToken;
 
-        let (service, public_key) = setup_with_keypair(&pool).await?;
+        let (service, public_keys) = setup_with_keypair(&pool).await?;
+        let public_key = *public_keys.get(&OperationType::AddUsername).unwrap();
+
         let user_record = store_random_user_record(&pool).await?;
         let _client_record =
             store_random_client_record(&pool, user_record.user_id().clone()).await?;
@@ -406,7 +414,9 @@ mod tests {
         let deserialized_token =
             AmortizedToken::<Ristretto255>::tls_deserialize_exact(&token_bytes)?;
 
-        service.as_redeem_token(deserialized_token).await?;
+        service
+            .as_redeem_token(deserialized_token, OperationType::AddUsername)
+            .await?;
 
         Ok(())
     }
@@ -414,7 +424,8 @@ mod tests {
     /// Key rotation changes the epoch, resetting the user's token allowance.
     #[sqlx::test]
     async fn epoch_change_resets_allowance(pool: PgPool) -> anyhow::Result<()> {
-        let (service, public_key) = setup_with_keypair(&pool).await?;
+        let (service, public_keys) = setup_with_keypair(&pool).await?;
+        let public_key = *public_keys.get(&OperationType::AddUsername).unwrap();
 
         let user_record = store_random_user_record(&pool).await?;
         let _client_record =
@@ -455,6 +466,7 @@ mod tests {
             let key_store =
                 crate::auth_service::privacy_pass::AuthServiceBatchedKeyStoreProvider::new(
                     &conn_mutex,
+                    OperationType::AddUsername,
                 );
             let server = Server::<Ristretto255>::new();
             server.create_keypair(&key_store).await?
@@ -485,7 +497,7 @@ mod tests {
 
     /// `rotate_keys_if_needed` creates the first key and skips when one is fresh.
     #[sqlx::test]
-    async fn rotate_keys_creates_first_key(pool: PgPool) -> anyhow::Result<()> {
+    async fn rotate_keys_creates_first_keys(pool: PgPool) -> anyhow::Result<()> {
         use crate::auth_service::privacy_pass::{load_batched_token_keys, rotate_keys_if_needed};
 
         // No keys exist yet.
@@ -498,11 +510,41 @@ mod tests {
         assert!(rotated.contains(&OperationType::GetInviteCode));
 
         let keys_after = load_batched_token_keys(&pool).await?;
-        assert_eq!(keys_after.len(), 1);
+        assert_eq!(keys_after.len(), 2);
 
         // Second call: key is fresh, no rotation needed.
         let rotated = rotate_keys_if_needed(&pool).await?;
         assert!(rotated.is_empty());
+
+        Ok(())
+    }
+
+    /// Issuing a token with the wrong operation type should fail
+    #[sqlx::test]
+    async fn public_key_operation_type_mismatch(pool: PgPool) -> anyhow::Result<()> {
+        let (service, public_keys) = setup_with_keypair(&pool).await?;
+        let public_key = *public_keys.get(&OperationType::AddUsername).unwrap();
+
+        let user_record = store_random_user_record(&pool).await?;
+        let _client_record =
+            store_random_client_record(&pool, user_record.user_id().clone()).await?;
+
+        let challenge = build_challenge();
+        let (token_request, _token_state) =
+            AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, 1)?;
+
+        let token_response = service
+            .as_issue_tokens(
+                user_record.user_id(),
+                OperationType::GetInviteCode,
+                token_request,
+            )
+            .await;
+
+        assert!(matches!(
+            token_response,
+            Err(IssueTokensError::PrivacyPassError(_))
+        ));
 
         Ok(())
     }
