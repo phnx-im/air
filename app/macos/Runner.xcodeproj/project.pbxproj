@@ -29,7 +29,6 @@
 		33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC11122044BFA00003C045 /* MainFlutterWindow.swift */; };
 		9CFDA3FB9F31E51D9530B647 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0DB048898303372CDB9CCE77 /* Pods_Runner.framework */; };
 		AEC5BD564E1C3B2202FCC420 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EC479E8A463CE9676BB9E4EB /* Pods_RunnerTests.framework */; };
-		AED7F62B2E8A8FE800448FE8 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = AED7F62A2E8A8FE800448FE8 /* AppIcon.icon */; };
 		C0AF2B922F8CDEB400FA7D8B /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = C0AF2B912F8CDEB400FA7D8B /* AppIcon.icon */; };
 		C0AF2B942F8CDF5F00FA7D8B /* AppIcon-staging.icon in Resources */ = {isa = PBXBuildFile; fileRef = C0AF2B932F8CDF5F00FA7D8B /* AppIcon-staging.icon */; };
 /* End PBXBuildFile section */
@@ -98,7 +97,6 @@
 		963B8919A544A4FDA14FD2C4 /* Pods-Runner.profile-production.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile-production.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile-production.xcconfig"; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		A28B3E5D121D1CC4A5D4785B /* Pods-Runner.profile-staging.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile-staging.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile-staging.xcconfig"; sourceTree = "<group>"; };
-		AED7F62A2E8A8FE800448FE8 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		B1D5F992BD8BBC32D0F8AB40 /* Pods-RunnerTests.debug-staging.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug-staging.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug-staging.xcconfig"; sourceTree = "<group>"; };
 		C0AF2B912F8CDEB400FA7D8B /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; name = AppIcon.icon; path = ../ios/AppIcon.icon; sourceTree = SOURCE_ROOT; };
 		C0AF2B932F8CDF5F00FA7D8B /* AppIcon-staging.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; name = "AppIcon-staging.icon"; path = "../ios/AppIcon-staging.icon"; sourceTree = SOURCE_ROOT; };
@@ -201,7 +199,6 @@
 				33E51914231749380026EE4D /* Release.entitlements */,
 				33CC11242044D66E0003C045 /* Resources */,
 				33BA886A226E78AF003329D5 /* Configs */,
-				AED7F62A2E8A8FE800448FE8 /* AppIcon.icon */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -351,7 +348,6 @@
 				C0AF2B922F8CDEB400FA7D8B /* AppIcon.icon in Resources */,
 				33CC10F62044A3C60003C045 /* MainMenu.xib in Resources */,
 				C0AF2B942F8CDF5F00FA7D8B /* AppIcon-staging.icon in Resources */,
-				AED7F62B2E8A8FE800448FE8 /* AppIcon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -448,9 +444,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
