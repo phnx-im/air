@@ -217,7 +217,7 @@ impl UserCubitBase {
 
     /// Set the display name and/or profile picture of the user.
     pub async fn set_profile(
-        &mut self,
+        &self,
         display_name: Option<String>,
         profile_picture: Option<Vec<u8>>,
     ) -> anyhow::Result<()> {
@@ -329,7 +329,7 @@ impl UserCubitBase {
         let _no_receivers = self.app_state_tx.send(app_state);
     }
 
-    pub async fn add_user_handle(&mut self, user_handle: UiUserHandle) -> anyhow::Result<bool> {
+    pub async fn add_user_handle(&self, user_handle: UiUserHandle) -> anyhow::Result<bool> {
         let user_handle = UserHandle::new(user_handle.plaintext)?;
         let Some(record) = self
             .context
@@ -357,7 +357,7 @@ impl UserCubitBase {
         Ok(true)
     }
 
-    pub async fn remove_user_handle(&mut self, user_handle: UiUserHandle) -> anyhow::Result<()> {
+    pub async fn remove_user_handle(&self, user_handle: UiUserHandle) -> anyhow::Result<()> {
         let user_handle = UserHandle::new(user_handle.plaintext)?;
         self.context
             .core_user

@@ -150,11 +150,11 @@ impl ChatDetailsCubitBase {
     /// Sets the chat picture.
     ///
     /// When `bytes` is `None`, the chat picture is removed.
-    pub async fn set_chat_picture(&mut self, bytes: Option<Vec<u8>>) -> anyhow::Result<()> {
+    pub async fn set_chat_picture(&self, bytes: Option<Vec<u8>>) -> anyhow::Result<()> {
         Store::set_chat_picture(&self.context.store, self.context.chat_id, bytes.clone()).await
     }
 
-    pub async fn set_chat_title(&mut self, title: String) -> anyhow::Result<()> {
+    pub async fn set_chat_title(&self, title: String) -> anyhow::Result<()> {
         Store::set_chat_title(&self.context.store, self.context.chat_id, title).await
     }
 
