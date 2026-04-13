@@ -13,5 +13,5 @@ CREATE TABLE as_token_allowance(
 );
 
 -- we mark existing records as 1 (AddUsername) for backwards compatibility
-ALTER TABLE as_batched_key ADD COLUMN operation_type SMALLINT DEFAULT 1;
+ALTER TABLE as_batched_key ADD COLUMN operation_type SMALLINT NOT NULL DEFAULT 1;
 ALTER TABLE as_batched_key ALTER COLUMN operation_type DROP DEFAULT;
