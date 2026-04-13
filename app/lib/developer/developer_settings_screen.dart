@@ -155,6 +155,14 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                   ],
                   const _SectionHeader("User"),
                   ListTile(
+                    title: const Text("Invitation Codes"),
+                    trailing: const AppIcon.pencil(),
+                    onTap: () =>
+                        context.read<NavigationCubit>().openDeveloperSettings(
+                          screen: DeveloperSettingsScreenType.invitationCodes,
+                        ),
+                  ),
+                  ListTile(
                     title: const Text("Change User"),
                     trailing: const AppIcon.repeat(),
                     onTap: () =>

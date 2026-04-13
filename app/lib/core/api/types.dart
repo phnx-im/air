@@ -79,6 +79,23 @@ class ImageData {
           hash == other.hash;
 }
 
+/// Mirror of the [`InvitationCode`] type
+class InvitationCode {
+  final String code;
+
+  const InvitationCode({required this.code});
+
+  @override
+  int get hashCode => code.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is InvitationCode &&
+          runtimeType == other.runtimeType &&
+          code == other.code;
+}
+
 /// Mirror of the [`MessageId`] type
 class MessageId {
   final UuidValue uuid;
