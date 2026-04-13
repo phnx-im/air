@@ -199,7 +199,7 @@ impl UserCubitBase {
         self.core.is_closed()
     }
 
-    pub fn close(&mut self) {
+    pub fn close(&self) {
         self.core.close();
         self.cancel.cancel();
     }
@@ -209,7 +209,7 @@ impl UserCubitBase {
         self.core.state()
     }
 
-    pub async fn stream(&mut self, sink: StreamSink<UiUser>) {
+    pub async fn stream(&self, sink: StreamSink<UiUser>) {
         self.core.stream(sink).await;
     }
 
