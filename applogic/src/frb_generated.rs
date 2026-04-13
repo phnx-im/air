@@ -386,19 +386,19 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_close_impl(
                     let decode_indices_ =
                         flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
                             flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_that, 0, true,
+                                &api_that, 0, false,
                             ),
                         ]);
                     for i in decode_indices_ {
                         match i {
-                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref_mut()),
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
                             _ => unreachable!(),
                         }
                     }
-                    let mut api_that_guard = api_that_guard.unwrap();
+                    let api_that_guard = api_that_guard.unwrap();
                     let output_ok = Result::<_, ()>::Ok({
                         crate::api::chat_details_cubit::ChatDetailsCubitBase::close(
-                            &mut *api_that_guard,
+                            &*api_that_guard,
                         );
                     })?;
                     Ok(output_ok)
@@ -1072,22 +1072,22 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_set_chat_picture_i
                         let decode_indices_ =
                             flutter_rust_bridge::for_generated::lockable_compute_decode_order(
                                 vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, true,
+                                    &api_that, 0, false,
                                 )],
                             );
                         for i in decode_indices_ {
                             match i {
                                 0 => {
                                     api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref_mut().await)
+                                        Some(api_that.lockable_decode_async_ref().await)
                                 }
                                 _ => unreachable!(),
                             }
                         }
-                        let mut api_that_guard = api_that_guard.unwrap();
+                        let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
                             crate::api::chat_details_cubit::ChatDetailsCubitBase::set_chat_picture(
-                                &mut *api_that_guard,
+                                &*api_that_guard,
                                 api_bytes,
                             )
                             .await?;
@@ -1133,22 +1133,22 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_set_chat_title_imp
                         let decode_indices_ =
                             flutter_rust_bridge::for_generated::lockable_compute_decode_order(
                                 vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, true,
+                                    &api_that, 0, false,
                                 )],
                             );
                         for i in decode_indices_ {
                             match i {
                                 0 => {
                                     api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref_mut().await)
+                                        Some(api_that.lockable_decode_async_ref().await)
                                 }
                                 _ => unreachable!(),
                             }
                         }
-                        let mut api_that_guard = api_that_guard.unwrap();
+                        let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
                             crate::api::chat_details_cubit::ChatDetailsCubitBase::set_chat_title(
-                                &mut *api_that_guard,
+                                &*api_that_guard,
                                 api_title,
                             )
                             .await?;
@@ -1308,22 +1308,22 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_stream_impl(
                         let decode_indices_ =
                             flutter_rust_bridge::for_generated::lockable_compute_decode_order(
                                 vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, true,
+                                    &api_that, 0, false,
                                 )],
                             );
                         for i in decode_indices_ {
                             match i {
                                 0 => {
                                     api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref_mut().await)
+                                        Some(api_that.lockable_decode_async_ref().await)
                                 }
                                 _ => unreachable!(),
                             }
                         }
-                        let mut api_that_guard = api_that_guard.unwrap();
+                        let api_that_guard = api_that_guard.unwrap();
                         let output_ok = Result::<_, ()>::Ok({
                             crate::api::chat_details_cubit::ChatDetailsCubitBase::stream(
-                                &mut *api_that_guard,
+                                &*api_that_guard,
                                 api_sink,
                             )
                             .await;
@@ -1393,18 +1393,18 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_close_impl(
                     let decode_indices_ =
                         flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
                             flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_that, 0, true,
+                                &api_that, 0, false,
                             ),
                         ]);
                     for i in decode_indices_ {
                         match i {
-                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref_mut()),
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
                             _ => unreachable!(),
                         }
                     }
-                    let mut api_that_guard = api_that_guard.unwrap();
+                    let api_that_guard = api_that_guard.unwrap();
                     let output_ok = Result::<_, ()>::Ok({
-                        crate::api::chat_list_cubit::ChatListCubitBase::close(&mut *api_that_guard);
+                        crate::api::chat_list_cubit::ChatListCubitBase::close(&*api_that_guard);
                     })?;
                     Ok(output_ok)
                 })())
@@ -1721,22 +1721,22 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_stream_impl(
                         let decode_indices_ =
                             flutter_rust_bridge::for_generated::lockable_compute_decode_order(
                                 vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, true,
+                                    &api_that, 0, false,
                                 )],
                             );
                         for i in decode_indices_ {
                             match i {
                                 0 => {
                                     api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref_mut().await)
+                                        Some(api_that.lockable_decode_async_ref().await)
                                 }
                                 _ => unreachable!(),
                             }
                         }
-                        let mut api_that_guard = api_that_guard.unwrap();
+                        let api_that_guard = api_that_guard.unwrap();
                         let output_ok = Result::<_, ()>::Ok({
                             crate::api::chat_list_cubit::ChatListCubitBase::stream(
-                                &mut *api_that_guard,
+                                &*api_that_guard,
                                 api_sink,
                             )
                             .await;
@@ -1930,19 +1930,19 @@ fn wire__crate__api__member_details_cubit__MemberDetailsCubitBase_close_impl(
                     let decode_indices_ =
                         flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
                             flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_that, 0, true,
+                                &api_that, 0, false,
                             ),
                         ]);
                     for i in decode_indices_ {
                         match i {
-                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref_mut()),
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
                             _ => unreachable!(),
                         }
                     }
-                    let mut api_that_guard = api_that_guard.unwrap();
+                    let api_that_guard = api_that_guard.unwrap();
                     let output_ok = Result::<_, ()>::Ok({
                         crate::api::member_details_cubit::MemberDetailsCubitBase::close(
-                            &mut *api_that_guard,
+                            &*api_that_guard,
                         );
                     })?;
                     Ok(output_ok)
@@ -2142,22 +2142,22 @@ fn wire__crate__api__member_details_cubit__MemberDetailsCubitBase_stream_impl(
                         let decode_indices_ =
                             flutter_rust_bridge::for_generated::lockable_compute_decode_order(
                                 vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, true,
+                                    &api_that, 0, false,
                                 )],
                             );
                         for i in decode_indices_ {
                             match i {
                                 0 => {
                                     api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref_mut().await)
+                                        Some(api_that.lockable_decode_async_ref().await)
                                 }
                                 _ => unreachable!(),
                             }
                         }
-                        let mut api_that_guard = api_that_guard.unwrap();
+                        let api_that_guard = api_that_guard.unwrap();
                         let output_ok = Result::<_, ()>::Ok({
                             crate::api::member_details_cubit::MemberDetailsCubitBase::stream(
-                                &mut *api_that_guard,
+                                &*api_that_guard,
                                 api_sink,
                             )
                             .await;
@@ -2202,18 +2202,18 @@ fn wire__crate__api__message_cubit__MessageCubitBase_close_impl(
                     let decode_indices_ =
                         flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
                             flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_that, 0, true,
+                                &api_that, 0, false,
                             ),
                         ]);
                     for i in decode_indices_ {
                         match i {
-                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref_mut()),
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
                             _ => unreachable!(),
                         }
                     }
-                    let mut api_that_guard = api_that_guard.unwrap();
+                    let api_that_guard = api_that_guard.unwrap();
                     let output_ok = Result::<_, ()>::Ok({
-                        crate::api::message_cubit::MessageCubitBase::close(&mut *api_that_guard);
+                        crate::api::message_cubit::MessageCubitBase::close(&*api_that_guard);
                     })?;
                     Ok(output_ok)
                 })())
@@ -2408,22 +2408,22 @@ fn wire__crate__api__message_cubit__MessageCubitBase_stream_impl(
                         let decode_indices_ =
                             flutter_rust_bridge::for_generated::lockable_compute_decode_order(
                                 vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, true,
+                                    &api_that, 0, false,
                                 )],
                             );
                         for i in decode_indices_ {
                             match i {
                                 0 => {
                                     api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref_mut().await)
+                                        Some(api_that.lockable_decode_async_ref().await)
                                 }
                                 _ => unreachable!(),
                             }
                         }
-                        let mut api_that_guard = api_that_guard.unwrap();
+                        let api_that_guard = api_that_guard.unwrap();
                         let output_ok = Result::<_, ()>::Ok({
                             crate::api::message_cubit::MessageCubitBase::stream(
-                                &mut *api_that_guard,
+                                &*api_that_guard,
                                 api_sink,
                             )
                             .await;
@@ -2468,19 +2468,19 @@ fn wire__crate__api__message_list_cubit__MessageListCubitBase_close_impl(
                     let decode_indices_ =
                         flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
                             flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_that, 0, true,
+                                &api_that, 0, false,
                             ),
                         ]);
                     for i in decode_indices_ {
                         match i {
-                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref_mut()),
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
                             _ => unreachable!(),
                         }
                     }
-                    let mut api_that_guard = api_that_guard.unwrap();
+                    let api_that_guard = api_that_guard.unwrap();
                     let output_ok = Result::<_, ()>::Ok({
                         crate::api::message_list_cubit::MessageListCubitBase::close(
-                            &mut *api_that_guard,
+                            &*api_that_guard,
                         );
                     })?;
                     Ok(output_ok)
@@ -2892,22 +2892,22 @@ fn wire__crate__api__message_list_cubit__MessageListCubitBase_stream_impl(
                         let decode_indices_ =
                             flutter_rust_bridge::for_generated::lockable_compute_decode_order(
                                 vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, true,
+                                    &api_that, 0, false,
                                 )],
                             );
                         for i in decode_indices_ {
                             match i {
                                 0 => {
                                     api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref_mut().await)
+                                        Some(api_that.lockable_decode_async_ref().await)
                                 }
                                 _ => unreachable!(),
                             }
                         }
-                        let mut api_that_guard = api_that_guard.unwrap();
+                        let api_that_guard = api_that_guard.unwrap();
                         let output_ok = Result::<_, ()>::Ok({
                             crate::api::message_list_cubit::MessageListCubitBase::stream(
-                                &mut *api_that_guard,
+                                &*api_that_guard,
                                 api_sink,
                             )
                             .await;
@@ -3240,20 +3240,18 @@ fn wire__crate__api__navigation_cubit__NavigationCubitBase_close_impl(
                     let decode_indices_ =
                         flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
                             flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_that, 0, true,
+                                &api_that, 0, false,
                             ),
                         ]);
                     for i in decode_indices_ {
                         match i {
-                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref_mut()),
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
                             _ => unreachable!(),
                         }
                     }
-                    let mut api_that_guard = api_that_guard.unwrap();
+                    let api_that_guard = api_that_guard.unwrap();
                     let output_ok = Result::<_, ()>::Ok({
-                        crate::api::navigation_cubit::NavigationCubitBase::close(
-                            &mut *api_that_guard,
-                        );
+                        crate::api::navigation_cubit::NavigationCubitBase::close(&*api_that_guard);
                     })?;
                     Ok(output_ok)
                 })())
@@ -4151,22 +4149,22 @@ fn wire__crate__api__navigation_cubit__NavigationCubitBase_stream_impl(
                         let decode_indices_ =
                             flutter_rust_bridge::for_generated::lockable_compute_decode_order(
                                 vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, true,
+                                    &api_that, 0, false,
                                 )],
                             );
                         for i in decode_indices_ {
                             match i {
                                 0 => {
                                     api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref_mut().await)
+                                        Some(api_that.lockable_decode_async_ref().await)
                                 }
                                 _ => unreachable!(),
                             }
                         }
-                        let mut api_that_guard = api_that_guard.unwrap();
+                        let api_that_guard = api_that_guard.unwrap();
                         let output_ok = Result::<_, ()>::Ok({
                             crate::api::navigation_cubit::NavigationCubitBase::stream(
-                                &mut *api_that_guard,
+                                &*api_that_guard,
                                 api_sink,
                             )
                             .await;
@@ -4470,21 +4468,21 @@ fn wire__crate__api__user_cubit__UserCubitBase_add_user_handle_impl(
                         let decode_indices_ =
                             flutter_rust_bridge::for_generated::lockable_compute_decode_order(
                                 vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, true,
+                                    &api_that, 0, false,
                                 )],
                             );
                         for i in decode_indices_ {
                             match i {
                                 0 => {
                                     api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref_mut().await)
+                                        Some(api_that.lockable_decode_async_ref().await)
                                 }
                                 _ => unreachable!(),
                             }
                         }
-                        let mut api_that_guard = api_that_guard.unwrap();
+                        let api_that_guard = api_that_guard.unwrap();
                         let output_ok = crate::api::user_cubit::UserCubitBase::add_user_handle(
-                            &mut *api_that_guard,
+                            &*api_that_guard,
                             api_user_handle,
                         )
                         .await?;
@@ -4770,18 +4768,18 @@ fn wire__crate__api__user_cubit__UserCubitBase_close_impl(
                     let decode_indices_ =
                         flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
                             flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_that, 0, true,
+                                &api_that, 0, false,
                             ),
                         ]);
                     for i in decode_indices_ {
                         match i {
-                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref_mut()),
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
                             _ => unreachable!(),
                         }
                     }
-                    let mut api_that_guard = api_that_guard.unwrap();
+                    let api_that_guard = api_that_guard.unwrap();
                     let output_ok = Result::<_, ()>::Ok({
-                        crate::api::user_cubit::UserCubitBase::close(&mut *api_that_guard);
+                        crate::api::user_cubit::UserCubitBase::close(&*api_that_guard);
                     })?;
                     Ok(output_ok)
                 })())
@@ -5293,21 +5291,21 @@ fn wire__crate__api__user_cubit__UserCubitBase_remove_user_handle_impl(
                         let decode_indices_ =
                             flutter_rust_bridge::for_generated::lockable_compute_decode_order(
                                 vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, true,
+                                    &api_that, 0, false,
                                 )],
                             );
                         for i in decode_indices_ {
                             match i {
                                 0 => {
                                     api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref_mut().await)
+                                        Some(api_that.lockable_decode_async_ref().await)
                                 }
                                 _ => unreachable!(),
                             }
                         }
-                        let mut api_that_guard = api_that_guard.unwrap();
+                        let api_that_guard = api_that_guard.unwrap();
                         let output_ok = crate::api::user_cubit::UserCubitBase::remove_user_handle(
-                            &mut *api_that_guard,
+                            &*api_that_guard,
                             api_user_handle,
                         )
                         .await?;
@@ -5529,21 +5527,21 @@ fn wire__crate__api__user_cubit__UserCubitBase_set_profile_impl(
                         let decode_indices_ =
                             flutter_rust_bridge::for_generated::lockable_compute_decode_order(
                                 vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, true,
+                                    &api_that, 0, false,
                                 )],
                             );
                         for i in decode_indices_ {
                             match i {
                                 0 => {
                                     api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref_mut().await)
+                                        Some(api_that.lockable_decode_async_ref().await)
                                 }
                                 _ => unreachable!(),
                             }
                         }
-                        let mut api_that_guard = api_that_guard.unwrap();
+                        let api_that_guard = api_that_guard.unwrap();
                         let output_ok = crate::api::user_cubit::UserCubitBase::set_profile(
-                            &mut *api_that_guard,
+                            &*api_that_guard,
                             api_display_name,
                             api_profile_picture,
                         )
@@ -5641,22 +5639,22 @@ fn wire__crate__api__user_cubit__UserCubitBase_stream_impl(
                         let decode_indices_ =
                             flutter_rust_bridge::for_generated::lockable_compute_decode_order(
                                 vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, true,
+                                    &api_that, 0, false,
                                 )],
                             );
                         for i in decode_indices_ {
                             match i {
                                 0 => {
                                     api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref_mut().await)
+                                        Some(api_that.lockable_decode_async_ref().await)
                                 }
                                 _ => unreachable!(),
                             }
                         }
-                        let mut api_that_guard = api_that_guard.unwrap();
+                        let api_that_guard = api_that_guard.unwrap();
                         let output_ok = Result::<_, ()>::Ok({
                             crate::api::user_cubit::UserCubitBase::stream(
-                                &mut *api_that_guard,
+                                &*api_that_guard,
                                 api_sink,
                             )
                             .await;
@@ -5761,19 +5759,19 @@ fn wire__crate__api__user_settings_cubit__UserSettingsCubitBase_close_impl(
                     let decode_indices_ =
                         flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
                             flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_that, 0, true,
+                                &api_that, 0, false,
                             ),
                         ]);
                     for i in decode_indices_ {
                         match i {
-                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref_mut()),
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
                             _ => unreachable!(),
                         }
                     }
-                    let mut api_that_guard = api_that_guard.unwrap();
+                    let api_that_guard = api_that_guard.unwrap();
                     let output_ok = Result::<_, ()>::Ok({
                         crate::api::user_settings_cubit::UserSettingsCubitBase::close(
-                            &mut *api_that_guard,
+                            &*api_that_guard,
                         );
                     })?;
                     Ok(output_ok)
@@ -6275,22 +6273,22 @@ fn wire__crate__api__user_settings_cubit__UserSettingsCubitBase_stream_impl(
                         let decode_indices_ =
                             flutter_rust_bridge::for_generated::lockable_compute_decode_order(
                                 vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, true,
+                                    &api_that, 0, false,
                                 )],
                             );
                         for i in decode_indices_ {
                             match i {
                                 0 => {
                                     api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref_mut().await)
+                                        Some(api_that.lockable_decode_async_ref().await)
                                 }
                                 _ => unreachable!(),
                             }
                         }
-                        let mut api_that_guard = api_that_guard.unwrap();
+                        let api_that_guard = api_that_guard.unwrap();
                         let output_ok = Result::<_, ()>::Ok({
                             crate::api::user_settings_cubit::UserSettingsCubitBase::stream(
-                                &mut *api_that_guard,
+                                &*api_that_guard,
                                 api_sink,
                             )
                             .await;
@@ -6719,18 +6717,18 @@ fn wire__crate__api__users_cubit__UsersCubitBase_close_impl(
                     let decode_indices_ =
                         flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
                             flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_that, 0, true,
+                                &api_that, 0, false,
                             ),
                         ]);
                     for i in decode_indices_ {
                         match i {
-                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref_mut()),
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
                             _ => unreachable!(),
                         }
                     }
-                    let mut api_that_guard = api_that_guard.unwrap();
+                    let api_that_guard = api_that_guard.unwrap();
                     let output_ok = Result::<_, ()>::Ok({
-                        crate::api::users_cubit::UsersCubitBase::close(&mut *api_that_guard);
+                        crate::api::users_cubit::UsersCubitBase::close(&*api_that_guard);
                     })?;
                     Ok(output_ok)
                 })())
@@ -6921,22 +6919,22 @@ fn wire__crate__api__users_cubit__UsersCubitBase_stream_impl(
                         let decode_indices_ =
                             flutter_rust_bridge::for_generated::lockable_compute_decode_order(
                                 vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, true,
+                                    &api_that, 0, false,
                                 )],
                             );
                         for i in decode_indices_ {
                             match i {
                                 0 => {
                                     api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref_mut().await)
+                                        Some(api_that.lockable_decode_async_ref().await)
                                 }
                                 _ => unreachable!(),
                             }
                         }
-                        let mut api_that_guard = api_that_guard.unwrap();
+                        let api_that_guard = api_that_guard.unwrap();
                         let output_ok = Result::<_, ()>::Ok({
                             crate::api::users_cubit::UsersCubitBase::stream(
-                                &mut *api_that_guard,
+                                &*api_that_guard,
                                 api_sink,
                             )
                             .await;
