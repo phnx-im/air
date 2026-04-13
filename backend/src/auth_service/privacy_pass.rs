@@ -51,11 +51,11 @@ impl PrivateKeyStore for AuthServiceBatchedKeyStoreProvider<'_> {
     ) -> bool {
         let server = BlobEncoded(server);
         match sqlx::query!(
-            "INSERT INTO as_batched_key (token_key_id, voprf_server, operation_type)
+            "INSERT INTO as_batched_key (token_key_id, operation_type, voprf_server)
             VALUES ($1, $2, $3)",
             truncated_token_key_id as i16,
-            server as _,
             self.operation_type as i16,
+            server as _,
         )
         .execute(&mut **self.connection.lock().await)
         .await

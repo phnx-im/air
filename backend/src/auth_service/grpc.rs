@@ -410,25 +410,18 @@ impl auth_service_server::AuthService for GrpcAs {
         request: Request<IssueTokensRequest>,
     ) -> Result<Response<IssueTokensResponse>, Status> {
         let request = request.into_inner();
-        let (
-            user_id,
-            IssueTokensPayload {
-                client_metadata,
-                user_id: _,
-                operation_type,
-                token_request,
-            },
-        ) = self
+        let (user_id, payload) = self
             .verify_user_auth::<_, IssueTokensPayload>(request)
             .await?;
-        self.verify_client_version(client_metadata.as_ref())?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
 
-        let operation_type = operation_type
+        let operation_type = payload
+            .operation_type
             .try_into()
             .map_err(|_| Status::invalid_argument("invalid operation type"))?;
 
         let token_request: AmortizedBatchTokenRequest<Ristretto255> =
-            AmortizedBatchTokenRequest::tls_deserialize_exact(token_request.as_slice())
+            AmortizedBatchTokenRequest::tls_deserialize_exact(payload.token_request.as_slice())
                 .map_err(|_| Status::invalid_argument("invalid token request"))?;
         let token_response = self
             .inner
