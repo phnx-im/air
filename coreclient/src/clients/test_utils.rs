@@ -3,9 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 use openmls::group::Member;
 
+use aircommon::identifiers::QualifiedGroupId;
+use openmls::prelude::GroupId;
+use uuid::Uuid;
+
 use crate::{
     job::pending_chat_operation::test_utils::PendingChatOperationInfo,
-    utils::connection_ext::ConnectionExt as _,
+    outbound_service::resync::Resync, utils::connection_ext::ConnectionExt as _,
 };
 
 use super::*;
@@ -61,6 +65,38 @@ impl CoreUser {
         let chat = Chat::load(&mut connection, &chat_id).await.ok()??;
         let group = Group::load(&mut connection, chat.group_id()).await.ok()??;
         Some(group.members().collect())
+    }
+
+    /// Enqueues a resync with a fabricated group_id that does not exist on the
+    /// server. Uses the real group's keys so the request reaches the server and
+    /// gets a "not found" response.
+    pub async fn enqueue_resync_for_nonexistent_group(
+        &self,
+        chat_id: ChatId,
+        domain: &str,
+    ) -> anyhow::Result<()> {
+        let mut connection = self.pool().acquire().await?;
+        let group = Group::load_with_chat_id(connection.as_mut(), chat_id)
+            .await?
+            .context("group not found")?;
+
+        let fake_qgid = QualifiedGroupId::new(Uuid::new_v4(), domain.parse()?);
+        let fake_group_id: GroupId = fake_qgid.into();
+
+        let resync = Resync {
+            chat_id,
+            group_id: fake_group_id,
+            group_state_ear_key: group.group_state_ear_key().clone(),
+            identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
+            original_leaf_index: group.own_index(),
+        };
+        resync.enqueue(&mut *connection).await?;
+        Ok(())
+    }
+
+    pub async fn is_resync_pending(&self, chat_id: ChatId) -> anyhow::Result<bool> {
+        let mut connection = self.pool().acquire().await?;
+        Ok(Resync::is_pending_for_chat(connection.as_mut(), &chat_id).await?)
     }
 
     /// Returns (operation_type, request_status, number_of_attempts) for the

@@ -16,6 +16,7 @@ use crate::{
         profile::{FetchGroupProfileOperation, FetchUserProfileOperation},
     },
     outbound_service::OutboundServiceContext,
+    utils::connection_ext::StoreExt,
 };
 
 const NUM_RETRIES: usize = 5;
@@ -49,8 +50,11 @@ impl OutboundServiceContext {
         let now = Utc::now();
 
         // fetch user profiles
-        while let Some(op) =
-            Operation::<FetchUserProfileOperation>::dequeue(&self.pool, task_id, now).await?
+        while let Some(op) = self
+            .with_transaction(async |txn| {
+                Operation::<FetchUserProfileOperation>::dequeue(txn, task_id, now).await
+            })
+            .await?
         {
             match self.fetch_profile(op, now).await? {
                 ControlFlow::Continue(_) => (),
@@ -59,8 +63,11 @@ impl OutboundServiceContext {
         }
 
         // fetch group profiles
-        while let Some(op) =
-            Operation::<FetchGroupProfileOperation>::dequeue(&self.pool, task_id, now).await?
+        while let Some(op) = self
+            .with_transaction(async |txn| {
+                Operation::<FetchGroupProfileOperation>::dequeue(txn, task_id, now).await
+            })
+            .await?
         {
             match self.fetch_profile(op, now).await? {
                 ControlFlow::Continue(_) => (),
