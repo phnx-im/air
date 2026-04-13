@@ -358,7 +358,7 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn test_dequeue_concurrency_and_locking(pool: SqlitePool) {
+    async fn test_dequeue_locking(pool: SqlitePool) {
         let mut txn = pool.begin().await.unwrap();
         let data = MockData {
             payload: "lock_test".to_string(),
