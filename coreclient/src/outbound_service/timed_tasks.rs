@@ -240,7 +240,7 @@ impl OutboundServiceContext {
         Ok(Duration::weeks(1))
     }
 
-    /// Ensures the client has Privacy Pass tokens available for handle
+    /// Ensures the client has Privacy Pass tokens available for all
     /// operations. Fetches VOPRF public keys from the server and requests
     /// tokens if the local store is running low.
     ///
@@ -250,16 +250,22 @@ impl OutboundServiceContext {
         use crate::privacy_pass;
 
         let api_client = self.api_clients.default_client()?;
-        let count = privacy_pass::replenish_if_needed(
-            &self.pool,
-            &api_client,
-            self.user_id().clone(),
-            self.signing_key(),
-            OperationType::AddUsername, // TODO: also get for the other types!
-        )
-        .await?;
+        let mut low_count = false;
 
-        if count < privacy_pass::LOW_TOKEN_THRESHOLD {
+        for operation_type in OperationType::all() {
+            let count = privacy_pass::replenish_if_needed(
+                &self.pool,
+                &api_client,
+                self.user_id().clone(),
+                self.signing_key(),
+                operation_type,
+            )
+            .await?;
+
+            low_count = count < privacy_pass::LOW_TOKEN_THRESHOLD;
+        }
+
+        if low_count {
             Ok(Duration::minutes(5))
         } else {
             Ok(Duration::hours(6))
