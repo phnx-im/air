@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT token_key_id, public_key FROM batched_token_key ORDER BY token_key_id DESC",
+  "query": "\n        SELECT token_key_id, public_key\n        FROM batched_token_key\n        WHERE operation_type = ?\n        ORDER BY token_key_id DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -15,12 +15,12 @@
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 1
     },
     "nullable": [
       false,
       false
     ]
   },
-  "hash": "ef5ba4c42db92cfd67ec8e48ed64e4b6960a5c21d14e44aa48375a7ded14064c"
+  "hash": "5ce745516994c255b99db2d1157cbc6b9a67a2d98ba74d12edd509b6021d074a"
 }

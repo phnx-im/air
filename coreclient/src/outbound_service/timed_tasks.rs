@@ -191,17 +191,19 @@ impl OutboundServiceContext {
         if !handles.is_empty() {
             let api_client = self.api_clients.default_client()?;
             for handle in handles {
-                let token = match privacy_pass::consume_token(&self.pool).await {
-                    Ok(Some(t)) => t,
-                    Ok(None) => {
-                        info!("skipping handle refresh: no tokens available");
-                        break;
-                    }
-                    Err(e) => {
-                        error!(%e, "failed to consume token for handle refresh");
-                        break;
-                    }
-                };
+                let token =
+                    match privacy_pass::consume_token(&self.pool, OperationType::AddUsername).await
+                    {
+                        Ok(Some(t)) => t,
+                        Ok(None) => {
+                            info!("skipping handle refresh: no tokens available");
+                            break;
+                        }
+                        Err(e) => {
+                            error!(%e, "failed to consume token for handle refresh");
+                            break;
+                        }
+                    };
                 info!("refreshing handle");
                 let result = api_client
                     .as_refresh_handle(handle.hash, &handle.signing_key, token)
@@ -214,6 +216,7 @@ impl OutboundServiceContext {
                             &self.pool,
                             &api_client,
                             self.user_id().clone(),
+                            OperationType::AddUsername,
                             self.signing_key(),
                         )
                         .await?;

@@ -12,6 +12,6 @@ CREATE TABLE as_token_allowance(
     CONSTRAINT unique_user_operation UNIQUE (user_uuid, user_domain, operation_type)
 );
 
-ALTER TABLE as_batched_key
-    ADD COLUMN operation_type SMALLINT NOT NULL DEFAULT 0,
-    ALTER COLUMN operation_type SET DEFAULT NULL;
+-- we mark existing records as 1 (AddUsername) for backwards compatibility
+ALTER TABLE as_batched_key ADD COLUMN operation_type SMALLINT DEFAULT 1;
+ALTER TABLE as_batched_key ALTER COLUMN operation_type DROP DEFAULT;

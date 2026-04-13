@@ -57,7 +57,8 @@ impl CoreUser {
         let created = match result {
             Err(e) if e.is_unknown_token_key_id() => {
                 warn!("unknown token key ID, purging stale tokens");
-                self.purge_and_replenish_tokens(&api_client).await?;
+                self.purge_and_replenish_tokens(&api_client, OperationType::AddUsername)
+                    .await?;
                 anyhow::bail!("token key rotated; replenished — retry to use decorrelated tokens")
             }
             other => other?,
@@ -186,7 +187,7 @@ impl CoreUser {
         api_client: &ApiClient,
         operation_type: OperationType,
     ) -> anyhow::Result<SerializedToken> {
-        if let Some(token) = privacy_pass::consume_token(self.pool()).await? {
+        if let Some(token) = privacy_pass::consume_token(self.pool(), operation_type).await? {
             return Ok(token);
         }
 
@@ -212,11 +213,16 @@ impl CoreUser {
     ///
     /// Does NOT consume a token immediately — the caller should retry later
     /// to maintain timing decorrelation between issuance and redemption.
-    async fn purge_and_replenish_tokens(&self, api_client: &ApiClient) -> anyhow::Result<()> {
+    async fn purge_and_replenish_tokens(
+        &self,
+        api_client: &ApiClient,
+        operation_type: OperationType,
+    ) -> anyhow::Result<()> {
         privacy_pass::purge_and_replenish(
             self.pool(),
             api_client,
             self.user_id().clone(),
+            operation_type,
             self.signing_key(),
         )
         .await

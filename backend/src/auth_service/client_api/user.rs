@@ -9,7 +9,6 @@ use aircommon::{
     messages::{client_as::RegisterUserResponse, client_as_out::RegisterUserParamsIn},
     time::TimeStamp,
 };
-use airprotos::common::v1::OperationType;
 use tracing::error;
 
 use crate::{

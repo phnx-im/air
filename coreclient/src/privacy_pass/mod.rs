@@ -10,7 +10,7 @@ use aircommon::{
         BatchedTokenKeyResponse, SerializedToken, SerializedTokenRequest, SerializedTokenResponse,
     },
 };
-use airprotos::{VariantArray, common::v1::OperationType};
+use airprotos::common::v1::OperationType;
 use privacypass::{
     TokenType,
     amortized_tokens::{AmortizedBatchTokenRequest, AmortizedBatchTokenResponse},
@@ -61,7 +61,7 @@ async fn request_tokens_inner(
     operation_type: OperationType,
     count: u16,
 ) -> anyhow::Result<usize> {
-    let keys = persistence::load_batched_token_keys(pool).await?;
+    let keys = persistence::load_batched_token_keys(pool, operation_type).await?;
     let (_, pk_bytes) = keys
         .first()
         .ok_or_else(|| anyhow::anyhow!("no VOPRF public keys available"))?;
@@ -94,7 +94,7 @@ async fn request_tokens_inner(
     let mut tx = pool.begin().await?;
     for token in tokens {
         let token_bytes = token.tls_serialize_detached()?;
-        persistence::store_token(&mut *tx, &token_bytes).await?;
+        persistence::store_token(&mut *tx, operation_type, &token_bytes).await?;
     }
     tx.commit().await?;
 
@@ -102,15 +102,21 @@ async fn request_tokens_inner(
 }
 
 /// Consumes one token from local storage.
-pub(crate) async fn consume_token(pool: &SqlitePool) -> anyhow::Result<Option<SerializedToken>> {
-    Ok(persistence::consume_token(pool)
+pub(crate) async fn consume_token(
+    pool: &SqlitePool,
+    operation_type: OperationType,
+) -> anyhow::Result<Option<SerializedToken>> {
+    Ok(persistence::consume_token(pool, operation_type)
         .await?
         .map(SerializedToken::new))
 }
 
 /// Returns the number of locally stored tokens.
-pub(crate) async fn token_count(pool: &SqlitePool) -> anyhow::Result<i64> {
-    Ok(persistence::token_count(pool).await?)
+pub(crate) async fn token_count(
+    pool: &SqlitePool,
+    operation_type: OperationType,
+) -> anyhow::Result<i64> {
+    Ok(persistence::token_count(pool, operation_type).await?)
 }
 
 /// Stores batched token keys received from the AS credentials response.
@@ -120,11 +126,12 @@ pub(crate) async fn token_count(pool: &SqlitePool) -> anyhow::Result<i64> {
 /// no longer redeemable.
 pub(crate) async fn store_batched_token_keys(
     pool: &SqlitePool,
+    operation_type: OperationType,
     keys: &[BatchedTokenKeyResponse],
 ) -> anyhow::Result<()> {
     use std::collections::BTreeSet;
 
-    let existing = persistence::load_batched_token_keys(pool).await?;
+    let existing = persistence::load_batched_token_keys(pool, operation_type).await?;
     let existing_ids: BTreeSet<u8> = existing.iter().map(|(id, _)| *id).collect();
     let new_ids: BTreeSet<u8> = keys.iter().map(|k| k.token_key_id).collect();
 
@@ -132,18 +139,24 @@ pub(crate) async fn store_batched_token_keys(
         return Ok(());
     }
 
-    let discarded = persistence::token_count(pool).await?;
+    let discarded = persistence::token_count(pool, operation_type).await?;
     info!(
         ?existing_ids,
         ?new_ids,
         %discarded,
         "VOPRF key set changed, discarding cached tokens"
     );
-    persistence::delete_all_tokens(pool).await?;
-    persistence::delete_all_batched_token_keys(pool).await?;
+    persistence::delete_all_tokens(pool, operation_type).await?;
+    persistence::delete_all_batched_token_keys(pool, operation_type).await?;
 
     for key in keys {
-        persistence::store_batched_token_key(pool, key.token_key_id, &key.public_key).await?;
+        persistence::store_batched_token_key(
+            pool,
+            key.token_key_id,
+            operation_type,
+            &key.public_key,
+        )
+        .await?;
     }
     Ok(())
 }
@@ -156,7 +169,7 @@ pub(crate) async fn prepare_delete_token_request(
     pool: &SqlitePool,
     domain: &Fqdn,
 ) -> anyhow::Result<Option<(SerializedTokenRequest, TokenState)>> {
-    let keys = persistence::load_batched_token_keys(pool).await?;
+    let keys = persistence::load_batched_token_keys(pool, OperationType::AddUsername).await?;
     let Some((_, pk_bytes)) = keys.first() else {
         return Ok(None);
     };
@@ -192,7 +205,7 @@ pub(crate) async fn finalize_delete_token_response(
     let tokens = token_response.issue_tokens(&token_state.0)?;
     for token in tokens {
         let token_bytes = token.tls_serialize_detached()?;
-        persistence::store_token(pool, &token_bytes).await?;
+        persistence::store_token(pool, OperationType::AddUsername, &token_bytes).await?;
     }
     Ok(())
 }
@@ -215,9 +228,14 @@ pub(crate) async fn replenish_if_needed(
     operation_type: OperationType,
 ) -> anyhow::Result<i64> {
     let credentials_response = api_client.as_as_credentials().await?;
-    store_batched_token_keys(pool, &credentials_response.batched_token_keys).await?;
+    store_batched_token_keys(
+        pool,
+        operation_type,
+        &credentials_response.batched_token_keys,
+    )
+    .await?;
 
-    let count = token_count(pool).await?;
+    let count = token_count(pool, operation_type).await?;
     if count < LOW_TOKEN_THRESHOLD {
         let needed = (TARGET_TOKEN_COUNT - count).min(TARGET_TOKEN_COUNT) as u16;
         request_and_store_tokens(
@@ -230,7 +248,7 @@ pub(crate) async fn replenish_if_needed(
         )
         .await?;
     }
-    token_count(pool).await
+    token_count(pool, operation_type).await
 }
 
 /// Purges all cached tokens and keys, then replenishes from the server.
@@ -241,22 +259,21 @@ pub(crate) async fn purge_and_replenish(
     pool: &SqlitePool,
     api_client: &ApiClient,
     user_id: UserId,
+    operation_type: OperationType,
     signing_key: &ClientSigningKey,
 ) -> anyhow::Result<()> {
-    let discarded = persistence::token_count(pool).await?;
+    let discarded = persistence::token_count(pool, operation_type).await?;
     info!(%discarded, "purging stale tokens after server rejected key");
-    persistence::delete_all_tokens(pool).await?;
-    persistence::delete_all_batched_token_keys(pool).await?;
-    for operation_type in OperationType::VARIANTS {
-        replenish_if_needed(
-            pool,
-            api_client,
-            user_id.clone(),
-            signing_key,
-            *operation_type,
-        )
-        .await?;
-    }
+    persistence::delete_all_tokens(pool, operation_type).await?;
+    persistence::delete_all_batched_token_keys(pool, operation_type).await?;
+    replenish_if_needed(
+        pool,
+        api_client,
+        user_id.clone(),
+        signing_key,
+        operation_type,
+    )
+    .await?;
     Ok(())
 }
 
