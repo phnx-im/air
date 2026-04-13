@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::collections::{HashMap, HashSet};
+
 use aircommon::codec::{BlobDecoded, BlobEncoded};
 use airprotos::common::v1::OperationType;
 use async_trait::async_trait;
@@ -192,12 +194,16 @@ pub(crate) async fn load_current_key_id(
 /// period plus the overlap window.
 ///
 /// Returns `true` if a new key was created.
-pub async fn rotate_keys_if_needed(connection: &mut PgConnection) -> Result<(), RotateKeysError> {
+pub async fn rotate_keys_if_needed(
+    pool: &PgPool,
+) -> Result<HashSet<OperationType>, RotateKeysError> {
+    let mut results = HashSet::new();
     for operation_type in OperationType::all() {
-        rotate_keys_if_needed_for_operation_type(connection, operation_type).await?;
+        if rotate_keys_if_needed_for_operation_type(pool, operation_type).await? {
+            results.insert(operation_type);
+        }
     }
-
-    Ok(())
+    Ok(results)
 }
 
 /// Checks whether key rotation is needed and performs it if so.
@@ -208,7 +214,7 @@ pub async fn rotate_keys_if_needed(connection: &mut PgConnection) -> Result<(), 
 ///
 /// Returns `true` if a new key was created.
 async fn rotate_keys_if_needed_for_operation_type(
-    connection: &mut PgConnection,
+    pool: &PgPool,
     operation_type: OperationType,
 ) -> Result<bool, RotateKeysError> {
     let needs_rotation = sqlx::query_scalar!(
@@ -219,13 +225,13 @@ async fn rotate_keys_if_needed_for_operation_type(
         operation_type as i16,
         KEY_ROTATION_PERIOD_DAYS as i32
     )
-    .fetch_one(&mut *connection)
+    .fetch_one(pool)
     .await
     .map_err(RotateKeysError::Storage)?
     .unwrap_or(true);
 
     let rotated = if needs_rotation {
-        let mut transaction = connection.begin().await.map_err(RotateKeysError::Storage)?;
+        let mut transaction = pool.begin().await.map_err(RotateKeysError::Storage)?;
         {
             let conn_mutex = Mutex::new(&mut *transaction);
             let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex);
@@ -252,7 +258,7 @@ async fn rotate_keys_if_needed_for_operation_type(
          WHERE created_at < now() - make_interval(days => $1)",
         max_age_days
     )
-    .execute(&mut *connection)
+    .execute(pool)
     .await
     .map_err(RotateKeysError::Storage)?;
 
@@ -271,7 +277,7 @@ async fn rotate_keys_if_needed_for_operation_type(
          WHERE created_at < now() - make_interval(days => $1)",
         max_age_days
     )
-    .execute(&mut *connection)
+    .execute(pool)
     .await
     .map_err(RotateKeysError::Storage)?;
 
@@ -403,6 +409,34 @@ mod persistence {
             .execute(connection)
             .await?;
             Ok(())
+        }
+
+        #[cfg(test)]
+        pub(in crate::auth_service) async fn load(
+            connection: impl PgExecutor<'_>,
+            user_id: &UserId,
+            operation_type: OperationType,
+        ) -> Result<Option<Self>, StorageError> {
+            query!(
+                r#"SELECT
+                    remaining,
+                    epoch
+                FROM as_token_allowance
+                WHERE user_uuid = $1 AND user_domain = $2 AND operation_type = $3"#,
+                user_id.uuid(),
+                user_id.domain() as _,
+                operation_type as i16,
+            )
+            .fetch_optional(connection)
+            .await?
+            .map(|record| {
+                Ok(Self {
+                    operation_type,
+                    remaining: record.remaining,
+                    epoch: record.epoch,
+                })
+            })
+            .transpose()
         }
 
         pub(in crate::auth_service) async fn load_for_update(

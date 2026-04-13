@@ -170,6 +170,7 @@ impl AuthService {
 
 #[cfg(test)]
 mod tests {
+    use airprotos::common::v1::OperationType;
     use privacypass::{
         amortized_tokens::{AmortizedBatchTokenRequest, server::Server},
         auth::authenticate::TokenChallenge,
@@ -180,8 +181,8 @@ mod tests {
     use tls_codec::{Deserialize, Serialize};
 
     use crate::auth_service::{
-        AuthService, client_record::ClientRecord,
-        client_record::persistence::tests::store_random_client_record,
+        AuthService, client_record::persistence::tests::store_random_client_record,
+        privacy_pass::TokenAllowance,
     };
 
     use crate::air_service::BackendService;
@@ -234,7 +235,11 @@ mod tests {
 
         // Server: issue tokens.
         let token_response = service
-            .as_issue_tokens(user_record.user_id(), token_request)
+            .as_issue_tokens(
+                user_record.user_id(),
+                OperationType::AddUsername,
+                token_request,
+            )
             .await?;
 
         // Client: finalize tokens.
@@ -247,11 +252,12 @@ mod tests {
         }
 
         // Server: token allowance was decremented.
-        let loaded = ClientRecord::load(&pool, user_record.user_id())
-            .await?
-            .expect("client record missing");
+        let loaded: TokenAllowance =
+            TokenAllowance::load(&pool, user_record.user_id(), OperationType::AddUsername)
+                .await?
+                .expect("client record missing");
         // Epoch reset gives 10 tokens; 10 - 5 = 5 remaining.
-        assert_eq!(loaded.token_allowance, 10 - nr as i32);
+        assert_eq!(loaded.remaining, 10 - nr as i32);
 
         Ok(())
     }
@@ -270,7 +276,11 @@ mod tests {
             AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, 1)?;
 
         let token_response = service
-            .as_issue_tokens(user_record.user_id(), token_request)
+            .as_issue_tokens(
+                user_record.user_id(),
+                OperationType::GetInviteCode,
+                token_request,
+            )
             .await?;
 
         let tokens = token_response.issue_tokens(&token_state)?;
@@ -297,11 +307,18 @@ mod tests {
 
         let challenge = build_challenge();
         // Request more tokens than the per-epoch allowance of 10.
-        let (token_request, _token_state) =
-            AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, 11)?;
+        let (token_request, _token_state) = AmortizedBatchTokenRequest::<Ristretto255>::new(
+            public_key,
+            &challenge,
+            (OperationType::GetInviteCode.max_tokens_per_request() + 1) as u16,
+        )?;
 
         let err = service
-            .as_issue_tokens(user_record.user_id(), token_request)
+            .as_issue_tokens(
+                user_record.user_id(),
+                OperationType::GetInviteCode,
+                token_request,
+            )
             .await;
         assert!(err.is_err());
 
@@ -368,7 +385,11 @@ mod tests {
             AmortizedBatchTokenRequest::<Ristretto255>::tls_deserialize_exact(&request_bytes)?;
 
         let token_response = service
-            .as_issue_tokens(user_record.user_id(), deserialized_request)
+            .as_issue_tokens(
+                user_record.user_id(),
+                OperationType::AddUsername,
+                deserialized_request,
+            )
             .await?;
 
         // Serialize token response.
@@ -405,7 +426,11 @@ mod tests {
         let (token_request, _token_state) =
             AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, 10)?;
         service
-            .as_issue_tokens(user_record.user_id(), token_request)
+            .as_issue_tokens(
+                user_record.user_id(),
+                OperationType::AddUsername,
+                token_request,
+            )
             .await?;
 
         // Allowance is now 0 — requesting more should fail.
@@ -413,7 +438,11 @@ mod tests {
             AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, 1)?;
         assert!(
             service
-                .as_issue_tokens(user_record.user_id(), token_request)
+                .as_issue_tokens(
+                    user_record.user_id(),
+                    OperationType::AddUsername,
+                    token_request,
+                )
                 .await
                 .is_err()
         );
@@ -435,17 +464,21 @@ mod tests {
         let (token_request, token_state) =
             AmortizedBatchTokenRequest::<Ristretto255>::new(new_public_key, &challenge, 5)?;
         let token_response = service
-            .as_issue_tokens(user_record.user_id(), token_request)
+            .as_issue_tokens(
+                user_record.user_id(),
+                OperationType::AddUsername,
+                token_request,
+            )
             .await?;
 
         let tokens = token_response.issue_tokens(&token_state)?;
         assert_eq!(tokens.len(), 5);
 
         // Verify allowance is 5 (10 - 5).
-        let loaded = ClientRecord::load(&pool, user_record.user_id())
+        let loaded = TokenAllowance::load(&pool, user_record.user_id(), OperationType::AddUsername)
             .await?
             .expect("missing client record");
-        assert_eq!(loaded.token_allowance, 5);
+        assert_eq!(loaded.remaining, 5);
 
         Ok(())
     }
@@ -461,14 +494,15 @@ mod tests {
 
         // Rotation should create a key.
         let rotated = rotate_keys_if_needed(&pool).await?;
-        assert!(rotated);
+        assert!(rotated.contains(&OperationType::AddUsername));
+        assert!(rotated.contains(&OperationType::GetInviteCode));
 
         let keys_after = load_batched_token_keys(&pool).await?;
         assert_eq!(keys_after.len(), 1);
 
         // Second call: key is fresh, no rotation needed.
         let rotated = rotate_keys_if_needed(&pool).await?;
-        assert!(!rotated);
+        assert!(rotated.is_empty());
 
         Ok(())
     }
