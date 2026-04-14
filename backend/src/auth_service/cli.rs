@@ -20,8 +20,10 @@ impl AuthService {
     }
 
     pub async fn invitation_codes_generate(&self, n: usize) -> sqlx::Result<()> {
-        let mut rng = rand::thread_rng();
-        InvitationCodeRecord::generate(&self.db_pool, &mut rng, n).await?;
+        for _ in 0..n {
+            let code = InvitationCodeRecord::generate(&self.db_pool).await?;
+            println!("{code}");
+        }
         Ok(())
     }
 }

@@ -158,6 +158,7 @@ pub struct AsCredentialsParams {}
 /// A VOPRF public key for Privacy Pass token issuance.
 #[derive(Debug)]
 pub struct BatchedTokenKeyResponse {
+    pub operation_type: i32,
     pub token_key_id: u8,
     pub public_key: Vec<u8>,
 }

@@ -452,6 +452,7 @@ impl ApiClient {
                         AsRequestError::UnexpectedResponse
                     })?;
                     Ok::<_, AsRequestError>(BatchedTokenKeyResponse {
+                        operation_type: k.operation_type,
                         token_key_id,
                         public_key: k.public_key,
                     })

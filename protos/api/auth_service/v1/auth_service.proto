@@ -10,6 +10,7 @@ import "common/v1/common.proto";
 
 service AuthService {
   rpc CheckInvitationCode(CheckInvitationCodeRequest) returns (CheckInvitationCodeResponse);
+  rpc GetInvitationCodes(GetInvitationCodesRequest) returns (GetInvitationCodesResponse);
 
   rpc RegisterUser(RegisterUserRequest) returns (RegisterUserResponse);
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
@@ -165,6 +166,18 @@ message CheckInvitationCodeResponse {
   bool is_valid = 1;
 }
 
+// generate invitation codes
+
+message GetInvitationCodesRequest {
+  common.v1.ClientMetadata client_metadata = 1;
+  UserId user_id = 2;
+  repeated bytes tokens = 3;
+}
+
+message GetInvitationCodesResponse {
+  repeated InvitationCode invitation_codes = 1;
+}
+
 // register user
 
 message RegisterUserRequest {
@@ -264,6 +277,7 @@ message AsCredentialsResponse {
 message BatchedTokenKey {
   bytes public_key = 1;
   uint32 token_key_id = 2;
+  common.v1.OperationType operation_type = 3;
 }
 
 message AsCredential {

@@ -1,3 +1,7 @@
+-- SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+--
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+
 -- Drop privacypass columns on as_client_record and create a table
 -- that let us categorise token quotas by operation type
 ALTER TABLE as_client_record DROP COLUMN remaining_tokens, DROP COLUMN allowance_epoch;

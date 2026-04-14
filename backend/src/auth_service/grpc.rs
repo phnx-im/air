@@ -6,9 +6,10 @@ use std::io;
 
 use airprotos::{
     auth_service::v1::{auth_service_server, *},
-    common::v1::ClientMetadata,
+    common::v1::{ClientMetadata, OperationType},
     validation::MissingFieldExt,
 };
+use chrono::Utc;
 use displaydoc::Display;
 use futures_util::stream::BoxStream;
 
@@ -39,10 +40,10 @@ use tls_codec::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio_stream::{StreamExt, wrappers::ReceiverStream};
 use tonic::{Code, Request, Response, Status, Streaming, async_trait};
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::{
-    auth_service::invitation_code_record::InvitationCodeRecord,
+    auth_service::invitation_code_record::{CODES_PER_DAY, InvitationCodeRecord},
     util::{find_cause, select_until_first_ends},
 };
 
@@ -212,6 +213,64 @@ impl auth_service_server::AuthService for GrpcAs {
         }))
     }
 
+    async fn get_invitation_codes(
+        &self,
+        request: Request<GetInvitationCodesRequest>,
+    ) -> Result<Response<GetInvitationCodesResponse>, Status> {
+        // this endpoint is anonymous by design
+        let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
+
+        let tokens: Result<Vec<_>, _> = request
+            .tokens
+            .into_iter()
+            .map(|bytes| AmortizedToken::<Ristretto255>::tls_deserialize_exact(bytes.as_slice()))
+            .collect();
+
+        let tokens = tokens.map_err(|error| {
+            warn!(%error, "failed to deserialise token");
+            Status::invalid_argument("invalid token")
+        })?;
+
+        let codes_today = InvitationCodeRecord::count_codes_issued_today(self.inner.db_pool())
+            .await
+            .map_err(|error| {
+                error!(%error, "database error");
+                Status::internal("database error")
+            })?;
+
+        if codes_today > CODES_PER_DAY {
+            return Err(Status::resource_exhausted("too many codes generated"));
+        }
+
+        let mut invitation_codes = Vec::new();
+        for token in tokens {
+            // redeem the token
+            if let Err(error) = self
+                .inner
+                .as_redeem_token(token, OperationType::GetInviteCode)
+                .await
+            {
+                warn!(%error, "failed to redeem token to get invitation code");
+                continue;
+            }
+
+            // if the token could be redeemed, issue a new invite code
+            let code = InvitationCodeRecord::generate(self.inner.db_pool())
+                .await
+                .map_err(|error| {
+                    error!(%error, "database error");
+                    Status::internal("database error")
+                })?;
+
+            invitation_codes.push(InvitationCode { code });
+        }
+
+        Ok(Response::new(GetInvitationCodesResponse {
+            invitation_codes,
+        }))
+    }
+
     async fn register_user(
         &self,
         request: Request<RegisterUserRequest>,
@@ -231,6 +290,7 @@ impl auth_service_server::AuthService for GrpcAs {
                 Some(InvitationCodeRecord {
                     code: code.code,
                     redeemed: false,
+                    created_at: Utc::now(),
                 })
             } else {
                 InvitationCodeRecord::load(&self.inner.db_pool, &code.code)
@@ -347,6 +407,7 @@ impl auth_service_server::AuthService for GrpcAs {
                 .map(|k| BatchedTokenKey {
                     token_key_id: k.token_key_id.into(),
                     public_key: k.public_key,
+                    operation_type: k.operation_type,
                 })
                 .collect(),
         }))

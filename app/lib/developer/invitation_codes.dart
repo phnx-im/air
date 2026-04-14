@@ -29,7 +29,7 @@ class _InvitationCodesState extends State<InvitationCodesScreen> {
   void _loadInvitationCodes() {
     final user = context.read<LoadableUserCubit>().state.loadedUser;
     if (user == null) return;
-    final invitationCodes = []; //replenishInvitationCodes(userId: user.userId);
+    final invitationCodes = replenishInvitationCodes(userId: user.userId);
     setState(() {
       _invitationCodes = invitationCodes;
     });

@@ -2,7 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use rand::{CryptoRng, Rng};
+use chrono::{DateTime, Utc};
+use rand::Rng;
 use sqlx::PgPool;
 
 use crate::auth_service::cli::InvitationCodeStats;
@@ -10,10 +11,13 @@ use crate::auth_service::cli::InvitationCodeStats;
 pub struct InvitationCodeRecord {
     pub(crate) code: String,
     pub(crate) redeemed: bool,
+    #[allow(unused)]
+    pub(crate) created_at: DateTime<Utc>,
 }
 
 const ALPHABET: &[u8] = b"0123456789ABCDEFGHJKMNPQRSTUVWXYZ";
 const CODE_LEN: usize = 8;
+pub(crate) const CODES_PER_DAY: u64 = 1000;
 
 impl InvitationCodeRecord {
     pub(crate) async fn stats(pool: &PgPool) -> sqlx::Result<InvitationCodeStats> {
@@ -30,7 +34,8 @@ impl InvitationCodeRecord {
         })
     }
 
-    fn generate_code(rng: &mut (impl CryptoRng + Rng), code: &mut String) {
+    fn generate_code(code: &mut String) {
+        let mut rng = rand::thread_rng();
         for _ in 0..CODE_LEN {
             code.push(ALPHABET[rng.gen_range(0..ALPHABET.len())] as char);
         }
@@ -44,7 +49,7 @@ impl InvitationCodeRecord {
 mod persistence {
     use super::*;
 
-    use sqlx::{PgPool, query, query_as};
+    use sqlx::{PgExecutor, PgPool, query, query_as, query_scalar};
 
     impl InvitationCodeRecord {
         pub(crate) async fn load_all(
@@ -56,7 +61,7 @@ mod persistence {
                 query_as!(
                     InvitationCodeRecord,
                     "
-                        SELECT code, redeemed
+                        SELECT code, redeemed, created_at
                         FROM invitation_code
                         ORDER BY code
                         LIMIT $1
@@ -69,7 +74,7 @@ mod persistence {
                 query_as!(
                     InvitationCodeRecord,
                     "
-                        SELECT code, redeemed
+                        SELECT code, redeemed, created_at
                         FROM invitation_code
                         WHERE redeemed = FALSE
                         ORDER BY code
@@ -83,41 +88,41 @@ mod persistence {
         }
 
         pub(crate) async fn load(
-            pool: &PgPool,
+            executor: impl PgExecutor<'_>,
             code: &str,
         ) -> sqlx::Result<Option<InvitationCodeRecord>> {
             query_as!(
                 InvitationCodeRecord,
                 "
-                    SELECT code, redeemed
+                    SELECT code, redeemed, created_at
                     FROM invitation_code
                     WHERE code = $1
                 ",
                 code
             )
-            .fetch_optional(pool)
+            .fetch_optional(executor)
             .await
         }
 
-        pub(crate) async fn insert(
-            pool: &PgPool,
+        async fn insert(
+            executor: impl PgExecutor<'_>,
             code: &str,
             redeemed: bool,
-        ) -> sqlx::Result<bool> {
-            let result = query!(
+        ) -> sqlx::Result<Option<String>> {
+            query_scalar!(
                 "
                     INSERT INTO invitation_code (code, redeemed)
                     VALUES ($1, $2)
+                    RETURNING code
                 ",
                 code,
                 redeemed
             )
-            .execute(pool)
-            .await?;
-            Ok(result.rows_affected() > 0)
+            .fetch_optional(executor)
+            .await
         }
 
-        pub(crate) async fn save(&self, pool: &PgPool) -> sqlx::Result<()> {
+        pub(crate) async fn save(&self, executor: impl PgExecutor<'_>) -> sqlx::Result<()> {
             query!(
                 "
                     INSERT INTO invitation_code (code, redeemed)
@@ -127,27 +132,37 @@ mod persistence {
                 self.code,
                 self.redeemed
             )
-            .execute(pool)
+            .execute(executor)
             .await?;
             Ok(())
         }
 
-        pub(crate) async fn generate(
-            pool: &PgPool,
-            rng: &mut (impl CryptoRng + Rng),
-            n: usize,
-        ) -> sqlx::Result<()> {
-            let mut code = String::with_capacity(6);
-            for _ in 0..n {
-                loop {
-                    code.clear();
-                    Self::generate_code(rng, &mut code);
-                    if Self::insert(pool, &code, false).await? {
-                        break;
-                    }
+        pub(crate) async fn generate(pool: &PgPool) -> sqlx::Result<String> {
+            let mut code = String::with_capacity(CODE_LEN);
+            loop {
+                code.clear();
+                Self::generate_code(&mut code);
+                if let Some(invitation_code) = Self::insert(pool, &code, false).await? {
+                    return Ok(invitation_code);
                 }
             }
-            Ok(())
+        }
+
+        pub(in crate::auth_service) async fn count_codes_issued_today(
+            executor: impl PgExecutor<'_>,
+        ) -> sqlx::Result<u64> {
+            let count = query_scalar!(
+                "
+            SELECT COUNT(*) FROM invitation_code
+            WHERE created_at >= CURRENT_DATE
+            AND created_at < CURRENT_DATE + INTERVAL '1 day'
+            "
+            )
+            .fetch_one(executor)
+            .await?
+            .unwrap_or_default() as u64;
+
+            Ok(count)
         }
     }
 
@@ -218,7 +233,8 @@ mod persistence {
 
             let updated_record = InvitationCodeRecord {
                 code: "UPDATE_ME".to_string(),
-                redeemed: true, // Changing the state
+                redeemed: true, // Changing the state,
+                created_at: Utc::now(),
             };
 
             updated_record.save(&pool).await?;
@@ -236,10 +252,10 @@ mod persistence {
 
         #[sqlx::test]
         async fn generate_multiple_codes(pool: PgPool) -> anyhow::Result<()> {
-            let mut rng = rand::thread_rng();
-
             let n = 5;
-            InvitationCodeRecord::generate(&pool, &mut rng, n).await?;
+            for _ in 0..n {
+                InvitationCodeRecord::generate(&pool).await?;
+            }
 
             let all_codes = InvitationCodeRecord::load_all(&pool, true, 10).await?;
             assert_eq!(all_codes.len(), n);

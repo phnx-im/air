@@ -1,3 +1,7 @@
+-- SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+--
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+
 -- Restore privacypass columns on as_client_record and drop the operation-type table
 DROP TABLE as_token_allowance;
 
