@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT group_id\n                FROM resync_queue\n                WHERE locked_by IS NULL OR locked_by != ?1\n                LIMIT 1\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "group_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "43fd87e3d453482519144cc666ddca6976d804d34a14236a6aee9cf06cd02ab9"
+}

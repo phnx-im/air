@@ -52,7 +52,7 @@ pub(crate) struct Operation<T> {
     pub(crate) operation_id: OperationId,
     pub(crate) data: T,
     pub(crate) created_at: DateTime<Utc>,
-    pub(crate) scheduled_at: Option<DateTime<Utc>>,
+    pub(crate) scheduled_at: DateTime<Utc>,
     pub(crate) retries: usize,
 }
 
@@ -66,18 +66,19 @@ pub(crate) enum OperationKind {
 
 impl<T: OperationData> Operation<T> {
     pub(crate) fn new(data: T) -> Self {
+        let now = Utc::now();
         Self {
             operation_id: data.generate_id(),
             data,
-            created_at: Utc::now(),
-            scheduled_at: None,
+            created_at: now,
+            scheduled_at: now,
             retries: 0,
         }
     }
 
     #[cfg(any(feature = "test_utils", test))]
     pub(crate) fn schedule_at(mut self, due_at: DateTime<Utc>) -> Self {
-        self.scheduled_at = Some(due_at);
+        self.scheduled_at = due_at;
         self
     }
 
@@ -120,8 +121,8 @@ mod persistence {
     use aircommon::codec::{BlobDecoded, BlobEncoded};
     use serde::{Serialize, de::DeserializeOwned};
     use sqlx::{
-        Database, Decode, Encode, Sqlite, SqliteExecutor, Type, encode::IsNull, error::BoxDynError,
-        query, query_as,
+        Database, Decode, Encode, Sqlite, SqliteExecutor, SqliteTransaction, Type, encode::IsNull,
+        error::BoxDynError, query, query_as, query_scalar,
     };
 
     use super::*;
@@ -206,7 +207,7 @@ mod persistence {
 
         /// Dequeue an operation for retry
         pub(crate) async fn dequeue(
-            executor: impl SqliteExecutor<'_>,
+            txn: &mut SqliteTransaction<'_>,
             task_id: Uuid,
             now: DateTime<Utc>,
         ) -> sqlx::Result<Option<Self>>
@@ -214,31 +215,43 @@ mod persistence {
             T: OperationData + DeserializeOwned + Unpin + Send + 'static,
         {
             let kind = T::kind();
+            let Some(operation_id) = query_scalar!(
+                r#"
+                SELECT operation_id
+                FROM operation
+                WHERE kind = ?1
+                    AND scheduled_at <= ?2
+                    AND locked_by != ?3
+                ORDER BY scheduled_at ASC, created_at ASC
+                LIMIT 1
+                "#,
+                kind,
+                now,
+                task_id,
+            )
+            .fetch_optional(txn.as_mut())
+            .await?
+            else {
+                return Ok(None);
+            };
+
             query_as!(
                 SqlOperation,
-                r#"UPDATE operation
-                    SET locked_by = ?1
-                    WHERE operation_id = (
-                        SELECT operation_id
-                        FROM operation
-                        WHERE (locked_by IS NULL OR locked_by != ?1)
-                            AND (scheduled_at IS NULL OR scheduled_at <= ?2)
-                            AND kind = ?3
-                        ORDER BY scheduled_at ASC, created_at ASC
-                        LIMIT 1
-                    )
+                r#"
+                UPDATE operation
+                SET locked_by = ?2
+                WHERE operation_id = ?1
                 RETURNING
                     operation_id AS "operation_id: _",
                     data AS "data: _",
                     created_at AS "created_at: _",
                     scheduled_at AS "scheduled_at: _",
-                    retries
+                    retries AS "retries: _"
                 "#,
+                operation_id,
                 task_id,
-                now,
-                kind,
             )
-            .fetch_optional(executor)
+            .fetch_optional(txn.as_mut())
             .await
             .map(|op| op.map(From::from))
         }
@@ -260,7 +273,7 @@ mod persistence {
             executor: impl SqliteExecutor<'_>,
             schedule_at: DateTime<Utc>,
         ) -> sqlx::Result<()> {
-            self.scheduled_at = Some(schedule_at);
+            self.scheduled_at = schedule_at;
             self.retries += 1;
             let retries = self.retries as i64;
             query!(
@@ -282,7 +295,7 @@ mod persistence {
         operation_id: Vec<u8>,
         data: BlobDecoded<T>,
         created_at: DateTime<Utc>,
-        scheduled_at: Option<DateTime<Utc>>,
+        scheduled_at: DateTime<Utc>,
         retries: i64,
     }
 
@@ -345,31 +358,32 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn test_dequeue_concurrency_and_locking(pool: SqlitePool) {
+    async fn test_dequeue_locking(pool: SqlitePool) {
+        let mut txn = pool.begin().await.unwrap();
         let data = MockData {
             payload: "lock_test".to_string(),
         };
         let op = Operation::new(data);
-        op.enqueue(&pool).await.unwrap();
+        op.enqueue(txn.as_mut()).await.unwrap();
 
         let worker_a = Uuid::new_v4();
         let worker_b = Uuid::new_v4();
         let now = Utc::now();
 
         // Worker A grabs the task
-        let op = Operation::<MockData>::dequeue(&pool, worker_a, now)
+        let op = Operation::<MockData>::dequeue(&mut txn, worker_a, now)
             .await
             .unwrap();
         assert!(op.is_some(), "Worker A should have claimed the task");
 
         // Worker B tries to grab the same task
-        let op = Operation::<MockData>::dequeue(&pool, worker_b, now)
+        let op = Operation::<MockData>::dequeue(&mut txn, worker_b, now)
             .await
             .unwrap();
         assert!(op.is_some(), "Worker B should have claimed the task");
 
         // Worker B tries to grab the same task again
-        let op = Operation::<MockData>::dequeue(&pool, worker_b, now)
+        let op = Operation::<MockData>::dequeue(&mut txn, worker_b, now)
             .await
             .unwrap();
         assert!(op.is_none(), "Worker B should not see the locked task");
@@ -377,26 +391,28 @@ mod tests {
 
     #[sqlx::test]
     async fn test_reschedule_logic(pool: SqlitePool) {
+        let mut txn = pool.begin().await.unwrap();
         let data = MockData {
             payload: "retry_test".to_string(),
         };
         let mut op = Operation::new(data);
-        op.enqueue(&pool).await.unwrap();
+        op.enqueue(txn.as_mut()).await.unwrap();
 
         let retry_time = Utc::now() + chrono::Duration::minutes(5);
-        op.reschedule(&pool, retry_time).await.unwrap();
+        op.reschedule(txn.as_mut(), retry_time).await.unwrap();
 
-        let op = Operation::<MockData>::dequeue(&pool, Uuid::new_v4(), retry_time)
+        let op = Operation::<MockData>::dequeue(&mut txn, Uuid::new_v4(), retry_time)
             .await
             .unwrap()
             .unwrap();
 
         assert_eq!(op.retries, 1);
-        assert_eq!(op.scheduled_at, Some(retry_time));
+        assert_eq!(op.scheduled_at, retry_time);
     }
 
     #[sqlx::test]
     async fn test_upsert_behavior(pool: SqlitePool) {
+        let mut txn = pool.begin().await.unwrap();
         let data = MockData {
             payload: "stable_id".to_string(),
         };
@@ -405,10 +421,10 @@ mod tests {
         op2.retries = 5;
 
         // Inserting the same ID twice (due to "INSERT OR REPLACE")
-        op1.enqueue(&pool).await.unwrap();
-        op2.enqueue(&pool).await.unwrap();
+        op1.enqueue(txn.as_mut()).await.unwrap();
+        op2.enqueue(txn.as_mut()).await.unwrap();
 
-        let op = Operation::<MockData>::dequeue(&pool, Uuid::new_v4(), Utc::now())
+        let op = Operation::<MockData>::dequeue(&mut txn, Uuid::new_v4(), Utc::now())
             .await
             .unwrap()
             .unwrap();
@@ -418,23 +434,24 @@ mod tests {
 
     #[sqlx::test]
     async fn test_delete_persistence(pool: SqlitePool) {
+        let mut txn = pool.begin().await.unwrap();
         let data = MockData {
             payload: "delete_me".to_string(),
         };
         let op_id = data.generate_id();
         let op = Operation::new(data);
-        op.enqueue(&pool).await.unwrap();
+        op.enqueue(txn.as_mut()).await.unwrap();
 
         let now = Utc::now();
-        let op = Operation::<MockData>::dequeue(&pool, Uuid::new_v4(), now)
+        let op = Operation::<MockData>::dequeue(&mut txn, Uuid::new_v4(), now)
             .await
             .unwrap()
             .unwrap();
         assert_eq!(op.operation_id, op_id);
 
         // Delete and verify
-        op.delete(&pool).await.unwrap();
-        let op = Operation::<MockData>::dequeue(&pool, Uuid::new_v4(), now)
+        op.delete(txn.as_mut()).await.unwrap();
+        let op = Operation::<MockData>::dequeue(&mut txn, Uuid::new_v4(), now)
             .await
             .unwrap();
         assert!(op.is_none());

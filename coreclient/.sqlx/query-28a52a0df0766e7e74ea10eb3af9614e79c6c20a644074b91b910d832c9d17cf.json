@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE resync_queue\n                    SET locked_by = ?2\n                    WHERE group_id = ?1\n                RETURNING\n                    chat_id AS \"chat_id: _\",\n                    group_id AS \"group_id: _\",\n                    group_state_ear_key AS \"group_state_ear_key: _\",\n                    identity_link_wrapper_key AS \"identity_link_wrapper_key: _\",\n                    original_leaf_index AS \"original_leaf_index: _\"\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "chat_id: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "group_id: _",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "group_state_ear_key: _",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "identity_link_wrapper_key: _",
+        "ordinal": 3,
+        "type_info": "Blob"
+      },
+      {
+        "name": "original_leaf_index: _",
+        "ordinal": 4,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "28a52a0df0766e7e74ea10eb3af9614e79c6c20a644074b91b910d832c9d17cf"
+}
