@@ -97,7 +97,7 @@ impl AuthService {
 
         let conn_mutex = Mutex::new(&mut *conn);
         let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, operation_type);
-        let nonce_store = AuthServiceNonceStore::new(&conn_mutex);
+        let nonce_store = AuthServiceNonceStore::new(&conn_mutex, operation_type);
         let server = Server::<Ristretto255>::new();
 
         server

@@ -109,9 +109,15 @@ impl From<IssueTokensError> for Status {
     fn from(e: IssueTokensError) -> Self {
         let msg = e.to_string();
         match e {
-            IssueTokensError::StorageError(_) => Status::internal(msg),
+            IssueTokensError::StorageError(error) => {
+                error!(%error, "storage error while issuing tokens");
+                Status::internal(msg)
+            }
             IssueTokensError::TooManyTokensRequested => Status::resource_exhausted(msg),
-            IssueTokensError::PrivacyPassError(_) => Status::internal(msg),
+            IssueTokensError::PrivacyPassError(error) => {
+                error!(%error, "failed to issue tokens");
+                Status::internal(msg)
+            }
         }
     }
 }

@@ -33,7 +33,7 @@ pub(crate) async fn request_and_store_tokens(
     operation_type: OperationType,
     count: u16,
 ) -> anyhow::Result<usize> {
-    info!(%count, "requesting privacy pass tokens");
+    info!(%count, %operation_type, "requesting privacy pass tokens");
 
     let result = request_tokens_inner(
         pool,
@@ -62,7 +62,7 @@ async fn request_tokens_inner(
     count: u16,
 ) -> anyhow::Result<usize> {
     let keys = persistence::load_batched_token_keys(pool, operation_type).await?;
-    let (_, pk_bytes) = keys
+    let (token_key_id, pk_bytes) = keys
         .first()
         .ok_or_else(|| anyhow::anyhow!("no VOPRF public keys available"))?;
 

@@ -32,11 +32,11 @@ use airprotos::{
         AckListenHandleRequest, AsCredentialsRequest, CheckHandleExistsRequest,
         CheckInvitationCodeRequest, ConnectRequest, ConnectResponse, CreateHandlePayload,
         DeleteHandlePayload, DeleteUserPayload, EnqueueConnectionOfferStep,
-        FetchConnectionPackageStep, GetUserProfileRequest, HandleQueueMessage,
-        InitListenHandlePayload, InvitationCode, IssueTokensPayload, ListenHandleRequest,
-        MergeUserProfilePayload, PublishConnectionPackagesPayload, RefreshHandlePayload,
-        RegisterUserRequest, ReportSpamPayload, StageUserProfilePayload, connect_request,
-        connect_response, listen_handle_request,
+        FetchConnectionPackageStep, GetInvitationCodesRequest, GetUserProfileRequest,
+        HandleQueueMessage, InitListenHandlePayload, InvitationCode, IssueTokensPayload,
+        ListenHandleRequest, MergeUserProfilePayload, PublishConnectionPackagesPayload,
+        RefreshHandlePayload, RegisterUserRequest, ReportSpamPayload, StageUserProfilePayload,
+        connect_request, connect_response, listen_handle_request,
     },
     common::v1::{OperationType, StatusDetails, StatusDetailsCode},
 };
@@ -127,6 +127,24 @@ impl ApiClient {
             .await?
             .into_inner();
         Ok(response.is_valid)
+    }
+
+    pub async fn as_get_invitation_codes(
+        &self,
+        tokens: impl IntoIterator<Item = SerializedToken>,
+    ) -> Result<Vec<InvitationCode>, AsRequestError> {
+        let request = GetInvitationCodesRequest {
+            client_metadata: Some(self.metadata().clone()),
+            tokens: tokens.into_iter().map(|t| t.into_bytes()).collect(),
+        };
+
+        let response = self
+            .as_grpc_client()
+            .get_invitation_codes(request)
+            .await?
+            .into_inner();
+
+        Ok(response.invitation_codes)
     }
 
     pub async fn as_register_user(

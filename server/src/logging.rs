@@ -5,17 +5,16 @@
 use tracing::{metadata::LevelFilter, subscriber::set_global_default};
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
 use tracing_log::LogTracer;
-use tracing_subscriber::{EnvFilter, Registry, layer::SubscriberExt};
+use tracing_subscriber::{EnvFilter, Registry, fmt, layer::SubscriberExt};
 
 pub fn init_logging() {
     let env_filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
         .from_env_lossy();
-    let formatting_layer = BunyanFormattingLayer::new("airserver".into(), std::io::stdout);
-    let registry = Registry::default()
-        .with(env_filter)
-        .with(JsonStorageLayer)
-        .with(formatting_layer);
+    // let formatting_layer = BunyanFormattingLayer::new("airserver".into(), std::io::stdout);
+    let registry = Registry::default().with(fmt::layer()).with(env_filter);
+    // .with(JsonStorageLayer)
+    // .with(formatting_layer);
     LogTracer::init().expect("logging already initialized");
     set_global_default(registry).expect("logging already initialized");
 }

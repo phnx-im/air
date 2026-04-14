@@ -18,14 +18,9 @@ ALTER TABLE privacy_pass_token_new RENAME TO privacy_pass_token;
 
 -- Batched token keys
 
-CREATE TABLE batched_token_key_new (
+DROP TABLE batched_token_key;
+CREATE TABLE batched_token_key (
     token_key_id INTEGER PRIMARY KEY,
     operation_type INTEGER NOT NULL,
     public_key BLOB NOT NULL
 );
-
-INSERT INTO batched_token_key_new (token_key_id, operation_type, public_key)
-SELECT token_key_id, 1, public_key FROM batched_token_key;
-
-DROP TABLE batched_token_key;
-ALTER TABLE batched_token_key_new RENAME TO batched_token_key;

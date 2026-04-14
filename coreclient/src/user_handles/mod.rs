@@ -182,7 +182,7 @@ impl CoreUser {
     /// by timing. The background `TokenReplenishment` task keeps the cache
     /// warm; if the cache is empty, replenish and let the caller retry
     /// later.
-    async fn consume_or_replenish_token(
+    pub(crate) async fn consume_or_replenish_token(
         &self,
         api_client: &ApiClient,
         operation_type: OperationType,

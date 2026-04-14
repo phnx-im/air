@@ -74,6 +74,8 @@ impl PrivateKeyStore for AuthServiceBatchedKeyStoreProvider<'_> {
         truncated_token_key_id: &TruncatedTokenKeyId,
     ) -> Option<VoprfServer<Ristretto255>> {
         let token_key_id: i16 = (*truncated_token_key_id).into();
+        dbg!(token_key_id);
+        dbg!(self.operation_type as i16);
         sqlx::query_scalar!(
             r#"SELECT voprf_server AS "voprf_server: BlobDecoded<VoprfServer<Ristretto255>>"
             FROM as_batched_key
@@ -111,11 +113,18 @@ impl PrivateKeyStore for AuthServiceBatchedKeyStoreProvider<'_> {
 
 pub(super) struct AuthServiceNonceStore<'a> {
     connection: &'a Mutex<&'a mut PgConnection>,
+    operation_type: OperationType,
 }
 
 impl<'a> AuthServiceNonceStore<'a> {
-    pub(super) fn new(connection: &'a Mutex<&'a mut PgConnection>) -> Self {
-        Self { connection }
+    pub(super) fn new(
+        connection: &'a Mutex<&'a mut PgConnection>,
+        operation_type: OperationType,
+    ) -> Self {
+        Self {
+            connection,
+            operation_type,
+        }
     }
 }
 
@@ -124,9 +133,10 @@ impl NonceStore for AuthServiceNonceStore<'_> {
     async fn reserve(&self, nonce: &Nonce) -> bool {
         let nonce_bytes = nonce.as_slice();
         match sqlx::query!(
-            "INSERT INTO as_token_nonce (nonce, status) \
-             VALUES ($1, 'reserved') \
+            "INSERT INTO as_token_nonce (operation_type, nonce, status) \
+             VALUES ($1, $2, 'reserved') \
              ON CONFLICT DO NOTHING",
+            self.operation_type as i16,
             nonce_bytes
         )
         .execute(&mut **self.connection.lock().await)
@@ -145,7 +155,8 @@ impl NonceStore for AuthServiceNonceStore<'_> {
         if let Err(error) = sqlx::query!(
             "UPDATE as_token_nonce \
              SET status = 'committed' \
-             WHERE nonce = $1 AND status = 'reserved'",
+             WHERE operation_type = $1 AND nonce = $2 AND status = 'reserved'",
+            self.operation_type as i16,
             nonce_bytes
         )
         .execute(&mut **self.connection.lock().await)
@@ -159,7 +170,8 @@ impl NonceStore for AuthServiceNonceStore<'_> {
         let nonce_bytes = nonce.as_slice();
         if let Err(error) = sqlx::query!(
             "DELETE FROM as_token_nonce \
-             WHERE nonce = $1 AND status = 'reserved'",
+             WHERE operation_type = $1 AND nonce = $2 AND status = 'reserved'",
+            self.operation_type as i16,
             nonce_bytes
         )
         .execute(&mut **self.connection.lock().await)
@@ -210,8 +222,12 @@ pub async fn rotate_keys_if_needed(
 ) -> Result<HashSet<OperationType>, RotateKeysError> {
     let mut results = HashSet::new();
     for operation_type in OperationType::all() {
-        if rotate_keys_if_needed_for_operation_type(pool, operation_type).await? {
+        let rotated = rotate_keys_if_needed_for_operation_type(pool, operation_type).await?;
+        if rotated {
+            info!(%operation_type, "rotated token keys");
             results.insert(operation_type);
+        } else {
+            info!(%operation_type, "no need to rotate token keys");
         }
     }
     Ok(results)
@@ -259,7 +275,8 @@ async fn rotate_keys_if_needed_for_operation_type(
     let max_age_days = (KEY_ROTATION_PERIOD_DAYS + KEY_OVERLAP_DAYS) as i32;
     let removed = sqlx::query!(
         "DELETE FROM as_batched_key \
-         WHERE created_at < now() - make_interval(days => $1)",
+         WHERE operation_type = $1 AND created_at < now() - make_interval(days => $2)",
+        operation_type as i16,
         max_age_days
     )
     .execute(pool)
@@ -278,7 +295,8 @@ async fn rotate_keys_if_needed_for_operation_type(
     // no longer needed for double-spend protection.
     let nonces_removed = sqlx::query!(
         "DELETE FROM as_token_nonce \
-         WHERE created_at < now() - make_interval(days => $1)",
+         WHERE operation_type = $1 AND created_at < now() - make_interval(days => $2)",
+        operation_type as i16,
         max_age_days
     )
     .execute(pool)
@@ -544,7 +562,7 @@ mod tests {
     async fn nonce_reserve_commit(pool: PgPool) -> anyhow::Result<()> {
         let mut connection = pool.acquire().await?;
         let conn_mutex = Mutex::new(&mut *connection);
-        let store = AuthServiceNonceStore::new(&conn_mutex);
+        let store = AuthServiceNonceStore::new(&conn_mutex, OperationType::GetInviteCode);
         let nonce: Nonce = [42u8; 32];
 
         // First reserve succeeds.
@@ -566,7 +584,7 @@ mod tests {
     async fn nonce_reserve_release(pool: PgPool) -> anyhow::Result<()> {
         let mut connection = pool.acquire().await?;
         let conn_mutex = Mutex::new(&mut *connection);
-        let store = AuthServiceNonceStore::new(&conn_mutex);
+        let store = AuthServiceNonceStore::new(&conn_mutex, OperationType::GetInviteCode);
         let nonce: Nonce = [7u8; 32];
 
         assert!(store.reserve(&nonce).await);
