@@ -6,7 +6,7 @@
       {
         "ordinal": 0,
         "name": "remaining",
-        "type_info": "Int4"
+        "type_info": "Int2"
       },
       {
         "ordinal": 1,

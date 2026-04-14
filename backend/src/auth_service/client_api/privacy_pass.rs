@@ -247,7 +247,7 @@ mod tests {
                 .await?
                 .expect("client record missing");
         // Epoch reset gives 10 tokens; 10 - 5 = 5 remaining.
-        assert_eq!(loaded.remaining, 10 - nr as i32);
+        assert_eq!(loaded.remaining, 10 - nr as u16);
 
         Ok(())
     }
@@ -306,7 +306,7 @@ mod tests {
         let (token_request, _token_state) = AmortizedBatchTokenRequest::<Ristretto255>::new(
             public_key,
             &challenge,
-            (OperationType::GetInviteCode.max_tokens() + 1) as u16,
+            (OperationType::GetInviteCode.max_tokens_allowance() + 1) as u16,
         )?;
 
         let err = service

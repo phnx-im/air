@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT code AS 'code!', copied FROM invitation_code",
+  "describe": {
+    "columns": [
+      {
+        "name": "code!",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "copied",
+        "ordinal": 1,
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "2516e38c73de233bad6fd820032e40a445fef7a2a79b7b624a9a46af8c49d67b"
+}
