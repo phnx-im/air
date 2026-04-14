@@ -200,7 +200,7 @@ impl UserCubitBase {
         self.core.is_closed()
     }
 
-    pub fn close(&mut self) {
+    pub fn close(&self) {
         self.core.close();
         self.cancel.cancel();
     }
@@ -210,7 +210,7 @@ impl UserCubitBase {
         self.core.state()
     }
 
-    pub async fn stream(&mut self, sink: StreamSink<UiUser>) {
+    pub async fn stream(&self, sink: StreamSink<UiUser>) {
         self.core.stream(sink).await;
     }
 
@@ -218,7 +218,7 @@ impl UserCubitBase {
 
     /// Set the display name and/or profile picture of the user.
     pub async fn set_profile(
-        &mut self,
+        &self,
         display_name: Option<String>,
         profile_picture: Option<Vec<u8>>,
     ) -> anyhow::Result<()> {
@@ -330,7 +330,7 @@ impl UserCubitBase {
         let _no_receivers = self.app_state_tx.send(app_state);
     }
 
-    pub async fn add_user_handle(&mut self, user_handle: UiUserHandle) -> anyhow::Result<bool> {
+    pub async fn add_user_handle(&self, user_handle: UiUserHandle) -> anyhow::Result<bool> {
         let user_handle = UserHandle::new(user_handle.plaintext)?;
         let Some(record) = self
             .context
@@ -358,7 +358,7 @@ impl UserCubitBase {
         Ok(true)
     }
 
-    pub async fn remove_user_handle(&mut self, user_handle: UiUserHandle) -> anyhow::Result<()> {
+    pub async fn remove_user_handle(&self, user_handle: UiUserHandle) -> anyhow::Result<()> {
         let user_handle = UserHandle::new(user_handle.plaintext)?;
         self.context
             .core_user

@@ -25,7 +25,7 @@ pub(crate) trait Cubit {
     type State;
 
     /// Closes the stream and cancels all pending and background operations
-    fn close(&mut self);
+    fn close(&self);
 
     /// Returns `true` if the stream is closed
     fn is_closed(&self) -> bool;
@@ -34,7 +34,7 @@ pub(crate) trait Cubit {
     fn state(&self) -> Self::State;
 
     /// Streams new states
-    async fn stream(&mut self, sink: StreamSink<Self::State>);
+    async fn stream(&self, sink: StreamSink<Self::State>);
 }
 
 /// Building block for cubits
@@ -64,7 +64,7 @@ impl<S: Clone> Cubit for CubitCore<S> {
         self.cancel.is_cancelled()
     }
 
-    fn close(&mut self) {
+    fn close(&self) {
         self.cancel.cancel();
     }
 
@@ -72,7 +72,7 @@ impl<S: Clone> Cubit for CubitCore<S> {
         self.state_tx.borrow().clone()
     }
 
-    async fn stream(&mut self, sink: StreamSink<S>) {
+    async fn stream(&self, sink: StreamSink<S>) {
         if self.is_closed() {
             return;
         }

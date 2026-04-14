@@ -37,7 +37,7 @@
           ],
           "glass" : false,
           "image-name" : "tilde.svg",
-          "name" : "tilde",
+          "name" : "tilde-vertical",
           "opacity-specializations" : [
             {
               "appearance" : "tinted",
