@@ -137,7 +137,6 @@ regenerate-sqlx-server: start-docker-compose
 [working-directory: 'app']
 regenerate-icons:
     just dart run tool/compile_svg_icons.dart
-    just dart run flutter_launcher_icons
 
 # Run cargo build, clippy and test.
 @test-rust: start-docker-compose
