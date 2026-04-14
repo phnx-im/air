@@ -262,7 +262,7 @@ impl OutboundServiceContext {
             )
             .await?;
 
-            low_count = count < privacy_pass::LOW_TOKEN_THRESHOLD;
+            low_count = count < operation_type.low_tokens_threshold();
         }
 
         if low_count {

@@ -18,26 +18,16 @@ class InvitationCodesScreen extends StatefulWidget {
 }
 
 class _InvitationCodesState extends State<InvitationCodesScreen> {
-  Future<List<InvitationCode>>? _invitationCodes;
-
   @override
   void initState() {
     super.initState();
-    _loadInvitationCodes();
-  }
-
-  void _loadInvitationCodes() {
-    final user = context.read<LoadableUserCubit>().state.loadedUser;
-    if (user == null) return;
-    final invitationCodes = replenishInvitationCodes(userId: user.userId);
-    setState(() {
-      _invitationCodes = invitationCodes;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return InvitationCodesView(invitationCodes: _invitationCodes);
+    final userCubit = context.read<UserCubit>();
+    final invitationCodes = userCubit.loadInvitationCodes();
+    return InvitationCodesView(invitationCodes: invitationCodes);
   }
 }
 

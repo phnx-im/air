@@ -20,7 +20,8 @@ ALTER TABLE privacy_pass_token_new RENAME TO privacy_pass_token;
 
 DROP TABLE batched_token_key;
 CREATE TABLE batched_token_key (
-    token_key_id INTEGER PRIMARY KEY,
     operation_type INTEGER NOT NULL,
-    public_key BLOB NOT NULL
+    token_key_id INTEGER NOT NULL,
+    public_key BLOB NOT NULL,
+    PRIMARY KEY(operation_type, token_key_id)
 );

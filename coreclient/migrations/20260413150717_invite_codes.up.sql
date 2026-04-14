@@ -3,6 +3,6 @@
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 
 CREATE TABLE invitation_code (
-    code TEXT PRIMARY KEY,
+    code TEXT NOT NULL PRIMARY KEY,
     copied BOOLEAN NOT NULL
 );

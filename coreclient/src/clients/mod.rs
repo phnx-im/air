@@ -8,7 +8,9 @@ use std::{
     sync::{Arc, Weak},
 };
 
+pub use self::invitation_code::InvitationCode;
 pub use airapiclient::as_api::AsListenHandleResponder;
+
 use airapiclient::{
     ApiClient, ApiClientInitError,
     as_api::AsRequestError,

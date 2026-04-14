@@ -74,8 +74,6 @@ impl PrivateKeyStore for AuthServiceBatchedKeyStoreProvider<'_> {
         truncated_token_key_id: &TruncatedTokenKeyId,
     ) -> Option<VoprfServer<Ristretto255>> {
         let token_key_id: i16 = (*truncated_token_key_id).into();
-        dbg!(token_key_id);
-        dbg!(self.operation_type as i16);
         sqlx::query_scalar!(
             r#"SELECT voprf_server AS "voprf_server: BlobDecoded<VoprfServer<Ristretto255>>"
             FROM as_batched_key
@@ -362,7 +360,7 @@ pub(super) async fn load_batched_token_keys(
 #[derive(Debug)]
 pub(in crate::auth_service) struct TokenAllowance {
     pub(super) operation_type: OperationType,
-    pub(super) remaining: i32,
+    pub(super) remaining: u16,
     pub(super) epoch: i16,
 }
 
@@ -370,7 +368,7 @@ impl TokenAllowance {
     pub(super) fn new(operation_type: OperationType, epoch: i16) -> Self {
         Self {
             operation_type,
-            remaining: operation_type.tokens_allowance(),
+            remaining: operation_type.max_tokens_allowance(),
             epoch,
         }
     }
@@ -409,7 +407,7 @@ mod persistence {
                 user_id.uuid(),
                 user_id.domain() as _,
                 self.operation_type as i16,
-                self.remaining,
+                self.remaining as i16,
                 self.epoch
             )
             .execute(connection)
@@ -438,7 +436,7 @@ mod persistence {
             .map(|record| {
                 Ok(Self {
                     operation_type,
-                    remaining: record.remaining,
+                    remaining: record.remaining as u16,
                     epoch: record.epoch,
                 })
             })
@@ -466,7 +464,7 @@ mod persistence {
             .map(|record| {
                 Ok(Self {
                     operation_type,
-                    remaining: record.remaining,
+                    remaining: record.remaining as u16,
                     epoch: record.epoch,
                 })
             })

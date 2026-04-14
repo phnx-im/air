@@ -32,7 +32,7 @@ impl AuthService {
         operation_type: OperationType,
         token_request: AmortizedBatchTokenRequest<Ristretto255>,
     ) -> Result<AmortizedBatchTokenResponse<Ristretto255>, IssueTokensError> {
-        let tokens_requested = token_request.nr() as i32;
+        let tokens_requested = token_request.nr() as u16;
 
         // Start a transaction
         let mut transaction = self.db_pool.begin().await?;
@@ -49,12 +49,12 @@ impl AuthService {
                 .unwrap_or_else(|| TokenAllowance::new(operation_type, current_epoch));
 
         if token_allowance.epoch != current_epoch {
-            token_allowance.remaining = operation_type.tokens_allowance();
+            token_allowance.remaining = operation_type.max_tokens_allowance();
             token_allowance.epoch = current_epoch;
         }
 
         if tokens_requested > token_allowance.remaining
-            || tokens_requested > operation_type.max_tokens_per_request()
+            || tokens_requested > operation_type.max_tokens_allowance()
         {
             return Err(IssueTokensError::TooManyTokensRequested);
         }
@@ -306,7 +306,7 @@ mod tests {
         let (token_request, _token_state) = AmortizedBatchTokenRequest::<Ristretto255>::new(
             public_key,
             &challenge,
-            (OperationType::GetInviteCode.max_tokens_per_request() + 1) as u16,
+            (OperationType::GetInviteCode.max_tokens() + 1) as u16,
         )?;
 
         let err = service

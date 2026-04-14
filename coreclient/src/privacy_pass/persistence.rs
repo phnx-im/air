@@ -43,7 +43,7 @@ pub(crate) async fn consume_token(
 pub(crate) async fn token_count(
     executor: impl SqliteExecutor<'_>,
     operation_type: OperationType,
-) -> Result<i64, sqlx::Error> {
+) -> Result<u16, sqlx::Error> {
     let operation_type = operation_type as i32;
     let count = sqlx::query_scalar!(
         "SELECT COUNT(*) FROM privacy_pass_token WHERE operation_type = ?",
@@ -51,14 +51,14 @@ pub(crate) async fn token_count(
     )
     .fetch_one(executor)
     .await?;
-    Ok(count)
+    Ok(count as u16)
 }
 
 /// Stores or updates a batched token public key.
 pub(crate) async fn store_batched_token_key(
     executor: impl SqliteExecutor<'_>,
-    token_key_id: u8,
     operation_type: OperationType,
+    token_key_id: u8,
     public_key: &[u8],
 ) -> Result<(), sqlx::Error> {
     let key_id = token_key_id as i32;
@@ -66,7 +66,7 @@ pub(crate) async fn store_batched_token_key(
     sqlx::query!(
         "INSERT INTO batched_token_key (token_key_id, operation_type, public_key) \
          VALUES (?, ?, ?) \
-         ON CONFLICT (token_key_id) DO UPDATE SET public_key = excluded.public_key",
+         ON CONFLICT (operation_type, token_key_id) DO UPDATE SET public_key = excluded.public_key",
         key_id,
         operation_type,
         public_key
@@ -106,7 +106,7 @@ pub(crate) async fn delete_all_batched_token_keys(
     Ok(())
 }
 
-/// Loads all batched token public keys.
+/// Loads all batched token public keys for a specific operation type.
 pub(crate) async fn load_batched_token_keys(
     executor: impl SqliteExecutor<'_>,
     operation_type: OperationType,
@@ -149,9 +149,13 @@ mod tests {
         assert_eq!(token_count(&pool, OP).await?, 2);
 
         // Consume returns FIFO order.
-        let first = consume_token(&pool, OP).await?.expect("should have a token");
+        let first = consume_token(&pool, OP)
+            .await?
+            .expect("should have a token");
         assert_eq!(first, token_a);
-        let second = consume_token(&pool, OP).await?.expect("should have a token");
+        let second = consume_token(&pool, OP)
+            .await?
+            .expect("should have a token");
         assert_eq!(second, token_b);
 
         // Empty after consuming both.

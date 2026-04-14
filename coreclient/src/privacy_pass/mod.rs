@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::collections::HashMap;
+
 use airapiclient::ApiClient;
 use aircommon::{
     credentials::keys::ClientSigningKey,
@@ -61,8 +63,9 @@ async fn request_tokens_inner(
     operation_type: OperationType,
     count: u16,
 ) -> anyhow::Result<usize> {
-    let keys = persistence::load_batched_token_keys(pool, operation_type).await?;
-    let (token_key_id, pk_bytes) = keys
+    let keys: Vec<(u8, Vec<u8>)> =
+        persistence::load_batched_token_keys(pool, operation_type).await?;
+    let (_, pk_bytes) = keys
         .first()
         .ok_or_else(|| anyhow::anyhow!("no VOPRF public keys available"))?;
 
@@ -115,7 +118,7 @@ pub(crate) async fn consume_token(
 pub(crate) async fn token_count(
     pool: &SqlitePool,
     operation_type: OperationType,
-) -> anyhow::Result<i64> {
+) -> anyhow::Result<u16> {
     Ok(persistence::token_count(pool, operation_type).await?)
 }
 
@@ -126,37 +129,43 @@ pub(crate) async fn token_count(
 /// no longer redeemable.
 pub(crate) async fn store_batched_token_keys(
     pool: &SqlitePool,
-    operation_type: OperationType,
     keys: &[BatchedTokenKeyResponse],
 ) -> anyhow::Result<()> {
     use std::collections::BTreeSet;
 
-    let existing = persistence::load_batched_token_keys(pool, operation_type).await?;
-    let existing_ids: BTreeSet<u8> = existing.iter().map(|(id, _)| *id).collect();
-    let new_ids: BTreeSet<u8> = keys.iter().map(|k| k.token_key_id).collect();
+    let keys: HashMap<OperationType, Vec<(_, _)>> =
+        keys.iter().fold(HashMap::new(), |mut keys, key| {
+            if let Ok(operation_type) = OperationType::try_from(key.operation_type) {
+                keys.entry(operation_type)
+                    .or_default()
+                    .push((key.token_key_id, key.public_key.as_slice()));
+            }
+            keys
+        });
 
-    if existing_ids == new_ids {
-        return Ok(());
-    }
+    for (operation_type, keys) in keys {
+        let existing = persistence::load_batched_token_keys(pool, operation_type).await?;
+        let existing_ids: BTreeSet<u8> = existing.iter().map(|(id, _)| *id).collect();
+        let new_ids: BTreeSet<u8> = keys.iter().map(|(token_key_id, _)| *token_key_id).collect();
 
-    let discarded = persistence::token_count(pool, operation_type).await?;
-    info!(
-        ?existing_ids,
-        ?new_ids,
-        %discarded,
-        "VOPRF key set changed, discarding cached tokens"
-    );
-    persistence::delete_all_tokens(pool, operation_type).await?;
-    persistence::delete_all_batched_token_keys(pool, operation_type).await?;
+        if existing_ids == new_ids {
+            return Ok(());
+        }
 
-    for key in keys {
-        persistence::store_batched_token_key(
-            pool,
-            key.token_key_id,
-            operation_type,
-            &key.public_key,
-        )
-        .await?;
+        let discarded = persistence::token_count(pool, operation_type).await?;
+        info!(
+            ?existing_ids,
+            ?new_ids,
+            %discarded,
+            "VOPRF key set changed, discarding cached tokens"
+        );
+        persistence::delete_all_tokens(pool, operation_type).await?;
+        persistence::delete_all_batched_token_keys(pool, operation_type).await?;
+
+        for (token_key_id, public_key) in keys {
+            persistence::store_batched_token_key(pool, operation_type, token_key_id, public_key)
+                .await?;
+        }
     }
     Ok(())
 }
@@ -210,14 +219,8 @@ pub(crate) async fn finalize_delete_token_response(
     Ok(())
 }
 
-/// Minimum token count below which replenishment is triggered.
-pub(crate) const LOW_TOKEN_THRESHOLD: i64 = 5;
-
-/// Target number of tokens to hold locally.
-const TARGET_TOKEN_COUNT: i64 = 10;
-
 /// Fetches VOPRF keys from the server, detects key rotation, and requests
-/// tokens if the local count is below [`LOW_TOKEN_THRESHOLD`].
+/// tokens if the local count is below [`OperationType::low_token_threshold`].
 ///
 /// Returns the token count after replenishment.
 pub(crate) async fn replenish_if_needed(
@@ -226,18 +229,16 @@ pub(crate) async fn replenish_if_needed(
     user_id: UserId,
     signing_key: &ClientSigningKey,
     operation_type: OperationType,
-) -> anyhow::Result<i64> {
+) -> anyhow::Result<u16> {
+    // TODO: shouldn't the AS credentials be available somewhere instead of fetching them?
+    // because we do that for each operation_type
     let credentials_response = api_client.as_as_credentials().await?;
-    store_batched_token_keys(
-        pool,
-        operation_type,
-        &credentials_response.batched_token_keys,
-    )
-    .await?;
+    store_batched_token_keys(pool, &credentials_response.batched_token_keys).await?;
 
     let count = token_count(pool, operation_type).await?;
-    if count < LOW_TOKEN_THRESHOLD {
-        let needed = (TARGET_TOKEN_COUNT - count).min(TARGET_TOKEN_COUNT) as u16;
+    let max_tokens = operation_type.max_tokens_allowance();
+    if count < operation_type.low_tokens_threshold() {
+        let needed = (max_tokens - count).min(max_tokens);
         request_and_store_tokens(
             pool,
             api_client,

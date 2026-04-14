@@ -15,7 +15,7 @@ impl StatusDetails {
 }
 
 impl OperationType {
-    pub fn tokens_allowance(&self) -> i32 {
+    pub fn max_tokens_allowance(&self) -> u16 {
         match self {
             OperationType::Unknown => 0,
             OperationType::AddUsername => 10,
@@ -23,11 +23,11 @@ impl OperationType {
         }
     }
 
-    pub fn max_tokens_per_request(&self) -> i32 {
+    pub fn low_tokens_threshold(&self) -> u16 {
         match self {
             OperationType::Unknown => 0,
-            OperationType::AddUsername => 100,
-            OperationType::GetInviteCode => 5,
+            OperationType::AddUsername => 5,
+            OperationType::GetInviteCode => 1,
         }
     }
 
