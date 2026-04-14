@@ -594,6 +594,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_StreamSink_member_details_state_Sse(dynamic raw);
 
   @protected
+  RustStreamSink<MessageListTransition>
+  dco_decode_StreamSink_message_list_transition_Sse(dynamic raw);
+
+  @protected
   RustStreamSink<MessageState> dco_decode_StreamSink_message_state_Sse(
     dynamic raw,
   );
@@ -724,6 +728,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageId dco_decode_box_autoadd_message_id(dynamic raw);
+
+  @protected
+  MessageListCommand dco_decode_box_autoadd_message_list_command(dynamic raw);
 
   @protected
   MessageState dco_decode_box_autoadd_message_state(dynamic raw);
@@ -880,7 +887,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  List<MessageListDiff> dco_decode_list_message_list_diff(dynamic raw);
+  List<MessageListChange> dco_decode_list_message_list_change(dynamic raw);
 
   @protected
   List<NotificationHandle> dco_decode_list_notification_handle(dynamic raw);
@@ -942,10 +949,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MessageId dco_decode_message_id(dynamic raw);
 
   @protected
-  MessageListDiff dco_decode_message_list_diff(dynamic raw);
+  MessageListChange dco_decode_message_list_change(dynamic raw);
+
+  @protected
+  MessageListCommand dco_decode_message_list_command(dynamic raw);
 
   @protected
   MessageListMeta dco_decode_message_list_meta(dynamic raw);
+
+  @protected
+  MessageListTransition dco_decode_message_list_transition(dynamic raw);
+
+  @protected
+  MessageListTransitionKind dco_decode_message_list_transition_kind(
+    dynamic raw,
+  );
 
   @protected
   MessageState dco_decode_message_state(dynamic raw);
@@ -1040,6 +1058,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageId? dco_decode_opt_box_autoadd_message_id(dynamic raw);
+
+  @protected
+  MessageListCommand? dco_decode_opt_box_autoadd_message_list_command(
+    dynamic raw,
+  );
 
   @protected
   PlatformPushToken? dco_decode_opt_box_autoadd_platform_push_token(
@@ -1681,6 +1704,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   sse_decode_StreamSink_member_details_state_Sse(SseDeserializer deserializer);
 
   @protected
+  RustStreamSink<MessageListTransition>
+  sse_decode_StreamSink_message_list_transition_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RustStreamSink<MessageState> sse_decode_StreamSink_message_state_Sse(
     SseDeserializer deserializer,
   );
@@ -1835,6 +1864,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageId sse_decode_box_autoadd_message_id(SseDeserializer deserializer);
+
+  @protected
+  MessageListCommand sse_decode_box_autoadd_message_list_command(
+    SseDeserializer deserializer,
+  );
 
   @protected
   MessageState sse_decode_box_autoadd_message_state(
@@ -2029,7 +2063,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  List<MessageListDiff> sse_decode_list_message_list_diff(
+  List<MessageListChange> sse_decode_list_message_list_change(
     SseDeserializer deserializer,
   );
 
@@ -2113,10 +2147,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MessageId sse_decode_message_id(SseDeserializer deserializer);
 
   @protected
-  MessageListDiff sse_decode_message_list_diff(SseDeserializer deserializer);
+  MessageListChange sse_decode_message_list_change(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MessageListCommand sse_decode_message_list_command(
+    SseDeserializer deserializer,
+  );
 
   @protected
   MessageListMeta sse_decode_message_list_meta(SseDeserializer deserializer);
+
+  @protected
+  MessageListTransition sse_decode_message_list_transition(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MessageListTransitionKind sse_decode_message_list_transition_kind(
+    SseDeserializer deserializer,
+  );
 
   @protected
   MessageState sse_decode_message_state(SseDeserializer deserializer);
@@ -2231,6 +2282,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageId? sse_decode_opt_box_autoadd_message_id(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MessageListCommand? sse_decode_opt_box_autoadd_message_list_command(
     SseDeserializer deserializer,
   );
 
@@ -3011,6 +3067,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_message_list_transition_Sse(
+    RustStreamSink<MessageListTransition> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_StreamSink_message_state_Sse(
     RustStreamSink<MessageState> self,
     SseSerializer serializer,
@@ -3193,6 +3255,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_message_id(
     MessageId self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_message_list_command(
+    MessageListCommand self,
     SseSerializer serializer,
   );
 
@@ -3440,8 +3508,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_list_message_list_diff(
-    List<MessageListDiff> self,
+  void sse_encode_list_message_list_change(
+    List<MessageListChange> self,
     SseSerializer serializer,
   );
 
@@ -3548,14 +3616,32 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_message_id(MessageId self, SseSerializer serializer);
 
   @protected
-  void sse_encode_message_list_diff(
-    MessageListDiff self,
+  void sse_encode_message_list_change(
+    MessageListChange self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_message_list_command(
+    MessageListCommand self,
     SseSerializer serializer,
   );
 
   @protected
   void sse_encode_message_list_meta(
     MessageListMeta self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_message_list_transition(
+    MessageListTransition self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_message_list_transition_kind(
+    MessageListTransitionKind self,
     SseSerializer serializer,
   );
 
@@ -3697,6 +3783,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_message_id(
     MessageId? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_message_list_command(
+    MessageListCommand? self,
     SseSerializer serializer,
   );
 

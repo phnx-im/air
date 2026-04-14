@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -56,10 +58,9 @@ class _MessageListViewState extends State<MessageListView>
   /// during rapid scroll updates.
   MessageId? _lastMarkedAsReadId;
 
-  /// The state object that last triggered a scroll-to-index action.
-  /// Compared by identity so a new emission with the same scrollToIndex
-  /// still triggers a scroll.
-  MessageListState? _lastScrolledState;
+  MessageListCubit? _commandsCubit;
+  StreamSubscription<MessageListCommand>? _commandSubscription;
+  bool _initialUnreadScrollHandled = false;
 
   @override
   void initState() {
@@ -75,9 +76,20 @@ class _MessageListViewState extends State<MessageListView>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final cubit = context.read<MessageListCubit>();
+    if (identical(cubit, _commandsCubit)) return;
+    _commandSubscription?.cancel();
+    _commandsCubit = cubit;
+    _commandSubscription = cubit.commands.listen(_handleCommand);
+  }
+
+  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     widget.scrollToBottomController?.onScrollToBottom = null;
+    _commandSubscription?.cancel();
     _listController.isAtBottom.removeListener(_updateShowButton);
     _listController.newestVisibleId.removeListener(
       _markCurrentVisibleMessageAsRead,
@@ -150,6 +162,30 @@ class _MessageListViewState extends State<MessageListView>
     );
   }
 
+  void _handleCommand(MessageListCommand command) {
+    switch (command) {
+      case MessageListCommand_ScrollToBottom():
+        _listController.scrollToBottom(duration: Duration.zero);
+      case MessageListCommand_ScrollToId(:final messageId):
+        _listController.goToId(messageId);
+    }
+  }
+
+  void _scheduleInitialUnreadScroll(MessageListState state) {
+    if (_initialUnreadScrollHandled || state.meta.firstUnreadIndex == null) {
+      return;
+    }
+    final message = state.messageAt(state.meta.firstUnreadIndex!);
+    if (message == null) return;
+
+    _initialUnreadScrollHandled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _listController.goToId(message.id);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.select((MessageListCubit cubit) => cubit.state);
@@ -162,37 +198,12 @@ class _MessageListViewState extends State<MessageListView>
       if (!mounted) return;
       _updateShowButton();
     });
+    _scheduleInitialUnreadScroll(state);
 
     final composerHeightListenable =
         widget.scrollToBottomController?.composerHeight;
 
-    // Translate cubit scroll-to-index commands into AnchoredList actions.
-    // The cubit sets scrollToIndex when it wants the UI to navigate
-    // (e.g. after jumpToMessage or initial load with an unread divider).
-    return BlocListener<MessageListCubit, MessageListState>(
-      listenWhen: (prev, curr) =>
-          curr.meta.scrollToIndex != null &&
-          !identical(curr, _lastScrolledState),
-      listener: (context, state) {
-        _lastScrolledState = state;
-        final scrollTo = state.meta.scrollToIndex!;
-        context.read<MessageListCubit>().clearScrollToIndex();
-        final message = state.messageAt(scrollTo);
-        if (message == null) return;
-
-        // If we're already at the bottom and the target is the newest
-        // message, jump instantly (no animation) to avoid a visible
-        // flicker. Otherwise, navigate by ID — AnchoredList handles
-        // both visible-item animation and off-screen iterative jumping.
-        final isNewest = scrollTo == state.loadedMessagesCount - 1;
-        if (state.meta.isAtBottom && isNewest) {
-          _listController.scrollToBottom(duration: Duration.zero);
-        } else {
-          _listController.goToId(message.id);
-        }
-      },
-      child: _buildList(composerHeightListenable, state),
-    );
+    return _buildList(composerHeightListenable, state);
   }
 
   /// Builds the [AnchoredList], wiring pagination and jump-to-message

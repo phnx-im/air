@@ -34,7 +34,7 @@ pub(crate) trait Cubit {
     fn state(&self) -> Self::State;
 
     /// Streams new states
-    async fn stream(&mut self, sink: StreamSink<Self::State>);
+    async fn stream(&self, sink: StreamSink<Self::State>);
 }
 
 /// Building block for cubits
@@ -72,13 +72,13 @@ impl<S: Clone> Cubit for CubitCore<S> {
         self.state_tx.borrow().clone()
     }
 
-    async fn stream(&mut self, sink: StreamSink<S>) {
+    async fn stream(&self, sink: StreamSink<S>) {
         if self.is_closed() {
             return;
         }
-        if self.sinks_tx.send(sink).await.is_err() {
-            self.close();
-        }
+        // Ignoring the error: send fails only when the emitter loop has
+        // already exited (receiver dropped), so there is nothing to close.
+        let _ = self.sinks_tx.send(sink).await;
     }
 }
 

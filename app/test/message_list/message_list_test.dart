@@ -967,7 +967,9 @@ void main() {
       );
     });
 
-    testWidgets('scrollToMessage reaches off-screen target', (tester) async {
+    testWidgets('scrollToMessage loads and reaches an unloaded target', (
+      tester,
+    ) async {
       // Small viewport so most messages are off-screen.
       tester.view.physicalSize = const Size(400, 600);
       tester.view.devicePixelRatio = 1.0;
@@ -976,7 +978,6 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      // Generate enough messages so the oldest ones are far off-screen.
       final manyMessages = List.generate(30, (i) {
         return UiChatMessage(
           id: (200 + i).messageId(),
@@ -1000,32 +1001,52 @@ void main() {
         );
       });
 
-      // Index 2 = third oldest message, near maxScrollExtent in reversed list.
-      const targetIndex = 2;
-      final stateWithScroll = MockMessageListState(
-        manyMessages,
-        scrollToIndex: targetIndex,
+      final targetMessage = UiChatMessage(
+        id: 999.messageId(),
+        chatId: chatId,
+        timestamp: DateTime(2023, 1, 1, 2, 0),
+        message: UiMessage_Content(
+          UiContentMessage(
+            sender: 2.userId(),
+            sent: true,
+            edited: false,
+            content: UiMimiContent(
+              plainBody: 'Loaded around target',
+              topicId: Uint8List(0),
+              content: simpleMessage('Loaded around target'),
+              attachments: [],
+            ),
+          ),
+        ),
+        position: UiFlightPosition.single,
+        status: UiMessageStatus.sent,
       );
 
-      // Start with no scroll request, then emit the scroll state.
-      final initialState = MockMessageListState(manyMessages);
-      messageListCubit.setState(initialState);
+      MessageId? requestedMessageId;
+      messageListCubit = MockMessageListCubit(
+        initialState: MockMessageListState(manyMessages),
+        onJumpToMessage: (messageId) async {
+          requestedMessageId = messageId;
+          messageListCubit.setState(
+            MockMessageListState([...manyMessages, targetMessage]),
+          );
+        },
+      );
 
       await tester.pumpWidget(buildSubject());
 
-      messageListCubit.setState(stateWithScroll);
+      messageListCubit.emitCommand(
+        MessageListCommand.scrollToId(messageId: targetMessage.id),
+      );
       await tester.pump();
-
-      // The target should not be visible initially (it's at the old end).
-      expect(find.text('Message number 2'), findsNothing);
 
       // Pump enough frames for the iterative scroll to converge.
       for (var i = 0; i < 15; i++) {
         await tester.pump(const Duration(milliseconds: 50));
       }
 
-      // The target message should now be visible.
-      expect(find.text('Message number 2'), findsOneWidget);
+      expect(requestedMessageId, targetMessage.id);
+      expect(find.text('Loaded around target'), findsOneWidget);
     });
 
     testWidgets('marks the current visible message as read while scrolling', (

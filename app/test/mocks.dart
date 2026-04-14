@@ -89,15 +89,26 @@ class MockChatListCubit extends MockCubit<ChatListState>
     implements ChatListCubit {}
 
 class MockMessageListCubit implements MessageListCubit {
-  MockMessageListCubit([MessageListState? initialState])
-    : _state = initialState ?? MockMessageListState([]) {
+  MockMessageListCubit({
+    MessageListState? initialState,
+    this.onJumpToMessage,
+    this.onJumpToBottom,
+    this.onLoadNewer,
+    this.onLoadOlder,
+  }) : _state = initialState ?? MockMessageListState([]) {
     _syncMessageData(_state);
   }
 
   final StreamController<MessageListState> _controller =
       StreamController<MessageListState>.broadcast(sync: true);
+  final StreamController<MessageListCommand> _commands =
+      StreamController<MessageListCommand>.broadcast(sync: true);
   MessageListState _state;
   bool _isClosed = false;
+  final Future<void> Function(MessageId messageId)? onJumpToMessage;
+  final Future<void> Function()? onJumpToBottom;
+  final Future<void> Function()? onLoadNewer;
+  final Future<void> Function()? onLoadOlder;
 
   @override
   final AnchoredListData<UiChatMessage> messageData = AnchoredListData();
@@ -112,25 +123,39 @@ class MockMessageListCubit implements MessageListCubit {
   Stream<MessageListState> get stream => _controller.stream;
 
   @override
-  Future<void> jumpToBottom() async {}
+  Stream<MessageListCommand> get commands => _commands.stream;
 
   @override
-  Future<void> jumpToMessage({required MessageId messageId}) async {}
+  Future<void> jumpToBottom() async {
+    await onJumpToBottom?.call();
+  }
 
   @override
-  Future<void> loadNewer() async {}
+  Future<void> jumpToMessage({required MessageId messageId}) async {
+    await onJumpToMessage?.call(messageId);
+  }
 
   @override
-  Future<void> loadOlder() async {}
+  Future<void> loadNewer() async {
+    await onLoadNewer?.call();
+  }
 
   @override
-  void clearScrollToIndex() {}
+  Future<void> loadOlder() async {
+    await onLoadOlder?.call();
+  }
 
   void setState(MessageListState newState) {
     _syncMessageData(newState);
     _state = newState;
     if (!_controller.isClosed) {
       _controller.add(newState);
+    }
+  }
+
+  void emitCommand(MessageListCommand command) {
+    if (!_commands.isClosed) {
+      _commands.add(command);
     }
   }
 
@@ -155,6 +180,7 @@ class MockMessageListCubit implements MessageListCubit {
   Future<void> close() async {
     _isClosed = true;
     messageData.dispose();
+    await _commands.close();
     await _controller.close();
   }
 }
@@ -166,15 +192,15 @@ class MockMessageListState implements MessageListState {
     bool hasOlder = false,
     bool hasNewer = false,
     bool isAtBottom = false,
-    int? scrollToIndex,
     int? firstUnreadIndex,
+    int revision = 0,
   }) : meta = MessageListMeta(
          isConnectionChat: isConnectionChat,
          hasOlder: hasOlder,
          hasNewer: hasNewer,
          isAtBottom: isAtBottom,
-         scrollToIndex: scrollToIndex,
          firstUnreadIndex: firstUnreadIndex,
+         revision: revision,
        );
 
   final List<UiChatMessage> messages;
