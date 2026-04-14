@@ -60,7 +60,7 @@ impl CreateChat {
         } = self;
         let JobContext {
             api_clients,
-            pool,
+            connection,
             notifier,
             key_store,
             http_client,
@@ -123,7 +123,6 @@ impl CreateChat {
         }
         .encode()?;
 
-        let mut connection = pool.acquire().await?;
         let own_user_id = key_store.signing_key.credential().user_id();
 
         // Create the group. If the query to the DS fails later on, we just
@@ -172,7 +171,7 @@ impl CreateChat {
             TimeStamp::now(),
             SystemMessage::CreateGroup(own_user_id.clone()),
         )
-        .store(connection.as_mut(), notifier)
+        .store(&mut **connection, notifier)
         .await?;
 
         Ok(chat.id())

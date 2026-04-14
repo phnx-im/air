@@ -178,10 +178,6 @@ impl Chat {
         &self.status
     }
 
-    pub fn status_mut(&mut self) -> &mut ChatStatus {
-        &mut self.status
-    }
-
     pub fn attributes(&self) -> &ChatAttributes {
         &self.attributes
     }

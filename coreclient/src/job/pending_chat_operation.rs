@@ -15,7 +15,7 @@ use chrono::{DateTime, Duration, Utc};
 use mimi_room_policy::RoleIndex;
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
-use sqlx::{SqliteConnection, SqlitePool, SqliteTransaction, query, query_as};
+use sqlx::{SqliteConnection, SqliteTransaction, query, query_as, query_scalar};
 use tracing::{debug, error, info};
 
 use crate::{
@@ -23,7 +23,10 @@ use crate::{
     chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
     contacts::ContactAddInfos,
-    groups::{Group, VerifiedGroup, client_auth_info::StorableClientCredential},
+    groups::{
+        Group, VerifiedGroup, client_auth_info::StorableClientCredential,
+        handle_group_not_found_on_ds,
+    },
     job::{Job, JobContext, JobError, chat_operation::ChatOperationError},
     store::StoreNotifier,
     utils::connection_ext::ConnectionExt,
@@ -100,7 +103,8 @@ impl Job for PendingChatOperation {
                 let retry_due = context.now + RETRY_INTERVAL;
                 #[cfg(any(test, feature = "test_utils"))]
                 let retry_due = context.now + RETRY_INTERVAL;
-                self.update_retry_due_at(&context.pool, retry_due).await?;
+                self.update_retry_due_at(&mut *context.connection, retry_due)
+                    .await?;
                 let group_id = self.group.group_id();
                 info!(
                     ?group_id,
@@ -110,12 +114,14 @@ impl Job for PendingChatOperation {
                 Err(JobError::NetworkError)
             }
             Err(JobError::NotFound) => {
-                let group_id = self.group.group_id();
-                error!(
-                    ?group_id,
-                    "Group not found; deleting pending chat operation"
-                );
-                Self::delete(&context.pool, group_id).await?;
+                let group_id = self.group.group_id().clone();
+                error!(?group_id, "Group not found on DS; cleaning up local state");
+                context
+                    .connection
+                    .with_transaction(async |txn| {
+                        handle_group_not_found_on_ds(txn, context.notifier, &group_id).await
+                    })
+                    .await?;
                 Err(JobError::NotFound)
             }
             res => res,
@@ -157,7 +163,7 @@ impl PendingChatOperation {
 
         let JobContext {
             api_clients,
-            pool,
+            connection,
             notifier,
             key_store,
             now,
@@ -184,10 +190,8 @@ impl PendingChatOperation {
             && message_epoch != self.group.mls_group().epoch()
             && self.number_of_attempts > 0
         {
-            *leave_params = pool
-                .with_transaction(async |connection| {
-                    self.group.group_mut().stage_leave_group(connection, signer)
-                })
+            *leave_params = connection
+                .with_transaction(async |txn| self.group.group_mut().stage_leave_group(txn, signer))
                 .await?;
         }
 
@@ -215,7 +219,7 @@ impl PendingChatOperation {
             Err(error) => {
                 self.number_of_attempts += 1;
                 if !is_leave {
-                    let job_error = self.handle_error(pool, error).await?;
+                    let job_error = self.handle_error(connection, error).await?;
                     return Err(job_error);
                 }
 
@@ -235,7 +239,7 @@ impl PendingChatOperation {
         };
 
         // If any of the following fails, something is very wrong.
-        let messages = pool
+        let messages = connection
             .with_transaction(async |txn| {
                 let Some(mut chat) = Chat::load_by_group_id(txn, self.group.group_id()).await?
                 else {
@@ -342,7 +346,7 @@ impl PendingChatOperation {
 
     async fn handle_error(
         &mut self,
-        pool: &mut SqlitePool,
+        connection: &mut SqliteConnection,
         error: DsRequestError,
     ) -> Result<JobError<ChatOperationError>, JobError<ChatOperationError>> {
         debug!(?error, "DS request failed");
@@ -351,7 +355,8 @@ impl PendingChatOperation {
             // If we get a WrongEpochError, we know the commit was
             // either accepted on a previous try, or the DS rejected
             // it because another one got there first.
-            self.mark_as_waiting_for_queue_response(&*pool).await?;
+            self.mark_as_waiting_for_queue_response(&mut *connection)
+                .await?;
 
             Err(JobError::Blocked)
         } else if error.is_not_found() {
@@ -367,12 +372,13 @@ impl PendingChatOperation {
         } else {
             // For other errors or if the max number of retries has been
             // reached, we consider the operation failed and delete the job.
-            pool.with_transaction(async |txn| -> anyhow::Result<_> {
-                self.group.group_mut().discard_pending_commit(txn).await?;
-                Self::delete(txn.as_mut(), self.group.group_id()).await?;
-                Ok(())
-            })
-            .await?;
+            connection
+                .with_transaction(async |txn| -> anyhow::Result<_> {
+                    self.group.group_mut().discard_pending_commit(txn).await?;
+                    Self::delete(txn.as_mut(), self.group.group_id()).await?;
+                    Ok(())
+                })
+                .await?;
 
             let error = if self.number_of_attempts >= MAX_RETRIES {
                 anyhow!(
@@ -828,18 +834,30 @@ mod persistence {
             task_id: Uuid,
             now: DateTime<Utc>,
         ) -> anyhow::Result<Option<Self>> {
-            let sql_pending_operation = query_as!(
+            let Some(group_id) = query_scalar!(
+                r#"
+                SELECT group_id
+                FROM pending_chat_operation
+                WHERE (locked_by IS NULL OR locked_by != ?1)
+                    AND request_status = ?2
+                    AND retry_due_at <= ?3
+                LIMIT 1
+                "#,
+                task_id,
+                PendingChatOperationStatus::ReadyToRetry as _,
+                now
+            )
+            .fetch_optional(txn.as_mut())
+            .await?
+            else {
+                return Ok(None);
+            };
+
+            let Some(sql_pending_operation) = query_as!(
                 SqlPendingChatOperation,
                 r#"UPDATE pending_chat_operation
-                    SET locked_by = ?1
-                    WHERE group_id = (
-                      SELECT group_id
-                      FROM pending_chat_operation
-                      WHERE (locked_by IS NULL OR locked_by != ?1)
-                      AND request_status = ?2
-                      AND retry_due_at <= ?3
-                      LIMIT 1
-                    )
+                    SET locked_by = ?2
+                    WHERE group_id = ?1
                 RETURNING
                     group_id,
                     operation_data AS "operation_data: _",
@@ -847,14 +865,12 @@ mod persistence {
                     request_status AS "request_status: _",
                     number_of_attempts
                 "#,
+                group_id,
                 task_id,
-                PendingChatOperationStatus::ReadyToRetry as _,
-                now
             )
             .fetch_optional(txn.as_mut())
-            .await?;
-
-            let Some(sql_pending_operation) = sql_pending_operation else {
+            .await?
+            else {
                 return Ok(None);
             };
 

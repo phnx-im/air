@@ -7,6 +7,7 @@ use std::{collections::HashSet, path::Path};
 
 use aircommon::identifiers::{AttachmentId, MimiId, UserHandle, UserHandleHash, UserId};
 use aircommon::messages::client_as_out::UserHandleDeleteResponse;
+use aircommon::time::TimeStamp;
 use mimi_content::MimiContent;
 use mimi_room_policy::VerifiedRoomState;
 use tokio_stream::Stream;
@@ -212,6 +213,40 @@ pub trait Store {
     // messages
 
     async fn messages(&self, chat_id: ChatId, limit: usize) -> StoreResult<Vec<ChatMessage>>;
+
+    async fn messages_before(
+        &self,
+        chat_id: ChatId,
+        before: TimeStamp,
+        before_id: MessageId,
+        limit: usize,
+    ) -> StoreResult<(Vec<ChatMessage>, bool)>;
+
+    async fn messages_after(
+        &self,
+        chat_id: ChatId,
+        after: TimeStamp,
+        after_id: MessageId,
+        limit: usize,
+    ) -> StoreResult<(Vec<ChatMessage>, bool)>;
+
+    async fn messages_from(
+        &self,
+        chat_id: ChatId,
+        from: TimeStamp,
+        from_id: MessageId,
+        limit: usize,
+    ) -> StoreResult<(Vec<ChatMessage>, bool)>;
+
+    async fn messages_around(
+        &self,
+        chat_id: ChatId,
+        anchor: TimeStamp,
+        anchor_id: MessageId,
+        half_limit: usize,
+    ) -> StoreResult<(Vec<ChatMessage>, bool, bool)>;
+
+    async fn first_unread_message(&self, chat_id: ChatId) -> StoreResult<Option<ChatMessage>>;
 
     async fn message(&self, message_id: MessageId) -> StoreResult<Option<ChatMessage>>;
 

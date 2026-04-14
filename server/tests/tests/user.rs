@@ -402,6 +402,7 @@ async fn check_handle_exists() {
         .unwrap();
     assert!(hash.is_none(), "Alice's handle should not exist yet");
 
+    alice_user.replenish_privacy_pass_tokens().await.unwrap();
     alice_user
         .add_user_handle(alice_handle.clone())
         .await

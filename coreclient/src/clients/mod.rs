@@ -574,10 +574,7 @@ impl CoreUser {
         chat_id: ChatId,
     ) -> Result<Option<HashSet<UserId>>> {
         let mut connection = self.pool().acquire().await?;
-        let Some(chat) = Chat::load(&mut connection, &chat_id).await? else {
-            return Ok(None);
-        };
-        let Some(group) = Group::load(&mut connection, chat.group_id()).await? else {
+        let Some(group) = Group::load_with_chat_id(&mut connection, chat_id).await? else {
             return Ok(None);
         };
         let users = group
@@ -806,10 +803,11 @@ impl CoreUser {
         JobType: Job<Output = T, DomainError = E>,
     {
         let mut notifier = self.store_notifier();
+        let mut connection = self.pool().acquire().await?;
         let mut context = JobContext {
             api_clients: &self.inner.api_clients,
             http_client: &self.inner.http_client,
-            pool: self.pool().clone(),
+            connection: &mut connection,
             notifier: &mut notifier,
             key_store: &self.inner.key_store,
             now: Utc::now(),

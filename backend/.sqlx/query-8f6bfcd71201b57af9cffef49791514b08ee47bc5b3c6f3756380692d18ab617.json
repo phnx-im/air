@@ -1,0 +1,89 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n                    activity_time,\n                    credential AS \"credential: FlatClientCredential\",\n                    remaining_tokens,\n                    allowance_epoch\n                FROM as_client_record\n                WHERE user_uuid = $1 AND user_domain = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "activity_time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 1,
+        "name": "credential: FlatClientCredential",
+        "type_info": {
+          "Custom": {
+            "name": "client_credential",
+            "kind": {
+              "Composite": [
+                [
+                  "version",
+                  "Bytea"
+                ],
+                [
+                  "signature_scheme",
+                  "Bytea"
+                ],
+                [
+                  "verifying_key",
+                  "Bytea"
+                ],
+                [
+                  "expiration_data",
+                  {
+                    "Custom": {
+                      "name": "expiration",
+                      "kind": {
+                        "Composite": [
+                          [
+                            "not_before",
+                            "Timestamptz"
+                          ],
+                          [
+                            "not_after",
+                            "Timestamptz"
+                          ]
+                        ]
+                      }
+                    }
+                  }
+                ],
+                [
+                  "signer_fingerprint",
+                  "Bytea"
+                ],
+                [
+                  "signature",
+                  "Bytea"
+                ]
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "remaining_tokens",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "allowance_epoch",
+        "type_info": "Int2"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8f6bfcd71201b57af9cffef49791514b08ee47bc5b3c6f3756380692d18ab617"
+}

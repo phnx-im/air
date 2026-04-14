@@ -4,9 +4,17 @@
 
 use std::slice;
 
-use aircoreclient::{DisplayName, UserProfile, clients::queue_event, store::Store};
+use aircoreclient::{
+    DisplayName, UserProfile,
+    clients::{
+        process::process_qs::{QsProcessEventResult, QsStreamProcessor},
+        queue_event,
+    },
+    store::Store,
+};
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::{DateTime, Duration, Utc};
+use mimi_content::MimiContent;
 use tokio_stream::StreamExt;
 use tracing::info;
 
@@ -819,4 +827,62 @@ async fn self_update_skips_inactive_chats() {
         DateTime::UNIX_EPOCH,
         "Inactive chat was self-updated even though it should not have been"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "QS stream processor partially processes messages", skip_all)]
+async fn qs_stream_processor_partially_processes_messages() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    let connection_chat_id = setup.connect_users(&alice, &bob).await;
+    let group_chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(group_chat_id, &alice, vec![&bob])
+        .await;
+
+    // Remove bob chat only locally on their client
+    setup
+        .get_user(&bob)
+        .user
+        .erase_chat(group_chat_id)
+        .await
+        .unwrap();
+
+    let alice_user = &setup.get_user(&alice).user;
+
+    let content = MimiContent::simple_markdown_message("Hello from Alice!".to_owned(), [0; 16]);
+
+    alice_user
+        .send_message(connection_chat_id, content.clone(), None)
+        .await
+        .unwrap();
+    alice_user
+        .send_message(group_chat_id, content.clone(), None)
+        .await
+        .unwrap();
+    alice_user
+        .send_message(connection_chat_id, content, None)
+        .await
+        .unwrap();
+    alice_user.outbound_service().run_once().await;
+
+    let bob_user = &setup.get_user(&bob).user;
+
+    let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
+    let mut processor = QsStreamProcessor::new(Some(responder));
+
+    while let Some(message) = stream.next().await {
+        match processor.process_event(bob_user, message).await {
+            QsProcessEventResult::Accumulated => (),
+            QsProcessEventResult::Ignored => (),
+            QsProcessEventResult::FullyProcessed { processed } => {
+                assert_eq!(processed.processed, 3);
+                assert_eq!(processed.errors.len(), 1);
+                return;
+            }
+            QsProcessEventResult::PartiallyProcessed { .. } => unreachable!(),
+        }
+    }
 }

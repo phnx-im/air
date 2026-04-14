@@ -5,7 +5,7 @@
 use std::fmt;
 
 use aircommon::{
-    codec::{self, BlobDecoded, BlobEncoded, PersistenceCodec},
+    codec::{BlobDecoded, BlobEncoded, PersistenceCodec},
     identifiers::{Fqdn, MimiId, UserId},
     time::TimeStamp,
 };
@@ -108,22 +108,8 @@ struct SqlChatMessage {
     in_reply_to_mimi_id: Option<MimiId>,
 }
 
-#[derive(thiserror::Error, Debug)]
-enum VersionedMessageError {
-    #[error(transparent)]
-    Codec(#[from] codec::Error),
-}
-
-impl From<VersionedMessageError> for sqlx::Error {
-    fn from(value: VersionedMessageError) -> Self {
-        sqlx::Error::Decode(Box::new(value))
-    }
-}
-
-impl TryFrom<SqlChatMessage> for ChatMessage {
-    type Error = VersionedMessageError;
-
-    fn try_from(
+impl From<SqlChatMessage> for ChatMessage {
+    fn from(
         SqlChatMessage {
             message_id,
             mimi_id,
@@ -138,7 +124,7 @@ impl TryFrom<SqlChatMessage> for ChatMessage {
             is_blocked,
             in_reply_to_mimi_id,
         }: SqlChatMessage,
-    ) -> Result<Self, Self::Error> {
+    ) -> Self {
         let message = match (sender_user_uuid, sender_user_domain) {
             // user message
             (Some(sender_user_uuid), Some(sender_user_domain)) => {
@@ -178,13 +164,13 @@ impl TryFrom<SqlChatMessage> for ChatMessage {
                 .unwrap_or(MessageStatus::Unread)
         };
 
-        Ok(ChatMessage {
+        ChatMessage {
             message_id,
             chat_id,
             in_reply_to: in_reply_to_mimi_id.map(|id| (id, None)),
             timestamped_message,
             status,
-        })
+        }
     }
 }
 
@@ -217,8 +203,7 @@ impl ChatMessage {
         )
         .fetch_optional(&mut *connection)
         .await?
-        .map(TryFrom::try_from)
-        .transpose()?
+        .map(ChatMessage::from)
         .with_loaded_in_reply_to(&mut *connection)
         .await
     }
@@ -251,10 +236,28 @@ impl ChatMessage {
         )
         .fetch_optional(&mut *connection)
         .await?
-        .map(TryFrom::try_from)
-        .transpose()?
+        .map(ChatMessage::from)
         .with_loaded_in_reply_to(&mut *connection)
         .await
+    }
+
+    /// Decode a single row from the query stream, skipping rows that fail.
+    fn decode_row(res: sqlx::Result<SqlChatMessage>) -> Option<sqlx::Result<ChatMessage>> {
+        let message = res
+            .inspect_err(|e| warn!("Error loading message: {e}"))
+            .ok()?;
+        Some(Ok(message.into()))
+    }
+
+    /// Trim the extra sentinel row used to detect more messages,
+    /// optionally reverse, and return whether more messages exist.
+    fn trim_sentinel(messages: &mut Vec<ChatMessage>, limit: u32, reverse: bool) -> bool {
+        let has_more = messages.len() > limit as usize;
+        messages.truncate(limit as usize);
+        if reverse {
+            messages.reverse();
+        }
+        has_more
     }
 
     pub(crate) async fn load_multiple(
@@ -262,7 +265,7 @@ impl ChatMessage {
         chat_id: ChatId,
         number_of_messages: u32,
     ) -> sqlx::Result<Vec<ChatMessage>> {
-        let messages: sqlx::Result<Vec<ChatMessage>> = query_as!(
+        let mut messages: Vec<ChatMessage> = query_as!(
             SqlChatMessage,
             r#"
             SELECT
@@ -282,36 +285,305 @@ impl ChatMessage {
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
             WHERE chat_id = ?
-            ORDER BY timestamp DESC
+            ORDER BY timestamp DESC, message_id DESC
             LIMIT ?"#,
             chat_id,
             number_of_messages,
         )
         .fetch(&mut *connection)
-        .filter_map(|res| {
-            let message: sqlx::Result<ChatMessage> = res
-                // skip messages that we can't decode, but don't fail loading the rest of the
-                // messages
-                .inspect_err(|e| warn!("Error loading message: {e}"))
-                .ok()?
-                .try_into()
-                .map_err(From::from);
-            Some(message)
-        })
-        .collect()
-        .await;
+        .filter_map(Self::decode_row)
+        .collect::<sqlx::Result<Vec<_>>>()
+        .await?;
 
-        let mut messages = messages?;
         messages.reverse();
-
-        for message in messages.iter_mut() {
-            // we don't want to fail for all messages if one load operation fails
-            if let Err(error) = message.augment_in_reply_to(connection).await {
-                error!(%error, "failed to load reply for message");
-            }
-        }
-
+        let messages = messages.with_loaded_in_reply_to(connection).await?;
         Ok(messages)
+    }
+
+    /// Load messages before (older than) the given cursor, in ascending order.
+    ///
+    /// Uses a composite `(timestamp, message_id)` cursor to ensure stable
+    /// pagination even when multiple messages share the same timestamp.
+    ///
+    /// Returns `(messages, has_older)` where `has_older` indicates more messages
+    /// exist before the returned window.
+    pub(crate) async fn load_before(
+        connection: &mut SqliteConnection,
+        chat_id: ChatId,
+        before: TimeStamp,
+        before_id: MessageId,
+        limit: u32,
+    ) -> sqlx::Result<(Vec<ChatMessage>, bool)> {
+        let fetch_limit = limit + 1;
+        let mut messages: Vec<ChatMessage> = query_as!(
+            SqlChatMessage,
+            r#"
+            SELECT
+                message_id AS "message_id: _",
+                mimi_id AS "mimi_id: _",
+                chat_id AS "chat_id: _",
+                timestamp AS "timestamp: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _",
+                sent,
+                status,
+                edited_at AS "edited_at: _",
+                b.user_uuid IS NOT NULL AS "is_blocked!: _",
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+            FROM message
+            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
+                AND b.user_domain = sender_user_domain
+            WHERE chat_id = ?1 AND (timestamp, message_id) < (?2, ?3)
+            ORDER BY timestamp DESC, message_id DESC
+            LIMIT ?4"#,
+            chat_id,
+            before,
+            before_id,
+            fetch_limit,
+        )
+        .fetch(&mut *connection)
+        .filter_map(Self::decode_row)
+        .collect::<sqlx::Result<Vec<_>>>()
+        .await?;
+
+        let has_older = Self::trim_sentinel(&mut messages, limit, true);
+        let messages = messages.with_loaded_in_reply_to(connection).await?;
+        Ok((messages, has_older))
+    }
+
+    /// Load messages after (newer than) the given cursor, in ascending order.
+    ///
+    /// Uses a composite `(timestamp, message_id)` cursor to ensure stable
+    /// pagination even when multiple messages share the same timestamp.
+    ///
+    /// Returns `(messages, has_newer)` where `has_newer` indicates more messages
+    /// exist after the returned window.
+    pub(crate) async fn load_after(
+        connection: &mut SqliteConnection,
+        chat_id: ChatId,
+        after: TimeStamp,
+        after_id: MessageId,
+        limit: u32,
+    ) -> sqlx::Result<(Vec<ChatMessage>, bool)> {
+        let fetch_limit = limit + 1;
+        let mut messages: Vec<ChatMessage> = query_as!(
+            SqlChatMessage,
+            r#"
+            SELECT
+                message_id AS "message_id: _",
+                mimi_id AS "mimi_id: _",
+                chat_id AS "chat_id: _",
+                timestamp AS "timestamp: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _",
+                sent,
+                status,
+                edited_at AS "edited_at: _",
+                b.user_uuid IS NOT NULL AS "is_blocked!: _",
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+            FROM message
+            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
+                AND b.user_domain = sender_user_domain
+            WHERE chat_id = ?1 AND (timestamp, message_id) > (?2, ?3)
+            ORDER BY timestamp ASC, message_id ASC
+            LIMIT ?4"#,
+            chat_id,
+            after,
+            after_id,
+            fetch_limit,
+        )
+        .fetch(&mut *connection)
+        .filter_map(Self::decode_row)
+        .collect::<sqlx::Result<Vec<_>>>()
+        .await?;
+
+        let has_newer = Self::trim_sentinel(&mut messages, limit, false);
+        let messages = messages.with_loaded_in_reply_to(connection).await?;
+        Ok((messages, has_newer))
+    }
+
+    /// Load messages starting from (inclusive) an anchor, in ascending order.
+    ///
+    /// Uses a composite `(timestamp, message_id)` cursor with `>=` so the
+    /// anchor message itself is included.
+    ///
+    /// Returns `(messages, has_newer)`.
+    pub(crate) async fn load_starting_from(
+        connection: &mut SqliteConnection,
+        chat_id: ChatId,
+        from: TimeStamp,
+        from_id: MessageId,
+        limit: u32,
+    ) -> sqlx::Result<(Vec<ChatMessage>, bool)> {
+        let fetch_limit = limit + 1;
+        let mut messages: Vec<ChatMessage> = query_as!(
+            SqlChatMessage,
+            r#"
+            SELECT
+                message_id AS "message_id: _",
+                mimi_id AS "mimi_id: _",
+                chat_id AS "chat_id: _",
+                timestamp AS "timestamp: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _",
+                sent,
+                status,
+                edited_at AS "edited_at: _",
+                b.user_uuid IS NOT NULL AS "is_blocked!: _",
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+            FROM message
+            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
+                AND b.user_domain = sender_user_domain
+            WHERE chat_id = ?1 AND (timestamp, message_id) >= (?2, ?3)
+            ORDER BY timestamp ASC, message_id ASC
+            LIMIT ?4"#,
+            chat_id,
+            from,
+            from_id,
+            fetch_limit,
+        )
+        .fetch(&mut *connection)
+        .filter_map(Self::decode_row)
+        .collect::<sqlx::Result<Vec<_>>>()
+        .await?;
+
+        let has_newer = Self::trim_sentinel(&mut messages, limit, false);
+        let messages = messages.with_loaded_in_reply_to(connection).await?;
+        Ok((messages, has_newer))
+    }
+
+    /// Load messages around an anchor, in ascending order.
+    ///
+    /// Uses a composite `(timestamp, message_id)` cursor. The anchor message
+    /// itself is included in the backward half (uses `<=`).
+    ///
+    /// Returns `(messages, has_older, has_newer)`.
+    pub(crate) async fn load_around(
+        connection: &mut SqliteConnection,
+        chat_id: ChatId,
+        anchor: TimeStamp,
+        anchor_id: MessageId,
+        half_limit: u32,
+    ) -> sqlx::Result<(Vec<ChatMessage>, bool, bool)> {
+        let fetch_half = half_limit + 1;
+
+        // Backward half: includes the anchor message
+        let mut backward: Vec<ChatMessage> = query_as!(
+            SqlChatMessage,
+            r#"
+            SELECT
+                message_id AS "message_id: _",
+                mimi_id AS "mimi_id: _",
+                chat_id AS "chat_id: _",
+                timestamp AS "timestamp: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _",
+                sent,
+                status,
+                edited_at AS "edited_at: _",
+                b.user_uuid IS NOT NULL AS "is_blocked!: _",
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+            FROM message
+            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
+                AND b.user_domain = sender_user_domain
+            WHERE chat_id = ?1 AND (timestamp, message_id) <= (?2, ?3)
+            ORDER BY timestamp DESC, message_id DESC
+            LIMIT ?4"#,
+            chat_id,
+            anchor,
+            anchor_id,
+            fetch_half,
+        )
+        .fetch(&mut *connection)
+        .filter_map(Self::decode_row)
+        .collect::<sqlx::Result<Vec<_>>>()
+        .await?;
+
+        let has_older = Self::trim_sentinel(&mut backward, half_limit, true);
+
+        // Forward half: messages after the anchor
+        let mut forward: Vec<ChatMessage> = query_as!(
+            SqlChatMessage,
+            r#"
+            SELECT
+                message_id AS "message_id: _",
+                mimi_id AS "mimi_id: _",
+                chat_id AS "chat_id: _",
+                timestamp AS "timestamp: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _",
+                sent,
+                status,
+                edited_at AS "edited_at: _",
+                b.user_uuid IS NOT NULL AS "is_blocked!: _",
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+            FROM message
+            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
+                AND b.user_domain = sender_user_domain
+            WHERE chat_id = ?1 AND (timestamp, message_id) > (?2, ?3)
+            ORDER BY timestamp ASC, message_id ASC
+            LIMIT ?4"#,
+            chat_id,
+            anchor,
+            anchor_id,
+            fetch_half,
+        )
+        .fetch(&mut *connection)
+        .filter_map(Self::decode_row)
+        .collect::<sqlx::Result<Vec<_>>>()
+        .await?;
+
+        let has_newer = Self::trim_sentinel(&mut forward, half_limit, false);
+
+        backward.append(&mut forward);
+        let messages = backward.with_loaded_in_reply_to(connection).await?;
+        Ok((messages, has_older, has_newer))
+    }
+
+    /// Load the first unread content message in a chat after `last_read`.
+    ///
+    /// Only considers messages with a sender (excludes system/event messages).
+    pub(crate) async fn first_unread_message(
+        connection: &mut SqliteConnection,
+        chat_id: ChatId,
+        last_read: TimeStamp,
+    ) -> sqlx::Result<Option<ChatMessage>> {
+        query_as!(
+            SqlChatMessage,
+            r#"SELECT
+                message_id AS "message_id: _",
+                mimi_id AS "mimi_id: _",
+                chat_id AS "chat_id: _",
+                timestamp AS "timestamp: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _",
+                sent,
+                status,
+                edited_at AS "edited_at: _",
+                b.user_uuid IS NOT NULL AS "is_blocked!: _",
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+            FROM message
+            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
+                AND b.user_domain = sender_user_domain
+            WHERE chat_id = ?1
+                AND timestamp > ?2
+                AND sender_user_uuid IS NOT NULL
+            ORDER BY timestamp ASC, message_id ASC
+            LIMIT 1"#,
+            chat_id,
+            last_read,
+        )
+        .fetch_optional(&mut *connection)
+        .await?
+        .map(ChatMessage::from)
+        .with_loaded_in_reply_to(connection)
+        .await
     }
 
     /// Augments a chat message when it is a reply with the data from the referenced message
@@ -512,8 +784,7 @@ impl ChatMessage {
         )
         .fetch_optional(&mut *connection)
         .await?
-        .map(TryFrom::try_from)
-        .transpose()?
+        .map(ChatMessage::from)
         .with_loaded_in_reply_to(connection)
         .await
     }
@@ -554,8 +825,7 @@ impl ChatMessage {
         )
         .fetch_optional(&mut *connection)
         .await?
-        .map(TryFrom::try_from)
-        .transpose()?
+        .map(ChatMessage::from)
         .with_loaded_in_reply_to(connection)
         .await
     }
@@ -593,8 +863,7 @@ impl ChatMessage {
         )
         .fetch_optional(&mut *connection)
         .await?
-        .map(TryFrom::try_from)
-        .transpose()?
+        .map(ChatMessage::from)
         .with_loaded_in_reply_to(connection)
         .await
     }
@@ -632,8 +901,7 @@ impl ChatMessage {
         )
         .fetch_optional(&mut *connection)
         .await?
-        .map(TryFrom::try_from)
-        .transpose()?
+        .map(ChatMessage::from)
         .with_loaded_in_reply_to(connection)
         .await
     }
@@ -725,6 +993,20 @@ impl SqlChatMessageExt for &mut ChatMessage {
     }
 }
 
+impl SqlChatMessageExt for Vec<ChatMessage> {
+    async fn with_loaded_in_reply_to(
+        mut self,
+        connection: &mut SqliteConnection,
+    ) -> sqlx::Result<Self> {
+        for message in &mut self {
+            if let Err(error) = message.augment_in_reply_to(connection).await {
+                error!(%error, "failed to load reply for message");
+            }
+        }
+        Ok(self)
+    }
+}
+
 impl SqlChatMessageExt for Option<ChatMessage> {
     async fn with_loaded_in_reply_to(
         mut self,
@@ -810,8 +1092,15 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn test_chat_message_with_salt(chat_id: ChatId, salt: [u8; 16]) -> ChatMessage {
+        test_chat_message_at(chat_id, salt, Utc::now().into())
+    }
+
+    pub(crate) fn test_chat_message_at(
+        chat_id: ChatId,
+        salt: [u8; 16],
+        timestamp: TimeStamp,
+    ) -> ChatMessage {
         let chat_message_id = MessageId::random();
-        let timestamp = Utc::now().into();
         let message = Message::Content(Box::new(ContentMessage::new(
             UserId::random("localhost".parse().unwrap()),
             false,
@@ -1211,6 +1500,207 @@ pub(crate) mod tests {
 
         // Should succeed without error (no-op)
         assert!(result.is_ok());
+
+        Ok(())
+    }
+
+    /// Helper to create a message with a specific timestamp (in seconds).
+    fn message_at(chat_id: ChatId, secs: i64) -> ChatMessage {
+        let sender = &*TEST_SENDER;
+        let salt = secs.to_le_bytes();
+        let mut salt_16 = [0u8; 16];
+        salt_16[..8].copy_from_slice(&salt);
+        ChatMessage::new_for_test(
+            chat_id,
+            MessageId::random(),
+            TimeStamp::from(secs * 1_000_000_000),
+            ContentMessage::new(
+                sender.clone(),
+                true,
+                MimiContent::simple_markdown_message(format!("msg at {secs}"), salt_16),
+                &GroupId::from_slice(&[0]),
+            ),
+        )
+    }
+
+    static TEST_SENDER: LazyLock<UserId> =
+        LazyLock::new(|| UserId::random("localhost".parse().unwrap()));
+
+    #[sqlx::test]
+    async fn load_before(pool: SqlitePool) -> anyhow::Result<()> {
+        let mut notifier = StoreNotifier::noop();
+        let mut txn = pool.begin().await?;
+
+        let chat = test_chat();
+        chat.store(txn.as_mut(), &mut notifier).await?;
+
+        // Store 5 messages at t=10,20,30,40,50
+        let msgs: Vec<_> = [10, 20, 30, 40, 50]
+            .into_iter()
+            .map(|t| message_at(chat.id(), t))
+            .collect();
+        for m in &msgs {
+            m.store(txn.as_mut(), &mut notifier).await?;
+        }
+
+        // Load 2 messages before t=35 -> should get t=20, t=30
+        let (loaded, has_older) = ChatMessage::load_before(
+            &mut txn,
+            chat.id(),
+            TimeStamp::from(35_000_000_000_i64),
+            MessageId::new(Uuid::max()),
+            2,
+        )
+        .await?;
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(loaded[0].id(), msgs[1].id()); // t=20
+        assert_eq!(loaded[1].id(), msgs[2].id()); // t=30
+        assert!(has_older); // t=10 exists
+
+        // Load 10 messages before t=35 -> should get t=10, t=20, t=30 with has_older=false
+        let (loaded, has_older) = ChatMessage::load_before(
+            &mut txn,
+            chat.id(),
+            TimeStamp::from(35_000_000_000_i64),
+            MessageId::new(Uuid::max()),
+            10,
+        )
+        .await?;
+        assert_eq!(loaded.len(), 3);
+        assert!(!has_older);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn load_after(pool: SqlitePool) -> anyhow::Result<()> {
+        let mut notifier = StoreNotifier::noop();
+        let mut txn = pool.begin().await?;
+
+        let chat = test_chat();
+        chat.store(txn.as_mut(), &mut notifier).await?;
+
+        let msgs: Vec<_> = [10, 20, 30, 40, 50]
+            .into_iter()
+            .map(|t| message_at(chat.id(), t))
+            .collect();
+        for m in &msgs {
+            m.store(txn.as_mut(), &mut notifier).await?;
+        }
+
+        // Load 2 messages after t=25 -> should get t=30, t=40
+        let (loaded, has_newer) = ChatMessage::load_after(
+            &mut txn,
+            chat.id(),
+            TimeStamp::from(25_000_000_000_i64),
+            MessageId::new(Uuid::nil()),
+            2,
+        )
+        .await?;
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(loaded[0].id(), msgs[2].id()); // t=30
+        assert_eq!(loaded[1].id(), msgs[3].id()); // t=40
+        assert!(has_newer); // t=50 exists
+
+        // Load 10 messages after t=25 -> should get t=30, t=40, t=50 with has_newer=false
+        let (loaded, has_newer) = ChatMessage::load_after(
+            &mut txn,
+            chat.id(),
+            TimeStamp::from(25_000_000_000_i64),
+            MessageId::new(Uuid::nil()),
+            10,
+        )
+        .await?;
+        assert_eq!(loaded.len(), 3);
+        assert!(!has_newer);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn load_around(pool: SqlitePool) -> anyhow::Result<()> {
+        let mut notifier = StoreNotifier::noop();
+        let mut txn = pool.begin().await?;
+
+        let chat = test_chat();
+        chat.store(txn.as_mut(), &mut notifier).await?;
+
+        let msgs: Vec<_> = [10, 20, 30, 40, 50]
+            .into_iter()
+            .map(|t| message_at(chat.id(), t))
+            .collect();
+        for m in &msgs {
+            m.store(txn.as_mut(), &mut notifier).await?;
+        }
+
+        // Load around t=30 with half_limit=2
+        // Backward (<=30): t=30, t=20 (limit 2), has_older because t=10 exists
+        // Forward (>30): t=40, t=50 (limit 2), has_newer=false
+        let (loaded, has_older, has_newer) = ChatMessage::load_around(
+            &mut txn,
+            chat.id(),
+            TimeStamp::from(30_000_000_000_i64),
+            msgs[2].id(),
+            2,
+        )
+        .await?;
+        assert_eq!(loaded.len(), 4); // t=20, t=30, t=40, t=50
+        assert_eq!(loaded[0].id(), msgs[1].id()); // t=20
+        assert_eq!(loaded[1].id(), msgs[2].id()); // t=30 (anchor)
+        assert_eq!(loaded[2].id(), msgs[3].id()); // t=40
+        assert_eq!(loaded[3].id(), msgs[4].id()); // t=50
+        assert!(has_older); // t=10 exists
+        assert!(!has_newer);
+
+        // Load around t=30 with half_limit=10 -> all 5 messages, no more
+        let (loaded, has_older, has_newer) = ChatMessage::load_around(
+            &mut txn,
+            chat.id(),
+            TimeStamp::from(30_000_000_000_i64),
+            msgs[2].id(),
+            10,
+        )
+        .await?;
+        assert_eq!(loaded.len(), 5);
+        assert!(!has_older);
+        assert!(!has_newer);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn first_unread_message(pool: SqlitePool) -> anyhow::Result<()> {
+        let mut notifier = StoreNotifier::noop();
+        let mut txn = pool.begin().await?;
+
+        let chat = test_chat();
+        chat.store(txn.as_mut(), &mut notifier).await?;
+
+        let msgs: Vec<_> = [10, 20, 30, 40, 50]
+            .into_iter()
+            .map(|t| message_at(chat.id(), t))
+            .collect();
+        for m in &msgs {
+            m.store(txn.as_mut(), &mut notifier).await?;
+        }
+
+        // last_read at t=25 -> first unread is t=30
+        let first = ChatMessage::first_unread_message(
+            &mut txn,
+            chat.id(),
+            TimeStamp::from(25_000_000_000_i64),
+        )
+        .await?;
+        assert_eq!(first.as_ref().map(|m| m.id()), Some(msgs[2].id()));
+
+        // last_read at t=50 -> no unread
+        let first = ChatMessage::first_unread_message(
+            &mut txn,
+            chat.id(),
+            TimeStamp::from(50_000_000_000_i64),
+        )
+        .await?;
+        assert!(first.is_none());
 
         Ok(())
     }

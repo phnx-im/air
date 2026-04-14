@@ -11,6 +11,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/jumbo_emoji.dart';
 import 'package:air/message_list/message_composer.dart';
+import 'package:air/message_list/message_list_cubit.dart';
 import 'package:air/message_list/mobile_message_actions.dart';
 import 'package:air/message_list/timestamp.dart';
 import 'package:air/navigation/navigation.dart';
@@ -307,17 +308,19 @@ class _MessageView extends HookWidget {
         flightPosition: flightPosition,
         isEdited: contentMessage.edited,
         isHidden: status == UiMessageStatus.hidden && !isRevealed.value,
+        isError: status == UiMessageStatus.error,
         enableSelection: enableSelection,
       );
     }
 
     final attachments = contentMessage.content.attachments;
     final isDeleted = contentMessage.content.isDeleted;
+    final isReplyable = !isDeleted && status != UiMessageStatus.error;
 
     const iconSize = 16.0;
 
     final actions = [
-      if (!isDeleted)
+      if (isReplyable)
         MessageAction(
           label: loc.messageContextMenu_reply,
           leading: const AppIcon.cornerLeft(size: iconSize),
@@ -409,7 +412,7 @@ class _MessageView extends HookWidget {
       required bool includeMetadata,
     }) {
       Widget bubble = buildMessageBubble(enableSelection: enableSelection);
-      if (!enableSelection) {
+      if (!enableSelection && isReplyable) {
         bubble = SwipeToReplyBubble(
           icon: AppIcon.cornerLeft(size: 16, color: colors.text.secondary),
           child: bubble,
@@ -470,50 +473,56 @@ class _MessageView extends HookWidget {
     }
 
     if (isMobilePlatform) {
-      return SwipeToReplyScope(
-        onReply: () {
-          context.read<ChatDetailsCubit>().replyToMessage(messageId: messageId);
-        },
-        child: WrapWithBubbleWidth(
-          isSender: isSender,
-          child: buildMessageShell(
-            onLongPress: actions.isEmpty
-                ? null
-                : () {
-                    final shellContext = messageContainerKey.currentContext;
-                    if (shellContext == null) return;
-                    final renderObject = shellContext.findRenderObject();
-                    if (renderObject is! RenderBox || !renderObject.hasSize) {
-                      return;
-                    }
-                    final origin = renderObject.localToGlobal(Offset.zero);
-                    final anchorRect = origin & renderObject.size;
-                    final overlayBubble = buildMessageBubble(
-                      enableSelection: false,
-                    );
-                    ContextMenu.closeActiveMenu();
-                    isDetached.value = true;
-                    final future = showMobileMessageActions(
-                      context: context,
-                      anchorRect: anchorRect,
-                      actions: actions,
-                      messageContent: overlayBubble,
-                      alignEnd: isSender,
-                    );
-                    unawaited(
-                      future.whenComplete(() {
-                        isDetached.value = false;
-                      }),
-                    );
-                  },
-            onSecondaryTapDown: null,
-            enableSelection: false,
-            messageKey: messageContainerKey,
-            detached: isDetached.value,
-            includeMetadata: showMetadata,
-          ),
+      final wrappedBubble = WrapWithBubbleWidth(
+        isSender: isSender,
+        child: buildMessageShell(
+          onLongPress: actions.isEmpty
+              ? null
+              : () {
+                  final shellContext = messageContainerKey.currentContext;
+                  if (shellContext == null) return;
+                  final renderObject = shellContext.findRenderObject();
+                  if (renderObject is! RenderBox || !renderObject.hasSize) {
+                    return;
+                  }
+                  final origin = renderObject.localToGlobal(Offset.zero);
+                  final anchorRect = origin & renderObject.size;
+                  final overlayBubble = buildMessageBubble(
+                    enableSelection: false,
+                  );
+                  ContextMenu.closeActiveMenu();
+                  isDetached.value = true;
+                  final future = showMobileMessageActions(
+                    context: context,
+                    anchorRect: anchorRect,
+                    actions: actions,
+                    messageContent: overlayBubble,
+                    alignEnd: isSender,
+                  );
+                  unawaited(
+                    future.whenComplete(() {
+                      isDetached.value = false;
+                    }),
+                  );
+                },
+          onSecondaryTapDown: null,
+          enableSelection: false,
+          messageKey: messageContainerKey,
+          detached: isDetached.value,
+          includeMetadata: showMetadata,
         ),
       );
+
+      return isReplyable
+          ? SwipeToReplyScope(
+              onReply: () {
+                context.read<ChatDetailsCubit>().replyToMessage(
+                  messageId: messageId,
+                );
+              },
+              child: wrappedBubble,
+            )
+          : wrappedBubble;
     }
 
     return WrapWithBubbleWidth(
@@ -744,6 +753,7 @@ class _MessageContent extends StatelessWidget {
     required this.flightPosition,
     required this.isEdited,
     required this.isHidden,
+    required this.isError,
     required this.enableSelection,
   });
 
@@ -754,6 +764,7 @@ class _MessageContent extends StatelessWidget {
   final UiFlightPosition flightPosition;
   final bool isEdited;
   final bool isHidden;
+  final bool isError;
   final bool enableSelection;
 
   @override
@@ -861,6 +872,45 @@ class _MessageContent extends StatelessWidget {
       }
     }
 
+    Widget messageBubble = Column(
+      crossAxisAlignment: inReplyTo != null ? .stretch : .start,
+      children: [
+        if (inReplyTo != null)
+          MouseRegion(
+            cursor: inReplyTo is UiInReplyToMessage_Resolved
+                ? SystemMouseCursors.click
+                : MouseCursor.defer,
+            child: GestureDetector(
+              onTap: () {
+                if (inReplyTo case UiInReplyToMessage_Resolved(
+                  :final messageId,
+                )) {
+                  context.read<MessageListCubit>().jumpToMessage(
+                    messageId: messageId,
+                  );
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  left: Spacings.xs,
+                  right: Spacings.xs,
+                  top: Spacings.xs,
+                ),
+                child: InReplyToBubble(
+                  inReplyTo: inReplyTo,
+                  backgroundColor: colors.fill.secondary,
+                ),
+              ),
+            ),
+          ),
+        ...columnChildren,
+      ],
+    );
+
+    if (inReplyTo != null) {
+      messageBubble = IntrinsicWidth(child: messageBubble);
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 1.5),
       child: DecoratedBox(
@@ -876,24 +926,7 @@ class _MessageContent extends StatelessWidget {
           child: Column(
             crossAxisAlignment: .end,
             children: [
-              Column(
-                crossAxisAlignment: .start,
-                children: [
-                  if (inReplyTo != null)
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        left: Spacings.xs,
-                        right: Spacings.xs,
-                        top: Spacings.xs,
-                      ),
-                      child: InReplyToBubble(
-                        inReplyTo: inReplyTo,
-                        backgroundColor: colors.fill.secondary,
-                      ),
-                    ),
-                  ...columnChildren,
-                ],
-              ),
+              messageBubble,
               if (isEdited)
                 Padding(
                   padding: const EdgeInsets.only(

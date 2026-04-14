@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT operation_id\n                FROM operation\n                WHERE kind = ?1\n                    AND scheduled_at <= ?2\n                    AND locked_by != ?3\n                ORDER BY scheduled_at ASC, created_at ASC\n                LIMIT 1\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "operation_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "653bf456837994fb2f5cdce1eda4b653840e5c659279846c17cbcfe2248d730b"
+}

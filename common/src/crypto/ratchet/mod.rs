@@ -26,6 +26,7 @@ pub struct QueueRatchet<CT, Payload: RatchetPayload<CT>> {
     sequence_number: u64,
     secret: RatchetSecret,
     key: RatchetKey,
+    #[serde(skip)]
     _phantom: PhantomData<(CT, Payload)>,
 }
 

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT group_id\n                FROM pending_chat_operation\n                WHERE (locked_by IS NULL OR locked_by != ?1)\n                    AND request_status = ?2\n                    AND retry_due_at <= ?3\n                LIMIT 1\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "group_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "299dffa0ea1153911513833833fb42a98f38ea9780e7701ecb983b49e7948b16"
+}

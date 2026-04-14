@@ -486,8 +486,9 @@ impl Chat {
                     message_id AS "message_id: _"
                 FROM message
                 INNER JOIN chat c ON c.chat_id = ?1
-                WHERE c.chat_id = ?1 AND timestamp > c.last_read"#,
+                WHERE message.chat_id = ?1 AND timestamp > c.last_read AND timestamp <= ?2"#,
                 chat_id,
+                timestamp,
             )
             .fetch_all(&mut *transaction)
             .await?;
@@ -564,10 +565,10 @@ impl Chat {
             FROM message m
             LEFT JOIN message_status s
                 ON s.message_id = m.message_id
-                AND s.sender_user_uuid = ?2
-                AND s.sender_user_domain = ?3
+                AND s.sender_user_uuid = ?3
+                AND s.sender_user_domain = ?4
             WHERE chat_id = ?1
-                AND m.timestamp > ?2
+                AND m.timestamp > ?2 AND m.timestamp <= ?7
                 AND (m.sender_user_uuid != ?3 OR m.sender_user_domain != ?4)
                 AND mimi_id IS NOT NULL
                 AND (s.status IS NULL OR s.status = ?5 OR s.status = ?6)"#,
@@ -577,6 +578,7 @@ impl Chat {
             our_user_domain,
             unread_status,
             delivered_status,
+            timestamp,
         )
         .fetch(txn.as_mut())
         .map(|record| record.map(|record| (record.message_id, record.mimi_id)))
@@ -585,7 +587,7 @@ impl Chat {
 
         let updated = query!(
             "UPDATE chat SET last_read = ?1
-            WHERE chat_id = ?2 AND last_read != ?1",
+            WHERE chat_id = ?2 AND last_read < ?1",
             timestamp,
             chat_id,
         )
@@ -674,7 +676,7 @@ impl Chat {
         )
         .fetch_one(executor)
         .await
-        .map(|n: u32| n.try_into().expect("usize overflow"))
+        .map(|n: Option<u32>| n.unwrap_or(0).try_into().expect("usize overflow"))
     }
 
     pub(super) async fn set_chat_type(
@@ -856,12 +858,14 @@ impl Chat {
 pub mod tests {
     use std::mem;
 
+    use aircommon::time::TimeStamp;
     use chrono::{Days, Duration};
     use sqlx::{Sqlite, pool::PoolConnection};
     use uuid::Uuid;
 
     use crate::{
-        InactiveChat, MessageDraft, chats::messages::persistence::tests::test_chat_message,
+        InactiveChat, MessageDraft,
+        chats::messages::persistence::tests::{test_chat_message, test_chat_message_at},
         clients::block_contact::BlockedContact,
     };
 
@@ -1215,6 +1219,76 @@ pub mod tests {
 
         let n = Chat::global_unread_message_count(&mut *connection).await?;
         assert_eq!(n, 0);
+
+        Ok(())
+    }
+
+    /// Regression test: `mark_as_read_until_message_id` must never move
+    /// `last_read` backwards.
+    #[sqlx::test]
+    async fn last_read_never_goes_backwards(
+        mut connection: PoolConnection<Sqlite>,
+    ) -> anyhow::Result<()> {
+        let mut store_notifier = StoreNotifier::noop();
+        let own_user = UserId::random("localhost".parse().unwrap());
+
+        let mut chat = test_chat();
+        let t0: DateTime<Utc> = "2026-01-01T00:00:00Z".parse().unwrap();
+        let t1: TimeStamp = "2026-01-01T00:00:01Z"
+            .parse::<DateTime<Utc>>()
+            .unwrap()
+            .into();
+        let t2: TimeStamp = "2026-01-01T00:00:02Z"
+            .parse::<DateTime<Utc>>()
+            .unwrap()
+            .into();
+        chat.last_read = t0;
+        chat.store(&mut connection, &mut store_notifier).await?;
+
+        let older_message = test_chat_message_at(chat.id(), [0; 16], t1);
+        older_message
+            .store(&mut *connection, &mut store_notifier)
+            .await?;
+
+        let newer_message = test_chat_message_at(chat.id(), [1; 16], t2);
+        newer_message
+            .store(&mut *connection, &mut store_notifier)
+            .await?;
+
+        // Advance last_read to the newer message (simulating the send
+        // transaction calling mark_as_read_until_message_id).
+        let mut txn = connection.begin().await?;
+        let (marked, _) = Chat::mark_as_read_until_message_id(
+            &mut txn,
+            &mut store_notifier,
+            chat.id(),
+            newer_message.id(),
+            &own_user,
+        )
+        .await?;
+        txn.commit().await?;
+        assert!(marked);
+
+        let n = Chat::unread_messages_count(&mut *connection, chat.id()).await?;
+        assert_eq!(n, 0, "both messages should be read");
+
+        // Now attempt to mark as read with the older message (simulating a
+        // stale debounced mark-as-read arriving late). This must NOT move
+        // last_read backwards.
+        let mut txn = connection.begin().await?;
+        let (marked, _) = Chat::mark_as_read_until_message_id(
+            &mut txn,
+            &mut store_notifier,
+            chat.id(),
+            older_message.id(),
+            &own_user,
+        )
+        .await?;
+        txn.commit().await?;
+        assert!(!marked, "last_read must not go backwards");
+
+        let n = Chat::unread_messages_count(&mut *connection, chat.id()).await?;
+        assert_eq!(n, 0, "messages must still be read after stale mark-as-read");
 
         Ok(())
     }

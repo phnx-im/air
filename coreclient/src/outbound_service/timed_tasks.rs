@@ -8,7 +8,7 @@ use openmls::prelude::OpenMlsProvider;
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -61,6 +61,7 @@ pub(crate) enum TimedTaskKind {
     KeyPackageUpload,
     HandleRefresh,
     SelfUpdate,
+    TokenReplenishment,
 }
 
 impl TimedTaskKind {
@@ -69,6 +70,7 @@ impl TimedTaskKind {
             TimedTaskKind::KeyPackageUpload => Duration::minutes(5),
             TimedTaskKind::HandleRefresh => Duration::minutes(5),
             TimedTaskKind::SelfUpdate => Duration::minutes(5),
+            TimedTaskKind::TokenReplenishment => Duration::minutes(5),
         }
     }
 }
@@ -116,7 +118,11 @@ impl OutboundServiceContext {
 
             let now = Utc::now();
 
-            let Some(mut op) = Operation::<TimedTask>::dequeue(&self.pool, task_id, now).await?
+            let Some(mut op) = self
+                .with_transaction(async |txn| {
+                    Operation::<TimedTask>::dequeue(txn, task_id, now).await
+                })
+                .await?
             else {
                 return Ok(());
             };
@@ -151,6 +157,10 @@ impl OutboundServiceContext {
             .into_operation()
             .enqueue_if_not_exists(&self.pool)
             .await?;
+        TimedTask::new(TimedTaskKind::TokenReplenishment)
+            .into_operation()
+            .enqueue_if_not_exists(&self.pool)
+            .await?;
         Ok(())
     }
 
@@ -166,6 +176,7 @@ impl OutboundServiceContext {
             TimedTaskKind::KeyPackageUpload => self.upload_key_packages().await,
             TimedTaskKind::HandleRefresh => self.refresh_handles().await,
             TimedTaskKind::SelfUpdate => self.self_update(run_token).await,
+            TimedTaskKind::TokenReplenishment => self.replenish_tokens().await,
         }
     }
 
@@ -174,6 +185,8 @@ impl OutboundServiceContext {
     /// This ensures handles are refreshed on the server well before they expire (server sets
     /// a `USER_HANDLE_VALIDITY_PERIOD` window from creation/refresh time).
     async fn refresh_handles(&self) -> anyhow::Result<Duration> {
+        use crate::privacy_pass;
+
         let now = Utc::now();
         let threshold = now - USER_HANDLE_REFRESH_THRESHOLD;
         let handles = UserHandleRecord::load_needing_refresh(&self.pool, threshold).await?;
@@ -181,15 +194,71 @@ impl OutboundServiceContext {
         if !handles.is_empty() {
             let api_client = self.api_clients.default_client()?;
             for handle in handles {
+                let token = match privacy_pass::consume_token(&self.pool).await {
+                    Ok(Some(t)) => t,
+                    Ok(None) => {
+                        info!("skipping handle refresh: no tokens available");
+                        break;
+                    }
+                    Err(e) => {
+                        error!(%e, "failed to consume token for handle refresh");
+                        break;
+                    }
+                };
                 info!("refreshing handle");
-                api_client
-                    .as_refresh_handle(handle.hash, &handle.signing_key)
-                    .await?;
+                let result = api_client
+                    .as_refresh_handle(handle.hash, &handle.signing_key, token)
+                    .await;
+
+                if let Err(e) = &result {
+                    if e.is_unknown_token_key_id() {
+                        warn!("unknown token key ID, purging stale tokens");
+                        privacy_pass::purge_and_replenish(
+                            &self.pool,
+                            &api_client,
+                            self.user_id().clone(),
+                            self.signing_key(),
+                        )
+                        .await?;
+                        // Don't consume and retry immediately — that would
+                        // let the server correlate issuance with redemption
+                        // by timing. Break and let the next task iteration
+                        // retry with decorrelated tokens.
+                        break;
+                    }
+                    result?;
+                }
+
                 UserHandleRecord::update_refreshed_at(&self.pool, &handle.hash, now).await?;
             }
         }
 
         Ok(Duration::weeks(1))
+    }
+
+    /// Ensures the client has Privacy Pass tokens available for handle
+    /// operations. Fetches VOPRF public keys from the server and requests
+    /// tokens if the local store is running low.
+    ///
+    /// Returns a short interval (5 min) when tokens are still below the
+    /// threshold, and a long interval (6 h) when fully stocked.
+    async fn replenish_tokens(&self) -> anyhow::Result<Duration> {
+        use crate::privacy_pass;
+
+        let api_client = self.api_clients.default_client()?;
+        let count = privacy_pass::replenish_if_needed(
+            &self.pool,
+            &api_client,
+            self.user_id().clone(),
+            self.signing_key(),
+        )
+        .await?;
+
+        if count < privacy_pass::LOW_TOKEN_THRESHOLD {
+            Ok(Duration::minutes(5))
+        } else {
+            Ok(Duration::hours(6))
+        }
     }
 
     /// This function does the following:
