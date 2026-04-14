@@ -181,9 +181,9 @@ void main() {
         ),
       ];
 
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(messages, isConnectionChat: true));
+      messageListCubit.setState(
+        MockMessageListState(messages, isConnectionChat: true),
+      );
 
       await tester.pumpWidget(buildSubject(messages, isConnectionChat: true));
 
@@ -235,9 +235,9 @@ void main() {
         ),
       ];
 
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(messages, isConnectionChat: false));
+      messageListCubit.setState(
+        MockMessageListState(messages, isConnectionChat: false),
+      );
 
       await tester.pumpWidget(buildSubject(messages, isConnectionChat: false));
 

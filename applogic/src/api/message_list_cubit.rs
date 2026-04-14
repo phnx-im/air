@@ -21,7 +21,7 @@ use tracing::{error, warn};
 
 use crate::{
     StreamSink,
-    util::{Cubit, CubitCore, spawn_from_sync},
+    util::{Cubit, CubitCore, IncrementalDiff, IncrementalList, spawn_from_sync},
 };
 
 use super::{
@@ -31,8 +31,10 @@ use super::{
 
 const PAGE_SIZE: usize = 50;
 /// Maximum number of messages kept in the loaded window.
-/// When a prepend/append would exceed this, messages are dropped from the far end.
-const MAX_WINDOW: usize = PAGE_SIZE * 4;
+/// When a prepend/append would exceed this, messages are dropped from the far
+/// end. With anchored rendering we can retain a larger buffer to make long
+/// reverse-direction scrolls smoother before the window has to shift.
+const MAX_WINDOW: usize = PAGE_SIZE * 10;
 
 /// The state representing a list of messages in a chat
 ///
@@ -49,8 +51,8 @@ pub struct MessageListState {
 struct MessageListStateInner {
     /// Whether the chat the messages are in is a connection chat
     is_connection_chat: Option<bool>,
-    /// Loaded messages (not all messages in the chat)
-    messages: Vec<UiChatMessage>,
+    /// Loaded messages with incremental diff tracking
+    messages: IncrementalList<UiChatMessage>,
     /// Lookup index mapping a message id to the index in `messages`
     message_ids_index: HashMap<MessageId, usize>,
     /// Newly added messages
@@ -61,7 +63,9 @@ struct MessageListStateInner {
     has_newer: bool,
     /// Whether the window is anchored at the most recent messages
     is_at_bottom: bool,
-    /// Index Flutter should scroll to after a load (transient, cleared after read)
+    /// Index Flutter should scroll to after a load.
+    ///
+    /// Cleared by `clear_scroll_to_index()` after the Dart listener consumes it.
     scroll_to_index: Option<usize>,
     /// Index of the first unread message (set on initial load only)
     first_unread_index: Option<usize>,
@@ -77,6 +81,46 @@ pub struct MessageListMeta {
     pub is_at_bottom: bool,
     pub scroll_to_index: Option<usize>,
     pub first_unread_index: Option<usize>,
+}
+
+/// A structural change to the message list, exposed to Dart.
+///
+/// Dart drains these after each state update to apply incremental
+/// changes to the UI list and drive scroll correction.
+#[derive(Debug, Clone)]
+#[frb(dart_metadata = ("freezed"), type_64bit_int)]
+pub enum MessageListDiff {
+    /// Messages were inserted starting at `index`.
+    Insert {
+        index: usize,
+        messages: Vec<UiChatMessage>,
+    },
+    /// `count` messages were removed starting at `index`.
+    Remove { index: usize, count: usize },
+    /// The message at `index` was replaced.
+    Update {
+        index: usize,
+        message: UiChatMessage,
+    },
+    /// The entire list was replaced.
+    Reload { messages: Vec<UiChatMessage> },
+}
+
+impl From<IncrementalDiff<UiChatMessage>> for MessageListDiff {
+    fn from(diff: IncrementalDiff<UiChatMessage>) -> Self {
+        match diff {
+            IncrementalDiff::Insert { index, items } => Self::Insert {
+                index,
+                messages: items,
+            },
+            IncrementalDiff::Remove { index, count } => Self::Remove { index, count },
+            IncrementalDiff::Update { index, item } => Self::Update {
+                index,
+                message: item,
+            },
+            IncrementalDiff::Reload { items } => Self::Reload { messages: items },
+        }
+    }
 }
 
 #[frb(ignore)]
@@ -143,6 +187,8 @@ impl MessageListState {
         is_connection_chat: Option<bool>,
         direction: LoadDirection,
     ) {
+        let inner = Arc::make_mut(&mut self.inner);
+
         match direction {
             LoadDirection::Replace {
                 has_older,
@@ -155,151 +201,121 @@ impl MessageListState {
                     new_messages.into_iter().map(From::from).collect();
                 compute_flight_positions(&mut messages, first_unread_index);
 
-                let mut message_ids_index = HashMap::with_capacity(messages.len());
-                for (i, msg) in messages.iter().enumerate() {
-                    message_ids_index.insert(msg.id, i);
+                inner.messages.reload(messages);
+
+                inner.message_ids_index.clear();
+                for (i, msg) in inner.messages.iter().enumerate() {
+                    inner.message_ids_index.insert(msg.id, i);
                 }
 
-                let inner = MessageListStateInner {
-                    is_connection_chat: is_connection_chat.or(self.inner.is_connection_chat),
-                    message_ids_index,
-                    messages,
-                    new_messages: HashSet::new(),
-                    has_older,
-                    has_newer,
-                    is_at_bottom,
-                    scroll_to_index,
-                    first_unread_index,
-                };
-                self.inner = Arc::new(inner);
+                inner.is_connection_chat = is_connection_chat.or(inner.is_connection_chat);
+                inner.new_messages.clear();
+                inner.has_older = has_older;
+                inner.has_newer = has_newer;
+                inner.is_at_bottom = is_at_bottom;
+                inner.scroll_to_index = scroll_to_index;
+                inner.first_unread_index = first_unread_index;
             }
             LoadDirection::PrependOlder { has_older } => {
                 let mut prepended: Vec<UiChatMessage> =
                     new_messages.into_iter().map(From::from).collect();
                 let prepend_count = prepended.len();
-                let shifted_unread = self.inner.first_unread_index.map(|i| i + prepend_count);
+                let shifted_unread = inner.first_unread_index.map(|i| i + prepend_count);
 
                 // Compute positions for the new (prepended) messages only
                 compute_flight_positions(&mut prepended, None);
 
-                let mut messages = prepended;
-                messages.extend(self.inner.messages.iter().cloned());
+                inner.messages.insert_range(0, prepended);
 
                 // Recompute only the boundary: last prepended + first existing
-                if prepend_count > 0 && messages.len() > prepend_count {
+                if prepend_count > 0 && inner.messages.len() > prepend_count {
                     let boundary_start = prepend_count.saturating_sub(1);
-                    let boundary_end = (prepend_count + 1).min(messages.len());
-                    recompute_flight_positions_range(
-                        &mut messages,
-                        boundary_start,
-                        boundary_end,
-                        shifted_unread,
+                    let boundary_end = (prepend_count + 1).min(inner.messages.len());
+                    inner.messages.mutate_and_record_updates(
+                        boundary_start..boundary_end,
+                        |messages| {
+                            recompute_flight_positions_range(
+                                messages,
+                                boundary_start,
+                                boundary_end,
+                                shifted_unread,
+                            );
+                        },
                     );
                 }
 
                 // Evict newer messages if the window exceeds the cap
-                let has_newer = if messages.len() > MAX_WINDOW {
-                    messages.truncate(MAX_WINDOW);
-                    true
-                } else {
-                    self.inner.has_newer
-                };
-
-                // Unread index may have been evicted
-                let first_unread_index = shifted_unread.filter(|&i| i < messages.len());
-
-                let mut message_ids_index = HashMap::with_capacity(messages.len());
-                for (i, msg) in messages.iter().enumerate() {
-                    message_ids_index.insert(msg.id, i);
+                if inner.messages.len() > MAX_WINDOW {
+                    inner.messages.truncate(MAX_WINDOW);
+                    inner.has_newer = true;
                 }
 
-                let new_messages = self.inner.new_messages.clone();
+                inner.first_unread_index = shifted_unread.filter(|&i| i < inner.messages.len());
 
-                // Preserve is_at_bottom when the newest tail is still in the
-                // window (no eviction happened). Forcing it to false here
-                // would block StoreOperation::Add from appending incoming
-                // messages even though the window still reaches the bottom.
-                let is_at_bottom = !has_newer && self.inner.is_at_bottom;
+                inner.message_ids_index.clear();
+                for (i, msg) in inner.messages.iter().enumerate() {
+                    inner.message_ids_index.insert(msg.id, i);
+                }
 
-                let inner = MessageListStateInner {
-                    is_connection_chat: self.inner.is_connection_chat,
-                    message_ids_index,
-                    messages,
-                    new_messages,
-                    has_older,
-                    has_newer,
-                    is_at_bottom,
-                    scroll_to_index: None,
-                    first_unread_index,
-                };
-                self.inner = Arc::new(inner);
+                inner.has_older = has_older;
+                inner.is_at_bottom = !inner.has_newer && inner.is_at_bottom;
+                inner.scroll_to_index = None;
             }
             LoadDirection::AppendNewer { has_newer } => {
                 let mut appended: Vec<UiChatMessage> =
                     new_messages.into_iter().map(From::from).collect();
 
-                let mut messages: Vec<UiChatMessage> = self.inner.messages.to_vec();
                 // Track which messages are new
-                let mut new_message_ids = self.inner.new_messages.clone();
                 for msg in &appended {
-                    if !self.inner.message_ids_index.contains_key(&msg.id) {
-                        new_message_ids.insert(msg.id);
+                    if !inner.message_ids_index.contains_key(&msg.id) {
+                        inner.new_messages.insert(msg.id);
                     }
                 }
 
                 // Compute positions for the new (appended) messages only
                 compute_flight_positions(&mut appended, None);
 
-                let old_count = messages.len();
-                messages.extend(appended);
+                let old_count = inner.messages.len();
+                inner.messages.insert_range(old_count, appended);
 
                 // Recompute only the boundary: last existing + first appended
-                let unread_idx = self.inner.first_unread_index;
-                if old_count > 0 && messages.len() > old_count {
+                if old_count > 0 && inner.messages.len() > old_count {
                     let boundary_start = old_count.saturating_sub(1);
-                    let boundary_end = (old_count + 1).min(messages.len());
-                    recompute_flight_positions_range(
-                        &mut messages,
-                        boundary_start,
-                        boundary_end,
-                        unread_idx,
+                    let boundary_end = (old_count + 1).min(inner.messages.len());
+                    let unread_index = inner.first_unread_index;
+                    inner.messages.mutate_and_record_updates(
+                        boundary_start..boundary_end,
+                        |messages| {
+                            recompute_flight_positions_range(
+                                messages,
+                                boundary_start,
+                                boundary_end,
+                                unread_index,
+                            );
+                        },
                     );
                 }
 
                 // Evict older messages from the front if the window exceeds the cap
-                let evict_count = messages.len().saturating_sub(MAX_WINDOW);
-                let has_older = if evict_count > 0 {
-                    messages.drain(..evict_count);
-                    true
-                } else {
-                    self.inner.has_older
-                };
+                let evict_count = inner.messages.len().saturating_sub(MAX_WINDOW);
+                if evict_count > 0 {
+                    inner.messages.remove_range(0, evict_count);
+                    inner.has_older = true;
+                }
 
                 // Shift or invalidate the unread index after front eviction
-                let first_unread_index = self
-                    .inner
+                inner.first_unread_index = inner
                     .first_unread_index
                     .and_then(|i| i.checked_sub(evict_count));
 
-                let mut message_ids_index = HashMap::with_capacity(messages.len());
-                for (i, msg) in messages.iter().enumerate() {
-                    message_ids_index.insert(msg.id, i);
+                inner.message_ids_index.clear();
+                for (i, msg) in inner.messages.iter().enumerate() {
+                    inner.message_ids_index.insert(msg.id, i);
                 }
 
-                let is_at_bottom = !has_newer;
-
-                let inner = MessageListStateInner {
-                    is_connection_chat: self.inner.is_connection_chat,
-                    message_ids_index,
-                    messages,
-                    new_messages: new_message_ids,
-                    has_older,
-                    has_newer,
-                    is_at_bottom,
-                    scroll_to_index: None,
-                    first_unread_index,
-                };
-                self.inner = Arc::new(inner);
+                inner.has_newer = has_newer;
+                inner.is_at_bottom = !has_newer;
+                inner.scroll_to_index = None;
             }
         }
     }
@@ -416,6 +432,36 @@ impl MessageListCubitBase {
 
     pub async fn stream(&mut self, sink: StreamSink<MessageListState>) {
         self.core.stream(sink).await;
+    }
+
+    /// Clear the transient scroll-to-index without triggering a state notification.
+    ///
+    /// Call from Dart after consuming the scroll target to prevent re-triggering.
+    #[frb(sync)]
+    pub fn clear_scroll_to_index(&self) {
+        self.core.state_tx().send_if_modified(|state| {
+            Arc::make_mut(&mut state.inner).scroll_to_index = None;
+            false
+        });
+    }
+
+    /// Drain accumulated message list diffs without triggering a state notification.
+    ///
+    /// Call this from Dart after receiving a state update to get the structural
+    /// changes (insert/remove/update/reload) needed for scroll correction.
+    #[frb(sync)]
+    pub fn drain_message_diffs(&self) -> Vec<MessageListDiff> {
+        let mut diffs = Vec::new();
+        self.core.state_tx().send_if_modified(|state| {
+            diffs = Arc::make_mut(&mut state.inner)
+                .messages
+                .drain_diffs()
+                .into_iter()
+                .map(MessageListDiff::from)
+                .collect();
+            false // don't notify receivers
+        });
+        diffs
     }
 }
 
@@ -614,11 +660,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
         if messages.is_empty() {
             // Still emit state to clear has_older so Flutter resets its load guard
             self.state_tx.send_modify(|state| {
-                let new_inner = MessageListStateInner {
-                    has_older,
-                    ..(*state.inner).clone()
-                };
-                state.inner = Arc::new(new_inner);
+                Arc::make_mut(&mut state.inner).has_older = has_older;
             });
             return;
         }
@@ -652,11 +694,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
         if messages.is_empty() {
             // Still emit state to clear has_newer so Flutter resets its load guard
             self.state_tx.send_modify(|state| {
-                let new_inner = MessageListStateInner {
-                    has_newer,
-                    ..(*state.inner).clone()
-                };
-                state.inner = Arc::new(new_inner);
+                Arc::make_mut(&mut state.inner).has_newer = has_newer;
             });
             return;
         }
@@ -683,11 +721,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
 
         if let Some(index) = already_loaded {
             self.state_tx.send_modify(|state| {
-                let new_inner = MessageListStateInner {
-                    scroll_to_index: Some(index),
-                    ..(*state.inner).clone()
-                };
-                state.inner = Arc::new(new_inner);
+                Arc::make_mut(&mut state.inner).scroll_to_index = Some(index);
             });
             return;
         }
@@ -817,20 +851,18 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
                 return;
             };
 
-            let mut messages = state.inner.messages.clone();
+            let inner = Arc::make_mut(&mut state.inner);
 
             // Recompute flight positions around the old divider boundary
             // (the divider acted as a flight break that is now removed).
             let start = unread_idx.saturating_sub(1);
-            let end = (unread_idx + 1).min(messages.len());
-            recompute_flight_positions_range(&mut messages, start, end, None);
-
-            let new_inner = MessageListStateInner {
-                messages,
-                first_unread_index: None,
-                ..(*state.inner).clone()
-            };
-            state.inner = Arc::new(new_inner);
+            let end = (unread_idx + 1).min(inner.messages.len());
+            inner
+                .messages
+                .mutate_and_record_updates(start..end, |messages| {
+                    recompute_flight_positions_range(messages, start, end, None);
+                });
+            inner.first_unread_index = None;
         });
     }
 
@@ -841,24 +873,19 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
                 return;
             };
 
-            let mut messages = state.inner.messages.clone();
-            messages[idx] = message.into();
+            let inner = Arc::make_mut(&mut state.inner);
+            let updated: UiChatMessage = message.into();
 
             // Recompute flight positions for the updated message and its neighbors
             let start = idx.saturating_sub(1);
-            let end = (idx + 2).min(messages.len());
-            recompute_flight_positions_range(
-                &mut messages,
-                start,
-                end,
-                state.inner.first_unread_index,
-            );
-
-            let new_inner = MessageListStateInner {
-                messages,
-                ..(*state.inner).clone()
-            };
-            state.inner = Arc::new(new_inner);
+            let end = (idx + 2).min(inner.messages.len());
+            let unread_index = inner.first_unread_index;
+            inner
+                .messages
+                .mutate_and_record_updates(start..end, |messages| {
+                    messages[idx] = updated;
+                    recompute_flight_positions_range(messages, start, end, unread_index);
+                });
         });
     }
 

@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
+
 import 'package:air/chat/chat_details.dart';
 import 'package:air/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
@@ -10,6 +12,7 @@ import 'package:air/message_list/message_list_cubit.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/registration/registration.dart';
 import 'package:air/user/user.dart';
+import 'package:air/widgets/anchored_list/data.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -85,8 +88,76 @@ class MockChatDetailsCubit extends MockCubit<ChatDetailsState>
 class MockChatListCubit extends MockCubit<ChatListState>
     implements ChatListCubit {}
 
-class MockMessageListCubit extends MockCubit<MessageListState>
-    implements MessageListCubit {}
+class MockMessageListCubit implements MessageListCubit {
+  MockMessageListCubit([MessageListState? initialState])
+    : _state = initialState ?? MockMessageListState([]) {
+    _syncMessageData(_state);
+  }
+
+  final StreamController<MessageListState> _controller =
+      StreamController<MessageListState>.broadcast(sync: true);
+  MessageListState _state;
+  bool _isClosed = false;
+
+  @override
+  final AnchoredListData<UiChatMessage> messageData = AnchoredListData();
+
+  @override
+  bool get isClosed => _isClosed;
+
+  @override
+  MessageListState get state => _state;
+
+  @override
+  Stream<MessageListState> get stream => _controller.stream;
+
+  @override
+  Future<void> jumpToBottom() async {}
+
+  @override
+  Future<void> jumpToMessage({required MessageId messageId}) async {}
+
+  @override
+  Future<void> loadNewer() async {}
+
+  @override
+  Future<void> loadOlder() async {}
+
+  @override
+  void clearScrollToIndex() {}
+
+  void setState(MessageListState newState) {
+    _syncMessageData(newState);
+    _state = newState;
+    if (!_controller.isClosed) {
+      _controller.add(newState);
+    }
+  }
+
+  void setStates(Iterable<MessageListState> states) {
+    for (final state in states) {
+      setState(state);
+    }
+  }
+
+  void _syncMessageData(MessageListState state) {
+    final messages = <UiChatMessage>[];
+    for (var i = state.loadedMessagesCount - 1; i >= 0; i--) {
+      final message = state.messageAt(i);
+      if (message != null) {
+        messages.add(message);
+      }
+    }
+    messageData.reload(messages);
+  }
+
+  @override
+  Future<void> close() async {
+    _isClosed = true;
+    messageData.dispose();
+    await _controller.close();
+  }
+}
 
 class MockMessageListState implements MessageListState {
   MockMessageListState(

@@ -878,6 +878,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<MessageListDiff> dco_decode_list_message_list_diff(dynamic raw);
+
+  @protected
   List<NotificationHandle> dco_decode_list_notification_handle(dynamic raw);
 
   @protected
@@ -907,6 +910,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<UiAttachment> dco_decode_list_ui_attachment(dynamic raw);
 
   @protected
+  List<UiChatMessage> dco_decode_list_ui_chat_message(dynamic raw);
+
+  @protected
   List<UiClientRecord> dco_decode_list_ui_client_record(dynamic raw);
 
   @protected
@@ -932,6 +938,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageId dco_decode_message_id(dynamic raw);
+
+  @protected
+  MessageListDiff dco_decode_message_list_diff(dynamic raw);
 
   @protected
   MessageListMeta dco_decode_message_list_meta(dynamic raw);
@@ -2018,6 +2027,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<MessageListDiff> sse_decode_list_message_list_diff(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<NotificationHandle> sse_decode_list_notification_handle(
     SseDeserializer deserializer,
   );
@@ -2059,6 +2073,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<UiChatMessage> sse_decode_list_ui_chat_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<UiClientRecord> sse_decode_list_ui_client_record(
     SseDeserializer deserializer,
   );
@@ -2090,6 +2109,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageId sse_decode_message_id(SseDeserializer deserializer);
+
+  @protected
+  MessageListDiff sse_decode_message_list_diff(SseDeserializer deserializer);
 
   @protected
   MessageListMeta sse_decode_message_list_meta(SseDeserializer deserializer);
@@ -3416,6 +3438,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_message_list_diff(
+    List<MessageListDiff> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_notification_handle(
     List<NotificationHandle> self,
     SseSerializer serializer,
@@ -3467,6 +3495,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_ui_chat_message(
+    List<UiChatMessage> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_ui_client_record(
     List<UiClientRecord> self,
     SseSerializer serializer,
@@ -3510,6 +3544,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_message_id(MessageId self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_message_list_diff(
+    MessageListDiff self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_message_list_meta(
