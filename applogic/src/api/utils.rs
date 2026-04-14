@@ -14,14 +14,6 @@ pub async fn delete_client_database(db_path: String, user_id: UiUserId) -> anyho
     aircoreclient::delete_client_database(&db_path, &user_id.into()).await
 }
 
-pub async fn export_client_database(db_path: String, user_id: UiUserId) -> anyhow::Result<Vec<u8>> {
-    aircoreclient::export_client_database(&db_path, &user_id.into()).await
-}
-
-pub async fn import_client_database(db_path: String, tar_gz_bytes: Vec<u8>) -> anyhow::Result<()> {
-    aircoreclient::import_client_database(&db_path, &tar_gz_bytes).await
-}
-
 /// Returns whether the file at the given path is a recognized image format.
 /// Uses the same detection as `load_attachment_image()`.
 pub fn is_image_file(path: String) -> bool {
