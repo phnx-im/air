@@ -13,8 +13,7 @@ ci := env_var_or_default("CI", "false")
 _default:
     just --list
 
-POSTGRES_HOST := env_var_or_default("POSTGRES_HOST", "localhost")
-SERVER_DATABASE_URL := "postgres://postgres:password@" + POSTGRES_HOST + ":5432/air_db"
+SERVER_DATABASE_URL := "postgres://postgres:password@localhost:5432/air_db"
 CLIENT_DATABASE_URL := if os() == "windows" {
     "sqlite:///" + replace(justfile_directory(), "\\", "/") + "/coreclient/client.db"
 } else {
@@ -158,12 +157,9 @@ ci: check test
 test: test-rust test-flutter
 
 docker-is-podman := if `command -v podman || true` =~ ".*podman$" { "true" } else { "false" }
-skip_docker := env_var_or_default("SKIP_DOCKER_COMPOSE", "false")
 # Run docker compose services in the background.
 @start-docker-compose: _generate-db-certs
-    if [ "{{skip_docker}}" = "true" ]; then \
-        echo "SKIP_DOCKER_COMPOSE is set, skipping docker compose"; \
-    elif {{docker-is-podman}} == "true"; then \
+    if {{docker-is-podman}} == "true"; then \
         podman rm air_minio-setup_1 -i 2>&1 /dev/null; \
         podman-compose --podman-run-args=--replace up -d; \
         podman-compose ps; \
