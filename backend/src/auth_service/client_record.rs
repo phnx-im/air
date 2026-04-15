@@ -97,8 +97,9 @@ pub(crate) mod persistence {
             user_id: &UserId,
         ) -> Result<(), StorageError> {
             query!(
-                "DELETE FROM as_client_record WHERE user_uuid = $1",
+                "DELETE FROM as_client_record WHERE user_uuid = $1 AND user_domain = $2",
                 user_id.uuid(),
+                user_id.domain() as _,
             )
             .execute(connection)
             .await?;

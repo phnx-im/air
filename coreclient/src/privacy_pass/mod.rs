@@ -149,7 +149,7 @@ pub(crate) async fn store_batched_token_keys(
         let new_ids: BTreeSet<u8> = keys.iter().map(|(token_key_id, _)| *token_key_id).collect();
 
         if existing_ids == new_ids {
-            return Ok(());
+            continue;
         }
 
         let discarded = persistence::token_count(pool, operation_type).await?;

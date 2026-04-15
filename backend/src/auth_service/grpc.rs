@@ -239,8 +239,8 @@ impl auth_service_server::AuthService for GrpcAs {
                 Status::internal("database error")
             })?;
 
-        if codes_today > CODES_PER_DAY {
-            return Err(Status::resource_exhausted("too many codes generated"));
+        if codes_today + (tokens.len() as u64) > CODES_PER_DAY {
+            return Err(Status::resource_exhausted("too many codes generated today"));
         }
 
         let mut invitation_codes = Vec::new();
