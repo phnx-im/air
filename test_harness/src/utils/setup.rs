@@ -15,7 +15,7 @@ use aircommon::{
     identifiers::{Fqdn, MimiId, UserHandle, UserId},
 };
 use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, store::Store, *};
-use airprotos::common::v1::OperationType;
+use airprotos::auth_service::v1::OperationType;
 use airserver::network_provider::MockNetworkProvider;
 use anyhow::Context;
 use mimi_content::{

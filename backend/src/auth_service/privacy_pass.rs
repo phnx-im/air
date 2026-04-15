@@ -5,7 +5,7 @@
 use std::collections::HashSet;
 
 use aircommon::codec::{BlobDecoded, BlobEncoded};
-use airprotos::common::v1::OperationType;
+use airprotos::auth_service::v1::OperationType;
 use async_trait::async_trait;
 use privacypass::{
     Nonce, NonceStore, TruncatedTokenKeyId,
@@ -376,7 +376,7 @@ impl TokenAllowance {
 
 mod persistence {
     use aircommon::identifiers::UserId;
-    use airprotos::common::v1::OperationType;
+    use airprotos::auth_service::v1::OperationType;
     use sqlx::{PgExecutor, query};
 
     use super::TokenAllowance;

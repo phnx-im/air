@@ -9,7 +9,7 @@ use aircommon::{
     },
     time::ExpirationData,
 };
-use airprotos::common::v1::OperationType;
+use airprotos::auth_service::v1::OperationType;
 use displaydoc::Display;
 use persistence::UpdateExpirationDataResult;
 use privacypass::{

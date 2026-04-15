@@ -4,7 +4,7 @@
 
 use airapiclient::as_api::AsRequestError;
 use aircommon::identifiers::Fqdn;
-use airprotos::common::v1::OperationType;
+use airprotos::auth_service::v1::OperationType;
 use anyhow::Context;
 
 use crate::{

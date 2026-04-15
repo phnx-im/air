@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airprotos::common::v1::OperationType;
+use airprotos::auth_service::v1::OperationType;
 use sqlx::SqliteExecutor;
 
 /// Stores a serialized Privacy Pass token.
@@ -255,13 +255,17 @@ mod tests {
         assert_eq!(token_count(&pool, OP2).await?, 1);
 
         // Consuming OP1 returns only the OP1 token and leaves OP2 untouched.
-        let consumed = consume_token(&pool, OP1).await?.expect("should have a token");
+        let consumed = consume_token(&pool, OP1)
+            .await?
+            .expect("should have a token");
         assert_eq!(consumed, token_op1);
         assert_eq!(token_count(&pool, OP1).await?, 0);
         assert_eq!(token_count(&pool, OP2).await?, 1);
 
         // Consuming OP2 returns only the OP2 token.
-        let consumed = consume_token(&pool, OP2).await?.expect("should have a token");
+        let consumed = consume_token(&pool, OP2)
+            .await?
+            .expect("should have a token");
         assert_eq!(consumed, token_op2);
         assert_eq!(token_count(&pool, OP2).await?, 0);
 

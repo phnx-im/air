@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::UserId;
-use airprotos::common::v1::OperationType;
+use airprotos::auth_service::v1::OperationType;
 use privacypass::{
     amortized_tokens::{
         AmortizedBatchTokenRequest, AmortizedBatchTokenResponse, AmortizedToken, server::Server,
@@ -150,7 +150,7 @@ impl AuthService {
 mod tests {
     use std::collections::HashMap;
 
-    use airprotos::common::v1::OperationType;
+    use airprotos::auth_service::v1::OperationType;
     use privacypass::{
         amortized_tokens::{AmortizedBatchTokenRequest, server::Server},
         auth::authenticate::TokenChallenge,

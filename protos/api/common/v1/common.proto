@@ -108,9 +108,3 @@ message AttachmentTooLargeDetail {
 }
 
 message WrongEpochDetail {}
-
-enum OperationType {
-  UNKNOWN = 0;
-  ADD_USERNAME = 1;
-  GET_INVITE_CODE = 2;
-}

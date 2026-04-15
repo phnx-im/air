@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::USER_HANDLE_REFRESH_THRESHOLD;
-use airprotos::common::v1::OperationType;
+use airprotos::auth_service::v1::OperationType;
 use chrono::{DateTime, Duration, Utc};
 use openmls::prelude::OpenMlsProvider;
 use openmls_rust_crypto::OpenMlsRustCrypto;

@@ -6,7 +6,7 @@ use std::io;
 
 use airprotos::{
     auth_service::v1::{auth_service_server, *},
-    common::v1::{ClientMetadata, OperationType},
+    common::v1::ClientMetadata,
     validation::MissingFieldExt,
 };
 use chrono::Utc;

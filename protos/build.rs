@@ -9,7 +9,7 @@ fn main() {
     let mut config = Config::new();
     config.protoc_executable(protoc_path);
     config.enum_attribute(
-        "common.v1.OperationType",
+        "auth_service.v1.OperationType",
         "#[derive(strum::VariantArray, strum::Display)]",
     );
     tonic_prost_build::configure()

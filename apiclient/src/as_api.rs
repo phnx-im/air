@@ -34,11 +34,12 @@ use airprotos::{
         DeleteHandlePayload, DeleteUserPayload, EnqueueConnectionOfferStep,
         FetchConnectionPackageStep, GetInvitationCodesRequest, GetUserProfileRequest,
         HandleQueueMessage, InitListenHandlePayload, InvitationCode, IssueTokensPayload,
-        ListenHandleRequest, MergeUserProfilePayload, PublishConnectionPackagesPayload,
-        RefreshHandlePayload, RegisterUserRequest, ReportSpamPayload, StageUserProfilePayload,
-        connect_request, connect_response, listen_handle_request,
+        ListenHandleRequest, MergeUserProfilePayload, OperationType,
+        PublishConnectionPackagesPayload, RefreshHandlePayload, RegisterUserRequest,
+        ReportSpamPayload, StageUserProfilePayload, connect_request, connect_response,
+        listen_handle_request,
     },
-    common::v1::{OperationType, StatusDetails, StatusDetailsCode},
+    common::v1::{StatusDetails, StatusDetailsCode},
 };
 use futures_util::{FutureExt, future::BoxFuture};
 use thiserror::Error;

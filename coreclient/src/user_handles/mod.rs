@@ -11,7 +11,7 @@ use aircommon::{
         connection_package::ConnectionPackage,
     },
 };
-use airprotos::common::v1::OperationType;
+use airprotos::auth_service::v1::OperationType;
 use anyhow::Context;
 pub use persistence::UserHandleRecord;
 use tokio::task::spawn_blocking;
