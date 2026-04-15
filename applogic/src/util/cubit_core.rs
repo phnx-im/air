@@ -25,7 +25,7 @@ pub(crate) trait Cubit {
     type State;
 
     /// Closes the stream and cancels all pending and background operations
-    fn close(&mut self);
+    fn close(&self);
 
     /// Returns `true` if the stream is closed
     fn is_closed(&self) -> bool;
@@ -64,7 +64,7 @@ impl<S: Clone> Cubit for CubitCore<S> {
         self.cancel.is_cancelled()
     }
 
-    fn close(&mut self) {
+    fn close(&self) {
         self.cancel.cancel();
     }
 

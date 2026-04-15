@@ -208,7 +208,7 @@ impl UsersCubitBase {
 
     // Cubit interface
 
-    pub fn close(&mut self) {
+    pub fn close(&self) {
         self.core.close();
     }
 
@@ -222,7 +222,7 @@ impl UsersCubitBase {
         self.core.state()
     }
 
-    pub async fn stream(&mut self, sink: StreamSink<UsersState>) {
+    pub async fn stream(&self, sink: StreamSink<UsersState>) {
         self.core.stream(sink).await;
     }
 }

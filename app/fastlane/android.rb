@@ -56,7 +56,7 @@ platform :android do
             release_status: "completed",
             version_code: current_build_number,
             track: track,
-            aab: "build/app/outputs/bundle/release/app-release.aab",
+            aab: "build/app/outputs/bundle/productionRelease/app-production-release.aab",
             json_key: "fastlane/" + playstore_key_path,
             package_name: package_name,
             metadata_path: metadata_path,

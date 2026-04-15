@@ -585,7 +585,7 @@ impl MessageListCubitBase {
         self.core.is_closed()
     }
 
-    pub fn close(&mut self) {
+    pub fn close(&self) {
         self.core.close();
     }
 

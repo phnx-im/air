@@ -66,7 +66,7 @@ impl MessageCubitBase {
         self.core.is_closed()
     }
 
-    pub fn close(&mut self) {
+    pub fn close(&self) {
         self.core.close();
     }
 
@@ -75,7 +75,7 @@ impl MessageCubitBase {
         self.core.state()
     }
 
-    pub async fn stream(&mut self, sink: StreamSink<MessageState>) {
+    pub async fn stream(&self, sink: StreamSink<MessageState>) {
         self.core.stream(sink).await;
     }
 }
