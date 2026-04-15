@@ -37,10 +37,14 @@ import 'package:air/util/platform.dart'
     show getClipboardFilePaths, getClipboardImage, PlatformExtension;
 
 import 'message_renderer.dart';
+import 'text_message_tile.dart' show messageHorizontalPadding;
 
 final _log = Logger("MessageComposer");
 const double _composerLineHeight = 1.3;
 final double _composerFontSize = BodyFontSize.base.size;
+const double _inputVerticalPadding = Spacings.xs;
+final double _composerButtonSize =
+    _composerFontSize * _composerLineHeight + 2 * _inputVerticalPadding;
 
 class MessageComposer extends StatefulWidget {
   const MessageComposer({super.key, this.scrollToBottomController});
@@ -65,11 +69,9 @@ class _MessageComposerState extends State<MessageComposer>
   final LayerLink _inputFieldLink = LayerLink();
   final GlobalKey _inputFieldKey = GlobalKey();
   late final TextAutocompleteController<EmojiEntry> _emojiAutocomplete;
-  double _buttonSize = _minButtonSize;
-  bool _buttonSizeUpdateScheduled = false;
 
-  static const double _minButtonSize = 40;
-  static const double _maxButtonSize = Spacings.xl;
+  static final double _buttonSize = _composerButtonSize;
+  static final double _inputBorderRadius = _buttonSize / 2;
   static const double _iconSize = 16;
 
   @override
@@ -149,8 +151,6 @@ class _MessageComposerState extends State<MessageComposer>
         _focusNode.requestFocus();
       }
     });
-
-    _scheduleButtonSizeUpdate();
   }
 
   @override
@@ -188,8 +188,6 @@ class _MessageComposerState extends State<MessageComposer>
     if (chatTitle == null) {
       return const SizedBox.shrink();
     }
-
-    _scheduleButtonSizeUpdate();
 
     final color = CustomColorScheme.of(context);
     final materialColor = color.material.tertiary;
@@ -234,18 +232,18 @@ class _MessageComposerState extends State<MessageComposer>
     final inputField = Expanded(
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(Spacings.l),
+          borderRadius: BorderRadius.circular(_inputBorderRadius),
           boxShadow: regularElevationBoxShadows,
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(Spacings.l),
+          borderRadius: BorderRadius.circular(_inputBorderRadius),
           child: Container(
             constraints: BoxConstraints(minHeight: _buttonSize),
             decoration: BoxDecoration(
               color: materialColor,
-              borderRadius: BorderRadius.circular(Spacings.l),
+              borderRadius: BorderRadius.circular(_inputBorderRadius),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: Spacings.m),
+            padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
             child: _MessageInput(
               focusNode: _focusNode,
               controller: _inputController,
@@ -266,8 +264,8 @@ class _MessageComposerState extends State<MessageComposer>
 
     return Padding(
       padding: const EdgeInsets.only(
-        left: Spacings.m,
-        right: Spacings.m,
+        left: messageHorizontalPadding,
+        right: messageHorizontalPadding,
         bottom: Spacings.xs,
       ),
       child: ValueListenableBuilder<bool>(
@@ -275,9 +273,49 @@ class _MessageComposerState extends State<MessageComposer>
             widget.scrollToBottomController?.showButton ??
             ValueNotifier<bool>(false),
         builder: (context, showScrollToBottom, _) {
-          final hasRightButton = !_inputIsEmpty || showScrollToBottom;
-          final trailingButtonCount =
-              (editingId != null ? 1 : 0) + (hasRightButton ? 1 : 0);
+          final isEditing = editingId != null;
+
+          // Left: cancel (✕) when editing, attach (+) otherwise
+          final leftButton = isEditing
+              ? composerButton(
+                  icon: const AppIcon.x(size: _iconSize),
+                  onPressed: () {
+                    context.read<ChatDetailsCubit>().resetDraft();
+                    _inputController.clear();
+                  },
+                )
+              : plusButton;
+
+          // Right: confirm (✓) when editing, scroll-down when
+          // scrolled back, send (↑) when has text, none otherwise
+          final Widget? rightButton;
+          if (isEditing) {
+            rightButton = composerButton(
+              icon: const AppIcon.check(size: _iconSize),
+              onPressed: !_inputIsEmpty && isConfirmedChat
+                  ? () => _submitMessage(context.read())
+                  : null,
+            );
+          } else if (showScrollToBottom) {
+            rightButton = composerButton(
+              icon: const AppIcon.chevronsDown(size: _iconSize),
+              onPressed: () {
+                widget.scrollToBottomController?.scrollToBottom();
+              },
+            );
+          } else if (!_inputIsEmpty) {
+            rightButton = composerButton(
+              icon: const AppIcon.arrowUp(size: _iconSize),
+              onPressed: isConfirmedChat
+                  ? () => _submitMessage(context.read())
+                  : null,
+            );
+          } else {
+            rightButton = null;
+          }
+
+          final trailingButtonCount = rightButton != null ? 1 : 0;
+
           return Stack(
             children: [
               Positioned.fill(
@@ -285,8 +323,8 @@ class _MessageComposerState extends State<MessageComposer>
                   builder: (context, constraints) {
                     final clipper = _ComposerClipper(
                       buttonSize: _buttonSize,
-                      spacing: Spacings.xs,
-                      inputBorderRadius: Spacings.l,
+                      spacing: Spacings.xxs,
+                      inputBorderRadius: _inputBorderRadius,
                       trailingButtonCount: trailingButtonCount,
                     );
                     final clipBounds = clipper
@@ -308,33 +346,8 @@ class _MessageComposerState extends State<MessageComposer>
               ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
-                spacing: Spacings.xs,
-                children: [
-                  plusButton,
-                  inputField,
-                  if (editingId != null)
-                    composerButton(
-                      icon: const AppIcon.x(size: _iconSize),
-                      onPressed: () {
-                        context.read<ChatDetailsCubit>().resetDraft();
-                        _inputController.clear();
-                      },
-                    ),
-                  if (!_inputIsEmpty)
-                    composerButton(
-                      icon: const AppIcon.arrowUp(size: _iconSize),
-                      onPressed: isConfirmedChat
-                          ? () => _submitMessage(context.read())
-                          : null,
-                    )
-                  else if (showScrollToBottom)
-                    composerButton(
-                      icon: const AppIcon.chevronsDown(size: _iconSize),
-                      onPressed: () {
-                        widget.scrollToBottomController?.scrollToBottom();
-                      },
-                    ),
-                ],
+                spacing: Spacings.xxs,
+                children: [leftButton, inputField, ?rightButton],
               ),
             ],
           );
@@ -609,27 +622,6 @@ class _MessageComposerState extends State<MessageComposer>
       );
     });
     _emojiAutocomplete.handleTextChanged();
-    _scheduleButtonSizeUpdate();
-  }
-
-  void _scheduleButtonSizeUpdate() {
-    if (_buttonSizeUpdateScheduled) return;
-    _buttonSizeUpdateScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _buttonSizeUpdateScheduled = false;
-      if (!mounted) return;
-      _updateButtonSize();
-    });
-  }
-
-  void _updateButtonSize() {
-    final newHeight = _inputFieldKey.currentContext?.size?.height;
-    if (newHeight == null || newHeight <= 0) return;
-    final target = newHeight.clamp(_minButtonSize, _maxButtonSize);
-    if ((_buttonSize - target).abs() < 0.5) return;
-    setState(() {
-      _buttonSize = target;
-    });
   }
 }
 
@@ -680,6 +672,7 @@ class _MessageInput extends StatelessWidget {
     final color = CustomColorScheme.of(context);
 
     return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (isEditing)
@@ -757,14 +750,18 @@ class _MessageInput extends StatelessWidget {
             style: TextStyle(
               fontSize: _composerFontSize,
               height: _composerLineHeight,
+              leadingDistribution: TextLeadingDistribution.even,
               color: color.text.primary,
             ),
             minLines: 1,
             maxLines: 10,
+            textAlignVertical: TextAlignVertical.center,
             enabled: isConfirmedChat,
             decoration: InputDecoration(
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(vertical: Spacings.xs),
+              isCollapsed: true,
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: _inputVerticalPadding,
+              ),
               hintText: loc.composer_inputHint(chatTitle ?? ""),
               hintMaxLines: 1,
               hintStyle: TextStyle(
