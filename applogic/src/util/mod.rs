@@ -6,12 +6,10 @@ mod background;
 mod cubit_core;
 mod fibonacci_backoff;
 mod file_ring_buffer;
-mod incremental_list;
 mod spawn;
 
 pub(crate) use background::{BackgroundStreamContext, BackgroundStreamTask};
 pub(crate) use cubit_core::{Cubit, CubitCore};
 pub(crate) use fibonacci_backoff::FibonacciBackoff;
 pub(crate) use file_ring_buffer::{FileRingBuffer, FileRingBufferLock};
-pub(crate) use incremental_list::{IncrementalDiff, IncrementalList};
 pub(crate) use spawn::spawn_from_sync;

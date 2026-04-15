@@ -82,10 +82,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_MessageListStatePtr => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState;
-
-  CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_NavigationCubitBasePtr => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase;
 
@@ -174,12 +170,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   MessageListCubitBase
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  MessageListState
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
     dynamic raw,
   );
 
@@ -346,12 +336,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  MessageListState
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-    dynamic raw,
-  );
-
-  @protected
   NavigationCubitBase
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
     dynamic raw,
@@ -499,12 +483,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  MessageListState
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-    dynamic raw,
-  );
-
-  @protected
   NavigationCubitBase
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
     dynamic raw,
@@ -559,12 +537,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  RustStreamSink<MessageListState>
-  dco_decode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState_Sse(
-    dynamic raw,
-  );
-
-  @protected
   RustStreamSink<UiUser>
   dco_decode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser_Sse(
     dynamic raw,
@@ -592,6 +564,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   RustStreamSink<MemberDetailsState>
   dco_decode_StreamSink_member_details_state_Sse(dynamic raw);
+
+  @protected
+  RustStreamSink<MessageListState> dco_decode_StreamSink_message_list_state_Sse(
+    dynamic raw,
+  );
+
+  @protected
+  RustStreamSink<MessageListTransition>
+  dco_decode_StreamSink_message_list_transition_Sse(dynamic raw);
 
   @protected
   RustStreamSink<MessageState> dco_decode_StreamSink_message_state_Sse(
@@ -724,6 +705,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageId dco_decode_box_autoadd_message_id(dynamic raw);
+
+  @protected
+  MessageListCommand dco_decode_box_autoadd_message_list_command(dynamic raw);
 
   @protected
   MessageState dco_decode_box_autoadd_message_state(dynamic raw);
@@ -880,7 +864,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  List<MessageListDiff> dco_decode_list_message_list_diff(dynamic raw);
+  List<MessageListChange> dco_decode_list_message_list_change(dynamic raw);
 
   @protected
   List<NotificationHandle> dco_decode_list_notification_handle(dynamic raw);
@@ -942,10 +926,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MessageId dco_decode_message_id(dynamic raw);
 
   @protected
-  MessageListDiff dco_decode_message_list_diff(dynamic raw);
+  MessageListChange dco_decode_message_list_change(dynamic raw);
 
   @protected
-  MessageListMeta dco_decode_message_list_meta(dynamic raw);
+  MessageListCommand dco_decode_message_list_command(dynamic raw);
+
+  @protected
+  MessageListState dco_decode_message_list_state(dynamic raw);
+
+  @protected
+  MessageListTransition dco_decode_message_list_transition(dynamic raw);
+
+  @protected
+  MessageListTransitionKind dco_decode_message_list_transition_kind(
+    dynamic raw,
+  );
 
   @protected
   MessageState dco_decode_message_state(dynamic raw);
@@ -1040,6 +1035,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageId? dco_decode_opt_box_autoadd_message_id(dynamic raw);
+
+  @protected
+  MessageListCommand? dco_decode_opt_box_autoadd_message_list_command(
+    dynamic raw,
+  );
 
   @protected
   PlatformPushToken? dco_decode_opt_box_autoadd_platform_push_token(
@@ -1283,12 +1283,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  MessageListState
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   NavigationCubitBase
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
     SseDeserializer deserializer,
@@ -1451,12 +1445,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  MessageListState
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   NavigationCubitBase
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
     SseDeserializer deserializer,
@@ -1584,12 +1572,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  MessageListState
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   NavigationCubitBase
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
     SseDeserializer deserializer,
@@ -1644,12 +1626,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  RustStreamSink<MessageListState>
-  sse_decode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState_Sse(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   RustStreamSink<UiUser>
   sse_decode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser_Sse(
     SseDeserializer deserializer,
@@ -1679,6 +1655,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   RustStreamSink<MemberDetailsState>
   sse_decode_StreamSink_member_details_state_Sse(SseDeserializer deserializer);
+
+  @protected
+  RustStreamSink<MessageListState> sse_decode_StreamSink_message_list_state_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RustStreamSink<MessageListTransition>
+  sse_decode_StreamSink_message_list_transition_Sse(
+    SseDeserializer deserializer,
+  );
 
   @protected
   RustStreamSink<MessageState> sse_decode_StreamSink_message_state_Sse(
@@ -1835,6 +1822,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageId sse_decode_box_autoadd_message_id(SseDeserializer deserializer);
+
+  @protected
+  MessageListCommand sse_decode_box_autoadd_message_list_command(
+    SseDeserializer deserializer,
+  );
 
   @protected
   MessageState sse_decode_box_autoadd_message_state(
@@ -2029,7 +2021,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  List<MessageListDiff> sse_decode_list_message_list_diff(
+  List<MessageListChange> sse_decode_list_message_list_change(
     SseDeserializer deserializer,
   );
 
@@ -2113,10 +2105,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MessageId sse_decode_message_id(SseDeserializer deserializer);
 
   @protected
-  MessageListDiff sse_decode_message_list_diff(SseDeserializer deserializer);
+  MessageListChange sse_decode_message_list_change(
+    SseDeserializer deserializer,
+  );
 
   @protected
-  MessageListMeta sse_decode_message_list_meta(SseDeserializer deserializer);
+  MessageListCommand sse_decode_message_list_command(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MessageListState sse_decode_message_list_state(SseDeserializer deserializer);
+
+  @protected
+  MessageListTransition sse_decode_message_list_transition(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MessageListTransitionKind sse_decode_message_list_transition_kind(
+    SseDeserializer deserializer,
+  );
 
   @protected
   MessageState sse_decode_message_state(SseDeserializer deserializer);
@@ -2231,6 +2240,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageId? sse_decode_opt_box_autoadd_message_id(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MessageListCommand? sse_decode_opt_box_autoadd_message_list_command(
     SseDeserializer deserializer,
   );
 
@@ -2521,13 +2535,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-    MessageListState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
     NavigationCubitBase self,
     SseSerializer serializer,
@@ -2717,13 +2724,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-    MessageListState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
     NavigationCubitBase self,
     SseSerializer serializer,
@@ -2897,13 +2897,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-    MessageListState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
     NavigationCubitBase self,
     SseSerializer serializer,
@@ -2967,13 +2960,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
-  sse_encode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState_Sse(
-    RustStreamSink<MessageListState> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
   sse_encode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser_Sse(
     RustStreamSink<UiUser> self,
     SseSerializer serializer,
@@ -3007,6 +2993,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_StreamSink_member_details_state_Sse(
     RustStreamSink<MemberDetailsState> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_message_list_state_Sse(
+    RustStreamSink<MessageListState> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_message_list_transition_Sse(
+    RustStreamSink<MessageListTransition> self,
     SseSerializer serializer,
   );
 
@@ -3193,6 +3191,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_message_id(
     MessageId self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_message_list_command(
+    MessageListCommand self,
     SseSerializer serializer,
   );
 
@@ -3440,8 +3444,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_list_message_list_diff(
-    List<MessageListDiff> self,
+  void sse_encode_list_message_list_change(
+    List<MessageListChange> self,
     SseSerializer serializer,
   );
 
@@ -3548,14 +3552,32 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_message_id(MessageId self, SseSerializer serializer);
 
   @protected
-  void sse_encode_message_list_diff(
-    MessageListDiff self,
+  void sse_encode_message_list_change(
+    MessageListChange self,
     SseSerializer serializer,
   );
 
   @protected
-  void sse_encode_message_list_meta(
-    MessageListMeta self,
+  void sse_encode_message_list_command(
+    MessageListCommand self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_message_list_state(
+    MessageListState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_message_list_transition(
+    MessageListTransition self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_message_list_transition_kind(
+    MessageListTransitionKind self,
     SseSerializer serializer,
   );
 
@@ -3697,6 +3719,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_message_id(
     MessageId? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_message_list_command(
+    MessageListCommand? self,
     SseSerializer serializer,
   );
 
@@ -4127,22 +4155,6 @@ class RustLibWire implements BaseWire {
       );
 
   void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-    int ptr,
-  ) => wasmModule
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-        ptr,
-      );
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-    int ptr,
-  ) => wasmModule
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-        ptr,
-      );
-
-  void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
     int ptr,
   ) => wasmModule
@@ -4380,16 +4392,6 @@ extension type RustLibWasmModule._(JSObject _) implements JSObject {
 
   external void
   rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    int ptr,
-  );
-
-  external void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-    int ptr,
-  );
-
-  external void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
     int ptr,
   );
 

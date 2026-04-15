@@ -185,7 +185,7 @@ void main() {
         ),
       ).thenAnswer((_) async {});
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
-      messageListCubit.setState(MockMessageListState(_mobileMessages));
+      messageListCubit.setState(_mobileMessages);
     });
 
     Widget buildSubject() => RepositoryProvider<AttachmentsRepository>.value(
