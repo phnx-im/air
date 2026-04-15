@@ -105,8 +105,6 @@ void main() {
       ).thenAnswer((_) async => Future.value());
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
       when(() => navigationCubit.state).thenReturn(_navState);
-      when(() => messageListCubit.loadOlder()).thenAnswer((_) async {});
-      when(() => messageListCubit.loadNewer()).thenAnswer((_) async {});
     });
 
     Widget buildSubject() => MultiBlocProvider(
@@ -135,15 +133,28 @@ void main() {
       ),
     );
 
+    testWidgets('renders correctly when empty', (tester) async {
+      when(
+        () => navigationCubit.state,
+      ).thenReturn(const NavigationState.home());
+      messageListCubit.setState(const []);
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_screen_empty.png'),
+      );
+    });
+
     group('composer states', () {
       // State 1: Empty composer — plus button on the left, no right button.
       testWidgets('empty', (tester) async {
-        when(() => messageListCubit.state).thenReturn(
-          MockMessageListState([
-            _msg(1, 'Composer is empty. No text has been entered yet.'),
-            _msg(2, 'Only the plus button is visible on the left.'),
-          ]),
-        );
+        messageListCubit.setState([
+          _msg(1, 'Composer is empty. No text has been entered yet.'),
+          _msg(2, 'Only the plus button is visible on the left.'),
+        ]);
 
         await tester.pumpWidget(buildSubject());
         await tester.pump();
@@ -157,23 +168,21 @@ void main() {
       // State 2: Empty composer, scrolled back — plus on the left,
       // scroll-to-bottom chevron on the right.
       testWidgets('empty scrolled back', (tester) async {
-        when(() => messageListCubit.state).thenReturn(
-          MockMessageListState([
-            // Reversed list: index 0 = bottom (newest).
-            for (int i = 1; i <= 4; i++) _msg(i, 'Old message $i'),
-            _msg(5, 'Composer is empty and the user has scrolled up.'),
-            _msg(6, 'A scroll-to-bottom button appears on the right.'),
-            // Long message near the top — after scrolling it lands
-            // right at the composer and gets partially clipped.
-            _msg(
-              7,
-              'This is a long message that should be partially '
-              'hidden behind the composer to show that the user '
-              'has scrolled back in the conversation history.',
-            ),
-            for (int i = 8; i <= 12; i++) _msg(i, 'Old message $i'),
-          ], hasNewer: true),
-        );
+        messageListCubit.setState([
+          // Reversed list: index 0 = bottom (newest).
+          for (int i = 1; i <= 4; i++) _msg(i, 'Old message $i'),
+          _msg(5, 'Composer is empty and the user has scrolled up.'),
+          _msg(6, 'A scroll-to-bottom button appears on the right.'),
+          // Long message near the top — after scrolling it lands
+          // right at the composer and gets partially clipped.
+          _msg(
+            7,
+            'This is a long message that should be partially '
+            'hidden behind the composer to show that the user '
+            'has scrolled back in the conversation history.',
+          ),
+          for (int i = 8; i <= 12; i++) _msg(i, 'Old message $i'),
+        ], hasNewer: true);
 
         await tester.pumpWidget(buildSubject());
         await tester.pump();
@@ -190,12 +199,10 @@ void main() {
 
       // State 3: Unsent text — plus on the left, send arrow on the right.
       testWidgets('unsent', (tester) async {
-        when(() => messageListCubit.state).thenReturn(
-          MockMessageListState([
-            _msg(1, 'The user has typed a message but not sent it.'),
-            _msg(2, 'A send button appears on the right.'),
-          ]),
-        );
+        messageListCubit.setState([
+          _msg(1, 'The user has typed a message but not sent it.'),
+          _msg(2, 'A send button appears on the right.'),
+        ]);
 
         await tester.pumpWidget(buildSubject());
         await tester.pump();
@@ -215,20 +222,18 @@ void main() {
       // State 4: Unsent text, scrolled back — plus on the left,
       // scroll-to-bottom chevron on the right (not send).
       testWidgets('unsent scrolled back', (tester) async {
-        when(() => messageListCubit.state).thenReturn(
-          MockMessageListState([
-            for (int i = 1; i <= 4; i++) _msg(i, 'Old message $i'),
-            _msg(5, 'The user typed a message and scrolled up.'),
-            _msg(6, 'Scroll-to-bottom takes priority over send.'),
-            _msg(
-              7,
-              'This is a long message that should be partially '
-              'hidden behind the composer to show that the user '
-              'has scrolled back in the conversation history.',
-            ),
-            for (int i = 8; i <= 12; i++) _msg(i, 'Old message $i'),
-          ], hasNewer: true),
-        );
+        messageListCubit.setState([
+          for (int i = 1; i <= 4; i++) _msg(i, 'Old message $i'),
+          _msg(5, 'The user typed a message and scrolled up.'),
+          _msg(6, 'Scroll-to-bottom takes priority over send.'),
+          _msg(
+            7,
+            'This is a long message that should be partially '
+            'hidden behind the composer to show that the user '
+            'has scrolled back in the conversation history.',
+          ),
+          for (int i = 8; i <= 12; i++) _msg(i, 'Old message $i'),
+        ], hasNewer: true);
 
         await tester.pumpWidget(buildSubject());
         await tester.pump();
@@ -264,15 +269,10 @@ void main() {
             members: members,
           ),
         );
-        when(() => messageListCubit.state).thenReturn(
-          MockMessageListState([
-            _msg(1, 'The user is editing one of their own messages.'),
-            _msg(
-              2,
-              'Cancel on the left, confirm on the right. No plus button.',
-            ),
-          ]),
-        );
+        messageListCubit.setState([
+          _msg(1, 'The user is editing one of their own messages.'),
+          _msg(2, 'Cancel on the left, confirm on the right. No plus button.'),
+        ]);
 
         await tester.pumpWidget(buildSubject());
         await tester.pump();
@@ -320,12 +320,10 @@ void main() {
             members: members,
           ),
         );
-        when(() => messageListCubit.state).thenReturn(
-          MockMessageListState([
-            _msg(1, 'The user is replying to another message.'),
-            _msg(2, 'A reply bubble appears inside the input field.'),
-          ]),
-        );
+        messageListCubit.setState([
+          _msg(1, 'The user is replying to another message.'),
+          _msg(2, 'A reply bubble appears inside the input field.'),
+        ]);
 
         await tester.pumpWidget(buildSubject());
         await tester.pump();
@@ -344,9 +342,7 @@ void main() {
     });
 
     testWidgets('renders correctly', (tester) async {
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(messages));
+      messageListCubit.setState(messages);
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();
@@ -363,9 +359,7 @@ void main() {
         tester.platformDispatcher.clearPlatformBrightnessTestValue();
       });
 
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(messages));
+      messageListCubit.setState(messages);
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();

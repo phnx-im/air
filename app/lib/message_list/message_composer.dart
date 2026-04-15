@@ -460,6 +460,8 @@ class _MessageComposerState extends State<MessageComposer>
     // FIXME: Handle errors
     chatDetailsCubit.sendMessage(messageText);
 
+    widget.scrollToBottomController?.scrollToBottom();
+
     setState(() {
       _inputController.clear();
       _focusNode.requestFocus();

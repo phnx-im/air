@@ -185,6 +185,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
                   : appLocale;
 
               return MaterialApp.router(
+                scrollBehavior: const AppScrollBehavior(),
                 scaffoldMessengerKey: scaffoldMessengerKey,
                 onGenerateTitle: (context) =>
                     AppLocalizations.of(context).appTitle,
