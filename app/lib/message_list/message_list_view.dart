@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
+import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/anchored_list/anchored_list.dart';
 import 'package:air/widgets/anchored_list/controller.dart';
@@ -237,9 +238,51 @@ class _MessageListViewState extends State<MessageListView>
     if (composerHeightListenable == null) {
       return buildAnchoredList();
     }
+    // Layer the list, a bottom fade gradient, and a manual scrollbar so that:
+    //  - Messages fade out as they approach the composer
+    //  - The scrollbar renders above the fade (not hidden behind it)
+    //  - The scrollbar track stops at the top of the fade, matching the
+    //    visible content area
     return ValueListenableBuilder<double>(
       valueListenable: composerHeightListenable,
-      builder: (context, height, _) => buildAnchoredList(bottomPadding: height),
+      builder: (context, composerHeight, _) {
+        final safeBottom = MediaQuery.of(context).padding.bottom;
+        final fadeTotal = composerHeight + _fadeHeight + safeBottom;
+
+        // Override MediaQuery padding so the Scrollbar's track ends above
+        // the composer and fade zone.
+        final scrollbarPadding = MediaQuery.paddingOf(
+          context,
+        ).copyWith(bottom: composerHeight + _fadeHeight);
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(padding: scrollbarPadding),
+          child: Scrollbar(
+            controller: _listController.scrollController,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Disable the auto-scrollbar, we have our own above.
+                ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(
+                    context,
+                  ).copyWith(scrollbars: false),
+                  child: buildAnchoredList(
+                    bottomPadding: composerHeight + _fadeHeight,
+                  ),
+                ),
+                // Gradient fade from transparent to the background color,
+                // from 40px above the composer to the screen bottom.
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: -safeBottom,
+                  child: _BottomFade(height: fadeTotal),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -281,6 +324,32 @@ class _MessageListViewState extends State<MessageListView>
     }
 
     return tile;
+  }
+}
+
+const double _fadeHeight = 40;
+
+class _BottomFade extends StatelessWidget {
+  const _BottomFade({required this.height});
+
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = CustomColorScheme.of(context).backgroundBase.primary;
+    return IgnorePointer(
+      child: Container(
+        height: height,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.bottomCenter,
+            end: Alignment.topCenter,
+            colors: [bgColor, bgColor.withValues(alpha: 0)],
+            stops: const [0.2, 1.0],
+          ),
+        ),
+      ),
+    );
   }
 }
 
