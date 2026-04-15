@@ -33,6 +33,9 @@ impl AuthService {
         token_request: AmortizedBatchTokenRequest<Ristretto255>,
     ) -> Result<AmortizedBatchTokenResponse<Ristretto255>, IssueTokensError> {
         let tokens_requested = token_request.nr() as u16;
+        if tokens_requested == 0 {
+            return Err(IssueTokensError::BadRequest);
+        }
 
         // Start a transaction
         let mut transaction = self.db_pool.begin().await?;

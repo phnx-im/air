@@ -43,15 +43,16 @@ pub(crate) async fn consume_token(
 pub(crate) async fn token_count(
     executor: impl SqliteExecutor<'_>,
     operation_type: OperationType,
-) -> Result<u16, sqlx::Error> {
+) -> sqlx::Result<u16> {
     let operation_type = operation_type as i32;
-    let count = sqlx::query_scalar!(
+    sqlx::query_scalar!(
         "SELECT COUNT(*) FROM privacy_pass_token WHERE operation_type = ?",
         operation_type
     )
     .fetch_one(executor)
-    .await?;
-    Ok(count as u16)
+    .await?
+    .try_into()
+    .map_err(|error| sqlx::Error::Decode(Box::new(error)))
 }
 
 /// Stores or updates a batched token public key.

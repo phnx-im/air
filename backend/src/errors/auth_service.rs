@@ -88,6 +88,9 @@ impl From<PublishConnectionPackageError> for Status {
 
 #[derive(Error, Debug)]
 pub(crate) enum IssueTokensError {
+    /// Something was wrong in the request
+    #[error("Bad request")]
+    BadRequest,
     /// Storage provider error
     #[error("Storage provider error")]
     StorageError(#[from] StorageError),

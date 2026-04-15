@@ -287,6 +287,7 @@ impl auth_service_server::AuthService for GrpcAs {
                 return Err(Status::invalid_argument("invalid invitation code"));
             }
             let code_record = if self.inner.is_unredeemable_code(&code.code) {
+                warn!("used secret unredeemable code to register account");
                 Some(InvitationCodeRecord {
                     code: code.code,
                     redeemed: false,
