@@ -159,7 +159,8 @@ class MessageListCubit extends StateStreamableSource<MessageListStateWrapper> {
             if (messages.isNotEmpty) {
               // Track entrance animations: new = not already loaded
               if (transition.kind ==
-                  MessageListTransitionKind.newerPageLoaded) {
+                      MessageListTransitionKind.newerPageLoaded &&
+                  _state.isAtBottom) {
                 for (final m in messages) {
                   if (!_loadedMessages.contains(m.id)) {
                     _newMessages.add(m.id);
