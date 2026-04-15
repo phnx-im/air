@@ -8,7 +8,7 @@ use aircommon::{
         aead::keys::FriendshipPackageEarKey, hpke::HpkeDecryptable,
         indexed_aead::keys::UserProfileKey,
     },
-    identifiers::{QualifiedGroupId, UserHandle, UserId},
+    identifiers::{QualifiedGroupId, Username, UserId},
     messages::{
         client_as::{ConnectionOfferHash, ConnectionOfferMessage},
         connection_package::{ConnectionPackage, ConnectionPackageHash},
@@ -34,10 +34,10 @@ use crate::{
             payload::{ConnectionInfo, ConnectionOfferPayload},
         },
     },
-    contacts::HandleContact,
+    contacts::UsernameContact,
     groups::ProfileInfo,
     job::{Job, JobContext},
-    user_handles::connection_packages::StorableConnectionPackage,
+    usernames::connection_packages::StorableConnectionPackage,
     utils::connection_ext::ConnectionExt,
 };
 
@@ -50,7 +50,7 @@ pub(crate) enum ConnectionInfoSource {
 
 pub(crate) struct ConnectionOfferSource {
     pub(crate) connection_offer: ConnectionOfferMessage,
-    pub(crate) user_handle: UserHandle,
+    pub(crate) username: Username,
     /// Timestamp when the connection offer was enqueued on the server
     pub(crate) sent_at: Option<TimeStamp>,
 }
@@ -63,10 +63,10 @@ pub(crate) struct TargetedMessageSource {
     pub(crate) sent_at: TimeStamp,
 }
 
-struct HandleConnectionInfo {
+struct UsernameConnectionInfo {
     connection_offer_hash: ConnectionOfferHash,
     connection_package_hash: ConnectionPackageHash,
-    handle: UserHandle,
+    username: Username,
 }
 
 impl ConnectionInfoSource {
@@ -78,14 +78,14 @@ impl ConnectionInfoSource {
         ConnectionInfo,
         ClientCredential,
         Option<ChatId>,
-        Option<HandleConnectionInfo>,
+        Option<UsernameConnectionInfo>,
         Option<TimeStamp>,
     )> {
         match self {
             ConnectionInfoSource::ConnectionOffer(connection_offer_source) => {
                 let ConnectionOfferSource {
                     connection_offer,
-                    user_handle,
+                    username,
                     sent_at,
                 } = *connection_offer_source;
                 let connection_offer_hash = connection_offer.connection_offer_hash();
@@ -93,20 +93,20 @@ impl ConnectionInfoSource {
                     connection,
                     api_clients,
                     connection_offer,
-                    user_handle.clone(),
+                    username.clone(),
                 )
                 .await?;
                 let sender_client_credential = cep_payload.sender_client_credential;
-                let handle_connection_info = HandleConnectionInfo {
+                let username_connection_info = UsernameConnectionInfo {
                     connection_offer_hash,
                     connection_package_hash: hash,
-                    handle: user_handle,
+                    username,
                 };
                 Ok((
                     cep_payload.connection_info,
                     sender_client_credential,
                     None,
-                    Some(handle_connection_info),
+                    Some(username_connection_info),
                     sent_at,
                 ))
             }
@@ -130,9 +130,9 @@ impl ConnectionInfoSource {
 }
 
 impl CoreUser {
-    pub(crate) async fn process_handle_queue_message_event_loop(
+    pub(crate) async fn process_username_queue_message_event_loop(
         &self,
-        user_handle: UserHandle,
+        username: Username,
         handle_queue_message: HandleQueueMessage,
     ) -> Result<ChatId> {
         let payload = handle_queue_message
@@ -147,7 +147,7 @@ impl CoreUser {
                 let connection_info_source =
                     ConnectionInfoSource::ConnectionOffer(Box::new(ConnectionOfferSource {
                         connection_offer: eco.try_into()?,
-                        user_handle: user_handle.clone(),
+                        username: username.clone(),
                         sent_at,
                     }));
                 let mut notifier = self.store_notifier();
@@ -178,7 +178,7 @@ impl CoreUser {
             connection_info,
             sender_client_credential,
             origin_chat_id,
-            handle_connection_info,
+            username_connection_info,
             sent_at,
         ) = connection_info_source
             .into_parts(&mut *connection, context.api_clients)
@@ -266,20 +266,20 @@ impl CoreUser {
                     &connection_info.connection_group_id,
                     sender_user_id.clone(),
                     connection_info.friendship_package.clone(),
-                    handle_connection_info.as_ref(),
+                    username_connection_info.as_ref(),
                 )
                 .await?;
 
                 // Create pending connection info
-                let (handle, connection_offer_hash, connection_package_hash) =
-                    if let Some(HandleConnectionInfo {
+                let (username, connection_offer_hash, connection_package_hash) =
+                    if let Some(UsernameConnectionInfo {
                         connection_offer_hash,
                         connection_package_hash,
-                        handle,
-                    }) = handle_connection_info
+                        username,
+                    }) = username_connection_info
                     {
                         (
-                            Some(handle),
+                            Some(username),
                             Some(connection_offer_hash),
                             Some(connection_package_hash),
                         )
@@ -290,18 +290,18 @@ impl CoreUser {
                     chat_id: chat.id(),
                     created_at: TimeStamp::now(),
                     connection_info,
-                    handle,
+                    handle: username,
                     connection_offer_hash,
                     connection_package_hash,
                 };
 
                 // Create system messages for receipt and acceptance
                 let received_system_message = match &partial_contact {
-                    PartialContact::Handle(contact) => {
-                        // Connection via handle
+                    PartialContact::Username(contact) => {
+                        // Connection via username
                         SystemMessage::ReceivedHandleConnectionRequest {
                             sender: sender_user_id.clone(),
-                            user_handle: contact.handle.clone(),
+                            user_handle: contact.username.clone(),
                         }
                     }
                     PartialContact::TargetedMessage(contact) => {
@@ -341,7 +341,7 @@ impl CoreUser {
         connection: &mut SqliteConnection,
         api_clients: &ApiClients,
         com: ConnectionOfferMessage,
-        user_handle: UserHandle,
+        user_handle: Username,
     ) -> Result<(ConnectionOfferPayload, ConnectionPackageHash)> {
         let (eco, hash) = com.into_parts();
 
@@ -380,8 +380,9 @@ impl CoreUser {
         group_id: &GroupId,
         sender_user_id: UserId,
         _friendship_package: FriendshipPackage,
-        handle_connection_info: Option<&HandleConnectionInfo>,
+        username_connection_info: Option<&UsernameConnectionInfo>,
     ) -> anyhow::Result<(Chat, PartialContact)> {
+
         let display_name = Self::user_profile_internal(connection, &sender_user_id)
             .await
             .display_name;
@@ -394,12 +395,12 @@ impl CoreUser {
         // FIXME(901): For incoming contacts, there is no EAR key but it is required.
         let random_ear_key = FriendshipPackageEarKey::random()?;
 
-        let partial_contact = if let Some(handle_connection_info) = handle_connection_info {
-            PartialContact::Handle(HandleContact::new(
-                handle_connection_info.handle.clone(),
+        let partial_contact = if let Some(username_connection_info) = username_connection_info {
+            PartialContact::Username(UsernameContact::new(
+                username_connection_info.username.clone(),
                 chat.id(),
                 random_ear_key,
-                handle_connection_info.connection_offer_hash,
+                username_connection_info.connection_offer_hash,
             ))
         } else {
             PartialContact::TargetedMessage(TargetedMessageContact::new(

@@ -7,7 +7,7 @@ use std::fmt::Display;
 use aircommon::{
     codec::{self, PersistenceCodec},
     crypto::aead::keys::IdentityLinkWrapperKey,
-    identifiers::{Fqdn, QualifiedGroupId, UserHandle, UserId},
+    identifiers::{Fqdn, QualifiedGroupId, Username, UserId},
 };
 use airprotos::client::group::{ExternalGroupProfile, GroupData};
 use chrono::{DateTime, Utc};
@@ -95,7 +95,7 @@ impl Chat {
     pub(crate) fn new_handle_chat(
         group_id: GroupId,
         attributes: ChatAttributes,
-        handle: UserHandle,
+        username: Username,
     ) -> Self {
         let id = ChatId::try_from(&group_id).unwrap();
         Self {
@@ -104,7 +104,7 @@ impl Chat {
             last_read: Utc::now(),
             last_message_at: None,
             status: ChatStatus::Active,
-            chat_type: ChatType::HandleConnection(handle),
+            chat_type: ChatType::HandleConnection(username),
             attributes,
         }
     }
@@ -275,7 +275,7 @@ impl InactiveChat {
 pub enum ChatType {
     /// A connection chat which was established via a handle and is not yet confirmed by the other
     /// party. (outgoing)
-    HandleConnection(UserHandle),
+    HandleConnection(Username),
     /// A connection chat that is confirmed by the other party and for which we have received the
     /// necessary secrets.
     Connection(UserId),
@@ -291,7 +291,7 @@ pub enum ChatType {
 impl ChatType {
     pub fn unconfirmed_contact(&self) -> Option<PartialContactType> {
         match self {
-            ChatType::HandleConnection(handle) => Some(PartialContactType::Handle(handle.clone())),
+            ChatType::HandleConnection(username) => Some(PartialContactType::Handle(username.clone())),
             ChatType::TargetedMessageConnection(user_id) => {
                 Some(PartialContactType::TargetedMessage(user_id.clone()))
             }

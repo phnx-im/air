@@ -10,4 +10,4 @@ export 'app_bar_plus_button.dart';
 export 'avatar.dart';
 export 'message_status_icon.dart';
 export 'progress_button.dart';
-export 'user_handle_input_formatter.dart';
+export 'username_input_formatter.dart';

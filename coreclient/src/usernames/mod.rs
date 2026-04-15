@@ -3,16 +3,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::HandleSigningKey,
+    credentials::keys::UsernameSigningKey,
     crypto::ConnectionDecryptionKey,
-    identifiers::{UserHandle, UserHandleHash},
+    identifiers::{Username, UsernameHash},
     messages::{
-        client_as::SerializedToken, client_as_out::UserHandleDeleteResponse,
+        client_as::SerializedToken, client_as_out::UsernameDeleteResponse,
         connection_package::ConnectionPackage,
     },
 };
 use anyhow::Context;
-pub use persistence::UserHandleRecord;
+pub use persistence::UsernameRecord;
 use tokio::task::spawn_blocking;
 use tracing::{error, warn};
 
@@ -22,32 +22,32 @@ use crate::{
     clients::{CONNECTION_PACKAGES, CoreUser},
     privacy_pass,
     store::StoreResult,
-    user_handles::connection_packages::StorableConnectionPackage,
+    usernames::connection_packages::StorableConnectionPackage,
 };
 
 pub(crate) mod connection_packages;
 mod persistence;
 
 impl CoreUser {
-    /// Registers a new user handle on the server and adds it locally.
+    /// Registers a new username on the server and adds it locally.
     ///
-    /// Returns a handle record on success, or `None` if the handle was already present.
-    pub(crate) async fn add_user_handle(
+    /// Returns a username record on success, or `None` if the username was already present.
+    pub(crate) async fn add_username(
         &self,
-        handle: UserHandle,
-    ) -> StoreResult<Option<UserHandleRecord>> {
-        let signing_key = HandleSigningKey::generate()?;
-        let handle_inner = handle.clone();
-        let hash = spawn_blocking(move || handle_inner.calculate_hash()).await??;
+        username: Username,
+    ) -> StoreResult<Option<UsernameRecord>> {
+        let signing_key = UsernameSigningKey::generate()?;
+        let username_inner = username.clone();
+        let hash = spawn_blocking(move || username_inner.calculate_hash()).await??;
 
         let api_client = self.api_client()?;
         let token = self
             .consume_or_replenish_token(&api_client)
             .await
-            .inspect_err(|e| warn!(%e, "no privacy pass token available for handle creation"))?;
+            .inspect_err(|e| warn!(%e, "no privacy pass token available for username creation"))?;
 
         let result = api_client
-            .as_create_handle(&handle, hash, &signing_key, token)
+            .as_create_username(&username, hash, &signing_key, token)
             .await;
 
         // If the server says our token key is stale, purge and replenish
@@ -65,7 +65,7 @@ impl CoreUser {
             return Ok(None);
         }
 
-        let record = UserHandleRecord::new(handle.clone(), hash, signing_key);
+        let record = UsernameRecord::new(username.clone(), hash, signing_key);
 
         let rollback = async |delete_locally: bool| {
             let domain = self.user_id().domain();
@@ -73,20 +73,20 @@ impl CoreUser {
                 privacy_pass::prepare_delete_token_request(self.pool(), domain).await
             {
                 api_client
-                    .as_delete_handle(record.hash, &record.signing_key, token_req)
+                    .as_delete_username(record.hash, &record.signing_key, token_req)
                     .await
                     .inspect_err(|error| {
-                        error!(%error, "failed to delete user handle on the server in rollback");
+                        error!(%error, "failed to delete username on the server in rollback");
                     })
                     .ok();
             } else {
                 error!("failed to prepare token request for rollback delete");
             }
             if delete_locally {
-                UserHandleRecord::delete(self.pool(), &record.handle)
+                UsernameRecord::delete(self.pool(), &record.username)
                     .await
                     .inspect_err(|error| {
-                        error!(%error, "failed to delete user handle locally in rollback");
+                        error!(%error, "failed to delete username locally in rollback");
                     })
                     .ok();
             }
@@ -94,7 +94,7 @@ impl CoreUser {
 
         let mut txn = self.pool().begin().await?;
         if let Err(error) = record.store(&mut *txn).await {
-            error!(%error, "failed to store user handle; rollback");
+            error!(%error, "failed to store username; rollback");
             rollback(false).await;
             return Err(error.into());
         }
@@ -107,14 +107,14 @@ impl CoreUser {
         let mut connection_packages = Vec::with_capacity(connection_package_bundles.len());
         for (decryption_key, connection_package) in connection_package_bundles {
             connection_package
-                .store_for_handle(&mut txn, &handle, &decryption_key)
+                .store_for_username(&mut txn, &username, &decryption_key)
                 .await?;
             connection_packages.push(connection_package);
         }
         txn.commit().await?;
 
         if let Err(error) = api_client
-            .as_publish_connection_packages_for_handle(
+            .as_publish_connection_packages_for_username(
                 hash,
                 connection_packages,
                 &record.signing_key,
@@ -129,27 +129,27 @@ impl CoreUser {
         Ok(Some(record))
     }
 
-    /// Deletes the user handle on the server and removes it locally.
-    pub(crate) async fn remove_user_handle(
+    /// Deletes the username on the server and removes it locally.
+    pub(crate) async fn remove_username(
         &self,
-        handle: &UserHandle,
-    ) -> StoreResult<UserHandleDeleteResponse> {
-        let record = UserHandleRecord::load(self.pool(), handle)
+        username: &Username,
+    ) -> StoreResult<UsernameDeleteResponse> {
+        let record = UsernameRecord::load(self.pool(), username)
             .await?
-            .context("no user handle found")?;
+            .context("no username found")?;
 
         let domain = self.user_id().domain();
         let (token_request_bytes, token_state) =
             privacy_pass::prepare_delete_token_request(self.pool(), domain)
                 .await
                 .inspect_err(
-                    |e| warn!(%e, "failed to prepare privacy pass token for handle deletion"),
+                    |e| warn!(%e, "failed to prepare privacy pass token for username deletion"),
                 )?
                 .context("no VOPRF keys available for delete token request")?;
 
         let api_client = self.api_client()?;
         let (res, token_response_bytes) = api_client
-            .as_delete_handle(record.hash, &record.signing_key, token_request_bytes)
+            .as_delete_username(record.hash, &record.signing_key, token_request_bytes)
             .await?;
 
         // Finalize the refund token if we got one back.
@@ -161,13 +161,13 @@ impl CoreUser {
             warn!("failed to finalize delete refund token: {e}");
         }
 
-        self.remove_user_handle_locally(handle).await?;
+        self.remove_username_locally(username).await?;
         Ok(res)
     }
 
-    pub(crate) async fn remove_user_handle_locally(&self, handle: &UserHandle) -> StoreResult<()> {
+    pub(crate) async fn remove_username_locally(&self, username: &Username) -> StoreResult<()> {
         let mut txn = self.pool().begin().await?;
-        UserHandleRecord::delete(txn.as_mut(), handle).await?;
+        UsernameRecord::delete(txn.as_mut(), username).await?;
         txn.commit().await?;
         Ok(())
     }
@@ -219,7 +219,7 @@ impl CoreUser {
         .await
     }
 
-    /// Pre-fills the local token cache so that handle operations can proceed
+    /// Pre-fills the local token cache so that username operations can proceed
     /// without inline replenishment. In production, the background
     /// `TokenReplenishment` task does this; in tests, call this explicitly
     /// after user creation.
@@ -238,8 +238,8 @@ impl CoreUser {
 }
 
 fn generate_connection_packages(
-    signing_key: &HandleSigningKey,
-    hash: UserHandleHash,
+    signing_key: &UsernameSigningKey,
+    hash: UsernameHash,
 ) -> anyhow::Result<Vec<(ConnectionDecryptionKey, ConnectionPackage)>> {
     let mut connection_packages = Vec::with_capacity(CONNECTION_PACKAGES);
     for _ in 0..CONNECTION_PACKAGES - 1 {

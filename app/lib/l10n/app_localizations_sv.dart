@@ -70,7 +70,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get userSettingsScreen_accountSection => 'Konto';
 
   @override
-  String get userSettingsScreen_userHandlePlaceholder => 'Användarnamn';
+  String get userSettingsScreen_usernamePlaceholder => 'Användarnamn';
 
   @override
   String get settingsScreen_copiedToClipboard => 'Kopierat till urklipp';
@@ -330,47 +330,47 @@ class AppLocalizationsSv extends AppLocalizations {
       'Lägg till ett användarnamn...';
 
   @override
-  String get userHandleScreen_title => 'Lägg till användarnamn';
+  String get usernameScreen_title => 'Lägg till användarnamn';
 
   @override
-  String get userHandleScreen_inputHint => 'Skriv ett användarnamn...';
+  String get usernameScreen_inputHint => 'Skriv ett användarnamn...';
 
   @override
-  String get userHandleScreen_error_emptyHandle =>
+  String get usernameScreen_error_emptyUsername =>
       'Användarnamn får inte vara tomt';
 
   @override
-  String get userHandleScreen_error_alreadyExists =>
+  String get usernameScreen_error_alreadyExists =>
       'Användarnamnet används redan';
 
   @override
-  String get userHandleScreen_description =>
+  String get usernameScreen_description =>
       'Välj ett användarnamn som andra kan använda för att ansluta till dig.\n\nAnvänd bokstäver, siffror eller bindestreck. Minst 5 tecken.';
 
   @override
-  String get userHandleScreen_cancel => 'Avbryt';
+  String get usernameScreen_cancel => 'Avbryt';
 
   @override
-  String get userHandleScreen_confirm => 'Lägg till';
+  String get usernameScreen_confirm => 'Lägg till';
 
   @override
-  String get userHandleScreen_error_tooShort =>
+  String get usernameScreen_error_tooShort =>
       'Användarnamn måste vara minst 5 tecken';
 
   @override
-  String get userHandleScreen_error_tooLong =>
+  String get usernameScreen_error_tooLong =>
       'Användarnamn får vara högst 63 tecken';
 
   @override
-  String get userHandleScreen_error_invalidCharacter =>
+  String get usernameScreen_error_invalidCharacter =>
       'Användarnamn får bara innehålla bokstäver, siffror eller bindestreck';
 
   @override
-  String get userHandleScreen_error_consecutiveDashes =>
+  String get usernameScreen_error_consecutiveDashes =>
       'Användarnamn får inte innehålla flera bindestreck i rad';
 
   @override
-  String get userHandleScreen_error_leadingDigit =>
+  String get usernameScreen_error_leadingDigit =>
       'Användarnamn får inte börja med en siffra';
 
   @override
@@ -580,10 +580,11 @@ class AppLocalizationsSv extends AppLocalizations {
   }
 
   @override
-  String get newConnectionDialog_error_emptyHandle => 'Skriv in användarnamnet';
+  String get newConnectionDialog_error_emptyUsername =>
+      'Skriv in användarnamnet';
 
   @override
-  String newConnectionDialog_error_handleNotFound(Object username) {
+  String newConnectionDialog_error_usernameNotFound(Object username) {
     return '$username hittades inte. Kontrollera det och försök igen.';
   }
 
@@ -592,7 +593,7 @@ class AppLocalizationsSv extends AppLocalizations {
       'Du har redan en väntande kontaktförfrågan till det här användarnamnet.';
 
   @override
-  String get newConnectionDialog_error_ownHandle =>
+  String get newConnectionDialog_error_ownUsername =>
       'Du kan inte skicka en kontaktförfrågan till dig själv.';
 
   @override

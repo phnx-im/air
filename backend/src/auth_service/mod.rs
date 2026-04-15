@@ -12,7 +12,7 @@ use credentials::{
 use semver::VersionReq;
 use sqlx::PgPool;
 use thiserror::Error;
-use user_handles::UserHandleQueues;
+use usernames::UsernameQueues;
 
 use crate::{
     air_service::{BackendService, ServiceCreationError},
@@ -27,13 +27,13 @@ mod credentials;
 pub mod grpc;
 mod invitation_code_record;
 pub mod privacy_pass;
-mod user_handles;
+mod usernames;
 pub mod user_record;
 
 #[derive(Debug, Clone)]
 pub struct AuthService {
     db_pool: PgPool,
-    pub(crate) handle_queues: UserHandleQueues,
+    pub(crate) username_queues: UsernameQueues,
     client_version_req: Option<VersionReq>,
     invitation_only: bool,
     unredeemable_code: Option<Arc<str>>,
@@ -73,10 +73,10 @@ impl BackendService for AuthService {
         domain: Fqdn,
         client_version_req: Option<VersionReq>,
     ) -> Result<Self, ServiceCreationError> {
-        let handle_queues = UserHandleQueues::new(db_pool.clone()).await?;
+        let username_queues = UsernameQueues::new(db_pool.clone()).await?;
         let auth_service = Self {
             db_pool,
-            handle_queues,
+            username_queues,
             client_version_req,
             invitation_only: true,
             unredeemable_code: None,

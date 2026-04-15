@@ -4,10 +4,10 @@
 
 use std::{collections::HashMap, convert::identity, sync::Arc};
 
-use aircommon::identifiers::UserHandle;
+use aircommon::identifiers::Username;
 use aircoreclient::{
-    UserHandleRecord,
-    clients::{AsListenHandleResponder, HandleQueueMessage},
+    UsernameRecord,
+    clients::{AsListenUsernameResponder, HandleQueueMessage},
     store::Store,
 };
 use anyhow::{Context, bail};
@@ -25,34 +25,34 @@ use crate::{
 
 use super::{AppState, CubitContext};
 
-/// The context of the background task that listens to a user handle.
+/// The context of the background task that listens to a username.
 #[derive(Debug, Clone)]
 #[frb(ignore)]
-pub(super) struct HandleContext {
+pub(super) struct UsernameContext {
     cubit_context: CubitContext,
-    handle_record: Arc<UserHandleRecord>,
-    responder: Arc<RwLock<Option<AsListenHandleResponder>>>,
+    username_record: Arc<UsernameRecord>,
+    responder: Arc<RwLock<Option<AsListenUsernameResponder>>>,
 }
 
-impl HandleContext {
-    pub(super) fn new(cubit_context: CubitContext, handle_record: UserHandleRecord) -> Self {
+impl UsernameContext {
+    pub(super) fn new(cubit_context: CubitContext, username_record: UsernameRecord) -> Self {
         Self {
             cubit_context,
-            handle_record: Arc::new(handle_record),
+            username_record: Arc::new(username_record),
             responder: Default::default(),
         }
     }
 
-    /// Spawns a task that loads all user handle records in the background and spawns a new listen
-    /// handle background task for each record.
+    /// Spawns a task that loads all username records in the background and spawns a new listen
+    /// username background task for each record.
     pub(super) fn spawn_loading(
         cubit_context: CubitContext,
         parent_cancel: CancellationToken,
-    ) -> HandleBackgroundTasks {
-        let handle_background_tasks = HandleBackgroundTasks::default();
-        let tasks_inner = handle_background_tasks.clone();
+    ) -> UsernameBackgroundTasks {
+        let username_background_tasks = UsernameBackgroundTasks::default();
+        let tasks_inner = username_background_tasks.clone();
         spawn_from_sync(async move {
-            let records = match cubit_context.core_user.user_handle_records().await {
+            let records = match cubit_context.core_user.username_records().await {
                 Ok(records) => records,
                 Err(error) => {
                     error!(%error, "failed to load username records; won't listen to usernames");
@@ -65,22 +65,22 @@ impl HandleContext {
                     .spawn();
             }
         });
-        handle_background_tasks
+        username_background_tasks
     }
 
     pub(super) fn into_task(
         self,
         cancel: CancellationToken,
-        background_tasks: &HandleBackgroundTasks,
+        background_tasks: &UsernameBackgroundTasks,
     ) -> BackgroundStreamTask<Self, HandleQueueMessage> {
-        let handle = self.handle_record.handle.clone();
-        let (prefix, suffix_len) = handle
+        let username = self.username_record.username.clone();
+        let (prefix, suffix_len) = username
             .plaintext()
             .split_at_checked(2)
             .map(|(prefix, suffix)| (prefix, suffix.len()))
             .unwrap_or(("unknown", 0));
         let name = format!("username-{prefix}<..{suffix_len}>");
-        background_tasks.insert(handle, cancel.clone());
+        background_tasks.insert(username, cancel.clone());
         BackgroundStreamTask::new(name, self, cancel)
     }
 
@@ -102,7 +102,7 @@ impl HandleContext {
     }
 }
 
-impl BackgroundStreamContext<HandleQueueMessage> for HandleContext {
+impl BackgroundStreamContext<HandleQueueMessage> for UsernameContext {
     async fn in_foreground(&self) {
         let _ = self
             .cubit_context
@@ -132,7 +132,7 @@ impl BackgroundStreamContext<HandleQueueMessage> for HandleContext {
         let (stream, responder) = match self
             .cubit_context
             .core_user
-            .listen_handle(&self.handle_record)
+            .listen_username(&self.username_record)
             .await
         {
             Ok(stream) => {
@@ -168,7 +168,7 @@ impl BackgroundStreamContext<HandleQueueMessage> for HandleContext {
         match self
             .cubit_context
             .core_user
-            .process_handle_queue_message(self.handle_record.handle.clone(), message)
+            .process_username_queue_message(self.username_record.username.clone(), message)
             .await
         {
             Ok(chat_id) => {
@@ -188,34 +188,34 @@ impl BackgroundStreamContext<HandleQueueMessage> for HandleContext {
     }
 }
 
-/// Tracks the background tasks listening to user handles.
+/// Tracks the background tasks listening to usernames.
 #[derive(Debug, Clone)]
 #[frb(ignore)]
-pub(super) struct HandleBackgroundTasks {
-    tx: watch::Sender<HashMap<UserHandle, DropGuard>>,
+pub(super) struct UsernameBackgroundTasks {
+    tx: watch::Sender<HashMap<Username, DropGuard>>,
 }
 
-impl HandleBackgroundTasks {
+impl UsernameBackgroundTasks {
     pub(super) fn new() -> Self {
         Self {
             tx: watch::channel(Default::default()).0,
         }
     }
 
-    pub(super) fn insert(&self, handle: UserHandle, cancel: CancellationToken) {
-        self.tx.send_modify(|handles| {
-            handles.insert(handle, cancel.drop_guard());
+    pub(super) fn insert(&self, username: Username, cancel: CancellationToken) {
+        self.tx.send_modify(|usernames| {
+            usernames.insert(username, cancel.drop_guard());
         });
     }
 
-    pub(super) fn remove(&self, handle: UserHandle) {
-        self.tx.send_modify(|handles| {
-            handles.remove(&handle);
+    pub(super) fn remove(&self, username: Username) {
+        self.tx.send_modify(|usernames| {
+            usernames.remove(&username);
         });
     }
 }
 
-impl Default for HandleBackgroundTasks {
+impl Default for UsernameBackgroundTasks {
     fn default() -> Self {
         Self::new()
     }

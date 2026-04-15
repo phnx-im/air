@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::{self, ClientKeyType, ClientSignature, HandleKeyType},
+    credentials::keys::{self, ClientKeyType, ClientSignature, UsernameKeyType},
     crypto::signatures::signable::{Signable, SignedStruct, Verifiable, VerifiedStruct},
 };
 use prost::Message;
@@ -72,12 +72,12 @@ impl Verifiable for DeleteUserRequest {
 
 const PUBLISH_CONNECTION_PACKAGES_PAYLOAD_LABEL: &str = "PublishConnectionPackagesPayload";
 
-impl SignedStruct<PublishConnectionPackagesPayload, HandleKeyType>
+impl SignedStruct<PublishConnectionPackagesPayload, UsernameKeyType>
     for PublishConnectionPackagesRequest
 {
     fn from_payload(
         payload: PublishConnectionPackagesPayload,
-        signature: keys::HandleSignature,
+        signature: keys::UsernameSignature,
     ) -> Self {
         let signature_proto: HandleSignature = signature.into();
         Self {
@@ -349,8 +349,8 @@ impl Verifiable for ReportSpamRequest {
 
 const CREATE_HANDLE_PAYLOAD_LABEL: &str = "CreateHandlePayload";
 
-impl SignedStruct<CreateHandlePayload, keys::HandleKeyType> for CreateHandleRequest {
-    fn from_payload(payload: CreateHandlePayload, signature: keys::HandleSignature) -> Self {
+impl SignedStruct<CreateHandlePayload, keys::UsernameKeyType> for CreateHandleRequest {
+    fn from_payload(payload: CreateHandlePayload, signature: keys::UsernameSignature) -> Self {
         CreateHandleRequest {
             payload: Some(payload),
             signature: Some(signature.into()),
@@ -402,8 +402,8 @@ impl Verifiable for CreateHandleRequest {
 
 const DELETE_HANDLE_PAYLOAD_LABEL: &str = "DeleteHandlePayload";
 
-impl SignedStruct<DeleteHandlePayload, keys::HandleKeyType> for DeleteHandleRequest {
-    fn from_payload(payload: DeleteHandlePayload, signature: keys::HandleSignature) -> Self {
+impl SignedStruct<DeleteHandlePayload, keys::UsernameKeyType> for DeleteHandleRequest {
+    fn from_payload(payload: DeleteHandlePayload, signature: keys::UsernameSignature) -> Self {
         DeleteHandleRequest {
             payload: Some(payload),
             signature: Some(signature.into()),
@@ -455,8 +455,8 @@ impl Verifiable for DeleteHandleRequest {
 
 const REFRESH_HANDLE_PAYLOAD_LABEL: &str = "RefreshHandlePayload";
 
-impl SignedStruct<RefreshHandlePayload, keys::HandleKeyType> for RefreshHandleRequest {
-    fn from_payload(payload: RefreshHandlePayload, signature: keys::HandleSignature) -> Self {
+impl SignedStruct<RefreshHandlePayload, keys::UsernameKeyType> for RefreshHandleRequest {
+    fn from_payload(payload: RefreshHandlePayload, signature: keys::UsernameSignature) -> Self {
         RefreshHandleRequest {
             payload: Some(payload),
             signature: Some(signature.into()),
@@ -508,8 +508,8 @@ impl Verifiable for RefreshHandleRequest {
 
 const INIT_LISTEN_HANDLE_REQUEST_LABEL: &str = "InitListenHandleRequest";
 
-impl SignedStruct<InitListenHandlePayload, keys::HandleKeyType> for InitListenHandleRequest {
-    fn from_payload(payload: InitListenHandlePayload, signature: keys::HandleSignature) -> Self {
+impl SignedStruct<InitListenHandlePayload, keys::UsernameKeyType> for InitListenHandleRequest {
+    fn from_payload(payload: InitListenHandlePayload, signature: keys::UsernameSignature) -> Self {
         InitListenHandleRequest {
             payload: Some(payload),
             signature: Some(signature.into()),

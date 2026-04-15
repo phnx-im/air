@@ -5,9 +5,9 @@
 use std::{collections::HashMap, fs};
 
 use airapiclient::as_api::AsRequestError;
-use aircommon::{assert_matches, identifiers::UserHandle};
+use aircommon::{assert_matches, identifiers::Username};
 use aircoreclient::{
-    AddHandleContactError, Asset, BlockedContactError, DisplayName, EventMessage, Message,
+    AddUsernameContactError, Asset, BlockedContactError, DisplayName, EventMessage, Message,
     SystemMessage, UserProfile, clients::CoreUser, store::Store,
 };
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
@@ -147,12 +147,12 @@ async fn error_if_user_doesnt_exist() {
     let alice = setup.add_user().await;
     let alice_user = &setup.get_user(&alice).user;
 
-    let handle = UserHandle::new("non-existent".to_owned()).unwrap();
-    let hash = handle.calculate_hash().unwrap();
+    let username = Username::new("non-existent".to_owned()).unwrap();
+    let hash = username.calculate_hash().unwrap();
 
-    let res = alice_user.add_contact(handle, hash).await.unwrap();
+    let res = alice_user.add_contact(username, hash).await.unwrap();
 
-    assert_matches!(res, Err(AddHandleContactError::HandleNotFound));
+    assert_matches!(res, Err(AddUsernameContactError::UsernameNotFound));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -187,7 +187,7 @@ async fn blocked_contact() {
     let mut setup = TestBackend::single().await;
     info!("Creating users");
     let alice = setup.add_user().await;
-    setup.get_user_mut(&alice).add_user_handle().await.unwrap();
+    setup.get_user_mut(&alice).add_username().await.unwrap();
     info!("Created alice");
     let bob = setup.add_user().await;
 
@@ -251,25 +251,25 @@ async fn blocked_contact() {
     assert!(res.is_empty(), "message is dropped");
 
     // Bob cannot establish a new connection with Alice
-    let alice_handle = alice_test_user
-        .user_handle_record
+    let alice_username = alice_test_user
+        .username_record
         .as_ref()
         .unwrap()
-        .handle
+        .username
         .clone();
-    let alice_handle_hash = alice_handle.calculate_hash().unwrap();
+    let alice_username_hash = alice_username.calculate_hash().unwrap();
     bob_test_user
         .user
-        .add_contact(alice_handle.clone(), alice_handle_hash)
+        .add_contact(alice_username.clone(), alice_username_hash)
         .await
         .expect("fatal error")
         .expect("non-fatal error");
-    let mut messages = alice_test_user.user.fetch_handle_messages().await.unwrap();
+    let mut messages = alice_test_user.user.fetch_username_messages().await.unwrap();
     assert_eq!(messages.len(), 1);
 
     let res = alice_test_user
         .user
-        .process_handle_queue_message(alice_handle, messages.pop().unwrap())
+        .process_username_queue_message(alice_username, messages.pop().unwrap())
         .await;
     res.unwrap_err().downcast::<BlockedContactError>().unwrap();
 
@@ -291,7 +291,7 @@ async fn delete_account() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
-    setup.get_user_mut(&alice).add_user_handle().await.unwrap();
+    setup.get_user_mut(&alice).add_username().await.unwrap();
 
     let bob = setup.add_user().await;
 
@@ -337,91 +337,94 @@ async fn delete_account() {
     let mut new_alice = TestUser::try_new(&alice, setup.server_url(), "DUMMY007")
         .await
         .unwrap();
-    // Adding a user handle to the new user should work, because the previous user handle was
+    // Adding a username to the new user should work, because the previous username was
     // deleted.
-    new_alice.add_user_handle().await.unwrap();
+    new_alice.add_username().await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Handle sanity checks test", skip_all)]
-async fn handle_sanity_checks() {
+#[tracing::instrument(name = "Username sanity checks test", skip_all)]
+async fn username_sanity_checks() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
 
     let bob = setup.get_user_mut(&bob);
-    let handle_record = bob.add_user_handle().await.unwrap();
-    let bob_handle = handle_record.handle.clone();
-    let bob_handle_hash = bob_handle.calculate_hash().unwrap();
+    let username_record = bob.add_username().await.unwrap();
+    let bob_username = username_record.username.clone();
+    let bob_username_hash = bob_username.calculate_hash().unwrap();
 
     let alice = setup.get_user_mut(&alice);
-    let handle_record = alice.add_user_handle().await.unwrap();
-    let alice_handle = handle_record.handle.clone();
-    let alice_handle_hash = alice_handle.calculate_hash().unwrap();
+    let username_record = alice.add_username().await.unwrap();
+    let alice_username = username_record.username.clone();
+    let alice_username_hash = alice_username.calculate_hash().unwrap();
     let alice_user = &alice.user;
     let res = alice_user
-        .add_contact(alice_handle.clone(), alice_handle_hash)
+        .add_contact(alice_username.clone(), alice_username_hash)
         .await
         .unwrap();
     assert_matches!(
         res,
-        Err(AddHandleContactError::OwnHandle),
-        "Should not be able to add own handle as contact"
+        Err(AddUsernameContactError::OwnUsername),
+        "Should not be able to add own username as contact"
     );
 
     // Try to add Bob twice
     let res = alice_user
-        .add_contact(bob_handle.clone(), bob_handle_hash)
+        .add_contact(bob_username.clone(), bob_username_hash)
         .await
         .unwrap();
     assert_matches!(res, Ok(_), "Should be able to add Bob as contact");
     let res = alice_user
-        .add_contact(bob_handle.clone(), bob_handle_hash)
+        .add_contact(bob_username.clone(), bob_username_hash)
         .await
         .unwrap();
     assert_matches!(
         res,
-        Err(AddHandleContactError::DuplicateRequest),
+        Err(AddUsernameContactError::DuplicateRequest),
         "Should not be able to add Bob twice"
     );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Check handle exists", skip_all)]
-async fn check_handle_exists() {
+#[tracing::instrument(name = "Check username exists", skip_all)]
+async fn check_username_exists() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice_user = &setup.get_user(&alice).user;
 
     let random_number = rand::thread_rng().gen_range(100_000..1_000_000);
-    let alice_handle = UserHandle::new(format!("alice-{}", random_number)).unwrap();
+    let alice_username = Username::new(format!("alice-{}", random_number)).unwrap();
 
     let hash = alice_user
-        .check_handle_exists(alice_handle.clone())
+        .check_username_exists(alice_username.clone())
         .await
         .unwrap();
-    assert!(hash.is_none(), "Alice's handle should not exist yet");
+    assert!(hash.is_none(), "Alice's username should not exist yet");
 
     alice_user.replenish_privacy_pass_tokens().await.unwrap();
     alice_user
-        .add_user_handle(alice_handle.clone())
+        .add_username(alice_username.clone())
         .await
         .unwrap();
 
     let hash = alice_user
-        .check_handle_exists(alice_handle.clone())
+        .check_username_exists(alice_username.clone())
         .await
         .unwrap();
-    assert!(hash.is_some(), "Alice's handle should exist");
+    assert!(hash.is_some(), "Alice's username should exist");
 
-    alice_user.remove_user_handle(&alice_handle).await.unwrap();
+    alice_user
+        .remove_username(&alice_username)
+        .await
+        .unwrap();
     let hash = alice_user
-        .check_handle_exists(alice_handle.clone())
+        .check_username_exists(alice_username.clone())
         .await
         .unwrap();
     assert!(
         hash.is_none(),
-        "Alice's handle should not exist after removal"
+        "Alice's username should not exist after removal"
     );
 }
 
@@ -491,12 +494,12 @@ async fn add_contact_and_change_profile() {
     let bob = setup.add_user().await;
 
     let alice_test_user = setup.get_user_mut(&alice);
-    let alice_handle = alice_test_user.add_user_handle().await.unwrap();
+    let alice_username_record = alice_test_user.add_username().await.unwrap();
 
     // Add Alice as a contact
     let bob_user = setup.get_user(&bob).user.clone();
     let bob_alice_chat_id = bob_user
-        .add_contact(alice_handle.handle.clone(), alice_handle.hash)
+        .add_contact(alice_username_record.username.clone(), alice_username_record.hash)
         .await
         .expect("fatal error")
         .expect("non-fatal error");
@@ -515,10 +518,10 @@ async fn add_contact_and_change_profile() {
 
     // Fetch invitation from Bob and accept it
     let alice_user = &setup.get_user(&alice).user;
-    let mut messages = alice_user.fetch_handle_messages().await.unwrap();
+    let mut messages = alice_user.fetch_username_messages().await.unwrap();
     assert_eq!(messages.len(), 1);
     let alice_bob_chat_id = alice_user
-        .process_handle_queue_message(alice_handle.handle, messages.pop().unwrap())
+        .process_username_queue_message(alice_username_record.username, messages.pop().unwrap())
         .await
         .unwrap();
     alice_user

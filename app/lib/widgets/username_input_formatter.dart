@@ -8,8 +8,8 @@
 import 'package:flutter/services.dart';
 
 /// Formatter enforcing the canonical username syntax.
-class UserHandleInputFormatter extends TextInputFormatter {
-  const UserHandleInputFormatter();
+class UsernameInputFormatter extends TextInputFormatter {
+  const UsernameInputFormatter();
 
   static const int _maxLength = 63;
   static const int _dash = 45; // '-'

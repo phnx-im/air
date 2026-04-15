@@ -10,10 +10,10 @@ use aircommon::{
     LibraryError,
     credentials::{
         ClientCredentialPayload,
-        keys::{ClientSigningKey, HandleSigningKey},
+        keys::{ClientSigningKey, UsernameSigningKey},
     },
     crypto::{indexed_aead::keys::UserProfileKeyIndex, signatures::signable::Signable},
-    identifiers::{UserHandle, UserHandleHash, UserId},
+    identifiers::{Username, UsernameHash, UserId},
     messages::{
         client_as::{
             BatchedTokenKeyResponse, ConnectionOfferMessage, SerializedToken,
@@ -21,7 +21,7 @@ use aircommon::{
         },
         client_as_out::{
             AsCredentialsResponseIn, EncryptedUserProfile, GetUserProfileResponse,
-            RegisterUserResponseIn, UserHandleDeleteResponse,
+            RegisterUserResponseIn, UsernameDeleteResponse,
         },
         connection_package::ConnectionPackage,
         connection_package::VersionedConnectionPackageIn,
@@ -237,11 +237,11 @@ impl ApiClient {
         Ok(())
     }
 
-    pub async fn as_publish_connection_packages_for_handle(
+    pub async fn as_publish_connection_packages_for_username(
         &self,
-        hash: UserHandleHash,
+        hash: UsernameHash,
         connection_packages: Vec<ConnectionPackage>,
-        signing_key: &HandleSigningKey,
+        signing_key: &UsernameSigningKey,
     ) -> Result<(), AsRequestError> {
         let payload = PublishConnectionPackagesPayload {
             client_metadata: Some(self.metadata().clone()),
@@ -271,9 +271,9 @@ impl ApiClient {
         Ok(())
     }
 
-    pub async fn as_connect_handle(
+    pub async fn as_connect_username(
         &self,
-        hash: UserHandleHash,
+        hash: UsernameHash,
     ) -> Result<(VersionedConnectionPackageIn, AsConnectionOfferResponder), AsRequestError> {
         // Step 1: Fetch connection package
         let fetch_request = ConnectRequest {
@@ -350,14 +350,14 @@ impl ApiClient {
         Ok((connection_package, responder))
     }
 
-    pub async fn as_listen_handle(
+    pub async fn as_listen_username(
         &self,
-        hash: UserHandleHash,
-        signing_key: &HandleSigningKey,
+        hash: UsernameHash,
+        signing_key: &UsernameSigningKey,
     ) -> Result<
         (
             impl Stream<Item = Option<HandleQueueMessage>> + Send + use<>,
-            AsListenHandleResponder,
+            AsListenUsernameResponder,
         ),
         AsRequestError,
     > {
@@ -392,13 +392,13 @@ impl ApiClient {
         let responses = responses.map_while(move |response| {
             let response = response
                 .inspect_err(|error| {
-                    error!(%error, "stop handle listen stream");
+                    error!(%error, "stop username listen stream");
                 })
                 .ok()?;
             Some(response.message)
         });
 
-        let responder = AsListenHandleResponder { tx: ack_tx };
+        let responder = AsListenUsernameResponder { tx: ack_tx };
 
         Ok((responses, responder))
     }
@@ -460,13 +460,13 @@ impl ApiClient {
         })
     }
 
-    pub async fn as_check_handle_exists(
+    pub async fn as_check_username_exists(
         &self,
-        user_handle_hash: UserHandleHash,
+        username_hash: UsernameHash,
     ) -> Result<bool, AsRequestError> {
         let request = CheckHandleExistsRequest {
             client_metadata: Some(self.metadata().clone()),
-            hash: Some(user_handle_hash.into()),
+            hash: Some(username_hash.into()),
         };
         let response = self
             .as_grpc_client()
@@ -476,17 +476,17 @@ impl ApiClient {
         Ok(response.exists)
     }
 
-    pub async fn as_create_handle(
+    pub async fn as_create_username(
         &self,
-        user_handle: &UserHandle,
-        hash: UserHandleHash,
-        signing_key: &HandleSigningKey,
+        username: &Username,
+        hash: UsernameHash,
+        signing_key: &UsernameSigningKey,
         token: SerializedToken,
     ) -> Result<bool, AsRequestError> {
         let payload = CreateHandlePayload {
             client_metadata: Some(self.metadata().clone()),
             verifying_key: Some(signing_key.verifying_key().clone().into()),
-            plaintext: user_handle.plaintext().into(),
+            plaintext: username.plaintext().into(),
             hash: Some(hash.into()),
             token: Some(token.into_bytes()),
         };
@@ -498,10 +498,10 @@ impl ApiClient {
         }
     }
 
-    pub async fn as_refresh_handle(
+    pub async fn as_refresh_username(
         &self,
-        hash: UserHandleHash,
-        signing_key: &HandleSigningKey,
+        hash: UsernameHash,
+        signing_key: &UsernameSigningKey,
         token: SerializedToken,
     ) -> Result<(), AsRequestError> {
         let payload = RefreshHandlePayload {
@@ -514,12 +514,12 @@ impl ApiClient {
         Ok(())
     }
 
-    pub async fn as_delete_handle(
+    pub async fn as_delete_username(
         &self,
-        hash: UserHandleHash,
-        signing_key: &HandleSigningKey,
+        hash: UsernameHash,
+        signing_key: &UsernameSigningKey,
         token_request: SerializedTokenRequest,
-    ) -> Result<(UserHandleDeleteResponse, Option<SerializedTokenResponse>), AsRequestError> {
+    ) -> Result<(UsernameDeleteResponse, Option<SerializedTokenResponse>), AsRequestError> {
         let payload = DeleteHandlePayload {
             client_metadata: Some(self.metadata().clone()),
             hash: Some(hash.into()),
@@ -533,10 +533,10 @@ impl ApiClient {
                     .into_inner()
                     .token_response
                     .map(SerializedTokenResponse::new);
-                Ok((UserHandleDeleteResponse::Success, token_response))
+                Ok((UsernameDeleteResponse::Success, token_response))
             }
             Err(status) => match status.code() {
-                Code::NotFound => Ok((UserHandleDeleteResponse::NotFound, None)),
+                Code::NotFound => Ok((UsernameDeleteResponse::NotFound, None)),
                 _ => Err(status.into()),
             },
         }
@@ -565,11 +565,11 @@ impl ApiClient {
 
 /// Sends responses to the AS listening stream.
 #[derive(Debug)]
-pub struct AsListenHandleResponder {
+pub struct AsListenUsernameResponder {
     tx: mpsc::Sender<Uuid>,
 }
 
-impl AsListenHandleResponder {
+impl AsListenUsernameResponder {
     /// Acknowledges that the client has received the message with the given id.
     ///
     /// The server can safely discard the message.
@@ -578,7 +578,7 @@ impl AsListenHandleResponder {
     }
 }
 
-/// Sends a connection offer to the AS in the connect handle protocol.
+/// Sends a connection offer to the AS in the connect username protocol.
 pub struct AsConnectionOfferResponder {
     tx: oneshot::Sender<ConnectionOfferMessage>,
     response: BoxFuture<'static, Result<(), AsRequestError>>,

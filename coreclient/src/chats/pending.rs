@@ -4,7 +4,7 @@
 
 use aircommon::{
     crypto::{aead::AeadEncryptable, indexed_aead::keys::UserProfileKey},
-    identifiers::{QualifiedGroupId, UserHandle},
+    identifiers::{QualifiedGroupId, Username},
     messages::{
         client_as::ConnectionOfferHash,
         client_ds::{AadMessage, AadPayload, JoinConnectionGroupParamsAad},
@@ -25,10 +25,10 @@ use crate::{
         CoreUser,
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
     },
-    contacts::HandleContact,
+    contacts::UsernameContact,
     groups::Group,
     key_stores::indexed_keys::StorableIndexedKey,
-    user_handles::connection_packages::StorableConnectionPackage,
+    usernames::connection_packages::StorableConnectionPackage,
     utils::connection_ext::StoreExt,
 };
 
@@ -36,7 +36,7 @@ pub(crate) struct PendingConnectionInfo {
     pub(crate) chat_id: ChatId,
     pub(crate) created_at: TimeStamp,
     pub(crate) connection_info: ConnectionInfo,
-    pub(crate) handle: Option<UserHandle>,
+    pub(crate) handle: Option<Username>,
     pub(crate) connection_offer_hash: Option<ConnectionOfferHash>,
     pub(crate) connection_package_hash: Option<ConnectionPackageHash>,
 }
@@ -65,12 +65,12 @@ impl CoreUser {
                 let sender_user_id = sender_user_id.clone();
 
                 // Look up partial contact:
-                // - HandleContact: by chat_id since multiple senders can use same username
+                // - UsernameContact: by chat_id since multiple senders can target the same username
                 // - TargetedMessageContact: by user_id (its natural key)
                 let partial_contact = if pending_connection_info.handle.is_some() {
-                    HandleContact::load_by_chat_id(txn.as_mut(), chat_id)
+                    UsernameContact::load_by_chat_id(txn.as_mut(), chat_id)
                         .await?
-                        .map(PartialContact::Handle)
+                        .map(PartialContact::Username)
                 } else {
                     TargetedMessageContact::load(txn.as_mut(), &sender_user_id)
                         .await?

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::USER_HANDLE_REFRESH_THRESHOLD;
+use aircommon::identifiers::USERNAME_REFRESH_THRESHOLD;
 use chrono::{DateTime, Duration, Utc};
 use openmls::prelude::OpenMlsProvider;
 use openmls_rust_crypto::OpenMlsRustCrypto;
@@ -20,7 +20,7 @@ use crate::{
         operation::{Operation, OperationData, OperationId, OperationKind},
         pending_chat_operation::PendingChatOperation,
     },
-    user_handles::UserHandleRecord,
+    usernames::UsernameRecord,
     utils::connection_ext::StoreExt,
 };
 
@@ -59,7 +59,7 @@ impl OperationData for TimedTask {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum TimedTaskKind {
     KeyPackageUpload,
-    HandleRefresh,
+    UsernameRefresh,
     SelfUpdate,
     TokenReplenishment,
 }
@@ -68,7 +68,7 @@ impl TimedTaskKind {
     pub(super) fn default_retry_interval(&self) -> Duration {
         match self {
             TimedTaskKind::KeyPackageUpload => Duration::minutes(5),
-            TimedTaskKind::HandleRefresh => Duration::minutes(5),
+            TimedTaskKind::UsernameRefresh => Duration::minutes(5),
             TimedTaskKind::SelfUpdate => Duration::minutes(5),
             TimedTaskKind::TokenReplenishment => Duration::minutes(5),
         }
@@ -149,7 +149,7 @@ impl OutboundServiceContext {
             .into_operation()
             .enqueue_if_not_exists(&self.pool)
             .await?;
-        TimedTask::new(TimedTaskKind::HandleRefresh)
+        TimedTask::new(TimedTaskKind::UsernameRefresh)
             .into_operation()
             .enqueue_if_not_exists(&self.pool)
             .await?;
@@ -174,40 +174,40 @@ impl OutboundServiceContext {
 
         match task_kind {
             TimedTaskKind::KeyPackageUpload => self.upload_key_packages().await,
-            TimedTaskKind::HandleRefresh => self.refresh_handles().await,
+            TimedTaskKind::UsernameRefresh => self.refresh_usernames().await,
             TimedTaskKind::SelfUpdate => self.self_update(run_token).await,
             TimedTaskKind::TokenReplenishment => self.replenish_tokens().await,
         }
     }
 
-    /// Refresh handles whose `refreshed_at` is older than USER_HANDLE_REFRESH_THRESHOLD`.
+    /// Refresh usernames whose `refreshed_at` is older than `USERNAME_REFRESH_THRESHOLD`.
     ///
-    /// This ensures handles are refreshed on the server well before they expire (server sets
-    /// a `USER_HANDLE_VALIDITY_PERIOD` window from creation/refresh time).
-    async fn refresh_handles(&self) -> anyhow::Result<Duration> {
+    /// This ensures usernames are refreshed on the server well before they expire (server sets
+    /// a `USERNAME_VALIDITY_PERIOD` window from creation/refresh time).
+    async fn refresh_usernames(&self) -> anyhow::Result<Duration> {
         use crate::privacy_pass;
 
         let now = Utc::now();
-        let threshold = now - USER_HANDLE_REFRESH_THRESHOLD;
-        let handles = UserHandleRecord::load_needing_refresh(&self.pool, threshold).await?;
+        let threshold = now - USERNAME_REFRESH_THRESHOLD;
+        let usernames = UsernameRecord::load_needing_refresh(&self.pool, threshold).await?;
 
-        if !handles.is_empty() {
+        if !usernames.is_empty() {
             let api_client = self.api_clients.default_client()?;
-            for handle in handles {
+            for username_record in usernames {
                 let token = match privacy_pass::consume_token(&self.pool).await {
                     Ok(Some(t)) => t,
                     Ok(None) => {
-                        info!("skipping handle refresh: no tokens available");
+                        info!("skipping username refresh: no tokens available");
                         break;
                     }
                     Err(e) => {
-                        error!(%e, "failed to consume token for handle refresh");
+                        error!(%e, "failed to consume token for username refresh");
                         break;
                     }
                 };
-                info!("refreshing handle");
+                info!("refreshing username");
                 let result = api_client
-                    .as_refresh_handle(handle.hash, &handle.signing_key, token)
+                    .as_refresh_username(username_record.hash, &username_record.signing_key, token)
                     .await;
 
                 if let Err(e) = &result {
@@ -229,14 +229,14 @@ impl OutboundServiceContext {
                     result?;
                 }
 
-                UserHandleRecord::update_refreshed_at(&self.pool, &handle.hash, now).await?;
+                UsernameRecord::update_refreshed_at(&self.pool, &username_record.hash, now).await?;
             }
         }
 
         Ok(Duration::weeks(1))
     }
 
-    /// Ensures the client has Privacy Pass tokens available for handle
+    /// Ensures the client has Privacy Pass tokens available for username
     /// operations. Fetches VOPRF public keys from the server and requests
     /// tokens if the local store is running low.
     ///

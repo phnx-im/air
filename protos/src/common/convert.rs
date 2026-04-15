@@ -5,7 +5,7 @@
 use std::fmt::{self, Write};
 
 use aircommon::{
-    credentials::keys::{AsIntermediateSignature, AsSignature, ClientSignature, HandleSignature},
+    credentials::keys::{AsIntermediateSignature, AsSignature, ClientSignature, UsernameSignature},
     crypto::{
         self,
         aead::{self, AeadCiphertext},
@@ -295,15 +295,15 @@ impl From<Signature> for QsClientSignature {
     }
 }
 
-impl From<HandleSignature> for Signature {
-    fn from(value: HandleSignature) -> Self {
+impl From<UsernameSignature> for Signature {
+    fn from(value: UsernameSignature) -> Self {
         Self {
             value: value.into_bytes(),
         }
     }
 }
 
-impl From<Signature> for HandleSignature {
+impl From<Signature> for UsernameSignature {
     fn from(value: Signature) -> Self {
         signable::Signature::from_bytes(value.value)
     }

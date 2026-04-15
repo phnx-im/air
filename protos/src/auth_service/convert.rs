@@ -320,7 +320,7 @@ pub enum ConnectionPackageError {
     #[error("Invalid credential fingerprint: {0}")]
     CredentialFingerprint(#[from] HashError),
     #[error(transparent)]
-    UserHandleHash(#[from] UserHandleHashError),
+    UsernameHash(#[from] UsernameHashError),
     #[error(transparent)]
     Version(#[from] UnsupportedMlsVersion),
 }
@@ -743,35 +743,35 @@ impl TryFrom<ConnectionOfferMessage> for client_as::ConnectionOfferMessage {
     }
 }
 
-impl From<HandleVerifyingKey> for keys::HandleVerifyingKey {
+impl From<HandleVerifyingKey> for keys::UsernameVerifyingKey {
     fn from(proto: HandleVerifyingKey) -> Self {
         Self::from_bytes(proto.bytes)
     }
 }
 
-impl From<keys::HandleVerifyingKey> for HandleVerifyingKey {
-    fn from(value: keys::HandleVerifyingKey) -> Self {
+impl From<keys::UsernameVerifyingKey> for HandleVerifyingKey {
+    fn from(value: keys::UsernameVerifyingKey) -> Self {
         Self {
             bytes: value.into_bytes(),
         }
     }
 }
 
-impl TryFrom<UserHandleHash> for identifiers::UserHandleHash {
-    type Error = UserHandleHashError;
+impl TryFrom<UserHandleHash> for identifiers::UsernameHash {
+    type Error = UsernameHashError;
 
     fn try_from(proto: UserHandleHash) -> Result<Self, Self::Error> {
         Ok(Self::new(
             proto
                 .bytes
                 .try_into()
-                .map_err(|_| UserHandleHashError::InvalidLength)?,
+                .map_err(|_| UsernameHashError::InvalidLength)?,
         ))
     }
 }
 
-impl From<identifiers::UserHandleHash> for UserHandleHash {
-    fn from(value: identifiers::UserHandleHash) -> Self {
+impl From<identifiers::UsernameHash> for UserHandleHash {
+    fn from(value: identifiers::UsernameHash) -> Self {
         Self {
             bytes: value.into_bytes().to_vec(),
         }
@@ -779,22 +779,22 @@ impl From<identifiers::UserHandleHash> for UserHandleHash {
 }
 
 #[derive(Debug, Error, Display)]
-pub enum UserHandleHashError {
+pub enum UsernameHashError {
     /// Invalid hash length
     InvalidLength,
 }
 
-impl From<UserHandleHashError> for Status {
-    fn from(error: UserHandleHashError) -> Self {
+impl From<UsernameHashError> for Status {
+    fn from(error: UsernameHashError) -> Self {
         let msg = error.to_string();
         match error {
-            UserHandleHashError::InvalidLength => Status::invalid_argument(msg),
+            UsernameHashError::InvalidLength => Status::invalid_argument(msg),
         }
     }
 }
 
-impl From<keys::HandleSignature> for HandleSignature {
-    fn from(value: keys::HandleSignature) -> Self {
+impl From<keys::UsernameSignature> for HandleSignature {
+    fn from(value: keys::UsernameSignature) -> Self {
         Self {
             signature: Some(Signature {
                 value: value.into_bytes(),
@@ -803,8 +803,8 @@ impl From<keys::HandleSignature> for HandleSignature {
     }
 }
 
-impl From<HandleSignature> for keys::HandleSignature {
+impl From<HandleSignature> for keys::UsernameSignature {
     fn from(proto: HandleSignature) -> Self {
-        keys::HandleSignature::from_bytes(proto.signature.unwrap_or_default().value)
+        keys::UsernameSignature::from_bytes(proto.signature.unwrap_or_default().value)
     }
 }

@@ -50,8 +50,8 @@ void main() {
       await tester.pumpWidget(
         buildSubject(
           sender: 1.userId(),
-          source: const .handle(
-            handle: UiUserHandle(plaintext: "some-user-name"),
+          source: const .username(
+            username: UiUsername(plaintext: "some-user-name"),
           ),
         ),
       );

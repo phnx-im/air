@@ -26,12 +26,12 @@ class MockUserCubit extends MockCubit<UiUser> implements UserCubit {
 class MockUsersCubit extends MockCubit<UsersState> implements UsersCubit {}
 
 class MockUiUser implements UiUser {
-  MockUiUser({required int id, List<UiUserHandle> userHandles = const []})
+  MockUiUser({required int id, List<UiUsername> usernames = const []})
     : _userId = id.userId(),
-      _userHandles = userHandles;
+      _usernames = usernames;
 
   final UiUserId _userId;
-  final List<UiUserHandle> _userHandles;
+  final List<UiUsername> _usernames;
 
   @override
   UiUserId get userId => _userId;
@@ -43,7 +43,7 @@ class MockUiUser implements UiUser {
   bool get isDisposed => false;
 
   @override
-  List<UiUserHandle> get userHandles => _userHandles;
+  List<UiUsername> get usernames => _usernames;
 
   @override
   bool get unsupportedVersion => false;

@@ -4,7 +4,7 @@
 
 use aircommon::{
     crypto::aead::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
-    identifiers::{Fqdn, UserHandle, UserId},
+    identifiers::{Fqdn, Username, UserId},
     messages::FriendshipToken,
 };
 use chrono::Utc;
@@ -19,7 +19,7 @@ use crate::{
     store::StoreNotifier,
 };
 
-use super::HandleContact;
+use super::UsernameContact;
 
 struct SqlContact {
     user_uuid: Uuid,
@@ -118,7 +118,7 @@ impl Contact {
     }
 }
 
-impl HandleContact {
+impl UsernameContact {
     pub(crate) async fn upsert(
         &self,
         executor: impl SqliteExecutor<'_>,
@@ -139,7 +139,7 @@ impl HandleContact {
                 created_at = excluded.created_at,
                 connection_offer_hash = excluded.connection_offer_hash",
             self.chat_id,
-            self.handle,
+            self.username,
             self.friendship_package_ear_key,
             created_at,
             self.connection_offer_hash
@@ -152,18 +152,18 @@ impl HandleContact {
 
     pub(crate) async fn load(
         executor: impl SqliteExecutor<'_>,
-        handle: &UserHandle,
+        username: &Username,
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
             Self,
             r#"SELECT
-                username AS "handle: _",
+                username AS "username: _",
                 chat_id AS "chat_id: _",
                 friendship_package_ear_key AS "friendship_package_ear_key: _",
                 connection_offer_hash AS "connection_offer_hash: _"
             FROM username_contact
             WHERE username = ?"#,
-            handle,
+            username,
         )
         .fetch_optional(executor)
         .await
@@ -176,7 +176,7 @@ impl HandleContact {
         query_as!(
             Self,
             r#"SELECT
-                username AS "handle: _",
+                username AS "username: _",
                 chat_id AS "chat_id: _",
                 friendship_package_ear_key AS "friendship_package_ear_key: _",
                 connection_offer_hash AS "connection_offer_hash: _"
@@ -192,7 +192,7 @@ impl HandleContact {
         query_as!(
             Self,
             r#"SELECT
-                username AS "handle: _",
+                username AS "username: _",
                 chat_id AS "chat_id: _",
                 friendship_package_ear_key AS "friendship_package_ear_key: _",
                 connection_offer_hash AS "connection_offer_hash: _"
@@ -212,7 +212,7 @@ impl HandleContact {
         Ok(())
     }
 
-    /// Creates and persists a [`Contact`] from this [`HandleContact`] and the additional data
+    /// Creates and persists a [`Contact`] from this username contact and the additional data
     pub(crate) async fn mark_as_complete(
         self,
         txn: &mut SqliteTransaction<'_>,
@@ -338,7 +338,7 @@ impl TargetedMessageContact {
         Ok(())
     }
 
-    /// Creates and persists a [`Contact`] from this [`HandleContact`] and the additional data
+    /// Creates and persists a [`Contact`] from this username contact and the additional data
     pub(crate) async fn mark_as_complete(
         self,
         txn: &mut SqliteTransaction<'_>,
@@ -367,8 +367,8 @@ impl PartialContact {
         notifier: &mut StoreNotifier,
     ) -> sqlx::Result<()> {
         match self {
-            PartialContact::Handle(handle_contact) => {
-                handle_contact.upsert(executor, notifier).await
+            PartialContact::Username(username_contact) => {
+                username_contact.upsert(executor, notifier).await
             }
             PartialContact::TargetedMessage(targeted_message_contact) => {
                 targeted_message_contact.upsert(executor, notifier).await
@@ -381,9 +381,9 @@ impl PartialContact {
         contact_type: &PartialContactType,
     ) -> sqlx::Result<Option<Self>> {
         match contact_type {
-            PartialContactType::Handle(handle) => Ok(HandleContact::load(executor, handle)
+            PartialContactType::Handle(username) => Ok(UsernameContact::load(executor, username)
                 .await?
-                .map(PartialContact::Handle)),
+                .map(PartialContact::Username)),
             PartialContactType::TargetedMessage(user_id) => {
                 Ok(TargetedMessageContact::load(executor, user_id)
                     .await?
@@ -400,8 +400,8 @@ impl PartialContact {
         friendship_package: FriendshipPackage,
     ) -> anyhow::Result<Contact> {
         match self {
-            PartialContact::Handle(handle_contact) => {
-                handle_contact
+            PartialContact::Username(username_contact) => {
+                username_contact
                     .mark_as_complete(txn, notifier, user_id, friendship_package)
                     .await
             }
@@ -467,18 +467,18 @@ mod tests {
         chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
             .await?;
 
-        let handle = UserHandle::new("ellie-".to_owned()).unwrap();
-        let handle_contact = HandleContact {
-            handle: handle.clone(),
+        let username = Username::new("ellie-".to_owned()).unwrap();
+        let username_contact = UsernameContact {
+            username: username.clone(),
             chat_id: chat.id(),
             friendship_package_ear_key: FriendshipPackageEarKey::random().unwrap(),
             connection_offer_hash: ConnectionOfferHash::new_for_test(vec![1, 2, 3, 4, 5]),
         };
 
-        handle_contact.upsert(&pool, &mut store_notifier).await?;
+        username_contact.upsert(&pool, &mut store_notifier).await?;
 
-        let loaded = HandleContact::load(&pool, &handle).await?.unwrap();
-        assert_eq!(loaded, handle_contact);
+        let loaded = UsernameContact::load(&pool, &username).await?.unwrap();
+        assert_eq!(loaded, username_contact);
 
         Ok(())
     }
@@ -490,9 +490,9 @@ mod tests {
         chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
             .await?;
 
-        let handle = UserHandle::new("ellie-".to_owned()).unwrap();
-        let handle_contact = HandleContact {
-            handle: handle.clone(),
+        let username = Username::new("ellie-".to_owned()).unwrap();
+        let username_contact = UsernameContact {
+            username: username.clone(),
             chat_id: chat.id(),
             friendship_package_ear_key: FriendshipPackageEarKey::random().unwrap(),
             connection_offer_hash: ConnectionOfferHash::new_for_test(vec![1, 2, 3, 4, 5]),
@@ -510,14 +510,14 @@ mod tests {
 
         let mut txn = pool.begin().await?;
 
-        let contact = handle_contact
+        let contact = username_contact
             .mark_as_complete(&mut txn, &mut store_notifier, user_id, friendship_package)
             .await?;
 
         txn.commit().await?;
 
-        let loaded_handle_contact = HandleContact::load(&pool, &handle).await?;
-        assert!(loaded_handle_contact.is_none());
+        let loaded_username_contact = UsernameContact::load(&pool, &username).await?;
+        assert!(loaded_username_contact.is_none());
 
         let loaded_contact = Contact::load(&pool, &contact.user_id).await?.unwrap();
         assert_eq!(loaded_contact, contact);
@@ -534,21 +534,21 @@ mod tests {
         chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
             .await?;
 
-        let handle = UserHandle::new("ellie-".to_owned()).unwrap();
-        let handle_contact = HandleContact {
-            handle: handle.clone(),
+        let username = Username::new("ellie-".to_owned()).unwrap();
+        let username_contact = UsernameContact {
+            username: username.clone(),
             chat_id: chat.id(),
             friendship_package_ear_key: FriendshipPackageEarKey::random().unwrap(),
             connection_offer_hash: ConnectionOfferHash::new_for_test(vec![1, 2, 3, 4, 5]),
         };
 
-        handle_contact.upsert(&pool, &mut store_notifier).await?;
+        username_contact.upsert(&pool, &mut store_notifier).await?;
 
         let mut txn = pool.begin().await?;
-        handle_contact.delete(txn.as_mut()).await?;
+        username_contact.delete(txn.as_mut()).await?;
         txn.commit().await?;
 
-        let loaded = HandleContact::load(&pool, &handle).await?;
+        let loaded = UsernameContact::load(&pool, &username).await?;
         assert!(loaded.is_none());
 
         Ok(())
@@ -561,19 +561,19 @@ mod tests {
         chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
             .await?;
 
-        let handle = UserHandle::new("ellie-".to_owned()).unwrap();
-        let handle_contact = HandleContact {
-            handle: handle.clone(),
+        let username = Username::new("ellie-".to_owned()).unwrap();
+        let username_contact = UsernameContact {
+            username: username.clone(),
             chat_id: chat.id(),
             friendship_package_ear_key: FriendshipPackageEarKey::random().unwrap(),
             connection_offer_hash: ConnectionOfferHash::new_for_test(vec![1, 2, 3, 4, 5]),
         };
 
-        handle_contact.upsert(&pool, &mut store_notifier).await?;
-        handle_contact.upsert(&pool, &mut store_notifier).await?; // Upsert again
+        username_contact.upsert(&pool, &mut store_notifier).await?;
+        username_contact.upsert(&pool, &mut store_notifier).await?; // Upsert again
 
-        let loaded = HandleContact::load(&pool, &handle).await?.unwrap();
-        assert_eq!(loaded, handle_contact);
+        let loaded = UsernameContact::load(&pool, &username).await?.unwrap();
+        assert_eq!(loaded, username_contact);
 
         Ok(())
     }
@@ -594,24 +594,24 @@ mod tests {
             .store(pool.acquire().await?.as_mut(), &mut store_notifier)
             .await?;
 
-        let username = UserHandle::new("alice".to_owned()).unwrap();
+        let username = Username::new("alice".to_owned()).unwrap();
 
         // Sender A sends connection request to username "alice"
-        let contact_a = HandleContact {
-            handle: username.clone(),
+        let contact_a = UsernameContact {
+            username: username.clone(),
             chat_id: chat_a.id(),
             friendship_package_ear_key: FriendshipPackageEarKey::random().unwrap(),
             connection_offer_hash: ConnectionOfferHash::new_for_test(vec![1, 2, 3]),
         };
         contact_a.upsert(&pool, &mut store_notifier).await?;
 
-        // Verify A's HandleContact exists
-        let loaded_a = HandleContact::load(&pool, &username).await?.unwrap();
+        // Verify A's UsernameContact exists
+        let loaded_a = UsernameContact::load(&pool, &username).await?.unwrap();
         assert_eq!(loaded_a.chat_id, chat_a.id());
 
         // Sender B sends connection request to same username "alice"
-        let contact_b = HandleContact {
-            handle: username.clone(),
+        let contact_b = UsernameContact {
+            username: username.clone(),
             chat_id: chat_b.id(),
             friendship_package_ear_key: FriendshipPackageEarKey::random().unwrap(),
             connection_offer_hash: ConnectionOfferHash::new_for_test(vec![4, 5, 6]),
@@ -619,10 +619,10 @@ mod tests {
         contact_b.upsert(&pool, &mut store_notifier).await?;
 
         // Both contacts should exist (each has unique chat_id)
-        let loaded_a_by_chat = HandleContact::load_by_chat_id(&pool, chat_a.id()).await?;
+        let loaded_a_by_chat = UsernameContact::load_by_chat_id(&pool, chat_a.id()).await?;
         assert!(loaded_a_by_chat.is_some());
 
-        let loaded_b_by_chat = HandleContact::load_by_chat_id(&pool, chat_b.id()).await?;
+        let loaded_b_by_chat = UsernameContact::load_by_chat_id(&pool, chat_b.id()).await?;
         assert!(loaded_b_by_chat.is_some());
 
         Ok(())
