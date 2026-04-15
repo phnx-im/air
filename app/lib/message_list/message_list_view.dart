@@ -257,6 +257,7 @@ class _MessageListViewState extends State<MessageListView>
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(padding: scrollbarPadding),
           child: Scrollbar(
+            controller: _listController.scrollController,
             child: Stack(
               clipBehavior: Clip.none,
               children: [
