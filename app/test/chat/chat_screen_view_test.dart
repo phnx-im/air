@@ -188,7 +188,7 @@ void main() {
         await tester.pump();
         // Scroll so the explanatory messages are visible and the long
         // message at the bottom is partially hidden by the composer.
-        await tester.drag(find.byType(ListView), const Offset(0, 640));
+        await tester.drag(find.byType(CustomScrollView), const Offset(0, 640));
         await tester.pump();
 
         await expectLater(
@@ -239,7 +239,7 @@ void main() {
         await tester.pump();
         // Scroll so the explanatory messages are visible and the long
         // message at the bottom fades out through the gradient.
-        await tester.drag(find.byType(ListView), const Offset(0, 640));
+        await tester.drag(find.byType(CustomScrollView), const Offset(0, 640));
         await tester.pump();
         // Enter text and flush the 1-second draft debounce timer.
         await tester.enterText(find.byType(TextField), 'Unsent message');
