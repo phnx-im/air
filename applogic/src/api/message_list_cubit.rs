@@ -430,10 +430,14 @@ impl MessageListData {
     ) -> Option<MessageListTransition> {
         let idx = self.message_ids_index.get(&message.id()).copied()?;
         let updated: UiChatMessage = message.into();
+        if self.messages[idx] == updated {
+            return None;
+        }
 
         let start = idx.saturating_sub(1);
         let end = (idx + 2).min(self.messages.len());
         let unread_index = state.first_unread_index;
+
         self.messages[idx] = updated;
         recompute_flight_positions_range(&mut self.messages, start, end, unread_index);
 

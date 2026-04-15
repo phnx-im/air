@@ -115,8 +115,6 @@ class MessageListCubit extends StateStreamableSource<MessageListStateWrapper> {
   // Internal API
 
   void _handleTransition(MessageListTransition transition) {
-    debugPrint("MessageListCubit._handleTransition ${transition.kind}");
-
     final revision = transition.revision;
     if (revision == _appliedRevision + 1) {
       _applyTransition(transition);
