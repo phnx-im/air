@@ -59,6 +59,7 @@ impl OperationData for TimedTask {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum TimedTaskKind {
     KeyPackageUpload,
+    #[serde(alias = "HandleRefresh")]
     UsernameRefresh,
     SelfUpdate,
     TokenReplenishment,
