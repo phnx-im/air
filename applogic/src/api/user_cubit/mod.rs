@@ -8,7 +8,6 @@ use std::sync::Arc;
 
 pub(crate) use aircommon::identifiers::UserHandleHash;
 use aircommon::identifiers::{UserHandle, UserId};
-use aircoreclient::InvitationCode;
 pub(crate) use aircoreclient::InviteUsersError;
 use aircoreclient::{Asset, ChatId, ContactType, PartialContact, clients::CoreUser, store::Store};
 use anyhow::ensure;
@@ -452,21 +451,6 @@ impl UserCubitBase {
         prefix.copy_from_slice(&first.to_chunks());
         suffix.copy_from_slice(&second.to_chunks());
         Ok(code)
-    }
-
-    #[frb(positional)]
-    pub async fn request_invitation_code(&self) -> anyhow::Result<InvitationCode> {
-        self.core_user().request_invitation_code().await
-    }
-
-    #[frb(getter)]
-    pub async fn load_invitation_codes(&self) -> anyhow::Result<Vec<InvitationCode>> {
-        self.core_user().load_invitation_codes().await
-    }
-
-    #[frb(positional)]
-    pub async fn mark_invitation_code_as_copied(&self, code: &str) -> anyhow::Result<bool> {
-        self.core_user().mark_invitation_code_as_copied(code).await
     }
 }
 

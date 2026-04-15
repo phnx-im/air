@@ -83,10 +83,6 @@ abstract class UserCubitBase implements RustOpaqueInterface {
 
   Future<void> leaveChat(ChatId chatId);
 
-  Future<List<InvitationCode>> get loadInvitationCodes;
-
-  Future<bool> markInvitationCodeAsCopied(String code);
-
   factory UserCubitBase({
     required User user,
     required NavigationCubitBase navigation,
@@ -100,8 +96,6 @@ abstract class UserCubitBase implements RustOpaqueInterface {
   Future<void> removeUserHandle({required UiUserHandle userHandle});
 
   Future<void> reportSpam({required UiUserId spammerId});
-
-  Future<InvitationCode> requestInvitationCode();
 
   /// Returns the pair of safety codes of the logged-in user and the given user.
   ///

@@ -107,12 +107,4 @@ class UserCubit implements StateStreamableSource<UiUser> {
 
   Future<intArray12> safetyCodes(UiUserId userId) =>
       _impl.safetyCodes(otherUserId: userId);
-
-  Future<InvitationCode> requestInvitationCode() =>
-      _impl.requestInvitationCode();
-
-  Future<List<InvitationCode>> get invitationCodes => _impl.loadInvitationCodes;
-
-  Future<bool> markInvitationCodeAsCopied(String code) =>
-      _impl.markInvitationCodeAsCopied(code);
 }

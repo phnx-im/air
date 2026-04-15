@@ -82,6 +82,7 @@ pub enum DeveloperSettingsScreenType {
     Root,
     ChangeUser,
     Logs,
+    InvitationCodes,
 }
 
 impl NavigationState {
@@ -333,7 +334,8 @@ impl NavigationCubitBase {
                         developer_settings_screen:
                             Some(
                                 DeveloperSettingsScreenType::ChangeUser
-                                | DeveloperSettingsScreenType::Logs,
+                                | DeveloperSettingsScreenType::Logs
+                                | DeveloperSettingsScreenType::InvitationCodes,
                             ),
                         ..
                     },

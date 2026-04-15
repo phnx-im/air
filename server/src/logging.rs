@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use tracing::{metadata::LevelFilter, subscriber::set_global_default};
+use tracing::{metadata::LevelFilter, subscriber::set_global_default, warn};
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
 use tracing_log::LogTracer;
 use tracing_subscriber::{EnvFilter, Registry, fmt, layer::SubscriberExt};
@@ -24,10 +24,13 @@ pub fn init_logging() {
             set_global_default(registry).expect("logging already initialized");
         }
         // log to stdout as text
-        Ok(_) => {
-            let registry = Registry::default().with(fmt::layer());
+        Ok(format) => {
+            let registry = Registry::default().with(fmt::layer()).with(env_filter);
             LogTracer::init().expect("logging already initialized");
             set_global_default(registry).expect("logging already initialized");
+            if format != "text" {
+                warn!("RUST_LOG_FORMAT has unsupported value, defaulting to text.");
+            }
         }
     };
 }

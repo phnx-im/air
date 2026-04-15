@@ -9,10 +9,9 @@ use tracing::warn;
 
 use crate::clients::{CoreUser, api_clients::ApiClients};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct InvitationCode {
     pub code: String,
-    #[allow(unused)]
     pub copied: bool,
 }
 
@@ -36,7 +35,7 @@ impl CoreUser {
         let token = self
             .consume_or_replenish_token(&api_client, OperationType::GetInviteCode)
             .await
-            .inspect_err(|e| warn!(%e, "no privacy pass token available for handle creation"))?;
+            .inspect_err(|e| warn!(%e, "no privacy pass token available for operation"))?;
 
         let invitation_code = api_client
             .as_get_invitation_codes([token])

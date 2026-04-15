@@ -4,5 +4,5 @@
 
 CREATE TABLE invitation_code (
     code TEXT NOT NULL PRIMARY KEY,
-    copied BOOLEAN NOT NULL
+    copied BOOLEAN NOT NULL DEFAULT FALSE
 );

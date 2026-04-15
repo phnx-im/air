@@ -30,7 +30,7 @@ pub(crate) async fn consume_token(
     let operation_type = operation_type as i32;
     let row = sqlx::query_scalar!(
         "DELETE FROM privacy_pass_token
-         WHERE operation_type = ? AND id = (SELECT MIN(id) FROM privacy_pass_token)
+         WHERE operation_type = $1 AND id = (SELECT MIN(id) FROM privacy_pass_token WHERE operation_type = $1)
          RETURNING token",
         operation_type
     )

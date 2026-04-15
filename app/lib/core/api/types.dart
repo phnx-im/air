@@ -79,25 +79,6 @@ class ImageData {
           hash == other.hash;
 }
 
-/// Mirror of the [`InvitationCode`] type
-class InvitationCode {
-  final String code;
-  final bool copied;
-
-  const InvitationCode({required this.code, required this.copied});
-
-  @override
-  int get hashCode => code.hashCode ^ copied.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is InvitationCode &&
-          runtimeType == other.runtimeType &&
-          code == other.code &&
-          copied == other.copied;
-}
-
 /// Mirror of the [`MessageId`] type
 class MessageId {
   final UuidValue uuid;
