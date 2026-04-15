@@ -187,7 +187,7 @@ impl CoreUser {
         &self,
         api_client: &ApiClient,
         operation_type: OperationType,
-    ) -> anyhow::Result<SerializedToken> {
+    ) -> Result<SerializedToken, RequestTokensError> {
         // it's important that we lock the DB here, because we don't want to fail in parallel
         let mut txn = self.pool().begin_with("BEGIN IMMEDIATE").await?;
         if let Some(token) = privacy_pass::consume_token(txn.as_mut(), operation_type).await? {
@@ -206,10 +206,10 @@ impl CoreUser {
         )
         .await?;
 
-        anyhow::bail!(
-            "privacy pass token cache was empty; \
-             replenished — retry to use decorrelated tokens"
-        )
+        // TODO: this could maybe be a specific error?
+        Err(RequestTokensError::Generic(anyhow::anyhow!(
+            "privacy pass token cache was empty; replenished — retry to use decorrelated tokens"
+        )))
     }
 
     /// Purges all cached tokens (key rotation) and replenishes.

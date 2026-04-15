@@ -6,9 +6,11 @@ use airapiclient::as_api::AsRequestError;
 use aircommon::identifiers::Fqdn;
 use airprotos::common::v1::OperationType;
 use anyhow::Context;
-use tracing::warn;
 
-use crate::clients::{CoreUser, api_clients::ApiClients};
+use crate::{
+    clients::{CoreUser, api_clients::ApiClients},
+    privacy_pass::RequestTokensError,
+};
 
 #[derive(Debug, Clone)]
 pub struct InvitationCode {
@@ -24,6 +26,16 @@ pub enum RequestInvitationCodeError {
     Database(#[from] sqlx::Error),
     #[error(transparent)]
     Generic(#[from] anyhow::Error),
+}
+
+impl From<RequestTokensError> for RequestInvitationCodeError {
+    fn from(error: RequestTokensError) -> Self {
+        match error {
+            RequestTokensError::QuotaExceeded => Self::QuotaExceeded,
+            RequestTokensError::Database(error) => Self::Database(error),
+            RequestTokensError::Generic(error) => Self::Generic(error),
+        }
+    }
 }
 
 impl From<AsRequestError> for RequestInvitationCodeError {
@@ -57,8 +69,7 @@ impl CoreUser {
         let api_client = self.api_client()?;
         let token = self
             .consume_or_replenish_token(&api_client, OperationType::GetInviteCode)
-            .await
-            .inspect_err(|e| warn!(%e, "no privacy pass token available for operation"))?;
+            .await?;
 
         let invitation_code = api_client
             .as_get_invitation_codes([token])
