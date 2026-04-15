@@ -985,17 +985,25 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
     final viewportBox = _viewportBox;
     if (viewportBox == null) return const [];
 
+    // Walk every child the sliver currently has laid out.
     final visibleItems = <_VisibleItemSnapshot>[];
     RenderBox? child = sliver.firstChild;
     while (child != null) {
       final parentData = child.parentData;
-      if (parentData is SliverMultiBoxAdaptorParentData) {
+      if (parentData is SliverMultiBoxAdaptorParentData &&
+          child is _RenderMeasuredItem) {
         final index = parentData.index;
-        if (index != null && index >= 0 && index < widget.data.length) {
-          final id = widget.idExtractor(widget.data[index]);
+        if (index != null && index >= 0) {
+          // Read identity from the render object, not from widget.data —
+          // the data may already be mutated while the render tree is stale.
+          final id = child._id;
+
+          // Compute where this child sits in viewport coordinates.
           final top = _itemTopInViewportBox(child, id);
           if (top != null) {
             final bottom = top + _estimatedHeight(id);
+
+            // Only keep children that overlap the visible area.
             if (bottom > 0.0 && top < viewportBox.size.height) {
               visibleItems.add(
                 _VisibleItemSnapshot(id: id, index: index, top: top),
@@ -1007,6 +1015,7 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
       child = sliver.childAfter(child);
     }
 
+    // Sort top-to-bottom so the caller can pick anchors by position.
     visibleItems.sort((a, b) => a.top.compareTo(b.top));
     return visibleItems;
   }
