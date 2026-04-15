@@ -59,9 +59,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      when(
-        () => userCubit.state,
-      ).thenReturn(MockUiUser(id: 1, usernames: []));
+      when(() => userCubit.state).thenReturn(MockUiUser(id: 1, usernames: []));
 
       await tester.pumpWidget(buildSubject());
 
