@@ -46,7 +46,6 @@ class MessageListView extends StatefulWidget {
 ///  - Drives the scroll-to-bottom FAB via [ScrollToBottomController].
 ///  - Marks the conversation as read up to the newest visible message.
 ///  - Routes cubit scroll-to-index commands to the [AnchoredListController].
-///  - Tracks entrance animations so each message animates in only once.
 class _MessageListViewState extends State<MessageListView>
     with WidgetsBindingObserver {
   /// Messages that have already played their entrance animation.
@@ -188,9 +187,6 @@ class _MessageListViewState extends State<MessageListView>
   Widget build(BuildContext context) {
     final state = context.select((MessageListCubit cubit) => cubit.state);
 
-    // Clean up stale animation tracking for messages no longer loaded.
-    _animatedMessages.removeWhere((id) => !state.isLoaded(id));
-
     // Deferred to avoid side-effects during build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -252,13 +248,10 @@ class _MessageListViewState extends State<MessageListView>
     MessageListStateWrapper state,
     UiChatMessage message,
   ) {
-    // Only animate a message's entrance once — mark it as seen.
-    final animate =
-        !_animatedMessages.contains(message.id) &&
-        state.isNewMessage(message.id);
-    if (animate) {
-      _animatedMessages.add(message.id);
-    }
+    final isNew = state.isNewMessage(message.id);
+    // We only want to animate a message if it's new and hasn't already played
+    // its animation.
+    final shouldAnimate = isNew && _animatedMessages.add(message.id);
 
     final isFirstUnread =
         state.firstUnreadIndex != null &&
@@ -271,7 +264,8 @@ class _MessageListViewState extends State<MessageListView>
       createMessageCubit: widget.createMessageCubit,
       child: ChatTile(
         isConnectionChat: state.isConnectionChat ?? false,
-        animated: animate,
+        animated: isNew,
+        shouldAnimate: shouldAnimate,
       ),
     );
 

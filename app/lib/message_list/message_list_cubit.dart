@@ -49,7 +49,6 @@ class MessageListStateWrapper {
 
   // State queries
   bool isNewMessage(MessageId id) => newMessages.contains(id);
-  bool isLoaded(MessageId id) => loadedMessages.contains(id);
   UiChatMessage? messageAt(int oldestFirstIndex) {
     final idx = messageData.length - oldestFirstIndex - 1;
     return (idx >= 0 && idx < messageData.length) ? messageData[idx] : null;
