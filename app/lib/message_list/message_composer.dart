@@ -200,13 +200,9 @@ class _MessageComposerState extends State<MessageComposer>
     final materialColor = color.material.tertiary;
 
     Widget composerButton({required Widget icon, VoidCallback? onPressed}) {
-      return Container(
+      return SizedBox(
         width: _buttonSize,
         height: _buttonSize,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: regularElevationBoxShadows,
-        ),
         child: ClipOval(
           child: Container(
             decoration: BoxDecoration(
@@ -237,33 +233,27 @@ class _MessageComposerState extends State<MessageComposer>
     );
 
     final inputField = Expanded(
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(_inputBorderRadius),
-          boxShadow: regularElevationBoxShadows,
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(_inputBorderRadius),
-          child: Container(
-            constraints: BoxConstraints(minHeight: _buttonSize),
-            decoration: BoxDecoration(
-              color: materialColor,
-              borderRadius: BorderRadius.circular(_inputBorderRadius),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
-            child: _MessageInput(
-              focusNode: _focusNode,
-              controller: _inputController,
-              chatTitle: chatTitle,
-              isEditing: editingId != null,
-              isReplying: inReplyToId != null,
-              layerLink: _inputFieldLink,
-              inputKey: _inputFieldKey,
-              onSubmitMessage: () =>
-                  _submitMessage(context.read<ChatDetailsCubit>()),
-              onImagePasted: _handleImagePaste,
-              onFilePasted: _handleFilePaste,
-            ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(_inputBorderRadius),
+        child: Container(
+          constraints: BoxConstraints(minHeight: _buttonSize),
+          decoration: BoxDecoration(
+            color: materialColor,
+            borderRadius: BorderRadius.circular(_inputBorderRadius),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
+          child: _MessageInput(
+            focusNode: _focusNode,
+            controller: _inputController,
+            chatTitle: chatTitle,
+            isEditing: editingId != null,
+            isReplying: inReplyToId != null,
+            layerLink: _inputFieldLink,
+            inputKey: _inputFieldKey,
+            onSubmitMessage: () =>
+                _submitMessage(context.read<ChatDetailsCubit>()),
+            onImagePasted: _handleImagePaste,
+            onFilePasted: _handleFilePaste,
           ),
         ),
       ),
@@ -323,17 +313,18 @@ class _MessageComposerState extends State<MessageComposer>
 
           final trailingButtonCount = rightButton != null ? 1 : 0;
 
+          final clipper = _ComposerClipper(
+            buttonSize: _buttonSize,
+            spacing: Spacings.xxs,
+            inputBorderRadius: _inputBorderRadius,
+            trailingButtonCount: trailingButtonCount,
+          );
+
           return Stack(
             children: [
               Positioned.fill(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final clipper = _ComposerClipper(
-                      buttonSize: _buttonSize,
-                      spacing: Spacings.xxs,
-                      inputBorderRadius: _inputBorderRadius,
-                      trailingButtonCount: trailingButtonCount,
-                    );
                     final clipBounds = clipper
                         .getClip(constraints.smallest)
                         .getBounds();
@@ -349,6 +340,16 @@ class _MessageComposerState extends State<MessageComposer>
                       ),
                     );
                   },
+                ),
+              ),
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _ComposerShadowPainter(
+                    buttonSize: _buttonSize,
+                    spacing: Spacings.xxs,
+                    inputBorderRadius: _inputBorderRadius,
+                    trailingButtonCount: trailingButtonCount,
+                  ),
                 ),
               ),
               Row(
@@ -861,9 +862,69 @@ class _MessageInput extends StatelessWidget {
   }
 }
 
-/// Clips to the union of the composer's element shapes (circles for buttons,
-/// rounded rect for the input field) so a single [BackdropFilter] can blur
-/// only behind those elements — not the gaps between them.
+/// Builds the path for the composer element shapes (circles for buttons,
+/// rounded rect for the input field), optionally inflated and offset for
+/// shadow rendering.
+Path _buildComposerPath(
+  Size size, {
+  required double buttonSize,
+  required double spacing,
+  required double inputBorderRadius,
+  required int trailingButtonCount,
+  double inflate = 0,
+  Offset offset = Offset.zero,
+}) {
+  final path = Path();
+  double x = 0;
+  final bottom = size.height;
+  final buttonTop = bottom - buttonSize;
+
+  // Leading button (action) — circle aligned to bottom.
+  path.addOval(
+    Rect.fromLTWH(
+      x,
+      buttonTop,
+      buttonSize,
+      buttonSize,
+    ).inflate(inflate).shift(offset),
+  );
+  x += buttonSize + spacing;
+
+  // Input field — takes remaining width.
+  final trailingWidth = trailingButtonCount * (spacing + buttonSize);
+  final inputWidth = size.width - x - trailingWidth;
+  path.addRRect(
+    RRect.fromRectAndRadius(
+      Rect.fromLTWH(
+        x,
+        0,
+        inputWidth,
+        size.height,
+      ).inflate(inflate).shift(offset),
+      Radius.circular(inputBorderRadius + inflate),
+    ),
+  );
+  x += inputWidth;
+
+  // Trailing buttons — circles aligned to bottom.
+  for (int i = 0; i < trailingButtonCount; i++) {
+    x += spacing;
+    path.addOval(
+      Rect.fromLTWH(
+        x,
+        buttonTop,
+        buttonSize,
+        buttonSize,
+      ).inflate(inflate).shift(offset),
+    );
+    x += buttonSize;
+  }
+
+  return path;
+}
+
+/// Clips to the union of the composer's element shapes so a single
+/// [BackdropFilter] can blur only behind those elements.
 class _ComposerClipper extends CustomClipper<Path> {
   const _ComposerClipper({
     required this.buttonSize,
@@ -879,38 +940,75 @@ class _ComposerClipper extends CustomClipper<Path> {
 
   @override
   Path getClip(Size size) {
-    final path = Path();
-    double x = 0;
-    final bottom = size.height;
-    final buttonTop = bottom - buttonSize;
-
-    // Leading button (action) — circle aligned to bottom.
-    path.addOval(Rect.fromLTWH(x, buttonTop, buttonSize, buttonSize));
-    x += buttonSize + spacing;
-
-    // Input field — takes remaining width.
-    final trailingWidth = trailingButtonCount * (spacing + buttonSize);
-    final inputWidth = size.width - x - trailingWidth;
-    path.addRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(x, 0, inputWidth, size.height),
-        Radius.circular(inputBorderRadius),
-      ),
+    return _buildComposerPath(
+      size,
+      buttonSize: buttonSize,
+      spacing: spacing,
+      inputBorderRadius: inputBorderRadius,
+      trailingButtonCount: trailingButtonCount,
     );
-    x += inputWidth;
-
-    // Trailing buttons — circles aligned to bottom.
-    for (int i = 0; i < trailingButtonCount; i++) {
-      x += spacing;
-      path.addOval(Rect.fromLTWH(x, buttonTop, buttonSize, buttonSize));
-      x += buttonSize;
-    }
-
-    return path;
   }
 
   @override
   bool shouldReclip(covariant _ComposerClipper old) {
+    return buttonSize != old.buttonSize ||
+        spacing != old.spacing ||
+        inputBorderRadius != old.inputBorderRadius ||
+        trailingButtonCount != old.trailingButtonCount;
+  }
+}
+
+/// Paints the composer element shadows, clipped to the exterior of the
+/// element shapes so shadow doesn't bleed through the semi-transparent fills.
+class _ComposerShadowPainter extends CustomPainter {
+  const _ComposerShadowPainter({
+    required this.buttonSize,
+    required this.spacing,
+    required this.inputBorderRadius,
+    required this.trailingButtonCount,
+  });
+
+  final double buttonSize;
+  final double spacing;
+  final double inputBorderRadius;
+  final int trailingButtonCount;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final interiorPath = _buildComposerPath(
+      size,
+      buttonSize: buttonSize,
+      spacing: spacing,
+      inputBorderRadius: inputBorderRadius,
+      trailingButtonCount: trailingButtonCount,
+    );
+
+    final outerPath = Path()..addRect((Offset.zero & size).inflate(100));
+    canvas.save();
+    canvas.clipPath(
+      Path.combine(PathOperation.difference, outerPath, interiorPath),
+    );
+
+    for (final shadow in largeElevationBoxShadows) {
+      canvas.drawPath(
+        _buildComposerPath(
+          size,
+          buttonSize: buttonSize,
+          spacing: spacing,
+          inputBorderRadius: inputBorderRadius,
+          trailingButtonCount: trailingButtonCount,
+          inflate: shadow.spreadRadius,
+          offset: shadow.offset,
+        ),
+        shadow.toPaint(),
+      );
+    }
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _ComposerShadowPainter old) {
     return buttonSize != old.buttonSize ||
         spacing != old.spacing ||
         inputBorderRadius != old.inputBorderRadius ||
