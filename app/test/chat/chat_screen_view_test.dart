@@ -158,26 +158,21 @@ void main() {
       // scroll-to-bottom chevron on the right.
       testWidgets('empty scrolled back', (tester) async {
         when(() => messageListCubit.state).thenReturn(
-          MockMessageListState(
-            [
-              // Reversed list: index 0 = bottom (newest).
-              for (int i = 1; i <= 4; i++)
-                _msg(i, 'Old message $i'),
-              _msg(5, 'Composer is empty and the user has scrolled up.'),
-              _msg(6, 'A scroll-to-bottom button appears on the right.'),
-              // Long message near the top — after scrolling it lands
-              // right at the composer and gets partially clipped.
-              _msg(
-                7,
-                'This is a long message that should be partially '
-                    'hidden behind the composer to show that the user '
-                    'has scrolled back in the conversation history.',
-              ),
-              for (int i = 8; i <= 12; i++)
-                _msg(i, 'Old message $i'),
-            ],
-            hasNewer: true,
-          ),
+          MockMessageListState([
+            // Reversed list: index 0 = bottom (newest).
+            for (int i = 1; i <= 4; i++) _msg(i, 'Old message $i'),
+            _msg(5, 'Composer is empty and the user has scrolled up.'),
+            _msg(6, 'A scroll-to-bottom button appears on the right.'),
+            // Long message near the top — after scrolling it lands
+            // right at the composer and gets partially clipped.
+            _msg(
+              7,
+              'This is a long message that should be partially '
+              'hidden behind the composer to show that the user '
+              'has scrolled back in the conversation history.',
+            ),
+            for (int i = 8; i <= 12; i++) _msg(i, 'Old message $i'),
+          ], hasNewer: true),
         );
 
         await tester.pumpWidget(buildSubject());
@@ -221,23 +216,18 @@ void main() {
       // scroll-to-bottom chevron on the right (not send).
       testWidgets('unsent scrolled back', (tester) async {
         when(() => messageListCubit.state).thenReturn(
-          MockMessageListState(
-            [
-              for (int i = 1; i <= 4; i++)
-                _msg(i, 'Old message $i'),
-              _msg(5, 'The user typed a message and scrolled up.'),
-              _msg(6, 'Scroll-to-bottom takes priority over send.'),
-              _msg(
-                7,
-                'This is a long message that should be partially '
-                    'hidden behind the composer to show that the user '
-                    'has scrolled back in the conversation history.',
-              ),
-              for (int i = 8; i <= 12; i++)
-                _msg(i, 'Old message $i'),
-            ],
-            hasNewer: true,
-          ),
+          MockMessageListState([
+            for (int i = 1; i <= 4; i++) _msg(i, 'Old message $i'),
+            _msg(5, 'The user typed a message and scrolled up.'),
+            _msg(6, 'Scroll-to-bottom takes priority over send.'),
+            _msg(
+              7,
+              'This is a long message that should be partially '
+              'hidden behind the composer to show that the user '
+              'has scrolled back in the conversation history.',
+            ),
+            for (int i = 8; i <= 12; i++) _msg(i, 'Old message $i'),
+          ], hasNewer: true),
         );
 
         await tester.pumpWidget(buildSubject());
@@ -247,10 +237,7 @@ void main() {
         await tester.drag(find.byType(ListView), const Offset(0, 640));
         await tester.pump();
         // Enter text and flush the 1-second draft debounce timer.
-        await tester.enterText(
-          find.byType(TextField),
-          'Unsent message',
-        );
+        await tester.enterText(find.byType(TextField), 'Unsent message');
         await tester.pump(const Duration(seconds: 1));
         // Extra pump so the fade resizes after the composer height change.
         await tester.pump();
@@ -336,10 +323,7 @@ void main() {
         when(() => messageListCubit.state).thenReturn(
           MockMessageListState([
             _msg(1, 'The user is replying to another message.'),
-            _msg(
-              2,
-              'A reply bubble appears inside the input field.',
-            ),
+            _msg(2, 'A reply bubble appears inside the input field.'),
           ]),
         );
 
