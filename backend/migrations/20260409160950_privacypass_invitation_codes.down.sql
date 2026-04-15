@@ -11,3 +11,9 @@ ALTER TABLE as_client_record
 
 ALTER TABLE as_batched_key
     DROP COLUMN IF EXISTS operation_type;
+
+ALTER TABLE as_token_nonce
+    DROP COLUMN IF EXISTS operation_type;
+
+ALTER TABLE invitation_code
+    DROP COLUMN created_at;
