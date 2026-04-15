@@ -23,7 +23,7 @@ import '../mocks.dart';
 
 final _chat = chats[2]; // Group chat, isConfirmed = true
 
-final _members = [1.userId(), 2.userId(), 3.userId()];
+final members = [1.userId(), 2.userId(), 3.userId()];
 
 final _navState = NavigationState.home(
   home: HomeNavigationState(chatId: _chat.id),
@@ -90,7 +90,7 @@ void main() {
       ).thenReturn(MockUsersState(profiles: userProfiles));
       when(
         () => chatDetailsCubit.state,
-      ).thenReturn(ChatDetailsState(chat: _chat, members: _members));
+      ).thenReturn(ChatDetailsState(chat: _chat, members: members));
       when(
         () => chatDetailsCubit.markAsRead(
           untilMessageId: any(named: "untilMessageId"),
@@ -274,7 +274,7 @@ void main() {
                 isCommitted: true,
               ),
             ),
-            members: _members,
+            members: members,
           ),
         );
         when(() => messageListCubit.state).thenReturn(
@@ -330,7 +330,7 @@ void main() {
                 isCommitted: true,
               ),
             ),
-            members: _members,
+            members: members,
           ),
         );
         when(() => messageListCubit.state).thenReturn(
