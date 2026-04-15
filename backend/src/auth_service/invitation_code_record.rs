@@ -4,7 +4,7 @@
 
 use chrono::{DateTime, Utc};
 use rand::Rng;
-use sqlx::PgPool;
+use sqlx::PgTransaction;
 
 use crate::auth_service::cli::InvitationCodeStats;
 
@@ -20,20 +20,6 @@ const CODE_LEN: usize = 8;
 pub(crate) const CODES_PER_DAY: u64 = 1000;
 
 impl InvitationCodeRecord {
-    pub(crate) async fn stats(pool: &PgPool) -> sqlx::Result<InvitationCodeStats> {
-        let count = sqlx::query_scalar!("SELECT COUNT(*) FROM invitation_code")
-            .fetch_one(pool)
-            .await?;
-        let redeemed =
-            sqlx::query_scalar!("SELECT COUNT(*) FROM invitation_code WHERE redeemed = TRUE")
-                .fetch_one(pool)
-                .await?;
-        Ok(InvitationCodeStats {
-            count: count.and_then(|c| c.try_into().ok()).unwrap_or(0),
-            redeemed: redeemed.and_then(|r| r.try_into().ok()).unwrap_or(0),
-        })
-    }
-
     fn generate_code(code: &mut String) {
         let mut rng = rand::thread_rng();
         for _ in 0..CODE_LEN {
@@ -49,9 +35,23 @@ impl InvitationCodeRecord {
 mod persistence {
     use super::*;
 
-    use sqlx::{PgExecutor, PgPool, query, query_as, query_scalar};
+    use sqlx::{PgConnection, PgExecutor, PgPool, query, query_as, query_scalar};
 
     impl InvitationCodeRecord {
+        pub(crate) async fn stats(pool: &PgPool) -> sqlx::Result<InvitationCodeStats> {
+            let count = query_scalar!("SELECT COUNT(*) FROM invitation_code")
+                .fetch_one(pool)
+                .await?;
+            let redeemed =
+                query_scalar!("SELECT COUNT(*) FROM invitation_code WHERE redeemed = TRUE")
+                    .fetch_one(pool)
+                    .await?;
+            Ok(InvitationCodeStats {
+                count: count.and_then(|c| c.try_into().ok()).unwrap_or(0),
+                redeemed: redeemed.and_then(|r| r.try_into().ok()).unwrap_or(0),
+            })
+        }
+
         pub(crate) async fn load_all(
             pool: &PgPool,
             include_redeemed: bool,
@@ -137,20 +137,25 @@ mod persistence {
             Ok(())
         }
 
-        pub(crate) async fn generate(pool: &PgPool) -> sqlx::Result<String> {
+        pub(crate) async fn generate(connection: &mut PgConnection) -> sqlx::Result<String> {
             let mut code = String::with_capacity(CODE_LEN);
             loop {
                 code.clear();
                 Self::generate_code(&mut code);
-                if let Some(invitation_code) = Self::insert(pool, &code, false).await? {
+                if let Some(invitation_code) = Self::insert(&mut *connection, &code, false).await? {
                     return Ok(invitation_code);
                 }
             }
         }
 
-        pub(in crate::auth_service) async fn count_codes_issued_today(
-            executor: impl PgExecutor<'_>,
+        pub(in crate::auth_service) async fn lock_table_and_count_codes_issued_today(
+            txn: &mut PgTransaction<'_>,
         ) -> sqlx::Result<u64> {
+            // we want to lock the table here to enforce the routine to be used correctly.
+            query!("LOCK TABLE invitation_code IN ACCESS EXCLUSIVE MODE")
+                .execute(txn.as_mut())
+                .await?;
+
             let count = query_scalar!(
                 "
             SELECT COUNT(*) FROM invitation_code
@@ -158,7 +163,7 @@ mod persistence {
             AND created_at < CURRENT_DATE + INTERVAL '1 day'
             "
             )
-            .fetch_one(executor)
+            .fetch_one(txn.as_mut())
             .await?
             .unwrap_or_default() as u64;
 
@@ -252,9 +257,10 @@ mod persistence {
 
         #[sqlx::test]
         async fn generate_multiple_codes(pool: PgPool) -> anyhow::Result<()> {
+            let mut connection = pool.acquire().await?;
             let n = 5;
             for _ in 0..n {
-                InvitationCodeRecord::generate(&pool).await?;
+                InvitationCodeRecord::generate(&mut connection).await?;
             }
 
             let all_codes = InvitationCodeRecord::load_all(&pool, true, 10).await?;

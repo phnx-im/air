@@ -89,8 +89,8 @@ impl From<PublishConnectionPackageError> for Status {
 #[derive(Error, Debug)]
 pub(crate) enum IssueTokensError {
     /// Something was wrong in the request
-    #[error("Bad request")]
-    BadRequest,
+    #[error("Bad request: {0}")]
+    BadRequest(&'static str),
     /// Storage provider error
     #[error("Storage provider error")]
     StorageError(#[from] StorageError),
@@ -112,6 +112,7 @@ impl From<IssueTokensError> for Status {
     fn from(e: IssueTokensError) -> Self {
         let msg = e.to_string();
         match e {
+            IssueTokensError::BadRequest(msg) => Status::invalid_argument(msg),
             IssueTokensError::StorageError(error) => {
                 error!(%error, "storage error while issuing tokens");
                 Status::internal(msg)

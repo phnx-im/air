@@ -20,8 +20,9 @@ impl AuthService {
     }
 
     pub async fn invitation_codes_generate(&self, n: usize) -> sqlx::Result<()> {
+        let mut connection = self.db_pool().acquire().await?;
         for _ in 0..n {
-            let code = InvitationCodeRecord::generate(&self.db_pool).await?;
+            let code = InvitationCodeRecord::generate(&mut connection).await?;
             println!("{code}");
         }
         Ok(())

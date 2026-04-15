@@ -58,8 +58,8 @@ pub(crate) async fn token_count(
 /// Stores or updates a batched token public key.
 pub(crate) async fn store_batched_token_key(
     executor: impl SqliteExecutor<'_>,
-    operation_type: OperationType,
     token_key_id: u8,
+    operation_type: OperationType,
     public_key: &[u8],
 ) -> Result<(), sqlx::Error> {
     let key_id = token_key_id as i32;

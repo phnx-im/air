@@ -78,6 +78,9 @@
   "invitationCodeScreen_error_internal": "Einladungscode konnte nicht überprüft werden: {error}",
   "invitationCodeScreen_error_missing": "Einladungscode fehlt",
   "invitationCodeScreen_error_invalid": "Ungültiger Einladungscode. Prüfe den Code und versuche es erneut.",
+  
+  "invitationCodesScreen_quota_exceeded": "Wir haben im Moment keine Einladungenscode mehr, versuch es bitte später nochmal.",
+
   "signUpScreen_header": "Erstelle dein Profil",
   "signUpScreen_subheader": "Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen. Air benötigt einen Anzeigenamen, ein Bild ist optional.",
   "signUpScreen_actionButton": "Erstellen",

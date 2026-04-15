@@ -269,6 +269,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Invalid invitation code. Check your code, then try again.';
 
   @override
+  String get invitationCodesScreen_quota_exceeded =>
+      'We\'re out of invites for now, please try again later.';
+
+  @override
   String get signUpScreen_header => 'Create your profile';
 
   @override

@@ -1,5 +1,5 @@
 // Re-export for FRB reasons
-pub(crate) use aircoreclient::InvitationCode;
+pub(crate) use aircoreclient::{InvitationCode, RequestInvitationCodeError};
 
 use aircoreclient::clients::CoreUser;
 use flutter_rust_bridge::frb;
@@ -12,7 +12,6 @@ use crate::{
     util::{Cubit, CubitCore, spawn_from_sync},
 };
 
-/// Mirror of the [`InvitationCode`] type
 #[doc(hidden)]
 #[frb(mirror(InvitationCode))]
 #[frb(dart_metadata = ("freezed"))]
@@ -21,10 +20,11 @@ pub struct _InvitationCode {
     pub copied: bool,
 }
 
+#[doc(hidden)]
+#[frb(mirror(RequestInvitationCodeError))]
 #[frb(dart_metadata = ("freezed"))]
-pub enum RequestInvitationCodeError {
-    UserQuotaExceeded,
-    GlobalQuotaExceeded,
+pub enum _RequestInvitationCodeError {
+    QuotaExceeded,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -81,7 +81,11 @@ impl InvitationCodesCubitBase {
     pub async fn request_invitation_code(
         &self,
     ) -> anyhow::Result<Option<RequestInvitationCodeError>> {
-        let code = self.core_user.request_invitation_code().await?;
+        let code = match self.core_user.request_invitation_code().await {
+            Ok(code) => code,
+            Err(e @ RequestInvitationCodeError::QuotaExceeded) => return Ok(Some(e)),
+            Err(e) => return Err(e.into()),
+        };
         self.core.state_tx().send_modify(|state| {
             state.codes.push(code);
         });

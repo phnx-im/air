@@ -232,10 +232,15 @@ impl auth_service_server::AuthService for GrpcAs {
             Status::invalid_argument("invalid token")
         })?;
 
-        let codes_today = InvitationCodeRecord::count_codes_issued_today(self.inner.db_pool())
+        let mut txn = self.inner.db_pool.begin().await.map_err(|error| {
+            error!(%error, "failed to start txn");
+            Status::internal("database error")
+        })?;
+
+        let codes_today = InvitationCodeRecord::lock_table_and_count_codes_issued_today(&mut txn)
             .await
             .map_err(|error| {
-                error!(%error, "database error");
+                error!(%error, "failed to lock table and count codes issued today");
                 Status::internal("database error")
             })?;
 
@@ -256,7 +261,7 @@ impl auth_service_server::AuthService for GrpcAs {
             }
 
             // if the token could be redeemed, issue a new invite code
-            let code = InvitationCodeRecord::generate(self.inner.db_pool())
+            let code = InvitationCodeRecord::generate(txn.as_mut())
                 .await
                 .map_err(|error| {
                     error!(%error, "database error");
@@ -265,6 +270,11 @@ impl auth_service_server::AuthService for GrpcAs {
 
             invitation_codes.push(InvitationCode { code });
         }
+
+        txn.commit().await.map_err(|error| {
+            error!(%error, "failed to commit transaction");
+            Status::internal("database error")
+        })?;
 
         Ok(Response::new(GetInvitationCodesResponse {
             invitation_codes,

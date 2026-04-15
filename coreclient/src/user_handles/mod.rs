@@ -21,7 +21,7 @@ use airapiclient::ApiClient;
 
 use crate::{
     clients::{CONNECTION_PACKAGES, CoreUser},
-    privacy_pass,
+    privacy_pass::{self, RequestTokensError},
     store::StoreResult,
     user_handles::connection_packages::StorableConnectionPackage,
 };
@@ -42,6 +42,7 @@ impl CoreUser {
         let hash = spawn_blocking(move || handle_inner.calculate_hash()).await??;
 
         let api_client = self.api_client()?;
+
         let token = self
             .consume_or_replenish_token(&api_client, OperationType::AddUsername)
             .await
@@ -187,7 +188,9 @@ impl CoreUser {
         api_client: &ApiClient,
         operation_type: OperationType,
     ) -> anyhow::Result<SerializedToken> {
-        if let Some(token) = privacy_pass::consume_token(self.pool(), operation_type).await? {
+        // it's important that we lock the DB here, because we don't want to fail in parallel
+        let mut txn = self.pool().begin_with("BEGIN IMMEDIATE").await?;
+        if let Some(token) = privacy_pass::consume_token(txn.as_mut(), operation_type).await? {
             return Ok(token);
         }
 
@@ -195,7 +198,7 @@ impl CoreUser {
         // immediately. The caller should propagate this error and retry,
         // providing a natural timing gap between issuance and redemption.
         privacy_pass::replenish_if_needed(
-            self.pool(),
+            &mut txn,
             api_client,
             self.user_id().clone(),
             self.signing_key(),
@@ -217,7 +220,7 @@ impl CoreUser {
         &self,
         api_client: &ApiClient,
         operation_type: OperationType,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), RequestTokensError> {
         privacy_pass::purge_and_replenish(
             self.pool(),
             api_client,
@@ -238,8 +241,9 @@ impl CoreUser {
         operation_type: OperationType,
     ) -> anyhow::Result<()> {
         let api_client = self.api_client()?;
+        let mut txn = self.pool().begin().await?;
         privacy_pass::replenish_if_needed(
-            self.pool(),
+            &mut txn,
             &api_client,
             self.user_id().clone(),
             self.signing_key(),

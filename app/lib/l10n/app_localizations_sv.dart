@@ -270,6 +270,10 @@ class AppLocalizationsSv extends AppLocalizations {
       'Ogiltig inbjudningskod. Kontrollera koden och försök igen.';
 
   @override
+  String get invitationCodesScreen_quota_exceeded =>
+      'We\'re out of invites for now, please try again later.';
+
+  @override
   String get signUpScreen_header => 'Skapa din profil';
 
   @override

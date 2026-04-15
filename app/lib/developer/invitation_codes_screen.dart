@@ -3,9 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
+import 'package:air/l10n/app_localizations.dart';
 import 'package:air/ui/components/button/button.dart';
 import 'package:air/user/invitation_codes_cubit.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/services.dart';
@@ -98,10 +100,18 @@ class InvitationCodesView extends StatelessWidget {
                 ),
               ),
               AppButton(
-                onPressed: () {
-                  context
+                onPressed: () async {
+                  final loc = AppLocalizations.of(context);
+                  final error = await context
                       .read<InvitationCodesCubit>()
                       .requestInvitationCode();
+                  if (error == RequestInvitationCodeError.quotaExceeded) {
+                    showSnackBarStandalone(
+                      (_) => SnackBar(
+                        content: Text(loc.invitationCodesScreen_quota_exceeded),
+                      ),
+                    );
+                  }
                 },
                 label: "Request invitation code",
               ),

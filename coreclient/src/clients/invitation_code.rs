@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use airapiclient::as_api::AsRequestError;
 use aircommon::identifiers::Fqdn;
 use airprotos::common::v1::OperationType;
 use anyhow::Context;
@@ -13,6 +14,26 @@ use crate::clients::{CoreUser, api_clients::ApiClients};
 pub struct InvitationCode {
     pub code: String,
     pub copied: bool,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum RequestInvitationCodeError {
+    #[error("global quota exceeded")]
+    QuotaExceeded,
+    #[error(transparent)]
+    Database(#[from] sqlx::Error),
+    #[error(transparent)]
+    Generic(#[from] anyhow::Error),
+}
+
+impl From<AsRequestError> for RequestInvitationCodeError {
+    fn from(error: AsRequestError) -> Self {
+        if error.is_resource_exhausted() {
+            Self::QuotaExceeded
+        } else {
+            Self::Generic(error.into())
+        }
+    }
 }
 
 impl CoreUser {
@@ -30,7 +51,9 @@ impl CoreUser {
     }
 
     /// Requests a new invitation code from the server (consuming a token in the process)
-    pub async fn request_invitation_code(&self) -> anyhow::Result<InvitationCode> {
+    pub async fn request_invitation_code(
+        &self,
+    ) -> Result<InvitationCode, RequestInvitationCodeError> {
         let api_client = self.api_client()?;
         let token = self
             .consume_or_replenish_token(&api_client, OperationType::GetInviteCode)

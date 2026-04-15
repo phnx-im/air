@@ -252,9 +252,11 @@ impl OutboundServiceContext {
         let api_client = self.api_clients.default_client()?;
         let mut low_count = false;
 
+        let mut txn = self.pool.begin_with("BEGIN EXCLUSIVE").await?;
+
         for operation_type in OperationType::all() {
             let count = privacy_pass::replenish_if_needed(
-                &self.pool,
+                &mut txn,
                 &api_client,
                 self.user_id().clone(),
                 self.signing_key(),
@@ -262,8 +264,10 @@ impl OutboundServiceContext {
             )
             .await?;
 
-            low_count = count < operation_type.low_tokens_threshold();
+            low_count |= count < operation_type.low_tokens_threshold();
         }
+
+        txn.commit().await?;
 
         if low_count {
             Ok(Duration::minutes(5))

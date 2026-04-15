@@ -107,6 +107,15 @@ impl AsRequestError {
             false
         }
     }
+
+    /// Returns true if the error means the user exceeded some quota or limit.
+    pub fn is_resource_exhausted(&self) -> bool {
+        if let Self::Tonic(status) = self {
+            matches!(status.code(), Code::ResourceExhausted)
+        } else {
+            false
+        }
+    }
 }
 
 impl From<LibraryError> for AsRequestError {

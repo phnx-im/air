@@ -34,7 +34,7 @@ impl AuthService {
     ) -> Result<AmortizedBatchTokenResponse<Ristretto255>, IssueTokensError> {
         let tokens_requested = token_request.nr() as u16;
         if tokens_requested == 0 {
-            return Err(IssueTokensError::BadRequest);
+            return Err(IssueTokensError::BadRequest("zero tokens requested"));
         }
 
         // Start a transaction

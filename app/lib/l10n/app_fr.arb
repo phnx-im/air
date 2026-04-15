@@ -78,6 +78,9 @@
   "invitationCodeScreen_error_internal": "Impossible de vérifier le code d'invitation : {error}",
   "invitationCodeScreen_error_missing": "Code d'invitation manquant",
   "invitationCodeScreen_error_invalid": "Code d'invitation invalide. Vérifiez votre code et réessayez.",
+
+  "invitationCodesScreen_quota_exceeded": "Nous n'avons plus d'invitations pour le moment, veuillez réessayer plus tard.",
+
   "signUpScreen_header": "Créez votre profil",
   "signUpScreen_subheader": "Votre profil est visible pour les personnes avec lesquelles vous vous connectez et les membres de vos groupes. Air exige un nom d'affichage, mais la photo est facultative.",
   "signUpScreen_actionButton": "Créer",

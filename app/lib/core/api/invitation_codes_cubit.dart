@@ -36,7 +36,6 @@ abstract class InvitationCodesCubitBase implements RustOpaqueInterface {
   Stream<InvitationCodesState> stream();
 }
 
-/// Mirror of the [`InvitationCode`] type
 @freezed
 sealed class InvitationCode with _$InvitationCode {
   const factory InvitationCode({required String code, required bool copied}) =
@@ -52,4 +51,4 @@ sealed class InvitationCodesState with _$InvitationCodesState {
       .crateApiInvitationCodesCubitInvitationCodesStateDefault();
 }
 
-enum RequestInvitationCodeError { userQuotaExceeded, globalQuotaExceeded }
+enum RequestInvitationCodeError { quotaExceeded }
