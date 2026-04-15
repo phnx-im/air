@@ -250,6 +250,7 @@ impl CoreUser {
             operation_type,
         )
         .await?;
+        txn.commit().await?;
         Ok(())
     }
 }

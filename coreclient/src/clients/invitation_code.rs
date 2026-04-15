@@ -139,7 +139,5 @@ mod persistence {
             .await?;
             Ok(result.rows_affected() > 0)
         }
-
-        // TODO: delete old codes that have been used by the server (some sort of cheap sync)
     }
 }

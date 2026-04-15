@@ -217,9 +217,8 @@ impl auth_service_server::AuthService for GrpcAs {
         &self,
         request: Request<GetInvitationCodesRequest>,
     ) -> Result<Response<GetInvitationCodesResponse>, Status> {
-        // this endpoint is anonymous by design
+        // note: this endpoint is anonymous by design
         let request = request.into_inner();
-        self.verify_client_version(request.client_metadata.as_ref())?;
 
         let tokens: Result<Vec<_>, _> = request
             .tokens

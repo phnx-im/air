@@ -30,7 +30,11 @@ pub(crate) async fn consume_token(
     let operation_type = operation_type as i32;
     let row = sqlx::query_scalar!(
         "DELETE FROM privacy_pass_token
-         WHERE operation_type = $1 AND id = (SELECT MIN(id) FROM privacy_pass_token WHERE operation_type = $1)
+         WHERE
+            operation_type = $1 AND
+            id = (SELECT MIN(id)
+                    FROM privacy_pass_token
+                    WHERE operation_type = $1)
          RETURNING token",
         operation_type
     )
@@ -65,9 +69,11 @@ pub(crate) async fn store_batched_token_key(
     let key_id = token_key_id as i32;
     let operation_type = operation_type as i32;
     sqlx::query!(
-        "INSERT INTO batched_token_key (token_key_id, operation_type, public_key) \
-         VALUES (?, ?, ?) \
-         ON CONFLICT (operation_type, token_key_id) DO UPDATE SET public_key = excluded.public_key",
+        "INSERT INTO batched_token_key
+            (token_key_id, operation_type, public_key)
+            VALUES (?, ?, ?)
+            ON CONFLICT (operation_type, token_key_id)
+            DO UPDATE SET public_key = excluded.public_key",
         key_id,
         operation_type,
         public_key
@@ -136,7 +142,8 @@ mod tests {
 
     use super::*;
 
-    const OP: OperationType = OperationType::GetInviteCode;
+    const OP1: OperationType = OperationType::AddUsername;
+    const OP2: OperationType = OperationType::GetInviteCode;
 
     /// Tokens are consumed in FIFO order.
     #[sqlx::test]
@@ -144,24 +151,24 @@ mod tests {
         let token_a = b"token_aaa".to_vec();
         let token_b = b"token_bbb".to_vec();
 
-        store_token(&pool, OP, &token_a).await?;
-        store_token(&pool, OP, &token_b).await?;
+        store_token(&pool, OP1, &token_a).await?;
+        store_token(&pool, OP1, &token_b).await?;
 
-        assert_eq!(token_count(&pool, OP).await?, 2);
+        assert_eq!(token_count(&pool, OP1).await?, 2);
 
         // Consume returns FIFO order.
-        let first = consume_token(&pool, OP)
+        let first = consume_token(&pool, OP1)
             .await?
             .expect("should have a token");
         assert_eq!(first, token_a);
-        let second = consume_token(&pool, OP)
+        let second = consume_token(&pool, OP1)
             .await?
             .expect("should have a token");
         assert_eq!(second, token_b);
 
         // Empty after consuming both.
-        assert_eq!(token_count(&pool, OP).await?, 0);
-        assert!(consume_token(&pool, OP).await?.is_none());
+        assert_eq!(token_count(&pool, OP1).await?, 0);
+        assert!(consume_token(&pool, OP1).await?.is_none());
 
         Ok(())
     }
@@ -169,8 +176,8 @@ mod tests {
     /// Consuming from an empty store returns `None`.
     #[sqlx::test]
     async fn consume_from_empty(pool: SqlitePool) -> anyhow::Result<()> {
-        assert!(consume_token(&pool, OP).await?.is_none());
-        assert_eq!(token_count(&pool, OP).await?, 0);
+        assert!(consume_token(&pool, OP1).await?.is_none());
+        assert_eq!(token_count(&pool, OP1).await?, 0);
         Ok(())
     }
 
@@ -180,10 +187,10 @@ mod tests {
         let pk_a = b"public_key_a_32_bytes_padding!!".to_vec();
         let pk_b = b"public_key_b_32_bytes_padding!!".to_vec();
 
-        store_batched_token_key(&pool, 1, OP, &pk_a).await?;
-        store_batched_token_key(&pool, 2, OP, &pk_b).await?;
+        store_batched_token_key(&pool, 1, OP1, &pk_a).await?;
+        store_batched_token_key(&pool, 2, OP1, &pk_b).await?;
 
-        let keys = load_batched_token_keys(&pool, OP).await?;
+        let keys = load_batched_token_keys(&pool, OP1).await?;
         assert_eq!(keys.len(), 2);
         assert!(keys.contains(&(1u8, pk_a.clone())));
         assert!(keys.contains(&(2u8, pk_b)));
@@ -194,13 +201,13 @@ mod tests {
     /// `delete_all_tokens` removes every stored token.
     #[sqlx::test]
     async fn delete_all_tokens_clears_store(pool: SqlitePool) -> anyhow::Result<()> {
-        store_token(&pool, OP, b"aaa").await?;
-        store_token(&pool, OP, b"bbb").await?;
-        assert_eq!(token_count(&pool, OP).await?, 2);
+        store_token(&pool, OP1, b"aaa").await?;
+        store_token(&pool, OP1, b"bbb").await?;
+        assert_eq!(token_count(&pool, OP1).await?, 2);
 
-        delete_all_tokens(&pool, OP).await?;
-        assert_eq!(token_count(&pool, OP).await?, 0);
-        assert!(consume_token(&pool, OP).await?.is_none());
+        delete_all_tokens(&pool, OP1).await?;
+        assert_eq!(token_count(&pool, OP1).await?, 0);
+        assert!(consume_token(&pool, OP1).await?.is_none());
 
         Ok(())
     }
@@ -208,12 +215,12 @@ mod tests {
     /// `delete_all_batched_token_keys` removes every stored key.
     #[sqlx::test]
     async fn delete_all_keys_clears_store(pool: SqlitePool) -> anyhow::Result<()> {
-        store_batched_token_key(&pool, 1, OP, b"pk1").await?;
-        store_batched_token_key(&pool, 2, OP, b"pk2").await?;
-        assert_eq!(load_batched_token_keys(&pool, OP).await?.len(), 2);
+        store_batched_token_key(&pool, 1, OP1, b"pk1").await?;
+        store_batched_token_key(&pool, 2, OP1, b"pk2").await?;
+        assert_eq!(load_batched_token_keys(&pool, OP1).await?.len(), 2);
 
-        delete_all_batched_token_keys(&pool, OP).await?;
-        assert!(load_batched_token_keys(&pool, OP).await?.is_empty());
+        delete_all_batched_token_keys(&pool, OP1).await?;
+        assert!(load_batched_token_keys(&pool, OP1).await?.is_empty());
 
         Ok(())
     }
@@ -224,12 +231,116 @@ mod tests {
         let pk_old = b"old_key_padded_to_32_bytes!!!!!".to_vec();
         let pk_new = b"new_key_padded_to_32_bytes!!!!!".to_vec();
 
-        store_batched_token_key(&pool, 1, OP, &pk_old).await?;
-        store_batched_token_key(&pool, 1, OP, &pk_new).await?;
+        store_batched_token_key(&pool, 1, OP1, &pk_old).await?;
+        store_batched_token_key(&pool, 1, OP1, &pk_new).await?;
 
-        let keys = load_batched_token_keys(&pool, OP).await?;
+        let keys = load_batched_token_keys(&pool, OP1).await?;
         assert_eq!(keys.len(), 1);
         assert_eq!(keys[0], (1u8, pk_new));
+
+        Ok(())
+    }
+
+    /// Tokens stored under OP1 are not visible to OP2 and vice-versa.
+    #[sqlx::test]
+    async fn tokens_are_isolated_between_operation_types(pool: SqlitePool) -> anyhow::Result<()> {
+        let token_op1 = b"token_op1".to_vec();
+        let token_op2 = b"token_op2".to_vec();
+
+        store_token(&pool, OP1, &token_op1).await?;
+        store_token(&pool, OP2, &token_op2).await?;
+
+        // Each operation type sees exactly its own token.
+        assert_eq!(token_count(&pool, OP1).await?, 1);
+        assert_eq!(token_count(&pool, OP2).await?, 1);
+
+        // Consuming OP1 returns only the OP1 token and leaves OP2 untouched.
+        let consumed = consume_token(&pool, OP1).await?.expect("should have a token");
+        assert_eq!(consumed, token_op1);
+        assert_eq!(token_count(&pool, OP1).await?, 0);
+        assert_eq!(token_count(&pool, OP2).await?, 1);
+
+        // Consuming OP2 returns only the OP2 token.
+        let consumed = consume_token(&pool, OP2).await?.expect("should have a token");
+        assert_eq!(consumed, token_op2);
+        assert_eq!(token_count(&pool, OP2).await?, 0);
+
+        Ok(())
+    }
+
+    /// `delete_all_tokens` for OP1 does not remove OP2 tokens.
+    #[sqlx::test]
+    async fn delete_all_tokens_does_not_affect_other_operation_type(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        store_token(&pool, OP1, b"op1_token").await?;
+        store_token(&pool, OP2, b"op2_token").await?;
+
+        delete_all_tokens(&pool, OP1).await?;
+
+        assert_eq!(token_count(&pool, OP1).await?, 0);
+        assert_eq!(token_count(&pool, OP2).await?, 1);
+
+        Ok(())
+    }
+
+    /// Batched token keys stored under OP1 are not visible to OP2 and vice-versa.
+    #[sqlx::test]
+    async fn batched_keys_are_isolated_between_operation_types(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let pk_op1 = b"public_key_op1_padded_32bytes!!".to_vec();
+        let pk_op2 = b"public_key_op2_padded_32bytes!!".to_vec();
+
+        // Same key ID, different operation types — must not collide.
+        store_batched_token_key(&pool, 1, OP1, &pk_op1).await?;
+        store_batched_token_key(&pool, 1, OP2, &pk_op2).await?;
+
+        let keys_op1 = load_batched_token_keys(&pool, OP1).await?;
+        let keys_op2 = load_batched_token_keys(&pool, OP2).await?;
+
+        assert_eq!(keys_op1, vec![(1u8, pk_op1)]);
+        assert_eq!(keys_op2, vec![(1u8, pk_op2)]);
+
+        Ok(())
+    }
+
+    /// `delete_all_batched_token_keys` for OP1 does not remove OP2 keys.
+    #[sqlx::test]
+    async fn delete_all_keys_does_not_affect_other_operation_type(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        store_batched_token_key(&pool, 1, OP1, b"pk_op1").await?;
+        store_batched_token_key(&pool, 1, OP2, b"pk_op2").await?;
+
+        delete_all_batched_token_keys(&pool, OP1).await?;
+
+        assert!(load_batched_token_keys(&pool, OP1).await?.is_empty());
+        assert_eq!(load_batched_token_keys(&pool, OP2).await?.len(), 1);
+
+        Ok(())
+    }
+
+    /// Upserting a key under OP1 does not overwrite the same key ID stored under OP2.
+    #[sqlx::test]
+    async fn batched_key_upsert_does_not_affect_other_operation_type(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let pk_op1_v1 = b"op1_old_key_padded_32_bytes!!!!".to_vec();
+        let pk_op1_v2 = b"op1_new_key_padded_32_bytes!!!!".to_vec();
+        let pk_op2 = b"op2_key_should_not_change!!!!!!".to_vec();
+
+        store_batched_token_key(&pool, 1, OP1, &pk_op1_v1).await?;
+        store_batched_token_key(&pool, 1, OP2, &pk_op2).await?;
+
+        // Upsert key ID 1 for OP1 — must not touch OP2's key ID 1.
+        store_batched_token_key(&pool, 1, OP1, &pk_op1_v2).await?;
+
+        let keys_op1 = load_batched_token_keys(&pool, OP1).await?;
+        let keys_op2 = load_batched_token_keys(&pool, OP2).await?;
+
+        assert_eq!(keys_op1, vec![(1u8, pk_op1_v2)]);
+        assert_eq!(keys_op2, vec![(1u8, pk_op2)]);
 
         Ok(())
     }

@@ -143,7 +143,6 @@ impl ApiClient {
         tokens: impl IntoIterator<Item = SerializedToken>,
     ) -> Result<Vec<InvitationCode>, AsRequestError> {
         let request = GetInvitationCodesRequest {
-            client_metadata: Some(self.metadata().clone()),
             tokens: tokens.into_iter().map(|t| t.into_bytes()).collect(),
         };
 

@@ -169,8 +169,7 @@ message CheckInvitationCodeResponse {
 // generate invitation codes
 
 message GetInvitationCodesRequest {
-  common.v1.ClientMetadata client_metadata = 1;
-  repeated bytes tokens = 2;
+  repeated bytes tokens = 1;
 }
 
 message GetInvitationCodesResponse {
