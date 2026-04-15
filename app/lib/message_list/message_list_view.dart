@@ -58,6 +58,8 @@ class _MessageListViewState extends State<MessageListView>
   /// during rapid scroll updates.
   MessageId? _lastMarkedAsReadId;
 
+  /// The cubit whose command stream we're currently subscribed to.
+  /// Re-subscribed in [didChangeDependencies] if the cubit identity changes.
   MessageListCubit? _commandsCubit;
   StreamSubscription<MessageListCommand>? _commandSubscription;
   bool _initialUnreadScrollHandled = false;
@@ -162,6 +164,8 @@ class _MessageListViewState extends State<MessageListView>
     );
   }
 
+  /// Translates Rust-issued scroll/navigation commands into
+  /// [AnchoredListController] actions.
   void _handleCommand(MessageListCommand command) {
     switch (command) {
       case MessageListCommand_ScrollToBottom():
@@ -171,6 +175,8 @@ class _MessageListViewState extends State<MessageListView>
     }
   }
 
+  /// Scrolls to the first unread message on initial load. Only fires once —
+  /// subsequent scroll commands arrive via the command stream.
   void _scheduleInitialUnreadScroll(MessageListState state) {
     if (_initialUnreadScrollHandled || state.meta.firstUnreadIndex == null) {
       return;

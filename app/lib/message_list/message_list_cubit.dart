@@ -9,6 +9,16 @@ import 'package:air/core/core.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/anchored_list/data.dart';
 
+/// Bridges the Rust-side message list cubit ([MessageListCubitBase]) to
+/// the Flutter widget layer.
+///
+/// The Rust side emits [MessageListTransition]s via a broadcast stream,
+/// each carrying incremental changes already in newest-first order that
+/// map directly to [AnchoredListData] operations.
+///
+/// Revisions are monotonic: if a transition arrives in sequence the cubit
+/// applies it incrementally; if a gap is detected it falls back to a full
+/// reload from the latest Rust state.
 class MessageListCubit extends StateStreamableSource<MessageListState> {
   MessageListCubit({required UserCubit userCubit, required ChatId chatId})
     : _impl = MessageListCubitBase(userCubit: userCubit.impl, chatId: chatId),
@@ -32,7 +42,11 @@ class MessageListCubit extends StateStreamableSource<MessageListState> {
   int _appliedRevision;
   int? _lastCommandRevision;
 
+  /// The message list data consumed by the [AnchoredList] widget.
+  /// Index 0 is the newest message (matches the reversed scroll view).
   final AnchoredListData<UiChatMessage> messageData = AnchoredListData();
+
+  /// Scroll/navigation commands emitted by the Rust side.
   Stream<MessageListCommand> get commands => _commandController.stream;
 
   Future<void> loadOlder() => _impl.loadOlder();
@@ -41,6 +55,9 @@ class MessageListCubit extends StateStreamableSource<MessageListState> {
   Future<void> jumpToMessage({required MessageId messageId}) =>
       _impl.jumpToMessage(messageId: messageId);
 
+  /// Applies a Rust transition incrementally if it follows the expected
+  /// revision sequence, otherwise defers to a full-state fallback via
+  /// [_syncFromLatestState].
   void _handleTransition(MessageListTransition transition) {
     final revision = transition.revision;
     if (revision == _appliedRevision + 1) {
@@ -59,6 +76,11 @@ class MessageListCubit extends StateStreamableSource<MessageListState> {
     }
   }
 
+  /// Applies the changes from a single transition to [messageData].
+  ///
+  /// All changes are applied inside [AnchoredListData.batch] so the
+  /// [AnchoredList] widget receives one combined notification and computes
+  /// a single layout correction.
   void _applyTransition(MessageListTransition transition) {
     if (transition.changes.isEmpty) return;
     messageData.batch(() {
@@ -86,6 +108,8 @@ class MessageListCubit extends StateStreamableSource<MessageListState> {
     });
   }
 
+  /// Fallback: reload [messageData] from the latest Rust state when a
+  /// revision gap makes incremental application impossible.
   void _syncFromLatestState() {
     final latest = _impl.state;
     final revision = latest.meta.revision;
@@ -95,6 +119,8 @@ class MessageListCubit extends StateStreamableSource<MessageListState> {
     _emitState(latest);
   }
 
+  /// Builds [messageData] from scratch by iterating the Rust state in
+  /// reverse (newest-first) order. Used for initial seed and gap recovery.
   void _reloadMessageDataFromState(MessageListState state) {
     final messages = <UiChatMessage>[];
     for (var i = state.loadedMessagesCount - 1; i >= 0; i--) {

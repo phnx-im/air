@@ -189,10 +189,16 @@ fn recompute_flight_positions_range(
     }
 }
 
+/// Reverse a slice to newest-first order for AnchoredList consumption.
+///
+/// In sqlite we store messages in the oldest-first order but AnchoredList
+/// expects index 0 = newest, so every outgoing change converts with this
+/// helper.
 fn newest_first(messages: &[UiChatMessage]) -> Vec<UiChatMessage> {
     messages.iter().cloned().rev().collect()
 }
 
+/// Convert an oldest-first index to a newest-first index.
 fn newest_index(len: usize, oldest_index: usize) -> usize {
     len - 1 - oldest_index
 }
@@ -204,6 +210,8 @@ fn rebuild_message_ids_index(inner: &mut MessageListStateInner) {
     }
 }
 
+/// Emit Patch changes for the given oldest-first indices, deduped and
+/// converted to newest-first order for the AnchoredList.
 fn push_patch_changes(
     changes: &mut Vec<MessageListChange>,
     messages: &[UiChatMessage],
@@ -226,6 +234,8 @@ fn push_patch_changes(
 }
 
 impl MessageListState {
+    /// Bump the revision counter and wrap the accumulated changes into a
+    /// transition that Dart can apply incrementally.
     fn finish_transition(
         &mut self,
         kind: MessageListTransitionKind,
@@ -295,9 +305,11 @@ impl MessageListState {
                 let shifted_unread = inner.first_unread_index.map(|i| i + prepend_count);
                 let mut patch_indices = Vec::new();
 
+                // Compute positions for the new (prepended) messages only
                 compute_flight_positions(&mut prepended, None);
                 inner.messages.splice(0..0, prepended);
 
+                // Recompute only the boundary: last prepended + first existing
                 if prepend_count > 0 && inner.messages.len() > prepend_count {
                     let boundary_start = prepend_count.saturating_sub(1);
                     let boundary_end = (prepend_count + 1).min(inner.messages.len());
@@ -310,6 +322,7 @@ impl MessageListState {
                     patch_indices.extend(boundary_start..boundary_end);
                 }
 
+                // Evict newer messages if the window exceeds the cap
                 let evict_count = inner.messages.len().saturating_sub(MAX_WINDOW);
                 if evict_count > 0 {
                     inner.messages.truncate(MAX_WINDOW);
@@ -356,15 +369,18 @@ impl MessageListState {
                 let inserted_messages = newest_first(&appended);
                 let mut patch_indices = Vec::new();
 
+                // Track which messages are new (for entrance animations)
                 for msg in &appended {
                     if !inner.message_ids_index.contains_key(&msg.id) {
                         inner.new_messages.insert(msg.id);
                     }
                 }
 
+                // Compute positions for the new (appended) messages only
                 compute_flight_positions(&mut appended, None);
                 inner.messages.extend(appended);
 
+                // Recompute only the boundary: last existing + first appended
                 if old_count > 0 && inner.messages.len() > old_count {
                     let boundary_start = old_count.saturating_sub(1);
                     let boundary_end = (old_count + 1).min(inner.messages.len());
@@ -378,6 +394,7 @@ impl MessageListState {
                     patch_indices.extend(boundary_start..boundary_end);
                 }
 
+                // Evict older messages from the front if the window exceeds the cap
                 let evict_count = inner.messages.len().saturating_sub(MAX_WINDOW);
                 if evict_count > 0 {
                     inner.messages.drain(0..evict_count);
@@ -399,6 +416,7 @@ impl MessageListState {
                     }
                 }
 
+                // Shift or invalidate the unread index after front eviction
                 inner.first_unread_index = inner
                     .first_unread_index
                     .and_then(|i| i.checked_sub(evict_count));
