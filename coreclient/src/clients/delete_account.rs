@@ -114,10 +114,7 @@ impl CoreUser {
 
     async fn try_delete_all_usernames(&self, api_client: &ApiClient) -> anyhow::Result<()> {
         let usernames = self.usernames().await?;
-        info!(
-            num_usernames = usernames.len(),
-            "Deleting all usernames"
-        );
+        info!(num_usernames = usernames.len(), "Deleting all usernames");
 
         let records = UsernameRecord::load_all(self.pool()).await?;
         let domain = self.user_id().domain();

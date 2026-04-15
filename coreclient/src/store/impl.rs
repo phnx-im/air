@@ -5,7 +5,7 @@
 use std::{collections::HashSet, path::Path, sync::Arc};
 
 use aircommon::{
-    identifiers::{AttachmentId, MimiId, Username, UsernameHash, UserId},
+    identifiers::{AttachmentId, MimiId, UserId, Username, UsernameHash},
     messages::client_as_out::UsernameDeleteResponse,
     time::TimeStamp,
 };
@@ -26,10 +26,10 @@ use crate::{
         safety_code::SafetyCode,
         user_settings::UserSettingRecord,
     },
-    contacts::{ContactType, UsernameContact, PartialContact, TargetedMessageContact},
+    contacts::{ContactType, PartialContact, TargetedMessageContact, UsernameContact},
     store::UserSetting,
-    usernames::UsernameRecord,
     user_profiles::UserProfile,
+    usernames::UsernameRecord,
     utils::connection_ext::StoreExt,
 };
 
@@ -78,10 +78,7 @@ impl Store for CoreUser {
         Ok(())
     }
 
-    async fn check_username_exists(
-        &self,
-        username: Username,
-    ) -> StoreResult<Option<UsernameHash>> {
+    async fn check_username_exists(&self, username: Username) -> StoreResult<Option<UsernameHash>> {
         let hash = spawn_blocking(move || username.calculate_hash()).await??;
         let username_exists = self.api_client()?.as_check_username_exists(hash).await?;
         Ok(username_exists.then_some(hash))
@@ -95,17 +92,11 @@ impl Store for CoreUser {
         Ok(UsernameRecord::load_all(self.pool()).await?)
     }
 
-    async fn add_username(
-        &self,
-        username: Username,
-    ) -> StoreResult<Option<UsernameRecord>> {
+    async fn add_username(&self, username: Username) -> StoreResult<Option<UsernameRecord>> {
         self.add_username(username).await
     }
 
-    async fn remove_username(
-        &self,
-        username: &Username,
-    ) -> StoreResult<UsernameDeleteResponse> {
+    async fn remove_username(&self, username: &Username) -> StoreResult<UsernameDeleteResponse> {
         self.remove_username(username).await
     }
 

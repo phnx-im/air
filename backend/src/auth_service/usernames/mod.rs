@@ -102,11 +102,11 @@ impl AuthService {
         }
 
         let expiration_data = ExpirationData::new(USERNAME_VALIDITY_PERIOD);
-        match UsernameRecord::update_expiration_data(&self.db_pool, &hash, expiration_data)
-            .await?
-        {
+        match UsernameRecord::update_expiration_data(&self.db_pool, &hash, expiration_data).await? {
             UpdateExpirationDataResult::Updated => Ok(()),
-            UpdateExpirationDataResult::Deleted => Err(RefreshUsernameError::UsernameAlreadyExpired),
+            UpdateExpirationDataResult::Deleted => {
+                Err(RefreshUsernameError::UsernameAlreadyExpired)
+            }
             UpdateExpirationDataResult::NotFound => Err(RefreshUsernameError::UsernameNotFound),
         }
     }

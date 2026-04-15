@@ -5,7 +5,7 @@
 use std::sync::Arc;
 use std::{collections::HashSet, path::Path};
 
-use aircommon::identifiers::{AttachmentId, MimiId, Username, UsernameHash, UserId};
+use aircommon::identifiers::{AttachmentId, MimiId, UserId, Username, UsernameHash};
 use aircommon::messages::client_as_out::UsernameDeleteResponse;
 use aircommon::time::TimeStamp;
 use mimi_content::MimiContent;
@@ -18,9 +18,9 @@ use crate::{
     ChatId, ChatMessage, Contact, InviteUsersError, MessageDraft, MessageId,
     ProvisionAttachmentError, UploadTaskError,
     clients::{attachment::progress::AttachmentProgress, safety_code::SafetyCode},
-    contacts::{ContactType, UsernameContact, TargetedMessageContact},
-    usernames::UsernameRecord,
+    contacts::{ContactType, TargetedMessageContact, UsernameContact},
     user_profiles::UserProfile,
+    usernames::UsernameRecord,
 };
 pub use notification::{StoreEntityId, StoreNotification, StoreOperation};
 pub(crate) use notification::{StoreNotificationsSender, StoreNotifier};
@@ -68,24 +68,15 @@ pub trait Store {
     /// requires computation of a username hash.
     ///
     /// Returns the computed hash of the username if it exists, otherwise `None`.
-    async fn check_username_exists(
-        &self,
-        username: Username,
-    ) -> StoreResult<Option<UsernameHash>>;
+    async fn check_username_exists(&self, username: Username) -> StoreResult<Option<UsernameHash>>;
 
     async fn usernames(&self) -> StoreResult<Vec<Username>>;
 
     async fn username_records(&self) -> StoreResult<Vec<UsernameRecord>>;
 
-    async fn add_username(
-        &self,
-        username: Username,
-    ) -> StoreResult<Option<UsernameRecord>>;
+    async fn add_username(&self, username: Username) -> StoreResult<Option<UsernameRecord>>;
 
-    async fn remove_username(
-        &self,
-        username: &Username,
-    ) -> StoreResult<UsernameDeleteResponse>;
+    async fn remove_username(&self, username: &Username) -> StoreResult<UsernameDeleteResponse>;
 
     // chats
 

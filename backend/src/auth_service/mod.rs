@@ -27,8 +27,8 @@ mod credentials;
 pub mod grpc;
 mod invitation_code_record;
 pub mod privacy_pass;
-mod usernames;
 pub mod user_record;
+mod usernames;
 
 #[derive(Debug, Clone)]
 pub struct AuthService {

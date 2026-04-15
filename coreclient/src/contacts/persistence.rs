@@ -4,7 +4,7 @@
 
 use aircommon::{
     crypto::aead::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
-    identifiers::{Fqdn, Username, UserId},
+    identifiers::{Fqdn, UserId, Username},
     messages::FriendshipToken,
 };
 use chrono::Utc;

@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 pub(crate) use aircommon::identifiers::UsernameHash;
-use aircommon::identifiers::{Username, UserId};
+use aircommon::identifiers::{UserId, Username};
 pub(crate) use aircoreclient::InviteUsersError;
 use aircoreclient::{Asset, ChatId, ContactType, PartialContact, clients::CoreUser, store::Store};
 use anyhow::ensure;
@@ -29,7 +29,7 @@ use crate::{
 use super::{
     navigation_cubit::{NavigationCubitBase, NavigationState},
     notifications::NotificationContent,
-    types::{UiUsername, UiUserId},
+    types::{UiUserId, UiUsername},
     user::User,
 };
 
@@ -359,19 +359,12 @@ impl UserCubitBase {
 
     pub async fn remove_username(&self, username: UiUsername) -> anyhow::Result<()> {
         let username = Username::new(username.plaintext)?;
-        self.context
-            .core_user
-            .remove_username(&username)
-            .await?;
+        self.context.core_user.remove_username(&username).await?;
 
         // remove username from UI state
         self.core.state_tx().send_if_modified(|state| {
             let inner = Arc::make_mut(&mut state.inner);
-            let Some(idx) = inner
-                .usernames
-                .iter()
-                .position(|u| u == &username)
-            else {
+            let Some(idx) = inner.usernames.iter().position(|u| u == &username) else {
                 error!("username is not found");
                 return false;
             };

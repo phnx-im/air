@@ -13,7 +13,7 @@ use aircommon::{
         keys::{ClientSigningKey, UsernameSigningKey},
     },
     crypto::{indexed_aead::keys::UserProfileKeyIndex, signatures::signable::Signable},
-    identifiers::{Username, UsernameHash, UserId},
+    identifiers::{UserId, Username, UsernameHash},
     messages::{
         client_as::{
             BatchedTokenKeyResponse, ConnectionOfferMessage, SerializedToken,

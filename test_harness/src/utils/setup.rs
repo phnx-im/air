@@ -12,7 +12,7 @@ use std::{
 use airbackend::settings::RateLimitsSettings;
 use aircommon::{
     OpenMlsRand, RustCrypto,
-    identifiers::{Fqdn, MimiId, Username, UserId},
+    identifiers::{Fqdn, MimiId, UserId, Username},
 };
 use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, store::Store, *};
 use airserver::network_provider::MockNetworkProvider;

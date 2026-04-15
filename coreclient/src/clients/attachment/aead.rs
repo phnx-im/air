@@ -2,7 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::crypto::aead::{Ciphertext, AeadDecryptable, AeadEncryptable, keys::AttachmentEarKey};
+use aircommon::crypto::aead::{
+    AeadDecryptable, AeadEncryptable, Ciphertext, keys::AttachmentEarKey,
+};
 use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
 
 use super::AttachmentBytes;

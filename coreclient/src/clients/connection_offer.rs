@@ -361,7 +361,7 @@ mod tests {
     use aircommon::{
         credentials::test_utils::create_test_credentials,
         crypto::signatures::private_keys::SignatureVerificationError,
-        identifiers::{Username, UserId},
+        identifiers::{UserId, Username},
         messages::connection_package::ConnectionPackageHash,
     };
     use tls_codec::{DeserializeBytes as _, Serialize};

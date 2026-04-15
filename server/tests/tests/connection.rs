@@ -267,7 +267,10 @@ async fn connection_request_has_server_timestamp() {
     // Bob fetches and processes the connection request
     let test_bob = setup.get_user_mut(&bob);
     let bob_user = &mut test_bob.user;
-    let (mut stream, responder) = bob_user.listen_username(&bob_username_record).await.unwrap();
+    let (mut stream, responder) = bob_user
+        .listen_username(&bob_username_record)
+        .await
+        .unwrap();
 
     // Process handle queue messages, extracting the server timestamp before processing
     let mut bob_chat_id = None;

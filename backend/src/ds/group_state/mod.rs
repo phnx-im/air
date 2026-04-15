@@ -9,7 +9,7 @@ use aircommon::{
     credentials::VerifiableClientCredential,
     crypto::{
         aead::{
-            Ciphertext, AeadDecryptable, AeadEncryptable,
+            AeadDecryptable, AeadEncryptable, Ciphertext,
             keys::{EncryptedUserProfileKey, GroupStateEarKey},
         },
         errors::{DecryptionError, EncryptionError},

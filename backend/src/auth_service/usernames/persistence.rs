@@ -26,8 +26,7 @@ impl UsernameRecord {
     pub(crate) async fn store(&self, pool: &PgPool) -> sqlx::Result<bool> {
         let mut txn = pool.begin().await?;
 
-        if let Some(record) =
-            Self::load_expiration_data(txn.as_mut(), &self.username_hash).await?
+        if let Some(record) = Self::load_expiration_data(txn.as_mut(), &self.username_hash).await?
             && record.validate()
         {
             // A record already exists and is not expired
@@ -263,8 +262,7 @@ mod test {
         assert!(deleted, "Record should be deleted successfully");
 
         // Verify it's gone
-        let loaded_after_delete =
-            UsernameRecord::load_verifying_key(&pool, &username_hash).await?;
+        let loaded_after_delete = UsernameRecord::load_verifying_key(&pool, &username_hash).await?;
         assert_eq!(
             loaded_after_delete, None,
             "Record should not exist after deletion"
@@ -309,10 +307,9 @@ mod test {
         );
 
         // Verify the expiration data has been updated
-        let loaded_expiration_data =
-            UsernameRecord::load_expiration_data(&pool, &username_hash)
-                .await?
-                .unwrap();
+        let loaded_expiration_data = UsernameRecord::load_expiration_data(&pool, &username_hash)
+            .await?
+            .unwrap();
         assert_eq!(
             loaded_expiration_data, updated_expiration_data,
             "Expiration data should be updated"

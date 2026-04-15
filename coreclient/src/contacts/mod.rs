@@ -10,7 +10,7 @@ use aircommon::{
         aead::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
         indexed_aead::keys::UserProfileKey,
     },
-    identifiers::{Username, UserId},
+    identifiers::{UserId, Username},
     messages::{FriendshipToken, client_as::ConnectionOfferHash},
 };
 use openmls::{prelude::KeyPackage, versions::ProtocolVersion};
@@ -168,9 +168,10 @@ pub enum PartialContactType {
 impl std::fmt::Debug for PartialContactType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PartialContactType::Handle(username) => {
-                f.debug_tuple("Handle").field(&username.plaintext()).finish()
-            }
+            PartialContactType::Handle(username) => f
+                .debug_tuple("Handle")
+                .field(&username.plaintext())
+                .finish(),
             PartialContactType::TargetedMessage(user_id) => {
                 f.debug_tuple("TargetedMessage").field(user_id).finish()
             }

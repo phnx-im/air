@@ -7,7 +7,7 @@ use std::fmt::Display;
 use aircommon::{
     codec::{self, PersistenceCodec},
     crypto::aead::keys::IdentityLinkWrapperKey,
-    identifiers::{Fqdn, QualifiedGroupId, Username, UserId},
+    identifiers::{Fqdn, QualifiedGroupId, UserId, Username},
 };
 use airprotos::client::group::{ExternalGroupProfile, GroupData};
 use chrono::{DateTime, Utc};
@@ -291,7 +291,9 @@ pub enum ChatType {
 impl ChatType {
     pub fn unconfirmed_contact(&self) -> Option<PartialContactType> {
         match self {
-            ChatType::HandleConnection(username) => Some(PartialContactType::Handle(username.clone())),
+            ChatType::HandleConnection(username) => {
+                Some(PartialContactType::Handle(username.clone()))
+            }
             ChatType::TargetedMessageConnection(user_id) => {
                 Some(PartialContactType::TargetedMessage(user_id.clone()))
             }

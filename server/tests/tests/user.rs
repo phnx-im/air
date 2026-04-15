@@ -264,7 +264,11 @@ async fn blocked_contact() {
         .await
         .expect("fatal error")
         .expect("non-fatal error");
-    let mut messages = alice_test_user.user.fetch_username_messages().await.unwrap();
+    let mut messages = alice_test_user
+        .user
+        .fetch_username_messages()
+        .await
+        .unwrap();
     assert_eq!(messages.len(), 1);
 
     let res = alice_test_user
@@ -414,10 +418,7 @@ async fn check_username_exists() {
         .unwrap();
     assert!(hash.is_some(), "Alice's username should exist");
 
-    alice_user
-        .remove_username(&alice_username)
-        .await
-        .unwrap();
+    alice_user.remove_username(&alice_username).await.unwrap();
     let hash = alice_user
         .check_username_exists(alice_username.clone())
         .await
@@ -499,7 +500,10 @@ async fn add_contact_and_change_profile() {
     // Add Alice as a contact
     let bob_user = setup.get_user(&bob).user.clone();
     let bob_alice_chat_id = bob_user
-        .add_contact(alice_username_record.username.clone(), alice_username_record.hash)
+        .add_contact(
+            alice_username_record.username.clone(),
+            alice_username_record.hash,
+        )
         .await
         .expect("fatal error")
         .expect("non-fatal error");

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::crypto::{
-    aead::{Ciphertext, AeadDecryptable, AeadEncryptable},
+    aead::{AeadDecryptable, AeadEncryptable, Ciphertext},
     errors::{DecryptionError, EncryptionError},
 };
 
@@ -51,7 +51,9 @@ impl<KT, CT> IndexedCiphertext<KT, CT> {
 /// This trait allows payloads to be encrypted with an indexed key. The
 /// resulting [`IndexedCiphertext`] contains the index of the key used to
 /// encrypt it.
-pub trait IndexEncryptable<KT: IndexedKeyType, CT>: AeadEncryptable<IndexedAeadKey<KT>, CT> {
+pub trait IndexEncryptable<KT: IndexedKeyType, CT>:
+    AeadEncryptable<IndexedAeadKey<KT>, CT>
+{
     fn encrypt_with_index(
         &self,
         key: &IndexedAeadKey<KT>,
@@ -68,7 +70,9 @@ pub trait IndexEncryptable<KT: IndexedKeyType, CT>: AeadEncryptable<IndexedAeadK
 /// This trait allows payloads to be decrypted with an indexed key. Decryption
 /// will fail if the key index in the ciphertext does not match the key index of
 /// the provided key.
-pub trait IndexDecryptable<KT: IndexedKeyType, CT>: AeadDecryptable<IndexedAeadKey<KT>, CT> {
+pub trait IndexDecryptable<KT: IndexedKeyType, CT>:
+    AeadDecryptable<IndexedAeadKey<KT>, CT>
+{
     fn decrypt_with_index(
         key: &IndexedAeadKey<KT>,
         ciphertext: &IndexedCiphertext<KT, CT>,

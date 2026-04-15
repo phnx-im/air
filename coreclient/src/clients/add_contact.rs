@@ -11,7 +11,7 @@ use aircommon::{
         hpke::HpkeEncryptable,
         indexed_aead::keys::UserProfileKey,
     },
-    identifiers::{QsReference, Username, UsernameHash, UserId},
+    identifiers::{QsReference, UserId, Username, UsernameHash},
     messages::{
         client_as::{ConnectionOfferMessage, EncryptedConnectionOffer},
         client_ds_out::{CreateGroupParamsOut, TargetedMessageParamsOut},
@@ -32,7 +32,7 @@ use crate::{
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
         targeted_message::TargetedMessageContent,
     },
-    contacts::{UsernameContact, TargetedMessageContact},
+    contacts::{TargetedMessageContact, UsernameContact},
     groups::{Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider},
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
     store::{Store, StoreNotifier},
@@ -64,7 +64,10 @@ impl CoreUser {
 
         // Phase 0: Perform sanity checks
         // Check if a connection request is already pending
-        if UsernameContact::load(self.pool(), &username).await?.is_some() {
+        if UsernameContact::load(self.pool(), &username)
+            .await?
+            .is_some()
+        {
             return Ok(Err(AddUsernameContactError::DuplicateRequest));
         }
         // Check if the target username is one of our own usernames

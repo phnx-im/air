@@ -10,7 +10,7 @@ use aircommon::{
     assert_matches,
     credentials::keys::UsernameSigningKey,
     crypto::signatures::keys::QsClientSigningKey,
-    identifiers::{QsClientId, Username, UserId},
+    identifiers::{QsClientId, UserId, Username},
     mls_group_config::MAX_PAST_EPOCHS,
 };
 use aircoreclient::{

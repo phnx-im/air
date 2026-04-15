@@ -13,9 +13,9 @@ use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
 pub use upload::{ProvisionAttachmentError, UploadTaskError};
 use url::Url;
 
+mod aead;
 mod content;
 mod download;
-mod aead;
 pub(crate) mod persistence;
 mod process;
 pub(crate) mod progress;

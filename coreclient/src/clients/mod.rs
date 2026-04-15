@@ -48,7 +48,7 @@ use url::Url;
 use crate::{
     Asset, UsernameRecord,
     clients::event_loop::{EventLoop, EventLoopSender},
-    contacts::{UsernameContact, TargetedMessageContact},
+    contacts::{TargetedMessageContact, UsernameContact},
     groups::Group,
     job::{Job, JobContext, JobError},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
@@ -642,7 +642,9 @@ impl CoreUser {
                         "Username {} not found on the server, removing locally",
                         &username_record.username.plaintext()
                     );
-                    let _ = self.remove_username_locally(&username_record.username).await;
+                    let _ = self
+                        .remove_username_locally(&username_record.username)
+                        .await;
                 }
                 Err(error.into())
             }

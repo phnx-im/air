@@ -604,8 +604,7 @@ mod tests {
         };
         record.store(&pool).await?;
 
-        let expiration_data =
-            AuthService::load_username_expiration_data_impl(&pool, &hash).await?;
+        let expiration_data = AuthService::load_username_expiration_data_impl(&pool, &hash).await?;
         assert_eq!(expiration_data.as_ref(), Some(&record.expiration_data));
 
         Ok(())
@@ -629,8 +628,7 @@ mod tests {
             .await?
             .expect("username should exist");
 
-        let expiration_data =
-            AuthService::load_username_expiration_data_impl(&pool, &hash).await?;
+        let expiration_data = AuthService::load_username_expiration_data_impl(&pool, &hash).await?;
         assert_eq!(expiration_data, None);
 
         // Check that the record is deleted

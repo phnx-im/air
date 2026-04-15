@@ -9,7 +9,7 @@ use crate::{
     crypto::{
         RawKey,
         aead::{
-            AEAD_KEY_SIZE, AeadEncryptable, AeadDecryptable, AeadKey,
+            AEAD_KEY_SIZE, AeadDecryptable, AeadEncryptable, AeadKey,
             keys::{EncryptedUserProfileKey, EncryptedUserProfileKeyCtype, IdentityLinkWrapperKey},
         },
         errors::{DecryptionError, EncryptionError, RandomnessError},

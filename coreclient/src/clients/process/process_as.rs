@@ -8,7 +8,7 @@ use aircommon::{
         aead::keys::FriendshipPackageEarKey, hpke::HpkeDecryptable,
         indexed_aead::keys::UserProfileKey,
     },
-    identifiers::{QualifiedGroupId, Username, UserId},
+    identifiers::{QualifiedGroupId, UserId, Username},
     messages::{
         client_as::{ConnectionOfferHash, ConnectionOfferMessage},
         connection_package::{ConnectionPackage, ConnectionPackageHash},
@@ -382,7 +382,6 @@ impl CoreUser {
         _friendship_package: FriendshipPackage,
         username_connection_info: Option<&UsernameConnectionInfo>,
     ) -> anyhow::Result<(Chat, PartialContact)> {
-
         let display_name = Self::user_profile_internal(connection, &sender_user_id)
             .await
             .display_name;

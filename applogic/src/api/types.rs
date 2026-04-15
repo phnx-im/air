@@ -13,8 +13,8 @@ use std::fmt;
 pub(crate) use aircommon::identifiers::Username;
 pub(crate) use aircoreclient::{AddUsernameContactError, ChatId, MessageId};
 
-pub(crate) use aircommon::identifiers::UsernameValidationError;
 use aircommon::identifiers::UserId;
+pub(crate) use aircommon::identifiers::UsernameValidationError;
 use aircoreclient::{
     Asset, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact, ContentMessage, DisplayName,
     ErrorMessage, EventMessage, InactiveChat, Message, MessageDraft, SystemMessage,
@@ -277,9 +277,7 @@ impl UiChatType {
     #[frb(ignore)]
     pub(crate) async fn load_from_chat_type(store: &impl Store, chat_type: ChatType) -> Self {
         match chat_type {
-            ChatType::HandleConnection(handle) => {
-                Self::HandleConnection(UiUsername::from(handle))
-            }
+            ChatType::HandleConnection(handle) => Self::HandleConnection(UiUsername::from(handle)),
             ChatType::Connection(user_id) => {
                 let user_profile = store.user_profile(&user_id).await;
                 let profile = UiUserProfile::from_profile(user_profile);
