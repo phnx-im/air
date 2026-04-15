@@ -12,7 +12,7 @@ use airprotos::{
         v1::{
             ConnectRequest, ConnectResponse, ConnectionOfferMessage,
             EnqueueConnectionOfferResponse, FetchConnectionPackageResponse, connect_request,
-            connect_response, handle_queue_message,
+            connect_response, username_queue_message,
         },
     },
     validation::{MissingFieldError, MissingFieldExt},
@@ -237,7 +237,7 @@ impl ConnectUsernameProtocol for AuthService {
         hash: &UsernameHash,
         connection_offer: ConnectionOfferMessage,
     ) -> Result<(), UsernameQueueError> {
-        let payload = handle_queue_message::Payload::ConnectionOffer(connection_offer);
+        let payload = username_queue_message::Payload::ConnectionOffer(connection_offer);
         self.username_queues.enqueue(hash, payload).await?;
         Ok(())
     }

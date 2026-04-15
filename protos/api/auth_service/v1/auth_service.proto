@@ -26,50 +26,50 @@ service AuthService {
 
   rpc ReportSpam(ReportSpamRequest) returns (ReportSpamResponse);
 
-  // User Handles API
+  // Usernames API
 
-  // Checks whether the handle with the given hash exists.
-  rpc CheckHandleExists(CheckHandleExistsRequest) returns (CheckHandleExistsResponse);
+  // Checks whether the username with the given hash exists.
+  rpc CheckHandleExists(CheckUsernameExistsRequest) returns (CheckUsernameExistsResponse);
 
-  // Creates a new handle
+  // Creates a new username
   //
-  // A new handle will be created with the provided verifying key and hash. The
+  // A new username will be created with the provided verifying key and hash. The
   // provided plaintext is never stored and is only used for validation and hash
-  // verification. An expiration time will be set for the handle.
+  // verification. An expiration time will be set for the username.
   //
-  // If a handle with the same hash already exists, and is not expired, the
+  // If a username with the same hash already exists, and is not expired, the
   // request will be rejected with `ALREADY_EXISTS`.
-  rpc CreateHandle(CreateHandleRequest) returns (CreateHandleResponse);
+  rpc CreateHandle(CreateUsernameRequest) returns (CreateUsernameResponse);
 
-  // Deletes an existing handle
+  // Deletes an existing username
   //
-  // The payload must be signed by the handle's verifying key.
-  rpc DeleteHandle(DeleteHandleRequest) returns (DeleteHandleResponse);
+  // The payload must be signed by the username's verifying key.
+  rpc DeleteHandle(DeleteUsernameRequest) returns (DeleteUsernameResponse);
 
-  // Refreshes an existing handle
+  // Refreshes an existing username
   //
-  // The payload must be signed by the handle's verifying key. The handle's
-  // expiration time will be updated. If the handle is expired or does not exist,
+  // The payload must be signed by the username's verifying key. The username's
+  // expiration time will be updated. If the username is expired or does not exist,
   // the request will be rejected with `NOT_FOUND`.
-  rpc RefreshHandle(RefreshHandleRequest) returns (RefreshHandleResponse);
+  rpc RefreshHandle(RefreshUsernameRequest) returns (RefreshUsernameResponse);
 
   // User Connection API
 
   // A connection establishment protocol between a user and a user
-  // identified by a handle.
+  // identified by a username.
   //
-  // 1. User sends a `fetch` request for a specific handle hash.
-  // 2. Server responds with a connection package for the handle hash.
+  // 1. User sends a `fetch` request for a specific username hash.
+  // 2. Server responds with a connection package for the username hash.
   // 3. User sends an `enqueue` request with an encrypted connection offer.
   // 4. Server responds with an empty acknowledgement.
   rpc ConnectHandle(stream ConnectRequest) returns (stream ConnectResponse);
 
-  // Listens for incoming messages for a specific handle.
+  // Listens for incoming messages for a specific username.
   //
   // Protocol:
   //
-  // 1. User sends an `init` request for a specific handle hash they own.
-  // 2. Server streams all queued messages for this handle hash.
+  // 1. User sends an `init` request for a specific username hash they own.
+  // 2. Server streams all queued messages for this username hash.
   // 3. After there are no messages left, the server sends an empty message.
   //    The stream is kept open.
   // 4. Use can send an `ack` request at any time to acknowledge a message
@@ -79,7 +79,7 @@ service AuthService {
   //
   // Note: this will replace the old `Listen` method. Then it will be renamed
   // to `Listen`.
-  rpc ListenHandle(stream ListenHandleRequest) returns (stream ListenHandleResponse);
+  rpc ListenHandle(stream ListenUsernameRequest) returns (stream ListenUsernameResponse);
 }
 
 // common
@@ -106,8 +106,8 @@ message ConnectionPackagePayload {
   AirProtocolVersion protocol_version = 1;
   ConnectionEncryptionKey encryption_key = 2;
   common.v1.ExpirationData lifetime = 3;
-  HandleVerifyingKey verifying_key = 5;
-  UserHandleHash user_handle_hash = 6;
+  UsernameVerifyingKey verifying_key = 5;
+  UsernameHash username_hash = 6;
   optional bool is_last_resort = 7;
 }
 
@@ -201,7 +201,7 @@ message PublishConnectionPackagesRequest {
 
 message PublishConnectionPackagesPayload {
   common.v1.ClientMetadata client_metadata = 4;
-  UserHandleHash hash = 3;
+  UsernameHash hash = 3;
   repeated ConnectionPackage connection_packages = 2;
 }
 
@@ -342,69 +342,69 @@ message ReportSpamPayload {
 
 message ReportSpamResponse {}
 
-// User Handles API common messages
+// Usernames API common messages
 
-message UserHandleHash {
+message UsernameHash {
   bytes bytes = 1;
 }
 
-message HandleSignature {
+message UsernameSignature {
   common.v1.Signature signature = 1;
 }
 
-// create handle
+// create username
 
-message CreateHandleRequest {
-  CreateHandlePayload payload = 1;
-  HandleSignature signature = 2;
+message CreateUsernameRequest {
+  CreateUsernamePayload payload = 1;
+  UsernameSignature signature = 2;
 }
 
-message CreateHandlePayload {
+message CreateUsernamePayload {
   common.v1.ClientMetadata client_metadata = 4;
-  HandleVerifyingKey verifying_key = 1;
+  UsernameVerifyingKey verifying_key = 1;
   string plaintext = 2;
   // Hash of the plaintext
-  UserHandleHash hash = 3;
+  UsernameHash hash = 3;
   optional bytes token = 5;
 }
 
-message HandleVerifyingKey {
+message UsernameVerifyingKey {
   bytes bytes = 1;
 }
 
-message CreateHandleResponse {}
+message CreateUsernameResponse {}
 
-// delete handle
+// delete username
 
-message DeleteHandleRequest {
-  DeleteHandlePayload payload = 1;
-  HandleSignature signature = 2;
+message DeleteUsernameRequest {
+  DeleteUsernamePayload payload = 1;
+  UsernameSignature signature = 2;
 }
 
-message DeleteHandlePayload {
+message DeleteUsernamePayload {
   common.v1.ClientMetadata client_metadata = 2;
-  UserHandleHash hash = 1;
+  UsernameHash hash = 1;
   optional bytes token_request = 3;
 }
 
-message DeleteHandleResponse {
+message DeleteUsernameResponse {
   optional bytes token_response = 1;
 }
 
-// refresh handle
+// refresh username
 
-message RefreshHandleRequest {
-  RefreshHandlePayload payload = 1;
-  HandleSignature signature = 2;
+message RefreshUsernameRequest {
+  RefreshUsernamePayload payload = 1;
+  UsernameSignature signature = 2;
 }
 
-message RefreshHandlePayload {
+message RefreshUsernamePayload {
   common.v1.ClientMetadata client_metadata = 2;
-  UserHandleHash hash = 1;
+  UsernameHash hash = 1;
   optional bytes token = 3;
 }
 
-message RefreshHandleResponse {}
+message RefreshUsernameResponse {}
 
 // connect
 
@@ -417,7 +417,7 @@ message ConnectRequest {
 
 message FetchConnectionPackageStep {
   common.v1.ClientMetadata client_metadata = 2;
-  UserHandleHash hash = 1;
+  UsernameHash hash = 1;
 }
 
 message FetchConnectionPackageResponse {
@@ -442,37 +442,37 @@ message ConnectResponse {
 
 message EnqueueConnectionOfferResponse {}
 
-// listen handle
+// listen username
 
-message ListenHandleRequest {
+message ListenUsernameRequest {
   oneof request {
-    InitListenHandleRequest init = 1;
-    AckListenHandleRequest ack = 2;
+    InitListenUsernameRequest init = 1;
+    AckListenUsernameRequest ack = 2;
   }
 }
 
-message InitListenHandleRequest {
-  InitListenHandlePayload payload = 1;
-  HandleSignature signature = 2;
+message InitListenUsernameRequest {
+  InitListenUsernamePayload payload = 1;
+  UsernameSignature signature = 2;
 }
 
-message InitListenHandlePayload {
+message InitListenUsernamePayload {
   common.v1.ClientMetadata client_metadata = 2;
-  UserHandleHash hash = 1;
+  UsernameHash hash = 1;
 }
 
-message AckListenHandleRequest {
+message AckListenUsernameRequest {
   common.v1.Uuid message_id = 1;
 }
 
-message ListenHandleResponse {
+message ListenUsernameResponse {
   // Optional message
   //
   // When not present, there are currently no messages in the queue.
-  HandleQueueMessage message = 1;
+  UsernameQueueMessage message = 1;
 }
 
-message HandleQueueMessage {
+message UsernameQueueMessage {
   common.v1.Uuid message_id = 1;
   oneof payload {
     ConnectionOfferMessage connection_offer = 3;
@@ -481,11 +481,11 @@ message HandleQueueMessage {
   common.v1.Timestamp created_at = 4;
 }
 
-message CheckHandleExistsRequest {
+message CheckUsernameExistsRequest {
   common.v1.ClientMetadata client_metadata = 2;
-  UserHandleHash hash = 1;
+  UsernameHash hash = 1;
 }
 
-message CheckHandleExistsResponse {
+message CheckUsernameExistsResponse {
   bool exists = 1;
 }

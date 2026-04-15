@@ -28,7 +28,7 @@ use aircommon::{
     identifiers::{ClientConfig, QsClientId, QsReference, QsUserId, UserId},
     messages::{FriendshipToken, QueueMessage, push_token::PushToken},
 };
-pub use airprotos::auth_service::v1::{HandleQueueMessage, handle_queue_message};
+pub use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
 pub use airprotos::queue_service::v1::{QueueEvent, QueueEventPayload, queue_event};
 use anyhow::{Context, Result, anyhow, ensure};
 use chrono::{DateTime, Utc};
@@ -458,7 +458,7 @@ impl CoreUser {
     /// Fetches all messages from all username queues and returns them.
     ///
     /// Used in integration tests
-    pub async fn fetch_username_messages(&self) -> Result<Vec<HandleQueueMessage>> {
+    pub async fn fetch_username_messages(&self) -> Result<Vec<UsernameQueueMessage>> {
         let records = self.username_records().await?;
         let api_client = self.api_client()?;
         let mut messages = Vec::new();
@@ -624,7 +624,7 @@ impl CoreUser {
         username_record: &UsernameRecord,
     ) -> std::result::Result<
         (
-            impl Stream<Item = Option<HandleQueueMessage>> + Send + 'static,
+            impl Stream<Item = Option<UsernameQueueMessage>> + Send + 'static,
             AsListenUsernameResponder,
         ),
         ListenUsernameError,

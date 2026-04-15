@@ -130,13 +130,13 @@ impl GrpcAs {
         })
     }
 
-    async fn process_listen_handle_requests_task(
+    async fn process_listen_username_requests_task(
         queues: UsernameQueues,
-        mut requests: Streaming<ListenHandleRequest>,
+        mut requests: Streaming<ListenUsernameRequest>,
         responses_tx: mpsc::Sender<Status>,
     ) {
         while let Some(request) = requests.next().await {
-            if let Err(error) = Self::process_listen_handle_request(&queues, request).await {
+            if let Err(error) = Self::process_listen_username_request(&queues, request).await {
                 if let Code::Unknown = error.code()
                     && let Some(h2_error) = find_cause::<h2::Error>(&error)
                     && let Some(io_error) = h2_error.get_io()
@@ -153,12 +153,12 @@ impl GrpcAs {
         }
     }
 
-    async fn process_listen_handle_request(
+    async fn process_listen_username_request(
         queues: &UsernameQueues,
-        request: Result<ListenHandleRequest, Status>,
+        request: Result<ListenUsernameRequest, Status>,
     ) -> Result<(), Status> {
         let request = request?;
-        let Some(listen_handle_request::Request::Ack(ack_request)) = request.request else {
+        let Some(listen_username_request::Request::Ack(ack_request)) = request.request else {
             return Err(ListenHandleProtocolViolation::OnlyAckRequestAllowed.into());
         };
         let Some(message_id) = ack_request.message_id else {
@@ -446,21 +446,21 @@ impl auth_service_server::AuthService for GrpcAs {
 
     async fn check_handle_exists(
         &self,
-        request: Request<CheckHandleExistsRequest>,
-    ) -> Result<Response<CheckHandleExistsResponse>, Status> {
+        request: Request<CheckUsernameExistsRequest>,
+    ) -> Result<Response<CheckUsernameExistsResponse>, Status> {
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
         let hash = request.hash.ok_or_missing_field("hash")?.try_into()?;
 
         let exists = self.inner.as_check_username_exists(&hash).await?;
 
-        Ok(Response::new(CheckHandleExistsResponse { exists }))
+        Ok(Response::new(CheckUsernameExistsResponse { exists }))
     }
 
     async fn create_handle(
         &self,
-        request: Request<CreateHandleRequest>,
-    ) -> Result<Response<CreateHandleResponse>, Status> {
+        request: Request<CreateUsernameRequest>,
+    ) -> Result<Response<CreateUsernameResponse>, Status> {
         let request = request.into_inner();
 
         let verifying_key = request
@@ -471,7 +471,7 @@ impl auth_service_server::AuthService for GrpcAs {
             .clone()
             .ok_or_missing_field("verifying_key")?
             .into();
-        let payload = self.verify_request::<_, CreateHandlePayload>(request, &verifying_key)?;
+        let payload = self.verify_request::<_, CreateUsernamePayload>(request, &verifying_key)?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let hash = payload.hash.ok_or_missing_field("hash")?.try_into()?;
@@ -486,17 +486,17 @@ impl auth_service_server::AuthService for GrpcAs {
             .as_create_username(verifying_key, payload.plaintext, hash, token)
             .await?;
 
-        Ok(Response::new(CreateHandleResponse {}))
+        Ok(Response::new(CreateUsernameResponse {}))
     }
 
     async fn delete_handle(
         &self,
-        request: Request<DeleteHandleRequest>,
-    ) -> Result<Response<DeleteHandleResponse>, Status> {
+        request: Request<DeleteUsernameRequest>,
+    ) -> Result<Response<DeleteUsernameResponse>, Status> {
         let request = request.into_inner();
 
         let (hash, payload) = self
-            .verify_username_auth::<_, DeleteHandlePayload>(request)
+            .verify_username_auth::<_, DeleteUsernamePayload>(request)
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
@@ -515,19 +515,19 @@ impl auth_service_server::AuthService for GrpcAs {
             .transpose()
             .map_err(|_| Status::internal("failed to serialize token response"))?;
 
-        Ok(Response::new(DeleteHandleResponse {
+        Ok(Response::new(DeleteUsernameResponse {
             token_response: token_response_bytes,
         }))
     }
 
     async fn refresh_handle(
         &self,
-        request: Request<RefreshHandleRequest>,
-    ) -> Result<Response<RefreshHandleResponse>, Status> {
+        request: Request<RefreshUsernameRequest>,
+    ) -> Result<Response<RefreshUsernameResponse>, Status> {
         let request = request.into_inner();
 
         let (hash, payload) = self
-            .verify_username_auth::<_, RefreshHandlePayload>(request)
+            .verify_username_auth::<_, RefreshUsernamePayload>(request)
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
@@ -539,7 +539,7 @@ impl auth_service_server::AuthService for GrpcAs {
 
         self.inner.as_refresh_username(hash, token).await?;
 
-        Ok(Response::new(RefreshHandleResponse {}))
+        Ok(Response::new(RefreshUsernameResponse {}))
     }
 
     type ConnectHandleStream = BoxStream<'static, Result<ConnectResponse, Status>>;
@@ -562,11 +562,11 @@ impl auth_service_server::AuthService for GrpcAs {
         Ok(Response::new(Box::pin(outgoing)))
     }
 
-    type ListenHandleStream = BoxStream<'static, Result<ListenHandleResponse, Status>>;
+    type ListenHandleStream = BoxStream<'static, Result<ListenUsernameResponse, Status>>;
 
     async fn listen_handle(
         &self,
-        request: Request<Streaming<ListenHandleRequest>>,
+        request: Request<Streaming<ListenUsernameRequest>>,
     ) -> Result<Response<Self::ListenHandleStream>, Status> {
         let mut requests = request.into_inner();
 
@@ -574,7 +574,7 @@ impl auth_service_server::AuthService for GrpcAs {
             .next()
             .await
             .ok_or(ListenHandleProtocolViolation::MissingInitRequest)??;
-        let Some(listen_handle_request::Request::Init(init_request)) = request.request else {
+        let Some(listen_username_request::Request::Init(init_request)) = request.request else {
             return Err(ListenHandleProtocolViolation::MissingInitRequest.into());
         };
 
@@ -585,7 +585,7 @@ impl auth_service_server::AuthService for GrpcAs {
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let (hash, _payload) = self
-            .verify_username_auth::<_, InitListenHandlePayload>(init_request)
+            .verify_username_auth::<_, InitListenUsernamePayload>(init_request)
             .await?;
 
         let messages = self.inner.username_queues.listen(hash).await?;
@@ -594,14 +594,14 @@ impl auth_service_server::AuthService for GrpcAs {
         let (requests_responses_tx, requests_responses_rx) =
             mpsc::channel::<Status>(REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE);
 
-        tokio::spawn(Self::process_listen_handle_requests_task(
+        tokio::spawn(Self::process_listen_username_requests_task(
             self.inner.username_queues.clone(),
             requests,
             requests_responses_tx,
         ));
 
         let responses = select_until_first_ends(
-            messages.map(|message| Ok(ListenHandleResponse { message })),
+            messages.map(|message| Ok(ListenUsernameResponse { message })),
             ReceiverStream::new(requests_responses_rx).map(Err),
         );
 
@@ -667,7 +667,7 @@ impl WithUserId for ReportSpamRequest {
 }
 
 trait WithUsernameHash {
-    fn username_hash_proto(&self) -> Option<UserHandleHash>;
+    fn username_hash_proto(&self) -> Option<UsernameHash>;
 
     fn username_hash(&self) -> Result<identifiers::UsernameHash, Status> {
         Ok(self
@@ -677,26 +677,26 @@ trait WithUsernameHash {
     }
 }
 
-impl WithUsernameHash for CreateHandleRequest {
-    fn username_hash_proto(&self) -> Option<UserHandleHash> {
+impl WithUsernameHash for CreateUsernameRequest {
+    fn username_hash_proto(&self) -> Option<UsernameHash> {
         self.payload.as_ref()?.hash.clone()
     }
 }
 
-impl WithUsernameHash for DeleteHandleRequest {
-    fn username_hash_proto(&self) -> Option<UserHandleHash> {
+impl WithUsernameHash for DeleteUsernameRequest {
+    fn username_hash_proto(&self) -> Option<UsernameHash> {
         self.payload.as_ref()?.hash.clone()
     }
 }
 
-impl WithUsernameHash for RefreshHandleRequest {
-    fn username_hash_proto(&self) -> Option<UserHandleHash> {
+impl WithUsernameHash for RefreshUsernameRequest {
+    fn username_hash_proto(&self) -> Option<UsernameHash> {
         self.payload.as_ref()?.hash.clone()
     }
 }
 
-impl WithUsernameHash for InitListenHandleRequest {
-    fn username_hash_proto(&self) -> Option<UserHandleHash> {
+impl WithUsernameHash for InitListenUsernameRequest {
+    fn username_hash_proto(&self) -> Option<UsernameHash> {
         self.payload.as_ref()?.hash.clone()
     }
 }

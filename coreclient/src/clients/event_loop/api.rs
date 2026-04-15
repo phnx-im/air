@@ -8,7 +8,7 @@
 
 use airapiclient::qs_api::QsListenResponder;
 use aircommon::identifiers::Username;
-use airprotos::{auth_service::v1::HandleQueueMessage, queue_service::v1::QueueEvent};
+use airprotos::{auth_service::v1::UsernameQueueMessage, queue_service::v1::QueueEvent};
 
 use crate::{
     ChatId,
@@ -26,10 +26,9 @@ impl CoreUser {
     pub async fn process_username_queue_message(
         &self,
         username: Username,
-        handle_queue_message: HandleQueueMessage,
+        queue_message: UsernameQueueMessage,
     ) -> anyhow::Result<ChatId> {
-        let (message, response) =
-            RemoteQueueEvent::username_queue_message(username, handle_queue_message);
+        let (message, response) = RemoteQueueEvent::username_queue_message(username, queue_message);
         self.inner
             .event_loop_sender
             .send_remote_queue_event(message)

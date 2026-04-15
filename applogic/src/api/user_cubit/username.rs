@@ -7,7 +7,7 @@ use std::{collections::HashMap, convert::identity, sync::Arc};
 use aircommon::identifiers::Username;
 use aircoreclient::{
     UsernameRecord,
-    clients::{AsListenUsernameResponder, HandleQueueMessage},
+    clients::{AsListenUsernameResponder, UsernameQueueMessage},
     store::Store,
 };
 use anyhow::{Context, bail};
@@ -72,7 +72,7 @@ impl UsernameContext {
         self,
         cancel: CancellationToken,
         background_tasks: &UsernameBackgroundTasks,
-    ) -> BackgroundStreamTask<Self, HandleQueueMessage> {
+    ) -> BackgroundStreamTask<Self, UsernameQueueMessage> {
         let username = self.username_record.username.clone();
         let (prefix, suffix_len) = username
             .plaintext()
@@ -102,7 +102,7 @@ impl UsernameContext {
     }
 }
 
-impl BackgroundStreamContext<HandleQueueMessage> for UsernameContext {
+impl BackgroundStreamContext<UsernameQueueMessage> for UsernameContext {
     async fn in_foreground(&self) {
         let _ = self
             .cubit_context
@@ -128,7 +128,7 @@ impl BackgroundStreamContext<HandleQueueMessage> for UsernameContext {
 
     async fn create_stream(
         &mut self,
-    ) -> anyhow::Result<impl Stream<Item = HandleQueueMessage> + 'static> {
+    ) -> anyhow::Result<impl Stream<Item = UsernameQueueMessage> + 'static> {
         let (stream, responder) = match self
             .cubit_context
             .core_user
@@ -163,7 +163,7 @@ impl BackgroundStreamContext<HandleQueueMessage> for UsernameContext {
         Ok(stream.filter_map(identity))
     }
 
-    async fn handle_event(&mut self, message: HandleQueueMessage) -> bool {
+    async fn handle_event(&mut self, message: UsernameQueueMessage) -> bool {
         let message_id = message.message_id.map(From::from);
         match self
             .cubit_context

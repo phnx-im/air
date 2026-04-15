@@ -29,14 +29,14 @@ use aircommon::{
 };
 use airprotos::{
     auth_service::v1::{
-        AckListenHandleRequest, AsCredentialsRequest, CheckHandleExistsRequest,
-        CheckInvitationCodeRequest, ConnectRequest, ConnectResponse, CreateHandlePayload,
-        DeleteHandlePayload, DeleteUserPayload, EnqueueConnectionOfferStep,
-        FetchConnectionPackageStep, GetUserProfileRequest, HandleQueueMessage,
-        InitListenHandlePayload, InvitationCode, IssueTokensPayload, ListenHandleRequest,
-        MergeUserProfilePayload, PublishConnectionPackagesPayload, RefreshHandlePayload,
-        RegisterUserRequest, ReportSpamPayload, StageUserProfilePayload, connect_request,
-        connect_response, listen_handle_request,
+        AckListenUsernameRequest, AsCredentialsRequest, CheckInvitationCodeRequest,
+        CheckUsernameExistsRequest, ConnectRequest, ConnectResponse, CreateUsernamePayload,
+        DeleteUserPayload, DeleteUsernamePayload, EnqueueConnectionOfferStep,
+        FetchConnectionPackageStep, GetUserProfileRequest, InitListenUsernamePayload,
+        InvitationCode, IssueTokensPayload, ListenUsernameRequest, MergeUserProfilePayload,
+        PublishConnectionPackagesPayload, RefreshUsernamePayload, RegisterUserRequest,
+        ReportSpamPayload, StageUserProfilePayload, UsernameQueueMessage, connect_request,
+        connect_response, listen_username_request,
     },
     common::v1::{StatusDetails, StatusDetailsCode},
 };
@@ -356,12 +356,12 @@ impl ApiClient {
         signing_key: &UsernameSigningKey,
     ) -> Result<
         (
-            impl Stream<Item = Option<HandleQueueMessage>> + Send + use<>,
+            impl Stream<Item = Option<UsernameQueueMessage>> + Send + use<>,
             AsListenUsernameResponder,
         ),
         AsRequestError,
     > {
-        let init_payload = InitListenHandlePayload {
+        let init_payload = InitListenUsernamePayload {
             client_metadata: Some(self.metadata().clone()),
             hash: Some(hash.into()),
         };
@@ -370,13 +370,13 @@ impl ApiClient {
         const ACK_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
         let (ack_tx, ack_rx) = mpsc::channel::<Uuid>(ACK_CHANNEL_BUFFER_SIZE);
 
-        let requests = tokio_stream::once(ListenHandleRequest {
-            request: Some(listen_handle_request::Request::Init(init_request)),
+        let requests = tokio_stream::once(ListenUsernameRequest {
+            request: Some(listen_username_request::Request::Init(init_request)),
         })
         .chain(
-            ReceiverStream::new(ack_rx).map(|message_id| ListenHandleRequest {
-                request: Some(listen_handle_request::Request::Ack(
-                    AckListenHandleRequest {
+            ReceiverStream::new(ack_rx).map(|message_id| ListenUsernameRequest {
+                request: Some(listen_username_request::Request::Ack(
+                    AckListenUsernameRequest {
                         message_id: Some(message_id.into()),
                     },
                 )),
@@ -464,7 +464,7 @@ impl ApiClient {
         &self,
         username_hash: UsernameHash,
     ) -> Result<bool, AsRequestError> {
-        let request = CheckHandleExistsRequest {
+        let request = CheckUsernameExistsRequest {
             client_metadata: Some(self.metadata().clone()),
             hash: Some(username_hash.into()),
         };
@@ -483,7 +483,7 @@ impl ApiClient {
         signing_key: &UsernameSigningKey,
         token: SerializedToken,
     ) -> Result<bool, AsRequestError> {
-        let payload = CreateHandlePayload {
+        let payload = CreateUsernamePayload {
             client_metadata: Some(self.metadata().clone()),
             verifying_key: Some(signing_key.verifying_key().clone().into()),
             plaintext: username.plaintext().into(),
@@ -504,7 +504,7 @@ impl ApiClient {
         signing_key: &UsernameSigningKey,
         token: SerializedToken,
     ) -> Result<(), AsRequestError> {
-        let payload = RefreshHandlePayload {
+        let payload = RefreshUsernamePayload {
             client_metadata: Some(self.metadata().clone()),
             hash: Some(hash.into()),
             token: Some(token.into_bytes()),
@@ -520,7 +520,7 @@ impl ApiClient {
         signing_key: &UsernameSigningKey,
         token_request: SerializedTokenRequest,
     ) -> Result<(UsernameDeleteResponse, Option<SerializedTokenResponse>), AsRequestError> {
-        let payload = DeleteHandlePayload {
+        let payload = DeleteUsernamePayload {
             client_metadata: Some(self.metadata().clone()),
             hash: Some(hash.into()),
             token_request: Some(token_request.into_bytes()),

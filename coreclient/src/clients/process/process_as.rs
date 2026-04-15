@@ -15,7 +15,7 @@ use aircommon::{
     },
     time::TimeStamp,
 };
-use airprotos::auth_service::v1::{HandleQueueMessage, handle_queue_message};
+use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use chrono::Utc;
 use openmls::group::GroupId;
@@ -133,17 +133,17 @@ impl CoreUser {
     pub(crate) async fn process_username_queue_message_event_loop(
         &self,
         username: Username,
-        handle_queue_message: HandleQueueMessage,
+        queue_message: UsernameQueueMessage,
     ) -> Result<ChatId> {
-        let payload = handle_queue_message
+        let payload = queue_message
             .payload
-            .context("no payload in handle queue message")?;
+            .context("no payload in username queue message")?;
 
         // Extract the server timestamp from the message
-        let sent_at = handle_queue_message.created_at.map(TimeStamp::from);
+        let sent_at = queue_message.created_at.map(TimeStamp::from);
 
         match payload {
-            handle_queue_message::Payload::ConnectionOffer(eco) => {
+            username_queue_message::Payload::ConnectionOffer(eco) => {
                 let connection_info_source =
                     ConnectionInfoSource::ConnectionOffer(Box::new(ConnectionOfferSource {
                         connection_offer: eco.try_into()?,

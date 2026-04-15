@@ -5,7 +5,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use aircommon::identifiers::UsernameHash;
-use airprotos::auth_service::v1::{HandleQueueMessage, handle_queue_message};
+use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
 use displaydoc::Display;
 use futures_util::stream;
 use sqlx::PgPool;
@@ -60,7 +60,7 @@ impl UsernameQueues {
     pub(crate) async fn listen(
         &self,
         hash: UsernameHash,
-    ) -> Result<impl Stream<Item = Option<HandleQueueMessage>> + use<>, UsernameQueueError> {
+    ) -> Result<impl Stream<Item = Option<UsernameQueueMessage>> + use<>, UsernameQueueError> {
         let notifications = self.pg_listener_task_handle.subscribe(hash);
         let cancel = self.track_listener(hash).await?;
         let context = QueueStreamContext {
@@ -84,12 +84,12 @@ impl UsernameQueues {
     pub(crate) async fn enqueue(
         &self,
         hash: &UsernameHash,
-        payload: handle_queue_message::Payload,
+        payload: username_queue_message::Payload,
     ) -> Result<Uuid, UsernameQueueError> {
         let mut txn = self.pool.begin().await?;
 
         let message_id = Uuid::new_v4();
-        let message = HandleQueueMessage {
+        let message = UsernameQueueMessage {
             message_id: Some(message_id.into()),
             payload: Some(payload),
             created_at: None, // Will be set by the database
@@ -176,7 +176,7 @@ struct QueueStreamContext<S> {
     /// Buffer for already fetched messages
     ///
     /// Note: the messages are stored in descending order.
-    buffer: Vec<HandleQueueMessage>,
+    buffer: Vec<UsernameQueueMessage>,
     state: FetchState,
 }
 
@@ -190,10 +190,10 @@ enum FetchState {
 }
 
 impl<S: Stream<Item = ()> + Send + Unpin> QueueStreamContext<S> {
-    fn into_stream(self) -> impl Stream<Item = Option<HandleQueueMessage>> + Send {
+    fn into_stream(self) -> impl Stream<Item = Option<UsernameQueueMessage>> + Send {
         stream::unfold(
             self,
-            async |mut context| -> Option<(Option<HandleQueueMessage>, Self)> {
+            async |mut context| -> Option<(Option<UsernameQueueMessage>, Self)> {
                 loop {
                     if context.cancel.is_cancelled() {
                         return None;
@@ -264,15 +264,15 @@ mod persistence {
     pub(super) struct UsernameQueue {}
 
     #[derive(Debug)]
-    struct SqlHandleQueueMessage(HandleQueueMessage);
+    struct SqlUsernameQueueMessage(UsernameQueueMessage);
 
-    impl Type<Postgres> for SqlHandleQueueMessage {
+    impl Type<Postgres> for SqlUsernameQueueMessage {
         fn type_info() -> <Postgres as Database>::TypeInfo {
             <Vec<u8> as Type<Postgres>>::type_info()
         }
     }
 
-    impl<'q> Encode<'q, Postgres> for SqlHandleQueueMessage {
+    impl<'q> Encode<'q, Postgres> for SqlUsernameQueueMessage {
         fn encode_by_ref(
             &self,
             buf: &mut <Postgres as Database>::ArgumentBuffer<'q>,
@@ -283,11 +283,11 @@ mod persistence {
         }
     }
 
-    impl<'r> Decode<'r, Postgres> for SqlHandleQueueMessage {
+    impl<'r> Decode<'r, Postgres> for SqlUsernameQueueMessage {
         fn decode(value: <Postgres as Database>::ValueRef<'r>) -> Result<Self, BoxDynError> {
             let bytes: &[u8] = Decode::<Postgres>::decode(value)?;
-            let value = HandleQueueMessage::decode(bytes)?;
-            Ok(SqlHandleQueueMessage(value))
+            let value = UsernameQueueMessage::decode(bytes)?;
+            Ok(SqlUsernameQueueMessage(value))
         }
     }
 
@@ -300,7 +300,7 @@ mod persistence {
             hash: &UsernameHash,
             fetched_by: Uuid,
             limit: usize,
-            buffer: &mut Vec<HandleQueueMessage>,
+            buffer: &mut Vec<UsernameQueueMessage>,
         ) -> sqlx::Result<()> {
             let rows = sqlx::query!(
                 r#"WITH messages_to_fetch AS (
@@ -315,7 +315,7 @@ mod persistence {
                 FROM messages_to_fetch m
                 WHERE q.message_id = m.message_id
                 RETURNING
-                    q.message_bytes as "message_bytes: SqlHandleQueueMessage",
+                    q.message_bytes as "message_bytes: SqlUsernameQueueMessage",
                     q.created_at as "created_at: TimeStamp""#,
                 hash.as_bytes(),
                 fetched_by,
@@ -336,7 +336,7 @@ mod persistence {
             executor: impl PgExecutor<'_>,
             hash: &UsernameHash,
             message_id: Uuid,
-            message: HandleQueueMessage,
+            message: UsernameQueueMessage,
         ) -> sqlx::Result<()> {
             debug_assert_eq!(Some(message_id.into()), message.message_id);
             query!(
@@ -347,7 +347,7 @@ mod persistence {
                 ) VALUES ($1, $2, $3)",
                 message_id,
                 hash.as_bytes(),
-                SqlHandleQueueMessage(message) as _,
+                SqlUsernameQueueMessage(message) as _,
             )
             .execute(executor)
             .await?;
@@ -378,7 +378,7 @@ mod test {
         time::{Duration, ExpirationData},
     };
     use airprotos::{
-        auth_service::v1::{ConnectionOfferMessage, Hash, handle_queue_message::Payload},
+        auth_service::v1::{ConnectionOfferMessage, Hash, username_queue_message::Payload},
         common::v1::HpkeCiphertext,
     };
     use tokio::time::timeout;
@@ -400,8 +400,8 @@ mod test {
         })
     }
 
-    fn msg(id: Uuid, payload: Payload) -> HandleQueueMessage {
-        HandleQueueMessage {
+    fn msg(id: Uuid, payload: Payload) -> UsernameQueueMessage {
+        UsernameQueueMessage {
             message_id: Some(id.into()),
             payload: Some(payload),
             created_at: None, // Will be populated from database
@@ -410,7 +410,7 @@ mod test {
 
     /// Asserts that two messages are equal, ignoring the `created_at` field.
     /// Also verifies that the actual message has a `created_at` timestamp.
-    fn assert_msg_eq(actual: &HandleQueueMessage, expected: &HandleQueueMessage) {
+    fn assert_msg_eq(actual: &UsernameQueueMessage, expected: &UsernameQueueMessage) {
         assert!(
             actual.created_at.is_some(),
             "Expected message to have a created_at timestamp"
