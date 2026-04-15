@@ -26,7 +26,7 @@ class _InvitationCodesState extends State<InvitationCodesScreen> {
   @override
   Widget build(BuildContext context) {
     final userCubit = context.read<UserCubit>();
-    final invitationCodes = userCubit.loadInvitationCodes();
+    final invitationCodes = userCubit.invitationCodes;
     return InvitationCodesView(invitationCodes: invitationCodes);
   }
 }

@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 pub(crate) use aircommon::identifiers::UserHandleHash;
 use aircommon::identifiers::{UserHandle, UserId};
+use aircoreclient::InvitationCode;
 pub(crate) use aircoreclient::InviteUsersError;
-use aircoreclient::clients::InvitationCode;
 use aircoreclient::{Asset, ChatId, ContactType, PartialContact, clients::CoreUser, store::Store};
 use anyhow::ensure;
 use flutter_rust_bridge::frb;

@@ -847,15 +847,6 @@ abstract class RustLibApi extends BaseApi {
   get rust_arc_decrement_strong_count_DartNotificationServicePtr;
 
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_InvitationCode;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_InvitationCode;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_InvitationCodePtr;
-
-  RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_LogWriter;
 
   RustArcDecrementStrongCountFnType
@@ -4592,8 +4583,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode,
+          decodeSuccessData: sse_decode_list_invitation_code,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiUserCubitUserCubitBaseLoadInvitationCodesConstMeta,
@@ -4824,8 +4814,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode,
+          decodeSuccessData: sse_decode_invitation_code,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta:
@@ -7127,14 +7116,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService;
 
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_InvitationCode => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_InvitationCode => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode;
-
-  RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_LogWriter => wire
       .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter;
 
@@ -7297,15 +7278,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return DartNotificationServiceImpl.frbInternalDcoDecode(
       raw as List<dynamic>,
     );
-  }
-
-  @protected
-  InvitationCode
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return InvitationCodeImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -7735,15 +7707,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return DartNotificationServiceImpl.frbInternalDcoDecode(
       raw as List<dynamic>,
     );
-  }
-
-  @protected
-  InvitationCode
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return InvitationCodeImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -8607,6 +8570,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  InvitationCode dco_decode_invitation_code(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return InvitationCode(
+      code: dco_decode_String(arr[0]),
+      copied: dco_decode_bool(arr[1]),
+    );
+  }
+
+  @protected
   InviteUsersError dco_decode_invite_users_error(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
@@ -8623,19 +8598,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PlatformInt64 dco_decode_isize(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dcoDecodeI64(raw);
-  }
-
-  @protected
-  List<InvitationCode>
-  dco_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>)
-        .map(
-          dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode,
-        )
-        .toList();
   }
 
   @protected
@@ -8660,6 +8622,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<IntroScreenType> dco_decode_list_intro_screen_type(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_intro_screen_type).toList();
+  }
+
+  @protected
+  List<InvitationCode> dco_decode_list_invitation_code(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_invitation_code).toList();
   }
 
   @protected
@@ -9805,18 +9773,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  InvitationCode
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return InvitationCodeImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
   LogWriter
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
     SseDeserializer deserializer,
@@ -10308,18 +10264,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return DartNotificationServiceImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  InvitationCode
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return InvitationCodeImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -11319,6 +11263,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  InvitationCode sse_decode_invitation_code(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_code = sse_decode_String(deserializer);
+    var var_copied = sse_decode_bool(deserializer);
+    return InvitationCode(code: var_code, copied: var_copied);
+  }
+
+  @protected
   InviteUsersError sse_decode_invite_users_error(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -11336,25 +11288,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PlatformInt64 sse_decode_isize(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getPlatformInt64();
-  }
-
-  @protected
-  List<InvitationCode>
-  sse_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <InvitationCode>[];
-    for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(
-        sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-          deserializer,
-        ),
-      );
-    }
-    return ans_;
   }
 
   @protected
@@ -11403,6 +11336,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <IntroScreenType>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_intro_screen_type(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<InvitationCode> sse_decode_list_invitation_code(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <InvitationCode>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_invitation_code(deserializer));
     }
     return ans_;
   }
@@ -12876,19 +12823,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-    InvitationCode self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as InvitationCodeImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
     LogWriter self,
     SseSerializer serializer,
@@ -13487,19 +13421,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as DartNotificationServiceImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-    InvitationCode self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as InvitationCodeImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -14593,6 +14514,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_invitation_code(
+    InvitationCode self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.code, serializer);
+    sse_encode_bool(self.copied, serializer);
+  }
+
+  @protected
   void sse_encode_invite_users_error(
     InviteUsersError self,
     SseSerializer serializer,
@@ -14609,22 +14540,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_isize(PlatformInt64 self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putPlatformInt64(self);
-  }
-
-  @protected
-  void
-  sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-    List<InvitationCode> self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.length, serializer);
-    for (final item in self) {
-      sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-        item,
-        serializer,
-      );
-    }
   }
 
   @protected
@@ -14666,6 +14581,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_intro_screen_type(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_invitation_code(
+    List<InvitationCode> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_invitation_code(item, serializer);
     }
   }
 
@@ -16273,26 +16200,6 @@ class DartNotificationServiceImpl extends RustOpaque
         .instance
         .api
         .rust_arc_decrement_strong_count_DartNotificationServicePtr,
-  );
-}
-
-@sealed
-class InvitationCodeImpl extends RustOpaque implements InvitationCode {
-  // Not to be used by end users
-  InvitationCodeImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  InvitationCodeImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_InvitationCode,
-    rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_InvitationCode,
-    rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_InvitationCodePtr,
   );
 }
 

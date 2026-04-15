@@ -36,6 +36,7 @@ pub use crate::{
             progress::{AttachmentProgress, AttachmentProgressEvent},
         },
         block_contact::BlockedContactError,
+        invitation_code::InvitationCode,
         invite_users::InviteUsersError,
         safety_code::SafetyCode,
         user_settings::ReadReceiptsSetting,

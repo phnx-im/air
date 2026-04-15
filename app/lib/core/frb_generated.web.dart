@@ -66,10 +66,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_InvitationCodePtr => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode;
-
-  CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_LogWriterPtr => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter;
 
@@ -154,12 +150,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   DartNotificationService
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
-    dynamic raw,
-  );
-
-  @protected
-  InvitationCode
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
     dynamic raw,
   );
 
@@ -427,12 +417,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   DartNotificationService
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
-    dynamic raw,
-  );
-
-  @protected
-  InvitationCode
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
     dynamic raw,
   );
 
@@ -815,16 +799,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   IntroScreenType dco_decode_intro_screen_type(dynamic raw);
 
   @protected
+  InvitationCode dco_decode_invitation_code(dynamic raw);
+
+  @protected
   InviteUsersError dco_decode_invite_users_error(dynamic raw);
 
   @protected
   PlatformInt64 dco_decode_isize(dynamic raw);
-
-  @protected
-  List<InvitationCode>
-  dco_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-    dynamic raw,
-  );
 
   @protected
   List<int> dco_decode_list_CastedPrimitive_u_64(dynamic raw);
@@ -837,6 +818,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<IntroScreenType> dco_decode_list_intro_screen_type(dynamic raw);
+
+  @protected
+  List<InvitationCode> dco_decode_list_invitation_code(dynamic raw);
 
   @protected
   List<List<List<RangedBlockElement>>>
@@ -1218,12 +1202,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  InvitationCode
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   LogWriter
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
     SseDeserializer deserializer,
@@ -1467,12 +1445,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   DartNotificationService
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  InvitationCode
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
     SseDeserializer deserializer,
   );
 
@@ -1917,16 +1889,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   IntroScreenType sse_decode_intro_screen_type(SseDeserializer deserializer);
 
   @protected
+  InvitationCode sse_decode_invitation_code(SseDeserializer deserializer);
+
+  @protected
   InviteUsersError sse_decode_invite_users_error(SseDeserializer deserializer);
 
   @protected
   PlatformInt64 sse_decode_isize(SseDeserializer deserializer);
-
-  @protected
-  List<InvitationCode>
-  sse_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-    SseDeserializer deserializer,
-  );
 
   @protected
   List<int> sse_decode_list_CastedPrimitive_u_64(SseDeserializer deserializer);
@@ -1939,6 +1908,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<IntroScreenType> sse_decode_list_intro_screen_type(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<InvitationCode> sse_decode_list_invitation_code(
     SseDeserializer deserializer,
   );
 
@@ -2403,13 +2377,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-    InvitationCode self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
     LogWriter self,
     SseSerializer serializer,
@@ -2718,13 +2685,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
     DartNotificationService self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-    InvitationCode self,
     SseSerializer serializer,
   );
 
@@ -3262,6 +3222,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_invitation_code(
+    InvitationCode self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_invite_users_error(
     InviteUsersError self,
     SseSerializer serializer,
@@ -3269,13 +3235,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_isize(PlatformInt64 self, SseSerializer serializer);
-
-  @protected
-  void
-  sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-    List<InvitationCode> self,
-    SseSerializer serializer,
-  );
 
   @protected
   void sse_encode_list_CastedPrimitive_u_64(
@@ -3292,6 +3251,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_intro_screen_type(
     List<IntroScreenType> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_invitation_code(
+    List<InvitationCode> self,
     SseSerializer serializer,
   );
 
@@ -3913,22 +3878,6 @@ class RustLibWire implements BaseWire {
       );
 
   void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-    int ptr,
-  ) => wasmModule
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-        ptr,
-      );
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-    int ptr,
-  ) => wasmModule
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-        ptr,
-      );
-
-  void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
     int ptr,
   ) => wasmModule
@@ -4206,16 +4155,6 @@ extension type RustLibWasmModule._(JSObject _) implements JSObject {
 
   external void
   rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
-    int ptr,
-  );
-
-  external void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
-    int ptr,
-  );
-
-  external void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCode(
     int ptr,
   );
 

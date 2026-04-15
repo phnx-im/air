@@ -33,9 +33,6 @@ class intArray12 extends NonGrowableListView<int> {
   intArray12.init(int fill) : this(List<int>.filled(arraySize, fill));
 }
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<InvitationCode>>
-abstract class InvitationCode implements RustOpaqueInterface {}
-
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UiUser>>
 abstract class UiUser implements RustOpaqueInterface {
   bool get unsupportedVersion;

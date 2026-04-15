@@ -11,10 +11,23 @@ pub fn init_logging() {
     let env_filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
         .from_env_lossy();
-    // let formatting_layer = BunyanFormattingLayer::new("airserver".into(), std::io::stdout);
-    let registry = Registry::default().with(fmt::layer()).with(env_filter);
-    // .with(JsonStorageLayer)
-    // .with(formatting_layer);
-    LogTracer::init().expect("logging already initialized");
-    set_global_default(registry).expect("logging already initialized");
+
+    match std::env::var("RUST_LOG_FORMAT").as_deref() {
+        // log to stdout in JSON
+        Err(_) | Ok("json") => {
+            let formatting_layer = BunyanFormattingLayer::new("airserver".into(), std::io::stdout);
+            let registry = Registry::default()
+                .with(JsonStorageLayer)
+                .with(formatting_layer)
+                .with(env_filter);
+            LogTracer::init().expect("logging already initialized");
+            set_global_default(registry).expect("logging already initialized");
+        }
+        // log to stdout as text
+        Ok(_) => {
+            let registry = Registry::default().with(fmt::layer());
+            LogTracer::init().expect("logging already initialized");
+            set_global_default(registry).expect("logging already initialized");
+        }
+    };
 }

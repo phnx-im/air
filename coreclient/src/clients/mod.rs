@@ -8,7 +8,6 @@ use std::{
     sync::{Arc, Weak},
 };
 
-pub use self::invitation_code::InvitationCode;
 pub use airapiclient::as_api::AsListenHandleResponder;
 
 use airapiclient::{
@@ -90,7 +89,7 @@ pub(crate) mod connection_offer;
 mod create_user;
 mod delete_account;
 mod event_loop;
-mod invitation_code;
+pub(crate) mod invitation_code;
 pub(crate) mod invite_users;
 mod message;
 pub(crate) mod own_client_info;

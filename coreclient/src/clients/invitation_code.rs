@@ -11,9 +11,9 @@ use crate::clients::{CoreUser, api_clients::ApiClients};
 
 #[derive(Debug)]
 pub struct InvitationCode {
-    code: String,
+    pub code: String,
     #[allow(unused)]
-    copied: bool,
+    pub copied: bool,
 }
 
 impl CoreUser {
