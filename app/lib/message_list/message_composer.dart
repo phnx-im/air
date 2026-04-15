@@ -47,9 +47,14 @@ final double _composerButtonSize =
     _composerFontSize * _composerLineHeight + 2 * _inputVerticalPadding;
 
 class MessageComposer extends StatefulWidget {
-  const MessageComposer({super.key, this.scrollToBottomController});
+  const MessageComposer({
+    super.key,
+    this.scrollToBottomController,
+    this.textEditingController,
+  });
 
   final ScrollToBottomController? scrollToBottomController;
+  final TextEditingController? textEditingController;
 
   @override
   State<MessageComposer> createState() => _MessageComposerState();
@@ -57,7 +62,7 @@ class MessageComposer extends StatefulWidget {
 
 class _MessageComposerState extends State<MessageComposer>
     with WidgetsBindingObserver, TickerProviderStateMixin {
-  final TextEditingController _inputController = CustomTextEditingController();
+  late final TextEditingController _inputController;
   final Debouncer _storeDraftDebouncer = Debouncer(
     delay: const Duration(seconds: 1),
   );
@@ -77,6 +82,8 @@ class _MessageComposerState extends State<MessageComposer>
   @override
   void initState() {
     super.initState();
+    _inputController =
+        widget.textEditingController ?? CustomTextEditingController();
     WidgetsBinding.instance.addObserver(this);
     _emojiAutocomplete = TextAutocompleteController<EmojiEntry>(
       textController: _inputController,
