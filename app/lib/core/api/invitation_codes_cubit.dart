@@ -51,4 +51,4 @@ sealed class InvitationCodesState with _$InvitationCodesState {
       .crateApiInvitationCodesCubitInvitationCodesStateDefault();
 }
 
-enum RequestInvitationCodeError { quotaExceeded }
+enum RequestInvitationCodeError { userQuotaExceeded, globalQuotaExceeded }

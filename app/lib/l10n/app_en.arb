@@ -99,7 +99,8 @@
   "invitationCodeScreen_error_missing": "Invitation code is missing",
   "invitationCodeScreen_error_invalid": "Invalid invitation code. Check your code, then try again.",
 
-  "invitationCodesScreen_quota_exceeded": "We're out of invites for now, please try again later.",
+  "invitationCodesScreen_global_quota_exceeded": "We're out of invites for now, please try again later.",
+  "invitationCodesScreen_user_quota_exceeded": "You ran out of invites for now, please try again later.",
 
   "signUpScreen_header": "Create your profile",
   "signUpScreen_subheader": "Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.",

@@ -105,13 +105,20 @@ class InvitationCodesView extends StatelessWidget {
                   final error = await context
                       .read<InvitationCodesCubit>()
                       .requestInvitationCode();
-                  if (error == RequestInvitationCodeError.quotaExceeded) {
-                    showSnackBarStandalone(
-                      (_) => SnackBar(
-                        content: Text(loc.invitationCodesScreen_quota_exceeded),
-                      ),
-                    );
+                  if (error == null) {
+                    return;
                   }
+
+                  final message = switch (error) {
+                    .globalQuotaExceeded =>
+                      loc.invitationCodesScreen_global_quota_exceeded,
+                    .userQuotaExceeded =>
+                      loc.invitationCodesScreen_user_quota_exceeded,
+                  };
+
+                  showSnackBarStandalone(
+                    (_) => SnackBar(content: Text(message)),
+                  );
                 },
                 label: "Request invitation code",
               ),

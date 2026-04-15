@@ -275,8 +275,12 @@ class AppLocalizationsFr extends AppLocalizations {
       'Code d\'invitation invalide. Vérifiez votre code et réessayez.';
 
   @override
-  String get invitationCodesScreen_quota_exceeded =>
+  String get invitationCodesScreen_global_quota_exceeded =>
       'Nous n\'avons plus d\'invitations pour le moment, veuillez réessayer plus tard.';
+
+  @override
+  String get invitationCodesScreen_user_quota_exceeded =>
+      'Vous avez dépassé votre quota d\'invitations pour le moment, veuillez réessayer plus tard.';
 
   @override
   String get signUpScreen_header => 'Créez votre profil';

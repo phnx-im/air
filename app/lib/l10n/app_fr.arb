@@ -79,7 +79,8 @@
   "invitationCodeScreen_error_missing": "Code d'invitation manquant",
   "invitationCodeScreen_error_invalid": "Code d'invitation invalide. Vérifiez votre code et réessayez.",
 
-  "invitationCodesScreen_quota_exceeded": "Nous n'avons plus d'invitations pour le moment, veuillez réessayer plus tard.",
+  "invitationCodesScreen_global_quota_exceeded": "Nous n'avons plus d'invitations pour le moment, veuillez réessayer plus tard.",
+  "invitationCodesScreen_user_quota_exceeded": "Vous avez dépassé votre quota d'invitations pour le moment, veuillez réessayer plus tard.",
 
   "signUpScreen_header": "Créez votre profil",
   "signUpScreen_subheader": "Votre profil est visible pour les personnes avec lesquelles vous vous connectez et les membres de vos groupes. Air exige un nom d'affichage, mais la photo est facultative.",

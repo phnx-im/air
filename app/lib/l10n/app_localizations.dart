@@ -552,11 +552,17 @@ abstract class AppLocalizations {
   /// **'Invalid invitation code. Check your code, then try again.'**
   String get invitationCodeScreen_error_invalid;
 
-  /// No description provided for @invitationCodesScreen_quota_exceeded.
+  /// No description provided for @invitationCodesScreen_global_quota_exceeded.
   ///
   /// In en, this message translates to:
   /// **'We\'re out of invites for now, please try again later.'**
-  String get invitationCodesScreen_quota_exceeded;
+  String get invitationCodesScreen_global_quota_exceeded;
+
+  /// No description provided for @invitationCodesScreen_user_quota_exceeded.
+  ///
+  /// In en, this message translates to:
+  /// **'You ran out of invites for now, please try again later.'**
+  String get invitationCodesScreen_user_quota_exceeded;
 
   /// No description provided for @signUpScreen_header.
   ///

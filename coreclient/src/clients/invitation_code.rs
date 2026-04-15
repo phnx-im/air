@@ -20,8 +20,10 @@ pub struct InvitationCode {
 
 #[derive(Debug, thiserror::Error)]
 pub enum RequestInvitationCodeError {
+    #[error("user quota exceeded")]
+    UserQuotaExceeded,
     #[error("global quota exceeded")]
-    QuotaExceeded,
+    GlobalQuotaExceeded,
     #[error(transparent)]
     Database(#[from] sqlx::Error),
     #[error(transparent)]
@@ -31,7 +33,7 @@ pub enum RequestInvitationCodeError {
 impl From<RequestTokensError> for RequestInvitationCodeError {
     fn from(error: RequestTokensError) -> Self {
         match error {
-            RequestTokensError::QuotaExceeded => Self::QuotaExceeded,
+            RequestTokensError::QuotaExceeded => Self::UserQuotaExceeded,
             RequestTokensError::Database(error) => Self::Database(error),
             RequestTokensError::Generic(error) => Self::Generic(error),
         }
@@ -41,7 +43,7 @@ impl From<RequestTokensError> for RequestInvitationCodeError {
 impl From<AsRequestError> for RequestInvitationCodeError {
     fn from(error: AsRequestError) -> Self {
         if error.is_resource_exhausted() {
-            Self::QuotaExceeded
+            Self::GlobalQuotaExceeded
         } else {
             Self::Generic(error.into())
         }

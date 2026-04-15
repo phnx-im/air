@@ -10756,7 +10756,10 @@ impl SseDecode for crate::api::invitation_codes_cubit::RequestInvitationCodeErro
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
-            0 => crate::api::invitation_codes_cubit::RequestInvitationCodeError::QuotaExceeded,
+            0 => crate::api::invitation_codes_cubit::RequestInvitationCodeError::UserQuotaExceeded,
+            1 => {
+                crate::api::invitation_codes_cubit::RequestInvitationCodeError::GlobalQuotaExceeded
+            }
             _ => unreachable!("Invalid variant for RequestInvitationCodeError: {}", inner),
         };
     }
@@ -13019,8 +13022,11 @@ impl flutter_rust_bridge::IntoDart
 {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self.0 {
-            crate::api::invitation_codes_cubit::RequestInvitationCodeError::QuotaExceeded => {
+            crate::api::invitation_codes_cubit::RequestInvitationCodeError::UserQuotaExceeded => {
                 0.into_dart()
+            }
+            crate::api::invitation_codes_cubit::RequestInvitationCodeError::GlobalQuotaExceeded => {
+                1.into_dart()
             }
             _ => unreachable!(),
         }
@@ -15595,15 +15601,9 @@ impl SseEncode
 impl SseEncode for crate::api::invitation_codes_cubit::RequestInvitationCodeError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(
-            match self {
-                crate::api::invitation_codes_cubit::RequestInvitationCodeError::QuotaExceeded => 0,
-                _ => {
-                    unimplemented!("");
-                }
-            },
-            serializer,
-        );
+        <i32>::sse_encode(match self {crate::api::invitation_codes_cubit::RequestInvitationCodeError::UserQuotaExceeded => { 0 }
+crate::api::invitation_codes_cubit::RequestInvitationCodeError::GlobalQuotaExceeded => { 1 }
+ _ => { unimplemented!(""); }}, serializer);
     }
 }
 

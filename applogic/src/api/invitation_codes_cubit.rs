@@ -24,7 +24,8 @@ pub struct _InvitationCode {
 #[frb(mirror(RequestInvitationCodeError))]
 #[frb(dart_metadata = ("freezed"))]
 pub enum _RequestInvitationCodeError {
-    QuotaExceeded,
+    UserQuotaExceeded,
+    GlobalQuotaExceeded,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -83,7 +84,8 @@ impl InvitationCodesCubitBase {
     ) -> anyhow::Result<Option<RequestInvitationCodeError>> {
         let code = match self.core_user.request_invitation_code().await {
             Ok(code) => code,
-            Err(e @ RequestInvitationCodeError::QuotaExceeded) => return Ok(Some(e)),
+            Err(e @ RequestInvitationCodeError::UserQuotaExceeded) => return Ok(Some(e)),
+            Err(e @ RequestInvitationCodeError::GlobalQuotaExceeded) => return Ok(Some(e)),
             Err(e) => return Err(e.into()),
         };
         self.core.state_tx().send_modify(|state| {
