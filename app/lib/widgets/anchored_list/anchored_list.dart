@@ -928,7 +928,7 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
         child: CustomScrollView(
           reverse: true,
           controller: _scrollController,
-          physics: widget.physics ?? const ClampingScrollPhysics(),
+          physics: widget.physics,
           slivers: [_buildSliverList()],
         ),
       ),
