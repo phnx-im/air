@@ -231,7 +231,7 @@ void main() {
         ),
       ).thenAnswer((_) async => Future.value());
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
-      messageListCubit.setState(MockMessageListState(fredMessages));
+      messageListCubit.setState(fredMessages);
       when(
         () => attachmentsRepository.loadImageAttachment(
           attachmentId: any(named: "attachmentId"),
@@ -379,7 +379,7 @@ void main() {
         ),
       ).thenAnswer((_) async => Future.value());
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
-      messageListCubit.setState(MockMessageListState(gardeningPartyMessages));
+      messageListCubit.setState(gardeningPartyMessages);
     });
 
     Widget buildSubject(ProductShotPlatform platform) =>

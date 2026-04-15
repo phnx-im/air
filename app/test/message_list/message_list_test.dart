@@ -773,7 +773,7 @@ void main() {
     );
 
     testWidgets('renders correctly when empty', (tester) async {
-      messageListCubit.setState(MockMessageListState([]));
+      messageListCubit.setState(const []);
 
       await tester.pumpWidget(buildSubject());
 
@@ -789,7 +789,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      messageListCubit.setState(MockMessageListState(messages));
+      messageListCubit.setState(messages);
 
       await tester.pumpWidget(buildSubject());
 
@@ -805,7 +805,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      messageListCubit.setState(MockMessageListState(messages));
+      messageListCubit.setState(messages);
 
       tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
       addTearDown(() {
@@ -826,7 +826,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      messageListCubit.setState(MockMessageListState(attachmentMessages));
+      messageListCubit.setState(attachmentMessages);
       when(
         () => attachmentsRepository.loadImageAttachment(
           attachmentId: any(named: 'attachmentId'),
@@ -862,7 +862,7 @@ void main() {
             _ => message,
           },
       ];
-      messageListCubit.setState(MockMessageListState(messageWithBobBlocked));
+      messageListCubit.setState(messageWithBobBlocked);
 
       await tester.pumpWidget(buildSubject());
 
@@ -887,9 +887,7 @@ void main() {
             message.copyWith(status: UiMessageStatus.hidden),
         ],
       ];
-      messageListCubit.setState(
-        MockMessageListState(messageWithBobBlocked, isConnectionChat: true),
-      );
+      messageListCubit.setState(messageWithBobBlocked, isConnectionChat: true);
 
       await tester.pumpWidget(buildSubject());
 
@@ -905,7 +903,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      messageListCubit.setState(MockMessageListState(jumboEmojiMessages));
+      messageListCubit.setState(jumboEmojiMessages);
 
       await tester.pumpWidget(buildSubject());
 
@@ -923,7 +921,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      messageListCubit.setState(MockMessageListState(messages));
+      messageListCubit.setState(messages);
       when(
         () => userSettingsCubit.state,
       ).thenReturn(const UserSettings(readReceipts: false));
@@ -955,9 +953,7 @@ void main() {
           },
       ];
 
-      messageListCubit.setState(
-        MockMessageListState(unreadMessages, firstUnreadIndex: 2),
-      );
+      messageListCubit.setState(unreadMessages, firstUnreadIndex: 2);
 
       await tester.pumpWidget(buildSubject());
 
@@ -1024,12 +1020,10 @@ void main() {
 
       MessageId? requestedMessageId;
       messageListCubit = MockMessageListCubit(
-        initialState: MockMessageListState(manyMessages),
+        initialMessages: manyMessages,
         onJumpToMessage: (messageId) async {
           requestedMessageId = messageId;
-          messageListCubit.setState(
-            MockMessageListState([...manyMessages, targetMessage]),
-          );
+          messageListCubit.setState([...manyMessages, targetMessage]);
         },
       );
 
@@ -1082,7 +1076,7 @@ void main() {
         );
       });
 
-      messageListCubit.setState(MockMessageListState(manyMessages));
+      messageListCubit.setState(manyMessages);
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();
@@ -1117,7 +1111,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      messageListCubit.setState(MockMessageListState(replyMessages));
+      messageListCubit.setState(replyMessages);
 
       await tester.pumpWidget(buildSubject());
 

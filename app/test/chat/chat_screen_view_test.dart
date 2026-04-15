@@ -99,7 +99,7 @@ void main() {
       when(
         () => navigationCubit.state,
       ).thenReturn(const NavigationState.home());
-      messageListCubit.setState(MockMessageListState([]));
+      messageListCubit.setState(const []);
 
       await tester.pumpWidget(buildSubject());
 
@@ -113,7 +113,7 @@ void main() {
       when(() => navigationCubit.state).thenReturn(
         NavigationState.home(home: HomeNavigationState(chatId: chat.id)),
       );
-      messageListCubit.setState(MockMessageListState(messages));
+      messageListCubit.setState(messages);
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();
@@ -133,7 +133,7 @@ void main() {
       when(() => navigationCubit.state).thenReturn(
         NavigationState.home(home: HomeNavigationState(chatId: chat.id)),
       );
-      messageListCubit.setState(MockMessageListState(messages));
+      messageListCubit.setState(messages);
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();

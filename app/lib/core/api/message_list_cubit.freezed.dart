@@ -397,20 +397,20 @@ String toString() {
 
 
 /// @nodoc
-mixin _$MessageListMeta {
+mixin _$MessageListState {
 
  bool? get isConnectionChat; bool get hasOlder; bool get hasNewer; bool get isAtBottom; int? get firstUnreadIndex; int get revision;
-/// Create a copy of MessageListMeta
+/// Create a copy of MessageListState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-$MessageListMetaCopyWith<MessageListMeta> get copyWith => _$MessageListMetaCopyWithImpl<MessageListMeta>(this as MessageListMeta, _$identity);
+$MessageListStateCopyWith<MessageListState> get copyWith => _$MessageListStateCopyWithImpl<MessageListState>(this as MessageListState, _$identity);
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListMeta&&(identical(other.isConnectionChat, isConnectionChat) || other.isConnectionChat == isConnectionChat)&&(identical(other.hasOlder, hasOlder) || other.hasOlder == hasOlder)&&(identical(other.hasNewer, hasNewer) || other.hasNewer == hasNewer)&&(identical(other.isAtBottom, isAtBottom) || other.isAtBottom == isAtBottom)&&(identical(other.firstUnreadIndex, firstUnreadIndex) || other.firstUnreadIndex == firstUnreadIndex)&&(identical(other.revision, revision) || other.revision == revision));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListState&&(identical(other.isConnectionChat, isConnectionChat) || other.isConnectionChat == isConnectionChat)&&(identical(other.hasOlder, hasOlder) || other.hasOlder == hasOlder)&&(identical(other.hasNewer, hasNewer) || other.hasNewer == hasNewer)&&(identical(other.isAtBottom, isAtBottom) || other.isAtBottom == isAtBottom)&&(identical(other.firstUnreadIndex, firstUnreadIndex) || other.firstUnreadIndex == firstUnreadIndex)&&(identical(other.revision, revision) || other.revision == revision));
 }
 
 
@@ -419,15 +419,15 @@ int get hashCode => Object.hash(runtimeType,isConnectionChat,hasOlder,hasNewer,i
 
 @override
 String toString() {
-  return 'MessageListMeta(isConnectionChat: $isConnectionChat, hasOlder: $hasOlder, hasNewer: $hasNewer, isAtBottom: $isAtBottom, firstUnreadIndex: $firstUnreadIndex, revision: $revision)';
+  return 'MessageListState(isConnectionChat: $isConnectionChat, hasOlder: $hasOlder, hasNewer: $hasNewer, isAtBottom: $isAtBottom, firstUnreadIndex: $firstUnreadIndex, revision: $revision)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class $MessageListMetaCopyWith<$Res>  {
-  factory $MessageListMetaCopyWith(MessageListMeta value, $Res Function(MessageListMeta) _then) = _$MessageListMetaCopyWithImpl;
+abstract mixin class $MessageListStateCopyWith<$Res>  {
+  factory $MessageListStateCopyWith(MessageListState value, $Res Function(MessageListState) _then) = _$MessageListStateCopyWithImpl;
 @useResult
 $Res call({
  bool? isConnectionChat, bool hasOlder, bool hasNewer, bool isAtBottom, int? firstUnreadIndex, int revision
@@ -438,14 +438,14 @@ $Res call({
 
 }
 /// @nodoc
-class _$MessageListMetaCopyWithImpl<$Res>
-    implements $MessageListMetaCopyWith<$Res> {
-  _$MessageListMetaCopyWithImpl(this._self, this._then);
+class _$MessageListStateCopyWithImpl<$Res>
+    implements $MessageListStateCopyWith<$Res> {
+  _$MessageListStateCopyWithImpl(this._self, this._then);
 
-  final MessageListMeta _self;
-  final $Res Function(MessageListMeta) _then;
+  final MessageListState _self;
+  final $Res Function(MessageListState) _then;
 
-/// Create a copy of MessageListMeta
+/// Create a copy of MessageListState
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? isConnectionChat = freezed,Object? hasOlder = null,Object? hasNewer = null,Object? isAtBottom = null,Object? firstUnreadIndex = freezed,Object? revision = null,}) {
   return _then(_self.copyWith(
@@ -466,8 +466,8 @@ as int,
 /// @nodoc
 
 
-class _MessageListMeta extends MessageListMeta {
-  const _MessageListMeta({this.isConnectionChat, required this.hasOlder, required this.hasNewer, required this.isAtBottom, this.firstUnreadIndex, required this.revision}): super._();
+class _MessageListState extends MessageListState {
+  const _MessageListState({this.isConnectionChat, required this.hasOlder, required this.hasNewer, required this.isAtBottom, this.firstUnreadIndex, required this.revision}): super._();
   
 
 @override final  bool? isConnectionChat;
@@ -477,17 +477,17 @@ class _MessageListMeta extends MessageListMeta {
 @override final  int? firstUnreadIndex;
 @override final  int revision;
 
-/// Create a copy of MessageListMeta
+/// Create a copy of MessageListState
 /// with the given fields replaced by the non-null parameter values.
 @override @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-_$MessageListMetaCopyWith<_MessageListMeta> get copyWith => __$MessageListMetaCopyWithImpl<_MessageListMeta>(this, _$identity);
+_$MessageListStateCopyWith<_MessageListState> get copyWith => __$MessageListStateCopyWithImpl<_MessageListState>(this, _$identity);
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessageListMeta&&(identical(other.isConnectionChat, isConnectionChat) || other.isConnectionChat == isConnectionChat)&&(identical(other.hasOlder, hasOlder) || other.hasOlder == hasOlder)&&(identical(other.hasNewer, hasNewer) || other.hasNewer == hasNewer)&&(identical(other.isAtBottom, isAtBottom) || other.isAtBottom == isAtBottom)&&(identical(other.firstUnreadIndex, firstUnreadIndex) || other.firstUnreadIndex == firstUnreadIndex)&&(identical(other.revision, revision) || other.revision == revision));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessageListState&&(identical(other.isConnectionChat, isConnectionChat) || other.isConnectionChat == isConnectionChat)&&(identical(other.hasOlder, hasOlder) || other.hasOlder == hasOlder)&&(identical(other.hasNewer, hasNewer) || other.hasNewer == hasNewer)&&(identical(other.isAtBottom, isAtBottom) || other.isAtBottom == isAtBottom)&&(identical(other.firstUnreadIndex, firstUnreadIndex) || other.firstUnreadIndex == firstUnreadIndex)&&(identical(other.revision, revision) || other.revision == revision));
 }
 
 
@@ -496,15 +496,15 @@ int get hashCode => Object.hash(runtimeType,isConnectionChat,hasOlder,hasNewer,i
 
 @override
 String toString() {
-  return 'MessageListMeta(isConnectionChat: $isConnectionChat, hasOlder: $hasOlder, hasNewer: $hasNewer, isAtBottom: $isAtBottom, firstUnreadIndex: $firstUnreadIndex, revision: $revision)';
+  return 'MessageListState(isConnectionChat: $isConnectionChat, hasOlder: $hasOlder, hasNewer: $hasNewer, isAtBottom: $isAtBottom, firstUnreadIndex: $firstUnreadIndex, revision: $revision)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class _$MessageListMetaCopyWith<$Res> implements $MessageListMetaCopyWith<$Res> {
-  factory _$MessageListMetaCopyWith(_MessageListMeta value, $Res Function(_MessageListMeta) _then) = __$MessageListMetaCopyWithImpl;
+abstract mixin class _$MessageListStateCopyWith<$Res> implements $MessageListStateCopyWith<$Res> {
+  factory _$MessageListStateCopyWith(_MessageListState value, $Res Function(_MessageListState) _then) = __$MessageListStateCopyWithImpl;
 @override @useResult
 $Res call({
  bool? isConnectionChat, bool hasOlder, bool hasNewer, bool isAtBottom, int? firstUnreadIndex, int revision
@@ -515,17 +515,17 @@ $Res call({
 
 }
 /// @nodoc
-class __$MessageListMetaCopyWithImpl<$Res>
-    implements _$MessageListMetaCopyWith<$Res> {
-  __$MessageListMetaCopyWithImpl(this._self, this._then);
+class __$MessageListStateCopyWithImpl<$Res>
+    implements _$MessageListStateCopyWith<$Res> {
+  __$MessageListStateCopyWithImpl(this._self, this._then);
 
-  final _MessageListMeta _self;
-  final $Res Function(_MessageListMeta) _then;
+  final _MessageListState _self;
+  final $Res Function(_MessageListState) _then;
 
-/// Create a copy of MessageListMeta
+/// Create a copy of MessageListState
 /// with the given fields replaced by the non-null parameter values.
 @override @pragma('vm:prefer-inline') $Res call({Object? isConnectionChat = freezed,Object? hasOlder = null,Object? hasNewer = null,Object? isAtBottom = null,Object? firstUnreadIndex = freezed,Object? revision = null,}) {
-  return _then(_MessageListMeta(
+  return _then(_MessageListState(
 isConnectionChat: freezed == isConnectionChat ? _self.isConnectionChat : isConnectionChat // ignore: cast_nullable_to_non_nullable
 as bool?,hasOlder: null == hasOlder ? _self.hasOlder : hasOlder // ignore: cast_nullable_to_non_nullable
 as bool,hasNewer: null == hasNewer ? _self.hasNewer : hasNewer // ignore: cast_nullable_to_non_nullable

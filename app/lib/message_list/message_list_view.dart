@@ -113,7 +113,7 @@ class _MessageListViewState extends State<MessageListView>
   ///  - Otherwise, smoothly animate within the current data.
   void _scrollToBottom() {
     final cubit = context.read<MessageListCubit>();
-    if (cubit.state.meta.hasNewer) {
+    if (cubit.state.hasNewer) {
       cubit.jumpToBottom();
     } else {
       _listController.scrollToBottom();
@@ -126,7 +126,7 @@ class _MessageListViewState extends State<MessageListView>
     final cubit = context.read<MessageListCubit>();
     final isAtBottom = _listController.isAtBottom.value;
     widget.scrollToBottomController?.showButton.value =
-        !isAtBottom || cubit.state.meta.hasNewer;
+        !isAtBottom || cubit.state.hasNewer;
   }
 
   /// Marks the conversation as read up to the newest message currently visible
@@ -150,9 +150,7 @@ class _MessageListViewState extends State<MessageListView>
     if (visibleId == _lastMarkedAsReadId) return;
 
     final state = context.read<MessageListCubit>().state;
-    final index = state.messageIdIndex(visibleId);
-    if (index == null) return;
-    final message = state.messageAt(index);
+    final message = state.messageById(visibleId);
     if (message == null) return;
 
     _lastMarkedAsReadId = message.id;
@@ -171,11 +169,11 @@ class _MessageListViewState extends State<MessageListView>
     }
   }
 
-  void _scheduleInitialUnreadScroll(MessageListState state) {
-    if (_initialUnreadScrollHandled || state.meta.firstUnreadIndex == null) {
+  void _scheduleInitialUnreadScroll(MessageListStateWrapper state) {
+    if (_initialUnreadScrollHandled || state.firstUnreadIndex == null) {
       return;
     }
-    final message = state.messageAt(state.meta.firstUnreadIndex!);
+    final message = state.messageAt(state.firstUnreadIndex!);
     if (message == null) return;
 
     _initialUnreadScrollHandled = true;
@@ -191,7 +189,7 @@ class _MessageListViewState extends State<MessageListView>
     final state = context.select((MessageListCubit cubit) => cubit.state);
 
     // Clean up stale animation tracking for messages no longer loaded.
-    _animatedMessages.removeWhere((id) => state.messageIdIndex(id) == null);
+    _animatedMessages.removeWhere((id) => !state.isLoaded(id));
 
     // Deferred to avoid side-effects during build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -213,7 +211,7 @@ class _MessageListViewState extends State<MessageListView>
   /// padding tracks the composer height so content isn't hidden behind it.
   Widget _buildList(
     ValueListenable<double>? composerHeightListenable,
-    MessageListState state,
+    MessageListStateWrapper state,
   ) {
     Widget buildAnchoredList({double bottomPadding = 0.0}) {
       return AnchoredList<UiChatMessage>(
@@ -221,8 +219,8 @@ class _MessageListViewState extends State<MessageListView>
         controller: _listController,
         idExtractor: (msg) => msg.id,
         bottomPadding: bottomPadding,
-        canLoadOlder: state.meta.hasOlder,
-        canLoadNewer: state.meta.hasNewer,
+        canLoadOlder: state.hasOlder,
+        canLoadNewer: state.hasNewer,
         onLoadOlder: () {
           context.read<MessageListCubit>().loadOlder();
         },
@@ -250,7 +248,10 @@ class _MessageListViewState extends State<MessageListView>
   }
 
   /// Builds a single message row, optionally preceded by the unread divider.
-  Widget _buildMessageTile(MessageListState state, UiChatMessage message) {
+  Widget _buildMessageTile(
+    MessageListStateWrapper state,
+    UiChatMessage message,
+  ) {
     // Only animate a message's entrance once — mark it as seen.
     final animate =
         !_animatedMessages.contains(message.id) &&
@@ -259,10 +260,9 @@ class _MessageListViewState extends State<MessageListView>
       _animatedMessages.add(message.id);
     }
 
-    final index = state.messageIdIndex(message.id);
     final isFirstUnread =
-        state.meta.firstUnreadIndex != null &&
-        index == state.meta.firstUnreadIndex;
+        state.firstUnreadIndex != null &&
+        state.messageAt(state.firstUnreadIndex!)?.id == message.id;
 
     Widget tile = _MessageTileCubitHost(
       key: ValueKey(message.id),
@@ -270,15 +270,14 @@ class _MessageListViewState extends State<MessageListView>
       message: message,
       createMessageCubit: widget.createMessageCubit,
       child: ChatTile(
-        isConnectionChat: state.meta.isConnectionChat ?? false,
+        isConnectionChat: state.isConnectionChat ?? false,
         animated: animate,
       ),
     );
 
     // Insert "N unread messages" divider above the first unread message.
     if (isFirstUnread) {
-      final unreadCount =
-          state.loadedMessagesCount - state.meta.firstUnreadIndex!;
+      final unreadCount = state.messageData.length - state.firstUnreadIndex!;
       tile = Column(
         children: [
           UnreadDivider(count: unreadCount),

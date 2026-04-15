@@ -5,7 +5,7 @@
 //! A list of messages feature
 
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeSet, HashMap},
     sync::Arc,
 };
 
@@ -37,47 +37,20 @@ const PAGE_SIZE: usize = 50;
 const MAX_WINDOW: usize = PAGE_SIZE * 10;
 
 /// The state representing a list of messages in a chat
-///
-/// The state is cheaply cloneable (internally reference counted).
-#[frb(opaque)]
-#[derive(Debug, Default, Clone)]
-pub struct MessageListState {
-    /// Copy-on-write inner ref to make the state cheaply cloneable when emitting new state
-    inner: Arc<MessageListStateInner>,
-}
-
-#[frb(ignore)]
-#[derive(Debug, Default)]
-struct MessageListStateInner {
-    /// Whether the chat the messages are in is a connection chat
-    is_connection_chat: Option<bool>,
-    /// Loaded messages in oldest-first order
-    messages: Vec<UiChatMessage>,
-    /// Lookup index mapping a message id to the index in `messages`
-    message_ids_index: HashMap<MessageId, usize>,
-    /// Newly added messages
-    new_messages: HashSet<MessageId>,
-    /// More messages exist before the loaded window
-    has_older: bool,
-    /// More messages exist after the loaded window
-    has_newer: bool,
-    /// Whether the window is anchored at the most recent messages
-    is_at_bottom: bool,
-    /// Index of the first unread message (set on initial load only)
-    first_unread_index: Option<usize>,
-    /// Monotonic revision incremented for every emitted transition.
-    revision: usize,
-}
-
-/// Attributes of the message list state.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 #[frb(dart_metadata = ("freezed"), type_64bit_int)]
-pub struct MessageListMeta {
+pub struct MessageListState {
+    /// Whether the chat the messages are in is a connection chat
     pub is_connection_chat: Option<bool>,
+    /// More messages exist before the loaded window
     pub has_older: bool,
+    /// More messages exist after the loaded window
     pub has_newer: bool,
+    /// Whether the window is anchored at the most recent messages
     pub is_at_bottom: bool,
+    /// Index of the first unread message (set on initial load only)
     pub first_unread_index: Option<usize>,
+    /// Monotonic revision incremented for every emitted transition.
     pub revision: usize,
 }
 
@@ -197,10 +170,10 @@ fn newest_index(len: usize, oldest_index: usize) -> usize {
     len - 1 - oldest_index
 }
 
-fn rebuild_message_ids_index(inner: &mut MessageListStateInner) {
-    inner.message_ids_index.clear();
-    for (i, msg) in inner.messages.iter().enumerate() {
-        inner.message_ids_index.insert(msg.id, i);
+fn rebuild_message_ids_index(data: &mut MessageListData) {
+    data.message_ids_index.clear();
+    for (i, msg) in data.messages.iter().enumerate() {
+        data.message_ids_index.insert(msg.id, i);
     }
 }
 
@@ -225,35 +198,35 @@ fn push_patch_changes(
     }
 }
 
-impl MessageListState {
-    fn finish_transition(
-        &mut self,
-        kind: MessageListTransitionKind,
-        changes: Vec<MessageListChange>,
-        command: Option<MessageListCommand>,
-    ) -> MessageListTransition {
-        let revision = {
-            let inner = Arc::make_mut(&mut self.inner);
-            inner.revision += 1;
-            inner.revision
-        };
+#[frb(ignore)]
+struct MessageListData {
+    messages: Vec<UiChatMessage>,
+    message_ids_index: HashMap<MessageId, usize>,
+}
 
-        MessageListTransition {
-            revision,
-            kind,
-            changes,
-            command,
+impl Default for MessageListData {
+    fn default() -> Self {
+        Self::with_page_capacity()
+    }
+}
+
+impl MessageListData {
+    fn with_page_capacity() -> Self {
+        const CAPACITY: usize = PAGE_SIZE * 2 + 1;
+        Self {
+            messages: Vec::with_capacity(CAPACITY),
+            message_ids_index: HashMap::with_capacity(CAPACITY),
         }
     }
 
     /// Apply new messages to the state according to the given direction.
     fn apply_messages(
         &mut self,
+        state: &mut MessageListState,
         new_messages: Vec<ChatMessage>,
         is_connection_chat: Option<bool>,
         direction: LoadDirection,
     ) -> MessageListTransition {
-        let inner = Arc::make_mut(&mut self.inner);
         let mut changes = Vec::new();
         let mut command = None;
         let kind;
@@ -270,18 +243,17 @@ impl MessageListState {
                     new_messages.into_iter().map(From::from).collect();
                 compute_flight_positions(&mut messages, first_unread_index);
 
-                inner.messages = messages;
-                rebuild_message_ids_index(inner);
+                self.messages = messages;
+                rebuild_message_ids_index(self);
 
-                inner.is_connection_chat = is_connection_chat.or(inner.is_connection_chat);
-                inner.new_messages.clear();
-                inner.has_older = has_older;
-                inner.has_newer = has_newer;
-                inner.is_at_bottom = is_at_bottom;
-                inner.first_unread_index = first_unread_index;
+                state.is_connection_chat = is_connection_chat.or(state.is_connection_chat);
+                state.has_older = has_older;
+                state.has_newer = has_newer;
+                state.is_at_bottom = is_at_bottom;
+                state.first_unread_index = first_unread_index;
 
                 changes.push(MessageListChange::Reload {
-                    messages: newest_first(&inner.messages),
+                    messages: newest_first(&self.messages),
                 });
                 command = next_command;
                 kind = MessageListTransitionKind::WindowReplaced;
@@ -290,19 +262,19 @@ impl MessageListState {
                 let mut prepended: Vec<UiChatMessage> =
                     new_messages.into_iter().map(From::from).collect();
                 let prepend_count = prepended.len();
-                let old_len = inner.messages.len();
+                let old_len = self.messages.len();
                 let inserted_messages = newest_first(&prepended);
-                let shifted_unread = inner.first_unread_index.map(|i| i + prepend_count);
+                let shifted_unread = state.first_unread_index.map(|i| i + prepend_count);
                 let mut patch_indices = Vec::new();
 
                 compute_flight_positions(&mut prepended, None);
-                inner.messages.splice(0..0, prepended);
+                self.messages.splice(0..0, prepended);
 
-                if prepend_count > 0 && inner.messages.len() > prepend_count {
+                if prepend_count > 0 && self.messages.len() > prepend_count {
                     let boundary_start = prepend_count.saturating_sub(1);
-                    let boundary_end = (prepend_count + 1).min(inner.messages.len());
+                    let boundary_end = (prepend_count + 1).min(self.messages.len());
                     recompute_flight_positions_range(
-                        &mut inner.messages,
+                        &mut self.messages,
                         boundary_start,
                         boundary_end,
                         shifted_unread,
@@ -310,15 +282,15 @@ impl MessageListState {
                     patch_indices.extend(boundary_start..boundary_end);
                 }
 
-                let evict_count = inner.messages.len().saturating_sub(MAX_WINDOW);
+                let evict_count = self.messages.len().saturating_sub(MAX_WINDOW);
                 if evict_count > 0 {
-                    inner.messages.truncate(MAX_WINDOW);
-                    inner.has_newer = true;
-                    if let Some(last_index) = inner.messages.len().checked_sub(1) {
-                        let len = inner.messages.len();
+                    self.messages.truncate(MAX_WINDOW);
+                    state.has_newer = true;
+                    if let Some(last_index) = self.messages.len().checked_sub(1) {
+                        let len = self.messages.len();
                         let unread_index = shifted_unread.filter(|&i| i < len);
                         recompute_flight_positions_range(
-                            &mut inner.messages,
+                            &mut self.messages,
                             last_index,
                             len,
                             unread_index,
@@ -327,11 +299,11 @@ impl MessageListState {
                     }
                 }
 
-                inner.first_unread_index = shifted_unread.filter(|&i| i < inner.messages.len());
-                rebuild_message_ids_index(inner);
+                state.first_unread_index = shifted_unread.filter(|&i| i < self.messages.len());
+                rebuild_message_ids_index(self);
 
-                inner.has_older = has_older;
-                inner.is_at_bottom = !inner.has_newer && inner.is_at_bottom;
+                state.has_older = has_older;
+                state.is_at_bottom = !state.has_newer && state.is_at_bottom;
 
                 changes.push(MessageListChange::Splice {
                     index: old_len,
@@ -345,32 +317,26 @@ impl MessageListState {
                         messages: Vec::new(),
                     });
                 }
-                push_patch_changes(&mut changes, &inner.messages, patch_indices);
+                push_patch_changes(&mut changes, &self.messages, patch_indices);
                 kind = MessageListTransitionKind::OlderPageLoaded;
             }
             LoadDirection::AppendNewer { has_newer } => {
                 let mut appended: Vec<UiChatMessage> =
                     new_messages.into_iter().map(From::from).collect();
-                let old_count = inner.messages.len();
+                let old_count = self.messages.len();
                 let appended_count = appended.len();
                 let inserted_messages = newest_first(&appended);
                 let mut patch_indices = Vec::new();
 
-                for msg in &appended {
-                    if !inner.message_ids_index.contains_key(&msg.id) {
-                        inner.new_messages.insert(msg.id);
-                    }
-                }
-
                 compute_flight_positions(&mut appended, None);
-                inner.messages.extend(appended);
+                self.messages.extend(appended);
 
-                if old_count > 0 && inner.messages.len() > old_count {
+                if old_count > 0 && self.messages.len() > old_count {
                     let boundary_start = old_count.saturating_sub(1);
-                    let boundary_end = (old_count + 1).min(inner.messages.len());
-                    let unread_index = inner.first_unread_index;
+                    let boundary_end = (old_count + 1).min(self.messages.len());
+                    let unread_index = state.first_unread_index;
                     recompute_flight_positions_range(
-                        &mut inner.messages,
+                        &mut self.messages,
                         boundary_start,
                         boundary_end,
                         unread_index,
@@ -378,20 +344,20 @@ impl MessageListState {
                     patch_indices.extend(boundary_start..boundary_end);
                 }
 
-                let evict_count = inner.messages.len().saturating_sub(MAX_WINDOW);
+                let evict_count = self.messages.len().saturating_sub(MAX_WINDOW);
                 if evict_count > 0 {
-                    inner.messages.drain(0..evict_count);
-                    inner.has_older = true;
+                    self.messages.drain(0..evict_count);
+                    state.has_older = true;
                     patch_indices = patch_indices
                         .into_iter()
                         .filter_map(|index| index.checked_sub(evict_count))
                         .collect();
-                    if !inner.messages.is_empty() {
+                    if !self.messages.is_empty() {
                         recompute_flight_positions_range(
-                            &mut inner.messages,
+                            &mut self.messages,
                             0,
                             1,
-                            inner
+                            state
                                 .first_unread_index
                                 .and_then(|index| index.checked_sub(evict_count)),
                         );
@@ -399,13 +365,13 @@ impl MessageListState {
                     }
                 }
 
-                inner.first_unread_index = inner
+                state.first_unread_index = state
                     .first_unread_index
                     .and_then(|i| i.checked_sub(evict_count));
-                rebuild_message_ids_index(inner);
+                rebuild_message_ids_index(self);
 
-                inner.has_newer = has_newer;
-                inner.is_at_bottom = !has_newer;
+                state.has_newer = has_newer;
+                state.is_at_bottom = !has_newer;
 
                 changes.push(MessageListChange::Splice {
                     index: 0,
@@ -419,59 +385,83 @@ impl MessageListState {
                         messages: Vec::new(),
                     });
                 }
-                push_patch_changes(&mut changes, &inner.messages, patch_indices);
+                push_patch_changes(&mut changes, &self.messages, patch_indices);
                 kind = MessageListTransitionKind::NewerPageLoaded;
             }
         }
 
-        self.finish_transition(kind, changes, command)
+        state.revision += 1;
+
+        MessageListTransition {
+            revision: state.revision,
+            kind,
+            changes,
+            command,
+        }
     }
 
-    fn clear_first_unread_index(&mut self) -> Option<MessageListTransition> {
-        let unread_idx = self.inner.first_unread_index?;
-        let inner = Arc::make_mut(&mut self.inner);
+    fn clear_first_unread_index(
+        &mut self,
+        state: &mut MessageListState,
+    ) -> Option<MessageListTransition> {
+        let unread_idx = state.first_unread_index?;
 
         let start = unread_idx.saturating_sub(1);
-        let end = (unread_idx + 1).min(inner.messages.len());
-        recompute_flight_positions_range(&mut inner.messages, start, end, None);
-        inner.first_unread_index = None;
+        let end = (unread_idx + 1).min(self.messages.len());
+        recompute_flight_positions_range(&mut self.messages, start, end, None);
+        state.first_unread_index = None;
 
         let mut changes = Vec::new();
-        push_patch_changes(&mut changes, &inner.messages, start..end);
-        Some(self.finish_transition(
-            MessageListTransitionKind::UnreadBoundaryChanged,
+        push_patch_changes(&mut changes, &self.messages, start..end);
+
+        state.revision += 1;
+        Some(MessageListTransition {
+            revision: state.revision,
+            kind: MessageListTransitionKind::UnreadBoundaryChanged,
             changes,
-            None,
-        ))
+            command: None,
+        })
     }
 
-    fn update_message_in_place(&mut self, message: ChatMessage) -> Option<MessageListTransition> {
-        let idx = self.inner.message_ids_index.get(&message.id()).copied()?;
-        let inner = Arc::make_mut(&mut self.inner);
+    fn update_message_in_place(
+        &mut self,
+        state: &mut MessageListState,
+        message: ChatMessage,
+    ) -> Option<MessageListTransition> {
+        let idx = self.message_ids_index.get(&message.id()).copied()?;
         let updated: UiChatMessage = message.into();
 
         let start = idx.saturating_sub(1);
-        let end = (idx + 2).min(inner.messages.len());
-        let unread_index = inner.first_unread_index;
-        inner.messages[idx] = updated;
-        recompute_flight_positions_range(&mut inner.messages, start, end, unread_index);
+        let end = (idx + 2).min(self.messages.len());
+        let unread_index = state.first_unread_index;
+        self.messages[idx] = updated;
+        recompute_flight_positions_range(&mut self.messages, start, end, unread_index);
 
         let mut changes = Vec::new();
-        push_patch_changes(&mut changes, &inner.messages, start..end);
-        Some(self.finish_transition(MessageListTransitionKind::MessageUpdated, changes, None))
+        push_patch_changes(&mut changes, &self.messages, start..end);
+
+        state.revision += 1;
+        Some(MessageListTransition {
+            revision: state.revision,
+            kind: MessageListTransitionKind::MessageUpdated,
+            changes,
+            command: None,
+        })
     }
 
-    fn remove_message(&mut self, message_id: MessageId) -> Option<MessageListTransition> {
-        let idx = self.inner.message_ids_index.get(&message_id).copied()?;
-        let inner = Arc::make_mut(&mut self.inner);
-        let len_before = inner.messages.len();
+    fn remove_message(
+        &mut self,
+        state: &mut MessageListState,
+        message_id: MessageId,
+    ) -> Option<MessageListTransition> {
+        let idx = self.message_ids_index.get(&message_id).copied()?;
+        let len_before = self.messages.len();
 
-        inner.messages.remove(idx);
-        inner.new_messages.remove(&message_id);
-        inner.first_unread_index = match inner.first_unread_index {
+        self.messages.remove(idx);
+        state.first_unread_index = match state.first_unread_index {
             Some(first_unread) if first_unread > idx => first_unread.checked_sub(1),
             Some(first_unread) if first_unread == idx => {
-                if idx < inner.messages.len() {
+                if idx < self.messages.len() {
                     Some(idx)
                 } else {
                     None
@@ -481,61 +471,37 @@ impl MessageListState {
         };
 
         let start = idx.saturating_sub(1);
-        let end = (idx + 1).min(inner.messages.len());
-        recompute_flight_positions_range(&mut inner.messages, start, end, inner.first_unread_index);
-        rebuild_message_ids_index(inner);
+        let end = (idx + 1).min(self.messages.len());
+        recompute_flight_positions_range(&mut self.messages, start, end, state.first_unread_index);
+        rebuild_message_ids_index(self);
 
         let mut changes = vec![MessageListChange::Splice {
             index: newest_index(len_before, idx),
             delete_count: 1,
             messages: Vec::new(),
         }];
-        push_patch_changes(&mut changes, &inner.messages, start..end);
-        Some(self.finish_transition(MessageListTransitionKind::MessageDeleted, changes, None))
+        push_patch_changes(&mut changes, &self.messages, start..end);
+
+        state.revision += 1;
+        Some(MessageListTransition {
+            revision: state.revision,
+            kind: MessageListTransitionKind::MessageDeleted,
+            changes,
+            command: None,
+        })
     }
 
-    fn issue_command(&mut self, command: MessageListCommand) -> MessageListTransition {
-        self.finish_transition(
-            MessageListTransitionKind::CommandIssued,
-            Vec::new(),
-            Some(command),
-        )
-    }
-
-    /// The number of loaded messages in the list
-    ///
-    /// Note that this is not the number of all messages in the chat.
-    #[frb(sync, getter, type_64bit_int)]
-    pub fn loaded_messages_count(&self) -> usize {
-        self.inner.messages.len()
-    }
-
-    /// Returns the message at the given index.
-    #[frb(sync, type_64bit_int, positional)]
-    pub fn message_at(&self, index: usize) -> Option<UiChatMessage> {
-        self.inner.messages.get(index).cloned()
-    }
-
-    /// Returns the lookup table mapping a message id to the index in the list.
-    #[frb(sync, type_64bit_int, positional)]
-    pub fn message_id_index(&self, message_id: MessageId) -> Option<usize> {
-        self.inner.message_ids_index.get(&message_id).copied()
-    }
-
-    #[frb(sync, positional)]
-    pub fn is_new_message(&self, message_id: MessageId) -> bool {
-        self.inner.new_messages.contains(&message_id)
-    }
-
-    #[frb(sync, getter)]
-    pub fn meta(&self) -> MessageListMeta {
-        MessageListMeta {
-            is_connection_chat: self.inner.is_connection_chat,
-            has_older: self.inner.has_older,
-            has_newer: self.inner.has_newer,
-            is_at_bottom: self.inner.is_at_bottom,
-            first_unread_index: self.inner.first_unread_index,
-            revision: self.inner.revision,
+    fn issue_command(
+        &mut self,
+        state: &mut MessageListState,
+        command: MessageListCommand,
+    ) -> MessageListTransition {
+        state.revision += 1;
+        MessageListTransition {
+            revision: state.revision,
+            kind: MessageListTransitionKind::CommandIssued,
+            changes: Vec::new(),
+            command: Some(command),
         }
     }
 }
@@ -654,6 +620,7 @@ struct MessageListContext<S> {
     transitions_tx: broadcast::Sender<MessageListTransition>,
     chat_id: ChatId,
     commands_rx: mpsc::Receiver<Command>,
+    data: MessageListData,
 }
 
 impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
@@ -670,15 +637,10 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
             transitions_tx,
             chat_id,
             commands_rx,
+            data: Default::default(),
         }
     }
 
-    fn emit_transition(&self, transition: MessageListTransition) {
-        let _ = self.transitions_tx.send(transition);
-    }
-}
-
-impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
     fn spawn(
         mut self,
         store_notifications: impl Stream<Item = Arc<StoreNotification>> + Send + Unpin + 'static,
@@ -690,9 +652,19 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
         });
     }
 
+    fn emit_state_and_transition(
+        &self,
+        new_state: MessageListState,
+        transition: MessageListTransition,
+    ) {
+        debug_assert_eq!(new_state.revision, transition.revision);
+        self.state_tx.send_modify(|state| *state = new_state);
+        let _ = self.transitions_tx.send(transition);
+    }
+
     // -- Initial load --
 
-    async fn initial_load(&self) {
+    async fn initial_load(&mut self) {
         let is_connection_chat = self.load_is_connection_chat().await;
 
         // Try to find the first unread message
@@ -722,30 +694,28 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
             };
 
             let first_unread_index = messages.iter().position(|m| m.id() == unread_id);
-            let mut transition = None;
-            self.state_tx.send_modify(|state| {
-                transition = Some(state.apply_messages(
-                    messages,
-                    is_connection_chat,
-                    LoadDirection::Replace {
-                        has_older,
-                        has_newer,
-                        is_at_bottom: !has_newer,
-                        first_unread_index,
-                        command: None,
-                    },
-                ));
-            });
-            if let Some(transition) = transition {
-                self.emit_transition(transition);
-            }
+
+            let mut state = self.state_tx.borrow().clone();
+            let transition = self.data.apply_messages(
+                &mut state,
+                messages,
+                is_connection_chat,
+                LoadDirection::Replace {
+                    has_older,
+                    has_newer,
+                    is_at_bottom: !has_newer,
+                    first_unread_index,
+                    command: None,
+                },
+            );
+            self.emit_state_and_transition(state, transition);
         } else {
             // No unread messages: load from the bottom
             self.load_bottom(is_connection_chat, false).await;
         }
     }
 
-    async fn load_bottom(&self, is_connection_chat: Option<bool>, scroll_to_bottom: bool) {
+    async fn load_bottom(&mut self, is_connection_chat: Option<bool>, scroll_to_bottom: bool) {
         let limit = PAGE_SIZE + 1;
         let messages = match self.store.messages(self.chat_id, limit).await {
             Ok(messages) => messages,
@@ -762,23 +732,20 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
             messages
         };
 
-        let mut transition = None;
-        self.state_tx.send_modify(|state| {
-            transition = Some(state.apply_messages(
-                messages,
-                is_connection_chat,
-                LoadDirection::Replace {
-                    has_older,
-                    has_newer: false,
-                    is_at_bottom: true,
-                    first_unread_index: None,
-                    command: scroll_to_bottom.then_some(MessageListCommand::ScrollToBottom),
-                },
-            ));
-        });
-        if let Some(transition) = transition {
-            self.emit_transition(transition);
-        }
+        let mut state = self.state_tx.borrow().clone();
+        let transition = self.data.apply_messages(
+            &mut state,
+            messages,
+            is_connection_chat,
+            LoadDirection::Replace {
+                has_older,
+                has_newer: false,
+                is_at_bottom: true,
+                first_unread_index: None,
+                command: scroll_to_bottom.then_some(MessageListCommand::ScrollToBottom),
+            },
+        );
+        self.emit_state_and_transition(state, transition);
     }
 
     async fn load_is_connection_chat(&self) -> Option<bool> {
@@ -826,13 +793,10 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
 
     // -- Command handlers --
 
-    async fn handle_load_older(&self) {
-        let (oldest_ts, oldest_id) = {
-            let state = self.state_tx.borrow();
-            match state.inner.messages.first() {
-                Some(msg) => (msg.timestamp.with_timezone(&chrono::Utc).into(), msg.id),
-                None => return,
-            }
+    async fn handle_load_older(&mut self) {
+        let (oldest_ts, oldest_id) = match self.data.messages.first() {
+            Some(msg) => (msg.timestamp.with_timezone(&chrono::Utc).into(), msg.id),
+            None => return,
         };
 
         let (messages, has_older) = match self
@@ -847,46 +811,33 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
             }
         };
 
-        if messages.is_empty() {
+        let mut state = self.state_tx.borrow().clone();
+        let transition = if messages.is_empty() {
             // Still emit state to clear has_older so Flutter resets its load guard
-            let mut transition = None;
-            self.state_tx.send_modify(|state| {
-                {
-                    let inner = Arc::make_mut(&mut state.inner);
-                    inner.has_older = has_older;
-                }
-                transition = Some(state.finish_transition(
-                    MessageListTransitionKind::MetaUpdated,
-                    Vec::new(),
-                    None,
-                ));
-            });
-            if let Some(transition) = transition {
-                self.emit_transition(transition);
+            state.has_older = has_older;
+            state.revision += 1;
+            MessageListTransition {
+                revision: state.revision,
+                kind: MessageListTransitionKind::MetaUpdated,
+                changes: Vec::new(),
+                command: None,
             }
-            return;
-        }
-
-        let mut transition = None;
-        self.state_tx.send_modify(|state| {
-            transition = Some(state.apply_messages(
+        } else {
+            self.data.apply_messages(
+                &mut state,
                 messages,
                 None,
                 LoadDirection::PrependOlder { has_older },
-            ));
-        });
-        if let Some(transition) = transition {
-            self.emit_transition(transition);
-        }
+            )
+        };
+
+        self.emit_state_and_transition(state, transition);
     }
 
-    async fn handle_load_newer(&self) {
-        let (newest_ts, newest_id) = {
-            let state = self.state_tx.borrow();
-            match state.inner.messages.last() {
-                Some(msg) => (msg.timestamp.with_timezone(&chrono::Utc).into(), msg.id),
-                None => return,
-            }
+    async fn handle_load_newer(&mut self) {
+        let (newest_ts, newest_id) = match self.data.messages.last() {
+            Some(msg) => (msg.timestamp.with_timezone(&chrono::Utc).into(), msg.id),
+            None => return,
         };
 
         let (messages, has_newer) = match self
@@ -901,63 +852,43 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
             }
         };
 
-        if messages.is_empty() {
+        let mut state = self.state_tx.borrow().clone();
+        let transition = if messages.is_empty() {
             // Still emit state to clear has_newer so Flutter resets its load guard
-            let mut transition = None;
-            self.state_tx.send_modify(|state| {
-                {
-                    let inner = Arc::make_mut(&mut state.inner);
-                    inner.has_newer = has_newer;
-                }
-                transition = Some(state.finish_transition(
-                    MessageListTransitionKind::MetaUpdated,
-                    Vec::new(),
-                    None,
-                ));
-            });
-            if let Some(transition) = transition {
-                self.emit_transition(transition);
+            state.has_newer = has_newer;
+            state.revision += 1;
+            MessageListTransition {
+                revision: state.revision,
+                kind: MessageListTransitionKind::MetaUpdated,
+                changes: Vec::new(),
+                command: None,
             }
-            return;
-        }
-
-        let mut transition = None;
-        self.state_tx.send_modify(|state| {
-            transition = Some(state.apply_messages(
+        } else {
+            self.data.apply_messages(
+                &mut state,
                 messages,
                 None,
                 LoadDirection::AppendNewer { has_newer },
-            ));
-        });
-        if let Some(transition) = transition {
-            self.emit_transition(transition);
-        }
+            )
+        };
+        self.emit_state_and_transition(state, transition);
     }
 
-    async fn handle_jump_to_bottom(&self) {
+    async fn handle_jump_to_bottom(&mut self) {
         let is_connection_chat = self.load_is_connection_chat().await;
         self.load_bottom(is_connection_chat, true).await;
     }
 
-    async fn handle_jump_to_message(&self, message_id: MessageId) {
+    async fn handle_jump_to_message(&mut self, message_id: MessageId) {
         // Check if already in the loaded window
-        let already_loaded = self
-            .state_tx
-            .borrow()
-            .inner
-            .message_ids_index
-            .get(&message_id)
-            .copied();
+        let already_loaded = self.data.message_ids_index.contains_key(&message_id);
 
-        if already_loaded.is_some() {
-            let mut transition = None;
-            self.state_tx.send_modify(|state| {
-                transition =
-                    Some(state.issue_command(MessageListCommand::ScrollToId { message_id }));
-            });
-            if let Some(transition) = transition {
-                self.emit_transition(transition);
-            }
+        if already_loaded {
+            let mut state = self.state_tx.borrow().clone();
+            let transition = self
+                .data
+                .issue_command(&mut state, MessageListCommand::ScrollToId { message_id });
+            self.emit_state_and_transition(state, transition);
             return;
         }
 
@@ -991,46 +922,38 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
 
         let is_connection_chat = self.load_is_connection_chat().await;
 
-        let mut transition = None;
-        self.state_tx.send_modify(|state| {
-            transition = Some(state.apply_messages(
-                messages,
-                is_connection_chat,
-                LoadDirection::Replace {
-                    has_older,
-                    has_newer,
-                    is_at_bottom: !has_newer,
-                    first_unread_index: None,
-                    command: Some(MessageListCommand::ScrollToId { message_id }),
-                },
-            ));
-        });
-        if let Some(transition) = transition {
-            self.emit_transition(transition);
-        }
+        let mut state = self.state_tx.borrow().clone();
+        let transition = self.data.apply_messages(
+            &mut state,
+            messages,
+            is_connection_chat,
+            LoadDirection::Replace {
+                has_older,
+                has_newer,
+                is_at_bottom: !has_newer,
+                first_unread_index: None,
+                command: Some(MessageListCommand::ScrollToId { message_id }),
+            },
+        );
+        self.emit_state_and_transition(state, transition);
     }
 
     // -- Store notification handling --
 
-    async fn process_store_notification(&self, notification: &StoreNotification) {
+    async fn process_store_notification(&mut self, notification: &StoreNotification) {
         if let Err(error) = self.try_process_store_notification(notification).await {
             error!(%error, "Failed to process store notification");
         }
     }
 
     async fn try_process_store_notification(
-        &self,
+        &mut self,
         notification: &StoreNotification,
     ) -> anyhow::Result<()> {
         for (id, op) in &notification.ops {
             if let StoreEntityId::Message(message_id) = id {
                 if op.contains(StoreOperation::Remove) {
-                    let in_window = self
-                        .state_tx
-                        .borrow()
-                        .inner
-                        .message_ids_index
-                        .contains_key(message_id);
+                    let in_window = self.data.message_ids_index.contains_key(message_id);
                     if in_window {
                         self.remove_message_in_place(*message_id);
                     }
@@ -1047,7 +970,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
                             self.clear_first_unread_index();
                         }
 
-                        let is_at_bottom = self.state_tx.borrow().inner.is_at_bottom;
+                        let is_at_bottom = self.state_tx.borrow().is_at_bottom;
                         if is_at_bottom {
                             self.handle_load_newer().await;
                         }
@@ -1056,12 +979,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
                 }
 
                 if op.contains(StoreOperation::Update) {
-                    let in_window = self
-                        .state_tx
-                        .borrow()
-                        .inner
-                        .message_ids_index
-                        .contains_key(message_id);
+                    let in_window = self.data.message_ids_index.contains_key(message_id);
                     if in_window
                         && let Some(message) = self.store.message(*message_id).await?
                         && message.chat_id() == self.chat_id
@@ -1076,50 +994,25 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
     }
 
     /// Clear the unread divider and recompute affected flight positions.
-    fn clear_first_unread_index(&self) {
-        let mut transition = None;
-        self.state_tx.send_modify(|state| {
-            transition = state.clear_first_unread_index();
-        });
-        if let Some(transition) = transition {
-            self.emit_transition(transition);
+    fn clear_first_unread_index(&mut self) {
+        let mut state = self.state_tx.borrow().clone();
+        if let Some(transition) = self.data.clear_first_unread_index(&mut state) {
+            self.emit_state_and_transition(state, transition);
         }
     }
 
     /// Update a single message in place and recompute its flight position + neighbors.
-    fn update_message_in_place(&self, message: ChatMessage) {
-        let mut transition = None;
-        self.state_tx.send_modify(|state| {
-            transition = state.update_message_in_place(message);
-        });
-        if let Some(transition) = transition {
-            self.emit_transition(transition);
+    fn update_message_in_place(&mut self, message: ChatMessage) {
+        let mut state = self.state_tx.borrow().clone();
+        if let Some(transition) = self.data.update_message_in_place(&mut state, message) {
+            self.emit_state_and_transition(state, transition);
         }
     }
 
-    fn remove_message_in_place(&self, message_id: MessageId) {
-        let mut transition = None;
-        self.state_tx.send_modify(|state| {
-            transition = state.remove_message(message_id);
-        });
-        if let Some(transition) = transition {
-            self.emit_transition(transition);
-        }
-    }
-}
-
-impl Clone for MessageListStateInner {
-    fn clone(&self) -> Self {
-        Self {
-            is_connection_chat: self.is_connection_chat,
-            messages: self.messages.clone(),
-            message_ids_index: self.message_ids_index.clone(),
-            new_messages: self.new_messages.clone(),
-            has_older: self.has_older,
-            has_newer: self.has_newer,
-            is_at_bottom: self.is_at_bottom,
-            first_unread_index: self.first_unread_index,
-            revision: self.revision,
+    fn remove_message_in_place(&mut self, message_id: MessageId) {
+        let mut state = self.state_tx.borrow().clone();
+        if let Some(transition) = self.data.remove_message(&mut state, message_id) {
+            self.emit_state_and_transition(state, transition);
         }
     }
 }
@@ -1183,7 +1076,10 @@ mod tests {
         ];
 
         let mut state = MessageListState::default();
-        state.apply_messages(
+        let mut data = MessageListData::default();
+
+        data.apply_messages(
+            &mut state,
             messages.clone(),
             None,
             LoadDirection::Replace {
@@ -1195,12 +1091,7 @@ mod tests {
             },
         );
 
-        let positions = state
-            .inner
-            .messages
-            .iter()
-            .map(|m| m.position)
-            .collect::<Vec<_>>();
+        let positions: Vec<_> = data.messages.iter().map(|m| m.position).collect();
         assert_eq!(
             positions,
             [Start, Middle, End, Start, Middle, End, Single, Start, End]
@@ -1225,7 +1116,10 @@ mod tests {
         ];
 
         let mut state = MessageListState::default();
-        state.apply_messages(
+        let mut data = MessageListData::default();
+
+        data.apply_messages(
+            &mut state,
             messages,
             None,
             LoadDirection::Replace {
@@ -1237,12 +1131,7 @@ mod tests {
             },
         );
 
-        let positions = state
-            .inner
-            .messages
-            .iter()
-            .map(|m| m.position)
-            .collect::<Vec<_>>();
+        let positions: Vec<_> = data.messages.iter().map(|m| m.position).collect();
         assert_eq!(positions, [Start, End, Start, End]);
     }
 
@@ -1253,7 +1142,10 @@ mod tests {
         let second = new_test_message_with_id(&alice, 2, 1);
 
         let mut state = MessageListState::default();
-        let transition = state.apply_messages(
+        let mut data = MessageListData::default();
+
+        let transition = data.apply_messages(
+            &mut state,
             vec![first.clone(), second.clone()],
             None,
             LoadDirection::Replace {
@@ -1266,7 +1158,7 @@ mod tests {
         );
 
         assert_eq!(transition.revision, 1);
-        assert_eq!(state.meta().revision, 1);
+        assert_eq!(state.revision, 1);
         assert_eq!(transition.kind, MessageListTransitionKind::WindowReplaced);
         assert_eq!(transition.command, Some(MessageListCommand::ScrollToBottom),);
 
@@ -1288,7 +1180,10 @@ mod tests {
         let third = new_test_message_with_id(&alice, 3, 2);
 
         let mut state = MessageListState::default();
-        state.apply_messages(
+        let mut data = MessageListData::default();
+
+        data.apply_messages(
+            &mut state,
             vec![first, second.clone()],
             None,
             LoadDirection::Replace {
@@ -1300,22 +1195,18 @@ mod tests {
             },
         );
 
-        let transition = state.apply_messages(
+        let transition = data.apply_messages(
+            &mut state,
             vec![third.clone()],
             None,
             LoadDirection::AppendNewer { has_newer: false },
         );
 
         assert_eq!(transition.revision, 2);
-        assert_eq!(state.meta().revision, 2);
+        assert_eq!(state.revision, 2);
         assert_eq!(transition.kind, MessageListTransitionKind::NewerPageLoaded);
         assert_eq!(
-            state
-                .inner
-                .messages
-                .iter()
-                .map(|m| m.position)
-                .collect::<Vec<_>>(),
+            data.messages.iter().map(|m| m.position).collect::<Vec<_>>(),
             vec![Start, Middle, End],
         );
 
@@ -1353,7 +1244,10 @@ mod tests {
         let third = new_test_message_with_id(&alice, 3, 2);
 
         let mut state = MessageListState::default();
-        state.apply_messages(
+        let mut data = MessageListData::default();
+
+        data.apply_messages(
+            &mut state,
             vec![second.clone(), third],
             None,
             LoadDirection::Replace {
@@ -1365,22 +1259,18 @@ mod tests {
             },
         );
 
-        let transition = state.apply_messages(
+        let transition = data.apply_messages(
+            &mut state,
             vec![first.clone()],
             None,
             LoadDirection::PrependOlder { has_older: false },
         );
 
         assert_eq!(transition.revision, 2);
-        assert_eq!(state.meta().revision, 2);
+        assert_eq!(state.revision, 2);
         assert_eq!(transition.kind, MessageListTransitionKind::OlderPageLoaded);
         assert_eq!(
-            state
-                .inner
-                .messages
-                .iter()
-                .map(|m| m.position)
-                .collect::<Vec<_>>(),
+            data.messages.iter().map(|m| m.position).collect::<Vec<_>>(),
             vec![Start, Middle, End],
         );
 
@@ -1418,7 +1308,10 @@ mod tests {
         let third = new_test_message_with_id(&alice, 3, 2);
 
         let mut state = MessageListState::default();
-        state.apply_messages(
+        let mut data = MessageListData::default();
+
+        data.apply_messages(
+            &mut state,
             vec![first.clone(), second.clone(), third.clone()],
             None,
             LoadDirection::Replace {
@@ -1430,20 +1323,15 @@ mod tests {
             },
         );
 
-        let transition = state
-            .remove_message(second.id())
+        let transition = data
+            .remove_message(&mut state, second.id())
             .expect("message should exist");
 
         assert_eq!(transition.revision, 2);
-        assert_eq!(state.meta().revision, 2);
+        assert_eq!(state.revision, 2);
         assert_eq!(transition.kind, MessageListTransitionKind::MessageDeleted);
         assert_eq!(
-            state
-                .inner
-                .messages
-                .iter()
-                .map(|m| m.position)
-                .collect::<Vec<_>>(),
+            data.messages.iter().map(|m| m.position).collect::<Vec<_>>(),
             vec![Start, End],
         );
 
