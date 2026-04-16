@@ -64,7 +64,7 @@ final samProfile = UiUserProfile(
 );
 final fredProfile = UiUserProfile(
   userId: fredId,
-  displayName: 'Fred',
+  displayName: 'Frederic',
   profilePicture: fredProfilePicture,
 );
 final jessicaProfile = UiUserProfile(
@@ -74,7 +74,7 @@ final jessicaProfile = UiUserProfile(
 );
 final daveProfile = UiUserProfile(
   userId: daveId,
-  displayName: 'Dave',
+  displayName: 'David',
   profilePicture: daveProfilePicture,
 );
 final frankProfile = UiUserProfile(
@@ -84,7 +84,7 @@ final frankProfile = UiUserProfile(
 );
 final alexProfile = UiUserProfile(
   userId: alexId,
-  displayName: 'Alex',
+  displayName: 'Alex G',
   profilePicture: alexProfilePicture,
 );
 final ireneProfile = UiUserProfile(
@@ -141,7 +141,7 @@ final chats = [
     lastMessage: _lastChatMessage(
       jessicaChatId,
       jessicaId,
-      "What is the recipe for the cake you made?",
+      "What's the recipe for that olive oil cake you made? It was so good.",
     ),
   ),
   // Science club
@@ -191,8 +191,8 @@ final chats = [
     lastUsed: now.subtract(const Duration(minutes: 20)),
     lastMessage: _lastChatMessage(
       gardeningPartyId,
-      samId,
-      "Last year I grew 5 different varieties of carrots! Let me see if I can find a good primer about how to grow them...",
+      jessicaId,
+      "Last year I grew 5 different kinds of carrots! Let me see if I can find a good primer about how to grow them...",
     ),
   ),
   // Frank
@@ -250,7 +250,7 @@ final chats = [
     lastUsed: now.subtract(const Duration(days: 1)),
     lastMessage: _lastChatMessage(
       dinnerPartyId,
-      ownId,
+      daveId,
       "Sorry, I can't join the party. I'm going to the movies already.",
     ),
   ),
@@ -449,7 +449,7 @@ final gardeningPartyMessages = [
           plainBody: "",
           topicId: Uint8List(0),
           content: _simpleMessage(
-            'Last year I grew 5 different varieties of carrots! Let me see if I can find a good primer about how to grow them...',
+            'Last year I grew 5 different kinds of carrots! Let me see if I can find a good primer about how to grow them...',
           ),
           attachments: [],
         ),
