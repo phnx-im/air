@@ -1054,7 +1054,13 @@ class InReplyToBubble extends StatelessWidget {
             loc.composer_reply_deleted_message_placeholder,
       ),
     };
-    final showJumpIcon = !stretch && inReplyTo is UiInReplyToMessage_Resolved;
+    // Show the jump arrow only in message bubbles when the original message
+    // exists and hasn't been deleted. Don't show the arrow in the compose
+    // preview.
+    final showJumpIcon =
+        !stretch &&
+        inReplyTo is UiInReplyToMessage_Resolved &&
+        !(inReplyTo as UiInReplyToMessage_Resolved).mimiContent.isDeleted;
 
     final innerContent = Container(
       decoration: BoxDecoration(
