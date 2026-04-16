@@ -2,26 +2,34 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/core/core.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/app_scaffold.dart';
 import 'package:air/ui/components/button/button.dart';
 import 'package:air/ui/icons/icons.dart';
 import 'package:air/ui/typography/font_size.dart';
+import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
-// Placeholder invite codes for display
-const _inviteCodes = [
-  'CATSRULE',
-  'LOVEDOGS',
-  'OMGRATSS',
-  'PANDAWOW',
-  'WOOFMEOW',
-  'FLEXPOST',
-];
+class InvitationCodesScreen extends StatelessWidget {
+  const InvitationCodesScreen({super.key});
 
-class InviteCodesScreen extends StatelessWidget {
-  const InviteCodesScreen({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider<InvitationCodesCubit>(
+      create: (BuildContext context) {
+        final userCubit = context.read<UserCubit>();
+        return InvitationCodesCubit(userCubit: userCubit);
+      },
+      child: const InvitationCodesView(),
+    );
+  }
+}
+
+class InvitationCodesView extends StatelessWidget {
+  const InvitationCodesView({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -44,13 +52,11 @@ class InviteCodesScreen extends StatelessWidget {
                 Row(
                   children: [
                     const Spacer(),
-                    IntrinsicWidth(
-                      child: AppButton(
-                        size: AppButtonSize.small,
-                        type: AppButtonType.secondary,
-                        label: 'Copy all',
-                        onPressed: () {},
-                      ),
+                    AppButton(
+                      size: AppButtonSize.small,
+                      type: AppButtonType.secondary,
+                      label: 'Copy all',
+                      onPressed: () {},
                     ),
                     const Spacer(),
                   ],
@@ -73,25 +79,37 @@ class _InviteCodesList extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
 
+    final invitationCodes = context.select(
+      (InvitationCodesCubit cubit) => cubit.state.codes,
+    );
+    // final invitationCodes = _inviteCodes;
+
     return Container(
       decoration: BoxDecoration(
         color: colors.backgroundElevated.primary,
         borderRadius: BorderRadius.circular(Spacings.s),
       ),
       child: Column(
-        children: _inviteCodes
-            .expand(
-              (code) => [
-                _InviteCodeItem(code: code),
-                if (code != _inviteCodes.last)
-                  Divider(
-                    height: 1,
-                    thickness: 1,
-                    color: colors.separator.primary,
-                  ),
-              ],
-            )
-            .toList(),
+        children: invitationCodes.isEmpty
+            ? [const _InviteCodeEmptyItem()]
+            : invitationCodes
+                  .expand(
+                    (code) => [
+                      switch (code) {
+                        UiInvitationCode_Code(field0: final code) =>
+                          _InviteCodeItem(code: code),
+                        UiInvitationCode_Token(field0: final token) =>
+                          _InviteCodeUnlockButton(tokenId: token),
+                      },
+                      if (code != invitationCodes.last)
+                        Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: colors.separator.primary,
+                        ),
+                    ],
+                  )
+                  .toList(),
       ),
     );
   }
@@ -100,7 +118,88 @@ class _InviteCodesList extends StatelessWidget {
 class _InviteCodeItem extends StatelessWidget {
   const _InviteCodeItem({required this.code});
 
-  final String code;
+  final InvitationCode code;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = CustomColorScheme.of(context);
+
+    return InkWell(
+      onTap: () {
+        context.read<InvitationCodesCubit>().markInvitationCodeAsCopied(
+          copiedCode: code.code,
+        );
+      },
+      mouseCursor: SystemMouseCursors.click,
+      borderRadius: BorderRadius.circular(Spacings.s),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Spacings.s,
+          vertical: Spacings.xs,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                code.code,
+                style: TextStyle(
+                  fontSize: BodyFontSize.base.size,
+                  color: colors.text.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: Spacings.xs),
+            AppIcon.copy(size: 24, color: colors.text.tertiary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InviteCodeUnlockButton extends StatelessWidget {
+  const _InviteCodeUnlockButton({required this.tokenId});
+
+  final TokenId tokenId;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = CustomColorScheme.of(context);
+
+    return InkWell(
+      onTap: () {
+        context.read<InvitationCodesCubit>().requestInvitationCode(
+          tokenId: tokenId,
+        );
+      },
+      mouseCursor: SystemMouseCursors.click,
+      borderRadius: BorderRadius.circular(Spacings.s),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Spacings.s,
+          vertical: Spacings.xs,
+        ),
+        child: Row(
+          children: [
+            Text(
+              "Tap to unlock",
+              style: TextStyle(
+                fontSize: BodyFontSize.base.size,
+                fontStyle: FontStyle.italic,
+                color: colors.text.tertiary,
+              ),
+            ),
+            const Spacer(),
+            AppIcon.circleDashed(size: 24, color: colors.text.tertiary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InviteCodeEmptyItem extends StatelessWidget {
+  const _InviteCodeEmptyItem();
 
   @override
   Widget build(BuildContext context) {
@@ -115,19 +214,12 @@ class _InviteCodeItem extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              code,
+              "No invitation codes available",
               style: TextStyle(
                 fontSize: BodyFontSize.base.size,
-                color: colors.text.primary,
+                color: colors.text.tertiary,
               ),
             ),
-          ),
-          const SizedBox(width: Spacings.xs),
-          InkWell(
-            onTap: () {},
-            mouseCursor: SystemMouseCursors.click,
-            borderRadius: BorderRadius.circular(Spacings.xxs),
-            child: AppIcon.copy(size: 24, color: colors.text.tertiary),
           ),
         ],
       ),

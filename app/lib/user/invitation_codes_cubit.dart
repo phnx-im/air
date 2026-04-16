@@ -33,9 +33,10 @@ class InvitationCodesCubit
 
   // Cubit methods
 
-  Future<RequestInvitationCodeError?> requestInvitationCode() async =>
-      _impl.requestInvitationCode();
+  Future<RequestInvitationCodeError?> requestInvitationCode({
+    required TokenId tokenId,
+  }) async => _impl.requestInvitationCode(tokenId: tokenId);
 
-  Future<void> markInvitationCodeAsCopied({required String code}) async =>
-      _impl.markInvitationCodeAsCopied(copiedCode: code);
+  Future<void> markInvitationCodeAsCopied({required String copiedCode}) async =>
+      _impl.markInvitationCodeAsCopied(copiedCode: copiedCode);
 }

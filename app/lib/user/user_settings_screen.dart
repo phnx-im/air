@@ -312,12 +312,16 @@ class _InviteCodes extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
 
-    final numInviteCodes = 6;
+    final availableInvitationCodes = context.select(
+      (UserSettingsCubit cubit) => cubit.state.availableInvitationCodes,
+    );
 
     return _FieldContainer(
       onTap: () {
         Navigator.of(context).push(
-          MaterialPageRoute(builder: (context) => const InviteCodesScreen()),
+          MaterialPageRoute(
+            builder: (context) => const InvitationCodesScreen(),
+          ),
         );
       },
       child: Row(
@@ -325,23 +329,24 @@ class _InviteCodes extends StatelessWidget {
           AppIcon.users(color: colors.text.secondary, size: 24),
           const SizedBox(width: Spacings.xs),
           const Expanded(child: Text("Invite codes")),
-          Container(
-            width: 40,
-            height: 24,
-            decoration: BoxDecoration(
-              color: colors.function.success,
-              borderRadius: BorderRadius.circular(1000),
-            ),
-            child: Center(
-              child: Text(
-                numInviteCodes.toString(),
-                style: TextStyle(
-                  color: colors.function.white,
-                  fontSize: LabelFontSize.small2.size,
+          if (availableInvitationCodes != null)
+            Container(
+              width: 40,
+              height: 24,
+              decoration: BoxDecoration(
+                color: colors.function.success,
+                borderRadius: BorderRadius.circular(1000),
+              ),
+              child: Center(
+                child: Text(
+                  availableInvitationCodes.toString(),
+                  style: TextStyle(
+                    color: colors.function.white,
+                    fontSize: LabelFontSize.small2.size,
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );

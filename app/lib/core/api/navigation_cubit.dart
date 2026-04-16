@@ -62,7 +62,7 @@ abstract class NavigationCubitBase implements RustOpaqueInterface {
   Stream<NavigationState> stream();
 }
 
-enum DeveloperSettingsScreenType { root, changeUser, logs, invitationCodes }
+enum DeveloperSettingsScreenType { root, changeUser, logs }
 
 /// Chats screen: main screen of the app
 ///

@@ -17,6 +17,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
+#[frb(type_64bit_int)]
 #[frb(dart_metadata = ("freezed"))]
 pub struct UserSettings {
     pub locale: Option<String>,
@@ -27,6 +28,7 @@ pub struct UserSettings {
     pub send_on_enter: bool,
     #[frb(default = true)]
     pub read_receipts: bool,
+    pub available_invitation_codes: Option<usize>,
 }
 
 impl Default for UserSettings {
@@ -38,6 +40,7 @@ impl Default for UserSettings {
             sidebar_width: 300.0,
             send_on_enter: false,
             read_receipts: true,
+            available_invitation_codes: None,
         }
     }
 }
@@ -90,6 +93,22 @@ impl UserSettingsCubitBase {
         let sidebar_width = store.user_setting().await;
         let send_on_enter = store.user_setting().await;
         let read_receipts = store.user_setting().await;
+
+        let unused_invitation_codes = store
+            .load_invitation_codes()
+            .await
+            .into_iter()
+            .flatten()
+            .filter(|code| !code.copied)
+            .count();
+        let available_invitation_tokens = store
+            .load_invitation_token_ids()
+            .await
+            .map(|tokens| tokens.len())
+            .unwrap_or(0);
+        let available_invitation_codes =
+            Some(available_invitation_tokens + unused_invitation_codes);
+
         self.core.state_tx().send_modify(|state| {
             state.locale = locale.map(|LocaleSetting(value)| value);
             state.interface_scale = interface_scale.map(|InterfaceScaleSetting(value)| value);
@@ -102,6 +121,7 @@ impl UserSettingsCubitBase {
             if let Some(ReadReceiptsSetting(value)) = read_receipts {
                 state.read_receipts = value;
             }
+            state.available_invitation_codes = available_invitation_codes;
         });
     }
 

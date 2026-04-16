@@ -99,8 +99,9 @@ impl InvitationCodesCubitBase {
 
     pub async fn request_invitation_code(
         &self,
+        token_id: TokenId,
     ) -> anyhow::Result<Option<RequestInvitationCodeError>> {
-        let _ = match self.core_user.request_invitation_code().await {
+        let _ = match self.core_user.request_invitation_code(token_id).await {
             Ok(code) => code,
             Err(e @ RequestInvitationCodeError::UserQuotaExceeded) => return Ok(Some(e)),
             Err(e @ RequestInvitationCodeError::GlobalQuotaExceeded) => return Ok(Some(e)),

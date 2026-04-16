@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircommon::messages::client_as::SerializedToken;
 use airprotos::auth_service::v1::OperationType;
 use chrono::{DateTime, Utc};
 use sqlx::SqliteExecutor;
@@ -43,6 +44,31 @@ pub(crate) async fn store_token(
     .execute(executor)
     .await?;
     Ok(())
+}
+
+impl TokenId {
+    pub(crate) async fn load(
+        executor: impl SqliteExecutor<'_>,
+        token_id: &TokenId,
+    ) -> sqlx::Result<Option<SerializedToken>> {
+        sqlx::query_scalar!(
+            "SELECT token FROM privacy_pass_token WHERE id = ?",
+            token_id.id
+        )
+        .fetch_optional(executor)
+        .await
+        .map(|bytes| bytes.map(SerializedToken::new))
+    }
+
+    pub(crate) async fn delete(
+        executor: impl SqliteExecutor<'_>,
+        token_id: &TokenId,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!("DELETE FROM privacy_pass_token WHERE id = ?", token_id.id)
+            .execute(executor)
+            .await?;
+        Ok(())
+    }
 }
 
 /// Loads and deletes one token (FIFO order).

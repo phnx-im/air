@@ -304,6 +304,7 @@ abstract class RustLibApi extends BaseApi {
   Future<RequestInvitationCodeError?>
   crateApiInvitationCodesCubitInvitationCodesCubitBaseRequestInvitationCode({
     required InvitationCodesCubitBase that,
+    required TokenId tokenId,
   });
 
   InvitationCodesState
@@ -2551,6 +2552,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<RequestInvitationCodeError?>
   crateApiInvitationCodesCubitInvitationCodesCubitBaseRequestInvitationCode({
     required InvitationCodesCubitBase that,
+    required TokenId tokenId,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -2560,6 +2562,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
+          sse_encode_box_autoadd_token_id(tokenId, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -2574,7 +2577,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kCrateApiInvitationCodesCubitInvitationCodesCubitBaseRequestInvitationCodeConstMeta,
-        argValues: [that],
+        argValues: [that, tokenId],
         apiImpl: this,
       ),
     );
@@ -2584,7 +2587,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiInvitationCodesCubitInvitationCodesCubitBaseRequestInvitationCodeConstMeta =>
       const TaskConstMeta(
         debugName: "InvitationCodesCubitBase_request_invitation_code",
-        argNames: ["that"],
+        argNames: ["that", "tokenId"],
       );
 
   @override
@@ -10034,14 +10037,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UserSettings dco_decode_user_settings(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 5)
-      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return UserSettings(
       locale: dco_decode_opt_String(arr[0]),
       interfaceScale: dco_decode_opt_box_autoadd_f_64(arr[1]),
       sidebarWidth: dco_decode_f_64(arr[2]),
       sendOnEnter: dco_decode_bool(arr[3]),
       readReceipts: dco_decode_bool(arr[4]),
+      availableInvitationCodes: dco_decode_opt_CastedPrimitive_usize(arr[5]),
     );
   }
 
@@ -13210,12 +13214,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_sidebarWidth = sse_decode_f_64(deserializer);
     var var_sendOnEnter = sse_decode_bool(deserializer);
     var var_readReceipts = sse_decode_bool(deserializer);
+    var var_availableInvitationCodes = sse_decode_opt_CastedPrimitive_usize(
+      deserializer,
+    );
     return UserSettings(
       locale: var_locale,
       interfaceScale: var_interfaceScale,
       sidebarWidth: var_sidebarWidth,
       sendOnEnter: var_sendOnEnter,
       readReceipts: var_readReceipts,
+      availableInvitationCodes: var_availableInvitationCodes,
     );
   }
 
@@ -16474,6 +16482,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_f_64(self.sidebarWidth, serializer);
     sse_encode_bool(self.sendOnEnter, serializer);
     sse_encode_bool(self.readReceipts, serializer);
+    sse_encode_opt_CastedPrimitive_usize(
+      self.availableInvitationCodes,
+      serializer,
+    );
   }
 
   @protected
@@ -16858,11 +16870,12 @@ class InvitationCodesCubitBaseImpl extends RustOpaque
         copiedCode: copiedCode,
       );
 
-  Future<RequestInvitationCodeError?> requestInvitationCode() => RustLib
-      .instance
-      .api
+  Future<RequestInvitationCodeError?> requestInvitationCode({
+    required TokenId tokenId,
+  }) => RustLib.instance.api
       .crateApiInvitationCodesCubitInvitationCodesCubitBaseRequestInvitationCode(
         that: this,
+        tokenId: tokenId,
       );
 
   InvitationCodesState get state => RustLib.instance.api

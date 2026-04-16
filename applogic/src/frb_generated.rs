@@ -2033,7 +2033,8 @@ fn wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_request_in
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "InvitationCodesCubitBase_request_invitation_code", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { 
             let message = unsafe { flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(ptr_, rust_vec_len_, data_len_) };
             let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<InvitationCodesCubitBase>>>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
+            let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<InvitationCodesCubitBase>>>::sse_decode(&mut deserializer);
+let api_token_id = <crate::api::invitation_codes_cubit::TokenId>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
                     transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
                         let mut api_that_guard = None;
 let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
@@ -2044,7 +2045,7 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = crate::api::invitation_codes_cubit::InvitationCodesCubitBase::request_invitation_code(&*api_that_guard).await?;   Ok(output_ok)
+ let output_ok = crate::api::invitation_codes_cubit::InvitationCodesCubitBase::request_invitation_code(&*api_that_guard, api_token_id).await?;   Ok(output_ok)
                     })().await)
                 } })
 }
@@ -9523,7 +9524,6 @@ impl SseDecode for crate::api::navigation_cubit::DeveloperSettingsScreenType {
             0 => crate::api::navigation_cubit::DeveloperSettingsScreenType::Root,
             1 => crate::api::navigation_cubit::DeveloperSettingsScreenType::ChangeUser,
             2 => crate::api::navigation_cubit::DeveloperSettingsScreenType::Logs,
-            3 => crate::api::navigation_cubit::DeveloperSettingsScreenType::InvitationCodes,
             _ => unreachable!("Invalid variant for DeveloperSettingsScreenType: {}", inner),
         };
     }
@@ -11407,12 +11407,14 @@ impl SseDecode for crate::api::user_settings_cubit::UserSettings {
         let mut var_sidebarWidth = <f64>::sse_decode(deserializer);
         let mut var_sendOnEnter = <bool>::sse_decode(deserializer);
         let mut var_readReceipts = <bool>::sse_decode(deserializer);
+        let mut var_availableInvitationCodes = <Option<usize>>::sse_decode(deserializer);
         return crate::api::user_settings_cubit::UserSettings {
             locale: var_locale,
             interface_scale: var_interfaceScale,
             sidebar_width: var_sidebarWidth,
             send_on_enter: var_sendOnEnter,
             read_receipts: var_readReceipts,
+            available_invitation_codes: var_availableInvitationCodes,
         };
     }
 }
@@ -12413,7 +12415,6 @@ impl flutter_rust_bridge::IntoDart for crate::api::navigation_cubit::DeveloperSe
             Self::Root => 0.into_dart(),
             Self::ChangeUser => 1.into_dart(),
             Self::Logs => 2.into_dart(),
-            Self::InvitationCodes => 3.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -13882,6 +13883,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::user_settings_cubit::UserSett
             self.sidebar_width.into_into_dart().into_dart(),
             self.send_on_enter.into_into_dart().into_dart(),
             self.read_receipts.into_into_dart().into_dart(),
+            self.available_invitation_codes.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -14701,7 +14703,6 @@ impl SseEncode for crate::api::navigation_cubit::DeveloperSettingsScreenType {
                 crate::api::navigation_cubit::DeveloperSettingsScreenType::Root => 0,
                 crate::api::navigation_cubit::DeveloperSettingsScreenType::ChangeUser => 1,
                 crate::api::navigation_cubit::DeveloperSettingsScreenType::Logs => 2,
-                crate::api::navigation_cubit::DeveloperSettingsScreenType::InvitationCodes => 3,
                 _ => {
                     unimplemented!("");
                 }
@@ -16234,6 +16235,7 @@ impl SseEncode for crate::api::user_settings_cubit::UserSettings {
         <f64>::sse_encode(self.sidebar_width, serializer);
         <bool>::sse_encode(self.send_on_enter, serializer);
         <bool>::sse_encode(self.read_receipts, serializer);
+        <Option<usize>>::sse_encode(self.available_invitation_codes, serializer);
     }
 }
 

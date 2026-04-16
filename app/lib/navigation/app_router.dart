@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/developer/invitation_codes_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -190,8 +189,6 @@ extension on IntroScreenType {
     IntroScreenType_UsernameOnboarding() => const UsernameOnboardingScreen(),
     IntroScreenType_DeveloperSettings(field0: final screen) => switch (screen) {
       DeveloperSettingsScreenType.root => const DeveloperSettingsScreen(),
-      DeveloperSettingsScreenType.invitationCodes =>
-        const InvitationCodesScreen(),
       DeveloperSettingsScreenType.changeUser => const ChangeUserScreen(),
       DeveloperSettingsScreenType.logs => const LogsScreen(),
     },
@@ -248,16 +245,6 @@ extension on HomeNavigationState {
           const MaterialPage(
             key: ValueKey("developer-settings-screen"),
             child: DeveloperSettingsScreen(),
-          ),
-        ],
-        DeveloperSettingsScreenType.invitationCodes => [
-          const MaterialPage(
-            key: ValueKey("developer-settings-screen-root"),
-            child: DeveloperSettingsScreen(),
-          ),
-          const MaterialPage(
-            key: ValueKey("developer-settings-screen-invitation-codes"),
-            child: InvitationCodesScreen(),
           ),
         ],
         DeveloperSettingsScreenType.changeUser => [

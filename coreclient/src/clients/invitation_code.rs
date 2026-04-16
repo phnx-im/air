@@ -7,12 +7,12 @@ use aircommon::identifiers::Fqdn;
 use airprotos::auth_service::v1::OperationType;
 use anyhow::Context;
 use chrono::{DateTime, Utc};
-use tracing::warn;
 
 use crate::{
     TokenId,
     clients::{CoreUser, api_clients::ApiClients},
     privacy_pass::{self, RequestTokensError},
+    utils::connection_ext::StoreExt,
 };
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -71,29 +71,29 @@ impl CoreUser {
     /// Requests a new invitation code from the server (consuming a token in the process)
     pub async fn request_invitation_code(
         &self,
+        token_id: TokenId,
     ) -> Result<InvitationCode, RequestInvitationCodeError> {
         let api_client = self.api_client()?;
-        let token = self
-            .consume_or_replenish_token(&api_client, OperationType::GetInviteCode)
-            .await?;
+
+        let token = TokenId::load(self.pool(), &token_id)
+            .await?
+            .context("no token found")?;
 
         let result = api_client.as_get_invitation_codes([token]).await;
 
-        let created = match result {
-            Err(e) if e.is_unknown_token_key_id() => {
-                warn!("unknown token key ID, purging stale tokens");
-                self.purge_and_replenish_tokens(&api_client, OperationType::GetInviteCode)
-                    .await?;
-                return Err(anyhow::anyhow!(
-                    "token key rotated; replenished — retry to use decorrelated tokens"
-                )
-                .into());
+        let codes = match result {
+            Ok(codes) => codes,
+            Err(e) if e.is_network_error() => {
+                return Err(e.into());
             }
-            other => other?,
+            Err(e) => {
+                TokenId::delete(self.pool(), &token_id).await?;
+                return Err(e.into());
+            }
         };
 
         let invitation_code = InvitationCode {
-            code: created
+            code: codes
                 .into_iter()
                 .next()
                 .context("no invitation code received in response")?
@@ -102,7 +102,12 @@ impl CoreUser {
             created_at: Utc::now(),
         };
 
-        invitation_code.store(self.pool()).await?;
+        self.with_transaction(async |txn| -> sqlx::Result<()> {
+            invitation_code.store(txn.as_mut()).await?;
+            TokenId::delete(txn.as_mut(), &token_id).await?;
+            Ok(())
+        })
+        .await?;
 
         Ok(invitation_code)
     }

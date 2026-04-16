@@ -29,7 +29,9 @@ abstract class InvitationCodesCubitBase implements RustOpaqueInterface {
             userCubit: userCubit,
           );
 
-  Future<RequestInvitationCodeError?> requestInvitationCode();
+  Future<RequestInvitationCodeError?> requestInvitationCode({
+    required TokenId tokenId,
+  });
 
   InvitationCodesState get state;
 
