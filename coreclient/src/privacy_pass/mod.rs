@@ -280,9 +280,7 @@ pub(crate) async fn purge_and_replenish(
     operation_type: OperationType,
     signing_key: &ClientSigningKey,
 ) -> Result<(), RequestTokensError> {
-    // if is important that we lock the database here to avoid other parts to update the data
-    // (note: if you have a better idea, go for it)
-    let mut txn = pool.begin_with("BEGIN EXCLUSIVE").await?;
+    let mut txn = pool.begin().await?;
     let discarded = persistence::token_count(txn.as_mut(), operation_type).await?;
     info!(%discarded, "purging stale tokens after server rejected key");
     persistence::delete_all_tokens(txn.as_mut(), operation_type).await?;
