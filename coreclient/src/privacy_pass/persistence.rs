@@ -3,7 +3,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use airprotos::auth_service::v1::OperationType;
+use chrono::{DateTime, Utc};
 use sqlx::SqliteExecutor;
+
+pub struct TokenId {
+    pub id: i64,
+    pub created_at: DateTime<Utc>,
+}
+
+pub(crate) async fn load_token_ids(
+    executor: impl SqliteExecutor<'_>,
+    operation_type: OperationType,
+) -> sqlx::Result<Vec<TokenId>> {
+    let operation_type = operation_type as i32;
+    sqlx::query_as!(
+        TokenId,
+        "SELECT id, created_at as 'created_at: DateTime<Utc>' 
+         FROM privacy_pass_token WHERE operation_type = ?",
+        operation_type,
+    )
+    .fetch_all(executor)
+    .await
+}
 
 /// Stores a serialized Privacy Pass token.
 pub(crate) async fn store_token(

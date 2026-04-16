@@ -99,28 +99,33 @@ class InvitationCodesView extends StatelessWidget {
                   },
                 ),
               ),
-              AppButton(
-                onPressed: () async {
-                  final loc = AppLocalizations.of(context);
-                  final error = await context
-                      .read<InvitationCodesCubit>()
-                      .requestInvitationCode();
-                  if (error == null) {
-                    return;
-                  }
-
-                  final message = switch (error) {
-                    .globalQuotaExceeded =>
-                      loc.invitationCodesScreen_global_quota_exceeded,
-                    .userQuotaExceeded =>
-                      loc.invitationCodesScreen_user_quota_exceeded,
-                  };
-
-                  showSnackBarStandalone(
-                    (_) => SnackBar(content: Text(message)),
-                  );
-                },
-                label: "Request invitation code",
+              Expanded(
+                child: ListView.builder(
+                  itemCount: invitationCodes.length,
+                  itemBuilder: (context, index) {
+                    final code = invitationCodes[index];
+                    return ListTile(
+                      title: Text(
+                        code.code,
+                        style: code.copied
+                            ? const TextStyle(
+                                decoration: TextDecoration.lineThrough,
+                                decorationThickness: 2,
+                              )
+                            : null,
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.copy),
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: code.code));
+                          context
+                              .read<InvitationCodesCubit>()
+                              .markInvitationCodeAsCopied(code: code.code);
+                        },
+                      ),
+                    );
+                  },
+                ),
               ),
             ],
           ),

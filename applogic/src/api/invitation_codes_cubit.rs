@@ -28,10 +28,17 @@ pub enum _RequestInvitationCodeError {
     GlobalQuotaExceeded,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[frb(dart_metadata = ("freezed"))]
+pub enum UiInvitationCode {
+    Token(i64),
+    InvitationCode(InvitationCode),
+}
+
 #[derive(Debug, Default, Clone)]
 #[frb(dart_metadata = ("freezed"))]
 pub struct InvitationCodesState {
-    pub(crate) codes: Vec<InvitationCode>,
+    pub(crate) codes: Vec<UiInvitationCode>,
 }
 
 #[frb(opaque)]
@@ -82,15 +89,14 @@ impl InvitationCodesCubitBase {
     pub async fn request_invitation_code(
         &self,
     ) -> anyhow::Result<Option<RequestInvitationCodeError>> {
-        let code = match self.core_user.request_invitation_code().await {
+        let _ = match self.core_user.request_invitation_code().await {
             Ok(code) => code,
             Err(e @ RequestInvitationCodeError::UserQuotaExceeded) => return Ok(Some(e)),
             Err(e @ RequestInvitationCodeError::GlobalQuotaExceeded) => return Ok(Some(e)),
             Err(e) => return Err(e.into()),
         };
-        self.core.state_tx().send_modify(|state| {
-            state.codes.push(code);
-        });
+
+        load_and_emit_state(self.core_user.clone(), self.core.state_tx().clone()).await;
 
         Ok(None)
     }
@@ -111,14 +117,26 @@ impl InvitationCodesCubitBase {
 }
 
 async fn load_and_emit_state(core_user: CoreUser, state_tx: Sender<InvitationCodesState>) {
-    match core_user.load_invitation_codes().await {
-        Ok(codes) => {
-            state_tx.send_modify(|state| {
-                state.codes = codes;
-            });
-        }
-        Err(error) => {
-            error!(%error, "failed to load invitation codes from local DB");
-        }
-    }
+    let Ok(codes) = core_user
+        .load_invitation_codes()
+        .await
+        .inspect_err(|error| error!(%error, "failed to load invitation codes from local DB"))
+    else {
+        return;
+    };
+
+    let Ok(token_ids) = core_user.load_invitation_token_ids().await.inspect_err(
+        |error| error!(%error, "failed to load privacy pass token IDs for invitation"),
+    ) else {
+        return;
+    };
+
+    state_tx.send_modify(|state| {
+        state.codes = codes
+            .into_iter()
+            .map(UiInvitationCode::InvitationCode)
+            .chain(token_ids.into_iter().map(UiInvitationCode::Token))
+            .collect();
+        state.codes.sort_by_key(|c| c.created_at());
+    });
 }

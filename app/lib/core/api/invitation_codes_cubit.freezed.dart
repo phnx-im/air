@@ -12,140 +12,9 @@ part of 'invitation_codes_cubit.dart';
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
-mixin _$InvitationCode {
-
- String get code; bool get copied;
-/// Create a copy of InvitationCode
-/// with the given fields replaced by the non-null parameter values.
-@JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-$InvitationCodeCopyWith<InvitationCode> get copyWith => _$InvitationCodeCopyWithImpl<InvitationCode>(this as InvitationCode, _$identity);
-
-
-
-@override
-bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is InvitationCode&&(identical(other.code, code) || other.code == code)&&(identical(other.copied, copied) || other.copied == copied));
-}
-
-
-@override
-int get hashCode => Object.hash(runtimeType,code,copied);
-
-@override
-String toString() {
-  return 'InvitationCode(code: $code, copied: $copied)';
-}
-
-
-}
-
-/// @nodoc
-abstract mixin class $InvitationCodeCopyWith<$Res>  {
-  factory $InvitationCodeCopyWith(InvitationCode value, $Res Function(InvitationCode) _then) = _$InvitationCodeCopyWithImpl;
-@useResult
-$Res call({
- String code, bool copied
-});
-
-
-
-
-}
-/// @nodoc
-class _$InvitationCodeCopyWithImpl<$Res>
-    implements $InvitationCodeCopyWith<$Res> {
-  _$InvitationCodeCopyWithImpl(this._self, this._then);
-
-  final InvitationCode _self;
-  final $Res Function(InvitationCode) _then;
-
-/// Create a copy of InvitationCode
-/// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? code = null,Object? copied = null,}) {
-  return _then(_self.copyWith(
-code: null == code ? _self.code : code // ignore: cast_nullable_to_non_nullable
-as String,copied: null == copied ? _self.copied : copied // ignore: cast_nullable_to_non_nullable
-as bool,
-  ));
-}
-
-}
-
-
-
-/// @nodoc
-
-
-class _InvitationCode implements InvitationCode {
-  const _InvitationCode({required this.code, required this.copied});
-  
-
-@override final  String code;
-@override final  bool copied;
-
-/// Create a copy of InvitationCode
-/// with the given fields replaced by the non-null parameter values.
-@override @JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-_$InvitationCodeCopyWith<_InvitationCode> get copyWith => __$InvitationCodeCopyWithImpl<_InvitationCode>(this, _$identity);
-
-
-
-@override
-bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _InvitationCode&&(identical(other.code, code) || other.code == code)&&(identical(other.copied, copied) || other.copied == copied));
-}
-
-
-@override
-int get hashCode => Object.hash(runtimeType,code,copied);
-
-@override
-String toString() {
-  return 'InvitationCode(code: $code, copied: $copied)';
-}
-
-
-}
-
-/// @nodoc
-abstract mixin class _$InvitationCodeCopyWith<$Res> implements $InvitationCodeCopyWith<$Res> {
-  factory _$InvitationCodeCopyWith(_InvitationCode value, $Res Function(_InvitationCode) _then) = __$InvitationCodeCopyWithImpl;
-@override @useResult
-$Res call({
- String code, bool copied
-});
-
-
-
-
-}
-/// @nodoc
-class __$InvitationCodeCopyWithImpl<$Res>
-    implements _$InvitationCodeCopyWith<$Res> {
-  __$InvitationCodeCopyWithImpl(this._self, this._then);
-
-  final _InvitationCode _self;
-  final $Res Function(_InvitationCode) _then;
-
-/// Create a copy of InvitationCode
-/// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? code = null,Object? copied = null,}) {
-  return _then(_InvitationCode(
-code: null == code ? _self.code : code // ignore: cast_nullable_to_non_nullable
-as String,copied: null == copied ? _self.copied : copied // ignore: cast_nullable_to_non_nullable
-as bool,
-  ));
-}
-
-
-}
-
-/// @nodoc
 mixin _$InvitationCodesState {
 
- List<InvitationCode> get codes;
+ List<UiInvitationCode> get codes;
 /// Create a copy of InvitationCodesState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -176,7 +45,7 @@ abstract mixin class $InvitationCodesStateCopyWith<$Res>  {
   factory $InvitationCodesStateCopyWith(InvitationCodesState value, $Res Function(InvitationCodesState) _then) = _$InvitationCodesStateCopyWithImpl;
 @useResult
 $Res call({
- List<InvitationCode> codes
+ List<UiInvitationCode> codes
 });
 
 
@@ -196,7 +65,7 @@ class _$InvitationCodesStateCopyWithImpl<$Res>
 @pragma('vm:prefer-inline') @override $Res call({Object? codes = null,}) {
   return _then(_self.copyWith(
 codes: null == codes ? _self.codes : codes // ignore: cast_nullable_to_non_nullable
-as List<InvitationCode>,
+as List<UiInvitationCode>,
   ));
 }
 
@@ -208,11 +77,11 @@ as List<InvitationCode>,
 
 
 class _InvitationCodesState extends InvitationCodesState {
-  const _InvitationCodesState({required final  List<InvitationCode> codes}): _codes = codes,super._();
+  const _InvitationCodesState({required final  List<UiInvitationCode> codes}): _codes = codes,super._();
   
 
- final  List<InvitationCode> _codes;
-@override List<InvitationCode> get codes {
+ final  List<UiInvitationCode> _codes;
+@override List<UiInvitationCode> get codes {
   if (_codes is EqualUnmodifiableListView) return _codes;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_codes);
@@ -249,7 +118,7 @@ abstract mixin class _$InvitationCodesStateCopyWith<$Res> implements $Invitation
   factory _$InvitationCodesStateCopyWith(_InvitationCodesState value, $Res Function(_InvitationCodesState) _then) = __$InvitationCodesStateCopyWithImpl;
 @override @useResult
 $Res call({
- List<InvitationCode> codes
+ List<UiInvitationCode> codes
 });
 
 
@@ -269,7 +138,170 @@ class __$InvitationCodesStateCopyWithImpl<$Res>
 @override @pragma('vm:prefer-inline') $Res call({Object? codes = null,}) {
   return _then(_InvitationCodesState(
 codes: null == codes ? _self._codes : codes // ignore: cast_nullable_to_non_nullable
-as List<InvitationCode>,
+as List<UiInvitationCode>,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$UiInvitationCode {
+
+ Object get field0;
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiInvitationCode&&const DeepCollectionEquality().equals(other.field0, field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(field0));
+
+@override
+String toString() {
+  return 'UiInvitationCode(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+class $UiInvitationCodeCopyWith<$Res>  {
+$UiInvitationCodeCopyWith(UiInvitationCode _, $Res Function(UiInvitationCode) __);
+}
+
+
+
+/// @nodoc
+
+
+class UiInvitationCode_Token extends UiInvitationCode {
+  const UiInvitationCode_Token(this.field0): super._();
+  
+
+@override final  int field0;
+
+/// Create a copy of UiInvitationCode
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiInvitationCode_TokenCopyWith<UiInvitationCode_Token> get copyWith => _$UiInvitationCode_TokenCopyWithImpl<UiInvitationCode_Token>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiInvitationCode_Token&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'UiInvitationCode.token(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiInvitationCode_TokenCopyWith<$Res> implements $UiInvitationCodeCopyWith<$Res> {
+  factory $UiInvitationCode_TokenCopyWith(UiInvitationCode_Token value, $Res Function(UiInvitationCode_Token) _then) = _$UiInvitationCode_TokenCopyWithImpl;
+@useResult
+$Res call({
+ int field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiInvitationCode_TokenCopyWithImpl<$Res>
+    implements $UiInvitationCode_TokenCopyWith<$Res> {
+  _$UiInvitationCode_TokenCopyWithImpl(this._self, this._then);
+
+  final UiInvitationCode_Token _self;
+  final $Res Function(UiInvitationCode_Token) _then;
+
+/// Create a copy of UiInvitationCode
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(UiInvitationCode_Token(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class UiInvitationCode_InvitationCode extends UiInvitationCode {
+  const UiInvitationCode_InvitationCode(this.field0): super._();
+  
+
+@override final  String field0;
+
+/// Create a copy of UiInvitationCode
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiInvitationCode_InvitationCodeCopyWith<UiInvitationCode_InvitationCode> get copyWith => _$UiInvitationCode_InvitationCodeCopyWithImpl<UiInvitationCode_InvitationCode>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiInvitationCode_InvitationCode&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'UiInvitationCode.invitationCode(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiInvitationCode_InvitationCodeCopyWith<$Res> implements $UiInvitationCodeCopyWith<$Res> {
+  factory $UiInvitationCode_InvitationCodeCopyWith(UiInvitationCode_InvitationCode value, $Res Function(UiInvitationCode_InvitationCode) _then) = _$UiInvitationCode_InvitationCodeCopyWithImpl;
+@useResult
+$Res call({
+ String field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiInvitationCode_InvitationCodeCopyWithImpl<$Res>
+    implements $UiInvitationCode_InvitationCodeCopyWith<$Res> {
+  _$UiInvitationCode_InvitationCodeCopyWithImpl(this._self, this._then);
+
+  final UiInvitationCode_InvitationCode _self;
+  final $Res Function(UiInvitationCode_InvitationCode) _then;
+
+/// Create a copy of UiInvitationCode
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(UiInvitationCode_InvitationCode(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as String,
   ));
 }
 

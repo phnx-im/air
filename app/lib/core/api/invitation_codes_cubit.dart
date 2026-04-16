@@ -13,7 +13,8 @@ import 'user_cubit.dart';
 part 'invitation_codes_cubit.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `load_and_emit_state`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `InvitationCode`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `hash`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<InvitationCodesCubitBase>>
 abstract class InvitationCodesCubitBase implements RustOpaqueInterface {
@@ -37,18 +38,21 @@ abstract class InvitationCodesCubitBase implements RustOpaqueInterface {
 }
 
 @freezed
-sealed class InvitationCode with _$InvitationCode {
-  const factory InvitationCode({required String code, required bool copied}) =
-      _InvitationCode;
-}
-
-@freezed
 sealed class InvitationCodesState with _$InvitationCodesState {
   const InvitationCodesState._();
-  const factory InvitationCodesState({required List<InvitationCode> codes}) =
+  const factory InvitationCodesState({required List<UiInvitationCode> codes}) =
       _InvitationCodesState;
   static Future<InvitationCodesState> default_() => RustLib.instance.api
       .crateApiInvitationCodesCubitInvitationCodesStateDefault();
 }
 
 enum RequestInvitationCodeError { userQuotaExceeded, globalQuotaExceeded }
+
+@freezed
+sealed class UiInvitationCode with _$UiInvitationCode {
+  const UiInvitationCode._();
+
+  const factory UiInvitationCode.token(int field0) = UiInvitationCode_Token;
+  const factory UiInvitationCode.invitationCode(String field0) =
+      UiInvitationCode_InvitationCode;
+}

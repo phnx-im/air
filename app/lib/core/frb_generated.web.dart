@@ -830,9 +830,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   IntroScreenType dco_decode_intro_screen_type(dynamic raw);
 
   @protected
-  InvitationCode dco_decode_invitation_code(dynamic raw);
-
-  @protected
   InvitationCodesState dco_decode_invitation_codes_state(dynamic raw);
 
   @protected
@@ -852,9 +849,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<IntroScreenType> dco_decode_list_intro_screen_type(dynamic raw);
-
-  @protected
-  List<InvitationCode> dco_decode_list_invitation_code(dynamic raw);
 
   @protected
   List<List<List<RangedBlockElement>>>
@@ -899,6 +893,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<UiContact> dco_decode_list_ui_contact(dynamic raw);
+
+  @protected
+  List<UiInvitationCode> dco_decode_list_ui_invitation_code(dynamic raw);
 
   @protected
   List<UiUserHandle> dco_decode_list_ui_user_handle(dynamic raw);
@@ -1166,6 +1163,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiInactiveChat dco_decode_ui_inactive_chat(dynamic raw);
+
+  @protected
+  UiInvitationCode dco_decode_ui_invitation_code(dynamic raw);
 
   @protected
   UiMessage dco_decode_ui_message(dynamic raw);
@@ -1962,9 +1962,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   IntroScreenType sse_decode_intro_screen_type(SseDeserializer deserializer);
 
   @protected
-  InvitationCode sse_decode_invitation_code(SseDeserializer deserializer);
-
-  @protected
   InvitationCodesState sse_decode_invitation_codes_state(
     SseDeserializer deserializer,
   );
@@ -1986,11 +1983,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<IntroScreenType> sse_decode_list_intro_screen_type(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<InvitationCode> sse_decode_list_invitation_code(
     SseDeserializer deserializer,
   );
 
@@ -2051,6 +2043,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<UiContact> sse_decode_list_ui_contact(SseDeserializer deserializer);
+
+  @protected
+  List<UiInvitationCode> sse_decode_list_ui_invitation_code(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<UiUserHandle> sse_decode_list_ui_user_handle(
@@ -2376,6 +2373,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiInactiveChat sse_decode_ui_inactive_chat(SseDeserializer deserializer);
+
+  @protected
+  UiInvitationCode sse_decode_ui_invitation_code(SseDeserializer deserializer);
 
   @protected
   UiMessage sse_decode_ui_message(SseDeserializer deserializer);
@@ -3344,12 +3344,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_invitation_code(
-    InvitationCode self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_invitation_codes_state(
     InvitationCodesState self,
     SseSerializer serializer,
@@ -3379,12 +3373,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_intro_screen_type(
     List<IntroScreenType> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_invitation_code(
-    List<InvitationCode> self,
     SseSerializer serializer,
   );
 
@@ -3460,6 +3448,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_ui_contact(
     List<UiContact> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_ui_invitation_code(
+    List<UiInvitationCode> self,
     SseSerializer serializer,
   );
 
@@ -3871,6 +3865,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_ui_inactive_chat(
     UiInactiveChat self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ui_invitation_code(
+    UiInvitationCode self,
     SseSerializer serializer,
   );
 

@@ -6,17 +6,19 @@ use airapiclient::as_api::AsRequestError;
 use aircommon::identifiers::Fqdn;
 use airprotos::auth_service::v1::OperationType;
 use anyhow::Context;
+use chrono::{DateTime, Utc};
 use tracing::warn;
 
 use crate::{
     clients::{CoreUser, api_clients::ApiClients},
-    privacy_pass::RequestTokensError,
+    privacy_pass::{self, RequestTokensError, persistence::TokenId},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct InvitationCode {
     pub code: String,
     pub copied: bool,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -96,6 +98,7 @@ impl CoreUser {
                 .context("no invitation code received in response")?
                 .code,
             copied: false,
+            created_at: Utc::now(),
         };
 
         invitation_code.store(self.pool()).await?;
@@ -107,6 +110,12 @@ impl CoreUser {
         Ok(InvitationCode::load_all(self.pool()).await?)
     }
 
+    pub async fn load_invitation_token_ids(&self) -> anyhow::Result<Vec<TokenId>> {
+        privacy_pass::persistence::load_token_ids(self.pool(), OperationType::GetInviteCode)
+            .await
+            .map_err(Into::into)
+    }
+
     pub async fn mark_invitation_code_as_copied(&self, code: &str) -> anyhow::Result<bool> {
         Ok(InvitationCode::mark_as_copied(self.pool(), code).await?)
     }
@@ -114,6 +123,8 @@ impl CoreUser {
 
 mod persistence {
     use super::InvitationCode;
+
+    use chrono::{DateTime, Utc};
 
     use sqlx::{SqliteExecutor, query, query_as};
 
@@ -133,7 +144,8 @@ mod persistence {
         ) -> sqlx::Result<Vec<InvitationCode>> {
             query_as!(
                 InvitationCode,
-                "SELECT code AS 'code!', copied FROM invitation_code"
+                "SELECT code, copied, created_at as 'created_at: DateTime<Utc>'
+                 FROM invitation_code"
             )
             .fetch_all(executor)
             .await

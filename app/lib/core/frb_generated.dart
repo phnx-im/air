@@ -8848,24 +8848,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  InvitationCode dco_decode_invitation_code(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 2)
-      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
-    return InvitationCode(
-      code: dco_decode_String(arr[0]),
-      copied: dco_decode_bool(arr[1]),
-    );
-  }
-
-  @protected
   InvitationCodesState dco_decode_invitation_codes_state(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
     if (arr.length != 1)
       throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
-    return InvitationCodesState(codes: dco_decode_list_invitation_code(arr[0]));
+    return InvitationCodesState(
+      codes: dco_decode_list_ui_invitation_code(arr[0]),
+    );
   }
 
   @protected
@@ -8909,12 +8899,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<IntroScreenType> dco_decode_list_intro_screen_type(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_intro_screen_type).toList();
-  }
-
-  @protected
-  List<InvitationCode> dco_decode_list_invitation_code(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>).map(dco_decode_invitation_code).toList();
   }
 
   @protected
@@ -9006,6 +8990,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<UiContact> dco_decode_list_ui_contact(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_ui_contact).toList();
+  }
+
+  @protected
+  List<UiInvitationCode> dco_decode_list_ui_invitation_code(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_ui_invitation_code).toList();
   }
 
   @protected
@@ -9799,6 +9789,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (arr.length != 1)
       throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
     return UiInactiveChat(pastMembers: dco_decode_list_ui_user_id(arr[0]));
+  }
+
+  @protected
+  UiInvitationCode dco_decode_ui_invitation_code(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return UiInvitationCode_Token(dco_decode_u_8(raw[1]));
+      case 1:
+        return UiInvitationCode_InvitationCode(dco_decode_String(raw[1]));
+      default:
+        throw Exception("unreachable");
+    }
   }
 
   @protected
@@ -11621,19 +11624,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  InvitationCode sse_decode_invitation_code(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_code = sse_decode_String(deserializer);
-    var var_copied = sse_decode_bool(deserializer);
-    return InvitationCode(code: var_code, copied: var_copied);
-  }
-
-  @protected
   InvitationCodesState sse_decode_invitation_codes_state(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_codes = sse_decode_list_invitation_code(deserializer);
+    var var_codes = sse_decode_list_ui_invitation_code(deserializer);
     return InvitationCodesState(codes: var_codes);
   }
 
@@ -11703,20 +11698,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <IntroScreenType>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_intro_screen_type(deserializer));
-    }
-    return ans_;
-  }
-
-  @protected
-  List<InvitationCode> sse_decode_list_invitation_code(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <InvitationCode>[];
-    for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_invitation_code(deserializer));
     }
     return ans_;
   }
@@ -11882,6 +11863,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <UiContact>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_ui_contact(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<UiInvitationCode> sse_decode_list_ui_invitation_code(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <UiInvitationCode>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_ui_invitation_code(deserializer));
     }
     return ans_;
   }
@@ -12910,6 +12905,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_pastMembers = sse_decode_list_ui_user_id(deserializer);
     return UiInactiveChat(pastMembers: var_pastMembers);
+  }
+
+  @protected
+  UiInvitationCode sse_decode_ui_invitation_code(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        var var_field0 = sse_decode_u_8(deserializer);
+        return UiInvitationCode_Token(var_field0);
+      case 1:
+        var var_field0 = sse_decode_String(deserializer);
+        return UiInvitationCode_InvitationCode(var_field0);
+      default:
+        throw UnimplementedError('');
+    }
   }
 
   @protected
@@ -14971,22 +14983,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_invitation_code(
-    InvitationCode self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.code, serializer);
-    sse_encode_bool(self.copied, serializer);
-  }
-
-  @protected
   void sse_encode_invitation_codes_state(
     InvitationCodesState self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_list_invitation_code(self.codes, serializer);
+    sse_encode_list_ui_invitation_code(self.codes, serializer);
   }
 
   @protected
@@ -15047,18 +15049,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_intro_screen_type(item, serializer);
-    }
-  }
-
-  @protected
-  void sse_encode_list_invitation_code(
-    List<InvitationCode> self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.length, serializer);
-    for (final item in self) {
-      sse_encode_invitation_code(item, serializer);
     }
   }
 
@@ -15213,6 +15203,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_ui_contact(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_ui_invitation_code(
+    List<UiInvitationCode> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_ui_invitation_code(item, serializer);
     }
   }
 
@@ -16159,6 +16161,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_ui_user_id(self.pastMembers, serializer);
+  }
+
+  @protected
+  void sse_encode_ui_invitation_code(
+    UiInvitationCode self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case UiInvitationCode_Token(field0: final field0):
+        sse_encode_i_32(0, serializer);
+        sse_encode_u_8(field0, serializer);
+      case UiInvitationCode_InvitationCode(field0: final field0):
+        sse_encode_i_32(1, serializer);
+        sse_encode_String(field0, serializer);
+    }
   }
 
   @protected
