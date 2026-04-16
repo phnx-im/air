@@ -6,10 +6,7 @@ use airprotos::auth_service::v1::OperationType;
 use chrono::{DateTime, Utc};
 use sqlx::SqliteExecutor;
 
-pub struct TokenId {
-    pub id: i64,
-    pub created_at: DateTime<Utc>,
-}
+use crate::privacy_pass::TokenId;
 
 pub(crate) async fn load_token_ids(
     executor: impl SqliteExecutor<'_>,
@@ -18,7 +15,7 @@ pub(crate) async fn load_token_ids(
     let operation_type = operation_type as i32;
     sqlx::query_as!(
         TokenId,
-        "SELECT id, created_at as 'created_at: DateTime<Utc>' 
+        "SELECT id, created_at as 'created_at: DateTime<Utc>'
          FROM privacy_pass_token WHERE operation_type = ?",
         operation_type,
     )

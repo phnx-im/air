@@ -3,11 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
-import 'package:air/l10n/app_localizations.dart';
-import 'package:air/ui/components/button/button.dart';
 import 'package:air/user/invitation_codes_cubit.dart';
 import 'package:air/user/user.dart';
-import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/services.dart';
@@ -76,54 +73,31 @@ class InvitationCodesView extends StatelessWidget {
                   itemCount: invitationCodes.length,
                   itemBuilder: (context, index) {
                     final code = invitationCodes[index];
-                    return ListTile(
-                      title: Text(
-                        code.code,
-                        style: code.copied
-                            ? const TextStyle(
-                                decoration: TextDecoration.lineThrough,
-                                decorationThickness: 2,
-                              )
-                            : null,
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.copy),
-                        onPressed: () {
-                          Clipboard.setData(ClipboardData(text: code.code));
-                          context
-                              .read<InvitationCodesCubit>()
-                              .markInvitationCodeAsCopied(code: code.code);
-                        },
-                      ),
-                    );
-                  },
-                ),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: invitationCodes.length,
-                  itemBuilder: (context, index) {
-                    final code = invitationCodes[index];
-                    return ListTile(
-                      title: Text(
-                        code.code,
-                        style: code.copied
-                            ? const TextStyle(
-                                decoration: TextDecoration.lineThrough,
-                                decorationThickness: 2,
-                              )
-                            : null,
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.copy),
-                        onPressed: () {
-                          Clipboard.setData(ClipboardData(text: code.code));
-                          context
-                              .read<InvitationCodesCubit>()
-                              .markInvitationCodeAsCopied(code: code.code);
-                        },
-                      ),
-                    );
+                    switch (code) {
+                      case UiInvitationCode_Token():
+                        return const Placeholder();
+                      case UiInvitationCode_Code(field0: final code):
+                        return ListTile(
+                          title: Text(
+                            code.code,
+                            style: code.copied
+                                ? const TextStyle(
+                                    decoration: TextDecoration.lineThrough,
+                                    decorationThickness: 2,
+                                  )
+                                : null,
+                          ),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.copy),
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: code.code));
+                              context
+                                  .read<InvitationCodesCubit>()
+                                  .markInvitationCodeAsCopied(code: code.code);
+                            },
+                          ),
+                        );
+                    }
                   },
                 ),
               ),

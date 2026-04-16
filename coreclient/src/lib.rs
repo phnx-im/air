@@ -47,6 +47,7 @@ pub use crate::{
         ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo,
         RequiredDebugCapabilities,
     },
+    privacy_pass::TokenId,
     user_handles::UserHandleRecord,
     user_profiles::{Asset, DisplayName, DisplayNameError, UserProfile},
     utils::persistence::{

@@ -293,7 +293,7 @@ abstract class RustLibApi extends BaseApi {
   Future<void>
   crateApiInvitationCodesCubitInvitationCodesCubitBaseMarkInvitationCodeAsCopied({
     required InvitationCodesCubitBase that,
-    required String code,
+    required String copiedCode,
   });
 
   InvitationCodesCubitBase
@@ -2475,7 +2475,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<void>
   crateApiInvitationCodesCubitInvitationCodesCubitBaseMarkInvitationCodeAsCopied({
     required InvitationCodesCubitBase that,
-    required String code,
+    required String copiedCode,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -2485,7 +2485,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          sse_encode_String(code, serializer);
+          sse_encode_String(copiedCode, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -2499,7 +2499,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kCrateApiInvitationCodesCubitInvitationCodesCubitBaseMarkInvitationCodeAsCopiedConstMeta,
-        argValues: [that, code],
+        argValues: [that, copiedCode],
         apiImpl: this,
       ),
     );
@@ -2509,7 +2509,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiInvitationCodesCubitInvitationCodesCubitBaseMarkInvitationCodeAsCopiedConstMeta =>
       const TaskConstMeta(
         debugName: "InvitationCodesCubitBase_mark_invitation_code_as_copied",
-        argNames: ["that", "code"],
+        argNames: ["that", "copiedCode"],
       );
 
   @override
@@ -8448,6 +8448,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  InvitationCode dco_decode_box_autoadd_invitation_code(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_invitation_code(raw);
+  }
+
+  @protected
   InviteUsersError dco_decode_box_autoadd_invite_users_error(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_invite_users_error(raw);
@@ -8497,6 +8503,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_required_debug_capabilities(raw);
+  }
+
+  @protected
+  TokenId dco_decode_box_autoadd_token_id(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_token_id(raw);
   }
 
   @protected
@@ -8845,6 +8857,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       default:
         throw Exception("unreachable");
     }
+  }
+
+  @protected
+  InvitationCode dco_decode_invitation_code(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return InvitationCode(
+      code: dco_decode_String(arr[0]),
+      copied: dco_decode_bool(arr[1]),
+      createdAt: dco_decode_Chrono_Utc(arr[2]),
+    );
   }
 
   @protected
@@ -9530,6 +9555,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  TokenId dco_decode_token_id(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return TokenId(
+      id: dco_decode_i_64(arr[0]),
+      createdAt: dco_decode_Chrono_Utc(arr[1]),
+    );
+  }
+
+  @protected
   int dco_decode_u_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
@@ -9796,9 +9833,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
       case 0:
-        return UiInvitationCode_Token(dco_decode_u_8(raw[1]));
+        return UiInvitationCode_Token(dco_decode_box_autoadd_token_id(raw[1]));
       case 1:
-        return UiInvitationCode_InvitationCode(dco_decode_String(raw[1]));
+        return UiInvitationCode_Code(
+          dco_decode_box_autoadd_invitation_code(raw[1]),
+        );
       default:
         throw Exception("unreachable");
     }
@@ -11157,6 +11196,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  InvitationCode sse_decode_box_autoadd_invitation_code(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_invitation_code(deserializer));
+  }
+
+  @protected
   InviteUsersError sse_decode_box_autoadd_invite_users_error(
     SseDeserializer deserializer,
   ) {
@@ -11218,6 +11265,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_required_debug_capabilities(deserializer));
+  }
+
+  @protected
+  TokenId sse_decode_box_autoadd_token_id(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_token_id(deserializer));
   }
 
   @protected
@@ -11621,6 +11674,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       default:
         throw UnimplementedError('');
     }
+  }
+
+  @protected
+  InvitationCode sse_decode_invitation_code(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_code = sse_decode_String(deserializer);
+    var var_copied = sse_decode_bool(deserializer);
+    var var_createdAt = sse_decode_Chrono_Utc(deserializer);
+    return InvitationCode(
+      code: var_code,
+      copied: var_copied,
+      createdAt: var_createdAt,
+    );
   }
 
   @protected
@@ -12625,6 +12691,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  TokenId sse_decode_token_id(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_i_64(deserializer);
+    var var_createdAt = sse_decode_Chrono_Utc(deserializer);
+    return TokenId(id: var_id, createdAt: var_createdAt);
+  }
+
+  @protected
   int sse_decode_u_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint32();
@@ -12914,11 +12988,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var tag_ = sse_decode_i_32(deserializer);
     switch (tag_) {
       case 0:
-        var var_field0 = sse_decode_u_8(deserializer);
+        var var_field0 = sse_decode_box_autoadd_token_id(deserializer);
         return UiInvitationCode_Token(var_field0);
       case 1:
-        var var_field0 = sse_decode_String(deserializer);
-        return UiInvitationCode_InvitationCode(var_field0);
+        var var_field0 = sse_decode_box_autoadd_invitation_code(deserializer);
+        return UiInvitationCode_Code(var_field0);
       default:
         throw UnimplementedError('');
     }
@@ -14535,6 +14609,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_invitation_code(
+    InvitationCode self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_invitation_code(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_invite_users_error(
     InviteUsersError self,
     SseSerializer serializer,
@@ -14604,6 +14687,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_required_debug_capabilities(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_token_id(TokenId self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_token_id(self, serializer);
   }
 
   @protected
@@ -14980,6 +15069,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_32(3, serializer);
         sse_encode_developer_settings_screen_type(field0, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_invitation_code(
+    InvitationCode self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.code, serializer);
+    sse_encode_bool(self.copied, serializer);
+    sse_encode_Chrono_Utc(self.createdAt, serializer);
   }
 
   @protected
@@ -15921,6 +16021,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_token_id(TokenId self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.id, serializer);
+    sse_encode_Chrono_Utc(self.createdAt, serializer);
+  }
+
+  @protected
   void sse_encode_u_32(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putUint32(self);
@@ -16172,10 +16279,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     switch (self) {
       case UiInvitationCode_Token(field0: final field0):
         sse_encode_i_32(0, serializer);
-        sse_encode_u_8(field0, serializer);
-      case UiInvitationCode_InvitationCode(field0: final field0):
+        sse_encode_box_autoadd_token_id(field0, serializer);
+      case UiInvitationCode_Code(field0: final field0):
         sse_encode_i_32(1, serializer);
-        sse_encode_String(field0, serializer);
+        sse_encode_box_autoadd_invitation_code(field0, serializer);
     }
   }
 
@@ -16743,12 +16850,12 @@ class InvitationCodesCubitBaseImpl extends RustOpaque
   bool get isClosed => RustLib.instance.api
       .crateApiInvitationCodesCubitInvitationCodesCubitBaseIsClosed(that: this);
 
-  Future<void> markInvitationCodeAsCopied({required String code}) => RustLib
-      .instance
-      .api
+  Future<void> markInvitationCodeAsCopied({
+    required String copiedCode,
+  }) => RustLib.instance.api
       .crateApiInvitationCodesCubitInvitationCodesCubitBaseMarkInvitationCodeAsCopied(
         that: this,
-        code: code,
+        copiedCode: copiedCode,
       );
 
   Future<RequestInvitationCodeError?> requestInvitationCode() => RustLib

@@ -690,6 +690,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   IntroScreenType dco_decode_box_autoadd_intro_screen_type(dynamic raw);
 
   @protected
+  InvitationCode dco_decode_box_autoadd_invitation_code(dynamic raw);
+
+  @protected
   InviteUsersError dco_decode_box_autoadd_invite_users_error(dynamic raw);
 
   @protected
@@ -716,6 +719,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RequiredDebugCapabilities dco_decode_box_autoadd_required_debug_capabilities(
     dynamic raw,
   );
+
+  @protected
+  TokenId dco_decode_box_autoadd_token_id(dynamic raw);
 
   @protected
   UiChatDetails dco_decode_box_autoadd_ui_chat_details(dynamic raw);
@@ -828,6 +834,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   IntroScreenType dco_decode_intro_screen_type(dynamic raw);
+
+  @protected
+  InvitationCode dco_decode_invitation_code(dynamic raw);
 
   @protected
   InvitationCodesState dco_decode_invitation_codes_state(dynamic raw);
@@ -1103,6 +1112,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RequiredDebugCapabilities dco_decode_required_debug_capabilities(dynamic raw);
+
+  @protected
+  TokenId dco_decode_token_id(dynamic raw);
 
   @protected
   int dco_decode_u_32(dynamic raw);
@@ -1780,6 +1792,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  InvitationCode sse_decode_box_autoadd_invitation_code(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   InviteUsersError sse_decode_box_autoadd_invite_users_error(
     SseDeserializer deserializer,
   );
@@ -1818,6 +1835,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RequiredDebugCapabilities sse_decode_box_autoadd_required_debug_capabilities(
     SseDeserializer deserializer,
   );
+
+  @protected
+  TokenId sse_decode_box_autoadd_token_id(SseDeserializer deserializer);
 
   @protected
   UiChatDetails sse_decode_box_autoadd_ui_chat_details(
@@ -1960,6 +1980,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   IntroScreenType sse_decode_intro_screen_type(SseDeserializer deserializer);
+
+  @protected
+  InvitationCode sse_decode_invitation_code(SseDeserializer deserializer);
 
   @protected
   InvitationCodesState sse_decode_invitation_codes_state(
@@ -2309,6 +2332,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RequiredDebugCapabilities sse_decode_required_debug_capabilities(
     SseDeserializer deserializer,
   );
+
+  @protected
+  TokenId sse_decode_token_id(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_32(SseDeserializer deserializer);
@@ -3116,6 +3142,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_invitation_code(
+    InvitationCode self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_invite_users_error(
     InviteUsersError self,
     SseSerializer serializer,
@@ -3162,6 +3194,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     RequiredDebugCapabilities self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_box_autoadd_token_id(TokenId self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_ui_chat_details(
@@ -3340,6 +3375,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_intro_screen_type(
     IntroScreenType self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_invitation_code(
+    InvitationCode self,
     SseSerializer serializer,
   );
 
@@ -3777,6 +3818,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     RequiredDebugCapabilities self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_token_id(TokenId self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_32(int self, SseSerializer serializer);

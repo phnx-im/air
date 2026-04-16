@@ -1957,7 +1957,7 @@ fn wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_mark_invit
             let message = unsafe { flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(ptr_, rust_vec_len_, data_len_) };
             let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<InvitationCodesCubitBase>>>::sse_decode(&mut deserializer);
-let api_code = <String>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
+let api_copied_code = <String>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
                     transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
                         let mut api_that_guard = None;
 let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
@@ -1968,7 +1968,7 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = crate::api::invitation_codes_cubit::InvitationCodesCubitBase::mark_invitation_code_as_copied(&*api_that_guard, &api_code).await?;   Ok(output_ok)
+ let output_ok = crate::api::invitation_codes_cubit::InvitationCodesCubitBase::mark_invitation_code_as_copied(&*api_that_guard, &api_copied_code).await?;   Ok(output_ok)
                     })().await)
                 } })
 }
@@ -8444,6 +8444,12 @@ const _: fn() = || {
         let _: Option<crate::api::chat_details_cubit::GroupDataDebugInfo> =
             GroupDebugInfo.group_data;
     }
+    {
+        let InvitationCode = None::<crate::api::invitation_codes_cubit::InvitationCode>.unwrap();
+        let _: String = InvitationCode.code;
+        let _: bool = InvitationCode.copied;
+        let _: chrono::DateTime<chrono::Utc> = InvitationCode.created_at;
+    }
     match None::<crate::api::user_cubit::InviteUsersError>.unwrap() {
         crate::api::user_cubit::InviteUsersError::IncompatibleClient { reason } => {
             let _: String = reason;
@@ -8459,6 +8465,11 @@ const _: fn() = || {
         let _: Vec<String> = RequiredDebugCapabilities.extension_types;
         let _: Vec<String> = RequiredDebugCapabilities.proposal_types;
         let _: Vec<String> = RequiredDebugCapabilities.credential_types;
+    }
+    {
+        let TokenId = None::<crate::api::invitation_codes_cubit::TokenId>.unwrap();
+        let _: i64 = TokenId.id;
+        let _: chrono::DateTime<chrono::Utc> = TokenId.created_at;
     }
 };
 
@@ -9758,6 +9769,20 @@ impl SseDecode for crate::api::navigation_cubit::IntroScreenType {
     }
 }
 
+impl SseDecode for crate::api::invitation_codes_cubit::InvitationCode {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_code = <String>::sse_decode(deserializer);
+        let mut var_copied = <bool>::sse_decode(deserializer);
+        let mut var_createdAt = <chrono::DateTime<chrono::Utc>>::sse_decode(deserializer);
+        return crate::api::invitation_codes_cubit::InvitationCode {
+            code: var_code,
+            copied: var_copied,
+            created_at: var_createdAt,
+        };
+    }
+}
+
 impl SseDecode for crate::api::invitation_codes_cubit::InvitationCodesState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -10762,6 +10787,18 @@ impl SseDecode for crate::api::chat_details_cubit::RequiredDebugCapabilities {
     }
 }
 
+impl SseDecode for crate::api::invitation_codes_cubit::TokenId {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <i64>::sse_decode(deserializer);
+        let mut var_createdAt = <chrono::DateTime<chrono::Utc>>::sse_decode(deserializer);
+        return crate::api::invitation_codes_cubit::TokenId {
+            id: var_id,
+            created_at: var_createdAt,
+        };
+    }
+}
+
 impl SseDecode for u32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11100,14 +11137,14 @@ impl SseDecode for crate::api::invitation_codes_cubit::UiInvitationCode {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
-                let mut var_field0 = <u8>::sse_decode(deserializer);
+                let mut var_field0 =
+                    <crate::api::invitation_codes_cubit::TokenId>::sse_decode(deserializer);
                 return crate::api::invitation_codes_cubit::UiInvitationCode::Token(var_field0);
             }
             1 => {
-                let mut var_field0 = <String>::sse_decode(deserializer);
-                return crate::api::invitation_codes_cubit::UiInvitationCode::InvitationCode(
-                    var_field0,
-                );
+                let mut var_field0 =
+                    <crate::api::invitation_codes_cubit::InvitationCode>::sse_decode(deserializer);
+                return crate::api::invitation_codes_cubit::UiInvitationCode::Code(var_field0);
             }
             _ => {
                 unimplemented!("");
@@ -12638,6 +12675,32 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::navigation_cubit::IntroScreen
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<crate::api::invitation_codes_cubit::InvitationCode>
+{
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.code.into_into_dart().into_dart(),
+            self.0.copied.into_into_dart().into_dart(),
+            self.0.created_at.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::invitation_codes_cubit::InvitationCode>
+{
+}
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<crate::api::invitation_codes_cubit::InvitationCode>,
+    > for crate::api::invitation_codes_cubit::InvitationCode
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::invitation_codes_cubit::InvitationCode> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::invitation_codes_cubit::InvitationCodesState {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [self.codes.into_into_dart().into_dart()].into_dart()
@@ -13056,6 +13119,27 @@ impl
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::invitation_codes_cubit::TokenId> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.id.into_into_dart().into_dart(),
+            self.0.created_at.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::invitation_codes_cubit::TokenId>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::invitation_codes_cubit::TokenId>>
+    for crate::api::invitation_codes_cubit::TokenId
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::invitation_codes_cubit::TokenId> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::message_content::UiAttachment {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -13455,7 +13539,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::invitation_codes_cubit::UiInv
             crate::api::invitation_codes_cubit::UiInvitationCode::Token(field0) => {
                 [0.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::invitation_codes_cubit::UiInvitationCode::InvitationCode(field0) => {
+            crate::api::invitation_codes_cubit::UiInvitationCode::Code(field0) => {
                 [1.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
             _ => {
@@ -14809,6 +14893,15 @@ impl SseEncode for crate::api::navigation_cubit::IntroScreenType {
     }
 }
 
+impl SseEncode for crate::api::invitation_codes_cubit::InvitationCode {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.code, serializer);
+        <bool>::sse_encode(self.copied, serializer);
+        <chrono::DateTime<chrono::Utc>>::sse_encode(self.created_at, serializer);
+    }
+}
+
 impl SseEncode for crate::api::invitation_codes_cubit::InvitationCodesState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -15615,6 +15708,14 @@ impl SseEncode for crate::api::chat_details_cubit::RequiredDebugCapabilities {
     }
 }
 
+impl SseEncode for crate::api::invitation_codes_cubit::TokenId {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.id, serializer);
+        <chrono::DateTime<chrono::Utc>>::sse_encode(self.created_at, serializer);
+    }
+}
+
 impl SseEncode for u32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -15896,11 +15997,13 @@ impl SseEncode for crate::api::invitation_codes_cubit::UiInvitationCode {
         match self {
             crate::api::invitation_codes_cubit::UiInvitationCode::Token(field0) => {
                 <i32>::sse_encode(0, serializer);
-                <u8>::sse_encode(field0, serializer);
+                <crate::api::invitation_codes_cubit::TokenId>::sse_encode(field0, serializer);
             }
-            crate::api::invitation_codes_cubit::UiInvitationCode::InvitationCode(field0) => {
+            crate::api::invitation_codes_cubit::UiInvitationCode::Code(field0) => {
                 <i32>::sse_encode(1, serializer);
-                <String>::sse_encode(field0, serializer);
+                <crate::api::invitation_codes_cubit::InvitationCode>::sse_encode(
+                    field0, serializer,
+                );
             }
             _ => {
                 unimplemented!("");

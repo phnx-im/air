@@ -14,6 +14,7 @@ use aircommon::{
 };
 use airprotos::auth_service::v1::OperationType;
 use anyhow::Context;
+use chrono::{DateTime, Utc};
 use privacypass::{
     TokenType,
     amortized_tokens::{AmortizedBatchTokenRequest, AmortizedBatchTokenResponse},
@@ -24,6 +25,12 @@ use privacypass::{
 use sqlx::{SqliteExecutor, SqlitePool, SqliteTransaction};
 use tls_codec::{Deserialize, Serialize};
 use tracing::{error, info};
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct TokenId {
+    pub id: i64,
+    pub created_at: DateTime<Utc>,
+}
 
 pub(crate) mod persistence;
 

@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/theme/styles.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/app_scaffold.dart';

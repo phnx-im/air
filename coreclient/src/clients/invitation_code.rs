@@ -10,8 +10,9 @@ use chrono::{DateTime, Utc};
 use tracing::warn;
 
 use crate::{
+    TokenId,
     clients::{CoreUser, api_clients::ApiClients},
-    privacy_pass::{self, RequestTokensError, persistence::TokenId},
+    privacy_pass::{self, RequestTokensError},
 };
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]

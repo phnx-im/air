@@ -1,7 +1,8 @@
 // Re-export for FRB reasons
-pub(crate) use aircoreclient::{InvitationCode, RequestInvitationCodeError};
+pub(crate) use aircoreclient::{InvitationCode, RequestInvitationCodeError, TokenId};
 
 use aircoreclient::clients::CoreUser;
+use chrono::{DateTime, Utc};
 use flutter_rust_bridge::frb;
 use tokio::sync::watch::Sender;
 use tracing::error;
@@ -18,6 +19,16 @@ use crate::{
 pub struct _InvitationCode {
     pub code: String,
     pub copied: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+/// An ID of a privacy pass token stored locally.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[frb(mirror(TokenId))]
+#[frb(dart_metadata = ("freezed"))]
+pub struct _TokenId {
+    pub id: i64,
+    pub created_at: DateTime<Utc>,
 }
 
 #[doc(hidden)]
@@ -28,11 +39,11 @@ pub enum _RequestInvitationCodeError {
     GlobalQuotaExceeded,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::From)]
 #[frb(dart_metadata = ("freezed"))]
 pub enum UiInvitationCode {
-    Token(i64),
-    InvitationCode(InvitationCode),
+    Token(TokenId),
+    Code(InvitationCode),
 }
 
 #[derive(Debug, Default, Clone)]
@@ -101,13 +112,18 @@ impl InvitationCodesCubitBase {
         Ok(None)
     }
 
-    pub async fn mark_invitation_code_as_copied(&self, code: &str) -> anyhow::Result<()> {
-        self.core_user.mark_invitation_code_as_copied(code).await?;
+    pub async fn mark_invitation_code_as_copied(&self, copied_code: &str) -> anyhow::Result<()> {
+        self.core_user
+            .mark_invitation_code_as_copied(copied_code)
+            .await?;
 
         self.core.state_tx().send_modify(|state| {
-            for saved_code in &mut state.codes {
-                if saved_code.code == code {
-                    saved_code.copied = true;
+            for invitiation_code in &mut state.codes {
+                if let UiInvitationCode::Code(code) = invitiation_code
+                    && code.code == copied_code
+                {
+                    code.copied = true;
+                    break;
                 }
             }
         });
@@ -117,26 +133,26 @@ impl InvitationCodesCubitBase {
 }
 
 async fn load_and_emit_state(core_user: CoreUser, state_tx: Sender<InvitationCodesState>) {
-    let Ok(codes) = core_user
-        .load_invitation_codes()
-        .await
-        .inspect_err(|error| error!(%error, "failed to load invitation codes from local DB"))
-    else {
-        return;
-    };
+    if let Err(error) = try_load_and_emit_state(core_user, state_tx).await {
+        error!(%error, "failed to load invitation codes from local DB");
+    }
+}
 
-    let Ok(token_ids) = core_user.load_invitation_token_ids().await.inspect_err(
-        |error| error!(%error, "failed to load privacy pass token IDs for invitation"),
-    ) else {
-        return;
-    };
+async fn try_load_and_emit_state(
+    core_user: CoreUser,
+    state_tx: Sender<InvitationCodesState>,
+) -> anyhow::Result<()> {
+    let mut codes = core_user.load_invitation_codes().await?;
+    codes.sort_unstable_by(|a, b| a.created_at.cmp(&b.created_at).then(a.code.cmp(&b.code)));
 
-    state_tx.send_modify(|state| {
-        state.codes = codes
-            .into_iter()
-            .map(UiInvitationCode::InvitationCode)
-            .chain(token_ids.into_iter().map(UiInvitationCode::Token))
-            .collect();
-        state.codes.sort_by_key(|c| c.created_at());
-    });
+    let mut token_ids = core_user.load_invitation_token_ids().await?;
+    token_ids.sort_unstable_by_key(|token| (token.created_at, token.id));
+
+    let codes = codes
+        .into_iter()
+        .map(UiInvitationCode::Code)
+        .chain(token_ids.into_iter().map(UiInvitationCode::Token));
+
+    state_tx.send_modify(|state| state.codes = codes.collect());
+    Ok(())
 }

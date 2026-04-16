@@ -37,5 +37,5 @@ class InvitationCodesCubit
       _impl.requestInvitationCode();
 
   Future<void> markInvitationCodeAsCopied({required String code}) async =>
-      _impl.markInvitationCodeAsCopied(code: code);
+      _impl.markInvitationCodeAsCopied(copiedCode: code);
 }

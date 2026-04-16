@@ -12,9 +12,8 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'user_cubit.dart';
 part 'invitation_codes_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `load_and_emit_state`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `InvitationCode`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `hash`
+// These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `try_load_and_emit_state`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `from`, `from`, `hash`, `hash`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<InvitationCodesCubitBase>>
 abstract class InvitationCodesCubitBase implements RustOpaqueInterface {
@@ -22,7 +21,7 @@ abstract class InvitationCodesCubitBase implements RustOpaqueInterface {
 
   bool get isClosed;
 
-  Future<void> markInvitationCodeAsCopied({required String code});
+  Future<void> markInvitationCodeAsCopied({required String copiedCode});
 
   factory InvitationCodesCubitBase({required UserCubitBase userCubit}) =>
       RustLib.instance.api
@@ -38,6 +37,15 @@ abstract class InvitationCodesCubitBase implements RustOpaqueInterface {
 }
 
 @freezed
+sealed class InvitationCode with _$InvitationCode {
+  const factory InvitationCode({
+    required String code,
+    required bool copied,
+    required DateTime createdAt,
+  }) = _InvitationCode;
+}
+
+@freezed
 sealed class InvitationCodesState with _$InvitationCodesState {
   const InvitationCodesState._();
   const factory InvitationCodesState({required List<UiInvitationCode> codes}) =
@@ -48,11 +56,20 @@ sealed class InvitationCodesState with _$InvitationCodesState {
 
 enum RequestInvitationCodeError { userQuotaExceeded, globalQuotaExceeded }
 
+/// An ID of a privacy pass token stored locally.
+@freezed
+sealed class TokenId with _$TokenId {
+  const factory TokenId({
+    required PlatformInt64 id,
+    required DateTime createdAt,
+  }) = _TokenId;
+}
+
 @freezed
 sealed class UiInvitationCode with _$UiInvitationCode {
   const UiInvitationCode._();
 
-  const factory UiInvitationCode.token(int field0) = UiInvitationCode_Token;
-  const factory UiInvitationCode.invitationCode(String field0) =
-      UiInvitationCode_InvitationCode;
+  const factory UiInvitationCode.token(TokenId field0) = UiInvitationCode_Token;
+  const factory UiInvitationCode.code(InvitationCode field0) =
+      UiInvitationCode_Code;
 }
