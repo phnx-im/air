@@ -244,12 +244,11 @@ pub(crate) async fn replenish_if_needed(
     signing_key: &ClientSigningKey,
     operation_type: OperationType,
 ) -> Result<u16, RequestTokensError> {
-    // TODO: shouldn't the AS credentials be available somewhere instead of fetching them?
-    // because we do that for each operation_type
     let credentials_response = api_client
         .as_as_credentials()
         .await
         .context("failed to fetch AS credentials")?;
+
     store_batched_token_keys(txn, &credentials_response.batched_token_keys).await?;
 
     let count = persistence::token_count(txn.as_mut(), operation_type).await?;

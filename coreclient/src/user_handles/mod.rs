@@ -43,7 +43,7 @@ impl CoreUser {
 
         let api_client = self.api_client()?;
 
-        let token = self
+        let token: SerializedToken = self
             .consume_or_replenish_token(&api_client, OperationType::AddUsername)
             .await
             .inspect_err(|e| warn!(%e, "no privacy pass token available for handle creation"))?;
@@ -191,6 +191,7 @@ impl CoreUser {
         // it's important that we lock the DB here, because we don't want to fail in parallel
         let mut txn = self.pool().begin_with("BEGIN IMMEDIATE").await?;
         if let Some(token) = privacy_pass::consume_token(txn.as_mut(), operation_type).await? {
+            txn.commit().await?;
             return Ok(token);
         }
 
@@ -206,6 +207,8 @@ impl CoreUser {
         )
         .await?;
 
+        txn.commit().await?;
+
         // TODO: this could maybe be a specific error?
         Err(RequestTokensError::Generic(anyhow::anyhow!(
             "privacy pass token cache was empty; replenished — retry to use decorrelated tokens"
@@ -216,7 +219,7 @@ impl CoreUser {
     ///
     /// Does NOT consume a token immediately — the caller should retry later
     /// to maintain timing decorrelation between issuance and redemption.
-    async fn purge_and_replenish_tokens(
+    pub(crate) async fn purge_and_replenish_tokens(
         &self,
         api_client: &ApiClient,
         operation_type: OperationType,

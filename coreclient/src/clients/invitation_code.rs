@@ -6,6 +6,7 @@ use airapiclient::as_api::AsRequestError;
 use aircommon::identifiers::Fqdn;
 use airprotos::auth_service::v1::OperationType;
 use anyhow::Context;
+use tracing::warn;
 
 use crate::{
     clients::{CoreUser, api_clients::ApiClients},
@@ -73,15 +74,27 @@ impl CoreUser {
             .consume_or_replenish_token(&api_client, OperationType::GetInviteCode)
             .await?;
 
-        let invitation_code = api_client
-            .as_get_invitation_codes([token])
-            .await?
-            .into_iter()
-            .next()
-            .context("no invitation code received in response")?;
+        let result = api_client.as_get_invitation_codes([token]).await;
+
+        let created = match result {
+            Err(e) if e.is_unknown_token_key_id() => {
+                warn!("unknown token key ID, purging stale tokens");
+                self.purge_and_replenish_tokens(&api_client, OperationType::GetInviteCode)
+                    .await?;
+                return Err(anyhow::anyhow!(
+                    "token key rotated; replenished — retry to use decorrelated tokens"
+                )
+                .into());
+            }
+            other => other?,
+        };
 
         let invitation_code = InvitationCode {
-            code: invitation_code.code,
+            code: created
+                .into_iter()
+                .next()
+                .context("no invitation code received in response")?
+                .code,
             copied: false,
         };
 
