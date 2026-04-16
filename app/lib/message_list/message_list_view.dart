@@ -254,7 +254,7 @@ class _MessageListViewState extends State<MessageListView>
         // the composer and fade zone.
         final scrollbarPadding = MediaQuery.paddingOf(
           context,
-        ).copyWith(bottom: composerHeight + _fadeHeight);
+        ).copyWith(bottom: composerHeight + _bottomGap);
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(padding: scrollbarPadding),
           child: Scrollbar(
@@ -268,7 +268,7 @@ class _MessageListViewState extends State<MessageListView>
                     context,
                   ).copyWith(scrollbars: false),
                   child: buildAnchoredList(
-                    bottomPadding: composerHeight + _fadeHeight,
+                    bottomPadding: composerHeight + _bottomGap,
                   ),
                 ),
                 // Gradient fade from transparent to the background color,
@@ -328,7 +328,8 @@ class _MessageListViewState extends State<MessageListView>
   }
 }
 
-const double _fadeHeight = Spacings.s;
+const double _fadeHeight = 40;
+const double _bottomGap = Spacings.s;
 
 class _BottomFade extends StatelessWidget {
   const _BottomFade({required this.height});
