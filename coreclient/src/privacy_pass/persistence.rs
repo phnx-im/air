@@ -30,10 +30,15 @@ pub(crate) async fn store_token(
     token: &[u8],
 ) -> Result<(), sqlx::Error> {
     let operation_type = operation_type as i32;
+    let now = Utc::now();
     sqlx::query!(
-        "INSERT INTO privacy_pass_token (operation_type, token) VALUES (?, ?)",
+        "INSERT INTO privacy_pass_token (
+            operation_type, token, created_at
+        )
+        VALUES (?, ?, ?)",
         operation_type,
-        token
+        token,
+        now
     )
     .execute(executor)
     .await?;

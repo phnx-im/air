@@ -125,15 +125,17 @@ impl CoreUser {
 mod persistence {
     use super::InvitationCode;
 
-    use chrono::{DateTime, Utc};
-
     use sqlx::{SqliteExecutor, query, query_as};
 
     impl InvitationCode {
         pub(crate) async fn store(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
             query!(
-                "INSERT INTO invitation_code (code) VALUES (?) ON CONFLICT DO NOTHING",
-                self.code
+                "INSERT INTO invitation_code (
+                    code, created_at, copied
+                ) VALUES (?, ?, ?)",
+                self.code,
+                self.created_at,
+                self.copied
             )
             .execute(executor)
             .await?;
@@ -145,8 +147,8 @@ mod persistence {
         ) -> sqlx::Result<Vec<InvitationCode>> {
             query_as!(
                 InvitationCode,
-                "SELECT code, copied, created_at as 'created_at: DateTime<Utc>'
-                 FROM invitation_code"
+                r#"SELECT code, copied, created_at AS "created_at: _"
+                FROM invitation_code"#
             )
             .fetch_all(executor)
             .await

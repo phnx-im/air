@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, created_at as 'created_at: DateTime<Utc>' \n         FROM privacy_pass_token WHERE operation_type = ?",
+  "query": "SELECT id, created_at as 'created_at: DateTime<Utc>'\n         FROM privacy_pass_token WHERE operation_type = ?",
   "describe": {
     "columns": [
       {
@@ -22,5 +22,5 @@
       false
     ]
   },
-  "hash": "791e05619b8a2eaa341f252239974945edefb8d7b1dd07c3c3ec6c779639ed0e"
+  "hash": "f7c6f04931dee0e61d96ec54cf1be51d9715676f8d7d465ad9ac665f30a02d10"
 }
