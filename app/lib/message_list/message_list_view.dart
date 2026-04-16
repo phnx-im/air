@@ -4,6 +4,7 @@
 
 import 'dart:async';
 
+import 'package:air/theme/spacings.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -327,7 +328,7 @@ class _MessageListViewState extends State<MessageListView>
   }
 }
 
-const double _fadeHeight = 40;
+const double _fadeHeight = Spacings.s;
 
 class _BottomFade extends StatelessWidget {
   const _BottomFade({required this.height});
