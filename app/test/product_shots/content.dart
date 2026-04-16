@@ -114,14 +114,14 @@ var messageIdx = 1;
 final now = DateTime.now();
 
 final chats = [
-  // Fred
+  // Frederic
   UiChatDetails(
     id: fredChatId,
     status: const UiChatStatus.active(),
     chatType: UiChatType_Connection(fredProfile),
     unreadMessages: 1,
     messagesCount: 1,
-    attributes: const UiChatAttributes(title: 'Fred', picture: null),
+    attributes: const UiChatAttributes(title: 'Frederic', picture: null),
     lastUsed: now,
     lastMessage: _lastChatMessage(
       fredChatId,
@@ -326,7 +326,7 @@ final fredMessages = [
         content: UiMimiContent(
           plainBody: "",
           topicId: Uint8List(0),
-          content: _simpleMessage("Hey Fred, what’s your favorite planet?"),
+          content: _simpleMessage("Hey Frederic, what’s your favorite planet?"),
           attachments: [],
         ),
       ),

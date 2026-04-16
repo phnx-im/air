@@ -60,7 +60,7 @@ void main() {
     final titleColor = AppColors.neutral[800]!;
     final subtitleColor = AppColors.neutral[600]!;
     final frameColor = AppColors.neutral[300]!;
-    const title = 'Secure messaging for everyone.';
+    const title = 'Secure messaging\nfor everyone.';
     const subtitle = 'Everything in Air is\nend-to-end encrypted.';
 
     late MockNavigationCubit navigationCubit;

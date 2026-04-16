@@ -81,7 +81,7 @@ class ProductShot extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.start,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          SizedBox(height: headerHeight * 0.1),
+                          SizedBox(height: headerHeight * 0.05),
                           _ShotTitle(
                             text: title,
                             color: titleColor,
@@ -143,7 +143,7 @@ class _ShotTitle extends StatelessWidget {
     final textStyle = TextStyle(
       fontSize: fontSize,
       fontWeight: FontWeight.w800,
-      height: 1.5,
+      height: 1.3,
       letterSpacing: -fontSize / 128,
       color: color,
     );
@@ -177,7 +177,7 @@ class _ShotSubtitle extends StatelessWidget {
     final textStyle = TextStyle(
       fontSize: fontSize,
       fontWeight: FontWeight.w500,
-      height: 1.5,
+      height: 1.3,
       letterSpacing: -fontSize / 128,
       color: color,
     );
