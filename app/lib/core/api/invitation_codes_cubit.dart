@@ -56,7 +56,7 @@ sealed class InvitationCodesState with _$InvitationCodesState {
       .crateApiInvitationCodesCubitInvitationCodesStateDefault();
 }
 
-enum RequestInvitationCodeError { userQuotaExceeded, globalQuotaExceeded }
+enum RequestInvitationCodeError { globalQuotaExceeded }
 
 /// An ID of a privacy pass token stored locally.
 @freezed

@@ -374,7 +374,6 @@ dependencies = [
  "airbackend",
  "aircommon",
  "aircoreclient",
- "airprotos",
  "airserver",
  "anyhow",
  "mimi_content",

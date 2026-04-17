@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use airapiclient::ApiClient;
 use aircommon::{
@@ -24,7 +24,8 @@ use privacypass::{
 };
 use sqlx::{SqliteExecutor, SqlitePool, SqliteTransaction};
 use tls_codec::{Deserialize, Serialize};
-use tracing::{error, info};
+use tokio::time;
+use tracing::{info, warn};
 
 use crate::utils::connection_ext::ConnectionExt;
 
@@ -40,44 +41,21 @@ pub(crate) mod persistence;
 pub enum RequestTokensError {
     #[error("quota exceeded")]
     QuotaExceeded,
-    #[error("database error: {0}")]
-    Database(#[from] sqlx::Error),
-    #[error(transparent)]
-    Generic(#[from] anyhow::Error),
 }
 
 /// Requests a batch of Privacy Pass tokens from the AS and stores them locally.
 pub(crate) async fn request_and_store_tokens(
-    txn: &mut SqliteTransaction<'_>,
+    pool: &SqlitePool,
     api_client: &ApiClient,
     user_id: UserId,
     signing_key: &ClientSigningKey,
     operation_type: OperationType,
     count: u16,
-) -> Result<usize, RequestTokensError> {
+) -> anyhow::Result<Result<usize, RequestTokensError>> {
     info!(%count, %operation_type, "requesting privacy pass tokens");
 
-    let result =
-        request_tokens_inner(txn, api_client, user_id, signing_key, operation_type, count).await;
-
-    match &result {
-        Ok(stored) => info!(%stored, "stored privacy pass tokens"),
-        Err(error) => error!(%error, "failed to request privacy pass tokens"),
-    }
-
-    result
-}
-
-async fn request_tokens_inner(
-    txn: &mut SqliteTransaction<'_>,
-    api_client: &ApiClient,
-    user_id: UserId,
-    signing_key: &ClientSigningKey,
-    operation_type: OperationType,
-    count: u16,
-) -> Result<usize, RequestTokensError> {
     let keys: Vec<(u8, Vec<u8>)> =
-        persistence::load_batched_token_keys(txn.as_mut(), operation_type).await?;
+        persistence::load_batched_token_keys(pool, operation_type).await?;
     let (_, pk_bytes) = keys.first().context("no VOPRF public keys available")?;
 
     let public_key: PublicKey<Ristretto255> = deserialize_public_key::<Ristretto255>(pk_bytes)
@@ -100,16 +78,16 @@ async fn request_tokens_inner(
             .tls_serialize_detached()
             .context("failed to serialize tokens request")?,
     );
-    let response = api_client
+    let response = match api_client
         .as_issue_tokens(operation_type, user_id, signing_key, request_bytes)
         .await
-        .map_err(|error| {
-            if error.is_resource_exhausted() {
-                RequestTokensError::QuotaExceeded
-            } else {
-                RequestTokensError::Generic(error.into())
-            }
-        })?;
+    {
+        Ok(response) => response,
+        Err(error) if error.is_resource_exhausted() => {
+            return Ok(Err(RequestTokensError::QuotaExceeded));
+        }
+        Err(error) => return Err(error.into()),
+    };
 
     let token_response =
         AmortizedBatchTokenResponse::<Ristretto255>::tls_deserialize_exact(response.as_bytes())
@@ -120,14 +98,54 @@ async fn request_tokens_inner(
         .context("failed to issue tokens")?;
     let stored = tokens.len();
 
-    for token in tokens {
-        let token_bytes = token
-            .tls_serialize_detached()
-            .context("failed to serialize issued tokens")?;
-        persistence::store_token(txn.as_mut(), operation_type, &token_bytes).await?;
+    let serialized_tokens: Vec<Vec<u8>> = tokens
+        .into_iter()
+        .map(|t| t.tls_serialize_detached())
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // It is important to retry storing the tokens in case the database is locked. Otherwise, the
+    // client will lose them and the server will not be able to issue more.
+    //
+    // TODO: Refactor and use a crate or an abstraction for this.
+    const MAX_RETRIES: usize = 10;
+    const RETRY_DELAY: Duration = Duration::from_secs(1);
+    let mut retries = 0;
+    loop {
+        let res = pool
+            .with_transaction(async |txn| -> sqlx::Result<()> {
+                for token_bytes in &serialized_tokens {
+                    persistence::store_token(txn.as_mut(), operation_type, token_bytes).await?;
+                }
+                Ok(())
+            })
+            .await;
+        match res {
+            Ok(()) => break,
+            Err(error) => {
+                const DB_LOCKED_CODE: &str = "5"; // SQLITE_BUSY
+                let is_db_locked = error
+                    .as_database_error()
+                    .is_some_and(|e| e.code().as_deref() == Some(DB_LOCKED_CODE));
+                if is_db_locked {
+                    retries += 1;
+                    if retries >= MAX_RETRIES {
+                        return Err(error.into());
+                    }
+                    warn!(
+                        retries,
+                        retry_in =? RETRY_DELAY,
+                        "Database is locked when storing privacy pass tokens"
+                    );
+                } else {
+                    return Err(error.into());
+                }
+            }
+        }
+
+        time::sleep(RETRY_DELAY).await;
     }
 
-    Ok(stored)
+    Ok(Ok(stored))
 }
 
 /// Consumes one token from local storage.
@@ -242,37 +260,43 @@ pub(crate) async fn finalize_delete_token_response(
     Ok(())
 }
 
-/// Fetches VOPRF keys from the server, detects key rotation, and requests
-/// tokens if the local count is below [`OperationType::low_token_threshold`].
-///
-/// Returns the token count after replenishment.
-pub(crate) async fn replenish_if_needed(
-    txn: &mut SqliteTransaction<'_>,
-    api_client: &ApiClient,
-    batched_token_keys: &[BatchedTokenKeyResponse],
-    user_id: UserId,
-    signing_key: &ClientSigningKey,
+pub(crate) async fn needs_replenishment(
+    pool: &SqlitePool,
     operation_type: OperationType,
-) -> Result<u16, RequestTokensError> {
-    store_batched_token_keys(txn, batched_token_keys).await?;
-
-    let count = persistence::token_count(txn.as_mut(), operation_type).await?;
+) -> anyhow::Result<Option<u16>> {
+    let count = persistence::token_count(pool, operation_type).await?;
     let max_tokens = operation_type.max_tokens_allowance();
-    if count < operation_type.low_tokens_threshold() {
-        let needed = (max_tokens - count).min(max_tokens);
-        request_and_store_tokens(
-            txn,
-            api_client,
-            user_id,
-            signing_key,
-            operation_type,
-            needed,
-        )
-        .await?;
-    }
-
-    Ok(persistence::token_count(txn.as_mut(), operation_type).await?)
+    let replenish_count =
+        (count < operation_type.low_tokens_threshold()).then_some(max_tokens.saturating_sub(count));
+    Ok(replenish_count)
 }
+
+// Fetches VOPRF keys from the server, detects key rotation, and requests
+// tokens if the local count is below [`OperationType::low_token_threshold`].
+//
+// Returns the token count after replenishment.
+// pub(crate) async fn replenish(
+//     pool: &SqlitePool,
+//     api_client: &ApiClient,
+//     user_id: UserId,
+//     signing_key: &ClientSigningKey,
+//     operation_type: OperationType,
+// ) -> anyhow::Result<Result<u16, RequestTokensError>> {
+//     let max_tokens = operation_type.max_tokens_allowance();
+//
+//     let needed = (max_tokens - count).min(max_tokens);
+//     request_and_store_tokens(
+//         pool,
+//         api_client,
+//         user_id,
+//         signing_key,
+//         operation_type,
+//         needed,
+//     )
+//     .await?;
+//
+//     Ok(persistence::token_count(txn.as_mut(), operation_type).await?)
+// }
 
 /// Purges all cached tokens and keys, then replenishes from the server.
 ///
@@ -285,24 +309,20 @@ pub(crate) async fn purge_and_replenish(
     operation_type: OperationType,
     signing_key: &ClientSigningKey,
 ) -> anyhow::Result<()> {
-    let credentials_response = api_client.as_as_credentials().await?;
-    pool.with_transaction(async move |txn| {
-        let discarded = persistence::token_count(txn.as_mut(), operation_type).await?;
-        info!(%discarded, "purging stale tokens after server rejected key");
-        persistence::delete_all_tokens(txn.as_mut(), operation_type).await?;
-        persistence::delete_all_batched_token_keys(txn.as_mut(), operation_type).await?;
-        replenish_if_needed(
-            txn,
-            api_client,
-            &credentials_response.batched_token_keys,
-            user_id.clone(),
-            signing_key,
-            operation_type,
-        )
-        .await?;
-        Ok(())
-    })
-    .await
+    let discarded = persistence::token_count(pool, operation_type).await?;
+    info!(%discarded, "purging stale tokens after server rejected key");
+    persistence::delete_all_tokens(pool, operation_type).await?;
+    persistence::delete_all_batched_token_keys(pool, operation_type).await?;
+    request_and_store_tokens(
+        pool,
+        api_client,
+        user_id.clone(),
+        signing_key,
+        operation_type,
+        operation_type.max_tokens_allowance(),
+    )
+    .await??;
+    Ok(())
 }
 
 /// Opaque wrapper around the privacypass `TokenState` needed to finalize

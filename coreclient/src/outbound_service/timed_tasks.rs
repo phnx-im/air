@@ -21,6 +21,7 @@ use crate::{
         operation::{Operation, OperationData, OperationId, OperationKind},
         pending_chat_operation::PendingChatOperation,
     },
+    privacy_pass::RequestTokensError,
     user_handles::UserHandleRecord,
     utils::connection_ext::StoreExt,
 };
@@ -249,29 +250,51 @@ impl OutboundServiceContext {
     async fn replenish_tokens(&self) -> anyhow::Result<Duration> {
         use crate::privacy_pass;
 
-        let api_client = self.api_clients.default_client()?;
-        let credentials_response = api_client.as_as_credentials().await?;
+        let mut retry_soon = false;
+        let mut loaded_credentials = false;
 
-        let mut low_count = false;
+        let api_client = self.api_clients.default_client()?;
+
         for operation_type in OperationType::all() {
-            let count = self
-                .with_transaction(async |txn| {
-                    privacy_pass::replenish_if_needed(
+            let Some(replenish_count) =
+                privacy_pass::needs_replenishment(self.pool(), operation_type).await?
+            else {
+                continue;
+            };
+
+            if !loaded_credentials {
+                let crendentials_response = api_client.as_as_credentials().await?;
+                self.with_transaction(async move |txn| {
+                    privacy_pass::store_batched_token_keys(
                         txn,
-                        &api_client,
-                        &credentials_response.batched_token_keys,
-                        self.user_id().clone(),
-                        self.signing_key(),
-                        operation_type,
+                        &crendentials_response.batched_token_keys,
                     )
                     .await
                 })
                 .await?;
+                loaded_credentials = true;
+            }
 
-            low_count |= count < operation_type.low_tokens_threshold();
+            match privacy_pass::request_and_store_tokens(
+                self.pool(),
+                &api_client,
+                self.user_id().clone(),
+                self.signing_key(),
+                operation_type,
+                replenish_count,
+            )
+            .await?
+            {
+                Ok(count) => {
+                    retry_soon |= (count as u16) < operation_type.low_tokens_threshold();
+                }
+                Err(RequestTokensError::QuotaExceeded) => {
+                    warn!("quota exceeded; won't retry soon");
+                }
+            }
         }
 
-        if low_count {
+        if retry_soon {
             Ok(Duration::minutes(5))
         } else {
             Ok(Duration::hours(6))

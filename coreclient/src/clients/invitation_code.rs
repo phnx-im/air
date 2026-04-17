@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airapiclient::as_api::AsRequestError;
 use aircommon::identifiers::Fqdn;
 use airprotos::auth_service::v1::OperationType;
 use anyhow::Context;
@@ -11,7 +10,7 @@ use chrono::{DateTime, Utc};
 use crate::{
     TokenId,
     clients::{CoreUser, api_clients::ApiClients},
-    privacy_pass::{self, RequestTokensError},
+    privacy_pass,
     utils::connection_ext::StoreExt,
 };
 
@@ -24,34 +23,8 @@ pub struct InvitationCode {
 
 #[derive(Debug, thiserror::Error)]
 pub enum RequestInvitationCodeError {
-    #[error("user quota exceeded")]
-    UserQuotaExceeded,
     #[error("global quota exceeded")]
     GlobalQuotaExceeded,
-    #[error(transparent)]
-    Database(#[from] sqlx::Error),
-    #[error(transparent)]
-    Generic(#[from] anyhow::Error),
-}
-
-impl From<RequestTokensError> for RequestInvitationCodeError {
-    fn from(error: RequestTokensError) -> Self {
-        match error {
-            RequestTokensError::QuotaExceeded => Self::UserQuotaExceeded,
-            RequestTokensError::Database(error) => Self::Database(error),
-            RequestTokensError::Generic(error) => Self::Generic(error),
-        }
-    }
-}
-
-impl From<AsRequestError> for RequestInvitationCodeError {
-    fn from(error: AsRequestError) -> Self {
-        if error.is_resource_exhausted() {
-            Self::GlobalQuotaExceeded
-        } else {
-            Self::Generic(error.into())
-        }
-    }
 }
 
 impl CoreUser {
@@ -72,7 +45,7 @@ impl CoreUser {
     pub async fn request_invitation_code(
         &self,
         token_id: TokenId,
-    ) -> Result<InvitationCode, RequestInvitationCodeError> {
+    ) -> anyhow::Result<Result<InvitationCode, RequestInvitationCodeError>> {
         let api_client = self.api_client()?;
 
         let token = TokenId::load(self.pool(), &token_id)
@@ -80,11 +53,13 @@ impl CoreUser {
             .context("no token found")?;
 
         let result = api_client.as_get_invitation_codes([token]).await;
-
         let codes = match result {
             Ok(codes) => codes,
             Err(e) if e.is_network_error() => {
                 return Err(e.into());
+            }
+            Err(e) if e.is_resource_exhausted() => {
+                return Ok(Err(RequestInvitationCodeError::GlobalQuotaExceeded));
             }
             Err(e) => {
                 TokenId::delete(self.pool(), &token_id).await?;
@@ -109,7 +84,7 @@ impl CoreUser {
         })
         .await?;
 
-        Ok(invitation_code)
+        Ok(Ok(invitation_code))
     }
 
     pub async fn load_invitation_codes(&self) -> anyhow::Result<Vec<InvitationCode>> {

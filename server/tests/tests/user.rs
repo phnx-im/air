@@ -10,7 +10,6 @@ use aircoreclient::{
     AddHandleContactError, Asset, BlockedContactError, DisplayName, EventMessage, Message,
     SystemMessage, UserProfile, clients::CoreUser, store::Store,
 };
-use airprotos::auth_service::v1::OperationType;
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use mimi_content::MimiContent;
 use rand::Rng;
@@ -404,10 +403,6 @@ async fn check_handle_exists() {
     assert!(hash.is_none(), "Alice's handle should not exist yet");
 
     alice_user
-        .replenish_privacy_pass_tokens(OperationType::AddUsername)
-        .await
-        .unwrap();
-    alice_user
         .add_user_handle(alice_handle.clone())
         .await
         .unwrap();
@@ -584,12 +579,6 @@ async fn request_invitation_code() {
     let codes_before = alice_user.load_invitation_codes().await.unwrap();
     assert!(codes_before.is_empty());
 
-    // Background task isn't running in tests: replenish tokens explicitly.
-    alice_user
-        .replenish_privacy_pass_tokens(OperationType::GetInviteCode)
-        .await
-        .unwrap();
-
     let token_ids = alice_user.load_invitation_token_ids().await.unwrap();
     assert!(
         !token_ids.is_empty(),
@@ -599,7 +588,11 @@ async fn request_invitation_code() {
     let token_id = token_ids.into_iter().next().unwrap();
 
     // Request the code
-    let code = alice_user.request_invitation_code(token_id).await.unwrap();
+    let code = alice_user
+        .request_invitation_code(token_id)
+        .await
+        .unwrap()
+        .unwrap();
 
     assert!(!code.code.is_empty(), "invitation code should be non-empty");
     assert!(
@@ -629,11 +622,6 @@ async fn mark_invitation_code_as_copied() {
     let alice = setup.add_user().await;
     let alice_user = &setup.get_user(&alice).user;
 
-    alice_user
-        .replenish_privacy_pass_tokens(OperationType::GetInviteCode)
-        .await
-        .unwrap();
-
     let token_id = alice_user
         .load_invitation_token_ids()
         .await
@@ -642,7 +630,11 @@ async fn mark_invitation_code_as_copied() {
         .next()
         .unwrap();
 
-    let code = alice_user.request_invitation_code(token_id).await.unwrap();
+    let code = alice_user
+        .request_invitation_code(token_id)
+        .await
+        .unwrap()
+        .unwrap();
 
     // Marking an existing code returns true and flips the flag
     let was_updated = alice_user

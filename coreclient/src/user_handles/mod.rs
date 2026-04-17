@@ -12,7 +12,7 @@ use aircommon::{
     },
 };
 use airprotos::auth_service::v1::OperationType;
-use anyhow::Context;
+use anyhow::{Context, bail};
 pub use persistence::UserHandleRecord;
 use tokio::task::spawn_blocking;
 use tracing::{error, warn};
@@ -193,23 +193,31 @@ impl CoreUser {
             return Ok(token);
         }
 
+        let Some(replenish_count) =
+            privacy_pass::needs_replenishment(self.pool(), operation_type).await?
+        else {
+            bail!("no tokens available to replenish");
+        };
+
         let credentials_response = api_client.as_as_credentials().await?;
+        self.with_transaction(async move |txn| {
+            privacy_pass::store_batched_token_keys(txn, &credentials_response.batched_token_keys)
+                .await
+        })
+        .await?;
 
         // Cache empty — replenish for future attempts but don't consume
         // immediately. The caller should propagate this error and retry,
         // providing a natural timing gap between issuance and redemption.
-        self.with_transaction(async move |txn| {
-            privacy_pass::replenish_if_needed(
-                txn,
-                api_client,
-                &credentials_response.batched_token_keys,
-                self.user_id().clone(),
-                self.signing_key(),
-                operation_type,
-            )
-            .await
-        })
-        .await?;
+        privacy_pass::request_and_store_tokens(
+            self.pool(),
+            api_client,
+            self.user_id().clone(),
+            self.signing_key(),
+            operation_type,
+            replenish_count,
+        )
+        .await??;
 
         anyhow::bail!(
             "privacy pass token cache was empty; \
@@ -233,32 +241,6 @@ impl CoreUser {
             operation_type,
             self.signing_key(),
         )
-        .await
-    }
-
-    /// Pre-fills the local token cache so that handle operations can proceed
-    /// without inline replenishment. In production, the background
-    /// `TokenReplenishment` task does this; in tests, call this explicitly
-    /// after user creation.
-    #[cfg(feature = "test_utils")]
-    pub async fn replenish_privacy_pass_tokens(
-        &self,
-        operation_type: OperationType,
-    ) -> anyhow::Result<()> {
-        let api_client = self.api_client()?;
-        let credentials_response = api_client.as_as_credentials().await?;
-        self.with_transaction(async move |txn| {
-            privacy_pass::replenish_if_needed(
-                txn,
-                &api_client,
-                &credentials_response.batched_token_keys,
-                self.user_id().clone(),
-                self.signing_key(),
-                operation_type,
-            )
-            .await?;
-            Ok(())
-        })
         .await
     }
 }

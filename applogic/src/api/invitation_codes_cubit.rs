@@ -35,7 +35,6 @@ pub struct _TokenId {
 #[frb(mirror(RequestInvitationCodeError))]
 #[frb(dart_metadata = ("freezed"))]
 pub enum _RequestInvitationCodeError {
-    UserQuotaExceeded,
     GlobalQuotaExceeded,
 }
 
@@ -101,11 +100,9 @@ impl InvitationCodesCubitBase {
         &self,
         token_id: TokenId,
     ) -> anyhow::Result<Option<RequestInvitationCodeError>> {
-        let _ = match self.core_user.request_invitation_code(token_id).await {
+        let _ = match self.core_user.request_invitation_code(token_id).await? {
             Ok(code) => code,
-            Err(e @ RequestInvitationCodeError::UserQuotaExceeded) => return Ok(Some(e)),
             Err(e @ RequestInvitationCodeError::GlobalQuotaExceeded) => return Ok(Some(e)),
-            Err(e) => return Err(e.into()),
         };
 
         load_and_emit_state(self.core_user.clone(), self.core.state_tx().clone()).await;
