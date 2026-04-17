@@ -116,8 +116,8 @@ impl InvitationCodesCubitBase {
             .await?;
 
         self.core.state_tx().send_modify(|state| {
-            for invitiation_code in &mut state.codes {
-                if let UiInvitationCode::Code(code) = invitiation_code
+            for invitation_code in &mut state.codes {
+                if let UiInvitationCode::Code(code) = invitation_code
                     && code.code == copied_code
                 {
                     code.copied = true;

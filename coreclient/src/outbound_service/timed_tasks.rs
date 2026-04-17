@@ -263,11 +263,11 @@ impl OutboundServiceContext {
             };
 
             if !loaded_credentials {
-                let crendentials_response = api_client.as_as_credentials().await?;
+                let credentials_response = api_client.as_as_credentials().await?;
                 self.with_transaction(async move |txn| {
                     privacy_pass::store_batched_token_keys(
                         txn,
-                        &crendentials_response.batched_token_keys,
+                        &credentials_response.batched_token_keys,
                     )
                     .await
                 })
