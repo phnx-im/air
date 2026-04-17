@@ -84,7 +84,6 @@ class _InvitationCodesList extends StatelessWidget {
     final invitationCodes = context.select(
       (InvitationCodesCubit cubit) => cubit.state.codes,
     );
-    // final invitationCodes = _inviteCodes;
 
     return Container(
       decoration: BoxDecoration(
@@ -147,7 +146,7 @@ class _InvitationCodeItem extends StatelessWidget {
                 style: TextStyle(
                   fontSize: BodyFontSize.base.size,
                   color: colors.text.primary,
-                  decoration: .lineThrough,
+                  decoration: code.copied ? TextDecoration.lineThrough : null,
                 ),
               ),
             ),
