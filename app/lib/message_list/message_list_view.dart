@@ -49,8 +49,16 @@ class MessageListView extends StatefulWidget {
 ///  - Routes cubit scroll-to-index commands to the [AnchoredListController].
 class _MessageListViewState extends State<MessageListView>
     with WidgetsBindingObserver {
-  /// Messages that have already played their entrance animation.
-  final _animatedMessages = <MessageId>{};
+  /// Messages eligible for an entrance animation — admitted at arrival
+  /// time, when the user was visually at the bottom. Ids that don't pass
+  /// the arrival-time gate are simply never added; there is no separate
+  /// exclusion list.
+  final _animatingMessages = <MessageId>{};
+
+  /// Subset of [_animatingMessages] whose entrance animation has already
+  /// played. An id is added on first build and keeps subsequent rebuilds
+  /// from re-running the animation.
+  final _playedAnimations = <MessageId>{};
 
   final _listController = AnchoredListController();
 
@@ -60,6 +68,7 @@ class _MessageListViewState extends State<MessageListView>
 
   MessageListCubit? _commandsCubit;
   StreamSubscription<MessageListCommand>? _commandSubscription;
+  StreamSubscription<Set<MessageId>>? _incomingMessagesSubscription;
   bool _initialUnreadScrollHandled = false;
 
   @override
@@ -81,8 +90,12 @@ class _MessageListViewState extends State<MessageListView>
     final cubit = context.read<MessageListCubit>();
     if (identical(cubit, _commandsCubit)) return;
     _commandSubscription?.cancel();
+    _incomingMessagesSubscription?.cancel();
     _commandsCubit = cubit;
     _commandSubscription = cubit.commands.listen(_handleCommand);
+    _incomingMessagesSubscription = cubit.incomingMessages.listen(
+      _admitIncomingAnimations,
+    );
   }
 
   @override
@@ -90,12 +103,21 @@ class _MessageListViewState extends State<MessageListView>
     WidgetsBinding.instance.removeObserver(this);
     widget.scrollToBottomController?.onScrollToBottom = null;
     _commandSubscription?.cancel();
+    _incomingMessagesSubscription?.cancel();
     _listController.isAtBottom.removeListener(_updateShowButton);
     _listController.newestVisibleId.removeListener(
       _markCurrentVisibleMessageAsRead,
     );
     _listController.dispose();
     super.dispose();
+  }
+
+  /// Admits freshly-arrived messages to the entrance-animation set iff the
+  /// user is visually at the bottom right now. Messages that don't qualify
+  /// are not tracked at all — no exclusion bookkeeping needed.
+  void _admitIncomingAnimations(Set<MessageId> ids) {
+    if (!_listController.isAtBottom.value) return;
+    _animatingMessages.addAll(ids);
   }
 
   @override
@@ -291,10 +313,8 @@ class _MessageListViewState extends State<MessageListView>
     MessageListStateWrapper state,
     UiChatMessage message,
   ) {
-    final isNew = state.isNewMessage(message.id);
-    // We only want to animate a message if it's new and hasn't already played
-    // its animation.
-    final shouldAnimate = isNew && _animatedMessages.add(message.id);
+    final animated = _animatingMessages.contains(message.id);
+    final shouldAnimate = animated && _playedAnimations.add(message.id);
 
     final isFirstUnread =
         state.firstUnreadIndex != null &&
@@ -307,7 +327,7 @@ class _MessageListViewState extends State<MessageListView>
       createMessageCubit: widget.createMessageCubit,
       child: ChatTile(
         isConnectionChat: state.isConnectionChat ?? false,
-        animated: isNew,
+        animated: animated,
         shouldAnimate: shouldAnimate,
       ),
     );
