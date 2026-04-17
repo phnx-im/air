@@ -250,26 +250,26 @@ impl OutboundServiceContext {
         use crate::privacy_pass;
 
         let api_client = self.api_clients.default_client()?;
+        let credentials_response = api_client.as_as_credentials().await?;
 
-        let low_count = self
-            .with_transaction(async |txn| -> anyhow::Result<bool> {
-                let mut low_count = false;
-                for operation_type in OperationType::all() {
-                    let count = privacy_pass::replenish_if_needed(
+        let mut low_count = false;
+        for operation_type in OperationType::all() {
+            let count = self
+                .with_transaction(async |txn| {
+                    privacy_pass::replenish_if_needed(
                         txn,
                         &api_client,
+                        &credentials_response.batched_token_keys,
                         self.user_id().clone(),
                         self.signing_key(),
                         operation_type,
                     )
-                    .await?;
+                    .await
+                })
+                .await?;
 
-                    low_count |= count < operation_type.low_tokens_threshold();
-                }
-
-                Ok(low_count)
-            })
-            .await?;
+            low_count |= count < operation_type.low_tokens_threshold();
+        }
 
         if low_count {
             Ok(Duration::minutes(5))

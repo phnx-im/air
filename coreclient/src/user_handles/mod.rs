@@ -21,9 +21,10 @@ use airapiclient::ApiClient;
 
 use crate::{
     clients::{CONNECTION_PACKAGES, CoreUser},
-    privacy_pass::{self, RequestTokensError},
+    privacy_pass,
     store::StoreResult,
     user_handles::connection_packages::StorableConnectionPackage,
+    utils::connection_ext::StoreExt,
 };
 
 pub(crate) mod connection_packages;
@@ -187,32 +188,33 @@ impl CoreUser {
         &self,
         api_client: &ApiClient,
         operation_type: OperationType,
-    ) -> Result<SerializedToken, RequestTokensError> {
-        // it's important that we lock the DB here, because we don't want to fail in parallel
-        let mut txn = self.pool().begin_with("BEGIN IMMEDIATE").await?;
-        if let Some(token) = privacy_pass::consume_token(txn.as_mut(), operation_type).await? {
-            txn.commit().await?;
+    ) -> anyhow::Result<SerializedToken> {
+        if let Some(token) = privacy_pass::consume_token(self.pool(), operation_type).await? {
             return Ok(token);
         }
+
+        let credentials_response = api_client.as_as_credentials().await?;
 
         // Cache empty — replenish for future attempts but don't consume
         // immediately. The caller should propagate this error and retry,
         // providing a natural timing gap between issuance and redemption.
-        privacy_pass::replenish_if_needed(
-            &mut txn,
-            api_client,
-            self.user_id().clone(),
-            self.signing_key(),
-            operation_type,
-        )
+        self.with_transaction(async move |txn| {
+            privacy_pass::replenish_if_needed(
+                txn,
+                api_client,
+                &credentials_response.batched_token_keys,
+                self.user_id().clone(),
+                self.signing_key(),
+                operation_type,
+            )
+            .await
+        })
         .await?;
 
-        txn.commit().await?;
-
-        // TODO: this could maybe be a specific error?
-        Err(RequestTokensError::Generic(anyhow::anyhow!(
-            "privacy pass token cache was empty; replenished — retry to use decorrelated tokens"
-        )))
+        anyhow::bail!(
+            "privacy pass token cache was empty; \
+             replenished — retry to use decorrelated tokens"
+        )
     }
 
     /// Purges all cached tokens (key rotation) and replenishes.
@@ -223,7 +225,7 @@ impl CoreUser {
         &self,
         api_client: &ApiClient,
         operation_type: OperationType,
-    ) -> Result<(), RequestTokensError> {
+    ) -> anyhow::Result<()> {
         privacy_pass::purge_and_replenish(
             self.pool(),
             api_client,
@@ -244,17 +246,20 @@ impl CoreUser {
         operation_type: OperationType,
     ) -> anyhow::Result<()> {
         let api_client = self.api_client()?;
-        let mut txn = self.pool().begin().await?;
-        privacy_pass::replenish_if_needed(
-            &mut txn,
-            &api_client,
-            self.user_id().clone(),
-            self.signing_key(),
-            operation_type,
-        )
-        .await?;
-        txn.commit().await?;
-        Ok(())
+        let credentials_response = api_client.as_as_credentials().await?;
+        self.with_transaction(async move |txn| {
+            privacy_pass::replenish_if_needed(
+                txn,
+                &api_client,
+                &credentials_response.batched_token_keys,
+                self.user_id().clone(),
+                self.signing_key(),
+                operation_type,
+            )
+            .await?;
+            Ok(())
+        })
+        .await
     }
 }
 

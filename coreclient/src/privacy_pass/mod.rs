@@ -26,6 +26,8 @@ use sqlx::{SqliteExecutor, SqlitePool, SqliteTransaction};
 use tls_codec::{Deserialize, Serialize};
 use tracing::{error, info};
 
+use crate::utils::connection_ext::ConnectionExt;
+
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct TokenId {
     pub id: i64,
@@ -247,16 +249,12 @@ pub(crate) async fn finalize_delete_token_response(
 pub(crate) async fn replenish_if_needed(
     txn: &mut SqliteTransaction<'_>,
     api_client: &ApiClient,
+    batched_token_keys: &[BatchedTokenKeyResponse],
     user_id: UserId,
     signing_key: &ClientSigningKey,
     operation_type: OperationType,
 ) -> Result<u16, RequestTokensError> {
-    let credentials_response = api_client
-        .as_as_credentials()
-        .await
-        .context("failed to fetch AS credentials")?;
-
-    store_batched_token_keys(txn, &credentials_response.batched_token_keys).await?;
+    store_batched_token_keys(txn, batched_token_keys).await?;
 
     let count = persistence::token_count(txn.as_mut(), operation_type).await?;
     let max_tokens = operation_type.max_tokens_allowance();
@@ -286,23 +284,25 @@ pub(crate) async fn purge_and_replenish(
     user_id: UserId,
     operation_type: OperationType,
     signing_key: &ClientSigningKey,
-) -> Result<(), RequestTokensError> {
-    let mut txn = pool.begin().await?;
-    let discarded = persistence::token_count(txn.as_mut(), operation_type).await?;
-    info!(%discarded, "purging stale tokens after server rejected key");
-    persistence::delete_all_tokens(txn.as_mut(), operation_type).await?;
-    persistence::delete_all_batched_token_keys(txn.as_mut(), operation_type).await?;
-    replenish_if_needed(
-        &mut txn,
-        api_client,
-        user_id.clone(),
-        signing_key,
-        operation_type,
-    )
-    .await?;
-
-    txn.commit().await?;
-    Ok(())
+) -> anyhow::Result<()> {
+    let credentials_response = api_client.as_as_credentials().await?;
+    pool.with_transaction(async move |txn| {
+        let discarded = persistence::token_count(txn.as_mut(), operation_type).await?;
+        info!(%discarded, "purging stale tokens after server rejected key");
+        persistence::delete_all_tokens(txn.as_mut(), operation_type).await?;
+        persistence::delete_all_batched_token_keys(txn.as_mut(), operation_type).await?;
+        replenish_if_needed(
+            txn,
+            api_client,
+            &credentials_response.batched_token_keys,
+            user_id.clone(),
+            signing_key,
+            operation_type,
+        )
+        .await?;
+        Ok(())
+    })
+    .await
 }
 
 /// Opaque wrapper around the privacypass `TokenState` needed to finalize
