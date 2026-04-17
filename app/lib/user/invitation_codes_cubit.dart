@@ -39,4 +39,6 @@ class InvitationCodesCubit
 
   Future<void> markInvitationCodeAsCopied({required String copiedCode}) async =>
       _impl.markInvitationCodeAsCopied(copiedCode: copiedCode);
+
+  Future<void> clearCopiedCodes() async => _impl.clearCopiedCodes();
 }

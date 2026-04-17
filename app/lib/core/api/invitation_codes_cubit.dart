@@ -17,6 +17,8 @@ part 'invitation_codes_cubit.freezed.dart';
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<InvitationCodesCubitBase>>
 abstract class InvitationCodesCubitBase implements RustOpaqueInterface {
+  Future<void> clearCopiedCodes();
+
   Future<void> close();
 
   bool get isClosed;

@@ -281,7 +281,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get invitationCodesScreen_copyAll => 'Copy all';
 
   @override
-  String get invitationCodesScreen_tapToUnlock => 'Tap to unlock';
+  String get invitationCodesScreen_tapToGetCode => 'Tag to get code';
+
+  @override
+  String get invitationCodesScreen_removeUnusedCodes => 'Remove used codes';
 
   @override
   String get invitationCodesScreen_empty => 'No invitation codes available';

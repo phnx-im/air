@@ -23,7 +23,6 @@ class InvitationCodesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint("invitationCodesCubit: $invitationCodesCubit");
     return invitationCodesCubit != null
         ? BlocProvider<InvitationCodesCubit>.value(
             value: invitationCodesCubit!,
@@ -63,11 +62,45 @@ class InvitationCodesView extends StatelessWidget {
                 Row(
                   children: [
                     const Spacer(),
-                    AppButton(
-                      size: AppButtonSize.small,
-                      type: AppButtonType.secondary,
-                      label: loc.invitationCodesScreen_copyAll,
-                      onPressed: () => _handleCopyAll(context),
+
+                    Builder(
+                      builder: (context) {
+                        final anyUncopiedCode = context.select(
+                          (InvitationCodesCubit cubit) => cubit.state.codes
+                              .whereType<UiInvitationCode_Code>()
+                              .any((code) => !code.field0.copied),
+                        );
+                        return AppButton(
+                          size: AppButtonSize.small,
+                          type: AppButtonType.secondary,
+                          label: loc.invitationCodesScreen_copyAll,
+                          state: anyUncopiedCode ? .active : .inactive,
+                          onPressed: () => _handleCopyAll(context),
+                        );
+                      },
+                    ),
+                    const Spacer(),
+                  ],
+                ),
+                const SizedBox(height: Spacings.s),
+                Row(
+                  children: [
+                    const Spacer(),
+                    Builder(
+                      builder: (context) {
+                        final anyCopiedCode = context.select(
+                          (InvitationCodesCubit cubit) => cubit.state.codes
+                              .whereType<UiInvitationCode_Code>()
+                              .any((code) => code.field0.copied),
+                        );
+                        return AppButton(
+                          size: AppButtonSize.small,
+                          type: AppButtonType.secondary,
+                          label: loc.invitationCodesScreen_removeUnusedCodes,
+                          state: anyCopiedCode ? .active : .inactive,
+                          onPressed: () => _handleClearCopied(context),
+                        );
+                      },
                     ),
                     const Spacer(),
                   ],
@@ -100,6 +133,10 @@ class InvitationCodesView extends StatelessWidget {
           SnackBar(content: Text(loc.invitationCodesScreen_copiedToClipboard)),
     );
   }
+
+  void _handleClearCopied(BuildContext context) {
+    context.read<InvitationCodesCubit>().clearCopiedCodes();
+  }
 }
 
 class _InvitationCodesList extends StatelessWidget {
@@ -128,7 +165,7 @@ class _InvitationCodesList extends StatelessWidget {
                         UiInvitationCode_Code(field0: final code) =>
                           _InvitationCodeItem(code: code),
                         UiInvitationCode_Token(field0: final token) =>
-                          _InvitationCodeUnlockButton(tokenId: token),
+                          _InvitationTokenItem(tokenId: token),
                       },
                       if (code != invitationCodes.last)
                         Divider(
@@ -196,8 +233,8 @@ class _InvitationCodeItem extends StatelessWidget {
   }
 }
 
-class _InvitationCodeUnlockButton extends StatelessWidget {
-  const _InvitationCodeUnlockButton({required this.tokenId});
+class _InvitationTokenItem extends StatelessWidget {
+  const _InvitationTokenItem({required this.tokenId});
 
   final TokenId tokenId;
 
@@ -217,7 +254,7 @@ class _InvitationCodeUnlockButton extends StatelessWidget {
         child: Row(
           children: [
             Text(
-              AppLocalizations.of(context).invitationCodesScreen_tapToUnlock,
+              AppLocalizations.of(context).invitationCodesScreen_tapToGetCode,
               style: TextStyle(
                 fontSize: BodyFontSize.base.size,
                 fontStyle: FontStyle.italic,

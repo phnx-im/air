@@ -128,6 +128,17 @@ impl InvitationCodesCubitBase {
 
         Ok(())
     }
+
+    pub async fn clear_copied_codes(&self) {
+        self.core_user
+            .clear_copied_codes()
+            .await
+            .inspect_err(|error| {
+                error!(%error, "failed to clear copied invitation codes");
+            })
+            .ok();
+        load_and_emit_state(self.core_user.clone(), self.core.state_tx().clone()).await;
+    }
 }
 
 async fn load_and_emit_state(core_user: CoreUser, state_tx: Sender<InvitationCodesState>) {

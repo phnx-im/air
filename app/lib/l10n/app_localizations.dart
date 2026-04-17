@@ -570,11 +570,17 @@ abstract class AppLocalizations {
   /// **'Copy all'**
   String get invitationCodesScreen_copyAll;
 
-  /// No description provided for @invitationCodesScreen_tapToUnlock.
+  /// No description provided for @invitationCodesScreen_tapToGetCode.
   ///
   /// In en, this message translates to:
-  /// **'Tap to unlock'**
-  String get invitationCodesScreen_tapToUnlock;
+  /// **'Tag to get code'**
+  String get invitationCodesScreen_tapToGetCode;
+
+  /// No description provided for @invitationCodesScreen_removeUnusedCodes.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove used codes'**
+  String get invitationCodesScreen_removeUnusedCodes;
 
   /// No description provided for @invitationCodesScreen_empty.
   ///

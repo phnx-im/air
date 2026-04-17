@@ -100,6 +100,10 @@ impl CoreUser {
     pub async fn mark_invitation_code_as_copied(&self, code: &str) -> anyhow::Result<bool> {
         Ok(InvitationCode::mark_as_copied(self.pool(), code).await?)
     }
+
+    pub async fn clear_copied_codes(&self) -> anyhow::Result<()> {
+        Ok(InvitationCode::delete_all_copied(self.pool()).await?)
+    }
 }
 
 mod persistence {
@@ -146,6 +150,13 @@ mod persistence {
             .execute(executor)
             .await?;
             Ok(result.rows_affected() > 0)
+        }
+
+        pub async fn delete_all_copied(executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+            query!("DELETE FROM invitation_code WHERE copied = TRUE",)
+                .execute(executor)
+                .await?;
+            Ok(())
         }
     }
 }
