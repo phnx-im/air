@@ -296,8 +296,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'We\'re out of invites for now, please try again later.';
 
   @override
-  String get invitationCodesScreen_user_quota_exceeded =>
-      'You ran out of invites for now, please try again later.';
+  String get invitationCodesScreen_errorRequestingCode =>
+      'Something went wrong. Try again.';
 
   @override
   String get signUpScreen_header => 'Create your profile';

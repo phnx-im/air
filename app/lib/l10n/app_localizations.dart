@@ -600,11 +600,11 @@ abstract class AppLocalizations {
   /// **'We\'re out of invites for now, please try again later.'**
   String get invitationCodesScreen_global_quota_exceeded;
 
-  /// No description provided for @invitationCodesScreen_user_quota_exceeded.
+  /// No description provided for @invitationCodesScreen_errorRequestingCode.
   ///
   /// In en, this message translates to:
-  /// **'You ran out of invites for now, please try again later.'**
-  String get invitationCodesScreen_user_quota_exceeded;
+  /// **'Something went wrong. Try again.'**
+  String get invitationCodesScreen_errorRequestingCode;
 
   /// No description provided for @signUpScreen_header.
   ///

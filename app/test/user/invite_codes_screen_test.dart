@@ -4,7 +4,6 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/user/invite_codes_screen.dart';
 import 'package:air/user/user.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';

@@ -299,8 +299,8 @@ class AppLocalizationsDe extends AppLocalizations {
       'Wir haben im Moment keine Einladungenscode mehr, versuch es bitte später nochmal.';
 
   @override
-  String get invitationCodesScreen_user_quota_exceeded =>
-      'Du hast im Moment keine Einladungenscode mehr, versuch es bitte später nochmal.';
+  String get invitationCodesScreen_errorRequestingCode =>
+      'Something went wrong. Try again.';
 
   @override
   String get signUpScreen_header => 'Erstelle dein Profil';

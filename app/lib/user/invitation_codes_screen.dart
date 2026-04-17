@@ -11,6 +11,7 @@ import 'package:air/ui/components/button/button.dart';
 import 'package:air/ui/icons/icons.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -169,11 +170,7 @@ class _InvitationCodeUnlockButton extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
 
     return InkWell(
-      onTap: () {
-        context.read<InvitationCodesCubit>().requestInvitationCode(
-          tokenId: tokenId,
-        );
-      },
+      onTap: () => _handleTap(context),
       mouseCursor: SystemMouseCursors.click,
       borderRadius: BorderRadius.circular(Spacings.s),
       child: Padding(
@@ -197,6 +194,29 @@ class _InvitationCodeUnlockButton extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _handleTap(BuildContext context) async {
+    try {
+      final error = await context
+          .read<InvitationCodesCubit>()
+          .requestInvitationCode(tokenId: tokenId);
+      switch (error) {
+        case RequestInvitationCodeError.globalQuotaExceeded:
+          showSnackBarStandalone(
+            (loc) => SnackBar(
+              content: Text(loc.invitationCodesScreen_global_quota_exceeded),
+            ),
+          );
+          break;
+        case null:
+          return;
+      }
+    } catch (e) {
+      showErrorBannerStandalone(
+        (loc) => loc.invitationCodesScreen_errorRequestingCode,
+      );
+    }
   }
 }
 

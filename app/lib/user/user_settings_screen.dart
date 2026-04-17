@@ -26,7 +26,6 @@ import 'add_username_dialog.dart';
 import 'change_display_name_dialog.dart';
 import 'contact_us_screen.dart';
 import 'delete_account_dialog.dart';
-import 'invite_codes_screen.dart';
 import 'remove_username_dialog.dart';
 
 class UserSettingsScreen extends StatelessWidget {

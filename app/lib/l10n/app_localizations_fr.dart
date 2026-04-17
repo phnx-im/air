@@ -302,8 +302,8 @@ class AppLocalizationsFr extends AppLocalizations {
       'Nous n\'avons plus d\'invitations pour le moment, veuillez réessayer plus tard.';
 
   @override
-  String get invitationCodesScreen_user_quota_exceeded =>
-      'Vous avez dépassé votre quota d\'invitations pour le moment, veuillez réessayer plus tard.';
+  String get invitationCodesScreen_errorRequestingCode =>
+      'Something went wrong. Try again.';
 
   @override
   String get signUpScreen_header => 'Créez votre profil';
