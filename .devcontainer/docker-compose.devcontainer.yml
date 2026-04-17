@@ -23,6 +23,11 @@ services:
       AIR_STORAGE_ENDPOINT: http://minio:9000
       CARGO_TERM_COLOR: always
       CI: "true"
+      PGDATABASE: air_db
+      PGHOST: postgres
+      PGPASSWORD: password
+      PGPORT: "5432"
+      PGUSER: postgres
       POSTGRES_HOST: postgres
       RUST_BACKTRACE: "1"
       RUSTFLAGS: "-D warnings"
