@@ -52,6 +52,9 @@ Future<void> _handleMethod(
       final taskId = call.arguments['taskId'];
       _log.warning('Background task expired (taskId=$taskId)');
       break;
+    case 'processStoreNotifications':
+      CoreClient().maybeUser?.signalPendingStoreNotifications();
+      break;
     default:
       _log.severe('Unknown method called: ${call.method}');
   }

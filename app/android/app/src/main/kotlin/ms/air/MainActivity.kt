@@ -30,12 +30,18 @@ import android.provider.MediaStore
 import androidx.core.net.toUri
 import java.io.File
 import java.io.IOException
+import java.lang.ref.WeakReference
 
 class MainActivity : FlutterActivity() {
     companion object {
         private const val CHANNEL_NAME: String = "ms.air/channel"
         private const val REQUEST_CODE_POST_NOTIFICATIONS = 1000
         private const val APP_DIR_NAME: String = "Air"
+
+        @Volatile
+        private var activeChannelRef: WeakReference<MethodChannel>? = null
+
+        fun activeChannel(): MethodChannel? = activeChannelRef?.get()
     }
 
     private var channel: MethodChannel? = null
@@ -65,6 +71,7 @@ class MainActivity : FlutterActivity() {
 
         channel?.setMethodCallHandler(null)
         channel = null
+        activeChannelRef = null
     }
 
     // Configures the Method Channel to communicate with Flutter
@@ -74,6 +81,7 @@ class MainActivity : FlutterActivity() {
         channel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger, CHANNEL_NAME
         )
+        activeChannelRef = WeakReference(channel)
         channel?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "getDeviceToken" -> {

@@ -163,6 +163,13 @@ impl User {
         Ok(())
     }
 
+    /// Signals the foreground drainer that background push handlers have
+    /// persisted new store notifications.
+    #[frb(sync)]
+    pub fn signal_pending_store_notifications(&self) {
+        self.user.signal_pending_store_notifications();
+    }
+
     /// Total number of unread messages across all chats
     #[frb(getter, type_64bit_int)]
     pub async fn global_unread_messages_count(&self) -> usize {

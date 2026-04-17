@@ -400,6 +400,7 @@ impl PersistedUserState {
             api_clients,
             http_client,
             store_notifications_tx,
+            store_notifications_pending: Arc::new(Notify::new()),
             outbound_service,
             event_loop_sender,
             _event_loop_cancel: event_loop_cancel.drop_guard(),
