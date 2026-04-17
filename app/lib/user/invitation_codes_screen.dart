@@ -13,20 +13,28 @@ import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class InvitationCodesScreen extends StatelessWidget {
-  const InvitationCodesScreen({super.key});
+  const InvitationCodesScreen({super.key, this.invitationCodesCubit});
+
+  final InvitationCodesCubit? invitationCodesCubit;
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<InvitationCodesCubit>(
-      create: (BuildContext context) {
-        final userCubit = context.read<UserCubit>();
-        return InvitationCodesCubit(userCubit: userCubit);
-      },
-      child: const InvitationCodesView(),
-    );
+    debugPrint("invitationCodesCubit: $invitationCodesCubit");
+    return invitationCodesCubit != null
+        ? BlocProvider<InvitationCodesCubit>.value(
+            value: invitationCodesCubit!,
+            child: const InvitationCodesView(),
+          )
+        : BlocProvider<InvitationCodesCubit>(
+            create: (BuildContext context) =>
+                invitationCodesCubit ??
+                InvitationCodesCubit(userCubit: context.read<UserCubit>()),
+            child: const InvitationCodesView(),
+          );
   }
 }
 
@@ -59,7 +67,7 @@ class InvitationCodesView extends StatelessWidget {
                       size: AppButtonSize.small,
                       type: AppButtonType.secondary,
                       label: loc.invitationCodesScreen_copyAll,
-                      onPressed: () {},
+                      onPressed: () => _handleCopyAll(context),
                     ),
                     const Spacer(),
                   ],
@@ -71,6 +79,25 @@ class InvitationCodesView extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  void _handleCopyAll(BuildContext context) {
+    final invitationCodesCubit = context.read<InvitationCodesCubit>();
+    final codes = invitationCodesCubit.state.codes
+        .whereType<UiInvitationCode_Code>()
+        .where((code) => !code.field0.copied)
+        .map((code) => code.field0.code)
+        .toList();
+    Clipboard.setData(ClipboardData(text: codes.join("\n")));
+
+    for (final code in codes) {
+      invitationCodesCubit.markInvitationCodeAsCopied(copiedCode: code);
+    }
+
+    showSnackBarStandalone(
+      (loc) =>
+          SnackBar(content: Text(loc.invitationCodesScreen_copiedToClipboard)),
     );
   }
 }
@@ -127,11 +154,7 @@ class _InvitationCodeItem extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
 
     return InkWell(
-      onTap: () {
-        context.read<InvitationCodesCubit>().markInvitationCodeAsCopied(
-          copiedCode: code.code,
-        );
-      },
+      onTap: () => _handleCopy(context),
       mouseCursor: SystemMouseCursors.click,
       borderRadius: BorderRadius.circular(Spacings.s),
       child: Padding(
@@ -158,6 +181,19 @@ class _InvitationCodeItem extends StatelessWidget {
       ),
     );
   }
+
+  void _handleCopy(BuildContext context) {
+    Clipboard.setData(ClipboardData(text: code.code));
+    showSnackBarStandalone(
+      (loc) =>
+          SnackBar(content: Text(loc.invitationCodesScreen_copiedToClipboard)),
+    );
+
+    if (!code.copied) {
+      final invitationCodesCubit = context.read<InvitationCodesCubit>();
+      invitationCodesCubit.markInvitationCodeAsCopied(copiedCode: code.code);
+    }
+  }
 }
 
 class _InvitationCodeUnlockButton extends StatelessWidget {
@@ -170,7 +206,7 @@ class _InvitationCodeUnlockButton extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
 
     return InkWell(
-      onTap: () => _handleTap(context),
+      onTap: () => _handleUnlock(context),
       mouseCursor: SystemMouseCursors.click,
       borderRadius: BorderRadius.circular(Spacings.s),
       child: Padding(
@@ -196,7 +232,7 @@ class _InvitationCodeUnlockButton extends StatelessWidget {
     );
   }
 
-  void _handleTap(BuildContext context) async {
+  void _handleUnlock(BuildContext context) async {
     try {
       final error = await context
           .read<InvitationCodesCubit>()

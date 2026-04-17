@@ -301,6 +301,9 @@ class AppLocalizationsSv extends AppLocalizations {
       'Something went wrong. Try again.';
 
   @override
+  String get invitationCodesScreen_copiedToClipboard => 'Copied to clipboard';
+
+  @override
   String get signUpScreen_header => 'Skapa din profil';
 
   @override

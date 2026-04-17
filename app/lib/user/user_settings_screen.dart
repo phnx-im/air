@@ -312,24 +312,37 @@ class _InviteCodes extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final colors = CustomColorScheme.of(context);
 
-    return _FieldContainer(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => const InvitationCodesScreen(),
-          ),
-        );
-      },
-      child: Row(
-        children: [
-          AppIcon.users(color: colors.text.secondary, size: 24),
+    return BlocProvider(
+      create: (context) =>
+          InvitationCodesCubit(userCubit: context.read<UserCubit>()),
+      child: Builder(
+        builder: (context) {
+          return _FieldContainer(
+            onTap: () {
+              // Note: We want to share the cubit between this widget and the
+              // screen, because we want to synchronize the data between the two.
+              final invitationCodesCubit = context.read<InvitationCodesCubit>();
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => InvitationCodesScreen(
+                    invitationCodesCubit: invitationCodesCubit,
+                  ),
+                ),
+              );
+            },
+            child: Row(
+              children: [
+                AppIcon.users(color: colors.text.secondary, size: 24),
 
-          const SizedBox(width: Spacings.xs),
+                const SizedBox(width: Spacings.xs),
 
-          Expanded(child: Text(loc.userSettingsScreen_inviteCodes)),
+                Expanded(child: Text(loc.userSettingsScreen_inviteCodes)),
 
-          const _InvitationCodesBadge(),
-        ],
+                const _InvitationCodesBadge(),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -340,45 +353,38 @@ class _InvitationCodesBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => InvitationCodesCubit(userCubit: context.read()),
-      child: Builder(
-        builder: (context) {
-          final availableInvitationCodes = context.select(
-            (InvitationCodesCubit cubit) => cubit.state.codes
-                .where(
-                  (code) => switch (code) {
-                    UiInvitationCode_Token() => true,
-                    UiInvitationCode_Code(field0: final code) => !code.copied,
-                  },
-                )
-                .length,
-          );
+    final availableInvitationCodes = context.select(
+      (InvitationCodesCubit cubit) => cubit.state.codes
+          .where(
+            (code) => switch (code) {
+              UiInvitationCode_Token() => true,
+              UiInvitationCode_Code(field0: final code) => !code.copied,
+            },
+          )
+          .length,
+    );
 
-          if (availableInvitationCodes == 0) {
-            return const SizedBox.shrink();
-          }
+    if (availableInvitationCodes == 0) {
+      return const SizedBox.shrink();
+    }
 
-          final colors = CustomColorScheme.of(context);
+    final colors = CustomColorScheme.of(context);
 
-          return Container(
-            width: 40,
-            height: 24,
-            decoration: BoxDecoration(
-              color: colors.function.success,
-              borderRadius: BorderRadius.circular(1000),
-            ),
-            child: Center(
-              child: Text(
-                availableInvitationCodes.toString(),
-                style: TextStyle(
-                  color: colors.function.white,
-                  fontSize: LabelFontSize.small2.size,
-                ),
-              ),
-            ),
-          );
-        },
+    return Container(
+      width: 40,
+      height: 24,
+      decoration: BoxDecoration(
+        color: colors.function.success,
+        borderRadius: BorderRadius.circular(1000),
+      ),
+      child: Center(
+        child: Text(
+          availableInvitationCodes.toString(),
+          style: TextStyle(
+            color: colors.function.white,
+            fontSize: LabelFontSize.small2.size,
+          ),
+        ),
       ),
     );
   }

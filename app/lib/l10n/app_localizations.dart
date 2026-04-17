@@ -606,6 +606,12 @@ abstract class AppLocalizations {
   /// **'Something went wrong. Try again.'**
   String get invitationCodesScreen_errorRequestingCode;
 
+  /// No description provided for @invitationCodesScreen_copiedToClipboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard'**
+  String get invitationCodesScreen_copiedToClipboard;
+
   /// No description provided for @signUpScreen_header.
   ///
   /// In en, this message translates to:
