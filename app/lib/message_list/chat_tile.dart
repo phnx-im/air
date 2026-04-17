@@ -4,6 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/theme/theme.dart';
+import 'package:air/ui/effects/motion.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -125,7 +126,7 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: motionShort,
       value: widget.shouldAnimate ? 0.0 : 1.0,
     );
     if (widget.shouldAnimate) {
@@ -149,10 +150,7 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
       UiFlightPosition.single || UiFlightPosition.end => 27.0,
     };
 
-    final animation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutQuart,
-    );
+    final animation = CurvedAnimation(parent: _controller, curve: motionEasing);
 
     return Container(
       constraints: BoxConstraints(minHeight: fixedStartHeight),
