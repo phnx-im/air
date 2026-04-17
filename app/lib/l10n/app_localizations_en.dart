@@ -73,6 +73,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get userSettingsScreen_userHandlePlaceholder => 'Username';
 
   @override
+  String get userSettingsScreen_inviteCodes => 'Invite codes';
+
+  @override
   String get settingsScreen_copiedToClipboard => 'Copied to clipboard';
 
   @override
@@ -267,6 +270,26 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get invitationCodeScreen_error_invalid =>
       'Invalid invitation code. Check your code, then try again.';
+
+  @override
+  String get invitationCodesScreen_title => 'Invite codes';
+
+  @override
+  String get invitationCodesScreen_copyAll => 'Copy all';
+
+  @override
+  String get invitationCodesScreen_tapToUnlock => 'Tap to unlock';
+
+  @override
+  String get invitationCodesScreen_empty => 'No invitation codes available';
+
+  @override
+  String get invitationCodesScreen_infoText1 =>
+      'Air is in a limited access phase. Everyone who wants to join needs an invite code.';
+
+  @override
+  String get invitationCodesScreen_infoText2 =>
+      'Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.';
 
   @override
   String get invitationCodesScreen_global_quota_exceeded =>

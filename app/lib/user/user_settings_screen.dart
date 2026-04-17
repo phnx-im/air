@@ -310,6 +310,7 @@ class _InviteCodes extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final colors = CustomColorScheme.of(context);
 
     return _FieldContainer(
@@ -326,7 +327,7 @@ class _InviteCodes extends StatelessWidget {
 
           const SizedBox(width: Spacings.xs),
 
-          const Expanded(child: Text("Invite codes")),
+          Expanded(child: Text(loc.userSettingsScreen_inviteCodes)),
 
           const _InvitationCodesBadge(),
         ],

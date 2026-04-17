@@ -216,6 +216,12 @@ abstract class AppLocalizations {
   /// **'Username'**
   String get userSettingsScreen_userHandlePlaceholder;
 
+  /// No description provided for @userSettingsScreen_inviteCodes.
+  ///
+  /// In en, this message translates to:
+  /// **'Invite codes'**
+  String get userSettingsScreen_inviteCodes;
+
   /// No description provided for @settingsScreen_copiedToClipboard.
   ///
   /// In en, this message translates to:
@@ -551,6 +557,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Invalid invitation code. Check your code, then try again.'**
   String get invitationCodeScreen_error_invalid;
+
+  /// No description provided for @invitationCodesScreen_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Invite codes'**
+  String get invitationCodesScreen_title;
+
+  /// No description provided for @invitationCodesScreen_copyAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy all'**
+  String get invitationCodesScreen_copyAll;
+
+  /// No description provided for @invitationCodesScreen_tapToUnlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to unlock'**
+  String get invitationCodesScreen_tapToUnlock;
+
+  /// No description provided for @invitationCodesScreen_empty.
+  ///
+  /// In en, this message translates to:
+  /// **'No invitation codes available'**
+  String get invitationCodesScreen_empty;
+
+  /// No description provided for @invitationCodesScreen_infoText1.
+  ///
+  /// In en, this message translates to:
+  /// **'Air is in a limited access phase. Everyone who wants to join needs an invite code.'**
+  String get invitationCodesScreen_infoText1;
+
+  /// No description provided for @invitationCodesScreen_infoText2.
+  ///
+  /// In en, this message translates to:
+  /// **'Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.'**
+  String get invitationCodesScreen_infoText2;
 
   /// No description provided for @invitationCodesScreen_global_quota_exceeded.
   ///

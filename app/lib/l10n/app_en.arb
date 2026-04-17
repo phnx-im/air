@@ -21,6 +21,7 @@
   "userSettingsScreen_accountSection": "Account",
 
   "userSettingsScreen_userHandlePlaceholder": "Add another username...",
+  "userSettingsScreen_inviteCodes": "Invite codes",
   "settingsScreen_copiedToClipboard": "Copied to clipboard",
 
   "removeUsernameDialog_title": "Remove username?",
@@ -99,6 +100,12 @@
   "invitationCodeScreen_error_missing": "Invitation code is missing",
   "invitationCodeScreen_error_invalid": "Invalid invitation code. Check your code, then try again.",
 
+  "invitationCodesScreen_title": "Invite codes",
+  "invitationCodesScreen_copyAll": "Copy all",
+  "invitationCodesScreen_tapToUnlock": "Tap to unlock",
+  "invitationCodesScreen_empty": "No invitation codes available",
+  "invitationCodesScreen_infoText1": "Air is in a limited access phase. Everyone who wants to join needs an invite code.",
+  "invitationCodesScreen_infoText2": "Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.",
   "invitationCodesScreen_global_quota_exceeded": "We're out of invites for now, please try again later.",
   "invitationCodesScreen_user_quota_exceeded": "You ran out of invites for now, please try again later.",
 

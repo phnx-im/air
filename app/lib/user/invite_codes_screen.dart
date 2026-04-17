@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
+import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/app_scaffold.dart';
@@ -33,10 +34,11 @@ class InvitationCodesView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final colors = CustomColorScheme.of(context);
 
     return AppScaffold(
-      title: 'Invite codes',
+      title: loc.invitationCodesScreen_title,
       backgroundColor: colors.backgroundBase.secondary,
       child: Align(
         alignment: Alignment.topCenter,
@@ -55,7 +57,7 @@ class InvitationCodesView extends StatelessWidget {
                     AppButton(
                       size: AppButtonSize.small,
                       type: AppButtonType.secondary,
-                      label: 'Copy all',
+                      label: loc.invitationCodesScreen_copyAll,
                       onPressed: () {},
                     ),
                     const Spacer(),
@@ -183,7 +185,7 @@ class _InvitationCodeUnlockButton extends StatelessWidget {
         child: Row(
           children: [
             Text(
-              "Tap to unlock",
+              AppLocalizations.of(context).invitationCodesScreen_tapToUnlock,
               style: TextStyle(
                 fontSize: BodyFontSize.base.size,
                 fontStyle: FontStyle.italic,
@@ -215,7 +217,7 @@ class _InvitationCodeEmptyItem extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              "No invitation codes available",
+              AppLocalizations.of(context).invitationCodesScreen_empty,
               style: TextStyle(
                 fontSize: BodyFontSize.base.size,
                 color: colors.text.tertiary,
@@ -240,20 +242,16 @@ class _InfoText extends StatelessWidget {
       color: colors.text.quaternary,
     );
 
+    final loc = AppLocalizations.of(context);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Air is in a limited access phase. Everyone who wants to join needs an invite code.',
-            style: style,
-          ),
+          Text(loc.invitationCodesScreen_infoText1, style: style),
           const SizedBox(height: Spacings.xs),
-          Text(
-            'Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.',
-            style: style,
-          ),
+          Text(loc.invitationCodesScreen_infoText2, style: style),
         ],
       ),
     );
