@@ -17,10 +17,10 @@ import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:provider/provider.dart';
 
 import 'add_username_dialog.dart';
 import 'change_display_name_dialog.dart';
@@ -312,10 +312,6 @@ class _InviteCodes extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
 
-    final availableInvitationCodes = context.select(
-      (UserSettingsCubit cubit) => cubit.state.availableInvitationCodes,
-    );
-
     return _FieldContainer(
       onTap: () {
         Navigator.of(context).push(
@@ -327,27 +323,62 @@ class _InviteCodes extends StatelessWidget {
       child: Row(
         children: [
           AppIcon.users(color: colors.text.secondary, size: 24),
+
           const SizedBox(width: Spacings.xs),
+
           const Expanded(child: Text("Invite codes")),
-          if (availableInvitationCodes != null)
-            Container(
-              width: 40,
-              height: 24,
-              decoration: BoxDecoration(
-                color: colors.function.success,
-                borderRadius: BorderRadius.circular(1000),
-              ),
-              child: Center(
-                child: Text(
-                  availableInvitationCodes.toString(),
-                  style: TextStyle(
-                    color: colors.function.white,
-                    fontSize: LabelFontSize.small2.size,
-                  ),
+
+          const _InvitationCodesBadge(),
+        ],
+      ),
+    );
+  }
+}
+
+class _InvitationCodesBadge extends StatelessWidget {
+  const _InvitationCodesBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => InvitationCodesCubit(userCubit: context.read()),
+      child: Builder(
+        builder: (context) {
+          final availableInvitationCodes = context.select(
+            (InvitationCodesCubit cubit) => cubit.state.codes
+                .where(
+                  (code) => switch (code) {
+                    UiInvitationCode_Token() => true,
+                    UiInvitationCode_Code(field0: final code) => !code.copied,
+                  },
+                )
+                .length,
+          );
+
+          if (availableInvitationCodes == 0) {
+            return const SizedBox.shrink();
+          }
+
+          final colors = CustomColorScheme.of(context);
+
+          return Container(
+            width: 40,
+            height: 24,
+            decoration: BoxDecoration(
+              color: colors.function.success,
+              borderRadius: BorderRadius.circular(1000),
+            ),
+            child: Center(
+              child: Text(
+                availableInvitationCodes.toString(),
+                style: TextStyle(
+                  color: colors.function.white,
+                  fontSize: LabelFontSize.small2.size,
                 ),
               ),
             ),
-        ],
+          );
+        },
       ),
     );
   }

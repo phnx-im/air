@@ -11407,14 +11407,12 @@ impl SseDecode for crate::api::user_settings_cubit::UserSettings {
         let mut var_sidebarWidth = <f64>::sse_decode(deserializer);
         let mut var_sendOnEnter = <bool>::sse_decode(deserializer);
         let mut var_readReceipts = <bool>::sse_decode(deserializer);
-        let mut var_availableInvitationCodes = <Option<usize>>::sse_decode(deserializer);
         return crate::api::user_settings_cubit::UserSettings {
             locale: var_locale,
             interface_scale: var_interfaceScale,
             sidebar_width: var_sidebarWidth,
             send_on_enter: var_sendOnEnter,
             read_receipts: var_readReceipts,
-            available_invitation_codes: var_availableInvitationCodes,
         };
     }
 }
@@ -13883,7 +13881,6 @@ impl flutter_rust_bridge::IntoDart for crate::api::user_settings_cubit::UserSett
             self.sidebar_width.into_into_dart().into_dart(),
             self.send_on_enter.into_into_dart().into_dart(),
             self.read_receipts.into_into_dart().into_dart(),
-            self.available_invitation_codes.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -16235,7 +16232,6 @@ impl SseEncode for crate::api::user_settings_cubit::UserSettings {
         <f64>::sse_encode(self.sidebar_width, serializer);
         <bool>::sse_encode(self.send_on_enter, serializer);
         <bool>::sse_encode(self.read_receipts, serializer);
-        <Option<usize>>::sse_encode(self.available_invitation_codes, serializer);
     }
 }
 

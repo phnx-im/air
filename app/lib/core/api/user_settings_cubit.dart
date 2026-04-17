@@ -66,6 +66,5 @@ sealed class UserSettings with _$UserSettings {
     @Default(300.0) double sidebarWidth,
     @Default(false) bool sendOnEnter,
     @Default(true) bool readReceipts,
-    int? availableInvitationCodes,
   }) = _UserSettings;
 }

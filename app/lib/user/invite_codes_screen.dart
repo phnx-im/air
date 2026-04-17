@@ -47,7 +47,7 @@ class InvitationCodesView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: Spacings.s),
-                const _InviteCodesList(),
+                const _InvitationCodesList(),
                 const SizedBox(height: Spacings.m),
                 Row(
                   children: [
@@ -72,8 +72,8 @@ class InvitationCodesView extends StatelessWidget {
   }
 }
 
-class _InviteCodesList extends StatelessWidget {
-  const _InviteCodesList();
+class _InvitationCodesList extends StatelessWidget {
+  const _InvitationCodesList();
 
   @override
   Widget build(BuildContext context) {
@@ -91,15 +91,15 @@ class _InviteCodesList extends StatelessWidget {
       ),
       child: Column(
         children: invitationCodes.isEmpty
-            ? [const _InviteCodeEmptyItem()]
+            ? [const _InvitationCodeEmptyItem()]
             : invitationCodes
                   .expand(
                     (code) => [
                       switch (code) {
                         UiInvitationCode_Code(field0: final code) =>
-                          _InviteCodeItem(code: code),
+                          _InvitationCodeItem(code: code),
                         UiInvitationCode_Token(field0: final token) =>
-                          _InviteCodeUnlockButton(tokenId: token),
+                          _InvitationCodeUnlockButton(tokenId: token),
                       },
                       if (code != invitationCodes.last)
                         Divider(
@@ -115,8 +115,8 @@ class _InviteCodesList extends StatelessWidget {
   }
 }
 
-class _InviteCodeItem extends StatelessWidget {
-  const _InviteCodeItem({required this.code});
+class _InvitationCodeItem extends StatelessWidget {
+  const _InvitationCodeItem({required this.code});
 
   final InvitationCode code;
 
@@ -145,6 +145,7 @@ class _InviteCodeItem extends StatelessWidget {
                 style: TextStyle(
                   fontSize: BodyFontSize.base.size,
                   color: colors.text.primary,
+                  decoration: .lineThrough,
                 ),
               ),
             ),
@@ -157,8 +158,8 @@ class _InviteCodeItem extends StatelessWidget {
   }
 }
 
-class _InviteCodeUnlockButton extends StatelessWidget {
-  const _InviteCodeUnlockButton({required this.tokenId});
+class _InvitationCodeUnlockButton extends StatelessWidget {
+  const _InvitationCodeUnlockButton({required this.tokenId});
 
   final TokenId tokenId;
 
@@ -198,8 +199,8 @@ class _InviteCodeUnlockButton extends StatelessWidget {
   }
 }
 
-class _InviteCodeEmptyItem extends StatelessWidget {
-  const _InviteCodeEmptyItem();
+class _InvitationCodeEmptyItem extends StatelessWidget {
+  const _InvitationCodeEmptyItem();
 
   @override
   Widget build(BuildContext context) {
