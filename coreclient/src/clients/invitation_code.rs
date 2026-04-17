@@ -6,6 +6,7 @@ use aircommon::identifiers::Fqdn;
 use airprotos::auth_service::v1::OperationType;
 use anyhow::Context;
 use chrono::{DateTime, Utc};
+use tracing::warn;
 
 use crate::{
     TokenId,
@@ -56,13 +57,18 @@ impl CoreUser {
         let codes = match result {
             Ok(codes) => codes,
             Err(e) if e.is_network_error() => {
+                // Token is not burned, but the request failed
                 return Err(e.into());
             }
             Err(e) if e.is_resource_exhausted() => {
+                // Token is not burned, but the global quota is exceeded
                 return Ok(Err(RequestInvitationCodeError::GlobalQuotaExceeded));
             }
             Err(e) => {
-                TokenId::delete(self.pool(), &token_id).await?;
+                // Token is burned
+                if let Err(error) = TokenId::delete(self.pool(), &token_id).await {
+                    warn!(%error, "failed to delete burned token");
+                }
                 return Err(e.into());
             }
         };
@@ -97,7 +103,7 @@ impl CoreUser {
             .map_err(Into::into)
     }
 
-    pub async fn mark_invitation_code_as_copied(&self, code: &str) -> anyhow::Result<bool> {
+    pub async fn mark_invitation_code_as_copied(&self, code: &str) -> anyhow::Result<()> {
         Ok(InvitationCode::mark_as_copied(self.pool(), code).await?)
     }
 
@@ -141,15 +147,14 @@ mod persistence {
         pub async fn mark_as_copied(
             executor: impl SqliteExecutor<'_>,
             code: &str,
-        ) -> sqlx::Result<bool> {
-            let result = query_as!(
-                InvitationCode,
+        ) -> sqlx::Result<()> {
+            query!(
                 "UPDATE invitation_code SET copied = TRUE WHERE code = ?",
                 code
             )
             .execute(executor)
             .await?;
-            Ok(result.rows_affected() > 0)
+            Ok(())
         }
 
         pub async fn delete_all_copied(executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
