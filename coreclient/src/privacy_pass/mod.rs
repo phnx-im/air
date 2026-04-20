@@ -25,7 +25,7 @@ use privacypass::{
 use sqlx::{SqliteExecutor, SqlitePool, SqliteTransaction};
 use tls_codec::{Deserialize, Serialize};
 use tokio::time;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::utils::connection_ext::ConnectionExt;
 
@@ -52,7 +52,7 @@ pub(crate) async fn request_and_store_tokens(
     operation_type: OperationType,
     count: u16,
 ) -> anyhow::Result<Result<usize, RequestTokensError>> {
-    info!(%count, %operation_type, "requesting privacy pass tokens");
+    debug!(%count, %operation_type, "requesting privacy pass tokens");
 
     let keys: Vec<(u8, Vec<u8>)> =
         persistence::load_batched_token_keys(pool, operation_type).await?;
@@ -120,7 +120,10 @@ pub(crate) async fn request_and_store_tokens(
             })
             .await;
         match res {
-            Ok(()) => break,
+            Ok(()) => {
+                info!(%count, %operation_type, "stored privacy pass tokens");
+                break;
+            }
             Err(error) => {
                 const DB_LOCKED_CODE: &str = "5"; // SQLITE_BUSY
                 let is_db_locked = error

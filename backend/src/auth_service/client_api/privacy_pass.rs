@@ -4,6 +4,7 @@
 
 use aircommon::identifiers::UserId;
 use airprotos::auth_service::v1::OperationType;
+use chrono::Utc;
 use privacypass::{
     amortized_tokens::{
         AmortizedBatchTokenRequest, AmortizedBatchTokenResponse, AmortizedToken, server::Server,
@@ -41,17 +42,19 @@ impl AuthService {
         // Start a transaction
         let mut transaction = self.db_pool.begin().await?;
 
-        // Reset allowance if the epoch (current key) has changed.
         let current_epoch = load_current_key_id(&mut *transaction, operation_type)
             .await?
             .unwrap_or(0);
 
         // Lock the row to prevent concurrent over-issuance.
+        let now = Utc::now();
         let mut token_allowance =
             TokenAllowance::load_for_update(&mut transaction, user_id, operation_type)
                 .await?
+                .filter(|ta| ta.valid_until >= now) // only consider quotas that are not expired
                 .unwrap_or_else(|| TokenAllowance::new(operation_type, current_epoch));
 
+        // If the keys were rotated, reset the allowance
         if token_allowance.epoch != current_epoch {
             token_allowance.remaining = operation_type.max_tokens_allowance();
             token_allowance.epoch = current_epoch;

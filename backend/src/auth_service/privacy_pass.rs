@@ -7,6 +7,7 @@ use std::collections::HashSet;
 use aircommon::codec::{BlobDecoded, BlobEncoded};
 use airprotos::auth_service::v1::OperationType;
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use privacypass::{
     Nonce, NonceStore, TruncatedTokenKeyId,
     amortized_tokens::server::Server,
@@ -362,6 +363,7 @@ pub(in crate::auth_service) struct TokenAllowance {
     pub(super) operation_type: OperationType,
     pub(super) remaining: u16,
     pub(super) epoch: i16,
+    pub(super) valid_until: DateTime<Utc>,
 }
 
 impl TokenAllowance {
@@ -370,6 +372,7 @@ impl TokenAllowance {
             operation_type,
             remaining: operation_type.max_tokens_allowance(),
             epoch,
+            valid_until: operation_type.initial_allowance_validity(),
         }
     }
 }
@@ -394,8 +397,9 @@ mod persistence {
                     user_domain,
                     operation_type,
                     remaining,
-                    epoch
-                ) VALUES($1, $2, $3, $4, $5)
+                    epoch,
+                    valid_until
+                ) VALUES($1, $2, $3, $4, $5, $6)
                 ON CONFLICT (
                     user_uuid,
                     user_domain,
@@ -403,12 +407,15 @@ mod persistence {
                 )
                 DO UPDATE SET
                     remaining = $4,
-                    epoch = $5",
+                    epoch = $5,
+                    valid_until = $6
+                ",
                 user_id.uuid(),
                 user_id.domain() as _,
                 self.operation_type as i16,
                 self.remaining as i16,
-                self.epoch
+                self.epoch,
+                self.valid_until,
             )
             .execute(connection)
             .await?;
@@ -424,7 +431,8 @@ mod persistence {
             query!(
                 r#"SELECT
                     remaining,
-                    epoch
+                    epoch,
+                    valid_until
                 FROM as_token_allowance
                 WHERE user_uuid = $1 AND user_domain = $2 AND operation_type = $3"#,
                 user_id.uuid(),
@@ -438,6 +446,7 @@ mod persistence {
                     operation_type,
                     remaining: record.remaining as u16,
                     epoch: record.epoch,
+                    valid_until: record.valid_until,
                 })
             })
             .transpose()
@@ -451,7 +460,8 @@ mod persistence {
             query!(
                 r#"SELECT
                     remaining,
-                    epoch
+                    epoch,
+                    valid_until
                 FROM as_token_allowance
                 WHERE user_uuid = $1 AND user_domain = $2 AND operation_type = $3
                 FOR UPDATE"#,
@@ -466,6 +476,7 @@ mod persistence {
                     operation_type,
                     remaining: record.remaining as u16,
                     epoch: record.epoch,
+                    valid_until: record.valid_until,
                 })
             })
             .transpose()
