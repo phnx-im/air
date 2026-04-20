@@ -48,7 +48,7 @@ SELECT 1, token_key_id, voprf_server FROM as_batched_key;
 DROP TABLE as_batched_key;
 ALTER TABLE as_batched_key_new RENAME TO as_batched_key;
 
--- Rename invitation_code table and add created_at column
+-- Add created_at column in invitation_code table
 ALTER TABLE invitation_code
 ADD COLUMN created_at timestamptz NOT NULL DEFAULT now ();
 
