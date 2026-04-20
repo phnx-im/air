@@ -14,7 +14,7 @@ use privacypass::{
     common::{private::serialize_public_key, store::PrivateKeyStore},
     private_tokens::{Ristretto255, VoprfServer},
 };
-use sqlx::{PgConnection, PgExecutor, PgPool};
+use sqlx::{PgConnection, PgPool};
 use tokio::sync::Mutex;
 use tracing::{error, info};
 
