@@ -13,7 +13,7 @@ pub(crate) async fn load_token_ids(
     executor: impl SqliteExecutor<'_>,
     operation_type: OperationType,
 ) -> sqlx::Result<Vec<TokenId>> {
-    let operation_type = operation_type as i32;
+    let operation_type = i32::from(operation_type);
     sqlx::query_as!(
         TokenId,
         "SELECT id, created_at as 'created_at: DateTime<Utc>'
@@ -30,7 +30,7 @@ pub(crate) async fn store_token(
     operation_type: OperationType,
     token: &[u8],
 ) -> Result<(), sqlx::Error> {
-    let operation_type = operation_type as i32;
+    let operation_type = i32::from(operation_type);
     let now = Utc::now();
     sqlx::query!(
         "INSERT INTO privacy_pass_token (
@@ -76,7 +76,7 @@ pub(crate) async fn consume_token(
     executor: impl SqliteExecutor<'_>,
     operation_type: OperationType,
 ) -> Result<Option<Vec<u8>>, sqlx::Error> {
-    let operation_type = operation_type as i32;
+    let operation_type = i32::from(operation_type);
     let row = sqlx::query_scalar!(
         "DELETE FROM privacy_pass_token
          WHERE
@@ -97,7 +97,7 @@ pub(crate) async fn token_count(
     executor: impl SqliteExecutor<'_>,
     operation_type: OperationType,
 ) -> sqlx::Result<u16> {
-    let operation_type = operation_type as i32;
+    let operation_type = i32::from(operation_type);
     sqlx::query_scalar!(
         "SELECT COUNT(*) FROM privacy_pass_token WHERE operation_type = ?",
         operation_type
@@ -116,7 +116,7 @@ pub(crate) async fn store_batched_token_key(
     public_key: &[u8],
 ) -> Result<(), sqlx::Error> {
     let key_id = token_key_id as i32;
-    let operation_type = operation_type as i32;
+    let operation_type = i32::from(operation_type);
     sqlx::query!(
         "INSERT INTO batched_token_key
             (token_key_id, operation_type, public_key)
@@ -137,7 +137,7 @@ pub(crate) async fn delete_all_tokens(
     executor: impl SqliteExecutor<'_>,
     operation_type: OperationType,
 ) -> Result<(), sqlx::Error> {
-    let operation_type = operation_type as i32;
+    let operation_type = i32::from(operation_type);
     sqlx::query!(
         "DELETE FROM privacy_pass_token WHERE operation_type = ?",
         operation_type
@@ -152,7 +152,7 @@ pub(crate) async fn delete_all_batched_token_keys(
     executor: impl SqliteExecutor<'_>,
     operation_type: OperationType,
 ) -> Result<(), sqlx::Error> {
-    let operation_type = operation_type as i32;
+    let operation_type = i32::from(operation_type);
     sqlx::query!(
         "DELETE FROM batched_token_key WHERE operation_type = ?",
         operation_type
@@ -167,7 +167,7 @@ pub(crate) async fn load_batched_token_keys(
     executor: impl SqliteExecutor<'_>,
     operation_type: OperationType,
 ) -> Result<Vec<(u8, Vec<u8>)>, sqlx::Error> {
-    let operation_type = operation_type as i32;
+    let operation_type = i32::from(operation_type);
     let rows = sqlx::query!(
         "
         SELECT token_key_id, public_key
