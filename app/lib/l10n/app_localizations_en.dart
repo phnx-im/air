@@ -355,6 +355,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get usernameOnboarding_addButton => 'Add';
 
   @override
+  String get usernameOnboarding_error =>
+      'Something went wrong on our end. Wait a moment, then try again.';
+
+  @override
   String get usernameOnboarding_next => 'Next';
 
   @override

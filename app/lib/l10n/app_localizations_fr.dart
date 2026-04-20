@@ -362,6 +362,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get usernameOnboarding_addButton => 'Ajouter';
 
   @override
+  String get usernameOnboarding_error =>
+      'Un problème est survenu de notre côté. Veuillez patienter un instant puis réessayer.';
+
+  @override
   String get usernameOnboarding_next => 'Suivant';
 
   @override

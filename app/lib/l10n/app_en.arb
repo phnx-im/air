@@ -127,6 +127,7 @@
   "usernameOnboarding_body": "Usernames are how people connect on Air. They aren't visible to others once you're connected.\n\nAdd, change, or delete usernames at any time in your profile.",
   "usernameOnboarding_syntax": "Use letters, numbers, or dashes. Minimum 5 characters.",
   "usernameOnboarding_addButton": "Add",
+  "usernameOnboarding_error": "Something went wrong on our end. Wait a moment, then try again.",
   "usernameOnboarding_next": "Next",
   "usernameOnboarding_usernameInputName": "Username (optional)",
   "usernameOnboarding_usernameInputHint": "Add a username...",

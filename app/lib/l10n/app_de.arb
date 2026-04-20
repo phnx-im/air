@@ -96,6 +96,7 @@
   "usernameOnboarding_body": "Über Benutzernamen kann man sich in Air mit anderen verbinden. Sie sind für andere nicht mehr sichtbar, sobald man verbunden ist.\n\nDu kannst Benutzernamen jederzeit in deinem Profil hinzufügen, ändern oder löschen.",
   "usernameOnboarding_syntax": "Verwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.",
   "usernameOnboarding_addButton": "Hinzufügen",
+  "usernameOnboarding_error": "Bei uns ist ein Fehler aufgetreten. Warte einen Moment und versuche es dann erneut.",
   "usernameOnboarding_next": "Weiter",
   "usernameOnboarding_usernameInputName": "Benutzername (optional)",
   "usernameOnboarding_usernameInputHint": "Benutzernamen hinzufügen...",

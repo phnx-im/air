@@ -11,6 +11,7 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/desktop/width_constraints.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/user_handle_input_formatter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -64,6 +65,9 @@ class UsernameOnboardingScreen extends HookWidget {
       } catch (e) {
         handleExists.value = false;
         isSubmitting.value = false;
+        showSnackBarStandalone(
+          (loc) => SnackBar(content: Text(loc.usernameOnboarding_error)),
+        );
       }
     }
 

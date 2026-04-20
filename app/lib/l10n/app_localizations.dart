@@ -702,6 +702,12 @@ abstract class AppLocalizations {
   /// **'Add'**
   String get usernameOnboarding_addButton;
 
+  /// No description provided for @usernameOnboarding_error.
+  ///
+  /// In en, this message translates to:
+  /// **'Something went wrong on our end. Wait a moment, then try again.'**
+  String get usernameOnboarding_error;
+
   /// No description provided for @usernameOnboarding_next.
   ///
   /// In en, this message translates to:
