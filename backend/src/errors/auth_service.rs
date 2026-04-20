@@ -128,9 +128,6 @@ impl From<IssueTokensError> for Status {
 
 #[derive(Error, Debug)]
 pub(crate) enum RedeemTokenError {
-    /// Storage provider error
-    #[error("Storage provider error")]
-    StorageError,
     /// Token key ID not recognized
     #[error("Unknown token key ID")]
     UnknownKeyId,
@@ -146,7 +143,6 @@ impl From<RedeemTokenError> for Status {
 
         let msg = e.to_string();
         match e {
-            RedeemTokenError::StorageError => Status::internal(msg),
             RedeemTokenError::UnknownKeyId => Status::with_details(
                 tonic::Code::Unauthenticated,
                 msg,

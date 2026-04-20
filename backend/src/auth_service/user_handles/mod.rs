@@ -52,8 +52,12 @@ impl AuthService {
         token: Option<AmortizedToken<Ristretto255>>,
     ) -> Result<(), CreateHandleError> {
         if let Some(token) = token {
-            self.as_redeem_token(token, OperationType::AddUsername)
-                .await?;
+            self.as_redeem_token(
+                self.db_pool.acquire().await?.as_mut(),
+                token,
+                OperationType::AddUsername,
+            )
+            .await?;
         }
 
         let handle = UserHandle::new(handle_plaintext)?;
@@ -100,8 +104,12 @@ impl AuthService {
         token: Option<AmortizedToken<Ristretto255>>,
     ) -> Result<(), RefreshHandleError> {
         if let Some(token) = token {
-            self.as_redeem_token(token, OperationType::AddUsername)
-                .await?;
+            self.as_redeem_token(
+                self.db_pool.acquire().await?.as_mut(),
+                token,
+                OperationType::AddUsername,
+            )
+            .await?;
         }
 
         let expiration_data = ExpirationData::new(USER_HANDLE_VALIDITY_PERIOD);

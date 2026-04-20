@@ -244,7 +244,7 @@ async fn rotate_keys_if_needed_for_operation_type(
 ) -> Result<bool, RotateKeysError> {
     let needs_rotation = sqlx::query_scalar!(
         "SELECT NOT EXISTS(
-            SELECT 1 FROM as_batched_key 
+            SELECT 1 FROM as_batched_key
             WHERE operation_type = $1 AND created_at > now() - make_interval(days => $2)
         )",
         operation_type as i16,
@@ -377,7 +377,7 @@ impl TokenAllowance {
 mod persistence {
     use aircommon::identifiers::UserId;
     use airprotos::auth_service::v1::OperationType;
-    use sqlx::{PgExecutor, query};
+    use sqlx::{PgExecutor, PgTransaction, query};
 
     use super::TokenAllowance;
     use crate::errors::StorageError;
@@ -400,7 +400,7 @@ mod persistence {
                     user_uuid,
                     user_domain,
                     operation_type
-                ) 
+                )
                 DO UPDATE SET
                     remaining = $4,
                     epoch = $5",
@@ -444,7 +444,7 @@ mod persistence {
         }
 
         pub(in crate::auth_service) async fn load_for_update(
-            connection: impl PgExecutor<'_>,
+            txn: &mut PgTransaction<'_>,
             user_id: &UserId,
             operation_type: OperationType,
         ) -> Result<Option<Self>, StorageError> {
@@ -459,7 +459,7 @@ mod persistence {
                 user_id.domain() as _,
                 operation_type as i16,
             )
-            .fetch_optional(connection)
+            .fetch_optional(txn.as_mut())
             .await?
             .map(|record| {
                 Ok(Self {

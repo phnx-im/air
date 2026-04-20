@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO as_token_allowance (\n                    user_uuid,\n                    user_domain,\n                    operation_type,\n                    remaining,\n                    epoch\n                ) VALUES($1, $2, $3, $4, $5)\n                ON CONFLICT (\n                    user_uuid,\n                    user_domain,\n                    operation_type\n                )\n                DO UPDATE SET\n                    remaining = $4,\n                    epoch = $5",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int2",
+        "Int2",
+        "Int2"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "01a4b67ee80f09491efc303e083f3d6ff5d3cd07d0cbd9bd9c578e32e94b07e7"
+}

@@ -10,6 +10,7 @@ use privacypass::{
     },
     private_tokens::Ristretto255,
 };
+use sqlx::PgConnection;
 use tracing::error;
 
 use tokio::sync::Mutex;
@@ -47,7 +48,7 @@ impl AuthService {
 
         // Lock the row to prevent concurrent over-issuance.
         let mut token_allowance =
-            TokenAllowance::load_for_update(&mut *transaction, user_id, operation_type)
+            TokenAllowance::load_for_update(&mut transaction, user_id, operation_type)
                 .await?
                 .unwrap_or_else(|| TokenAllowance::new(operation_type, current_epoch));
 
@@ -89,15 +90,10 @@ impl AuthService {
     /// nonce), never holding borrows on both at the same time.
     pub(crate) async fn as_redeem_token(
         &self,
+        conn: &mut PgConnection,
         token: AmortizedToken<Ristretto255>,
         operation_type: OperationType,
     ) -> Result<(), RedeemTokenError> {
-        let mut conn = self
-            .db_pool
-            .acquire()
-            .await
-            .map_err(|_| RedeemTokenError::StorageError)?;
-
         let conn_mutex = Mutex::new(&mut *conn);
         let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, operation_type);
         let nonce_store = AuthServiceNonceStore::new(&conn_mutex, operation_type);
@@ -240,7 +236,11 @@ mod tests {
         // Server: redeem each token.
         for token in &tokens {
             service
-                .as_redeem_token(token.clone(), OperationType::AddUsername)
+                .as_redeem_token(
+                    pool.acquire().await?.as_mut(),
+                    token.clone(),
+                    OperationType::AddUsername,
+                )
                 .await?;
         }
 
@@ -282,12 +282,20 @@ mod tests {
 
         // First redemption succeeds.
         service
-            .as_redeem_token(token.clone(), OperationType::GetInviteCode)
+            .as_redeem_token(
+                pool.acquire().await?.as_mut(),
+                token.clone(),
+                OperationType::GetInviteCode,
+            )
             .await?;
 
         // Second redemption of the same token fails.
         let err = service
-            .as_redeem_token(token, OperationType::GetInviteCode)
+            .as_redeem_token(
+                pool.acquire().await?.as_mut(),
+                token,
+                OperationType::GetInviteCode,
+            )
             .await;
         assert!(err.is_err());
 
@@ -346,6 +354,7 @@ mod tests {
         // The issued token is redeemable.
         service
             .as_redeem_token(
+                pool.acquire().await?.as_mut(),
                 tokens.into_iter().next().unwrap(),
                 OperationType::GetInviteCode,
             )
@@ -418,7 +427,11 @@ mod tests {
             AmortizedToken::<Ristretto255>::tls_deserialize_exact(&token_bytes)?;
 
         service
-            .as_redeem_token(deserialized_token, OperationType::AddUsername)
+            .as_redeem_token(
+                pool.acquire().await?.as_mut(),
+                deserialized_token,
+                OperationType::AddUsername,
+            )
             .await?;
 
         Ok(())

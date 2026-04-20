@@ -252,7 +252,7 @@ impl auth_service_server::AuthService for GrpcAs {
             // redeem the token
             if let Err(error) = self
                 .inner
-                .as_redeem_token(token, OperationType::GetInviteCode)
+                .as_redeem_token(txn.as_mut(), token, OperationType::GetInviteCode)
                 .await
             {
                 warn!(%error, "failed to redeem token to get invitation code");
