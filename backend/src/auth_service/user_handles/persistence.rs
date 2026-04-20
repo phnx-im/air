@@ -312,11 +312,9 @@ mod test {
             "Expiration data should be updated successfully"
         );
 
-        txn.commit().await?;
-
         // Verify the expiration data has been updated
         let loaded_expiration_data =
-            UserHandleRecord::load_expiration_data(&pool, &user_handle_hash)
+            UserHandleRecord::load_expiration_data(txn.as_mut(), &user_handle_hash)
                 .await?
                 .unwrap();
         assert_eq!(
@@ -324,9 +322,10 @@ mod test {
             "Expiration data should be updated"
         );
 
-        let loaded_verifying_key = UserHandleRecord::load_verifying_key(&pool, &user_handle_hash)
-            .await?
-            .unwrap();
+        let loaded_verifying_key =
+            UserHandleRecord::load_verifying_key(txn.as_mut(), &user_handle_hash)
+                .await?
+                .unwrap();
         assert_eq!(
             loaded_verifying_key, verifying_key,
             "Verifying key should remain unchanged"

@@ -144,10 +144,8 @@ mod tests {
 
     use airprotos::auth_service::v1::OperationType;
     use privacypass::{
-        amortized_tokens::{AmortizedBatchTokenRequest, server::Server},
-        auth::authenticate::TokenChallenge,
-        common::private::PrivateCipherSuite,
-        private_tokens::Ristretto255,
+        amortized_tokens::AmortizedBatchTokenRequest, auth::authenticate::TokenChallenge,
+        common::private::PrivateCipherSuite, private_tokens::Ristretto255,
     };
     use sqlx::PgPool;
     use tls_codec::{Deserialize, Serialize};
