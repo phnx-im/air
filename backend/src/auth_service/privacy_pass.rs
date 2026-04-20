@@ -349,7 +349,7 @@ pub(in crate::auth_service) struct TokenAllowance {
 
 impl TokenAllowance {
     pub(super) fn is_valid_at(&self, at: DateTime<Utc>) -> bool {
-        self.valid_until < at
+        self.valid_until > at
     }
 }
 
