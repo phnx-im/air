@@ -78,6 +78,9 @@
   "invitationCodeScreen_error_internal": "Impossible de vérifier le code d'invitation : {error}",
   "invitationCodeScreen_error_missing": "Code d'invitation manquant",
   "invitationCodeScreen_error_invalid": "Code d'invitation invalide. Vérifiez votre code et réessayez.",
+
+  "invitationCodesScreen_global_quota_exceeded": "Nous n'avons plus d'invitations pour le moment, veuillez réessayer plus tard.",
+
   "signUpScreen_header": "Créez votre profil",
   "signUpScreen_subheader": "Votre profil est visible pour les personnes avec lesquelles vous vous connectez et les membres de vos groupes. Air exige un nom d'affichage, mais la photo est facultative.",
   "signUpScreen_actionButton": "Créer",
@@ -92,6 +95,7 @@
   "usernameOnboarding_body": "Les noms d'utilisateur sont là pour se connecter sur Air. Ils ne sont plus visibles pour les autres une fois connecté.\n\nVous pouvez ajouter, modifier ou supprimer des noms d'utilisateur à tout moment dans votre profil.",
   "usernameOnboarding_syntax": "Utilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.",
   "usernameOnboarding_addButton": "Ajouter",
+  "usernameOnboarding_error": "Un problème est survenu de notre côté. Veuillez patienter un instant puis réessayer.",
   "usernameOnboarding_next": "Suivant",
   "usernameOnboarding_usernameInputName": "Nom d'utilisateur (facultatif)",
   "usernameOnboarding_usernameInputHint": "Ajoutez un nom d'utilisateur...",

@@ -402,7 +402,6 @@ async fn check_handle_exists() {
         .unwrap();
     assert!(hash.is_none(), "Alice's handle should not exist yet");
 
-    alice_user.replenish_privacy_pass_tokens().await.unwrap();
     alice_user
         .add_user_handle(alice_handle.clone())
         .await
@@ -567,4 +566,82 @@ async fn add_contact_and_change_profile() {
             .unwrap(),
         "hello"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Request invitation code", skip_all)]
+async fn request_invitation_code() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice_user = &setup.get_user(&alice).user;
+
+    // No codes in the local store yet.
+    let codes_before = alice_user.load_invitation_codes().await.unwrap();
+    assert!(codes_before.is_empty());
+
+    let token_ids = alice_user.load_invitation_token_ids().await.unwrap();
+    assert!(
+        !token_ids.is_empty(),
+        "should have tokens after replenishment"
+    );
+    let token_count_before = token_ids.len();
+    let token_id = token_ids.into_iter().next().unwrap();
+
+    // Request the code
+    let code = alice_user
+        .request_invitation_code(token_id)
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert!(!code.code.is_empty(), "invitation code should be non-empty");
+    assert!(
+        !code.copied,
+        "newly issued code should not be marked copied"
+    );
+
+    // Code is persisted in the local store
+    let codes_after = alice_user.load_invitation_codes().await.unwrap();
+    assert_eq!(codes_after.len(), 1);
+    assert_eq!(codes_after[0].code, code.code);
+    assert!(!codes_after[0].copied);
+
+    // The consumed token is gone
+    let token_ids_after = alice_user.load_invitation_token_ids().await.unwrap();
+    assert_eq!(
+        token_ids_after.len(),
+        token_count_before - 1,
+        "one token should have been consumed"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Mark invitation code as copied", skip_all)]
+async fn mark_invitation_code_as_copied() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice_user = &setup.get_user(&alice).user;
+
+    let token_id = alice_user
+        .load_invitation_token_ids()
+        .await
+        .unwrap()
+        .into_iter()
+        .next()
+        .unwrap();
+
+    let code = alice_user
+        .request_invitation_code(token_id)
+        .await
+        .unwrap()
+        .unwrap();
+
+    alice_user
+        .mark_invitation_code_as_copied(&code.code)
+        .await
+        .unwrap();
+
+    let stored = alice_user.load_invitation_codes().await.unwrap();
+    assert_eq!(stored.len(), 1);
+    assert!(stored[0].copied, "code should be marked as copied");
 }

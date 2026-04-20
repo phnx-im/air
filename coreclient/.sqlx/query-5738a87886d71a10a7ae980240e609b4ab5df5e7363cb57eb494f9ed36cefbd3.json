@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO privacy_pass_token (\n            operation_type, token, created_at\n        )\n        VALUES (?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "5738a87886d71a10a7ae980240e609b4ab5df5e7363cb57eb494f9ed36cefbd3"
+}
