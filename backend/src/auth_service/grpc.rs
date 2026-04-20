@@ -219,6 +219,11 @@ impl auth_service_server::AuthService for GrpcAs {
         // note: this endpoint is anonymous by design
         let request = request.into_inner();
 
+        // Check len of request.tokens
+        if request.tokens.len() > 10 {
+            return Err(Status::invalid_argument("too many tokens requested"));
+        }
+
         let tokens: Result<Vec<_>, _> = request
             .tokens
             .into_iter()
