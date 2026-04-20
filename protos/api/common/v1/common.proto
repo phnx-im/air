@@ -107,4 +107,8 @@ message AttachmentTooLargeDetail {
   uint64 actual_size_bytes = 2;
 }
 
+message TokenQuotaExceededDetail {
+  uint64 retry_after_sec = 1;
+}
+
 message WrongEpochDetail {}

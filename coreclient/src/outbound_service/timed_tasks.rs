@@ -53,7 +53,15 @@ impl OperationData for TimedTask {
     fn generate_id(&self) -> OperationId {
         let mut id = Vec::new();
         id.extend_from_slice(b"timed_task");
-        id.push(self.kind as u8);
+        match self.kind {
+            TimedTaskKind::KeyPackageUpload => id.push(0),
+            TimedTaskKind::HandleRefresh => id.push(1),
+            TimedTaskKind::SelfUpdate => id.push(2),
+            TimedTaskKind::TokenReplenishment { operation_type } => {
+                id.push(3);
+                id.extend(i32::from(operation_type).to_le_bytes());
+            }
+        }
         OperationId(id)
     }
 }
@@ -63,7 +71,10 @@ pub(crate) enum TimedTaskKind {
     KeyPackageUpload,
     HandleRefresh,
     SelfUpdate,
-    TokenReplenishment,
+    TokenReplenishment {
+        #[serde(with = "operation_type_serde")]
+        operation_type: OperationType,
+    },
 }
 
 impl TimedTaskKind {
@@ -72,8 +83,34 @@ impl TimedTaskKind {
             TimedTaskKind::KeyPackageUpload => Duration::minutes(5),
             TimedTaskKind::HandleRefresh => Duration::minutes(5),
             TimedTaskKind::SelfUpdate => Duration::minutes(5),
-            TimedTaskKind::TokenReplenishment => Duration::minutes(5),
+            TimedTaskKind::TokenReplenishment { operation_type } => match operation_type {
+                OperationType::Unknown => Duration::MAX,
+                OperationType::AddUsername => Duration::minutes(5),
+                OperationType::GetInviteCode => Duration::minutes(5),
+            },
         }
+    }
+}
+
+mod operation_type_serde {
+    use serde::{Deserialize, Deserializer, Serializer, de};
+
+    use airprotos::auth_service::v1::OperationType;
+
+    pub fn serialize<S>(operation_type: &OperationType, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_i32(i32::from(*operation_type))
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<OperationType, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let idx = i32::deserialize(deserializer)?;
+        OperationType::try_from(idx)
+            .map_err(|_| de::Error::custom(format!("invalid operation type: {idx}")))
     }
 }
 
@@ -104,12 +141,23 @@ mod test_utils {
     }
 }
 
+/// Context for timed tasks
+///
+/// Recreated for each loop iteration.
+struct TimedTaskContext {
+    loaded_credentials: bool,
+}
+
 impl OutboundServiceContext {
     pub(super) async fn execute_timed_tasks(
         &self,
         run_token: &CancellationToken,
     ) -> anyhow::Result<()> {
         self.ensure_timed_tasks_exist().await?;
+
+        let mut timed_task_context = TimedTaskContext {
+            loaded_credentials: false,
+        };
 
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
@@ -131,7 +179,9 @@ impl OutboundServiceContext {
             let task_kind = op.data.kind;
             debug!(?task_kind, "dequeued task");
 
-            let res = self.handle_task(run_token, task_kind).await;
+            let res = self
+                .handle_task(run_token, task_kind, &mut timed_task_context)
+                .await;
 
             let interval = match res {
                 Ok(interval) => interval,
@@ -159,10 +209,12 @@ impl OutboundServiceContext {
             .into_operation()
             .enqueue_if_not_exists(&self.pool)
             .await?;
-        TimedTask::new(TimedTaskKind::TokenReplenishment)
-            .into_operation()
-            .enqueue_if_not_exists(&self.pool)
-            .await?;
+        for operation_type in OperationType::all() {
+            TimedTask::new(TimedTaskKind::TokenReplenishment { operation_type })
+                .into_operation()
+                .enqueue_if_not_exists(&self.pool)
+                .await?;
+        }
         Ok(())
     }
 
@@ -171,6 +223,7 @@ impl OutboundServiceContext {
         &self,
         run_token: &CancellationToken,
         task_kind: TimedTaskKind,
+        context: &mut TimedTaskContext,
     ) -> anyhow::Result<Duration> {
         debug!(?task_kind, "handling task");
 
@@ -178,7 +231,10 @@ impl OutboundServiceContext {
             TimedTaskKind::KeyPackageUpload => self.upload_key_packages().await,
             TimedTaskKind::HandleRefresh => self.refresh_handles().await,
             TimedTaskKind::SelfUpdate => self.self_update(run_token).await,
-            TimedTaskKind::TokenReplenishment => self.replenish_tokens().await,
+            TimedTaskKind::TokenReplenishment { operation_type } => {
+                self.replenish_tokens(operation_type, &mut context.loaded_credentials)
+                    .await
+            }
         }
     }
 
@@ -247,57 +303,52 @@ impl OutboundServiceContext {
     ///
     /// Returns a short interval (5 min) when tokens are still below the
     /// threshold, and a long interval (6 h) when fully stocked.
-    async fn replenish_tokens(&self) -> anyhow::Result<Duration> {
+    async fn replenish_tokens(
+        &self,
+        operation_type: OperationType,
+        loaded_credentials: &mut bool,
+    ) -> anyhow::Result<Duration> {
         use crate::privacy_pass;
-
-        let mut retry_soon = false;
-        let mut loaded_credentials = false;
 
         let api_client = self.api_clients.default_client()?;
 
-        for operation_type in OperationType::all() {
-            let Some(replenish_count) =
-                privacy_pass::needs_replenishment(self.pool(), operation_type).await?
-            else {
-                continue;
-            };
+        let Some(replenish_count) =
+            privacy_pass::needs_replenishment(self.pool(), operation_type).await?
+        else {
+            return Ok(Duration::hours(6));
+        };
 
-            if !loaded_credentials {
-                let credentials_response = api_client.as_as_credentials().await?;
-                self.with_transaction(async move |txn| {
-                    privacy_pass::store_batched_token_keys(
-                        txn,
-                        &credentials_response.batched_token_keys,
-                    )
-                    .await
-                })
-                .await?;
-                loaded_credentials = true;
-            }
-
-            match privacy_pass::request_and_store_tokens(
-                self.pool(),
-                &api_client,
-                self.user_id().clone(),
-                self.signing_key(),
-                operation_type,
-                replenish_count,
-            )
-            .await?
-            {
-                Ok(count) => {
-                    retry_soon |= (count as u16) < operation_type.low_tokens_threshold();
-                }
-                Err(RequestTokensError::QuotaExceeded) => {
-                    warn!("quota exceeded; won't retry soon");
-                }
-            }
+        if *loaded_credentials {
+            let credentials_response = api_client.as_as_credentials().await?;
+            self.with_transaction(async move |txn| {
+                privacy_pass::store_batched_token_keys(
+                    txn,
+                    &credentials_response.batched_token_keys,
+                )
+                .await
+            })
+            .await?;
+            *loaded_credentials = true;
         }
 
-        if retry_soon {
-            Ok(Duration::minutes(5))
-        } else {
-            Ok(Duration::hours(6))
+        match privacy_pass::request_and_store_tokens(
+            self.pool(),
+            &api_client,
+            self.user_id().clone(),
+            self.signing_key(),
+            operation_type,
+            replenish_count,
+        )
+        .await?
+        {
+            Ok(count) if count < usize::from(operation_type.low_tokens_threshold()) => {
+                Ok(Duration::minutes(5))
+            }
+            Ok(_) => Ok(Duration::hours(6)),
+            Err(RequestTokensError::QuotaExceeded) => {
+                warn!(%operation_type, "quota exceeded");
+                Ok(Duration::hours(6))
+            }
         }
     }
 

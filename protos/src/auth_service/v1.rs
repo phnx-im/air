@@ -27,6 +27,7 @@ impl OperationType {
     pub fn all() -> impl Iterator<Item = OperationType> {
         Self::VARIANTS
             .iter()
-            .filter_map(|v| (*v != Self::Unknown).then_some(*v))
+            .copied()
+            .filter(|&v| v != Self::Unknown)
     }
 }
