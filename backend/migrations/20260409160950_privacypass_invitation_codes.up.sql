@@ -8,12 +8,13 @@ ALTER TABLE as_client_record
     DROP COLUMN remaining_tokens,
     DROP COLUMN allowance_epoch;
 
-CREATE TABLE as_token_allowance (
+CREATE TABLE as_token_allowance(
     user_uuid uuid NOT NULL,
     user_domain TEXT NOT NULL,
     operation_type SMALLINT NOT NULL,
     remaining SMALLINT NOT NULL,
     epoch SMALLINT NOT NULL,
+    valid_until TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (user_uuid, user_domain, operation_type),
     FOREIGN KEY (user_uuid, user_domain) REFERENCES as_user_record (user_uuid, user_domain) ON DELETE CASCADE,
     CONSTRAINT unique_user_operation UNIQUE (user_uuid, user_domain, operation_type)
@@ -39,6 +40,7 @@ CREATE TABLE as_batched_key_new (
     operation_type SMALLINT NOT NULL,
     token_key_id SMALLINT NOT NULL,
     voprf_server BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (operation_type, token_key_id)
 );
 
