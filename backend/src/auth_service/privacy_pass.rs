@@ -225,6 +225,7 @@ async fn rotate_keys_if_needed_for_operation_type(
     pool: &PgPool,
     operation_type: OperationType,
 ) -> Result<bool, RotateKeysError> {
+    // TODO: lock the row, in case multiple servers are running on the same DB
     let needs_rotation = sqlx::query_scalar!(
         "SELECT NOT EXISTS(
             SELECT 1 FROM as_batched_key

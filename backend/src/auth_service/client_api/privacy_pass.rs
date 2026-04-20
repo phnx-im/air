@@ -45,7 +45,6 @@ impl AuthService {
         let mut txn = self.db_pool.begin().await?;
 
         // Lock the row to prevent concurrent over-issuance.
-        // let now = Utc::now();
         let mut token_allowance =
             TokenAllowance::load_for_update(&mut txn, user_id, operation_type).await?;
 
@@ -99,9 +98,9 @@ impl AuthService {
         server
             .redeem_token(&key_store, &nonce_store, token)
             .await
-            .map_err(|e| {
-                error!("Token redemption failed: {e}");
-                match e {
+            .map_err(|error| {
+                error!(%error, "Token redemption failed");
+                match error {
                     privacypass::common::errors::RedeemTokenError::KeyIdNotFound => {
                         RedeemTokenError::UnknownKeyId
                     }
