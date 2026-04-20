@@ -1,11 +1,12 @@
 -- SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
 --
 -- SPDX-License-Identifier: AGPL-3.0-or-later
+
 -- Drop privacypass columns on as_client_record and create a table
 -- that let us categorise token quotas by operation type
 ALTER TABLE as_client_record
-DROP COLUMN remaining_tokens,
-DROP COLUMN allowance_epoch;
+    DROP COLUMN remaining_tokens,
+    DROP COLUMN allowance_epoch;
 
 CREATE TABLE as_token_allowance (
     user_uuid uuid NOT NULL,
@@ -18,21 +19,37 @@ CREATE TABLE as_token_allowance (
     CONSTRAINT unique_user_operation UNIQUE (user_uuid, user_domain, operation_type)
 );
 
--- we mark existing records as 1 (AddUsername) for backwards compatibility
-ALTER TABLE as_token_nonce
-ADD COLUMN operation_type SMALLINT NOT NULL DEFAULT 1;
+-- Add operation_type to primary key of as_token_nonce
+CREATE UNLOGGED TABLE as_token_nonce_new (
+    operation_type SMALLINT NOT NULL,
+    nonce BYTEA NOT NULL,
+    status nonce_status NOT NULL DEFAULT 'reserved',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (operation_type, nonce)
+);
 
-ALTER TABLE as_token_nonce ALTER COLUMN operation_type
-DROP DEFAULT;
+INSERT INTO as_token_nonce_new (operation_type, nonce, status, created_at)
+SELECT 1, nonce, status, created_at FROM as_token_nonce;
 
-ALTER TABLE as_batched_key
-ADD COLUMN operation_type SMALLINT NOT NULL DEFAULT 1;
+DROP TABLE as_token_nonce;
+ALTER TABLE as_token_nonce_new RENAME TO as_token_nonce;
 
-ALTER TABLE as_batched_key ALTER COLUMN operation_type
-DROP DEFAULT;
+-- Add operation_type to primary key of as_batched_key
+CREATE TABLE as_batched_key_new (
+    operation_type SMALLINT NOT NULL,
+    token_key_id SMALLINT NOT NULL,
+    voprf_server BYTEA NOT NULL,
+    PRIMARY KEY (operation_type, token_key_id)
+);
 
+INSERT INTO as_batched_key_new (operation_type, token_key_id, voprf_server)
+SELECT 1, token_key_id, voprf_server FROM as_batched_key;
+
+DROP TABLE as_batched_key;
+ALTER TABLE as_batched_key_new RENAME TO as_batched_key;
+
+-- Rename invitation_code table and add created_at column
 ALTER TABLE invitation_code
 ADD COLUMN created_at timestamptz NOT NULL DEFAULT now ();
 
-CREATE INDEX idx_invitation_code_created_at ON invitation_code (created_at);
-
+CREATE INDEX idx_invitation_code_created_at ON invitation_code (created_at DESC);
