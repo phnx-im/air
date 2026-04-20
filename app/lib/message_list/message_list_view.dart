@@ -4,6 +4,7 @@
 
 import 'dart:async';
 
+import 'package:air/ui/effects/motion.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -49,16 +50,11 @@ class MessageListView extends StatefulWidget {
 ///  - Routes cubit scroll-to-index commands to the [AnchoredListController].
 class _MessageListViewState extends State<MessageListView>
     with WidgetsBindingObserver {
-  /// Messages eligible for an entrance animation — admitted at arrival
-  /// time, when the user was visually at the bottom. Ids that don't pass
-  /// the arrival-time gate are simply never added; there is no separate
-  /// exclusion list.
+  /// Messages eligible for an entrance animation. Admitted at arrival time
+  /// when the user was visually at the bottom, then evicted after
+  /// [_animationWindow] so the set stays bounded and a tile that remounts
+  /// later (e.g. after scroll-out-and-back) no longer replays the animation.
   final _animatingMessages = <MessageId>{};
-
-  /// Subset of [_animatingMessages] whose entrance animation has already
-  /// played. An id is added on first build and keeps subsequent rebuilds
-  /// from re-running the animation.
-  final _playedAnimations = <MessageId>{};
 
   final _listController = AnchoredListController();
 
@@ -115,9 +111,16 @@ class _MessageListViewState extends State<MessageListView>
   /// Admits freshly-arrived messages to the entrance-animation set iff the
   /// user is visually at the bottom right now. Messages that don't qualify
   /// are not tracked at all — no exclusion bookkeeping needed.
+  ///
+  /// Evicts ids after [_animationWindow]: by then the animation has either
+  /// played or the tile was never built, and either way further tracking
+  /// would only grow the set for the lifetime of the view.
   void _admitIncomingAnimations(Set<MessageId> ids) {
     if (!_listController.isAtBottom.value) return;
     _animatingMessages.addAll(ids);
+    Future.delayed(_animationWindow, () {
+      _animatingMessages.removeAll(ids);
+    });
   }
 
   @override
@@ -314,7 +317,6 @@ class _MessageListViewState extends State<MessageListView>
     UiChatMessage message,
   ) {
     final animated = _animatingMessages.contains(message.id);
-    final shouldAnimate = animated && _playedAnimations.add(message.id);
 
     final isFirstUnread =
         state.firstUnreadIndex != null &&
@@ -328,7 +330,6 @@ class _MessageListViewState extends State<MessageListView>
       child: ChatTile(
         isConnectionChat: state.isConnectionChat ?? false,
         animated: animated,
-        shouldAnimate: shouldAnimate,
       ),
     );
 
@@ -348,6 +349,11 @@ class _MessageListViewState extends State<MessageListView>
 }
 
 const double _fadeHeight = 40;
+
+/// How long an incoming message id stays eligible for the entrance animation.
+/// Chosen comfortably larger than the animation duration so the tile always
+/// has time to mount and play the animation once.
+const Duration _animationWindow = motionLong;
 
 class _BottomFade extends StatelessWidget {
   const _BottomFade({required this.height});
