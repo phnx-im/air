@@ -21,6 +21,8 @@
   "userSettingsScreen_accountSection": "Account",
 
   "userSettingsScreen_userHandlePlaceholder": "Add another username...",
+  
+  "userSettingsScreen_inviteCodes": "Invite codes",
   "settingsScreen_copiedToClipboard": "Copied to clipboard",
 
   "removeUsernameDialog_title": "Remove username?",
@@ -99,6 +101,18 @@
   "invitationCodeScreen_error_missing": "Invitation code is missing",
   "invitationCodeScreen_error_invalid": "Invalid invitation code. Check your code, then try again.",
 
+  "invitationCodesScreen_title": "Invite codes",
+  "invitationCodesScreen_copyAll": "Copy all",
+  "invitationCodesScreen_tapToGetCode": "Tap to get code",
+  "invitationCodesScreen_removeUnusedCodes": "Remove used codes",
+  "invitationCodesScreen_empty": "No invitation codes available",
+  "invitationCodesScreen_infoText1": "Air is in a limited access phase. Everyone who wants to join needs an invite code.",
+  "invitationCodesScreen_infoText2": "Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.",
+  "invitationCodesScreen_global_quota_exceeded": "We're out of invites for now, please try again later.",
+  "invitationCodesScreen_errorRequestingCode": "Something went wrong. Try again.",
+  "invitationCodesScreen_copiedToClipboard": "Copied to clipboard",
+
+
   "signUpScreen_header": "Create your profile",
   "signUpScreen_subheader": "Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.",
   "signUpScreen_actionButton": "Create",
@@ -114,6 +128,7 @@
   "usernameOnboarding_body": "Usernames are how people connect on Air. They aren't visible to others once you're connected.\n\nAdd, change, or delete usernames at any time in your profile.",
   "usernameOnboarding_syntax": "Use letters, numbers, or dashes. Minimum 5 characters.",
   "usernameOnboarding_addButton": "Add",
+  "usernameOnboarding_error": "Something went wrong on our end. Wait a moment, then try again.",
   "usernameOnboarding_next": "Next",
   "usernameOnboarding_usernameInputName": "Username (optional)",
   "usernameOnboarding_usernameInputHint": "Add a username...",

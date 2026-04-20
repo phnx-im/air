@@ -216,6 +216,12 @@ abstract class AppLocalizations {
   /// **'Username'**
   String get userSettingsScreen_userHandlePlaceholder;
 
+  /// No description provided for @userSettingsScreen_inviteCodes.
+  ///
+  /// In en, this message translates to:
+  /// **'Invite codes'**
+  String get userSettingsScreen_inviteCodes;
+
   /// No description provided for @settingsScreen_copiedToClipboard.
   ///
   /// In en, this message translates to:
@@ -552,6 +558,66 @@ abstract class AppLocalizations {
   /// **'Invalid invitation code. Check your code, then try again.'**
   String get invitationCodeScreen_error_invalid;
 
+  /// No description provided for @invitationCodesScreen_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Invite codes'**
+  String get invitationCodesScreen_title;
+
+  /// No description provided for @invitationCodesScreen_copyAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy all'**
+  String get invitationCodesScreen_copyAll;
+
+  /// No description provided for @invitationCodesScreen_tapToGetCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to get code'**
+  String get invitationCodesScreen_tapToGetCode;
+
+  /// No description provided for @invitationCodesScreen_removeUnusedCodes.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove used codes'**
+  String get invitationCodesScreen_removeUnusedCodes;
+
+  /// No description provided for @invitationCodesScreen_empty.
+  ///
+  /// In en, this message translates to:
+  /// **'No invitation codes available'**
+  String get invitationCodesScreen_empty;
+
+  /// No description provided for @invitationCodesScreen_infoText1.
+  ///
+  /// In en, this message translates to:
+  /// **'Air is in a limited access phase. Everyone who wants to join needs an invite code.'**
+  String get invitationCodesScreen_infoText1;
+
+  /// No description provided for @invitationCodesScreen_infoText2.
+  ///
+  /// In en, this message translates to:
+  /// **'Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.'**
+  String get invitationCodesScreen_infoText2;
+
+  /// No description provided for @invitationCodesScreen_global_quota_exceeded.
+  ///
+  /// In en, this message translates to:
+  /// **'We\'re out of invites for now, please try again later.'**
+  String get invitationCodesScreen_global_quota_exceeded;
+
+  /// No description provided for @invitationCodesScreen_errorRequestingCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Something went wrong. Try again.'**
+  String get invitationCodesScreen_errorRequestingCode;
+
+  /// No description provided for @invitationCodesScreen_copiedToClipboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard'**
+  String get invitationCodesScreen_copiedToClipboard;
+
   /// No description provided for @signUpScreen_header.
   ///
   /// In en, this message translates to:
@@ -635,6 +701,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add'**
   String get usernameOnboarding_addButton;
+
+  /// No description provided for @usernameOnboarding_error.
+  ///
+  /// In en, this message translates to:
+  /// **'Something went wrong on our end. Wait a moment, then try again.'**
+  String get usernameOnboarding_error;
 
   /// No description provided for @usernameOnboarding_next.
   ///

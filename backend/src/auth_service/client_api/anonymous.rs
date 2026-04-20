@@ -38,8 +38,9 @@ impl AuthService {
             })?
             .into_iter()
             .map(|k| BatchedTokenKeyResponse {
-                token_key_id: k.token_key_id,
                 public_key: k.public_key,
+                token_key_id: k.token_key_id,
+                operation_type: k.operation_type as i32,
             })
             .collect();
 

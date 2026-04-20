@@ -25,8 +25,10 @@ pub struct CodeArgs {
 
 #[derive(Default, clap::Subcommand)]
 pub enum CodeCommand {
+    /// Calculate basic invitation codes statistics
     #[default]
     Stats,
+    /// List stored invitation codes
     List {
         /// Number of codes to list
         #[arg(default_value_t = 1000)]
@@ -35,8 +37,10 @@ pub enum CodeCommand {
         #[arg(long, default_value_t = false)]
         include_redeemed: bool,
     },
+    /// Generate invitation codes
     Generate {
         /// Number of codes to generate
+        #[arg(default_value_t = 1)]
         n: usize,
     },
 }

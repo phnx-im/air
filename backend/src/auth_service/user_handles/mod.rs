@@ -9,6 +9,7 @@ use aircommon::{
     },
     time::ExpirationData,
 };
+use airprotos::auth_service::v1::OperationType;
 use displaydoc::Display;
 use persistence::UpdateExpirationDataResult;
 use privacypass::{
@@ -50,8 +51,11 @@ impl AuthService {
         hash: UserHandleHash,
         token: Option<AmortizedToken<Ristretto255>>,
     ) -> Result<(), CreateHandleError> {
+        let mut txn = self.db_pool.begin().await?;
+
         if let Some(token) = token {
-            self.as_redeem_token(token).await?;
+            self.as_redeem_token(&mut txn, token, OperationType::AddUsername)
+                .await?;
         }
 
         let handle = UserHandle::new(handle_plaintext)?;
@@ -69,11 +73,12 @@ impl AuthService {
             expiration_data,
         };
 
-        if record.store(&self.db_pool).await? {
-            Ok(())
-        } else {
-            Err(CreateHandleError::UserHandleExists)
+        if !record.store(&mut txn).await? {
+            return Err(CreateHandleError::UserHandleExists);
         }
+
+        txn.commit().await?;
+        Ok(())
     }
 
     /// Token refunds are disabled during gradual rollout to prevent token
@@ -97,18 +102,24 @@ impl AuthService {
         hash: UserHandleHash,
         token: Option<AmortizedToken<Ristretto255>>,
     ) -> Result<(), RefreshHandleError> {
+        let mut txn = self.db_pool.begin().await?;
+
         if let Some(token) = token {
-            self.as_redeem_token(token).await?;
+            self.as_redeem_token(&mut txn, token, OperationType::AddUsername)
+                .await?;
         }
 
         let expiration_data = ExpirationData::new(USER_HANDLE_VALIDITY_PERIOD);
-        match UserHandleRecord::update_expiration_data(&self.db_pool, &hash, expiration_data)
-            .await?
-        {
-            UpdateExpirationDataResult::Updated => Ok(()),
-            UpdateExpirationDataResult::Deleted => Err(RefreshHandleError::HandleAlreadyExpired),
-            UpdateExpirationDataResult::NotFound => Err(RefreshHandleError::HandleNotFound),
+        match UserHandleRecord::update_expiration_data(&mut txn, &hash, expiration_data).await? {
+            UpdateExpirationDataResult::Updated => (),
+            UpdateExpirationDataResult::Deleted => {
+                return Err(RefreshHandleError::HandleAlreadyExpired);
+            }
+            UpdateExpirationDataResult::NotFound => return Err(RefreshHandleError::HandleNotFound),
         }
+
+        txn.commit().await?;
+        Ok(())
     }
 }
 

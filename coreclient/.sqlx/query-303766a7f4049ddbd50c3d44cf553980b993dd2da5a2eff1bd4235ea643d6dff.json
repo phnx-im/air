@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE invitation_code SET copied = TRUE WHERE code = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "303766a7f4049ddbd50c3d44cf553980b993dd2da5a2eff1bd4235ea643d6dff"
+}
