@@ -80,7 +80,8 @@ class UsernameOnboardingScreen extends HookWidget {
       }
 
       if (!await tryToAddUsername(false)) {
-        // handle race with outbound service and/or ad-hoc PP issuance
+        // the privacy pass tokens for adding usernames might not yet be
+        // available during account creation.
         await Future.delayed(const Duration(milliseconds: 250));
         tryToAddUsername(true);
       }
