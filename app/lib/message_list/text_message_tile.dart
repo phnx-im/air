@@ -877,14 +877,18 @@ class _MessageContent extends StatelessWidget {
       children: [
         if (inReplyTo != null)
           MouseRegion(
-            cursor: inReplyTo is UiInReplyToMessage_Resolved
-                ? SystemMouseCursors.click
-                : MouseCursor.defer,
+            cursor: switch (inReplyTo) {
+              UiInReplyToMessage_Resolved(:final mimiContent)
+                  when !mimiContent.isDeleted =>
+                SystemMouseCursors.click,
+              _ => MouseCursor.defer,
+            },
             child: GestureDetector(
               onTap: () {
                 if (inReplyTo case UiInReplyToMessage_Resolved(
                   :final messageId,
-                )) {
+                  :final mimiContent,
+                ) when !mimiContent.isDeleted) {
                   context.read<MessageListCubit>().jumpToMessage(
                     messageId: messageId,
                   );
