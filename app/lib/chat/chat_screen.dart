@@ -78,9 +78,14 @@ class _EmptyChatPane extends StatelessWidget {
 }
 
 class ChatScreenView extends StatefulWidget {
-  const ChatScreenView({super.key, this.createMessageCubit = MessageCubit.new});
+  const ChatScreenView({
+    super.key,
+    this.createMessageCubit = MessageCubit.new,
+    this.textEditingController,
+  });
 
   final MessageCubitCreate createMessageCubit;
+  final TextEditingController? textEditingController;
 
   @override
   State<ChatScreenView> createState() => _ChatScreenViewState();
@@ -149,6 +154,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
 
     Widget footer = MessageComposer(
       scrollToBottomController: _scrollToBottomController,
+      textEditingController: widget.textEditingController,
     );
     if (showInactiveFooter) {
       footer = const _InactiveChatFooter();
