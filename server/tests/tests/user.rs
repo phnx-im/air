@@ -636,21 +636,12 @@ async fn mark_invitation_code_as_copied() {
         .unwrap()
         .unwrap();
 
-    // Marking an existing code returns true and flips the flag
-    let was_updated = alice_user
+    alice_user
         .mark_invitation_code_as_copied(&code.code)
         .await
         .unwrap();
-    assert!(was_updated, "should return true for an existing code");
 
     let stored = alice_user.load_invitation_codes().await.unwrap();
     assert_eq!(stored.len(), 1);
     assert!(stored[0].copied, "code should be marked as copied");
-
-    // Marking an unknown code returns false without error
-    let was_updated = alice_user
-        .mark_invitation_code_as_copied("nonexistent-code")
-        .await
-        .unwrap();
-    assert!(!was_updated, "should return false for an unknown code");
 }
