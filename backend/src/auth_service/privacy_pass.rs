@@ -600,8 +600,8 @@ mod tests {
     #[sqlx::test]
     async fn load_public_keys(pool: PgPool) -> anyhow::Result<()> {
         {
-            let mut txn = pool.begin().await?;
-            let conn_mutex = Mutex::new(&mut *txn);
+            let mut connection = pool.acquire().await?;
+            let conn_mutex = Mutex::new(&mut *connection);
             let provider =
                 AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, OperationType::AddUsername);
             let mut rng = rand::thread_rng();

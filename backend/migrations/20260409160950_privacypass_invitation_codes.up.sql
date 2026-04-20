@@ -15,8 +15,7 @@ CREATE TABLE as_token_allowance(
     remaining SMALLINT NOT NULL,
     valid_until TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (user_uuid, user_domain, operation_type),
-    FOREIGN KEY (user_uuid, user_domain) REFERENCES as_user_record (user_uuid, user_domain) ON DELETE CASCADE,
-    CONSTRAINT unique_user_operation UNIQUE (user_uuid, user_domain, operation_type)
+    FOREIGN KEY (user_uuid, user_domain) REFERENCES as_user_record (user_uuid, user_domain) ON DELETE CASCADE
 );
 
 -- Add operation_type to primary key of as_token_nonce

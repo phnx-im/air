@@ -306,10 +306,13 @@ mod test {
             updated_expiration_data.clone(),
         )
         .await?;
+
         assert!(
             matches!(res, UpdateExpirationDataResult::Updated),
             "Expiration data should be updated successfully"
         );
+
+        txn.commit().await?;
 
         // Verify the expiration data has been updated
         let loaded_expiration_data =
