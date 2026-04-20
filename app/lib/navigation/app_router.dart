@@ -184,7 +184,7 @@ extension on IntroScreenType {
   };
 
   Widget get screen => switch (this) {
-    IntroScreenType_InvitationCode() => const InvitationCodeScreen(),
+    IntroScreenType_InvitationCode() => const InvitationCodesScreen(),
     IntroScreenType_SignUp() => const SignUpScreen(),
     IntroScreenType_UsernameOnboarding() => const UsernameOnboardingScreen(),
     IntroScreenType_DeveloperSettings(field0: final screen) => switch (screen) {

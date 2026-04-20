@@ -33,6 +33,19 @@ class UserSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) =>
+          InvitationCodesCubit(userCubit: context.read<UserCubit>()),
+      child: const UserSettingsView(),
+    );
+  }
+}
+
+class UserSettingsView extends StatelessWidget {
+  const UserSettingsView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
     final isMobilePlatform = Platform.isAndroid || Platform.isIOS;
@@ -312,37 +325,29 @@ class _InviteCodes extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final colors = CustomColorScheme.of(context);
 
-    return BlocProvider(
-      create: (context) =>
-          InvitationCodesCubit(userCubit: context.read<UserCubit>()),
-      child: Builder(
-        builder: (context) {
-          return _FieldContainer(
-            onTap: () {
-              // Note: We want to share the cubit between this widget and the
-              // screen, because we want to synchronize the data between the two.
-              final invitationCodesCubit = context.read<InvitationCodesCubit>();
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => InvitationCodesScreen(
-                    invitationCodesCubit: invitationCodesCubit,
-                  ),
-                ),
-              );
-            },
-            child: Row(
-              children: [
-                AppIcon.users(color: colors.text.secondary, size: 24),
-
-                const SizedBox(width: Spacings.xs),
-
-                Expanded(child: Text(loc.userSettingsScreen_inviteCodes)),
-
-                const _InvitationCodesBadge(),
-              ],
+    return _FieldContainer(
+      onTap: () {
+        // Note: We want to share the cubit between this widget and the screen,
+        // because we want to synchronize the data between the two.
+        final invitationCodesCubit = context.read<InvitationCodesCubit>();
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => InvitationCodesScreen(
+              invitationCodesCubit: invitationCodesCubit,
             ),
-          );
-        },
+          ),
+        );
+      },
+      child: Row(
+        children: [
+          AppIcon.users(color: colors.text.secondary, size: 24),
+
+          const SizedBox(width: Spacings.xs),
+
+          Expanded(child: Text(loc.userSettingsScreen_inviteCodes)),
+
+          const _InvitationCodesBadge(),
+        ],
       ),
     );
   }

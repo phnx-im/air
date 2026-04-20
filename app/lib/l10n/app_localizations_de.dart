@@ -281,7 +281,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get invitationCodesScreen_copyAll => 'Copy all';
 
   @override
-  String get invitationCodesScreen_tapToGetCode => 'Tag to get code';
+  String get invitationCodesScreen_tapToGetCode => 'Tap to get code';
 
   @override
   String get invitationCodesScreen_removeUnusedCodes => 'Remove used codes';

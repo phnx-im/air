@@ -573,7 +573,7 @@ abstract class AppLocalizations {
   /// No description provided for @invitationCodesScreen_tapToGetCode.
   ///
   /// In en, this message translates to:
-  /// **'Tag to get code'**
+  /// **'Tap to get code'**
   String get invitationCodesScreen_tapToGetCode;
 
   /// No description provided for @invitationCodesScreen_removeUnusedCodes.

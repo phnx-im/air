@@ -102,7 +102,7 @@
 
   "invitationCodesScreen_title": "Invite codes",
   "invitationCodesScreen_copyAll": "Copy all",
-  "invitationCodesScreen_tapToGetCode": "Tag to get code",
+  "invitationCodesScreen_tapToGetCode": "Tap to get code",
   "invitationCodesScreen_removeUnusedCodes": "Remove used codes",
   "invitationCodesScreen_empty": "No invitation codes available",
   "invitationCodesScreen_infoText1": "Air is in a limited access phase. Everyone who wants to join needs an invite code.",

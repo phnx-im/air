@@ -16,6 +16,16 @@ import '../helpers.dart';
 class MockInvitationCodesCubit extends MockCubit<InvitationCodesState>
     implements InvitationCodesCubit {}
 
+final fixedDate = DateTime(2026, 1, 1);
+
+UiInvitationCode token(int id) =>
+    UiInvitationCode.token(TokenId(id: id, createdAt: fixedDate));
+
+UiInvitationCode code(String codeStr, {bool copied = false}) =>
+    UiInvitationCode.code(
+      InvitationCode(code: codeStr, copied: copied, createdAt: fixedDate),
+    );
+
 void main() {
   group('InvitationCodesScreenTest', () {
     late MockInvitationCodesCubit cubit;
@@ -38,16 +48,6 @@ void main() {
         ),
       ),
     );
-
-    final fixedDate = DateTime(2026, 1, 1);
-
-    UiInvitationCode token(int id) =>
-        UiInvitationCode.token(TokenId(id: id, createdAt: fixedDate));
-
-    UiInvitationCode code(String codeStr, {bool copied = false}) =>
-        UiInvitationCode.code(
-          InvitationCode(code: codeStr, copied: copied, createdAt: fixedDate),
-        );
 
     void setState(List<UiInvitationCode> codes) {
       when(() => cubit.state).thenReturn(InvitationCodesState(codes: codes));
