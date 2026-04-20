@@ -240,7 +240,7 @@ impl auth_service_server::AuthService for GrpcAs {
             Status::internal("database error")
         })?;
 
-        let codes_today = InvitationCodeRecord::lock_table_and_count_codes_issued_today(&mut txn)
+        let codes_today = InvitationCodeRecord::lock_and_count_codes_issued_today(&mut txn)
             .await
             .map_err(|error| {
                 error!(%error, "failed to lock table and count codes issued today");

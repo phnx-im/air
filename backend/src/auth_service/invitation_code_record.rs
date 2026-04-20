@@ -145,20 +145,19 @@ mod persistence {
             }
         }
 
-        pub(in crate::auth_service) async fn lock_table_and_count_codes_issued_today(
+        pub(in crate::auth_service) async fn lock_and_count_codes_issued_today(
             txn: &mut PgTransaction<'_>,
         ) -> sqlx::Result<u64> {
-            // we want to lock the table here to enforce the routine to be used correctly.
-            query!("LOCK TABLE invitation_code IN ACCESS EXCLUSIVE MODE")
+            // Here, we want to hold a (automatically released after txn ends) global Postgres lock
+            // to avoid a double-dip race
+            query!("SELECT pg_advisory_xact_lock(1984)")
                 .execute(txn.as_mut())
                 .await?;
 
             let count = query_scalar!(
-                "
-            SELECT COUNT(*) FROM invitation_code
-            WHERE created_at >= CURRENT_DATE
-            AND created_at < CURRENT_DATE + INTERVAL '1 day'
-            "
+                "SELECT COUNT(*) FROM invitation_code
+                WHERE created_at >= CURRENT_DATE
+                    AND created_at < CURRENT_DATE + INTERVAL '1 day'"
             )
             .fetch_one(txn.as_mut())
             .await?
