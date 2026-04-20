@@ -191,24 +191,6 @@ const KEY_ROTATION_PERIOD_DAYS: i64 = 90;
 /// token redemption.
 const KEY_OVERLAP_DAYS: i64 = 7;
 
-/// Returns the `token_key_id` of the most recently created VOPRF key.
-pub(crate) async fn load_current_key_id(
-    executor: impl PgExecutor<'_>,
-    operation_type: OperationType,
-) -> Result<Option<i16>, sqlx::Error> {
-    sqlx::query_scalar!(
-        "
-        SELECT token_key_id
-        FROM as_batched_key
-        WHERE operation_type = $1
-        ORDER BY created_at DESC LIMIT 1
-        ",
-        operation_type as i16,
-    )
-    .fetch_optional(executor)
-    .await
-}
-
 /// Checks whether key rotation is needed and performs it if so.
 ///
 /// Creates a new VOPRF keypair if no key exists or if the current key is older
@@ -362,59 +344,71 @@ pub(super) async fn load_batched_token_keys(
 pub(in crate::auth_service) struct TokenAllowance {
     pub(super) operation_type: OperationType,
     pub(super) remaining: u16,
-    pub(super) epoch: i16,
     pub(super) valid_until: DateTime<Utc>,
 }
 
 impl TokenAllowance {
-    pub(super) fn new(operation_type: OperationType, epoch: i16) -> Self {
-        Self {
-            operation_type,
-            remaining: operation_type.max_tokens_allowance(),
-            epoch,
-            valid_until: operation_type.initial_allowance_validity(),
-        }
+    pub(super) fn is_valid_at(&self, at: DateTime<Utc>) -> bool {
+        self.valid_until < at
     }
 }
 
 mod persistence {
     use aircommon::identifiers::UserId;
     use airprotos::auth_service::v1::OperationType;
+    use chrono::{DateTime, Utc};
     use sqlx::{PgExecutor, PgTransaction, query};
 
     use super::TokenAllowance;
     use crate::errors::StorageError;
 
     impl TokenAllowance {
-        pub(in crate::auth_service) async fn upsert(
-            &self,
-            connection: impl PgExecutor<'_>,
+        pub(in crate::auth_service) async fn ensure_exists(
+            executor: impl PgExecutor<'_>,
             user_id: &UserId,
-        ) -> Result<(), StorageError> {
-            query!(
+            operation_type: OperationType,
+            at: DateTime<Utc>,
+        ) -> sqlx::Result<bool> {
+            let remaining = operation_type.max_tokens_allowance();
+            let valid_until = operation_type.valid_until_starting_at(at);
+            let res = query!(
                 "INSERT INTO as_token_allowance (
                     user_uuid,
                     user_domain,
                     operation_type,
                     remaining,
-                    epoch,
                     valid_until
-                ) VALUES($1, $2, $3, $4, $5, $6)
-                ON CONFLICT (
-                    user_uuid,
-                    user_domain,
-                    operation_type
-                )
-                DO UPDATE SET
-                    remaining = $4,
-                    epoch = $5,
-                    valid_until = $6
+                ) VALUES($1, $2, $3, $4, $5)
+                ON CONFLICT DO NOTHING
+                ",
+                user_id.uuid(),
+                user_id.domain() as _,
+                operation_type as i16,
+                remaining as i16,
+                valid_until,
+            )
+            .execute(executor)
+            .await?;
+
+            Ok(res.rows_affected() > 0)
+        }
+
+        pub(in crate::auth_service) async fn update(
+            &self,
+            connection: impl PgExecutor<'_>,
+            user_id: &UserId,
+        ) -> Result<(), StorageError> {
+            query!(
+                "UPDATE as_token_allowance
+                    SET remaining = $4, valid_until = $5
+                    WHERE user_uuid = $1
+                        AND user_domain = $2
+                        AND operation_type = $3
                 ",
                 user_id.uuid(),
                 user_id.domain() as _,
                 self.operation_type as i16,
                 self.remaining as i16,
-                self.epoch,
                 self.valid_until,
             )
             .execute(connection)
@@ -431,7 +425,6 @@ mod persistence {
             query!(
                 r#"SELECT
                     remaining,
-                    epoch,
                     valid_until
                 FROM as_token_allowance
                 WHERE user_uuid = $1 AND user_domain = $2 AND operation_type = $3"#,
@@ -445,7 +438,6 @@ mod persistence {
                 Ok(Self {
                     operation_type,
                     remaining: record.remaining as u16,
-                    epoch: record.epoch,
                     valid_until: record.valid_until,
                 })
             })
@@ -456,11 +448,10 @@ mod persistence {
             txn: &mut PgTransaction<'_>,
             user_id: &UserId,
             operation_type: OperationType,
-        ) -> Result<Option<Self>, StorageError> {
-            query!(
+        ) -> Result<Self, StorageError> {
+            let record = query!(
                 r#"SELECT
                     remaining,
-                    epoch,
                     valid_until
                 FROM as_token_allowance
                 WHERE user_uuid = $1 AND user_domain = $2 AND operation_type = $3
@@ -469,17 +460,14 @@ mod persistence {
                 user_id.domain() as _,
                 operation_type as i16,
             )
-            .fetch_optional(txn.as_mut())
-            .await?
-            .map(|record| {
-                Ok(Self {
-                    operation_type,
-                    remaining: record.remaining as u16,
-                    epoch: record.epoch,
-                    valid_until: record.valid_until,
-                })
+            .fetch_one(txn.as_mut())
+            .await?;
+
+            Ok(Self {
+                operation_type,
+                remaining: record.remaining as u16,
+                valid_until: record.valid_until,
             })
-            .transpose()
         }
     }
 }

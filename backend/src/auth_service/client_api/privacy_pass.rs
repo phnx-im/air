@@ -19,10 +19,7 @@ use tokio::sync::Mutex;
 use crate::{
     auth_service::{
         AuthService,
-        privacy_pass::{
-            AuthServiceBatchedKeyStoreProvider, AuthServiceNonceStore, TokenAllowance,
-            load_current_key_id,
-        },
+        privacy_pass::{AuthServiceBatchedKeyStoreProvider, AuthServiceNonceStore, TokenAllowance},
     },
     errors::auth_service::{IssueTokensError, RedeemTokenError},
 };
@@ -39,36 +36,33 @@ impl AuthService {
             return Err(IssueTokensError::BadRequest("zero tokens requested"));
         }
 
-        // Start a transaction
-        let mut transaction = self.db_pool.begin().await?;
+        let now = Utc::now();
 
-        let current_epoch = load_current_key_id(&mut *transaction, operation_type)
-            .await?
-            .unwrap_or(0);
+        // Make sure the record immediately exists for any further request (preventing a first-issuance race)
+        TokenAllowance::ensure_exists(self.db_pool(), user_id, operation_type, now).await?;
+
+        // Start a transaction
+        let mut txn = self.db_pool.begin().await?;
 
         // Lock the row to prevent concurrent over-issuance.
-        let now = Utc::now();
+        // let now = Utc::now();
         let mut token_allowance =
-            TokenAllowance::load_for_update(&mut transaction, user_id, operation_type)
-                .await?
-                .filter(|ta| ta.valid_until >= now) // only consider quotas that are not expired
-                .unwrap_or_else(|| TokenAllowance::new(operation_type, current_epoch));
+            TokenAllowance::load_for_update(&mut txn, user_id, operation_type).await?;
 
-        // If the keys were rotated, reset the allowance
-        if token_allowance.epoch != current_epoch {
+        if !token_allowance.is_valid_at(now) {
             token_allowance.remaining = operation_type.max_tokens_allowance();
-            token_allowance.epoch = current_epoch;
+            token_allowance.valid_until = operation_type.valid_until_starting_at(now);
         }
 
-        if tokens_requested > token_allowance.remaining
-            || tokens_requested > operation_type.max_tokens_allowance()
-        {
+        // NB: we might want to switch to returning the maximum amount of possible remaining tokens
+        // instead of rejecting the request
+        if token_allowance.remaining < tokens_requested {
             return Err(IssueTokensError::TooManyTokensRequested);
         }
 
         let pp_server = Server::<Ristretto255>::new();
         let token_response = {
-            let conn_mutex = Mutex::new(&mut *transaction);
+            let conn_mutex = Mutex::new(&mut *txn);
             let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, operation_type);
             pp_server
                 .issue_token_response(&key_store, token_request)
@@ -77,9 +71,9 @@ impl AuthService {
 
         // Reduce the token allowance by the number of tokens issued.
         token_allowance.remaining -= tokens_requested;
-        token_allowance.upsert(&mut *transaction, user_id).await?;
+        token_allowance.update(&mut *txn, user_id).await?;
 
-        transaction.commit().await?;
+        txn.commit().await?;
 
         Ok(token_response)
     }

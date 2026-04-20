@@ -318,7 +318,7 @@ impl OutboundServiceContext {
             return Ok(Duration::hours(6));
         };
 
-        if *loaded_credentials {
+        if !*loaded_credentials {
             let credentials_response = api_client.as_as_credentials().await?;
             self.with_transaction(async move |txn| {
                 privacy_pass::store_batched_token_keys(

@@ -13,7 +13,6 @@ CREATE TABLE as_token_allowance(
     user_domain TEXT NOT NULL,
     operation_type SMALLINT NOT NULL,
     remaining SMALLINT NOT NULL,
-    epoch SMALLINT NOT NULL,
     valid_until TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (user_uuid, user_domain, operation_type),
     FOREIGN KEY (user_uuid, user_domain) REFERENCES as_user_record (user_uuid, user_domain) ON DELETE CASCADE,

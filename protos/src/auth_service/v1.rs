@@ -25,19 +25,17 @@ impl OperationType {
         }
     }
 
-    pub fn initial_allowance_validity(&self) -> DateTime<Utc> {
-        let now = Utc::now();
+    pub fn valid_until_starting_at(&self, at: DateTime<Utc>) -> DateTime<Utc> {
         match self {
-            OperationType::Unknown => now,
-            OperationType::AddUsername => now + Months::new(1),
-            OperationType::GetInviteCode => now + Days::new(1),
+            OperationType::Unknown => at,
+            OperationType::AddUsername => at + Months::new(1),
+            OperationType::GetInviteCode => at + Days::new(1),
         }
     }
 
     pub fn all() -> impl Iterator<Item = OperationType> {
         Self::VARIANTS
             .iter()
-            .copied()
-            .filter(|&v| v != Self::Unknown)
+            .filter_map(|v| (*v != Self::Unknown).then_some(*v))
     }
 }
