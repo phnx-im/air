@@ -51,7 +51,7 @@ class ContextMenuUi extends StatelessWidget {
       clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
         color: CustomColorScheme.of(context).backgroundElevated.primary,
-        boxShadow: mediumElevationBoxShadows(context),
+        boxShadow: mediumElevationBoxShadows,
         borderRadius: BorderRadius.circular(16),
       ),
       padding: const EdgeInsets.symmetric(

@@ -16,9 +16,9 @@ import 'types.dart';
 import 'user_cubit.dart';
 part 'message_list_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_messages`, `clear_first_unread_index`, `compute_flight_positions`, `handle_jump_to_bottom`, `handle_jump_to_message`, `handle_load_newer`, `handle_load_older`, `initial_load`, `load_bottom`, `load_is_connection_chat`, `new`, `notify_message_neighbors`, `process_store_notification`, `recompute_flight_positions_range`, `reload_current_window`, `run_loop`, `spawn`, `try_process_store_notification`, `update_message_in_place`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Command`, `LoadDirection`, `MessageListContext`, `MessageListStateInner`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `apply_messages`, `clear_first_unread_index`, `clear_first_unread_index`, `compute_flight_positions`, `emit_state_and_transition`, `handle_jump_to_bottom`, `handle_jump_to_message`, `handle_load_newer`, `handle_load_older`, `initial_load`, `issue_command`, `load_bottom`, `load_is_connection_chat`, `new`, `newest_first`, `newest_index`, `process_store_notification`, `push_patch_changes`, `rebuild_message_ids_index`, `recompute_flight_positions_range`, `remove_message_in_place`, `remove_message`, `run_loop`, `spawn`, `try_process_store_notification`, `update_message_in_place`, `update_message_in_place`, `with_page_capacity`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Command`, `LoadDirection`, `MessageListContext`, `MessageListData`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MessageListCubitBase>>
@@ -50,41 +50,79 @@ abstract class MessageListCubitBase implements RustOpaqueInterface {
   MessageListState get state;
 
   Stream<MessageListState> stream();
+
+  Stream<MessageListTransition> transitions();
 }
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MessageListState>>
-abstract class MessageListState implements RustOpaqueInterface {
-  static Future<MessageListState> default_() =>
-      RustLib.instance.api.crateApiMessageListCubitMessageListStateDefault();
-
-  bool isNewMessage(MessageId messageId);
-
-  /// The number of loaded messages in the list
-  ///
-  /// Note that this is not the number of all messages in the chat.
-  int get loadedMessagesCount;
-
-  /// Returns the message at the given index.
-  UiChatMessage? messageAt(int index);
-
-  /// Returns the lookup table mapping a message id to the index in the list.
-  int? messageIdIndex(MessageId messageId);
-
-  MessageListMeta get meta;
-}
-
-/// Attributes of the message list state.
 @freezed
-sealed class MessageListMeta with _$MessageListMeta {
-  const MessageListMeta._();
-  const factory MessageListMeta({
+sealed class MessageListChange with _$MessageListChange {
+  const MessageListChange._();
+
+  /// Replace the entire list.
+  const factory MessageListChange.reload({
+    required List<UiChatMessage> messages,
+  }) = MessageListChange_Reload;
+
+  /// Delete `delete_count` items at `index`, then insert `messages`.
+  const factory MessageListChange.splice({
+    required BigInt index,
+    required List<UiChatMessage> messages,
+    required BigInt deleteCount,
+  }) = MessageListChange_Splice;
+
+  /// Replace the item at `index` with `message`.
+  const factory MessageListChange.patch({
+    required BigInt index,
+    required UiChatMessage message,
+  }) = MessageListChange_Patch;
+}
+
+@freezed
+sealed class MessageListCommand with _$MessageListCommand {
+  const MessageListCommand._();
+
+  const factory MessageListCommand.scrollToId({required MessageId messageId}) =
+      MessageListCommand_ScrollToId;
+  const factory MessageListCommand.scrollToBottom() =
+      MessageListCommand_ScrollToBottom;
+}
+
+/// The state representing a list of messages in a chat
+@freezed
+sealed class MessageListState with _$MessageListState {
+  const MessageListState._();
+  const factory MessageListState({
     bool? isConnectionChat,
     required bool hasOlder,
     required bool hasNewer,
     required bool isAtBottom,
-    int? scrollToIndex,
     int? firstUnreadIndex,
-  }) = _MessageListMeta;
-  static Future<MessageListMeta> default_() =>
-      RustLib.instance.api.crateApiMessageListCubitMessageListMetaDefault();
+    required int revision,
+  }) = _MessageListState;
+  static Future<MessageListState> default_() =>
+      RustLib.instance.api.crateApiMessageListCubitMessageListStateDefault();
+}
+
+/// A Rust-authored transition that Dart applies incrementally to the
+/// anchored-list render cache.
+@freezed
+sealed class MessageListTransition with _$MessageListTransition {
+  const factory MessageListTransition({
+    required int revision,
+    required MessageListTransitionKind kind,
+    required List<MessageListChange> changes,
+    MessageListCommand? command,
+  }) = _MessageListTransition;
+}
+
+/// Why a message-list transition was emitted.
+enum MessageListTransitionKind {
+  windowReplaced,
+  olderPageLoaded,
+  newerPageLoaded,
+  messageUpdated,
+  messageDeleted,
+  unreadBoundaryChanged,
+  metaUpdated,
+  commandIssued,
 }

@@ -126,7 +126,7 @@ void main() {
       when(
         () => chatDetailsCubit.state,
       ).thenReturn(ChatDetailsState(chat: chats[2], members: members));
-      when(() => messageListCubit.state).thenReturn(MockMessageListState([]));
+      messageListCubit.setState(const []);
 
       await tester.pumpWidget(buildSubject());
 
@@ -155,9 +155,7 @@ void main() {
       when(
         () => chatDetailsCubit.state,
       ).thenReturn(ChatDetailsState(chat: chats[2], members: members));
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(messages));
+      messageListCubit.setState(messages);
 
       await tester.pumpWidget(buildSubject());
 
@@ -188,9 +186,7 @@ void main() {
       when(
         () => chatDetailsCubit.state,
       ).thenReturn(ChatDetailsState(chat: chats[2], members: members));
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(messages));
+      messageListCubit.setState(messages);
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();
@@ -222,9 +218,7 @@ void main() {
       when(
         () => chatDetailsCubit.state,
       ).thenReturn(ChatDetailsState(chat: chats[4], members: members));
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(messages));
+      messageListCubit.setState(messages);
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();

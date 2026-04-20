@@ -5,7 +5,6 @@
 import 'dart:typed_data';
 
 import 'package:air/chat/chat_details.dart';
-import 'package:bloc_test/bloc_test.dart';
 import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
@@ -774,7 +773,7 @@ void main() {
     );
 
     testWidgets('renders correctly when empty', (tester) async {
-      when(() => messageListCubit.state).thenReturn(MockMessageListState([]));
+      messageListCubit.setState(const []);
 
       await tester.pumpWidget(buildSubject());
 
@@ -790,9 +789,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(messages));
+      messageListCubit.setState(messages);
 
       await tester.pumpWidget(buildSubject());
 
@@ -808,9 +805,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(messages));
+      messageListCubit.setState(messages);
 
       tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
       addTearDown(() {
@@ -831,9 +826,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(attachmentMessages));
+      messageListCubit.setState(attachmentMessages);
       when(
         () => attachmentsRepository.loadImageAttachment(
           attachmentId: any(named: 'attachmentId'),
@@ -869,9 +862,7 @@ void main() {
             _ => message,
           },
       ];
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(messageWithBobBlocked));
+      messageListCubit.setState(messageWithBobBlocked);
 
       await tester.pumpWidget(buildSubject());
 
@@ -896,9 +887,7 @@ void main() {
             message.copyWith(status: UiMessageStatus.hidden),
         ],
       ];
-      when(() => messageListCubit.state).thenReturn(
-        MockMessageListState(messageWithBobBlocked, isConnectionChat: true),
-      );
+      messageListCubit.setState(messageWithBobBlocked, isConnectionChat: true);
 
       await tester.pumpWidget(buildSubject());
 
@@ -914,9 +903,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(jumboEmojiMessages));
+      messageListCubit.setState(jumboEmojiMessages);
 
       await tester.pumpWidget(buildSubject());
 
@@ -934,9 +921,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(messages));
+      messageListCubit.setState(messages);
       when(
         () => userSettingsCubit.state,
       ).thenReturn(const UserSettings(readReceipts: false));
@@ -968,9 +953,7 @@ void main() {
           },
       ];
 
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(unreadMessages, firstUnreadIndex: 2));
+      messageListCubit.setState(unreadMessages, firstUnreadIndex: 2);
 
       await tester.pumpWidget(buildSubject());
 
@@ -980,7 +963,9 @@ void main() {
       );
     });
 
-    testWidgets('scrollToMessage reaches off-screen target', (tester) async {
+    testWidgets('scrollToMessage loads and reaches an unloaded target', (
+      tester,
+    ) async {
       // Small viewport so most messages are off-screen.
       tester.view.physicalSize = const Size(400, 600);
       tester.view.devicePixelRatio = 1.0;
@@ -989,7 +974,6 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      // Generate enough messages so the oldest ones are far off-screen.
       final manyMessages = List.generate(30, (i) {
         return UiChatMessage(
           id: (200 + i).messageId(),
@@ -1013,34 +997,110 @@ void main() {
         );
       });
 
-      // Index 2 = third oldest message, near maxScrollExtent in reversed list.
-      const targetIndex = 2;
-      final stateWithScroll = MockMessageListState(
-        manyMessages,
-        scrollToIndex: targetIndex,
+      final targetMessage = UiChatMessage(
+        id: 999.messageId(),
+        chatId: chatId,
+        timestamp: DateTime(2023, 1, 1, 2, 0),
+        message: UiMessage_Content(
+          UiContentMessage(
+            sender: 2.userId(),
+            sent: true,
+            edited: false,
+            content: UiMimiContent(
+              plainBody: 'Loaded around target',
+              topicId: Uint8List(0),
+              content: simpleMessage('Loaded around target'),
+              attachments: [],
+            ),
+          ),
+        ),
+        position: UiFlightPosition.single,
+        status: UiMessageStatus.sent,
       );
 
-      // Start with no scroll request, then emit the scroll state.
-      final initialState = MockMessageListState(manyMessages);
-      when(() => messageListCubit.state).thenReturn(initialState);
-      whenListen(
-        messageListCubit,
-        Stream.value(stateWithScroll),
-        initialState: initialState,
+      MessageId? requestedMessageId;
+      messageListCubit = MockMessageListCubit(
+        initialMessages: manyMessages,
+        onJumpToMessage: (messageId) async {
+          requestedMessageId = messageId;
+          messageListCubit.setState([...manyMessages, targetMessage]);
+        },
       );
 
       await tester.pumpWidget(buildSubject());
 
-      // The target should not be visible initially (it's at the old end).
-      expect(find.text('Message number 2'), findsNothing);
+      messageListCubit.emitCommand(
+        MessageListCommand.scrollToId(messageId: targetMessage.id),
+      );
+      await tester.pump();
 
       // Pump enough frames for the iterative scroll to converge.
       for (var i = 0; i < 15; i++) {
         await tester.pump(const Duration(milliseconds: 50));
       }
 
-      // The target message should now be visible.
-      expect(find.text('Message number 2'), findsOneWidget);
+      expect(requestedMessageId, targetMessage.id);
+      expect(find.text('Loaded around target'), findsOneWidget);
+    });
+
+    testWidgets('marks the current visible message as read while scrolling', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(400, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final manyMessages = List.generate(30, (i) {
+        return UiChatMessage(
+          id: (400 + i).messageId(),
+          chatId: chatId,
+          timestamp: DateTime(2023, 1, 1, 0, i),
+          message: UiMessage_Content(
+            UiContentMessage(
+              sender: 2.userId(),
+              sent: true,
+              edited: false,
+              content: UiMimiContent(
+                plainBody: 'Read marker message $i',
+                topicId: Uint8List(0),
+                content: simpleMessage('Read marker message $i'),
+                attachments: [],
+              ),
+            ),
+          ),
+          position: UiFlightPosition.single,
+          status: UiMessageStatus.sent,
+        );
+      });
+
+      messageListCubit.setState(manyMessages);
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      reset(chatDetailsCubit);
+      when(
+        () => chatDetailsCubit.markAsRead(
+          untilMessageId: any(named: 'untilMessageId'),
+          untilTimestamp: any(named: 'untilTimestamp'),
+        ),
+      ).thenAnswer((_) => Future.value());
+
+      tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position
+          .jumpTo(250);
+      await tester.pump();
+
+      verify(
+        () => chatDetailsCubit.markAsRead(
+          untilMessageId: any(named: 'untilMessageId'),
+          untilTimestamp: any(named: 'untilTimestamp'),
+        ),
+      ).called(1);
     });
 
     testWidgets('renders correctly with replies of various sizes', (
@@ -1051,9 +1111,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(replyMessages));
+      messageListCubit.setState(replyMessages);
 
       await tester.pumpWidget(buildSubject());
 
