@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT\n                    remaining,\n                    epoch\n                FROM as_token_allowance\n                WHERE user_uuid = $1 AND user_domain = $2 AND operation_type = $3",
+  "query": "SELECT\n                    remaining,\n                    valid_until\n                FROM as_token_allowance\n                WHERE user_uuid = $1 AND user_domain = $2 AND operation_type = $3",
   "describe": {
     "columns": [
       {
@@ -10,8 +10,8 @@
       },
       {
         "ordinal": 1,
-        "name": "epoch",
-        "type_info": "Int2"
+        "name": "valid_until",
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
@@ -26,5 +26,5 @@
       false
     ]
   },
-  "hash": "78d0f10479734ee7cbdaff585ada4dbe9f0898cc7b62857d2061391e5744eef8"
+  "hash": "337d4364751a705c8999e3971cc6599c6622c9f160829ceebc4b8d435bbcc060"
 }

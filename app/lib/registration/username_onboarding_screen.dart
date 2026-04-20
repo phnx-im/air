@@ -51,15 +51,20 @@ class UsernameOnboardingScreen extends HookWidget {
       final registrationCubit = context.read<RegistrationCubit>();
       handleExists.value = false;
       isSubmitting.value = true;
-      final success = await userCubit.addUserHandle(handle);
-      if (!success) {
-        handleExists.value = true;
+      try {
+        final success = await userCubit.addUserHandle(handle);
+        if (!success) {
+          handleExists.value = true;
+          isSubmitting.value = false;
+          formKey.currentState!.validate();
+          return;
+        }
+        registrationCubit.clearUsernameOnboarding();
+        navigationCubit.openHome();
+      } catch (e) {
+        handleExists.value = false;
         isSubmitting.value = false;
-        formKey.currentState!.validate();
-        return;
       }
-      registrationCubit.clearUsernameOnboarding();
-      navigationCubit.openHome();
     }
 
     void skip() {
