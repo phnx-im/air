@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:io';
+
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
@@ -52,22 +54,35 @@ class UsernameOnboardingScreen extends HookWidget {
       final registrationCubit = context.read<RegistrationCubit>();
       handleExists.value = false;
       isSubmitting.value = true;
-      try {
-        final success = await userCubit.addUserHandle(handle);
-        if (!success) {
-          handleExists.value = true;
-          isSubmitting.value = false;
-          formKey.currentState!.validate();
-          return;
+
+      Future<bool> tryToAddUsername(bool displayFailure) async {
+        try {
+          final success = await userCubit.addUserHandle(handle);
+          if (success) {
+            registrationCubit.clearUsernameOnboarding();
+            navigationCubit.openHome();
+          } else {
+            handleExists.value = true;
+            isSubmitting.value = false;
+            formKey.currentState!.validate();
+          }
+          return true;
+        } catch (e) {
+          if (displayFailure) {
+            handleExists.value = false;
+            isSubmitting.value = false;
+            showSnackBarStandalone(
+              (loc) => SnackBar(content: Text(loc.usernameOnboarding_error)),
+            );
+          }
+          return false;
         }
-        registrationCubit.clearUsernameOnboarding();
-        navigationCubit.openHome();
-      } catch (e) {
-        handleExists.value = false;
-        isSubmitting.value = false;
-        showSnackBarStandalone(
-          (loc) => SnackBar(content: Text(loc.usernameOnboarding_error)),
-        );
+      }
+
+      if (!await tryToAddUsername(false)) {
+        // handle race with outbound service and/or ad-hoc PP issuance
+        await Future.delayed(const Duration(milliseconds: 250));
+        tryToAddUsername(true);
       }
     }
 
