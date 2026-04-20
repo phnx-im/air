@@ -11,7 +11,7 @@ use privacypass::{
     },
     private_tokens::Ristretto255,
 };
-use sqlx::PgConnection;
+use sqlx::{PgConnection, PgTransaction};
 use tracing::error;
 
 use tokio::sync::Mutex;

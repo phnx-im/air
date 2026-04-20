@@ -485,8 +485,8 @@ mod tests {
     /// Insert two VOPRF keys and retrieve each by ID.
     #[sqlx::test]
     async fn insert_get(pool: PgPool) -> anyhow::Result<()> {
-        let mut connection = pool.acquire().await?;
-        let conn_mutex = Mutex::new(&mut *connection);
+        let mut txn = pool.begin().await?;
+        let conn_mutex = Mutex::new(&mut *txn);
         let provider =
             AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, OperationType::AddUsername);
 
@@ -599,8 +599,8 @@ mod tests {
     #[sqlx::test]
     async fn load_public_keys(pool: PgPool) -> anyhow::Result<()> {
         {
-            let mut connection = pool.acquire().await?;
-            let conn_mutex = Mutex::new(&mut *connection);
+            let mut txn = pool.begin().await?;
+            let conn_mutex = Mutex::new(&mut *txn);
             let provider =
                 AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, OperationType::AddUsername);
             let mut rng = rand::thread_rng();
