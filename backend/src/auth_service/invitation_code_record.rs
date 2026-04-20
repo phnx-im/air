@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use chrono::{DateTime, Utc};
 use rand::Rng;
 use sqlx::PgTransaction;
 
@@ -11,8 +10,6 @@ use crate::auth_service::cli::InvitationCodeStats;
 pub struct InvitationCodeRecord {
     pub(crate) code: String,
     pub(crate) redeemed: bool,
-    #[allow(unused)]
-    pub(crate) created_at: DateTime<Utc>,
 }
 
 const ALPHABET: &[u8] = b"0123456789ABCDEFGHJKMNPQRSTUVWXYZ";
@@ -61,7 +58,7 @@ mod persistence {
                 query_as!(
                     InvitationCodeRecord,
                     "
-                        SELECT code, redeemed, created_at
+                        SELECT code, redeemed
                         FROM invitation_code
                         ORDER BY code
                         LIMIT $1
@@ -74,7 +71,7 @@ mod persistence {
                 query_as!(
                     InvitationCodeRecord,
                     "
-                        SELECT code, redeemed, created_at
+                        SELECT code, redeemed
                         FROM invitation_code
                         WHERE redeemed = FALSE
                         ORDER BY code
@@ -94,7 +91,7 @@ mod persistence {
             query_as!(
                 InvitationCodeRecord,
                 "
-                    SELECT code, redeemed, created_at
+                    SELECT code, redeemed
                     FROM invitation_code
                     WHERE code = $1
                 ",
@@ -239,7 +236,6 @@ mod persistence {
             let updated_record = InvitationCodeRecord {
                 code: "UPDATE_ME".to_string(),
                 redeemed: true, // Changing the state,
-                created_at: Utc::now(),
             };
 
             updated_record.save(&pool).await?;

@@ -271,33 +271,6 @@ pub(crate) async fn needs_replenishment(
     Ok(replenish_count)
 }
 
-// Fetches VOPRF keys from the server, detects key rotation, and requests
-// tokens if the local count is below [`OperationType::low_token_threshold`].
-//
-// Returns the token count after replenishment.
-// pub(crate) async fn replenish(
-//     pool: &SqlitePool,
-//     api_client: &ApiClient,
-//     user_id: UserId,
-//     signing_key: &ClientSigningKey,
-//     operation_type: OperationType,
-// ) -> anyhow::Result<Result<u16, RequestTokensError>> {
-//     let max_tokens = operation_type.max_tokens_allowance();
-//
-//     let needed = (max_tokens - count).min(max_tokens);
-//     request_and_store_tokens(
-//         pool,
-//         api_client,
-//         user_id,
-//         signing_key,
-//         operation_type,
-//         needed,
-//     )
-//     .await?;
-//
-//     Ok(persistence::token_count(txn.as_mut(), operation_type).await?)
-// }
-
 /// Purges all cached tokens and keys, then replenishes from the server.
 ///
 /// Called when the server reports that the token key has rotated and our

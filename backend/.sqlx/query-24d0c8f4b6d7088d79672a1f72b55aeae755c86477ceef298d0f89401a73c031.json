@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                        SELECT code, redeemed\n                        FROM invitation_code\n                        WHERE redeemed = FALSE\n                        ORDER BY code\n                        LIMIT $1\n                    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "redeemed",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "24d0c8f4b6d7088d79672a1f72b55aeae755c86477ceef298d0f89401a73c031"
+}

@@ -9,7 +9,6 @@ use airprotos::{
     common::v1::ClientMetadata,
     validation::MissingFieldExt,
 };
-use chrono::Utc;
 use displaydoc::Display;
 use futures_util::stream::BoxStream;
 
@@ -300,7 +299,6 @@ impl auth_service_server::AuthService for GrpcAs {
                 Some(InvitationCodeRecord {
                     code: code.code,
                     redeemed: false,
-                    created_at: Utc::now(),
                 })
             } else {
                 InvitationCodeRecord::load(&self.inner.db_pool, &code.code)
