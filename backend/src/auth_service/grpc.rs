@@ -11,6 +11,7 @@ use airprotos::{
 };
 use displaydoc::Display;
 use futures_util::stream::BoxStream;
+use metrics::counter;
 
 use aircommon::{
     credentials::keys,
@@ -195,6 +196,7 @@ impl auth_service_server::AuthService for GrpcAs {
         }
 
         if self.inner.unredeemable_code.as_deref() == Some(&code.code) {
+            counter!("air_invitation_codes_checked_total", "is_valid" => "true").increment(1);
             return Ok(Response::new(CheckInvitationCodeResponse {
                 is_valid: true,
             }));
@@ -207,9 +209,15 @@ impl auth_service_server::AuthService for GrpcAs {
                 Status::internal("database error")
             })?;
 
-        Ok(Response::new(CheckInvitationCodeResponse {
-            is_valid: record.filter(|r| !r.redeemed).is_some(),
-        }))
+        let is_valid = record.filter(|r| !r.redeemed).is_some();
+
+        counter!(
+            "air_invitation_codes_checked_total",
+            "is_valid" => if is_valid { "true" } else { "false" },
+        )
+        .increment(1);
+
+        Ok(Response::new(CheckInvitationCodeResponse { is_valid }))
     }
 
     async fn get_invitation_codes(
@@ -272,6 +280,7 @@ impl auth_service_server::AuthService for GrpcAs {
                 })?;
 
             invitation_codes.push(InvitationCode { code });
+            counter!("air_invitation_codes_issued_total").increment(1);
         }
 
         txn.commit().await.map_err(|error| {
