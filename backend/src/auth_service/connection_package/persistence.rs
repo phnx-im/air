@@ -196,9 +196,7 @@ pub(crate) mod tests {
             verifying_key: verifying_key.clone(),
             expiration_data: ExpirationData::new(Duration::days(1)),
         };
-        let mut txn = pool.begin().await?;
-        record.store(txn.as_mut()).await?;
-        txn.commit().await?;
+        record.store(pool).await?;
         Ok((hash, verifying_key))
     }
 
