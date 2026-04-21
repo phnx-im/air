@@ -275,7 +275,10 @@ mod persistence {
                 Ok(data) => data,
                 Err(error) => {
                     // Delete the operation from the database if it cannot be deserialized
-                    warn!(?kind, %error, "Failed to deserialize operation; deleting");
+                    warn!(
+                        ?kind,
+                        ?operation_id, %error, "Failed to deserialize operation; deleting"
+                    );
                     query!("DELETE FROM operation WHERE operation_id = ?", operation_id)
                         .execute(txn.as_mut())
                         .await?;
