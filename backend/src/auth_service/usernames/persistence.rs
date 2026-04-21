@@ -185,7 +185,10 @@ mod test {
         }
         .store(&pool)
         .await?;
-        assert!(!inserted_again, "Store for existing hash should return false");
+        assert!(
+            !inserted_again,
+            "Store for existing hash should return false"
+        );
 
         let loaded_verifying_key =
             UsernameRecord::load_verifying_key(&pool, &username_hash).await?;
@@ -229,11 +232,17 @@ mod test {
         assert!(deleted, "Record should be deleted successfully");
 
         let loaded_after_delete = UsernameRecord::load_verifying_key(&pool, &username_hash).await?;
-        assert_eq!(loaded_after_delete, None, "Record should not exist after deletion");
+        assert_eq!(
+            loaded_after_delete, None,
+            "Record should not exist after deletion"
+        );
 
         let non_existent_hash = UsernameHash::new([2; 32]);
         let deleted_non_existent = UsernameRecord::delete(&pool, &non_existent_hash).await?;
-        assert!(!deleted_non_existent, "Deleting non-existent record should return false");
+        assert!(
+            !deleted_non_existent,
+            "Deleting non-existent record should return false"
+        );
 
         Ok(())
     }
