@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                UPDATE operation\n                SET locked_by = ?2\n                WHERE operation_id = ?1\n                RETURNING\n                    data AS \"data: _\",\n                    created_at AS \"created_at: _\",\n                    scheduled_at AS \"scheduled_at: _\",\n                    retries AS \"retries: _\"\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "data: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "created_at: _",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "scheduled_at: _",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "retries: _",
+        "ordinal": 3,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8101296f8b01b01d0b4b4a9f12e004a75286ce2241b6605b219f6187b41e024c"
+}
