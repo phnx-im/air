@@ -26,8 +26,8 @@ sealed class ContactRequestSource {
     required String originChatTitle,
   }) = _TargetedMessageContactRequest;
 
-  const factory ContactRequestSource.handle({required UiUserHandle handle}) =
-      _HandleContactRequest;
+  const factory ContactRequestSource.username({required UiUsername username}) =
+      _UsernameContactRequest;
 }
 
 class _TargetedMessageContactRequest extends ContactRequestSource {
@@ -36,10 +36,10 @@ class _TargetedMessageContactRequest extends ContactRequestSource {
   final String originChatTitle;
 }
 
-class _HandleContactRequest extends ContactRequestSource {
-  const _HandleContactRequest({required this.handle});
+class _UsernameContactRequest extends ContactRequestSource {
+  const _UsernameContactRequest({required this.username});
 
-  final UiUserHandle handle;
+  final UiUsername username;
 }
 
 class ContactRequestDialog extends HookWidget {
@@ -69,10 +69,10 @@ class ContactRequestDialog extends HookWidget {
           senderProfile.displayName,
           originChatTitle,
         ),
-      _HandleContactRequest(:final handle) =>
+      _UsernameContactRequest(:final username) =>
         loc.systemMessage_receivedHandleConnectionRequest(
           senderProfile.displayName,
-          handle.plaintext,
+          username.plaintext,
         ),
     };
 

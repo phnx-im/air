@@ -12,7 +12,7 @@ use std::{
 use airbackend::settings::RateLimitsSettings;
 use aircommon::{
     OpenMlsRand, RustCrypto,
-    identifiers::{Fqdn, MimiId, UserHandle, UserId},
+    identifiers::{Fqdn, MimiId, UserId, Username},
 };
 use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, store::Store, *};
 use airserver::network_provider::MockNetworkProvider;
@@ -41,8 +41,8 @@ pub struct TestUser {
     pub user: CoreUser,
     /// If this is an ephemeral user, this is None.
     pub db_dir: Option<String>,
-    /// The user handle record of the user if a handle was added.
-    pub user_handle_record: Option<UserHandleRecord>,
+    /// The username record of the user if a username was added.
+    pub username_record: Option<UsernameRecord>,
 }
 
 impl AsRef<CoreUser> for TestUser {
@@ -83,7 +83,7 @@ impl TestUser {
         Ok(Self {
             user,
             db_dir: None,
-            user_handle_record: None,
+            username_record: None,
         })
     }
 
@@ -100,7 +100,7 @@ impl TestUser {
         Self {
             user,
             db_dir: Some(db_dir.to_owned()),
-            user_handle_record: None,
+            username_record: None,
         }
     }
 
@@ -108,28 +108,28 @@ impl TestUser {
         &self.user
     }
 
-    pub async fn add_user_handle(&mut self) -> anyhow::Result<UserHandleRecord> {
-        if let Some(record) = self.user_handle_record.clone() {
-            info!(user_id = ?self.user.user_id(), "User handle already exists");
+    pub async fn add_username(&mut self) -> anyhow::Result<UsernameRecord> {
+        if let Some(record) = self.username_record.clone() {
+            info!(user_id = ?self.user.user_id(), "Username already exists");
             return Ok(record);
         }
 
-        // In particular, it will replenish the tokens for the handle
+        // In particular, it will replenish the tokens for the username
         self.user.outbound_service().run_once().await;
 
         let user_id_str = format!("uuid-{:?}", self.user.user_id()).replace(['@', '.'], "-");
-        let handle = UserHandle::new(user_id_str)?;
+        let username = Username::new(user_id_str)?;
         info!(
             user_id = ?self.user.user_id(),
-            handle = handle.plaintext(),
-            "Adding handle to user"
+            username = username.plaintext(),
+            "Adding username to user"
         );
         let record = self
             .user
-            .add_user_handle(handle)
+            .add_username(username)
             .await?
-            .context("user handle is already in use")?;
-        self.user_handle_record = Some(record.clone());
+            .context("username is already in use")?;
+        self.username_record = Some(record.clone());
 
         Ok(record)
     }
@@ -403,50 +403,50 @@ impl TestBackend {
         info!("Connecting users {user1_id:?} and {user2_id:?}");
 
         let test_user2 = self.users.get_mut(user2_id).unwrap();
-        let user2_handle_record = test_user2.add_user_handle().await.unwrap();
-        let user2_handle = &user2_handle_record.handle;
+        let user2_username_record = test_user2.add_username().await.unwrap();
+        let user2_username = &user2_username_record.username;
 
         let test_user1 = self.users.get_mut(user1_id).unwrap();
         let user1 = &mut test_user1.user;
         let user1_profile = user1.own_user_profile().await.unwrap();
-        let user1_handle_contacts_before = user1.handle_contacts().await.unwrap();
+        let user1_username_contacts_before = user1.username_contacts().await.unwrap();
         let user1_chats_before = user1.chats().await;
-        let user_handle_hash = spawn_blocking({
-            let handle = user2_handle.clone();
-            move || handle.calculate_hash().unwrap()
+        let username_hash = spawn_blocking({
+            let username = user2_username.clone();
+            move || username.calculate_hash().unwrap()
         })
         .await
         .unwrap();
         user1
-            .add_contact(user2_handle.clone(), user_handle_hash)
+            .add_contact(user2_username.clone(), username_hash)
             .await
             .expect("fatal error")
             .expect("non-fatal error");
-        let mut user1_handle_contacts_after = user1.handle_contacts().await.unwrap();
+        let mut user1_username_contacts_after = user1.username_contacts().await.unwrap();
         let error_msg = format!(
-            "User 2 should be in the handle contacts list of user 1. List: {user1_handle_contacts_after:?}",
+            "User 2 should be in the username contacts list of user 1. List: {user1_username_contacts_after:?}",
         );
-        let new_user_position = user1_handle_contacts_after
+        let new_user_position = user1_username_contacts_after
             .iter()
-            .position(|c| &c.handle == user2_handle)
+            .position(|c| &c.username == user2_username)
             .expect(&error_msg);
-        // If we remove the new user, the handle contact lists should be the same.
-        user1_handle_contacts_after.remove(new_user_position);
-        user1_handle_contacts_before
+        // If we remove the new user, the username contact lists should be the same.
+        user1_username_contacts_after.remove(new_user_position);
+        user1_username_contacts_before
             .into_iter()
-            .zip(user1_handle_contacts_after)
+            .zip(user1_username_contacts_after)
             .for_each(|(before, after)| {
-                assert_eq!(before.handle, after.handle);
+                assert_eq!(before.username, after.username);
             });
         let mut user1_chats_after = user1.chats().await;
-        let test_title = format!("Connection group: {}", user2_handle.plaintext());
+        let test_title = format!("Connection group: {}", user2_username.plaintext());
         let new_chat_position = user1_chats_after
             .iter()
             .position(|c| c.attributes().title() == test_title)
             .expect("User 1 should have created a new chat");
         let chat = user1_chats_after.remove(new_chat_position);
         assert!(chat.status() == &ChatStatus::Active);
-        assert!(chat.chat_type() == &ChatType::HandleConnection(user2_handle.clone()));
+        assert!(chat.chat_type() == &ChatType::HandleConnection(user2_username.clone()));
         user1_chats_before
             .into_iter()
             .zip(user1_chats_after)
@@ -460,23 +460,23 @@ impl TestBackend {
         };
         assert!(matches!(
             system_message,
-            SystemMessage::NewHandleConnectionChat(handle)
-            if handle == user2_handle
+            SystemMessage::NewHandleConnectionChat(username)
+            if username == user2_username
         ));
 
         let test_user2 = self.users.get_mut(user2_id).unwrap();
         let user2 = &mut test_user2.user;
         let user2_contacts_before = user2.contacts().await.unwrap();
         let user2_chats_before = user2.chats().await;
-        info!("{user2_id:?} fetches and process AS handle messages");
-        let (mut stream, responder) = user2.listen_handle(&user2_handle_record).await.unwrap();
+        info!("{user2_id:?} fetches and process AS username messages");
+        let (mut stream, responder) = user2.listen_username(&user2_username_record).await.unwrap();
         while let Some(Some(message)) = timeout(Duration::from_millis(500), stream.next())
             .await
             .unwrap()
         {
             let message_id = message.message_id.unwrap();
             user2
-                .process_handle_queue_message(user2_handle_record.handle.clone(), message)
+                .process_username_queue_message(user2_username_record.username.clone(), message)
                 .await
                 .unwrap();
             responder.ack(message_id.into()).await;
@@ -490,10 +490,10 @@ impl TestBackend {
             .unwrap();
         let mut user2_contacts_after = user2.contacts().await.unwrap();
         info!("User 2 contacts after: {:?}", user2_contacts_after);
-        let user2_handle_contacts_before = user2.handle_contacts().await.unwrap();
+        let user2_username_contacts_before = user2.username_contacts().await.unwrap();
         info!(
-            "User 2 handle contacts after: {:?}",
-            user2_handle_contacts_before
+            "User 2 username contacts after: {:?}",
+            user2_username_contacts_before
         );
         let new_contact_position = user2_contacts_after
             .iter()
@@ -537,8 +537,8 @@ impl TestBackend {
         };
         assert!(matches!(
             system_message,
-            SystemMessage::AcceptedConnectionRequest { contact, user_handle: Some(handle) }
-            if contact == user1_id && handle == user2_handle
+            SystemMessage::AcceptedConnectionRequest { contact, user_handle: Some(username) }
+            if contact == user1_id && username == user2_username
         ));
         let Message::Event(EventMessage::System(system_message)) =
             received_request_message.message()
@@ -548,7 +548,7 @@ impl TestBackend {
         assert!(matches!(
             system_message,
             SystemMessage::ReceivedHandleConnectionRequest { sender, user_handle }
-            if sender == user1_id && user_handle == user2_handle
+            if sender == user1_id && user_handle == user2_username
         ));
 
         let user2_id = user2.user_id().clone();
@@ -599,8 +599,8 @@ impl TestBackend {
         };
         assert!(matches!(
             system_message,
-            SystemMessage::ReceivedConnectionConfirmation { sender, user_handle: Some(user_handle) }
-            if sender == &user2_id && user_handle == user2_handle
+            SystemMessage::ReceivedConnectionConfirmation { sender, user_handle: Some(username) }
+            if sender == &user2_id && username == user2_username
         ));
 
         let user1_unread_messages = self

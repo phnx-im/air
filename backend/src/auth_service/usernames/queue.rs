@@ -4,8 +4,8 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use aircommon::identifiers::UserHandleHash;
-use airprotos::auth_service::v1::{HandleQueueMessage, handle_queue_message};
+use aircommon::identifiers::UsernameHash;
+use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
 use displaydoc::Display;
 use futures_util::stream;
 use sqlx::PgPool;
@@ -17,26 +17,26 @@ use tonic::Status;
 use tracing::error;
 use uuid::Uuid;
 
-use persistence::HandleQueue;
+use persistence::UsernameQueue;
 
 use crate::pg_listen::{PgChannelName, PgListenerTaskHandle, spawn_pg_listener_task};
 
 /// Maximum number of messages to fetch at once.
 const MAX_BUFFER_SIZE: usize = 32;
 
-/// Reliable, persistent message queue per user handle.
+/// Reliable, persistent message queue per username.
 ///
 /// Allows for listening for new messages. Supports message acknowledgment to handle failures.
 #[derive(Debug, Clone)]
-pub(crate) struct UserHandleQueues {
+pub(crate) struct UsernameQueues {
     pool: PgPool,
     /// Handle to a task that listens and multiplexes Postgres notifications
-    pg_listener_task_handle: PgListenerTaskHandle<UserHandleHash>,
+    pg_listener_task_handle: PgListenerTaskHandle<UsernameHash>,
     /// Ensures that we have only a single stream per queue.
-    listeners: Arc<Mutex<HashMap<UserHandleHash, CancellationToken>>>,
+    listeners: Arc<Mutex<HashMap<UsernameHash, CancellationToken>>>,
 }
 
-impl UserHandleQueues {
+impl UsernameQueues {
     pub(crate) async fn new(pool: PgPool) -> sqlx::Result<Self> {
         let pg_listener_task_handle = spawn_pg_listener_task(pool.clone()).await?;
         Ok(Self {
@@ -46,7 +46,7 @@ impl UserHandleQueues {
         })
     }
 
-    /// Returns a stream of messages from the queue specified by a user handle.
+    /// Returns a stream of messages from the queue specified by a username.
     ///
     /// This function continuously fetches messages from the queue. If the queue becomes empty, the
     /// stream will emit `None` and wait until a new message is added.
@@ -59,8 +59,8 @@ impl UserHandleQueues {
     /// be emitted to the new listener.
     pub(crate) async fn listen(
         &self,
-        hash: UserHandleHash,
-    ) -> Result<impl Stream<Item = Option<HandleQueueMessage>> + use<>, HandleQueueError> {
+        hash: UsernameHash,
+    ) -> Result<impl Stream<Item = Option<UsernameQueueMessage>> + use<>, UsernameQueueError> {
         let notifications = self.pg_listener_task_handle.subscribe(hash);
         let cancel = self.track_listener(hash).await?;
         let context = QueueStreamContext {
@@ -83,19 +83,19 @@ impl UserHandleQueues {
     /// A UUID will be assigned to the payload as message id and returned.
     pub(crate) async fn enqueue(
         &self,
-        hash: &UserHandleHash,
-        payload: handle_queue_message::Payload,
-    ) -> Result<Uuid, HandleQueueError> {
+        hash: &UsernameHash,
+        payload: username_queue_message::Payload,
+    ) -> Result<Uuid, UsernameQueueError> {
         let mut txn = self.pool.begin().await?;
 
         let message_id = Uuid::new_v4();
-        let message = HandleQueueMessage {
+        let message = UsernameQueueMessage {
             message_id: Some(message_id.into()),
             payload: Some(payload),
             created_at: None, // Will be set by the database
         };
 
-        HandleQueue::enqueue(txn.as_mut(), hash, message_id, message).await?;
+        UsernameQueue::enqueue(txn.as_mut(), hash, message_id, message).await?;
         sqlx::query(&hash.notify_query())
             .execute(txn.as_mut())
             .await?;
@@ -108,12 +108,12 @@ impl UserHandleQueues {
     /// Marks the message identified by `message_id` as acknowledged.
     ///
     /// Acknowledged messages are effectively removed from the queue.
-    pub(crate) async fn ack(&self, message_id: Uuid) -> Result<(), HandleQueueError> {
-        HandleQueue::delete(&self.pool, message_id).await?;
+    pub(crate) async fn ack(&self, message_id: Uuid) -> Result<(), UsernameQueueError> {
+        UsernameQueue::delete(&self.pool, message_id).await?;
         Ok(())
     }
 
-    async fn track_listener(&self, hash: UserHandleHash) -> sqlx::Result<CancellationToken> {
+    async fn track_listener(&self, hash: UsernameHash) -> sqlx::Result<CancellationToken> {
         let mut listeners = self.listeners.lock().await;
         for (hash, _) in listeners.extract_if(|_, cancel| cancel.is_cancelled()) {
             self.pg_listener_task_handle.unlisten(hash);
@@ -128,7 +128,7 @@ impl UserHandleQueues {
     }
 }
 
-impl PgChannelName for UserHandleHash {
+impl PgChannelName for UsernameHash {
     fn pg_channel(&self) -> String {
         use base64::prelude::*;
         let buf_len = 3 + base64::encoded_len(self.as_bytes().len(), true).unwrap_or(0);
@@ -144,22 +144,22 @@ impl PgChannelName for UserHandleHash {
         let hash_str = channel.strip_prefix("as_")?;
         let hash_bytes = BASE64_STANDARD.decode(hash_str).ok()?;
         let hash_arr = hash_bytes.try_into().ok()?;
-        Some(UserHandleHash::new(hash_arr))
+        Some(UsernameHash::new(hash_arr))
     }
 }
 
 /// General error while accessing the requested queue.
 #[derive(Debug, Error, Display)]
-pub(crate) enum HandleQueueError {
+pub(crate) enum UsernameQueueError {
     /// Database provider error
     Storage(#[from] sqlx::Error),
 }
 
-impl From<HandleQueueError> for Status {
-    fn from(error: HandleQueueError) -> Self {
+impl From<UsernameQueueError> for Status {
+    fn from(error: UsernameQueueError) -> Self {
         let msg = error.to_string();
         match error {
-            HandleQueueError::Storage(error) => {
+            UsernameQueueError::Storage(error) => {
                 error!(%error, "storage error");
                 Status::internal(msg)
             }
@@ -171,12 +171,12 @@ struct QueueStreamContext<S> {
     id: Uuid,
     pool: PgPool,
     notifications: S,
-    hash: UserHandleHash,
+    hash: UsernameHash,
     cancel: CancellationToken,
     /// Buffer for already fetched messages
     ///
     /// Note: the messages are stored in descending order.
-    buffer: Vec<HandleQueueMessage>,
+    buffer: Vec<UsernameQueueMessage>,
     state: FetchState,
 }
 
@@ -190,10 +190,10 @@ enum FetchState {
 }
 
 impl<S: Stream<Item = ()> + Send + Unpin> QueueStreamContext<S> {
-    fn into_stream(self) -> impl Stream<Item = Option<HandleQueueMessage>> + Send {
+    fn into_stream(self) -> impl Stream<Item = Option<UsernameQueueMessage>> + Send {
         stream::unfold(
             self,
-            async |mut context| -> Option<(Option<HandleQueueMessage>, Self)> {
+            async |mut context| -> Option<(Option<UsernameQueueMessage>, Self)> {
                 loop {
                     if context.cancel.is_cancelled() {
                         return None;
@@ -224,7 +224,7 @@ impl<S: Stream<Item = ()> + Send + Unpin> QueueStreamContext<S> {
     /// Fetches the next batch of messages into the internal buffer.
     async fn fetch_next_messages(&mut self) -> Option<()> {
         debug_assert!(self.buffer.is_empty());
-        HandleQueue::fetch_into(
+        UsernameQueue::fetch_into(
             &self.pool,
             &self.hash,
             self.id,
@@ -261,18 +261,18 @@ mod persistence {
 
     use super::*;
 
-    pub(super) struct HandleQueue {}
+    pub(super) struct UsernameQueue {}
 
     #[derive(Debug)]
-    struct SqlHandleQueueMessage(HandleQueueMessage);
+    struct SqlUsernameQueueMessage(UsernameQueueMessage);
 
-    impl Type<Postgres> for SqlHandleQueueMessage {
+    impl Type<Postgres> for SqlUsernameQueueMessage {
         fn type_info() -> <Postgres as Database>::TypeInfo {
             <Vec<u8> as Type<Postgres>>::type_info()
         }
     }
 
-    impl<'q> Encode<'q, Postgres> for SqlHandleQueueMessage {
+    impl<'q> Encode<'q, Postgres> for SqlUsernameQueueMessage {
         fn encode_by_ref(
             &self,
             buf: &mut <Postgres as Database>::ArgumentBuffer<'q>,
@@ -283,24 +283,24 @@ mod persistence {
         }
     }
 
-    impl<'r> Decode<'r, Postgres> for SqlHandleQueueMessage {
+    impl<'r> Decode<'r, Postgres> for SqlUsernameQueueMessage {
         fn decode(value: <Postgres as Database>::ValueRef<'r>) -> Result<Self, BoxDynError> {
             let bytes: &[u8] = Decode::<Postgres>::decode(value)?;
-            let value = HandleQueueMessage::decode(bytes)?;
-            Ok(SqlHandleQueueMessage(value))
+            let value = UsernameQueueMessage::decode(bytes)?;
+            Ok(SqlUsernameQueueMessage(value))
         }
     }
 
     /// Fetches a messages into a buffer.
     ///
     /// The messages are fetched into the buffer in ascending order.
-    impl HandleQueue {
+    impl UsernameQueue {
         pub(crate) async fn fetch_into(
             executor: impl PgExecutor<'_>,
-            hash: &UserHandleHash,
+            hash: &UsernameHash,
             fetched_by: Uuid,
             limit: usize,
-            buffer: &mut Vec<HandleQueueMessage>,
+            buffer: &mut Vec<UsernameQueueMessage>,
         ) -> sqlx::Result<()> {
             let rows = sqlx::query!(
                 r#"WITH messages_to_fetch AS (
@@ -315,7 +315,7 @@ mod persistence {
                 FROM messages_to_fetch m
                 WHERE q.message_id = m.message_id
                 RETURNING
-                    q.message_bytes as "message_bytes: SqlHandleQueueMessage",
+                    q.message_bytes as "message_bytes: SqlUsernameQueueMessage",
                     q.created_at as "created_at: TimeStamp""#,
                 hash.as_bytes(),
                 fetched_by,
@@ -334,9 +334,9 @@ mod persistence {
 
         pub(crate) async fn enqueue(
             executor: impl PgExecutor<'_>,
-            hash: &UserHandleHash,
+            hash: &UsernameHash,
             message_id: Uuid,
-            message: HandleQueueMessage,
+            message: UsernameQueueMessage,
         ) -> sqlx::Result<()> {
             debug_assert_eq!(Some(message_id.into()), message.message_id);
             query!(
@@ -347,7 +347,7 @@ mod persistence {
                 ) VALUES ($1, $2, $3)",
                 message_id,
                 hash.as_bytes(),
-                SqlHandleQueueMessage(message) as _,
+                SqlUsernameQueueMessage(message) as _,
             )
             .execute(executor)
             .await?;
@@ -374,17 +374,17 @@ mod test {
     use std::{pin::pin, time};
 
     use aircommon::{
-        credentials::keys::HandleVerifyingKey,
+        credentials::keys::UsernameVerifyingKey,
         time::{Duration, ExpirationData},
     };
     use airprotos::{
-        auth_service::v1::{ConnectionOfferMessage, Hash, handle_queue_message::Payload},
+        auth_service::v1::{ConnectionOfferMessage, Hash, username_queue_message::Payload},
         common::v1::HpkeCiphertext,
     };
     use tokio::time::timeout;
     use tokio_stream::StreamExt;
 
-    use crate::auth_service::user_handles::UserHandleRecord;
+    use crate::auth_service::usernames::UsernameRecord;
 
     use super::*;
 
@@ -400,8 +400,8 @@ mod test {
         })
     }
 
-    fn msg(id: Uuid, payload: Payload) -> HandleQueueMessage {
-        HandleQueueMessage {
+    fn msg(id: Uuid, payload: Payload) -> UsernameQueueMessage {
+        UsernameQueueMessage {
             message_id: Some(id.into()),
             payload: Some(payload),
             created_at: None, // Will be populated from database
@@ -410,7 +410,7 @@ mod test {
 
     /// Asserts that two messages are equal, ignoring the `created_at` field.
     /// Also verifies that the actual message has a `created_at` timestamp.
-    fn assert_msg_eq(actual: &HandleQueueMessage, expected: &HandleQueueMessage) {
+    fn assert_msg_eq(actual: &UsernameQueueMessage, expected: &UsernameQueueMessage) {
         assert!(
             actual.created_at.is_some(),
             "Expected message to have a created_at timestamp"
@@ -419,10 +419,10 @@ mod test {
         assert_eq!(actual.payload, expected.payload);
     }
 
-    async fn store_handle(pool: &PgPool, hash: UserHandleHash) -> anyhow::Result<()> {
-        let hash_record = UserHandleRecord {
-            user_handle_hash: hash,
-            verifying_key: HandleVerifyingKey::from_bytes(vec![1]),
+    async fn store_username(pool: &PgPool, hash: UsernameHash) -> anyhow::Result<()> {
+        let hash_record = UsernameRecord {
+            username_hash: hash,
+            verifying_key: UsernameVerifyingKey::from_bytes(vec![1]),
             expiration_data: ExpirationData::new(Duration::seconds(1)),
         };
         let mut txn = pool.begin().await?;
@@ -438,13 +438,13 @@ mod test {
         let mut hash_bytes: [u8; 32] = [0; 32];
         hash_bytes[..16].copy_from_slice(lo.as_bytes());
         hash_bytes[16..].copy_from_slice(hi.as_bytes());
-        let hash = UserHandleHash::new(hash_bytes);
+        let hash = UsernameHash::new(hash_bytes);
         assert_eq!(
             hash.pg_channel(),
             "as_gp5j5NbtRpG4o/S9F4YVBcLPcYmSUEmlucZ7l8zGGsg="
         );
         assert_eq!(
-            UserHandleHash::from_pg_channel(&hash.pg_channel()),
+            UsernameHash::from_pg_channel(&hash.pg_channel()),
             Some(hash)
         );
     }
@@ -457,14 +457,14 @@ mod test {
             let mut hash_bytes: [u8; 32] = [0; 32];
             hash_bytes[..16].copy_from_slice(lo.as_bytes());
             hash_bytes[16..].copy_from_slice(hi.as_bytes());
-            let hash = UserHandleHash::new(hash_bytes);
+            let hash = UsernameHash::new(hash_bytes);
             assert!(hash.pg_channel().len() < 64);
         }
     }
 
     #[test]
     fn notify_query() {
-        let hash = UserHandleHash::new([1; 32]);
+        let hash = UsernameHash::new([1; 32]);
         let query = hash.notify_query();
         assert_eq!(
             query,
@@ -474,8 +474,8 @@ mod test {
 
     #[sqlx::test]
     async fn enqueue_fetch_delete_messages(pool: PgPool) -> anyhow::Result<()> {
-        let hash = UserHandleHash::new([1; 32]);
-        store_handle(&pool, hash).await?;
+        let hash = UsernameHash::new([1; 32]);
+        store_username(&pool, hash).await?;
 
         let payload = new_payload("hello");
 
@@ -485,36 +485,36 @@ mod test {
         let message_a = msg(message_a_id, payload.clone());
         let message_b = msg(message_b_id, payload.clone());
 
-        HandleQueue::enqueue(&pool, &hash, message_a_id, message_a.clone()).await?;
-        HandleQueue::enqueue(&pool, &hash, message_b_id, message_b.clone()).await?;
+        UsernameQueue::enqueue(&pool, &hash, message_a_id, message_a.clone()).await?;
+        UsernameQueue::enqueue(&pool, &hash, message_b_id, message_b.clone()).await?;
 
         let mut buffer = Vec::new();
         let fetched_by = Uuid::new_v4();
 
-        HandleQueue::fetch_into(&pool, &hash, fetched_by, 1, &mut buffer).await?;
+        UsernameQueue::fetch_into(&pool, &hash, fetched_by, 1, &mut buffer).await?;
         assert_eq!(buffer.len(), 1);
         assert_msg_eq(&buffer[0], &message_a);
 
-        HandleQueue::fetch_into(&pool, &hash, fetched_by, 1, &mut buffer).await?;
+        UsernameQueue::fetch_into(&pool, &hash, fetched_by, 1, &mut buffer).await?;
         assert_eq!(buffer.len(), 2, "Second message should be fetched");
         assert_msg_eq(&buffer[1], &message_b);
 
-        HandleQueue::fetch_into(&pool, &hash, fetched_by, 1, &mut buffer).await?;
+        UsernameQueue::fetch_into(&pool, &hash, fetched_by, 1, &mut buffer).await?;
         assert_eq!(buffer.len(), 2, "No more messages should be fetched");
 
         let other_fetched_by = Uuid::new_v4();
         buffer.clear();
-        HandleQueue::fetch_into(&pool, &hash, other_fetched_by, 100, &mut buffer).await?;
+        UsernameQueue::fetch_into(&pool, &hash, other_fetched_by, 100, &mut buffer).await?;
         assert_eq!(buffer.len(), 2, "All messages should be fetched again");
         assert_msg_eq(&buffer[0], &message_a);
         assert_msg_eq(&buffer[1], &message_b);
 
-        HandleQueue::delete(&pool, message_a_id).await?;
-        HandleQueue::delete(&pool, message_b_id).await?;
+        UsernameQueue::delete(&pool, message_a_id).await?;
+        UsernameQueue::delete(&pool, message_b_id).await?;
 
         let other_fetched_by = Uuid::new_v4();
         buffer.clear();
-        HandleQueue::fetch_into(&pool, &hash, other_fetched_by, 100, &mut buffer).await?;
+        UsernameQueue::fetch_into(&pool, &hash, other_fetched_by, 100, &mut buffer).await?;
         assert_eq!(buffer.len(), 0, "No messages to fetch");
 
         Ok(())
@@ -522,9 +522,9 @@ mod test {
 
     #[sqlx::test]
     async fn enqueue_and_listen_single_message(pool: PgPool) {
-        let hash = UserHandleHash::new([1; 32]);
-        store_handle(&pool, hash).await.unwrap();
-        let queues = UserHandleQueues::new(pool).await.unwrap();
+        let hash = UsernameHash::new([1; 32]);
+        store_username(&pool, hash).await.unwrap();
+        let queues = UsernameQueues::new(pool).await.unwrap();
 
         let payload = new_payload("hello");
         let msg1_id = queues.enqueue(&hash, payload.clone()).await.unwrap();
@@ -550,9 +550,9 @@ mod test {
 
     #[sqlx::test]
     async fn listen_again_refetches_messages(pool: PgPool) {
-        let hash = UserHandleHash::new([1; 32]);
-        store_handle(&pool, hash).await.unwrap();
-        let queues = UserHandleQueues::new(pool).await.unwrap();
+        let hash = UsernameHash::new([1; 32]);
+        store_username(&pool, hash).await.unwrap();
+        let queues = UsernameQueues::new(pool).await.unwrap();
 
         let payload1 = new_payload("msg1");
         let payload2 = new_payload("msg2");
@@ -597,9 +597,9 @@ mod test {
 
     #[sqlx::test]
     async fn ack_removes_messages(pool: PgPool) {
-        let hash = UserHandleHash::new([1; 32]);
-        store_handle(&pool, hash).await.unwrap();
-        let queues = UserHandleQueues::new(pool).await.unwrap();
+        let hash = UsernameHash::new([1; 32]);
+        store_username(&pool, hash).await.unwrap();
+        let queues = UsernameQueues::new(pool).await.unwrap();
 
         let payload1 = new_payload("msg1");
         let payload2 = new_payload("msg2");
@@ -636,9 +636,9 @@ mod test {
 
     #[sqlx::test]
     async fn new_listener_cancels_previous_one(pool: PgPool) {
-        let hash = UserHandleHash::new([1; 32]);
-        store_handle(&pool, hash).await.unwrap();
-        let queues = UserHandleQueues::new(pool).await.unwrap();
+        let hash = UsernameHash::new([1; 32]);
+        store_username(&pool, hash).await.unwrap();
+        let queues = UsernameQueues::new(pool).await.unwrap();
 
         let payload1 = new_payload("msg1");
 
@@ -672,9 +672,9 @@ mod test {
 
     #[sqlx::test]
     async fn listen_emits_none_when_empty_and_waits(pool: PgPool) {
-        let hash = UserHandleHash::new([1; 32]);
-        store_handle(&pool, hash).await.unwrap();
-        let queues = UserHandleQueues::new(pool).await.unwrap();
+        let hash = UsernameHash::new([1; 32]);
+        store_username(&pool, hash).await.unwrap();
+        let queues = UsernameQueues::new(pool).await.unwrap();
 
         let mut stream = pin!(queues.listen(hash).await.unwrap());
 
@@ -718,15 +718,15 @@ mod test {
 
     #[sqlx::test]
     async fn ack_non_existent_message(pool: PgPool) {
-        let queues = UserHandleQueues::new(pool).await.unwrap();
+        let queues = UsernameQueues::new(pool).await.unwrap();
         let result = queues.ack(Uuid::new_v4()).await;
         assert!(result.is_ok());
     }
 
     #[sqlx::test]
     async fn enqueue_non_existent_queue(pool: PgPool) {
-        let queues = UserHandleQueues::new(pool).await.unwrap();
-        let hash = UserHandleHash::new([1; 32]);
+        let queues = UsernameQueues::new(pool).await.unwrap();
+        let hash = UsernameHash::new([1; 32]);
 
         let payload = new_payload("msg");
         let result = queues.enqueue(&hash, payload).await;

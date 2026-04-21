@@ -5,7 +5,7 @@
 use std::time::Duration;
 
 use aircommon::{
-    crypto::ear::{AeadCiphertext, EarDecryptable, keys::AttachmentEarKey},
+    crypto::aead::{AeadCiphertext, AeadDecryptable, keys::AttachmentEarKey},
     identifiers::AttachmentId,
 };
 use airprotos::delivery_service::v1::StorageObjectType;
@@ -21,7 +21,7 @@ use crate::{
         CoreUser,
         attachment::{
             AttachmentBytes, AttachmentRecord,
-            ear::{AIR_ATTACHMENT_ENCRYPTION_ALG, AIR_ATTACHMENT_HASH_ALG, EncryptedAttachment},
+            aead::{AIR_ATTACHMENT_ENCRYPTION_ALG, AIR_ATTACHMENT_HASH_ALG, EncryptedAttachment},
             persistence::{AttachmentStatus, PendingAttachmentRecord},
             progress::AttachmentProgressSender,
         },

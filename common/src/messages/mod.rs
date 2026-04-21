@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 use crate::crypto::{
-    ear::{AeadCiphertext, Ciphertext},
+    aead::{AeadCiphertext, Ciphertext},
     errors::RandomnessError,
 };
 
@@ -105,7 +105,7 @@ pub type EncryptedAsQueueMessage = Ciphertext<EncryptedAsQueueMessageCtype>;
 
 #[cfg(test)]
 mod test {
-    use crate::{codec::PersistenceCodec, crypto::ear::AeadCiphertext};
+    use crate::{codec::PersistenceCodec, crypto::aead::AeadCiphertext};
 
     use super::*;
 

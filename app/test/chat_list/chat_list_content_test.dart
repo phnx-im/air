@@ -63,7 +63,7 @@ final chats = [
     id: 2.chatId(),
     status: const UiChatStatus.active(),
     chatType: const UiChatType_HandleConnection(
-      UiUserHandle(plaintext: 'eve_03'),
+      UiUsername(plaintext: 'eve_03'),
     ),
     unreadMessages: 0,
     messagesCount: 10,
