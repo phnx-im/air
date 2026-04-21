@@ -31,6 +31,10 @@ impl AuthService {
         operation_type: OperationType,
         token_request: AmortizedBatchTokenRequest<Ristretto255>,
     ) -> Result<AmortizedBatchTokenResponse<Ristretto255>, IssueTokensError> {
+        if OperationType::Unknown == operation_type {
+            return Err(IssueTokensError::BadRequest("unknown operation type"));
+        }
+
         let tokens_requested = token_request.nr() as u16;
         if tokens_requested == 0 {
             return Err(IssueTokensError::BadRequest("zero tokens requested"));
@@ -53,9 +57,11 @@ impl AuthService {
             token_allowance.valid_until = operation_type.valid_until_starting_at(now);
         }
 
-        // NB: we might want to switch to returning the maximum amount of possible remaining tokens
-        // instead of rejecting the request
-        if token_allowance.remaining < tokens_requested {
+        if let OperationType::AddUsername = operation_type {
+            // Token allowance is not yet enforced for AddUsername
+        } else if token_allowance.remaining < tokens_requested {
+            // NB: we might want to switch to returning the maximum amount of possible remaining tokens
+            // instead of rejecting the request
             return Err(IssueTokensError::TooManyTokensRequested);
         }
 
@@ -69,7 +75,7 @@ impl AuthService {
         };
 
         // Reduce the token allowance by the number of tokens issued.
-        token_allowance.remaining -= tokens_requested;
+        token_allowance.remaining = token_allowance.remaining.saturating_sub(tokens_requested);
         token_allowance.update(&mut *txn, user_id).await?;
 
         txn.commit().await?;
@@ -322,6 +328,36 @@ mod tests {
             )
             .await;
         assert!(err.is_err());
+
+        Ok(())
+    }
+
+    /// Token allowance is not yet enforced for `AddUsername`
+    #[sqlx::test]
+    async fn add_username_bypasses_allowance(pool: PgPool) -> anyhow::Result<()> {
+        let (service, public_keys) = setup_with_keypair(&pool).await?;
+        let public_key = *public_keys.get(&OperationType::AddUsername).unwrap();
+
+        let user_record = store_random_user_record(&pool).await?;
+        let _client_record =
+            store_random_client_record(&pool, user_record.user_id().clone()).await?;
+
+        let challenge = build_challenge();
+        let requested = OperationType::AddUsername.max_tokens_allowance() + 1;
+        let (token_request, token_state) =
+            AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, requested)?;
+
+        // Exceeds the allowance, but AddUsername skips the check for now.
+        let token_response = service
+            .as_issue_tokens(
+                user_record.user_id(),
+                OperationType::AddUsername,
+                token_request,
+            )
+            .await?;
+
+        let tokens = token_response.issue_tokens(&token_state)?;
+        assert_eq!(tokens.len(), requested as usize);
 
         Ok(())
     }
