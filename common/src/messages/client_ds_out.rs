@@ -19,7 +19,7 @@ use mls_assist::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{crypto::ear::keys::EncryptedUserProfileKey, identifiers::QsReference};
+use crate::{crypto::aead::keys::EncryptedUserProfileKey, identifiers::QsReference};
 
 use super::welcome_attribution_info::EncryptedWelcomeAttributionInfo;
 

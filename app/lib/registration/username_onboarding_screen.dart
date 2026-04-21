@@ -11,7 +11,8 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/desktop/width_constraints.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
-import 'package:air/widgets/user_handle_input_formatter.dart';
+import 'package:air/util/scaffold_messenger.dart';
+import 'package:air/widgets/username_input_formatter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -25,14 +26,14 @@ class UsernameOnboardingScreen extends HookWidget {
     final colors = CustomColorScheme.of(context);
     final Color backgroundColor = colors.backgroundBase.secondary;
     final registrationState = context.watch<RegistrationCubit>().state;
-    final initialHandle = UserHandleInputFormatter.normalize(
+    final initialHandle = UsernameInputFormatter.normalize(
       registrationState.usernameSuggestion ?? '',
     );
 
     final formKey = useMemoized(() => GlobalKey<FormState>());
     final controller = useTextEditingController(text: initialHandle);
     final focusNode = useFocusNode();
-    final handleExists = useState(false);
+    final usernameExists = useState(false);
     final isSubmitting = useState(false);
 
     Future<void> submit() async {
@@ -42,24 +43,46 @@ class UsernameOnboardingScreen extends HookWidget {
       if (!formKey.currentState!.validate()) {
         return;
       }
-      final normalized = UserHandleInputFormatter.normalize(
+      final normalized = UsernameInputFormatter.normalize(
         controller.text.trim(),
       );
-      final handle = UiUserHandle(plaintext: normalized);
+      final username = UiUsername(plaintext: normalized);
       final userCubit = context.read<UserCubit>();
       final navigationCubit = context.read<NavigationCubit>();
       final registrationCubit = context.read<RegistrationCubit>();
-      handleExists.value = false;
+      usernameExists.value = false;
       isSubmitting.value = true;
-      final success = await userCubit.addUserHandle(handle);
-      if (!success) {
-        handleExists.value = true;
-        isSubmitting.value = false;
-        formKey.currentState!.validate();
-        return;
+
+      Future<bool> tryToAddUsername(bool displayFailure) async {
+        try {
+          final success = await userCubit.addUsername(username);
+          if (success) {
+            registrationCubit.clearUsernameOnboarding();
+            navigationCubit.openHome();
+          } else {
+            usernameExists.value = true;
+            isSubmitting.value = false;
+            formKey.currentState!.validate();
+          }
+          return true;
+        } catch (e) {
+          if (displayFailure) {
+            usernameExists.value = false;
+            isSubmitting.value = false;
+            showSnackBarStandalone(
+              (loc) => SnackBar(content: Text(loc.usernameOnboarding_error)),
+            );
+          }
+          return false;
+        }
       }
-      registrationCubit.clearUsernameOnboarding();
-      navigationCubit.openHome();
+
+      if (!await tryToAddUsername(false)) {
+        // the privacy pass tokens for adding usernames might not yet be
+        // available during account creation.
+        await Future.delayed(const Duration(milliseconds: 250));
+        tryToAddUsername(true);
+      }
     }
 
     void skip() {
@@ -116,11 +139,11 @@ class UsernameOnboardingScreen extends HookWidget {
                               _UsernameTextField(
                                 controller: controller,
                                 focusNode: focusNode,
-                                handleExists: handleExists,
+                                usernameExists: usernameExists,
                                 formKey: formKey,
-                                validator: (value) => _validateHandle(
+                                validator: (value) => _validateUsername(
                                   loc,
-                                  handleExists.value,
+                                  usernameExists.value,
                                   value,
                                 ),
                               ),
@@ -141,32 +164,32 @@ class UsernameOnboardingScreen extends HookWidget {
     );
   }
 
-  String? _validateHandle(
+  String? _validateUsername(
     AppLocalizations loc,
     bool alreadyExists,
     String? value,
   ) {
     if (alreadyExists) {
-      return loc.userHandleScreen_error_alreadyExists;
+      return loc.usernameScreen_error_alreadyExists;
     }
     if (value == null || value.trim().isEmpty) {
-      return loc.userHandleScreen_error_emptyHandle;
+      return loc.usernameScreen_error_emptyUsername;
     }
     final safeValue = value;
-    final normalized = UserHandleInputFormatter.normalize(safeValue);
+    final normalized = UsernameInputFormatter.normalize(safeValue);
     if (normalized.isEmpty) {
-      return loc.userHandleScreen_error_emptyHandle;
+      return loc.usernameScreen_error_emptyUsername;
     }
-    final handle = UiUserHandle(plaintext: normalized);
-    return switch (handle.validationError()) {
-      UserHandleValidationError.tooShort => loc.userHandleScreen_error_tooShort,
-      UserHandleValidationError.tooLong => loc.userHandleScreen_error_tooLong,
-      UserHandleValidationError.invalidCharacter =>
-        loc.userHandleScreen_error_invalidCharacter,
-      UserHandleValidationError.consecutiveDashes =>
-        loc.userHandleScreen_error_consecutiveDashes,
-      UserHandleValidationError.leadingDigit =>
-        loc.userHandleScreen_error_leadingDigit,
+    final username = UiUsername(plaintext: normalized);
+    return switch (username.validationError()) {
+      UsernameValidationError.tooShort => loc.usernameScreen_error_tooShort,
+      UsernameValidationError.tooLong => loc.usernameScreen_error_tooLong,
+      UsernameValidationError.invalidCharacter =>
+        loc.usernameScreen_error_invalidCharacter,
+      UsernameValidationError.consecutiveDashes =>
+        loc.usernameScreen_error_consecutiveDashes,
+      UsernameValidationError.leadingDigit =>
+        loc.usernameScreen_error_leadingDigit,
       null => null,
     };
   }
@@ -218,14 +241,14 @@ class _UsernameTextField extends StatelessWidget {
   const _UsernameTextField({
     required this.controller,
     required this.focusNode,
-    required this.handleExists,
+    required this.usernameExists,
     required this.formKey,
     required this.validator,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
-  final ValueNotifier<bool> handleExists;
+  final ValueNotifier<bool> usernameExists;
   final GlobalKey<FormState> formKey;
   final FormFieldValidator<String>? validator;
 
@@ -256,10 +279,10 @@ class _UsernameTextField extends StatelessWidget {
             hintText: loc.usernameOnboarding_usernameInputHint,
             fillColor: colors.backgroundBase.tertiary,
           ),
-          inputFormatters: const [UserHandleInputFormatter()],
+          inputFormatters: const [UsernameInputFormatter()],
           onChanged: (_) {
-            if (handleExists.value) {
-              handleExists.value = false;
+            if (usernameExists.value) {
+              usernameExists.value = false;
               formKey.currentState?.validate();
             }
           },

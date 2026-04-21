@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM as_token_nonce WHERE operation_type = $1 AND nonce = $2 AND status = 'reserved'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int2",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a178f638fa113d0f4f78d88357a992e02d953b53b8b93640affc892618eb9265"
+}

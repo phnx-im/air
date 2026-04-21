@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use crate::{
-    crypto::ear::{EarDecryptable, EarEncryptable, keys::PushTokenEarKey},
+    crypto::aead::{AeadDecryptable, AeadEncryptable, keys::PushTokenEarKey},
     identifiers::TlsString,
 };
 
@@ -44,5 +44,5 @@ impl PushToken {
 pub struct EncryptedPushTokenCtype;
 pub type EncryptedPushToken = Ciphertext<EncryptedPushTokenCtype>;
 
-impl EarEncryptable<PushTokenEarKey, EncryptedPushTokenCtype> for PushToken {}
-impl EarDecryptable<PushTokenEarKey, EncryptedPushTokenCtype> for PushToken {}
+impl AeadEncryptable<PushTokenEarKey, EncryptedPushTokenCtype> for PushToken {}
+impl AeadDecryptable<PushTokenEarKey, EncryptedPushTokenCtype> for PushToken {}

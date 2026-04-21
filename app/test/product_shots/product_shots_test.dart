@@ -60,7 +60,7 @@ void main() {
     final titleColor = AppColors.neutral[800]!;
     final subtitleColor = AppColors.neutral[600]!;
     final frameColor = AppColors.neutral[300]!;
-    const title = 'Easy private messaging.';
+    const title = 'Secure messaging\nfor everyone.';
     const subtitle = 'Everything in Air is\nend-to-end encrypted.';
 
     late MockNavigationCubit navigationCubit;
@@ -334,8 +334,8 @@ void main() {
     final titleColor = AppColors.blue[800]!;
     final subtitleColor = AppColors.blue[600]!;
     final frameColor = AppColors.blue[300]!;
-    const title = 'Create groups to chat.';
-    const subtitle = 'Chat in groups with multiple people.';
+    const title = 'Create group chats.';
+    const subtitle = 'Message with multiple people.';
 
     late MockNavigationCubit navigationCubit;
     late MockUserCubit userCubit;

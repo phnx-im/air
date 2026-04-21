@@ -29,6 +29,28 @@ async fn create_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Create empty group", skip_all)]
+async fn create_empty_group() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let chat_id = setup.create_group(&alice).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+
+    // Inviting an empty user list should be a no-op
+    let messages = alice_user
+        .invite_users(chat_id, &[])
+        .await
+        .expect("inviting an empty user list should succeed")
+        .expect("inviting an empty user list should succeed");
+    assert!(messages.is_empty());
+
+    let participants = alice_user.chat_participants(chat_id).await.unwrap();
+    assert_eq!(participants.len(), 1);
+    assert!(participants.contains(&alice));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Invite to group test", skip_all)]
 async fn invite_to_group() {
     let mut setup = TestBackend::single().await;
@@ -278,7 +300,7 @@ async fn group_with_blocked_contact() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
-    setup.get_user_mut(&alice).add_user_handle().await.unwrap();
+    setup.get_user_mut(&alice).add_username().await.unwrap();
 
     let bob = setup.add_user().await;
     let charlie = setup.add_user().await;

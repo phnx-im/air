@@ -1,3 +1,58 @@
+## [0.14.0] - 2026-04-21
+
+### 🚀 Features
+
+- *(app)* Advertise app component extension (#1112)
+- *(app|server)* More privacypass (#1133)
+- *(app)* Pagination and message navigation (#1123)
+- *(app)* Missing l10n (#1142)
+- *(ci)* Add blueoak license to allowlist (#1145)
+- *(app)* Use anchored list (#1151)
+- *(app)* Composer updates (#1155)
+- *(app)* Use privacy pass tokens to generate invite codes (#1143)
+- *(app)* Design tweaks (#1162)
+- *(server)* Add RUST_LOG_FORMAT config env var (#1159)
+
+### 🐛 Bug Fixes
+
+- *(app)* Refactor attachments download task (#1118)
+- *(app)* Make QS message processing cancel-safe (#1114)
+- *(app)* Apply protection to temp directory on iOS in NSE (#1124)
+- *(app)* Acking messages from QS that are not yet processed (#1125)
+- *(app)* Monotonic last read (#1127)
+- *(app)* Revamp UI scaling (specifically on Linux) (#1080)
+- *(app)* Some more reply tweaks (#1120)
+- *(ci)* Temp: remove fvm pinning (#1132)
+- *(app)* Add connected network constraint to Android background job (#1134)
+- *(tests)* Higher rate limit for tests (#1136)
+- *(app)* Cleanup after group-not-found (#1140)
+- *(app)* Report background work errors from Rust to JNI/Swift (#1139)
+- *(ci)* Fix android build/publish (#1148)
+- *(app)* Less exclusive cubits (#1149)
+- *(app)* Restore better iOS and macOS icons (#1147)
+- *(app)* Native scroll physics (#1160)
+- *(app)* Stable animation of new messages (#1161)
+- *(app)* Ignore and clean-up undeserializable operation (#1167)
+
+### ⚡ Performance
+
+- *(ci)* Install cargo-expand as binary in CI (#1128)
+- *(ci)* Use sccache on all platforms except macOS (#1119)
+- *(app)* Optimize sqlite queries (#1122)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(app)* Skip serde on _phantom field (#1126)
+- *(app)* Add debug view for the Air component (#1138)
+- *(app)* Introduce a (default) staging flavor (#1131)
+- *(app)* Upgrade flutter_rust_bridge to 2.12.0 (#1141)
+- *(app)* Update rand partially (#1146)
+- *(app|server)* Bump vulnerable deps (#1157)
+
+### 🛡️ Security
+
+- *(deps)* Bump addressable from 2.8.9 to 2.9.0 in /app/fastlane (#1137)
+
 ## [0.13.0] - 2026-03-25
 
 ### 🚀 Features

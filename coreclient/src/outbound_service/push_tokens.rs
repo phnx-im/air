@@ -4,7 +4,7 @@
 
 use airapiclient::qs_api::QsRequestError;
 use aircommon::{
-    crypto::ear::EarEncryptable,
+    crypto::aead::AeadEncryptable,
     messages::push_token::PushToken,
     time::{Duration, TimeStamp},
 };

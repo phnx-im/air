@@ -24,7 +24,7 @@ class AddUsernameDialog extends HookWidget {
   Widget build(BuildContext context) {
     final formKey = useMemoized(() => GlobalKey<FormState>());
 
-    final userHandleExists = useState(false);
+    final usernameExists = useState(false);
     final isSubmitting = useState(false);
 
     final controller = useTextEditingController();
@@ -42,7 +42,7 @@ class AddUsernameDialog extends HookWidget {
           children: [
             Center(
               child: Text(
-                loc.userHandleScreen_title,
+                loc.usernameScreen_title,
                 style: TextStyle(
                   fontSize: HeaderFontSize.h4.size,
                   fontWeight: FontWeight.bold,
@@ -56,16 +56,16 @@ class AddUsernameDialog extends HookWidget {
               autofocus: true,
               controller: controller,
               focusNode: focusNode,
-              inputFormatters: const [UserHandleInputFormatter()],
-              validator: (value) => _validate(loc, userHandleExists, value),
+              inputFormatters: const [UsernameInputFormatter()],
+              validator: (value) => _validate(loc, usernameExists, value),
               onChanged: (_) {
-                if (userHandleExists.value) {
-                  userHandleExists.value = false;
+                if (usernameExists.value) {
+                  usernameExists.value = false;
                   formKey.currentState!.validate();
                 }
               },
               decoration: appDialogInputDecoration.copyWith(
-                hintText: loc.userHandleScreen_inputHint,
+                hintText: loc.usernameScreen_inputHint,
                 filled: true,
                 fillColor: colors.backgroundBase.secondary,
               ),
@@ -75,7 +75,7 @@ class AddUsernameDialog extends HookWidget {
                   context,
                   formKey,
                   controller,
-                  userHandleExists,
+                  usernameExists,
                   isSubmitting,
                 );
               },
@@ -86,7 +86,7 @@ class AddUsernameDialog extends HookWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
               child: Text(
-                loc.userHandleScreen_description,
+                loc.usernameScreen_description,
                 style: TextStyle(
                   color: colors.text.tertiary,
                   fontSize: BodyFontSize.small2.size,
@@ -103,7 +103,7 @@ class AddUsernameDialog extends HookWidget {
                     onPressed: () {
                       Navigator.of(context).pop(false);
                     },
-                    child: Text(loc.userHandleScreen_cancel),
+                    child: Text(loc.usernameScreen_cancel),
                   ),
                 ),
                 const SizedBox(width: Spacings.xs),
@@ -113,7 +113,7 @@ class AddUsernameDialog extends HookWidget {
                       context,
                       formKey,
                       controller,
-                      userHandleExists,
+                      usernameExists,
                       isSubmitting,
                     ),
                     style: ButtonStyle(
@@ -129,7 +129,7 @@ class AddUsernameDialog extends HookWidget {
                     ),
                     progressColor: colors.function.toggleWhite,
                     inProgress: inProgress,
-                    child: Text(loc.userHandleScreen_confirm),
+                    child: Text(loc.usernameScreen_confirm),
                   ),
                 ),
               ],
@@ -150,8 +150,8 @@ class AddUsernameDialog extends HookWidget {
     if (!formKey.currentState!.validate()) {
       return;
     }
-    final normalized = UserHandleInputFormatter.normalize(controller.text);
-    final handle = UiUserHandle(plaintext: normalized);
+    final normalized = UsernameInputFormatter.normalize(controller.text);
+    final username = UiUsername(plaintext: normalized);
     final userCubit = context.read<UserCubit>();
 
     // Clear already exists if any
@@ -161,7 +161,7 @@ class AddUsernameDialog extends HookWidget {
     }
 
     isSubmitting.value = true;
-    if (!await userCubit.addUserHandle(handle)) {
+    if (!await userCubit.addUsername(username)) {
       alreadyExists.value = true;
       isSubmitting.value = false;
       formKey.currentState!.validate();
@@ -173,30 +173,30 @@ class AddUsernameDialog extends HookWidget {
 
   String? _validate(
     AppLocalizations loc,
-    ValueNotifier<bool> userHandleExists,
+    ValueNotifier<bool> usernameExists,
     String? value,
   ) {
-    if (userHandleExists.value) {
-      return loc.userHandleScreen_error_alreadyExists;
+    if (usernameExists.value) {
+      return loc.usernameScreen_error_alreadyExists;
     }
     if (value == null || value.trim().isEmpty) {
-      return loc.userHandleScreen_error_emptyHandle;
+      return loc.usernameScreen_error_emptyUsername;
     }
     final safeValue = value;
-    final normalized = UserHandleInputFormatter.normalize(safeValue);
+    final normalized = UsernameInputFormatter.normalize(safeValue);
     if (normalized.isEmpty) {
-      return loc.userHandleScreen_error_emptyHandle;
+      return loc.usernameScreen_error_emptyUsername;
     }
-    final handle = UiUserHandle(plaintext: normalized);
-    return switch (handle.validationError()) {
-      UserHandleValidationError.tooShort => loc.userHandleScreen_error_tooShort,
-      UserHandleValidationError.tooLong => loc.userHandleScreen_error_tooLong,
-      UserHandleValidationError.invalidCharacter =>
-        loc.userHandleScreen_error_invalidCharacter,
-      UserHandleValidationError.consecutiveDashes =>
-        loc.userHandleScreen_error_consecutiveDashes,
-      UserHandleValidationError.leadingDigit =>
-        loc.userHandleScreen_error_leadingDigit,
+    final username = UiUsername(plaintext: normalized);
+    return switch (username.validationError()) {
+      UsernameValidationError.tooShort => loc.usernameScreen_error_tooShort,
+      UsernameValidationError.tooLong => loc.usernameScreen_error_tooLong,
+      UsernameValidationError.invalidCharacter =>
+        loc.usernameScreen_error_invalidCharacter,
+      UsernameValidationError.consecutiveDashes =>
+        loc.usernameScreen_error_consecutiveDashes,
+      UsernameValidationError.leadingDigit =>
+        loc.usernameScreen_error_leadingDigit,
       null => null,
     };
   }

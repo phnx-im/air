@@ -5,8 +5,8 @@
 use std::sync::Arc;
 use std::{collections::HashSet, path::Path};
 
-use aircommon::identifiers::{AttachmentId, MimiId, UserHandle, UserHandleHash, UserId};
-use aircommon::messages::client_as_out::UserHandleDeleteResponse;
+use aircommon::identifiers::{AttachmentId, MimiId, UserId, Username, UsernameHash};
+use aircommon::messages::client_as_out::UsernameDeleteResponse;
 use aircommon::time::TimeStamp;
 use mimi_content::MimiContent;
 use mimi_room_policy::VerifiedRoomState;
@@ -14,13 +14,13 @@ use tokio_stream::Stream;
 use uuid::Uuid;
 
 use crate::{
-    AcceptContactRequestError, AddHandleContactError, AttachmentContent, AttachmentStatus, Chat,
+    AcceptContactRequestError, AddUsernameContactError, AttachmentContent, AttachmentStatus, Chat,
     ChatId, ChatMessage, Contact, InviteUsersError, MessageDraft, MessageId,
     ProvisionAttachmentError, UploadTaskError,
     clients::{attachment::progress::AttachmentProgress, safety_code::SafetyCode},
-    contacts::{ContactType, HandleContact, TargetedMessageContact},
-    user_handles::UserHandleRecord,
+    contacts::{ContactType, TargetedMessageContact, UsernameContact},
     user_profiles::UserProfile,
+    usernames::UsernameRecord,
 };
 pub use notification::{StoreEntityId, StoreNotification, StoreOperation};
 pub(crate) use notification::{StoreNotificationsSender, StoreNotifier};
@@ -62,30 +62,21 @@ pub trait Store {
 
     async fn set_user_setting<T: UserSetting>(&self, value: &T) -> StoreResult<()>;
 
-    // user handles
+    // usernames
 
-    /// Check whether a user handle exists on the AS. Relatively expensive operation, as it
-    /// requires computation of a handle hash.
+    /// Check whether a username exists on the AS. Relatively expensive operation, as it
+    /// requires computation of a username hash.
     ///
-    /// Returns the computed hash of the user handle if it exists, otherwise `None`.
-    async fn check_handle_exists(
-        &self,
-        user_handle: UserHandle,
-    ) -> StoreResult<Option<UserHandleHash>>;
+    /// Returns the computed hash of the username if it exists, otherwise `None`.
+    async fn check_username_exists(&self, username: Username) -> StoreResult<Option<UsernameHash>>;
 
-    async fn user_handles(&self) -> StoreResult<Vec<UserHandle>>;
+    async fn usernames(&self) -> StoreResult<Vec<Username>>;
 
-    async fn user_handle_records(&self) -> StoreResult<Vec<UserHandleRecord>>;
+    async fn username_records(&self) -> StoreResult<Vec<UsernameRecord>>;
 
-    async fn add_user_handle(
-        &self,
-        user_handle: UserHandle,
-    ) -> StoreResult<Option<UserHandleRecord>>;
+    async fn add_username(&self, username: Username) -> StoreResult<Option<UsernameRecord>>;
 
-    async fn remove_user_handle(
-        &self,
-        user_handle: &UserHandle,
-    ) -> StoreResult<UserHandleDeleteResponse>;
+    async fn remove_username(&self, username: &Username) -> StoreResult<UsernameDeleteResponse>;
 
     // chats
 
@@ -171,17 +162,17 @@ pub trait Store {
 
     // contacts
 
-    /// Create a connection with a new user via their user handle.
+    /// Create a connection with a new user via their username.
     ///
     /// Returns the [`ChatId`] of the newly created connection
-    /// chat, or `None` if the user handle does not exist.
+    /// chat, or `None` if the username does not exist.
     ///
     /// The hash must be pre-computed before calling this function.
     async fn add_contact(
         &self,
-        handle: UserHandle,
-        hash: UserHandleHash,
-    ) -> StoreResult<Result<ChatId, AddHandleContactError>>;
+        username: Username,
+        hash: UsernameHash,
+    ) -> StoreResult<Result<ChatId, AddUsernameContactError>>;
 
     /// Create a connection with a new user via an existing group chat.
     ///
@@ -204,7 +195,7 @@ pub trait Store {
 
     async fn contact(&self, user_id: &UserId) -> StoreResult<Option<ContactType>>;
 
-    async fn handle_contacts(&self) -> StoreResult<Vec<HandleContact>>;
+    async fn username_contacts(&self) -> StoreResult<Vec<UsernameContact>>;
 
     async fn targeted_message_contacts(&self) -> StoreResult<Vec<TargetedMessageContact>>;
 

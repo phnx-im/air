@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM privacy_pass_token\n         WHERE\n            operation_type = $1 AND\n            id = (SELECT MIN(id)\n                    FROM privacy_pass_token\n                    WHERE operation_type = $1)\n         RETURNING token",
+  "describe": {
+    "columns": [
+      {
+        "name": "token",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2d0b1e7af93980a930785abcebd2ade42bfef36d8d356608e923054e58a8cf68"
+}

@@ -8,8 +8,8 @@ use tls_codec::Serialize;
 use crate::{
     credentials::keys::{ClientKeyType, ClientSignature},
     crypto::{
-        ear::{
-            EarDecryptable, EarEncryptable,
+        aead::{
+            AeadDecryptable, AeadEncryptable,
             keys::{IdentityLinkWrapperKey, WelcomeAttributionInfoEarKey},
         },
         signatures::signable::{Signable, SignedStruct, Verifiable, VerifiedStruct},
@@ -140,12 +140,12 @@ impl VerifiedStruct<VerifiableWelcomeAttributionInfo> for WelcomeAttributionInfo
 pub struct EncryptedWelcomeAttributionInfoCtype;
 pub type EncryptedWelcomeAttributionInfo = Ciphertext<EncryptedWelcomeAttributionInfoCtype>;
 
-impl EarEncryptable<WelcomeAttributionInfoEarKey, EncryptedWelcomeAttributionInfoCtype>
+impl AeadEncryptable<WelcomeAttributionInfoEarKey, EncryptedWelcomeAttributionInfoCtype>
     for WelcomeAttributionInfo
 {
 }
 
-impl EarDecryptable<WelcomeAttributionInfoEarKey, EncryptedWelcomeAttributionInfoCtype>
+impl AeadDecryptable<WelcomeAttributionInfoEarKey, EncryptedWelcomeAttributionInfoCtype>
     for WelcomeAttributionInfo
 {
 }

@@ -4,7 +4,7 @@
 
 use aircommon::{
     codec::{BlobDecoded, BlobEncoded},
-    identifiers::UserHandleHash,
+    identifiers::UsernameHash,
     messages::connection_package::VersionedConnectionPackage,
 };
 use sqlx::{Arguments, PgExecutor, postgres::PgArguments};
@@ -14,10 +14,10 @@ use crate::errors::StorageError;
 use super::{StorableConnectionPackage, StorableConnectionPackageRef};
 
 impl StorableConnectionPackage {
-    pub(in crate::auth_service) async fn store_multiple_for_handle(
+    pub(in crate::auth_service) async fn store_multiple_for_username(
         connection: impl PgExecutor<'_>,
         connection_packages: impl IntoIterator<Item = &VersionedConnectionPackage>,
-        hash: &UserHandleHash,
+        hash: &UsernameHash,
     ) -> Result<(), StorageError> {
         let mut query_args = PgArguments::default();
         let mut query_string = String::from(
@@ -57,9 +57,9 @@ impl StorableConnectionPackage {
         Ok(())
     }
 
-    pub(crate) async fn load_for_handle(
+    pub(crate) async fn load_for_username(
         connection: impl PgExecutor<'_>,
-        hash: &UserHandleHash,
+        hash: &UsernameHash,
     ) -> sqlx::Result<VersionedConnectionPackage> {
         // This is to ensure that counting and deletion happen atomically. If we
         // don't do this, two concurrent queries might both count 2 and delete,
@@ -95,9 +95,9 @@ impl StorableConnectionPackage {
     }
 
     #[cfg(test)]
-    async fn packages_left_for_handle(
+    async fn packages_left_for_username(
         connection: impl PgExecutor<'_>,
-        hash: &UserHandleHash,
+        hash: &UsernameHash,
     ) -> sqlx::Result<usize> {
         let count = sqlx::query_scalar!(
             r#"SELECT COUNT(*) FROM handle_connection_package WHERE hash = $1"#,
@@ -112,7 +112,7 @@ impl StorableConnectionPackage {
 #[cfg(test)]
 pub(crate) mod tests {
     use aircommon::{
-        credentials::keys::{self, HandleVerifyingKey},
+        credentials::keys::{self, UsernameVerifyingKey},
         crypto::{ConnectionDecryptionKey, signatures::signable::Signature},
         messages::{
             AirProtocolVersion,
@@ -123,7 +123,7 @@ pub(crate) mod tests {
     };
     use sqlx::PgPool;
 
-    use crate::auth_service::user_handles::UserHandleRecord;
+    use crate::auth_service::usernames::UsernameRecord;
 
     use super::*;
 
@@ -133,22 +133,22 @@ pub(crate) mod tests {
         V2 { is_last_resort: bool }, // is_last_resort
     }
 
-    async fn store_connection_packages_for_handle(
+    async fn store_connection_packages_for_username(
         pool: &PgPool,
-        hash: &UserHandleHash,
-        verifying_key: HandleVerifyingKey,
+        hash: &UsernameHash,
+        verifying_key: UsernameVerifyingKey,
         number_of_packages: usize,
         package_type: ConnectionPackageType,
     ) -> anyhow::Result<Vec<VersionedConnectionPackage>> {
         let pkgs = (0..number_of_packages)
             .map(|_| random_connection_package(verifying_key.clone(), package_type))
             .collect::<Vec<_>>();
-        StorableConnectionPackage::store_multiple_for_handle(pool, pkgs.iter(), hash).await?;
+        StorableConnectionPackage::store_multiple_for_username(pool, pkgs.iter(), hash).await?;
         Ok(pkgs)
     }
 
     pub(crate) fn random_connection_package(
-        verifying_key: HandleVerifyingKey,
+        verifying_key: UsernameVerifyingKey,
         package_type: ConnectionPackageType,
     ) -> VersionedConnectionPackage {
         match package_type {
@@ -162,7 +162,7 @@ pub(crate) mod tests {
                             .encryption_key()
                             .clone(),
                         lifetime: ExpirationData::new(Duration::days(90)),
-                        user_handle_hash: UserHandleHash::new([1; 32]),
+                        user_handle_hash: UsernameHash::new([1; 32]),
                         is_last_resort: is_last_resort.into(),
                     },
                     Signature::new_for_test(b"signature".to_vec()),
@@ -178,7 +178,7 @@ pub(crate) mod tests {
                             .encryption_key()
                             .clone(),
                         lifetime: ExpirationData::new(Duration::days(90)),
-                        user_handle_hash: UserHandleHash::new([1; 32]),
+                        user_handle_hash: UsernameHash::new([1; 32]),
                     },
                     Signature::new_for_test(b"signature".to_vec()),
                 ))
@@ -188,15 +188,17 @@ pub(crate) mod tests {
 
     async fn setup_user_record(
         pool: &PgPool,
-    ) -> anyhow::Result<(UserHandleHash, HandleVerifyingKey)> {
-        let hash = UserHandleHash::new([1; 32]);
-        let verifying_key = keys::HandleVerifyingKey::from_bytes(vec![1, 2, 3, 4, 5]);
-        let record = UserHandleRecord {
-            user_handle_hash: hash,
+    ) -> anyhow::Result<(UsernameHash, UsernameVerifyingKey)> {
+        let hash = UsernameHash::new([1; 32]);
+        let verifying_key = keys::UsernameVerifyingKey::from_bytes(vec![1, 2, 3, 4, 5]);
+        let record = UsernameRecord {
+            username_hash: hash,
             verifying_key: verifying_key.clone(),
             expiration_data: ExpirationData::new(Duration::days(1)),
         };
-        record.store(pool).await?;
+        let mut txn = pool.begin().await?;
+        record.store(&mut txn).await?;
+        txn.commit().await?;
         Ok((hash, verifying_key))
     }
 
@@ -207,12 +209,12 @@ pub(crate) mod tests {
         let (hash, verifying_key) = setup_user_record(pool).await?;
 
         let mut pkgs =
-            store_connection_packages_for_handle(pool, &hash, verifying_key, 2, package_type)
+            store_connection_packages_for_username(pool, &hash, verifying_key, 2, package_type)
                 .await?;
 
         // There should be 2 packages now
         let expected_num_packages = pkgs.len();
-        let packages_remaining = StorableConnectionPackage::packages_left_for_handle(
+        let packages_remaining = StorableConnectionPackage::packages_left_for_username(
             pool.acquire().await?.as_mut(),
             &hash,
         )
@@ -220,7 +222,7 @@ pub(crate) mod tests {
         assert_eq!(packages_remaining, expected_num_packages);
 
         let loaded =
-            StorableConnectionPackage::load_for_handle(pool.acquire().await?.as_mut(), &hash)
+            StorableConnectionPackage::load_for_username(pool.acquire().await?.as_mut(), &hash)
                 .await?;
 
         // first or second package is loaded
@@ -244,7 +246,7 @@ pub(crate) mod tests {
         }
 
         // There should be 1 package now
-        let packages_remaining = StorableConnectionPackage::packages_left_for_handle(
+        let packages_remaining = StorableConnectionPackage::packages_left_for_username(
             pool.acquire().await?.as_mut(),
             &hash,
         )
@@ -253,13 +255,13 @@ pub(crate) mod tests {
 
         // remaining package is loaded
         let loaded =
-            StorableConnectionPackage::load_for_handle(pool.acquire().await?.as_mut(), &hash)
+            StorableConnectionPackage::load_for_username(pool.acquire().await?.as_mut(), &hash)
                 .await?;
         assert_eq!(loaded, pkgs[0]);
 
         // last package is not deleted
         let loaded =
-            StorableConnectionPackage::load_for_handle(pool.acquire().await?.as_mut(), &hash)
+            StorableConnectionPackage::load_for_username(pool.acquire().await?.as_mut(), &hash)
                 .await?;
         assert_eq!(loaded, pkgs[0]);
 
@@ -287,7 +289,7 @@ pub(crate) mod tests {
         let (hash, verifying_key) = setup_user_record(&pool).await?;
 
         // Store two regular and one last resort package
-        let pkgs = store_connection_packages_for_handle(
+        let pkgs = store_connection_packages_for_username(
             &pool,
             &hash,
             verifying_key.clone(),
@@ -297,7 +299,7 @@ pub(crate) mod tests {
             },
         )
         .await?;
-        let lr_pkgs = store_connection_packages_for_handle(
+        let lr_pkgs = store_connection_packages_for_username(
             &pool,
             &hash,
             verifying_key,
@@ -310,7 +312,7 @@ pub(crate) mod tests {
         let mut expected_num_packages = pkgs.len() + lr_pkgs.len();
 
         // There should be 3 packages now
-        let packages_remaining = StorableConnectionPackage::packages_left_for_handle(
+        let packages_remaining = StorableConnectionPackage::packages_left_for_username(
             pool.acquire().await?.as_mut(),
             &hash,
         )
@@ -320,9 +322,9 @@ pub(crate) mod tests {
         // The first and second package are loaded and deleted
         for _ in 0..2 {
             let first_loaded =
-                StorableConnectionPackage::load_for_handle(pool.acquire().await?.as_mut(), &hash)
+                StorableConnectionPackage::load_for_username(pool.acquire().await?.as_mut(), &hash)
                     .await?;
-            let packages_remaining = StorableConnectionPackage::packages_left_for_handle(
+            let packages_remaining = StorableConnectionPackage::packages_left_for_username(
                 pool.acquire().await?.as_mut(),
                 &hash,
             )
@@ -339,9 +341,9 @@ pub(crate) mod tests {
 
         // The last resort package is loaded but not deleted
         let last_loaded =
-            StorableConnectionPackage::load_for_handle(pool.acquire().await?.as_mut(), &hash)
+            StorableConnectionPackage::load_for_username(pool.acquire().await?.as_mut(), &hash)
                 .await?;
-        let packages_remaining = StorableConnectionPackage::packages_left_for_handle(
+        let packages_remaining = StorableConnectionPackage::packages_left_for_username(
             pool.acquire().await?.as_mut(),
             &hash,
         )

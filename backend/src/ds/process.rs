@@ -155,7 +155,7 @@ use mls_assist::{
 use uuid::Uuid;
 
 use aircommon::{
-    codec::PersistenceCodec, crypto::ear::keys::EncryptedUserProfileKey,
+    codec::PersistenceCodec, crypto::aead::keys::EncryptedUserProfileKey,
     identifiers::QualifiedGroupId,
 };
 

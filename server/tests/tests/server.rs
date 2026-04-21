@@ -8,9 +8,9 @@ use airapiclient::{ApiClient, as_api::AsRequestError, qs_api::QsRequestError};
 use airbackend::settings::RateLimitsSettings;
 use aircommon::{
     assert_matches,
-    credentials::keys::HandleSigningKey,
+    credentials::keys::UsernameSigningKey,
     crypto::signatures::keys::QsClientSigningKey,
-    identifiers::{QsClientId, UserHandle, UserId},
+    identifiers::{QsClientId, UserId, Username},
     mls_group_config::MAX_PAST_EPOCHS,
 };
 use aircoreclient::{
@@ -193,7 +193,7 @@ async fn max_past_epochs() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
-    setup.get_user_mut(&alice).add_user_handle().await.unwrap();
+    setup.get_user_mut(&alice).add_username().await.unwrap();
 
     let bob = setup.add_user().await;
 
@@ -252,7 +252,7 @@ async fn ratchet_tolerance() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
-    setup.get_user_mut(&alice).add_user_handle().await.unwrap();
+    setup.get_user_mut(&alice).add_username().await.unwrap();
 
     let bob = setup.add_user().await;
 
@@ -289,7 +289,7 @@ async fn ratchet_tolerance() {
 //     let mut setup = TestBackend::single().await;
 
 //     let alice = setup.add_user().await;
-//     setup.get_user_mut(&alice).add_user_handle().await.unwrap();
+//     setup.get_user_mut(&alice).add_username().await.unwrap();
 
 //     let bob = setup.add_user().await;
 
@@ -378,7 +378,7 @@ async fn resync() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
-    setup.get_user_mut(&alice).add_user_handle().await.unwrap();
+    setup.get_user_mut(&alice).add_username().await.unwrap();
 
     let bob = setup.add_user().await;
     let charlie = setup.add_user().await;
@@ -744,7 +744,7 @@ async fn invitation_code() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(
-    name = "Unsupported client version on listen handle and queue",
+    name = "Unsupported client version on listen username and queue",
     skip_all
 )]
 async fn unsupported_client_version() {
@@ -756,11 +756,11 @@ async fn unsupported_client_version() {
 
     let client = ApiClient::with_endpoint(&setup.server_url()).unwrap();
 
-    let handle = UserHandle::new("test-handle".to_string()).unwrap();
-    let signing_key = HandleSigningKey::generate().unwrap();
-    let hash = handle.calculate_hash().unwrap();
+    let username = Username::new("test-username".to_string()).unwrap();
+    let signing_key = UsernameSigningKey::generate().unwrap();
+    let hash = username.calculate_hash().unwrap();
 
-    let res = client.as_listen_handle(hash, &signing_key).await;
+    let res = client.as_listen_username(hash, &signing_key).await;
     let status = match res {
         Err(AsRequestError::Tonic(status)) => status,
         Err(error) => panic!("Unexpected error type: {error:?}"),
@@ -793,19 +793,19 @@ async fn listen_stream_eviction() {
     let alice = setup.add_user().await;
 
     let alice_test_user = setup.get_user_mut(&alice);
-    let handle_record = alice_test_user.add_user_handle().await.unwrap();
+    let username_record = alice_test_user.add_username().await.unwrap();
 
     let alice_user = alice_test_user.user.clone();
 
-    // Handle messages stream is evicted when another stream is opened
-    let (mut stream_a, _responder_a) = alice_user.listen_handle(&handle_record).await.unwrap();
+    // Username messages stream is evicted when another stream is opened
+    let (mut stream_a, _responder_a) = alice_user.listen_username(&username_record).await.unwrap();
     assert_matches!(
         stream_a.next().await,
         Some(None),
         "should receive empty message"
     );
 
-    let (mut stream_b, _responder_b) = alice_user.listen_handle(&handle_record).await.unwrap();
+    let (mut stream_b, _responder_b) = alice_user.listen_username(&username_record).await.unwrap();
     assert_matches!(
         stream_b.next().await,
         Some(None),

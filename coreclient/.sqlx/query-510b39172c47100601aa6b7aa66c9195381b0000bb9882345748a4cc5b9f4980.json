@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT handle AS \"username: _\"\n                FROM user_handle\n                ORDER BY created_at ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "username: _",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "510b39172c47100601aa6b7aa66c9195381b0000bb9882345748a4cc5b9f4980"
+}

@@ -16,7 +16,7 @@ import 'user_cubit.dart';
 class RemoveUsernameDialog extends StatelessWidget {
   const RemoveUsernameDialog({super.key, required this.username});
 
-  final UiUserHandle username;
+  final UiUsername username;
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +66,7 @@ class RemoveUsernameDialog extends StatelessWidget {
               Expanded(
                 child: OutlinedButton(
                   onPressed: () {
-                    context.read<UserCubit>().removeUserHandle(username);
+                    context.read<UserCubit>().removeUsername(username);
                     Navigator.of(context).pop(true);
                   },
                   style: ButtonStyle(
