@@ -39,17 +39,17 @@ use tls_codec::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio_stream::{StreamExt, wrappers::ReceiverStream};
 use tonic::{Code, Request, Response, Status, Streaming, async_trait};
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::{
-    auth_service::invitation_code_record::InvitationCodeRecord,
+    auth_service::invitation_code_record::{CODES_PER_DAY, InvitationCodeRecord},
     util::{find_cause, select_until_first_ends},
 };
 
 use super::{
     AuthService,
     client_record::ClientRecord,
-    user_handles::{ConnectHandleProtocol, UserHandleQueues, UserHandleRecord},
+    usernames::{ConnectUsernameProtocol, UsernameQueues, UsernameRecord},
 };
 
 pub struct GrpcAs {
@@ -86,31 +86,31 @@ impl GrpcAs {
         Ok(client_record.credential.verifying_key().clone())
     }
 
-    async fn verify_handle_auth<R, P>(
+    async fn verify_username_auth<R, P>(
         &self,
         request: R,
-    ) -> Result<(identifiers::UserHandleHash, P), Status>
+    ) -> Result<(identifiers::UsernameHash, P), Status>
     where
-        R: WithUserHandleHash + Verifiable,
+        R: WithUsernameHash + Verifiable,
         P: VerifiedStruct<R>,
     {
-        let hash = request.user_handle_hash()?;
-        let verifying_key = self.load_handle_verifying_key(hash).await?;
+        let hash = request.username_hash()?;
+        let verifying_key = self.load_username_verifying_key(hash).await?;
         let payload = self.verify_request(request, &verifying_key)?;
         Ok((hash, payload))
     }
 
-    async fn load_handle_verifying_key(
+    async fn load_username_verifying_key(
         &self,
-        hash: identifiers::UserHandleHash,
-    ) -> Result<keys::HandleVerifyingKey, Status> {
-        UserHandleRecord::load_verifying_key(&self.inner.db_pool, &hash)
+        hash: identifiers::UsernameHash,
+    ) -> Result<keys::UsernameVerifyingKey, Status> {
+        UsernameRecord::load_verifying_key(&self.inner.db_pool, &hash)
             .await
             .map_err(|error| {
                 error!(%error, "failed to load verifying key");
                 Status::internal("database error")
             })?
-            .ok_or_else(|| Status::not_found("unknown handle"))
+            .ok_or_else(|| Status::not_found("unknown username"))
     }
 
     fn verify_request<R, P>(
@@ -130,13 +130,13 @@ impl GrpcAs {
         })
     }
 
-    async fn process_listen_handle_requests_task(
-        queues: UserHandleQueues,
-        mut requests: Streaming<ListenHandleRequest>,
+    async fn process_listen_username_requests_task(
+        queues: UsernameQueues,
+        mut requests: Streaming<ListenUsernameRequest>,
         responses_tx: mpsc::Sender<Status>,
     ) {
         while let Some(request) = requests.next().await {
-            if let Err(error) = Self::process_listen_handle_request(&queues, request).await {
+            if let Err(error) = Self::process_listen_username_request(&queues, request).await {
                 if let Code::Unknown = error.code()
                     && let Some(h2_error) = find_cause::<h2::Error>(&error)
                     && let Some(io_error) = h2_error.get_io()
@@ -153,12 +153,12 @@ impl GrpcAs {
         }
     }
 
-    async fn process_listen_handle_request(
-        queues: &UserHandleQueues,
-        request: Result<ListenHandleRequest, Status>,
+    async fn process_listen_username_request(
+        queues: &UsernameQueues,
+        request: Result<ListenUsernameRequest, Status>,
     ) -> Result<(), Status> {
         let request = request?;
-        let Some(listen_handle_request::Request::Ack(ack_request)) = request.request else {
+        let Some(listen_username_request::Request::Ack(ack_request)) = request.request else {
             return Err(ListenHandleProtocolViolation::OnlyAckRequestAllowed.into());
         };
         let Some(message_id) = ack_request.message_id else {
@@ -212,6 +212,78 @@ impl auth_service_server::AuthService for GrpcAs {
         }))
     }
 
+    async fn get_invitation_codes(
+        &self,
+        request: Request<GetInvitationCodesRequest>,
+    ) -> Result<Response<GetInvitationCodesResponse>, Status> {
+        // note: this endpoint is anonymous by design
+        let request = request.into_inner();
+
+        // Check len of request.tokens
+        if request.tokens.len() > 10 {
+            return Err(Status::invalid_argument("too many tokens requested"));
+        }
+
+        let tokens: Result<Vec<_>, _> = request
+            .tokens
+            .into_iter()
+            .map(|bytes| AmortizedToken::<Ristretto255>::tls_deserialize_exact(bytes.as_slice()))
+            .collect();
+
+        let tokens = tokens.map_err(|error| {
+            warn!(%error, "failed to deserialise token");
+            Status::invalid_argument("invalid token")
+        })?;
+
+        let mut txn = self.inner.db_pool.begin().await.map_err(|error| {
+            error!(%error, "failed to start txn");
+            Status::internal("database error")
+        })?;
+
+        let codes_today = InvitationCodeRecord::lock_and_count_codes_issued_today(&mut txn)
+            .await
+            .map_err(|error| {
+                error!(%error, "failed to lock table and count codes issued today");
+                Status::internal("database error")
+            })?;
+
+        if codes_today + (tokens.len() as u64) > CODES_PER_DAY {
+            return Err(Status::resource_exhausted("too many codes generated today"));
+        }
+
+        let mut invitation_codes = Vec::new();
+        for token in tokens {
+            // redeem the token
+            if let Err(error) = self
+                .inner
+                .as_redeem_token(txn.as_mut(), token, OperationType::GetInviteCode)
+                .await
+            {
+                warn!(%error, "failed to redeem token to get invitation code");
+                continue;
+            }
+
+            // if the token could be redeemed, issue a new invite code
+            let code = InvitationCodeRecord::generate(txn.as_mut())
+                .await
+                .map_err(|error| {
+                    error!(%error, "database error");
+                    Status::internal("database error")
+                })?;
+
+            invitation_codes.push(InvitationCode { code });
+        }
+
+        txn.commit().await.map_err(|error| {
+            error!(%error, "failed to commit transaction");
+            Status::internal("database error")
+        })?;
+
+        Ok(Response::new(GetInvitationCodesResponse {
+            invitation_codes,
+        }))
+    }
+
     async fn register_user(
         &self,
         request: Request<RegisterUserRequest>,
@@ -228,6 +300,7 @@ impl auth_service_server::AuthService for GrpcAs {
                 return Err(Status::invalid_argument("invalid invitation code"));
             }
             let code_record = if self.inner.is_unredeemable_code(&code.code) {
+                warn!("used secret unredeemable code to register account");
                 Some(InvitationCodeRecord {
                     code: code.code,
                     redeemed: false,
@@ -300,11 +373,11 @@ impl auth_service_server::AuthService for GrpcAs {
             .clone()
             .ok_or_missing_field("hash")?;
 
-        let hash: identifiers::UserHandleHash = hash.try_into()?;
-        let handle_verifying_key = self.load_handle_verifying_key(hash).await?;
+        let hash: identifiers::UsernameHash = hash.try_into()?;
+        let username_verifying_key = self.load_username_verifying_key(hash).await?;
         let payload = self.verify_request::<_, PublishConnectionPackagesPayload>(
             request,
-            &handle_verifying_key,
+            &username_verifying_key,
         )?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
         let connection_packages = payload
@@ -347,6 +420,7 @@ impl auth_service_server::AuthService for GrpcAs {
                 .map(|k| BatchedTokenKey {
                     token_key_id: k.token_key_id.into(),
                     public_key: k.public_key,
+                    operation_type: k.operation_type,
                 })
                 .collect(),
         }))
@@ -415,13 +489,18 @@ impl auth_service_server::AuthService for GrpcAs {
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
+        let operation_type = payload
+            .operation_type
+            .try_into()
+            .map_err(|_| Status::invalid_argument("invalid operation type"))?;
+
         let token_request: AmortizedBatchTokenRequest<Ristretto255> =
             AmortizedBatchTokenRequest::tls_deserialize_exact(payload.token_request.as_slice())
                 .map_err(|_| Status::invalid_argument("invalid token request"))?;
 
         let token_response = self
             .inner
-            .as_issue_tokens(&user_id, token_request)
+            .as_issue_tokens(&user_id, operation_type, token_request)
             .await?
             .tls_serialize_detached()
             .map_err(|_| Status::internal("failed to serialize token response"))?;
@@ -446,21 +525,21 @@ impl auth_service_server::AuthService for GrpcAs {
 
     async fn check_handle_exists(
         &self,
-        request: Request<CheckHandleExistsRequest>,
-    ) -> Result<Response<CheckHandleExistsResponse>, Status> {
+        request: Request<CheckUsernameExistsRequest>,
+    ) -> Result<Response<CheckUsernameExistsResponse>, Status> {
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
         let hash = request.hash.ok_or_missing_field("hash")?.try_into()?;
 
-        let exists = self.inner.as_check_handle_exists(&hash).await?;
+        let exists = self.inner.as_check_username_exists(&hash).await?;
 
-        Ok(Response::new(CheckHandleExistsResponse { exists }))
+        Ok(Response::new(CheckUsernameExistsResponse { exists }))
     }
 
     async fn create_handle(
         &self,
-        request: Request<CreateHandleRequest>,
-    ) -> Result<Response<CreateHandleResponse>, Status> {
+        request: Request<CreateUsernameRequest>,
+    ) -> Result<Response<CreateUsernameResponse>, Status> {
         let request = request.into_inner();
 
         let verifying_key = request
@@ -471,7 +550,7 @@ impl auth_service_server::AuthService for GrpcAs {
             .clone()
             .ok_or_missing_field("verifying_key")?
             .into();
-        let payload = self.verify_request::<_, CreateHandlePayload>(request, &verifying_key)?;
+        let payload = self.verify_request::<_, CreateUsernamePayload>(request, &verifying_key)?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let hash = payload.hash.ok_or_missing_field("hash")?.try_into()?;
@@ -483,20 +562,20 @@ impl auth_service_server::AuthService for GrpcAs {
             .map_err(|_| Status::invalid_argument("invalid token"))?;
 
         self.inner
-            .as_create_handle(verifying_key, payload.plaintext, hash, token)
+            .as_create_username(verifying_key, payload.plaintext, hash, token)
             .await?;
 
-        Ok(Response::new(CreateHandleResponse {}))
+        Ok(Response::new(CreateUsernameResponse {}))
     }
 
     async fn delete_handle(
         &self,
-        request: Request<DeleteHandleRequest>,
-    ) -> Result<Response<DeleteHandleResponse>, Status> {
+        request: Request<DeleteUsernameRequest>,
+    ) -> Result<Response<DeleteUsernameResponse>, Status> {
         let request = request.into_inner();
 
         let (hash, payload) = self
-            .verify_handle_auth::<_, DeleteHandlePayload>(request)
+            .verify_username_auth::<_, DeleteUsernamePayload>(request)
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
@@ -508,26 +587,26 @@ impl auth_service_server::AuthService for GrpcAs {
             .transpose()
             .map_err(|_| Status::invalid_argument("invalid token request"))?;
 
-        let token_response = self.inner.as_delete_handle(hash, token_request).await?;
+        let token_response = self.inner.as_delete_username(hash, token_request).await?;
 
         let token_response_bytes = token_response
             .map(|resp| resp.tls_serialize_detached())
             .transpose()
             .map_err(|_| Status::internal("failed to serialize token response"))?;
 
-        Ok(Response::new(DeleteHandleResponse {
+        Ok(Response::new(DeleteUsernameResponse {
             token_response: token_response_bytes,
         }))
     }
 
     async fn refresh_handle(
         &self,
-        request: Request<RefreshHandleRequest>,
-    ) -> Result<Response<RefreshHandleResponse>, Status> {
+        request: Request<RefreshUsernameRequest>,
+    ) -> Result<Response<RefreshUsernameResponse>, Status> {
         let request = request.into_inner();
 
         let (hash, payload) = self
-            .verify_handle_auth::<_, RefreshHandlePayload>(request)
+            .verify_username_auth::<_, RefreshUsernamePayload>(request)
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
@@ -537,9 +616,9 @@ impl auth_service_server::AuthService for GrpcAs {
             .transpose()
             .map_err(|_| Status::invalid_argument("invalid token"))?;
 
-        self.inner.as_refresh_handle(hash, token).await?;
+        self.inner.as_refresh_username(hash, token).await?;
 
-        Ok(Response::new(RefreshHandleResponse {}))
+        Ok(Response::new(RefreshUsernameResponse {}))
     }
 
     type ConnectHandleStream = BoxStream<'static, Result<ConnectResponse, Status>>;
@@ -555,18 +634,18 @@ impl auth_service_server::AuthService for GrpcAs {
         tokio::spawn(
             self.inner
                 .clone()
-                .connect_handle_protocol(incoming, outgoing_tx),
+                .connect_username_protocol(incoming, outgoing_tx),
         );
 
         let outgoing = tokio_stream::wrappers::ReceiverStream::new(outgoing_rx);
         Ok(Response::new(Box::pin(outgoing)))
     }
 
-    type ListenHandleStream = BoxStream<'static, Result<ListenHandleResponse, Status>>;
+    type ListenHandleStream = BoxStream<'static, Result<ListenUsernameResponse, Status>>;
 
     async fn listen_handle(
         &self,
-        request: Request<Streaming<ListenHandleRequest>>,
+        request: Request<Streaming<ListenUsernameRequest>>,
     ) -> Result<Response<Self::ListenHandleStream>, Status> {
         let mut requests = request.into_inner();
 
@@ -574,7 +653,7 @@ impl auth_service_server::AuthService for GrpcAs {
             .next()
             .await
             .ok_or(ListenHandleProtocolViolation::MissingInitRequest)??;
-        let Some(listen_handle_request::Request::Init(init_request)) = request.request else {
+        let Some(listen_username_request::Request::Init(init_request)) = request.request else {
             return Err(ListenHandleProtocolViolation::MissingInitRequest.into());
         };
 
@@ -585,23 +664,23 @@ impl auth_service_server::AuthService for GrpcAs {
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let (hash, _payload) = self
-            .verify_handle_auth::<_, InitListenHandlePayload>(init_request)
+            .verify_username_auth::<_, InitListenUsernamePayload>(init_request)
             .await?;
 
-        let messages = self.inner.handle_queues.listen(hash).await?;
+        let messages = self.inner.username_queues.listen(hash).await?;
 
         const REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
         let (requests_responses_tx, requests_responses_rx) =
             mpsc::channel::<Status>(REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE);
 
-        tokio::spawn(Self::process_listen_handle_requests_task(
-            self.inner.handle_queues.clone(),
+        tokio::spawn(Self::process_listen_username_requests_task(
+            self.inner.username_queues.clone(),
             requests,
             requests_responses_tx,
         ));
 
         let responses = select_until_first_ends(
-            messages.map(|message| Ok(ListenHandleResponse { message })),
+            messages.map(|message| Ok(ListenUsernameResponse { message })),
             ReceiverStream::new(requests_responses_rx).map(Err),
         );
 
@@ -666,37 +745,37 @@ impl WithUserId for ReportSpamRequest {
     }
 }
 
-trait WithUserHandleHash {
-    fn user_handle_hash_proto(&self) -> Option<UserHandleHash>;
+trait WithUsernameHash {
+    fn username_hash_proto(&self) -> Option<UsernameHash>;
 
-    fn user_handle_hash(&self) -> Result<identifiers::UserHandleHash, Status> {
+    fn username_hash(&self) -> Result<identifiers::UsernameHash, Status> {
         Ok(self
-            .user_handle_hash_proto()
-            .ok_or_missing_field("user_handle_hash")?
+            .username_hash_proto()
+            .ok_or_missing_field("username_hash")?
             .try_into()?)
     }
 }
 
-impl WithUserHandleHash for CreateHandleRequest {
-    fn user_handle_hash_proto(&self) -> Option<UserHandleHash> {
+impl WithUsernameHash for CreateUsernameRequest {
+    fn username_hash_proto(&self) -> Option<UsernameHash> {
         self.payload.as_ref()?.hash.clone()
     }
 }
 
-impl WithUserHandleHash for DeleteHandleRequest {
-    fn user_handle_hash_proto(&self) -> Option<UserHandleHash> {
+impl WithUsernameHash for DeleteUsernameRequest {
+    fn username_hash_proto(&self) -> Option<UsernameHash> {
         self.payload.as_ref()?.hash.clone()
     }
 }
 
-impl WithUserHandleHash for RefreshHandleRequest {
-    fn user_handle_hash_proto(&self) -> Option<UserHandleHash> {
+impl WithUsernameHash for RefreshUsernameRequest {
+    fn username_hash_proto(&self) -> Option<UsernameHash> {
         self.payload.as_ref()?.hash.clone()
     }
 }
 
-impl WithUserHandleHash for InitListenHandleRequest {
-    fn user_handle_hash_proto(&self) -> Option<UserHandleHash> {
+impl WithUsernameHash for InitListenUsernameRequest {
+    fn username_hash_proto(&self) -> Option<UsernameHash> {
         self.payload.as_ref()?.hash.clone()
     }
 }

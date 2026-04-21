@@ -23,6 +23,7 @@ ignore = [
     { id = "RUSTSEC-2023-0071", reason = "no fix yet available; the crate is not used by us" },
     { id = "RUSTSEC-2024-0436", reason = "no fix yet available" },
     { id = "RUSTSEC-2026-0002", reason = "no fix yet available" },
+    { id = "RUSTSEC-2026-0097", reason = "rand 0.8.5 pinned by third-party deps; no 0.8.x patch available" },
 ]
 
 [licenses]
@@ -32,6 +33,7 @@ ignore = [
 allow = [
     "Apache-2.0 WITH LLVM-exception",
     "Apache-2.0",
+    "BlueOak-1.0.0",
     "BSD-2-Clause",
     "BSD-3-Clause",
     "BSL-1.0",

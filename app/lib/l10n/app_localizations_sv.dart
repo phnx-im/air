@@ -70,7 +70,10 @@ class AppLocalizationsSv extends AppLocalizations {
   String get userSettingsScreen_accountSection => 'Konto';
 
   @override
-  String get userSettingsScreen_userHandlePlaceholder => 'Användarnamn';
+  String get userSettingsScreen_usernamePlaceholder => 'Användarnamn';
+
+  @override
+  String get userSettingsScreen_inviteCodes => 'Invite codes';
 
   @override
   String get settingsScreen_copiedToClipboard => 'Kopierat till urklipp';
@@ -95,7 +98,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get addMembersScreen_error_noActiveChat => 'en aktiv chatt krävs';
 
   @override
-  String get contactDetailsScreen_chat => 'Chat';
+  String get contactDetailsScreen_chat => 'Chatt';
 
   @override
   String get contactDetailsScreen_viewSafetyCode => 'Visa säkerhetskod';
@@ -270,6 +273,40 @@ class AppLocalizationsSv extends AppLocalizations {
       'Ogiltig inbjudningskod. Kontrollera koden och försök igen.';
 
   @override
+  String get invitationCodesScreen_title => 'Invite codes';
+
+  @override
+  String get invitationCodesScreen_copyAll => 'Copy all';
+
+  @override
+  String get invitationCodesScreen_tapToGetCode => 'Tap to get code';
+
+  @override
+  String get invitationCodesScreen_removeUnusedCodes => 'Remove used codes';
+
+  @override
+  String get invitationCodesScreen_empty => 'No invitation codes available';
+
+  @override
+  String get invitationCodesScreen_infoText1 =>
+      'Air is in a limited access phase. Everyone who wants to join needs an invite code.';
+
+  @override
+  String get invitationCodesScreen_infoText2 =>
+      'Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.';
+
+  @override
+  String get invitationCodesScreen_global_quota_exceeded =>
+      'We\'re out of invites for now, please try again later.';
+
+  @override
+  String get invitationCodesScreen_errorRequestingCode =>
+      'Something went wrong. Try again.';
+
+  @override
+  String get invitationCodesScreen_copiedToClipboard => 'Copied to clipboard';
+
+  @override
   String get signUpScreen_header => 'Skapa din profil';
 
   @override
@@ -320,6 +357,10 @@ class AppLocalizationsSv extends AppLocalizations {
   String get usernameOnboarding_addButton => 'Lägg till';
 
   @override
+  String get usernameOnboarding_error =>
+      'Something went wrong on our end. Wait a moment, then try again.';
+
+  @override
   String get usernameOnboarding_next => 'Nästa';
 
   @override
@@ -330,47 +371,47 @@ class AppLocalizationsSv extends AppLocalizations {
       'Lägg till ett användarnamn...';
 
   @override
-  String get userHandleScreen_title => 'Lägg till användarnamn';
+  String get usernameScreen_title => 'Lägg till användarnamn';
 
   @override
-  String get userHandleScreen_inputHint => 'Skriv ett användarnamn...';
+  String get usernameScreen_inputHint => 'Skriv ett användarnamn...';
 
   @override
-  String get userHandleScreen_error_emptyHandle =>
+  String get usernameScreen_error_emptyUsername =>
       'Användarnamn får inte vara tomt';
 
   @override
-  String get userHandleScreen_error_alreadyExists =>
+  String get usernameScreen_error_alreadyExists =>
       'Användarnamnet används redan';
 
   @override
-  String get userHandleScreen_description =>
+  String get usernameScreen_description =>
       'Välj ett användarnamn som andra kan använda för att ansluta till dig.\n\nAnvänd bokstäver, siffror eller bindestreck. Minst 5 tecken.';
 
   @override
-  String get userHandleScreen_cancel => 'Avbryt';
+  String get usernameScreen_cancel => 'Avbryt';
 
   @override
-  String get userHandleScreen_confirm => 'Lägg till';
+  String get usernameScreen_confirm => 'Lägg till';
 
   @override
-  String get userHandleScreen_error_tooShort =>
+  String get usernameScreen_error_tooShort =>
       'Användarnamn måste vara minst 5 tecken';
 
   @override
-  String get userHandleScreen_error_tooLong =>
+  String get usernameScreen_error_tooLong =>
       'Användarnamn får vara högst 63 tecken';
 
   @override
-  String get userHandleScreen_error_invalidCharacter =>
+  String get usernameScreen_error_invalidCharacter =>
       'Användarnamn får bara innehålla bokstäver, siffror eller bindestreck';
 
   @override
-  String get userHandleScreen_error_consecutiveDashes =>
+  String get usernameScreen_error_consecutiveDashes =>
       'Användarnamn får inte innehålla flera bindestreck i rad';
 
   @override
-  String get userHandleScreen_error_leadingDigit =>
+  String get usernameScreen_error_leadingDigit =>
       'Användarnamn får inte börja med en siffra';
 
   @override
@@ -543,7 +584,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String newChatDialog_error_incompatibleClient(Object chatName) {
-    return 'Couldn\'t create new group chat with name $chatName because one of the contacts has an incompatible client.';
+    return 'Kunde inte skapa en ny gruppchatt med namnet $chatName eftersom en av kontakterna har en inkompatibel klient.';
   }
 
   @override
@@ -580,10 +621,11 @@ class AppLocalizationsSv extends AppLocalizations {
   }
 
   @override
-  String get newConnectionDialog_error_emptyHandle => 'Skriv in användarnamnet';
+  String get newConnectionDialog_error_emptyUsername =>
+      'Skriv in användarnamnet';
 
   @override
-  String newConnectionDialog_error_handleNotFound(Object username) {
+  String newConnectionDialog_error_usernameNotFound(Object username) {
     return '$username hittades inte. Kontrollera det och försök igen.';
   }
 
@@ -592,7 +634,7 @@ class AppLocalizationsSv extends AppLocalizations {
       'Du har redan en väntande kontaktförfrågan till det här användarnamnet.';
 
   @override
-  String get newConnectionDialog_error_ownHandle =>
+  String get newConnectionDialog_error_ownUsername =>
       'Du kan inte skicka en kontaktförfrågan till dig själv.';
 
   @override
@@ -612,7 +654,7 @@ class AppLocalizationsSv extends AppLocalizations {
     Object actualSize,
     Object maxSize,
   ) {
-    return 'Attachment is too large. The maximum size is $maxSize and the actual size is $actualSize.';
+    return 'Bilagan är för stor. Maxstorleken är $maxSize och den faktiska storleken är $actualSize.';
   }
 
   @override
@@ -862,7 +904,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get addMembersScreen_error_incompatibleClient =>
-      'Couldn\'t add member(s) because one of the contacts has an incompatible client';
+      'Kunde inte lägga till medlem(mar) eftersom en av kontakterna har en inkompatibel klient';
 
   @override
   String get leaveChatDialog_title => 'Lämna grupp';
@@ -968,8 +1010,19 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get contactRequestDialog_error_incompatibleClient =>
-      'Failed to accept contact request. Update Air to the newest version, then try again.';
+      'Kunde inte acceptera kontaktförfrågan. Uppdatera Air till den senaste versionen och försök sedan igen.';
 
   @override
   String get errorBanner_ok => 'OK';
+
+  @override
+  String messageList_unreadMessages(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count olästa meddelanden',
+      one: '$count oläst meddelande',
+    );
+    return '$_temp0';
+  }
 }

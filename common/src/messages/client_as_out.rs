@@ -92,7 +92,7 @@ pub struct MergeUserProfileParams {
 }
 
 #[derive(Debug)]
-pub enum UserHandleDeleteResponse {
+pub enum UsernameDeleteResponse {
     Success,
     NotFound,
 }

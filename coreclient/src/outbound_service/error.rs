@@ -2,6 +2,26 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use airapiclient::ds_api::DsRequestError;
+
+/// Classifies a DS API error as fatal or recoverable.
+///
+/// Permanent server errors (e.g. group not found) are fatal — retrying will
+/// never succeed. Transport/availability errors are recoverable.
+pub(crate) fn classify_ds_error(error: DsRequestError) -> OutboundServiceError {
+    if error.is_not_found() {
+        OutboundServiceError::fatal(error)
+    } else {
+        OutboundServiceError::recoverable(error)
+    }
+}
+
+pub(crate) fn is_ds_not_found_error(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<DsRequestError>()
+        .is_some_and(DsRequestError::is_not_found)
+}
+
 /// Errors that occur while running the outbound service. Fatal errors will
 /// cause just the current task to be skipped, while network errors will cause
 /// the entire run to be skipped (i.e. no further tasks will be executed until

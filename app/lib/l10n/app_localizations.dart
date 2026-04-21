@@ -210,11 +210,17 @@ abstract class AppLocalizations {
   /// **'Account'**
   String get userSettingsScreen_accountSection;
 
-  /// No description provided for @userSettingsScreen_userHandlePlaceholder.
+  /// No description provided for @userSettingsScreen_usernamePlaceholder.
   ///
   /// In en, this message translates to:
   /// **'Username'**
-  String get userSettingsScreen_userHandlePlaceholder;
+  String get userSettingsScreen_usernamePlaceholder;
+
+  /// No description provided for @userSettingsScreen_inviteCodes.
+  ///
+  /// In en, this message translates to:
+  /// **'Invite codes'**
+  String get userSettingsScreen_inviteCodes;
 
   /// No description provided for @settingsScreen_copiedToClipboard.
   ///
@@ -552,6 +558,66 @@ abstract class AppLocalizations {
   /// **'Invalid invitation code. Check your code, then try again.'**
   String get invitationCodeScreen_error_invalid;
 
+  /// No description provided for @invitationCodesScreen_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Invite codes'**
+  String get invitationCodesScreen_title;
+
+  /// No description provided for @invitationCodesScreen_copyAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy all'**
+  String get invitationCodesScreen_copyAll;
+
+  /// No description provided for @invitationCodesScreen_tapToGetCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to get code'**
+  String get invitationCodesScreen_tapToGetCode;
+
+  /// No description provided for @invitationCodesScreen_removeUnusedCodes.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove used codes'**
+  String get invitationCodesScreen_removeUnusedCodes;
+
+  /// No description provided for @invitationCodesScreen_empty.
+  ///
+  /// In en, this message translates to:
+  /// **'No invitation codes available'**
+  String get invitationCodesScreen_empty;
+
+  /// No description provided for @invitationCodesScreen_infoText1.
+  ///
+  /// In en, this message translates to:
+  /// **'Air is in a limited access phase. Everyone who wants to join needs an invite code.'**
+  String get invitationCodesScreen_infoText1;
+
+  /// No description provided for @invitationCodesScreen_infoText2.
+  ///
+  /// In en, this message translates to:
+  /// **'Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.'**
+  String get invitationCodesScreen_infoText2;
+
+  /// No description provided for @invitationCodesScreen_global_quota_exceeded.
+  ///
+  /// In en, this message translates to:
+  /// **'We\'re out of invites for now, please try again later.'**
+  String get invitationCodesScreen_global_quota_exceeded;
+
+  /// No description provided for @invitationCodesScreen_errorRequestingCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Something went wrong. Try again.'**
+  String get invitationCodesScreen_errorRequestingCode;
+
+  /// No description provided for @invitationCodesScreen_copiedToClipboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard'**
+  String get invitationCodesScreen_copiedToClipboard;
+
   /// No description provided for @signUpScreen_header.
   ///
   /// In en, this message translates to:
@@ -636,6 +702,12 @@ abstract class AppLocalizations {
   /// **'Add'**
   String get usernameOnboarding_addButton;
 
+  /// No description provided for @usernameOnboarding_error.
+  ///
+  /// In en, this message translates to:
+  /// **'Something went wrong on our end. Wait a moment, then try again.'**
+  String get usernameOnboarding_error;
+
   /// No description provided for @usernameOnboarding_next.
   ///
   /// In en, this message translates to:
@@ -654,77 +726,77 @@ abstract class AppLocalizations {
   /// **'Add a username...'**
   String get usernameOnboarding_usernameInputHint;
 
-  /// No description provided for @userHandleScreen_title.
+  /// No description provided for @usernameScreen_title.
   ///
   /// In en, this message translates to:
   /// **'Add username'**
-  String get userHandleScreen_title;
+  String get usernameScreen_title;
 
-  /// No description provided for @userHandleScreen_inputHint.
+  /// No description provided for @usernameScreen_inputHint.
   ///
   /// In en, this message translates to:
   /// **'Type a username...'**
-  String get userHandleScreen_inputHint;
+  String get usernameScreen_inputHint;
 
-  /// No description provided for @userHandleScreen_error_emptyHandle.
+  /// No description provided for @usernameScreen_error_emptyUsername.
   ///
   /// In en, this message translates to:
   /// **'Username cannot be empty'**
-  String get userHandleScreen_error_emptyHandle;
+  String get usernameScreen_error_emptyUsername;
 
-  /// No description provided for @userHandleScreen_error_alreadyExists.
+  /// No description provided for @usernameScreen_error_alreadyExists.
   ///
   /// In en, this message translates to:
   /// **'Username is already in use'**
-  String get userHandleScreen_error_alreadyExists;
+  String get usernameScreen_error_alreadyExists;
 
-  /// No description provided for @userHandleScreen_description.
+  /// No description provided for @usernameScreen_description.
   ///
   /// In en, this message translates to:
   /// **'Choose a username that others can use to connect with you. Use letters, numbers, or dashes. Minimum 5 characters.'**
-  String get userHandleScreen_description;
+  String get usernameScreen_description;
 
-  /// No description provided for @userHandleScreen_cancel.
+  /// No description provided for @usernameScreen_cancel.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
-  String get userHandleScreen_cancel;
+  String get usernameScreen_cancel;
 
-  /// No description provided for @userHandleScreen_confirm.
+  /// No description provided for @usernameScreen_confirm.
   ///
   /// In en, this message translates to:
   /// **'Add'**
-  String get userHandleScreen_confirm;
+  String get usernameScreen_confirm;
 
-  /// No description provided for @userHandleScreen_error_tooShort.
+  /// No description provided for @usernameScreen_error_tooShort.
   ///
   /// In en, this message translates to:
   /// **'Username must be at least 5 characters'**
-  String get userHandleScreen_error_tooShort;
+  String get usernameScreen_error_tooShort;
 
-  /// No description provided for @userHandleScreen_error_tooLong.
+  /// No description provided for @usernameScreen_error_tooLong.
   ///
   /// In en, this message translates to:
   /// **'Username must be at most 63 characters'**
-  String get userHandleScreen_error_tooLong;
+  String get usernameScreen_error_tooLong;
 
-  /// No description provided for @userHandleScreen_error_invalidCharacter.
+  /// No description provided for @usernameScreen_error_invalidCharacter.
   ///
   /// In en, this message translates to:
   /// **'Username must only contain letters, numbers, or dashes'**
-  String get userHandleScreen_error_invalidCharacter;
+  String get usernameScreen_error_invalidCharacter;
 
-  /// No description provided for @userHandleScreen_error_consecutiveDashes.
+  /// No description provided for @usernameScreen_error_consecutiveDashes.
   ///
   /// In en, this message translates to:
   /// **'Username must not contain consecutive dashes'**
-  String get userHandleScreen_error_consecutiveDashes;
+  String get usernameScreen_error_consecutiveDashes;
 
-  /// No description provided for @userHandleScreen_error_leadingDigit.
+  /// No description provided for @usernameScreen_error_leadingDigit.
   ///
   /// In en, this message translates to:
   /// **'Username must not start with a digit'**
-  String get userHandleScreen_error_leadingDigit;
+  String get usernameScreen_error_leadingDigit;
 
   /// No description provided for @editDisplayNameScreen_title.
   ///
@@ -1035,17 +1107,17 @@ abstract class AppLocalizations {
   /// **'Failed to send {username} a contact request. Try again.'**
   String newConnectionDialog_error(Object username);
 
-  /// No description provided for @newConnectionDialog_error_emptyHandle.
+  /// No description provided for @newConnectionDialog_error_emptyUsername.
   ///
   /// In en, this message translates to:
   /// **'Type the username'**
-  String get newConnectionDialog_error_emptyHandle;
+  String get newConnectionDialog_error_emptyUsername;
 
-  /// No description provided for @newConnectionDialog_error_handleNotFound.
+  /// No description provided for @newConnectionDialog_error_usernameNotFound.
   ///
   /// In en, this message translates to:
   /// **'{username} wasn\'t found. Check it and try again.'**
-  String newConnectionDialog_error_handleNotFound(Object username);
+  String newConnectionDialog_error_usernameNotFound(Object username);
 
   /// No description provided for @newConnectionDialog_error_duplicateRequest.
   ///
@@ -1053,11 +1125,11 @@ abstract class AppLocalizations {
   /// **'You already have a pending contact request to this username.'**
   String get newConnectionDialog_error_duplicateRequest;
 
-  /// No description provided for @newConnectionDialog_error_ownHandle.
+  /// No description provided for @newConnectionDialog_error_ownUsername.
   ///
   /// In en, this message translates to:
   /// **'You can\'t send a contact request to yourself.'**
-  String get newConnectionDialog_error_ownHandle;
+  String get newConnectionDialog_error_ownUsername;
 
   /// No description provided for @composer_inputHint.
   ///
@@ -1718,6 +1790,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'OK'**
   String get errorBanner_ok;
+
+  /// No description provided for @messageList_unreadMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one {{count} unread message} other {{count} unread messages}}'**
+  String messageList_unreadMessages(int count);
 }
 
 class _AppLocalizationsDelegate

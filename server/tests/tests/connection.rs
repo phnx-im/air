@@ -243,23 +243,23 @@ async fn connection_request_has_server_timestamp() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
 
-    // Bob adds a user handle
+    // Bob adds a username
     let test_bob = setup.get_user_mut(&bob);
-    let bob_handle_record = test_bob.add_user_handle().await.unwrap();
-    let bob_handle = bob_handle_record.handle.clone();
+    let bob_username_record = test_bob.add_username().await.unwrap();
+    let bob_username = bob_username_record.username.clone();
 
     // Alice sends a connection request to Bob
     let test_alice = setup.get_user_mut(&alice);
     let alice_user = &mut test_alice.user;
-    let user_handle_hash = spawn_blocking({
-        let handle = bob_handle.clone();
-        move || handle.calculate_hash().unwrap()
+    let username_hash = spawn_blocking({
+        let username = bob_username.clone();
+        move || username.calculate_hash().unwrap()
     })
     .await
     .unwrap();
 
     alice_user
-        .add_contact(bob_handle.clone(), user_handle_hash)
+        .add_contact(bob_username.clone(), username_hash)
         .await
         .expect("fatal error")
         .expect("non-fatal error");
@@ -267,7 +267,10 @@ async fn connection_request_has_server_timestamp() {
     // Bob fetches and processes the connection request
     let test_bob = setup.get_user_mut(&bob);
     let bob_user = &mut test_bob.user;
-    let (mut stream, responder) = bob_user.listen_handle(&bob_handle_record).await.unwrap();
+    let (mut stream, responder) = bob_user
+        .listen_username(&bob_username_record)
+        .await
+        .unwrap();
 
     // Process handle queue messages, extracting the server timestamp before processing
     let mut bob_chat_id = None;
@@ -291,7 +294,7 @@ async fn connection_request_has_server_timestamp() {
         ));
 
         let chat_id = bob_user
-            .process_handle_queue_message(bob_handle_record.handle.clone(), message)
+            .process_username_queue_message(bob_username_record.username.clone(), message)
             .await
             .unwrap();
         bob_chat_id = Some(chat_id);
@@ -318,8 +321,8 @@ async fn connection_request_has_server_timestamp() {
         "System message should indicate connection from Alice"
     );
     assert_eq!(
-        *user_handle, bob_handle,
-        "System message should have the correct handle"
+        *user_handle, bob_username,
+        "System message should have the correct username"
     );
 
     // The system message timestamp should exactly match the server's created_at timestamp

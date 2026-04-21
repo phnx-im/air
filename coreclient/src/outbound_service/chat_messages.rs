@@ -12,6 +12,7 @@ use tracing::debug;
 use tracing::warn;
 use uuid::Uuid;
 
+use crate::groups::handle_group_not_found_on_ds;
 use crate::job::pending_chat_operation::PendingChatOperation;
 use crate::outbound_service::resync::Resync;
 use crate::utils::connection_ext::ConnectionExt as _;
@@ -112,8 +113,10 @@ impl OutboundServiceContext {
                 return Ok(()); // the task is being stopped
             }
 
-            let Some((chat_id, message_id)) =
-                ChatMessageQueue::dequeue(&self.pool, task_id).await?
+            let Some((chat_id, message_id)) = self
+                .pool
+                .with_transaction(async |txn| ChatMessageQueue::dequeue(txn, task_id).await)
+                .await?
             else {
                 return Ok(());
             };
@@ -193,11 +196,23 @@ impl OutboundServiceContext {
             .await?;
 
         // send MLS message to DS
-        let ds_timestamp = self
+        let ds_timestamp = match self
             .api_clients
             .get(&chat.owner_domain())?
             .ds_send_message(params, self.signing_key(), &group_state_ear_key)
-            .await?;
+            .await
+        {
+            Ok(ts) => ts,
+            Err(ds_error) => {
+                if ds_error.is_not_found() {
+                    self.with_transaction_and_notifier(async |txn, notifier| {
+                        handle_group_not_found_on_ds(txn, notifier, chat.group_id()).await
+                    })
+                    .await?;
+                }
+                return Err(ds_error.into());
+            }
+        };
 
         // post-processing:
         self.with_transaction_and_notifier(async |txn, notifier| {

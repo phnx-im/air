@@ -21,7 +21,7 @@ use mls_assist::{
 use aircommon::{
     credentials::VerifiableClientCredential,
     crypto::{
-        ear::keys::{EncryptedUserProfileKey, GroupStateEarKey},
+        aead::keys::{EncryptedUserProfileKey, GroupStateEarKey},
         hpke::{HpkeEncryptable, JoinerInfoEncryptionKey},
     },
     identifiers::QsReference,

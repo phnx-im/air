@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT message_id\n                FROM chat_message_queue\n                WHERE locked_by IS NULL OR locked_by != ?1\n                ORDER BY created_at ASC\n                LIMIT 1\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "message_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "49f5f5422be74331b2deb0a2038e1e9eb85a3d6f10e7ed4f2331e89620675183"
+}

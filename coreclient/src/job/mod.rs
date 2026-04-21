@@ -101,10 +101,14 @@ impl<E> From<AsRequestError> for JobError<E> {
 
 impl<E> From<DsRequestError> for JobError<E> {
     fn from(error: DsRequestError) -> Self {
-        // Network errors can occur without any fault of the job itself, so we
-        // only log info here.
-        info!(?error, "Job failed due to network error");
-        Self::NetworkError
+        if error.is_not_found() {
+            Self::NotFound
+        } else if error.is_network_error() {
+            info!(?error, "Job failed due to network error");
+            Self::NetworkError
+        } else {
+            Self::Fatal(error.into())
+        }
     }
 }
 

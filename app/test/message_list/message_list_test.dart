@@ -14,7 +14,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:visibility_detector/visibility_detector.dart';
 
 import '../chat_list/chat_list_content_test.dart';
 import '../helpers.dart';
@@ -774,7 +773,7 @@ void main() {
     );
 
     testWidgets('renders correctly when empty', (tester) async {
-      when(() => messageListCubit.state).thenReturn(MockMessageListState([]));
+      messageListCubit.setState(const []);
 
       await tester.pumpWidget(buildSubject());
 
@@ -790,11 +789,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(messages));
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      messageListCubit.setState(messages);
 
       await tester.pumpWidget(buildSubject());
 
@@ -810,16 +805,12 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(messages));
+      messageListCubit.setState(messages);
 
       tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
       addTearDown(() {
         tester.platformDispatcher.clearPlatformBrightnessTestValue();
       });
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
       await tester.pumpWidget(buildSubject());
 
@@ -835,9 +826,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(attachmentMessages));
+      messageListCubit.setState(attachmentMessages);
       when(
         () => attachmentsRepository.loadImageAttachment(
           attachmentId: any(named: 'attachmentId'),
@@ -849,8 +838,6 @@ void main() {
           attachmentId: any(named: 'attachmentId'),
         ),
       ).thenAnswer((_) => Stream.value(const UiAttachmentStatus.completed()));
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
       await tester.pumpWidget(buildSubject());
 
@@ -875,11 +862,7 @@ void main() {
             _ => message,
           },
       ];
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(messageWithBobBlocked));
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      messageListCubit.setState(messageWithBobBlocked);
 
       await tester.pumpWidget(buildSubject());
 
@@ -904,11 +887,7 @@ void main() {
             message.copyWith(status: UiMessageStatus.hidden),
         ],
       ];
-      when(() => messageListCubit.state).thenReturn(
-        MockMessageListState(messageWithBobBlocked, isConnectionChat: true),
-      );
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      messageListCubit.setState(messageWithBobBlocked, isConnectionChat: true);
 
       await tester.pumpWidget(buildSubject());
 
@@ -924,11 +903,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(jumboEmojiMessages));
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      messageListCubit.setState(jumboEmojiMessages);
 
       await tester.pumpWidget(buildSubject());
 
@@ -946,14 +921,10 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(messages));
+      messageListCubit.setState(messages);
       when(
         () => userSettingsCubit.state,
       ).thenReturn(const UserSettings(readReceipts: false));
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
       await tester.pumpWidget(buildSubject());
 
@@ -961,6 +932,175 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/message_list_disabled_read_receipts.png'),
       );
+    });
+
+    testWidgets('renders unread divider', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      // Use a small subset so the golden stays compact.
+      // Place the unread divider at index 2, which is mid-flight for
+      // Eve (indices 1=start, 2=end). The divider should break the
+      // flight: 1→single | divider | 2→single.
+      final unreadMessages = [
+        for (final (i, msg) in messages.take(6).indexed)
+          switch (i) {
+            1 => msg.copyWith(position: UiFlightPosition.single),
+            2 => msg.copyWith(position: UiFlightPosition.single),
+            _ => msg,
+          },
+      ];
+
+      messageListCubit.setState(unreadMessages, firstUnreadIndex: 2);
+
+      await tester.pumpWidget(buildSubject());
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_list_unread_divider.png'),
+      );
+    });
+
+    testWidgets('scrollToMessage loads and reaches an unloaded target', (
+      tester,
+    ) async {
+      // Small viewport so most messages are off-screen.
+      tester.view.physicalSize = const Size(400, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final manyMessages = List.generate(30, (i) {
+        return UiChatMessage(
+          id: (200 + i).messageId(),
+          chatId: chatId,
+          timestamp: DateTime(2023, 1, 1, 0, i),
+          message: UiMessage_Content(
+            UiContentMessage(
+              sender: 2.userId(),
+              sent: true,
+              edited: false,
+              content: UiMimiContent(
+                plainBody: 'Message number $i',
+                topicId: Uint8List(0),
+                content: simpleMessage('Message number $i'),
+                attachments: [],
+              ),
+            ),
+          ),
+          position: UiFlightPosition.single,
+          status: UiMessageStatus.sent,
+        );
+      });
+
+      final targetMessage = UiChatMessage(
+        id: 999.messageId(),
+        chatId: chatId,
+        timestamp: DateTime(2023, 1, 1, 2, 0),
+        message: UiMessage_Content(
+          UiContentMessage(
+            sender: 2.userId(),
+            sent: true,
+            edited: false,
+            content: UiMimiContent(
+              plainBody: 'Loaded around target',
+              topicId: Uint8List(0),
+              content: simpleMessage('Loaded around target'),
+              attachments: [],
+            ),
+          ),
+        ),
+        position: UiFlightPosition.single,
+        status: UiMessageStatus.sent,
+      );
+
+      MessageId? requestedMessageId;
+      messageListCubit = MockMessageListCubit(
+        initialMessages: manyMessages,
+        onJumpToMessage: (messageId) async {
+          requestedMessageId = messageId;
+          messageListCubit.setState([...manyMessages, targetMessage]);
+        },
+      );
+
+      await tester.pumpWidget(buildSubject());
+
+      messageListCubit.emitCommand(
+        MessageListCommand.scrollToId(messageId: targetMessage.id),
+      );
+      await tester.pump();
+
+      // Pump enough frames for the iterative scroll to converge.
+      for (var i = 0; i < 15; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      expect(requestedMessageId, targetMessage.id);
+      expect(find.text('Loaded around target'), findsOneWidget);
+    });
+
+    testWidgets('marks the current visible message as read while scrolling', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(400, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final manyMessages = List.generate(30, (i) {
+        return UiChatMessage(
+          id: (400 + i).messageId(),
+          chatId: chatId,
+          timestamp: DateTime(2023, 1, 1, 0, i),
+          message: UiMessage_Content(
+            UiContentMessage(
+              sender: 2.userId(),
+              sent: true,
+              edited: false,
+              content: UiMimiContent(
+                plainBody: 'Read marker message $i',
+                topicId: Uint8List(0),
+                content: simpleMessage('Read marker message $i'),
+                attachments: [],
+              ),
+            ),
+          ),
+          position: UiFlightPosition.single,
+          status: UiMessageStatus.sent,
+        );
+      });
+
+      messageListCubit.setState(manyMessages);
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      reset(chatDetailsCubit);
+      when(
+        () => chatDetailsCubit.markAsRead(
+          untilMessageId: any(named: 'untilMessageId'),
+          untilTimestamp: any(named: 'untilTimestamp'),
+        ),
+      ).thenAnswer((_) => Future.value());
+
+      tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position
+          .jumpTo(250);
+      await tester.pump();
+
+      verify(
+        () => chatDetailsCubit.markAsRead(
+          untilMessageId: any(named: 'untilMessageId'),
+          untilTimestamp: any(named: 'untilTimestamp'),
+        ),
+      ).called(1);
     });
 
     testWidgets('renders correctly with replies of various sizes', (
@@ -971,11 +1111,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(replyMessages));
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      messageListCubit.setState(replyMessages);
 
       await tester.pumpWidget(buildSubject());
 

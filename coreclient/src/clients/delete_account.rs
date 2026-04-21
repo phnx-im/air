@@ -5,10 +5,10 @@
 use airapiclient::ApiClient;
 use anyhow::Context;
 use mimi_room_policy::RoleIndex;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::{
-    UserHandleRecord, clients::CoreUser, delete_client_database, groups::Group, privacy_pass,
+    UsernameRecord, clients::CoreUser, delete_client_database, groups::Group, privacy_pass,
     store::Store, utils::connection_ext::StoreExt,
 };
 
@@ -34,7 +34,7 @@ impl CoreUser {
         // After the qs client is deleted, there is no way back and everything else after it is
         // best effort.
 
-        self.delete_all_user_handles(&client).await;
+        self.delete_all_usernames(&client).await;
         self.leave_all_chats(&client).await;
 
         self.delete_qs_identity(&client).await;
@@ -90,29 +90,33 @@ impl CoreUser {
             .await?;
 
         for (params, ear_key) in removals {
-            api_client
+            match api_client
                 .ds_self_remove(params, self.signing_key(), &ear_key)
-                .await?;
+                .await
+            {
+                Ok(_) => {}
+                Err(e) if e.is_not_found() => {
+                    warn!("Group already gone from server; skipping");
+                }
+                Err(e) => return Err(e.into()),
+            }
         }
 
         info!("Left all chats");
         Ok(())
     }
 
-    async fn delete_all_user_handles(&self, api_client: &ApiClient) {
-        if let Err(error) = self.try_delete_all_user_handles(api_client).await {
-            error!(%error, "Error deleting all user handles");
+    async fn delete_all_usernames(&self, api_client: &ApiClient) {
+        if let Err(error) = self.try_delete_all_usernames(api_client).await {
+            error!(%error, "Error deleting all usernames");
         }
     }
 
-    async fn try_delete_all_user_handles(&self, api_client: &ApiClient) -> anyhow::Result<()> {
-        let user_handles = self.user_handles().await?;
-        info!(
-            num_handles = user_handles.len(),
-            "Deleting all user handles"
-        );
+    async fn try_delete_all_usernames(&self, api_client: &ApiClient) -> anyhow::Result<()> {
+        let usernames = self.usernames().await?;
+        info!(num_usernames = usernames.len(), "Deleting all usernames");
 
-        let records = UserHandleRecord::load_all(self.pool()).await?;
+        let records = UsernameRecord::load_all(self.pool()).await?;
         let domain = self.user_id().domain();
         for record in records {
             let (token_request, _token_state) =
@@ -120,11 +124,11 @@ impl CoreUser {
                     .await?
                     .context("no VOPRF keys available for delete token request")?;
             api_client
-                .as_delete_handle(record.hash, &record.signing_key, token_request)
+                .as_delete_username(record.hash, &record.signing_key, token_request)
                 .await?;
         }
 
-        info!("Deleted all user handles");
+        info!("Deleted all usernames");
         Ok(())
     }
 

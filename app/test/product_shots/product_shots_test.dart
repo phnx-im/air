@@ -18,7 +18,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
-import 'package:visibility_detector/visibility_detector.dart';
 
 import '../chat_list/chat_list_content_test.dart'
     show createMockChatDetailsCubitFactory;
@@ -61,7 +60,7 @@ void main() {
     final titleColor = AppColors.neutral[800]!;
     final subtitleColor = AppColors.neutral[600]!;
     final frameColor = AppColors.neutral[300]!;
-    const title = 'Easy private messaging.';
+    const title = 'Secure messaging\nfor everyone.';
     const subtitle = 'Everything in Air is\nend-to-end encrypted.';
 
     late MockNavigationCubit navigationCubit;
@@ -232,9 +231,7 @@ void main() {
         ),
       ).thenAnswer((_) async => Future.value());
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(fredMessages));
+      messageListCubit.setState(fredMessages);
       when(
         () => attachmentsRepository.loadImageAttachment(
           attachmentId: any(named: "attachmentId"),
@@ -302,8 +299,6 @@ void main() {
       hostPlatform: "macos",
       physicalSize: iosPhysicalSize,
       (tester) async {
-        VisibilityDetectorController.instance.updateInterval = Duration.zero;
-
         await tester.pumpWidget(buildSubject(ProductShotPlatform.ios));
         await _precacheImages(tester);
         await tester.pumpAndSettle();
@@ -321,8 +316,6 @@ void main() {
       hostPlatform: "linux",
       physicalSize: androidPhysicalSize,
       (tester) async {
-        VisibilityDetectorController.instance.updateInterval = Duration.zero;
-
         await tester.pumpWidget(buildSubject(ProductShotPlatform.android));
         await _precacheImages(tester);
         await tester.pumpAndSettle();
@@ -341,8 +334,8 @@ void main() {
     final titleColor = AppColors.blue[800]!;
     final subtitleColor = AppColors.blue[600]!;
     final frameColor = AppColors.blue[300]!;
-    const title = 'Create groups to chat.';
-    const subtitle = 'Chat in groups with multiple people.';
+    const title = 'Create group chats.';
+    const subtitle = 'Message with multiple people.';
 
     late MockNavigationCubit navigationCubit;
     late MockUserCubit userCubit;
@@ -386,9 +379,7 @@ void main() {
         ),
       ).thenAnswer((_) async => Future.value());
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(gardeningPartyMessages));
+      messageListCubit.setState(gardeningPartyMessages);
     });
 
     Widget buildSubject(ProductShotPlatform platform) =>
@@ -445,8 +436,6 @@ void main() {
       hostPlatform: "macos",
       physicalSize: iosPhysicalSize,
       (tester) async {
-        VisibilityDetectorController.instance.updateInterval = Duration.zero;
-
         await tester.pumpWidget(buildSubject(ProductShotPlatform.ios));
         await _precacheImages(tester);
         await tester.pumpAndSettle();
@@ -464,8 +453,6 @@ void main() {
       hostPlatform: "linux",
       physicalSize: androidPhysicalSize,
       (tester) async {
-        VisibilityDetectorController.instance.updateInterval = Duration.zero;
-
         await tester.pumpWidget(buildSubject(ProductShotPlatform.android));
         await _precacheImages(tester);
         await tester.pumpAndSettle();

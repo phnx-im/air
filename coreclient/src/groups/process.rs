@@ -9,7 +9,7 @@ use aircommon::{
         AsIntermediateCredential, AsIntermediateCredentialBody, ClientCredential,
         VerifiableClientCredential,
     },
-    crypto::{ear::keys::EncryptedUserProfileKey, hash::Hash, indexed_aead::keys::UserProfileKey},
+    crypto::{aead::keys::EncryptedUserProfileKey, hash::Hash, indexed_aead::keys::UserProfileKey},
     identifiers::UserId,
     messages::client_ds::{AadMessage, AadPayload},
     utils::removed_client,

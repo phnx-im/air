@@ -7,7 +7,7 @@ use std::ops::Deref;
 use aircommon::{
     codec::{BlobDecoded, BlobEncoded, PersistenceCodec},
     credentials::{ClientCredential, GroupStorageWitness, VerifiableClientCredential},
-    crypto::ear::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
+    crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     time::TimeStamp,
 };
 use anyhow::{Result, ensure};

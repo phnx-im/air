@@ -20,14 +20,17 @@
   "userSettingsScreen_helpSection": "Help",
   "userSettingsScreen_accountSection": "Account",
 
-  "userSettingsScreen_userHandlePlaceholder": "Add another username...",
+  "userSettingsScreen_usernamePlaceholder": "Add another username...",
+
+  "userSettingsScreen_inviteCodes": "Invite codes",
+
   "settingsScreen_copiedToClipboard": "Copied to clipboard",
 
   "removeUsernameDialog_title": "Remove username?",
   "removeUsernameDialog_content": "People won’t be able to send you a contact request using this username, and it may be taken by someone else.",
   "removeUsernameDialog_cancel": "Cancel",
   "removeUsernameDialog_remove": "Remove",
-  "userSettingsScreen_userHandlePlaceholder": "Username",
+  "userSettingsScreen_usernamePlaceholder": "Username",
 
   "addMembersScreen_addMembers": "Add member(s)",
   "addMembersScreen_error_noActiveChat": "an active chat is obligatory",
@@ -99,6 +102,18 @@
   "invitationCodeScreen_error_missing": "Invitation code is missing",
   "invitationCodeScreen_error_invalid": "Invalid invitation code. Check your code, then try again.",
 
+  "invitationCodesScreen_title": "Invite codes",
+  "invitationCodesScreen_copyAll": "Copy all",
+  "invitationCodesScreen_tapToGetCode": "Tap to get code",
+  "invitationCodesScreen_removeUnusedCodes": "Remove used codes",
+  "invitationCodesScreen_empty": "No invitation codes available",
+  "invitationCodesScreen_infoText1": "Air is in a limited access phase. Everyone who wants to join needs an invite code.",
+  "invitationCodesScreen_infoText2": "Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.",
+  "invitationCodesScreen_global_quota_exceeded": "We're out of invites for now, please try again later.",
+  "invitationCodesScreen_errorRequestingCode": "Something went wrong. Try again.",
+  "invitationCodesScreen_copiedToClipboard": "Copied to clipboard",
+
+
   "signUpScreen_header": "Create your profile",
   "signUpScreen_subheader": "Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.",
   "signUpScreen_actionButton": "Create",
@@ -114,22 +129,23 @@
   "usernameOnboarding_body": "Usernames are how people connect on Air. They aren't visible to others once you're connected.\n\nAdd, change, or delete usernames at any time in your profile.",
   "usernameOnboarding_syntax": "Use letters, numbers, or dashes. Minimum 5 characters.",
   "usernameOnboarding_addButton": "Add",
+  "usernameOnboarding_error": "Something went wrong on our end. Wait a moment, then try again.",
   "usernameOnboarding_next": "Next",
   "usernameOnboarding_usernameInputName": "Username (optional)",
   "usernameOnboarding_usernameInputHint": "Add a username...",
 
-  "userHandleScreen_title": "Add username",
-  "userHandleScreen_inputHint": "Type a username...",
-  "userHandleScreen_error_emptyHandle": "Username cannot be empty",
-  "userHandleScreen_error_alreadyExists": "Username is already in use",
-  "userHandleScreen_description": "Choose a username that others can use to connect with you. Use letters, numbers, or dashes. Minimum 5 characters.",
-  "userHandleScreen_cancel": "Cancel",
-  "userHandleScreen_confirm": "Add",
-  "userHandleScreen_error_tooShort": "Username must be at least 5 characters",
-  "userHandleScreen_error_tooLong": "Username must be at most 63 characters",
-  "userHandleScreen_error_invalidCharacter": "Username must only contain letters, numbers, or dashes",
-  "userHandleScreen_error_consecutiveDashes": "Username must not contain consecutive dashes",
-  "userHandleScreen_error_leadingDigit": "Username must not start with a digit",
+  "usernameScreen_title": "Add username",
+  "usernameScreen_inputHint": "Type a username...",
+  "usernameScreen_error_emptyUsername": "Username cannot be empty",
+  "usernameScreen_error_alreadyExists": "Username is already in use",
+  "usernameScreen_description": "Choose a username that others can use to connect with you. Use letters, numbers, or dashes. Minimum 5 characters.",
+  "usernameScreen_cancel": "Cancel",
+  "usernameScreen_confirm": "Add",
+  "usernameScreen_error_tooShort": "Username must be at least 5 characters",
+  "usernameScreen_error_tooLong": "Username must be at most 63 characters",
+  "usernameScreen_error_invalidCharacter": "Username must only contain letters, numbers, or dashes",
+  "usernameScreen_error_consecutiveDashes": "Username must not contain consecutive dashes",
+  "usernameScreen_error_leadingDigit": "Username must not start with a digit",
 
   "editDisplayNameScreen_title": "Change display name",
   "editDisplayNameScreen_description": "Choose a name that others will see.",
@@ -200,10 +216,10 @@
   "newConnectionDialog_confirm1": "Check",
   "newConnectionDialog_confirm2": "Send",
   "newConnectionDialog_error": "Failed to send {username} a contact request. Try again.",
-  "newConnectionDialog_error_emptyHandle": "Type the username",
-  "newConnectionDialog_error_handleNotFound": "{username} wasn't found. Check it and try again.",
+  "newConnectionDialog_error_emptyUsername": "Type the username",
+  "newConnectionDialog_error_usernameNotFound": "{username} wasn't found. Check it and try again.",
   "newConnectionDialog_error_duplicateRequest": "You already have a pending contact request to this username.",
-  "newConnectionDialog_error_ownHandle": "You can't send a contact request to yourself.",
+  "newConnectionDialog_error_ownUsername": "You can't send a contact request to yourself.",
 
   "composer_inputHint": "Message {chatTitle}",
   "composer_editMessage": "Edit message",
@@ -364,5 +380,14 @@
   "contactRequestDialog_error_fatal": "Failed to accept contact request",
   "contactRequestDialog_error_incompatibleClient": "Failed to accept contact request. Update Air to the newest version, then try again.",
 
-  "errorBanner_ok": "OK"
+  "errorBanner_ok": "OK",
+
+  "messageList_unreadMessages": "{count, plural, one {{count} unread message} other {{count} unread messages}}",
+  "@messageList_unreadMessages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

@@ -18,7 +18,7 @@ void main() {
           theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: const RemoveUsernameDialog(
-            username: UiUserHandle(plaintext: "ellie"),
+            username: UiUsername(plaintext: "ellie"),
           ),
         );
       },

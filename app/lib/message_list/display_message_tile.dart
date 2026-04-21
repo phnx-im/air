@@ -66,12 +66,12 @@ class _SystemMessageContent extends StatelessWidget {
         ),
       UiSystemMessage_ReceivedHandleConnectionRequest(
         :final sender,
-        :final userHandle,
+        :final username,
       )
           when !isConfirmed =>
         ContactRequestDialog(
           sender: sender,
-          source: .handle(handle: userHandle),
+          source: .username(username: username),
         ),
       _ => Center(
         child: Container(
@@ -241,17 +241,17 @@ class _SystemMessageText extends StatelessWidget {
       }(),
       UiSystemMessage_AcceptedConnectionRequest(
         :final sender,
-        :final userHandle,
+        :final username,
       ) =>
         () {
           final userName = context.select(
             (UsersCubit c) => c.state.profile(userId: sender).displayName,
           );
           final String text;
-          if (userHandle case final handle?) {
+          if (username case final uname?) {
             text = loc.systemMessage_acceptedHandleConnectionRequest(
               userName,
-              handle.plaintext,
+              uname.plaintext,
             );
           } else {
             text = loc.systemMessage_acceptedDirectConnectionRequest(userName);
@@ -277,7 +277,7 @@ class _SystemMessageText extends StatelessWidget {
       }(),
       UiSystemMessage_ReceivedHandleConnectionRequest(
         :final sender,
-        :final userHandle,
+        :final username,
       ) =>
         () {
           final userName = context.select(
@@ -285,7 +285,7 @@ class _SystemMessageText extends StatelessWidget {
           );
           final text = loc.systemMessage_receivedHandleConnectionRequest(
             userName,
-            userHandle.plaintext,
+            username.plaintext,
           );
           return RichText(
             text: TextSpan(
@@ -468,19 +468,16 @@ RichText buildSystemMessageText(BuildContext context, UiSystemMessage message) {
         ),
       );
     }(),
-    UiSystemMessage_AcceptedConnectionRequest(
-      :final sender,
-      :final userHandle,
-    ) =>
+    UiSystemMessage_AcceptedConnectionRequest(:final sender, :final username) =>
       () {
         final userName = context.select(
           (UsersCubit c) => c.state.profile(userId: sender).displayName,
         );
         final String text;
-        if (userHandle case final handle?) {
+        if (username case final uname?) {
           text = loc.systemMessage_acceptedHandleConnectionRequest(
             userName,
-            handle.plaintext,
+            uname.plaintext,
           );
         } else {
           text = loc.systemMessage_acceptedDirectConnectionRequest(userName);
@@ -506,7 +503,7 @@ RichText buildSystemMessageText(BuildContext context, UiSystemMessage message) {
     }(),
     UiSystemMessage_ReceivedHandleConnectionRequest(
       :final sender,
-      :final userHandle,
+      :final username,
     ) =>
       () {
         final userName = context.select(
@@ -514,7 +511,7 @@ RichText buildSystemMessageText(BuildContext context, UiSystemMessage message) {
         );
         final text = loc.systemMessage_receivedHandleConnectionRequest(
           userName,
-          userHandle.plaintext,
+          username.plaintext,
         );
         return RichText(
           text: TextSpan(

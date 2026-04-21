@@ -29,10 +29,10 @@ class ChatListCubit implements StateStreamableSource<ChatListState> {
   @override
   Stream<ChatListState> get stream => _impl.stream();
 
-  Future<AddHandleContactError?> createContactChat({
-    required UiUserHandle handle,
-    required UserHandleHash hash,
-  }) => _impl.createContactChat(handle: handle, hash: hash);
+  Future<AddUsernameContactError?> createContactChat({
+    required UiUsername username,
+    required UsernameHash hash,
+  }) => _impl.createContactChat(username: username, hash: hash);
 
   Future<ChatId> createGroupChat({
     required String groupName,

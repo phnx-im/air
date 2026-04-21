@@ -37,9 +37,9 @@ class intArray12 extends NonGrowableListView<int> {
 abstract class UiUser implements RustOpaqueInterface {
   bool get unsupportedVersion;
 
-  List<UiUserHandle> get userHandles;
-
   UiUserId get userId;
+
+  List<UiUsername> get usernames;
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>>
@@ -49,7 +49,7 @@ abstract class UserCubitBase implements RustOpaqueInterface {
     required UiUserId userId,
   });
 
-  Future<bool> addUserHandle({required UiUserHandle userHandle});
+  Future<bool> addUsername({required UiUsername username});
 
   /// Adds multiple users to the chat with the given [`ChatId`].
   ///
@@ -64,7 +64,7 @@ abstract class UserCubitBase implements RustOpaqueInterface {
 
   Future<void> blockContact({required UiUserId userId});
 
-  Future<UserHandleHash?> checkHandleExists({required UiUserHandle handle});
+  Future<UsernameHash?> checkUsernameExists({required UiUsername username});
 
   Future<void> close();
 
@@ -93,7 +93,7 @@ abstract class UserCubitBase implements RustOpaqueInterface {
 
   Future<void> removeUserFromChat(ChatId chatId, UiUserId userId);
 
-  Future<void> removeUserHandle({required UiUserHandle userHandle});
+  Future<void> removeUsername({required UiUsername username});
 
   Future<void> reportSpam({required UiUserId spammerId});
 

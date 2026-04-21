@@ -8,8 +8,8 @@ use crate::{
     LibraryError,
     crypto::{
         RawKey,
-        ear::{
-            AEAD_KEY_SIZE, EarDecryptable, EarEncryptable, EarKey,
+        aead::{
+            AEAD_KEY_SIZE, AeadDecryptable, AeadEncryptable, AeadKey,
             keys::{EncryptedUserProfileKey, EncryptedUserProfileKeyCtype, IdentityLinkWrapperKey},
         },
         errors::{DecryptionError, EncryptionError, RandomnessError},
@@ -62,7 +62,7 @@ pub struct IndexSecretType;
 
 /// A base secret is meant to derive a key and an index for the key type `KT`.
 pub type BaseSecret<KT> = TypedSecret<KT, BaseSecretType, KDF_KEY_SIZE>;
-/// A key is derived from the base secret. Other traits like the `EarKey` trait
+/// A key is derived from the base secret. Other traits like the `AeadKey` trait
 /// can be implemented to allow these keys to be used.
 pub type Key<KT> = TypedSecret<KT, KeySecretType, AEAD_KEY_SIZE>;
 /// An index is derived from the base secret. It is used to identify the key
@@ -171,7 +171,7 @@ impl<KT: IndexedKeyType> KdfDerivable<BaseSecret<KT>, DerivationContext<'_, KT>,
 }
 
 /// An [`IndexedAeadKey`] is an indexed key that can be derive from a base
-/// secret. It implements the `EarKey` trait.
+/// secret. It implements the `AeadKey` trait.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IndexedAeadKey<KT> {
     base_secret: BaseSecret<KT>,
@@ -225,7 +225,7 @@ impl<KT> AsRef<Secret<AEAD_KEY_SIZE>> for IndexedAeadKey<KT> {
     }
 }
 
-impl<KT> EarKey for IndexedAeadKey<KT> {}
+impl<KT> AeadKey for IndexedAeadKey<KT> {}
 
 // User profile key
 
@@ -276,11 +276,11 @@ impl UserProfileKey {
     }
 }
 
-impl EarEncryptable<IdentityLinkWrapperKey, EncryptedUserProfileKeyCtype>
+impl AeadEncryptable<IdentityLinkWrapperKey, EncryptedUserProfileKeyCtype>
     for UserProfileBaseSecret
 {
 }
-impl EarDecryptable<IdentityLinkWrapperKey, EncryptedUserProfileKeyCtype>
+impl AeadDecryptable<IdentityLinkWrapperKey, EncryptedUserProfileKeyCtype>
     for UserProfileBaseSecret
 {
 }

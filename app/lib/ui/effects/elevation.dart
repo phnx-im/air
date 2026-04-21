@@ -4,29 +4,26 @@
 
 import 'package:flutter/material.dart';
 
-double figmaToFlutterBlurRadius(double val) {
-  return val * 0.57735; // Convert to Flutter's blur radius
-}
+/// Elevation/Small from the design system. Invisible layers (≤1% opacity)
+/// are omitted for performance.
+const List<BoxShadow> smallElevationBoxShadows = [
+  BoxShadow(color: Color(0x0A000000), offset: Offset(0, 19), blurRadius: 12),
+  BoxShadow(color: Color(0x12000000), offset: Offset(0, 9), blurRadius: 9),
+  BoxShadow(color: Color(0x14000000), offset: Offset(0, 2), blurRadius: 5),
+];
 
-const Color lightModeShadowColor = Color(0x16000000);
-const Color darkModeShadowColor = Color(0x80000000);
+/// Elevation/Medium from the design system. Invisible layers (≤1% opacity)
+/// are omitted for performance.
+const List<BoxShadow> mediumElevationBoxShadows = [
+  BoxShadow(color: Color(0x0D000000), offset: Offset(0, 48), blurRadius: 29),
+  BoxShadow(color: Color(0x17000000), offset: Offset(0, 21), blurRadius: 21),
+  BoxShadow(color: Color(0x1A000000), offset: Offset(0, 5), blurRadius: 12),
+];
 
-List<BoxShadow> elevationBoxShadows(BuildContext context) {
-  final color = Theme.of(context).brightness == Brightness.dark
-      ? darkModeShadowColor
-      : lightModeShadowColor;
-  return [
-    BoxShadow(
-      color: color,
-      offset: const Offset(0, 1),
-      blurRadius: 0,
-      spreadRadius: 0,
-    ),
-    BoxShadow(
-      color: color,
-      offset: const Offset(0, 40),
-      blurRadius: figmaToFlutterBlurRadius(80),
-      spreadRadius: 0,
-    ),
-  ];
-}
+/// Elevation/Large from the design system. Invisible layers (≤1% opacity)
+/// are omitted for performance.
+const List<BoxShadow> largeElevationBoxShadows = [
+  BoxShadow(color: Color(0x0D000000), offset: Offset(0, 64), blurRadius: 38),
+  BoxShadow(color: Color(0x17000000), offset: Offset(0, 28), blurRadius: 28),
+  BoxShadow(color: Color(0x1A000000), offset: Offset(0, 7), blurRadius: 16),
+];

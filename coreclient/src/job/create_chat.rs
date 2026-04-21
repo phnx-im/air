@@ -5,7 +5,7 @@
 use std::convert::Infallible;
 
 use aircommon::{
-    crypto::{ear::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
+    crypto::{aead::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
     identifiers::QsReference,
     time::TimeStamp,
 };

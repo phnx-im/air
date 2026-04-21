@@ -4,7 +4,7 @@
 
 [package]
 name = "aircoreclient"
-version = "0.13.0"
+version = "0.14.0"
 authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
 edition = "2024"
 publish = false
@@ -24,7 +24,6 @@ chrono.workspace = true
 derive_more.workspace = true
 displaydoc.workspace = true
 enumset.workspace = true
-flate2.workspace = true
 hex.workspace = true
 image.workspace = true
 infer.workspace = true
@@ -44,7 +43,6 @@ serde_bytes.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 sqlx = { workspace = true, features = ["chrono", "sqlite"] }
-tar.workspace = true
 tempfile = { workspace = true, optional = true }
 thiserror.workspace = true
 tls_codec.workspace = true

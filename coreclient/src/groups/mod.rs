@@ -21,8 +21,8 @@ use aircommon::{
         ClientCredential, GroupStorageWitness, VerifiableClientCredential, keys::ClientSigningKey,
     },
     crypto::{
-        ear::{
-            EarDecryptable, EarEncryptable,
+        aead::{
+            AeadDecryptable, AeadEncryptable,
             keys::{
                 EncryptedUserProfileKey, GroupStateEarKey, IdentityLinkWrapperKey,
                 WelcomeAttributionInfoEarKey,
@@ -80,6 +80,7 @@ use crate::{
     contacts::ContactAddInfos,
     groups::client_auth_info::VerifiableClientCredentialExt,
     key_stores::as_credentials::AsCredentials,
+    outbound_service::resync::Resync,
 };
 use std::collections::HashSet;
 
@@ -1336,6 +1337,47 @@ async fn verify_member_credentials(
         .collect()
 }
 
+/// Cleans up local state when the DS reports that a group no longer exists.
+///
+/// Mirrors what happens when we process a deletion commit from another member:
+/// the chat is marked inactive (preserving history) and the MLS group is
+/// deleted. The group deletion cascades to `resync_queue`,
+/// `pending_chat_operation`, and `group_membership` via foreign keys.
+///
+/// This function is idempotent — safe to call even if the group or chat is
+/// already gone.
+pub(crate) async fn handle_group_not_found_on_ds(
+    txn: &mut SqliteTransaction<'_>,
+    notifier: &mut crate::store::StoreNotifier,
+    group_id: &GroupId,
+) -> anyhow::Result<()> {
+    // Collect past members before deleting the group.
+    let past_members = match Group::load(txn.as_mut(), group_id).await? {
+        Some(group) => group.members().collect(),
+        None => Vec::new(),
+    };
+
+    // Mark the chat as inactive so the user sees it's dead. We do this even
+    // for blocked chats so they stay inactive if the user later unblocks the
+    // contact.
+    if let Some(mut chat) = crate::Chat::load_by_group_id(txn.as_mut(), group_id).await?
+        && !matches!(chat.status(), crate::ChatStatus::Inactive(_))
+    {
+        chat.set_inactive(txn.as_mut(), notifier, past_members)
+            .await?;
+    }
+
+    // Remove any pending resync for this group (FK is on chat_id, not
+    // group_id, so it won't cascade from Group::delete_from_db).
+    Resync::remove(txn.as_mut(), group_id).await?;
+
+    // Delete the MLS group. This cascades to pending_chat_operation and
+    // group_membership via FK.
+    Group::delete_from_db(txn, group_id).await?;
+
+    Ok(())
+}
+
 #[cfg(feature = "test_utils")]
 mod test_utils {
     use chrono::{DateTime, Utc};
@@ -1357,6 +1399,96 @@ mod test_utils {
         ) -> sqlx::Result<()> {
             Chat::set_self_updated_at(self.pool(), chat_id, self_updated_at).await
         }
+    }
+}
+
+#[cfg(test)]
+mod handle_group_not_found_tests {
+    use aircommon::{
+        credentials::test_utils::create_test_credentials,
+        identifiers::{QualifiedGroupId, UserId},
+    };
+    use sqlx::{Connection, query};
+    use uuid::Uuid;
+
+    use crate::{
+        Chat, ChatAttributes, ChatStatus, clients::block_contact::BlockedContact,
+        groups::GroupDataBytes, store::StoreNotifier, utils::persistence::open_db_in_memory,
+    };
+
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn handle_group_not_found_marks_blocked_chat_inactive_under_block() -> anyhow::Result<()>
+    {
+        let pool = open_db_in_memory().await?;
+        let mut connection = pool.acquire().await?;
+
+        let own_user_id = UserId::random("example.com".parse().unwrap());
+        let blocked_user_id = UserId::random("example.com".parse().unwrap());
+        let (_as_signing_key, client_signing_key) = create_test_credentials(own_user_id);
+
+        let qgid = QualifiedGroupId::new(Uuid::new_v4(), "example.com".parse().unwrap());
+        let group_id = GroupId::from(qgid);
+
+        let (group, _) = Group::create_group(
+            &mut connection,
+            &client_signing_key,
+            IdentityLinkWrapperKey::random()?,
+            group_id.clone(),
+            GroupDataBytes::from(b"test-group-data".to_vec()),
+        )?;
+        group.store(&mut *connection).await?;
+
+        let mut notifier = StoreNotifier::noop();
+        let chat = Chat::new_targeted_message_chat(
+            group_id.clone(),
+            ChatAttributes::new("Blocked chat".into(), None),
+            blocked_user_id.clone(),
+        );
+        let chat_id = chat.id();
+        chat.store(&mut connection, &mut notifier).await?;
+
+        BlockedContact::new(blocked_user_id.clone())
+            .store(&mut *connection, &mut notifier)
+            .await?;
+
+        assert!(matches!(
+            Chat::load(&mut connection, &chat_id)
+                .await?
+                .expect("chat should exist")
+                .status(),
+            ChatStatus::Blocked
+        ));
+
+        let mut txn = connection.begin().await?;
+        handle_group_not_found_on_ds(&mut txn, &mut notifier, &group_id).await?;
+        txn.commit().await?;
+
+        assert!(Group::load(&mut connection, &group_id).await?.is_none());
+        assert!(matches!(
+            Chat::load(&mut connection, &chat_id)
+                .await?
+                .expect("chat should still exist")
+                .status(),
+            ChatStatus::Blocked
+        ));
+
+        query("DELETE FROM blocked_contact WHERE user_uuid = ?1 AND user_domain = ?2")
+            .bind(blocked_user_id.uuid())
+            .bind(blocked_user_id.domain().to_string())
+            .execute(&mut *connection)
+            .await?;
+
+        assert!(matches!(
+            Chat::load(&mut connection, &chat_id)
+                .await?
+                .expect("chat should still exist after unblock")
+                .status(),
+            ChatStatus::Inactive(_)
+        ));
+
+        Ok(())
     }
 }
 

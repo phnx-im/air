@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
+
 import 'package:air/chat/chat_details.dart';
 import 'package:air/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
@@ -10,6 +12,7 @@ import 'package:air/message_list/message_list_cubit.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/registration/registration.dart';
 import 'package:air/user/user.dart';
+import 'package:air/widgets/anchored_list/data.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -26,12 +29,12 @@ class MockUserCubit extends MockCubit<UiUser> implements UserCubit {
 class MockUsersCubit extends MockCubit<UsersState> implements UsersCubit {}
 
 class MockUiUser implements UiUser {
-  MockUiUser({required int id, List<UiUserHandle> userHandles = const []})
+  MockUiUser({required int id, List<UiUsername> usernames = const []})
     : _userId = id.userId(),
-      _userHandles = userHandles;
+      _usernames = usernames;
 
   final UiUserId _userId;
-  final List<UiUserHandle> _userHandles;
+  final List<UiUsername> _usernames;
 
   @override
   UiUserId get userId => _userId;
@@ -43,7 +46,7 @@ class MockUiUser implements UiUser {
   bool get isDisposed => false;
 
   @override
-  List<UiUserHandle> get userHandles => _userHandles;
+  List<UiUsername> get usernames => _usernames;
 
   @override
   bool get unsupportedVersion => false;
@@ -85,38 +88,125 @@ class MockChatDetailsCubit extends MockCubit<ChatDetailsState>
 class MockChatListCubit extends MockCubit<ChatListState>
     implements ChatListCubit {}
 
-class MockMessageListCubit extends MockCubit<MessageListState>
-    implements MessageListCubit {}
+class MockMessageListCubit implements MessageListCubit {
+  MockMessageListCubit({
+    List<UiChatMessage> initialMessages = const [],
+    this.onJumpToMessage,
+    this.onJumpToBottom,
+    this.onLoadNewer,
+    this.onLoadOlder,
+  }) {
+    _syncMessageData(initialMessages);
+  }
 
-class MockMessageListState implements MessageListState {
-  MockMessageListState(this.messages, {this.isConnectionChat = false});
-
-  final List<UiChatMessage> messages;
+  final StreamController<MessageListStateWrapper> _controller =
+      StreamController<MessageListStateWrapper>.broadcast(sync: true);
+  final StreamController<MessageListCommand> _commands =
+      StreamController<MessageListCommand>.broadcast(sync: true);
+  late MessageListStateWrapper _state;
+  bool _isClosed = false;
+  final Future<void> Function(MessageId messageId)? onJumpToMessage;
+  final Future<void> Function()? onJumpToBottom;
+  final Future<void> Function()? onLoadNewer;
+  final Future<void> Function()? onLoadOlder;
 
   @override
-  final bool isConnectionChat;
+  AnchoredListData<UiChatMessage> messageData = AnchoredListData();
 
   @override
-  void dispose() {}
+  bool get isClosed => _isClosed;
 
   @override
-  bool get isDisposed => false;
+  MessageListStateWrapper get state => _state;
 
   @override
-  int get loadedMessagesCount => messages.length;
+  Stream<MessageListStateWrapper> get stream => _controller.stream;
 
   @override
-  UiChatMessage? messageAt(int index) => messages.elementAtOrNull(index);
+  Stream<MessageListCommand> get commands => _commands.stream;
 
   @override
-  int? messageIdIndex(MessageId messageId) {
-    final index = messages.indexWhere((element) => element.id == messageId);
-    return index != -1 ? index : null;
+  Future<void> jumpToBottom() async {
+    await onJumpToBottom?.call();
   }
 
   @override
-  bool isNewMessage(MessageId messageId) {
-    return false;
+  Future<void> jumpToMessage({required MessageId messageId}) async {
+    await onJumpToMessage?.call(messageId);
+  }
+
+  @override
+  Future<void> loadNewer() async {
+    await onLoadNewer?.call();
+  }
+
+  @override
+  Future<void> loadOlder() async {
+    await onLoadOlder?.call();
+  }
+
+  void setState(
+    List<UiChatMessage> messages, {
+    bool isConnectionChat = false,
+    bool hasOlder = false,
+    bool hasNewer = false,
+    bool isAtBottom = false,
+    int? firstUnreadIndex,
+    int revision = 0,
+  }) {
+    _syncMessageData(
+      messages,
+      isConnectionChat: isConnectionChat,
+      hasOlder: hasOlder,
+      hasNewer: hasNewer,
+      isAtBottom: isAtBottom,
+      firstUnreadIndex: firstUnreadIndex,
+      revision: revision,
+    );
+    if (!_controller.isClosed) {
+      _controller.add(_state);
+    }
+  }
+
+  void emitCommand(MessageListCommand command) {
+    if (!_commands.isClosed) {
+      _commands.add(command);
+    }
+  }
+
+  void _syncMessageData(
+    List<UiChatMessage> messages, {
+    bool isConnectionChat = false,
+    bool hasOlder = false,
+    bool hasNewer = false,
+    bool isAtBottom = false,
+    int? firstUnreadIndex,
+    int revision = 0,
+  }) {
+    // AnchoredListData: index 0 = newest; messages is oldest-first
+    final reversed = messages.reversed.toList();
+    messageData.reload(reversed);
+    final rustState = MessageListState(
+      isConnectionChat: isConnectionChat,
+      hasOlder: hasOlder,
+      hasNewer: hasNewer,
+      isAtBottom: isAtBottom,
+      firstUnreadIndex: firstUnreadIndex,
+      revision: revision,
+    );
+    _state = MessageListStateWrapper.test(
+      state: rustState,
+      messageData: messageData,
+      loadedMessages: reversed.map((m) => m.id).toSet(),
+    );
+  }
+
+  @override
+  Future<void> close() async {
+    _isClosed = true;
+    messageData.dispose();
+    await _commands.close();
+    await _controller.close();
   }
 }
 
