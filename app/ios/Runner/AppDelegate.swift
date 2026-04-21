@@ -3,11 +3,15 @@ import UIKit
 
 private let kProtectedBlockedCategory = "protected-blocked"
 
+private let kStoreNotificationsPendingName =
+    "ms.air.store-notifications-pending" as CFString
+
 @main
 @objc class AppDelegate: FlutterAppDelegate {
     private var deviceToken: String?
     private let notificationChannelName: String = "ms.air/channel"
     private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
+    private var storeNotificationsChannel: FlutterMethodChannel?
 
     override func application(
         _ application: UIApplication,
@@ -31,6 +35,25 @@ private let kProtectedBlockedCategory = "protected-blocked"
 
         // Set the handler function for the method channel
         methodChannel.setMethodCallHandler(handleMethodCall)
+
+        storeNotificationsChannel = methodChannel
+        let observer = Unmanaged.passUnretained(self).toOpaque()
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            observer,
+            { (_, observer, _, _, _) in
+                guard let observer = observer else { return }
+                let appDelegate = Unmanaged<AppDelegate>
+                    .fromOpaque(observer).takeUnretainedValue()
+                // Fire away on the main channel, since that's where Flutter will listen
+                DispatchQueue.main.async {
+                    appDelegate.storeNotificationsChannel?.invokeMethod(
+                        "processStoreNotifications", arguments: nil)
+                }
+            },
+            kStoreNotificationsPendingName,
+            nil,
+            .deliverImmediately)
 
         // Clear any lingering "blocked" notifications at launch
         clearProtectedBlockedNotifications()
@@ -72,9 +95,10 @@ private let kProtectedBlockedCategory = "protected-blocked"
     override func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
-        withCompletionHandler completionHandler: @escaping (
-            UNNotificationPresentationOptions
-        ) -> Void
+        withCompletionHandler completionHandler:
+            @escaping (
+                UNNotificationPresentationOptions
+            ) -> Void
     ) {
         NSLog("Foreground notification received")
         if let handle = NotificationHandle.init(notification: notification) {
