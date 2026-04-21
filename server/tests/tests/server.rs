@@ -44,8 +44,8 @@ use tracing::{info, warn};
 async fn rate_limit() {
     let mut setup = TestBackend::single_with_params(TestBackendParams {
         rate_limits: Some(RateLimitsSettings {
-            period: Duration::from_secs(1), // replenish one token every 500ms
-            burst: 30,                      // allow total 30 request
+            period: Duration::from_secs(1),
+            burst: 100, // must be large enough to survive setup calls
         }),
         ..Default::default()
     })
@@ -530,6 +530,91 @@ async fn resync() {
         participants,
         [bob.clone(), charlie.clone()].into_iter().collect()
     );
+}
+
+/// When the DS returns "group not found" for a resync, the client must stop
+/// retrying and remove the resync from the queue.
+///
+/// Note: in production the group_id in the resync queue matches the local group,
+/// so the full cleanup (chat marked inactive, MLS group deleted) also runs. This
+/// test uses a fabricated group_id that only exists in the resync queue, so only
+/// the resync removal can be verified here.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Resync deleted group", skip_all)]
+async fn resync_group_not_found_cleans_up_local_state() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    // Enqueue a resync with a fabricated group_id that doesn't exist on the
+    // server. This simulates a group that was deleted or garbage-collected
+    // server-side while the client still had a stale resync entry.
+    let bob_user = &setup.get_user(&bob).user;
+    bob_user
+        .enqueue_resync_for_nonexistent_group(chat_id, "localhost")
+        .await
+        .unwrap();
+    assert!(
+        bob_user.is_resync_pending(chat_id).await.unwrap(),
+        "resync should be queued"
+    );
+
+    // Bob runs the outbound service. The resync hits "group not found"
+    // and must not loop forever.
+    bob_user.outbound_service().run_once().await;
+
+    assert!(
+        !bob_user.is_resync_pending(chat_id).await.unwrap(),
+        "resync should have been removed after group not found"
+    );
+}
+
+/// Baseline test: resync for an existing group succeeds and the user can
+/// continue communicating normally afterwards.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Resync valid group", skip_all)]
+async fn resync_valid_group_succeeds() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    // Bob enqueues a resync for the group.
+    let bob_user = &setup.get_user(&bob).user;
+    bob_user.enqueue_group_resync(chat_id).await.unwrap();
+    assert!(
+        bob_user.is_resync_pending(chat_id).await.unwrap(),
+        "resync should be queued"
+    );
+
+    // Run outbound service — resync should succeed.
+    bob_user.outbound_service().run_once().await;
+
+    assert!(
+        !bob_user.is_resync_pending(chat_id).await.unwrap(),
+        "resync should have completed"
+    );
+
+    // Alice processes Bob's rejoin commit.
+    let alice_user = &setup.get_user(&alice).user;
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    let result = alice_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Alice should process Bob's rejoin without errors"
+    );
+
+    // Bob should be able to send messages normally.
+    setup.send_message(chat_id, &bob, vec![&alice], None).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

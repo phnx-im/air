@@ -126,7 +126,7 @@ impl NavigationCubitBase {
         self.core.is_closed()
     }
 
-    pub fn close(&mut self) {
+    pub fn close(&self) {
         self.core.close();
     }
 
@@ -135,7 +135,7 @@ impl NavigationCubitBase {
         self.core.state()
     }
 
-    pub async fn stream(&mut self, sink: StreamSink<NavigationState>) {
+    pub async fn stream(&self, sink: StreamSink<NavigationState>) {
         self.core.stream(sink).await;
     }
 

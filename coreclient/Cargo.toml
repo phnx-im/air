@@ -4,7 +4,7 @@
 
 [package]
 name = "aircoreclient"
-version = "0.13.0"
+version = "0.14.0"
 authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
 edition = "2024"
 publish = false
@@ -35,6 +35,7 @@ openmls.workspace = true
 openmls_rust_crypto.workspace = true
 openmls_traits.workspace = true
 pin-project.workspace = true
+privacypass.workspace = true
 rand.workspace = true                                              # TODO: Replace this with a CSPRNG
 rand_chacha.workspace = true
 reqwest = { workspace = true, features = ["stream", "multipart"] }

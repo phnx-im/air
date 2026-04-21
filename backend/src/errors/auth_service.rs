@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::time::TimeStamp;
+use privacypass::common::errors::IssueTokenResponseError;
 use thiserror::Error;
 use tonic::Status;
 use tracing::error;
@@ -87,28 +88,72 @@ impl From<PublishConnectionPackageError> for Status {
 
 #[derive(Error, Debug)]
 pub(crate) enum IssueTokensError {
+    /// Something was wrong in the request
+    #[error("Bad request: {0}")]
+    BadRequest(&'static str),
     /// Storage provider error
     #[error("Storage provider error")]
-    StorageError,
+    StorageError(#[from] StorageError),
     /// Too many tokens
-    #[error("Too many tokens")]
-    TooManyTokens,
-    /// Unknown user
-    #[error("Unknown user")]
-    UnknownUser,
+    #[error("Too many tokens requested")]
+    TooManyTokensRequested,
     /// PrivacyPass protocol error
     #[error("PrivacyPass protocol error")]
-    PrivacyPassError,
+    PrivacyPassError(#[from] IssueTokenResponseError),
+}
+
+impl From<sqlx::Error> for IssueTokensError {
+    fn from(error: sqlx::Error) -> Self {
+        Self::StorageError(StorageError::Database(error.into()))
+    }
 }
 
 impl From<IssueTokensError> for Status {
     fn from(e: IssueTokensError) -> Self {
         let msg = e.to_string();
         match e {
-            IssueTokensError::StorageError => Status::internal(msg),
-            IssueTokensError::TooManyTokens => Status::resource_exhausted(msg),
-            IssueTokensError::UnknownUser => Status::internal(msg),
-            IssueTokensError::PrivacyPassError => Status::internal(msg),
+            IssueTokensError::BadRequest(msg) => Status::invalid_argument(msg),
+            IssueTokensError::StorageError(error) => {
+                error!(%error, "storage error while issuing tokens");
+                Status::internal(msg)
+            }
+            IssueTokensError::TooManyTokensRequested => Status::resource_exhausted(msg),
+            IssueTokensError::PrivacyPassError(error) => {
+                error!(%error, "failed to issue tokens");
+                Status::internal(msg)
+            }
+        }
+    }
+}
+
+#[derive(Error, Debug)]
+pub(crate) enum RedeemTokenError {
+    /// Token key ID not recognized
+    #[error("Unknown token key ID")]
+    UnknownKeyId,
+    /// Invalid token (double-spend, bad authenticator, etc.)
+    #[error("Invalid token")]
+    InvalidToken,
+}
+
+impl From<RedeemTokenError> for Status {
+    fn from(e: RedeemTokenError) -> Self {
+        use airprotos::common::v1::{StatusDetails, StatusDetailsCode};
+        use prost::Message;
+
+        let msg = e.to_string();
+        match e {
+            RedeemTokenError::UnknownKeyId => Status::with_details(
+                tonic::Code::Unauthenticated,
+                msg,
+                StatusDetails {
+                    code: StatusDetailsCode::UnknownTokenKeyId.into(),
+                    detail: None,
+                }
+                .encode_to_vec()
+                .into(),
+            ),
+            RedeemTokenError::InvalidToken => Status::unauthenticated(msg),
         }
     }
 }

@@ -602,7 +602,9 @@ mod tests {
             verifying_key: HandleVerifyingKey::from_bytes(vec![1, 2, 3, 4, 5]),
             expiration_data: expiration_data.clone(),
         };
-        record.store(&pool).await?;
+        let mut txn = pool.begin().await?;
+        record.store(&mut txn).await?;
+        txn.commit().await?;
 
         let expiration_data =
             AuthService::load_user_handle_expiration_data_impl(&pool, &hash).await?;
@@ -623,7 +625,9 @@ mod tests {
             verifying_key: HandleVerifyingKey::from_bytes(vec![1, 2, 3, 4, 5]),
             expiration_data: expiration_data.clone(),
         };
-        record.store(&pool).await?;
+        let mut txn = pool.begin().await?;
+        record.store(&mut txn).await?;
+        txn.commit().await?;
 
         UserHandleRecord::load_verifying_key(&pool, &hash)
             .await?

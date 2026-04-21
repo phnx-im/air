@@ -36,6 +36,9 @@ extend-exclude = [
     "coreclient/migrations/20251022122812_draft_message_is_commited.sql",
     "coreclient/migrations/20250910110330_init.sql",
 
+    # Drops an index with a typo from another migration
+    "coreclient/migrations/20260409112604_optimizations.sql",
+
     # Exclude vendored code
     "vendor/",
 ]

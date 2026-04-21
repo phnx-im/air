@@ -9,12 +9,19 @@ use aircommon::{
     },
     time::ExpirationData,
 };
+use airprotos::auth_service::v1::OperationType;
 use displaydoc::Display;
 use persistence::UpdateExpirationDataResult;
+use privacypass::{
+    amortized_tokens::{AmortizedBatchTokenRequest, AmortizedBatchTokenResponse, AmortizedToken},
+    private_tokens::Ristretto255,
+};
 use thiserror::Error;
 use tokio::task::spawn_blocking;
 use tonic::Status;
 use tracing::{error, warn};
+
+use crate::errors::auth_service::{IssueTokensError, RedeemTokenError};
 
 use super::AuthService;
 
@@ -35,12 +42,22 @@ impl AuthService {
         Ok(exists)
     }
 
+    /// Token is optional during gradual rollout: old clients omit it, new
+    /// clients provide one. Once all clients support tokens, make it required.
     pub(crate) async fn as_create_handle(
         &self,
         verifying_key: HandleVerifyingKey,
         handle_plaintext: String,
         hash: UserHandleHash,
+        token: Option<AmortizedToken<Ristretto255>>,
     ) -> Result<(), CreateHandleError> {
+        let mut txn = self.db_pool.begin().await?;
+
+        if let Some(token) = token {
+            self.as_redeem_token(&mut txn, token, OperationType::AddUsername)
+                .await?;
+        }
+
         let handle = UserHandle::new(handle_plaintext)?;
 
         let local_hash = spawn_blocking(move || handle.calculate_hash()).await??;
@@ -56,36 +73,53 @@ impl AuthService {
             expiration_data,
         };
 
-        if record.store(&self.db_pool).await? {
-            Ok(())
-        } else {
-            Err(CreateHandleError::UserHandleExists)
+        if !record.store(&mut txn).await? {
+            return Err(CreateHandleError::UserHandleExists);
         }
+
+        txn.commit().await?;
+        Ok(())
     }
 
+    /// Token refunds are disabled during gradual rollout to prevent token
+    /// farming (create-without-token + delete-with-refund = free tokens).
+    /// Re-enable when token redemption becomes mandatory for all handle ops.
     pub(crate) async fn as_delete_handle(
         &self,
         hash: UserHandleHash,
-    ) -> Result<(), DeleteHandleError> {
-        if UserHandleRecord::delete(&self.db_pool, &hash).await? {
-            Ok(())
-        } else {
-            Err(DeleteHandleError::UserHandleNotFound)
+        _token_request: Option<AmortizedBatchTokenRequest<Ristretto255>>,
+    ) -> Result<Option<AmortizedBatchTokenResponse<Ristretto255>>, DeleteHandleError> {
+        if !UserHandleRecord::delete(&self.db_pool, &hash).await? {
+            return Err(DeleteHandleError::UserHandleNotFound);
         }
+
+        Ok(None)
     }
 
+    /// Token is optional during gradual rollout (see `as_create_handle`).
     pub(crate) async fn as_refresh_handle(
         &self,
         hash: UserHandleHash,
+        token: Option<AmortizedToken<Ristretto255>>,
     ) -> Result<(), RefreshHandleError> {
-        let expiration_data = ExpirationData::new(USER_HANDLE_VALIDITY_PERIOD);
-        match UserHandleRecord::update_expiration_data(&self.db_pool, &hash, expiration_data)
-            .await?
-        {
-            UpdateExpirationDataResult::Updated => Ok(()),
-            UpdateExpirationDataResult::Deleted => Err(RefreshHandleError::HandleAlreadyExpired),
-            UpdateExpirationDataResult::NotFound => Err(RefreshHandleError::HandleNotFound),
+        let mut txn = self.db_pool.begin().await?;
+
+        if let Some(token) = token {
+            self.as_redeem_token(&mut txn, token, OperationType::AddUsername)
+                .await?;
         }
+
+        let expiration_data = ExpirationData::new(USER_HANDLE_VALIDITY_PERIOD);
+        match UserHandleRecord::update_expiration_data(&mut txn, &hash, expiration_data).await? {
+            UpdateExpirationDataResult::Updated => (),
+            UpdateExpirationDataResult::Deleted => {
+                return Err(RefreshHandleError::HandleAlreadyExpired);
+            }
+            UpdateExpirationDataResult::NotFound => return Err(RefreshHandleError::HandleNotFound),
+        }
+
+        txn.commit().await?;
+        Ok(())
     }
 }
 
@@ -121,6 +155,8 @@ pub(crate) enum CreateHandleError {
     HashMismatch,
     /// User handle already exists
     UserHandleExists,
+    /// Token redemption failed
+    TokenRedemption(#[from] RedeemTokenError),
 }
 
 impl From<CreateHandleError> for Status {
@@ -146,6 +182,7 @@ impl From<CreateHandleError> for Status {
             }
             CreateHandleError::HashMismatch => Status::invalid_argument(msg),
             CreateHandleError::UserHandleExists => Status::already_exists(msg),
+            CreateHandleError::TokenRedemption(e) => e.into(),
         }
     }
 }
@@ -156,6 +193,8 @@ pub(crate) enum DeleteHandleError {
     StorageError(#[from] sqlx::Error),
     /// User handle not found
     UserHandleNotFound,
+    /// Token issuance failed
+    TokenIssuance(#[from] IssueTokensError),
 }
 
 impl From<DeleteHandleError> for Status {
@@ -167,6 +206,7 @@ impl From<DeleteHandleError> for Status {
                 Status::internal(msg)
             }
             DeleteHandleError::UserHandleNotFound => Status::not_found(msg),
+            DeleteHandleError::TokenIssuance(e) => e.into(),
         }
     }
 }
@@ -179,6 +219,8 @@ pub(crate) enum RefreshHandleError {
     HandleNotFound,
     /// User handle is already expired
     HandleAlreadyExpired,
+    /// Token redemption failed
+    TokenRedemption(#[from] RedeemTokenError),
 }
 
 impl From<RefreshHandleError> for Status {
@@ -191,6 +233,7 @@ impl From<RefreshHandleError> for Status {
             }
             RefreshHandleError::HandleNotFound => Status::not_found(msg),
             RefreshHandleError::HandleAlreadyExpired => Status::failed_precondition(msg),
+            RefreshHandleError::TokenRedemption(e) => e.into(),
         }
     }
 }

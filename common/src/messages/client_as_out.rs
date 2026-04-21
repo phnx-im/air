@@ -25,6 +25,8 @@ pub struct UserConnectionPackagesResponse {
     pub connection_packages: Vec<ConnectionPackageV1In>,
 }
 
+use super::client_as::BatchedTokenKeyResponse;
+
 #[derive(Debug)]
 pub struct AsCredentialsResponseIn {
     // TODO: We might want a Verifiable... type variant here that ensures that
@@ -32,6 +34,7 @@ pub struct AsCredentialsResponseIn {
     pub as_credentials: Vec<AsCredential>,
     pub as_intermediate_credentials: Vec<VerifiableAsIntermediateCredential>,
     pub revoked_credentials: Vec<Hash<AsCredentialBody>>,
+    pub batched_token_keys: Vec<BatchedTokenKeyResponse>,
 }
 
 #[derive(Debug)]

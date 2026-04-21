@@ -11,8 +11,9 @@ use aircommon::{
     identifiers::{AttachmentId, UserId},
 };
 pub use aircoreclient::{
-    AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
-    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
+    AcceptContactRequestError, AirComponentDebugInfo, AppDataDebugInfo, DebugCapabilities,
+    EncryptedGroupTitleDebugInfo, ExternalGroupProfileDebugInfo, GroupDataDebugInfo,
+    GroupDebugInfo, RequiredDebugCapabilities,
 };
 use aircoreclient::{
     AttachmentProgress, Chat, ChatId, ChatMessage, MessageId, ProvisionAttachmentError,
@@ -126,7 +127,7 @@ impl ChatDetailsCubitBase {
 
     // Cubit interface
 
-    pub fn close(&mut self) {
+    pub fn close(&self) {
         self.core.close();
     }
 
@@ -140,7 +141,7 @@ impl ChatDetailsCubitBase {
         self.core.state()
     }
 
-    pub async fn stream(&mut self, sink: StreamSink<ChatDetailsState>) {
+    pub async fn stream(&self, sink: StreamSink<ChatDetailsState>) {
         self.core.stream(sink).await;
     }
 
@@ -149,11 +150,11 @@ impl ChatDetailsCubitBase {
     /// Sets the chat picture.
     ///
     /// When `bytes` is `None`, the chat picture is removed.
-    pub async fn set_chat_picture(&mut self, bytes: Option<Vec<u8>>) -> anyhow::Result<()> {
+    pub async fn set_chat_picture(&self, bytes: Option<Vec<u8>>) -> anyhow::Result<()> {
         Store::set_chat_picture(&self.context.store, self.context.chat_id, bytes.clone()).await
     }
 
-    pub async fn set_chat_title(&mut self, title: String) -> anyhow::Result<()> {
+    pub async fn set_chat_title(&self, title: String) -> anyhow::Result<()> {
         Store::set_chat_title(&self.context.store, self.context.chat_id, title).await
     }
 
@@ -821,7 +822,13 @@ pub struct _RequiredDebugCapabilities {
 
 #[frb(mirror(AppDataDebugInfo))]
 pub struct _AppDataDebugInfo {
-    pub air_components: Vec<String>,
+    pub components: Vec<String>,
+    pub air_component: Option<AirComponentDebugInfo>,
+}
+
+#[frb(mirror(AirComponentDebugInfo))]
+pub struct _AirComponentDebugInfo {
+    pub encrypted_group_profiles: bool,
 }
 
 #[frb(mirror(DebugCapabilities))]

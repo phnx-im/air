@@ -9,6 +9,7 @@ use std::{
 };
 
 pub use airapiclient::as_api::AsListenHandleResponder;
+
 use airapiclient::{
     ApiClient, ApiClientInitError,
     as_api::AsRequestError,
@@ -88,7 +89,7 @@ pub(crate) mod connection_offer;
 mod create_user;
 mod delete_account;
 mod event_loop;
-mod invitation_code;
+pub(crate) mod invitation_code;
 pub(crate) mod invite_users;
 mod message;
 pub(crate) mod own_client_info;
@@ -574,10 +575,7 @@ impl CoreUser {
         chat_id: ChatId,
     ) -> Result<Option<HashSet<UserId>>> {
         let mut connection = self.pool().acquire().await?;
-        let Some(chat) = Chat::load(&mut connection, &chat_id).await? else {
-            return Ok(None);
-        };
-        let Some(group) = Group::load(&mut connection, chat.group_id()).await? else {
+        let Some(group) = Group::load_with_chat_id(&mut connection, chat_id).await? else {
             return Ok(None);
         };
         let users = group

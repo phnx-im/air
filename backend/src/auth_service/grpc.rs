@@ -30,16 +30,19 @@ use aircommon::{
         },
     },
 };
-use privacypass::{amortized_tokens::AmortizedBatchTokenRequest, private_tokens::Ristretto255};
+use privacypass::{
+    amortized_tokens::{AmortizedBatchTokenRequest, AmortizedToken},
+    private_tokens::Ristretto255,
+};
 use semver::Version;
 use tls_codec::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio_stream::{StreamExt, wrappers::ReceiverStream};
 use tonic::{Code, Request, Response, Status, Streaming, async_trait};
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::{
-    auth_service::invitation_code_record::InvitationCodeRecord,
+    auth_service::invitation_code_record::{CODES_PER_DAY, InvitationCodeRecord},
     util::{find_cause, select_until_first_ends},
 };
 
@@ -209,6 +212,78 @@ impl auth_service_server::AuthService for GrpcAs {
         }))
     }
 
+    async fn get_invitation_codes(
+        &self,
+        request: Request<GetInvitationCodesRequest>,
+    ) -> Result<Response<GetInvitationCodesResponse>, Status> {
+        // note: this endpoint is anonymous by design
+        let request = request.into_inner();
+
+        // Check len of request.tokens
+        if request.tokens.len() > 10 {
+            return Err(Status::invalid_argument("too many tokens requested"));
+        }
+
+        let tokens: Result<Vec<_>, _> = request
+            .tokens
+            .into_iter()
+            .map(|bytes| AmortizedToken::<Ristretto255>::tls_deserialize_exact(bytes.as_slice()))
+            .collect();
+
+        let tokens = tokens.map_err(|error| {
+            warn!(%error, "failed to deserialise token");
+            Status::invalid_argument("invalid token")
+        })?;
+
+        let mut txn = self.inner.db_pool.begin().await.map_err(|error| {
+            error!(%error, "failed to start txn");
+            Status::internal("database error")
+        })?;
+
+        let codes_today = InvitationCodeRecord::lock_and_count_codes_issued_today(&mut txn)
+            .await
+            .map_err(|error| {
+                error!(%error, "failed to lock table and count codes issued today");
+                Status::internal("database error")
+            })?;
+
+        if codes_today + (tokens.len() as u64) > CODES_PER_DAY {
+            return Err(Status::resource_exhausted("too many codes generated today"));
+        }
+
+        let mut invitation_codes = Vec::new();
+        for token in tokens {
+            // redeem the token
+            if let Err(error) = self
+                .inner
+                .as_redeem_token(txn.as_mut(), token, OperationType::GetInviteCode)
+                .await
+            {
+                warn!(%error, "failed to redeem token to get invitation code");
+                continue;
+            }
+
+            // if the token could be redeemed, issue a new invite code
+            let code = InvitationCodeRecord::generate(txn.as_mut())
+                .await
+                .map_err(|error| {
+                    error!(%error, "database error");
+                    Status::internal("database error")
+                })?;
+
+            invitation_codes.push(InvitationCode { code });
+        }
+
+        txn.commit().await.map_err(|error| {
+            error!(%error, "failed to commit transaction");
+            Status::internal("database error")
+        })?;
+
+        Ok(Response::new(GetInvitationCodesResponse {
+            invitation_codes,
+        }))
+    }
+
     async fn register_user(
         &self,
         request: Request<RegisterUserRequest>,
@@ -225,6 +300,7 @@ impl auth_service_server::AuthService for GrpcAs {
                 return Err(Status::invalid_argument("invalid invitation code"));
             }
             let code_record = if self.inner.is_unredeemable_code(&code.code) {
+                warn!("used secret unredeemable code to register account");
                 Some(InvitationCodeRecord {
                     code: code.code,
                     redeemed: false,
@@ -338,6 +414,15 @@ impl auth_service_server::AuthService for GrpcAs {
                 .into_iter()
                 .map(From::from)
                 .collect(),
+            batched_token_keys: response
+                .batched_token_keys
+                .into_iter()
+                .map(|k| BatchedTokenKey {
+                    token_key_id: k.token_key_id.into(),
+                    public_key: k.public_key,
+                    operation_type: k.operation_type,
+                })
+                .collect(),
         }))
     }
 
@@ -404,13 +489,18 @@ impl auth_service_server::AuthService for GrpcAs {
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
+        let operation_type = payload
+            .operation_type
+            .try_into()
+            .map_err(|_| Status::invalid_argument("invalid operation type"))?;
+
         let token_request: AmortizedBatchTokenRequest<Ristretto255> =
             AmortizedBatchTokenRequest::tls_deserialize_exact(payload.token_request.as_slice())
                 .map_err(|_| Status::invalid_argument("invalid token request"))?;
 
         let token_response = self
             .inner
-            .as_issue_tokens(&user_id, token_request)
+            .as_issue_tokens(&user_id, operation_type, token_request)
             .await?
             .tls_serialize_detached()
             .map_err(|_| Status::internal("failed to serialize token response"))?;
@@ -465,8 +555,14 @@ impl auth_service_server::AuthService for GrpcAs {
 
         let hash = payload.hash.ok_or_missing_field("hash")?.try_into()?;
 
+        let token = payload
+            .token
+            .map(|bytes| AmortizedToken::<Ristretto255>::tls_deserialize_exact(bytes.as_slice()))
+            .transpose()
+            .map_err(|_| Status::invalid_argument("invalid token"))?;
+
         self.inner
-            .as_create_handle(verifying_key, payload.plaintext, hash)
+            .as_create_handle(verifying_key, payload.plaintext, hash, token)
             .await?;
 
         Ok(Response::new(CreateHandleResponse {}))
@@ -483,9 +579,24 @@ impl auth_service_server::AuthService for GrpcAs {
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
-        self.inner.as_delete_handle(hash).await?;
+        let token_request = payload
+            .token_request
+            .map(|bytes| {
+                AmortizedBatchTokenRequest::<Ristretto255>::tls_deserialize_exact(bytes.as_slice())
+            })
+            .transpose()
+            .map_err(|_| Status::invalid_argument("invalid token request"))?;
 
-        Ok(Response::new(DeleteHandleResponse {}))
+        let token_response = self.inner.as_delete_handle(hash, token_request).await?;
+
+        let token_response_bytes = token_response
+            .map(|resp| resp.tls_serialize_detached())
+            .transpose()
+            .map_err(|_| Status::internal("failed to serialize token response"))?;
+
+        Ok(Response::new(DeleteHandleResponse {
+            token_response: token_response_bytes,
+        }))
     }
 
     async fn refresh_handle(
@@ -499,7 +610,13 @@ impl auth_service_server::AuthService for GrpcAs {
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
-        self.inner.as_refresh_handle(hash).await?;
+        let token = payload
+            .token
+            .map(|bytes| AmortizedToken::<Ristretto255>::tls_deserialize_exact(bytes.as_slice()))
+            .transpose()
+            .map_err(|_| Status::invalid_argument("invalid token"))?;
+
+        self.inner.as_refresh_handle(hash, token).await?;
 
         Ok(Response::new(RefreshHandleResponse {}))
     }

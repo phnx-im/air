@@ -73,6 +73,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get userSettingsScreen_userHandlePlaceholder => 'Nom d\'utilisateur';
 
   @override
+  String get userSettingsScreen_inviteCodes => 'Invite codes';
+
+  @override
   String get settingsScreen_copiedToClipboard => 'Copié dans le presse-papiers';
 
   @override
@@ -96,7 +99,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'une discussion active est obligatoire';
 
   @override
-  String get contactDetailsScreen_chat => 'Chat';
+  String get contactDetailsScreen_chat => 'Discussion';
 
   @override
   String get contactDetailsScreen_viewSafetyCode => 'Voir le code de sécurité';
@@ -275,6 +278,40 @@ class AppLocalizationsFr extends AppLocalizations {
       'Code d\'invitation invalide. Vérifiez votre code et réessayez.';
 
   @override
+  String get invitationCodesScreen_title => 'Invite codes';
+
+  @override
+  String get invitationCodesScreen_copyAll => 'Copy all';
+
+  @override
+  String get invitationCodesScreen_tapToGetCode => 'Tap to get code';
+
+  @override
+  String get invitationCodesScreen_removeUnusedCodes => 'Remove used codes';
+
+  @override
+  String get invitationCodesScreen_empty => 'No invitation codes available';
+
+  @override
+  String get invitationCodesScreen_infoText1 =>
+      'Air is in a limited access phase. Everyone who wants to join needs an invite code.';
+
+  @override
+  String get invitationCodesScreen_infoText2 =>
+      'Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.';
+
+  @override
+  String get invitationCodesScreen_global_quota_exceeded =>
+      'Nous n\'avons plus d\'invitations pour le moment, veuillez réessayer plus tard.';
+
+  @override
+  String get invitationCodesScreen_errorRequestingCode =>
+      'Something went wrong. Try again.';
+
+  @override
+  String get invitationCodesScreen_copiedToClipboard => 'Copied to clipboard';
+
+  @override
   String get signUpScreen_header => 'Créez votre profil';
 
   @override
@@ -323,6 +360,10 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get usernameOnboarding_addButton => 'Ajouter';
+
+  @override
+  String get usernameOnboarding_error =>
+      'Un problème est survenu de notre côté. Veuillez patienter un instant puis réessayer.';
 
   @override
   String get usernameOnboarding_next => 'Suivant';
@@ -550,7 +591,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String newChatDialog_error_incompatibleClient(Object chatName) {
-    return 'Couldn\'t create new group chat with name $chatName because one of the contacts has an incompatible client.';
+    return 'Impossible de créer une discussion de groupe avec le nom $chatName car l\'un des contacts a un client incompatible.';
   }
 
   @override
@@ -621,7 +662,7 @@ class AppLocalizationsFr extends AppLocalizations {
     Object actualSize,
     Object maxSize,
   ) {
-    return 'Attachment is too large. The maximum size is $maxSize and the actual size is $actualSize.';
+    return 'La pièce jointe est trop volumineuse. La taille maximale est de $maxSize et la taille réelle est de $actualSize.';
   }
 
   @override
@@ -875,7 +916,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get addMembersScreen_error_incompatibleClient =>
-      'Couldn\'t add member(s) because one of the contacts has an incompatible client';
+      'Impossible d\'ajouter le(s) membre(s) car l\'un des contacts a un client incompatible';
 
   @override
   String get leaveChatDialog_title => 'Quitter la discussion';
@@ -982,8 +1023,19 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get contactRequestDialog_error_incompatibleClient =>
-      'Failed to accept contact request. Update Air to the newest version, then try again.';
+      'Impossible d\'accepter la demande de contact. Mettez Air à jour vers la dernière version, puis réessayez.';
 
   @override
   String get errorBanner_ok => 'OK';
+
+  @override
+  String messageList_unreadMessages(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count messages non lus',
+      one: '$count message non lu',
+    );
+    return '$_temp0';
+  }
 }

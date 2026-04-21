@@ -13,6 +13,7 @@ mod groups;
 mod job;
 mod key_stores;
 pub mod outbound_service;
+pub(crate) mod privacy_pass;
 pub mod store;
 mod user_handles;
 mod user_profiles;
@@ -35,16 +36,18 @@ pub use crate::{
             progress::{AttachmentProgress, AttachmentProgressEvent},
         },
         block_contact::BlockedContactError,
+        invitation_code::{InvitationCode, RequestInvitationCodeError},
         invite_users::InviteUsersError,
         safety_code::SafetyCode,
         user_settings::ReadReceiptsSetting,
     },
     contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},
     groups::debug_info::{
-        AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
+        AirComponentDebugInfo, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
         ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo,
         RequiredDebugCapabilities,
     },
+    privacy_pass::{RequestTokensError, TokenId},
     user_handles::UserHandleRecord,
     user_profiles::{Asset, DisplayName, DisplayNameError, UserProfile},
     utils::persistence::{

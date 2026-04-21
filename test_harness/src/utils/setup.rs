@@ -114,6 +114,9 @@ impl TestUser {
             return Ok(record);
         }
 
+        // In particular, it will replenish the tokens for the handle
+        self.user.outbound_service().run_once().await;
+
         let user_id_str = format!("uuid-{:?}", self.user.user_id()).replace(['@', '.'], "-");
         let handle = UserHandle::new(user_id_str)?;
         info!(

@@ -3,12 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::USER_HANDLE_REFRESH_THRESHOLD;
+use airprotos::auth_service::v1::OperationType;
 use chrono::{DateTime, Duration, Utc};
 use openmls::prelude::OpenMlsProvider;
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -20,6 +21,7 @@ use crate::{
         operation::{Operation, OperationData, OperationId, OperationKind},
         pending_chat_operation::PendingChatOperation,
     },
+    privacy_pass::RequestTokensError,
     user_handles::UserHandleRecord,
     utils::connection_ext::StoreExt,
 };
@@ -51,7 +53,15 @@ impl OperationData for TimedTask {
     fn generate_id(&self) -> OperationId {
         let mut id = Vec::new();
         id.extend_from_slice(b"timed_task");
-        id.push(self.kind as u8);
+        match self.kind {
+            TimedTaskKind::KeyPackageUpload => id.push(0),
+            TimedTaskKind::HandleRefresh => id.push(1),
+            TimedTaskKind::SelfUpdate => id.push(2),
+            TimedTaskKind::TokenReplenishment { operation_type } => {
+                id.push(3);
+                id.extend(i32::from(operation_type).to_le_bytes());
+            }
+        }
         OperationId(id)
     }
 }
@@ -61,6 +71,10 @@ pub(crate) enum TimedTaskKind {
     KeyPackageUpload,
     HandleRefresh,
     SelfUpdate,
+    TokenReplenishment {
+        #[serde(with = "operation_type_serde")]
+        operation_type: OperationType,
+    },
 }
 
 impl TimedTaskKind {
@@ -69,7 +83,34 @@ impl TimedTaskKind {
             TimedTaskKind::KeyPackageUpload => Duration::minutes(5),
             TimedTaskKind::HandleRefresh => Duration::minutes(5),
             TimedTaskKind::SelfUpdate => Duration::minutes(5),
+            TimedTaskKind::TokenReplenishment { operation_type } => match operation_type {
+                OperationType::Unknown => Duration::MAX,
+                OperationType::AddUsername => Duration::minutes(5),
+                OperationType::GetInviteCode => Duration::minutes(5),
+            },
         }
+    }
+}
+
+mod operation_type_serde {
+    use serde::{Deserialize, Deserializer, Serializer, de};
+
+    use airprotos::auth_service::v1::OperationType;
+
+    pub fn serialize<S>(operation_type: &OperationType, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_i32(i32::from(*operation_type))
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<OperationType, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let idx = i32::deserialize(deserializer)?;
+        OperationType::try_from(idx)
+            .map_err(|_| de::Error::custom(format!("invalid operation type: {idx}")))
     }
 }
 
@@ -100,12 +141,23 @@ mod test_utils {
     }
 }
 
+/// Context for timed tasks
+///
+/// Recreated for each loop iteration.
+struct TimedTaskContext {
+    loaded_credentials: bool,
+}
+
 impl OutboundServiceContext {
     pub(super) async fn execute_timed_tasks(
         &self,
         run_token: &CancellationToken,
     ) -> anyhow::Result<()> {
         self.ensure_timed_tasks_exist().await?;
+
+        let mut timed_task_context = TimedTaskContext {
+            loaded_credentials: false,
+        };
 
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
@@ -116,14 +168,20 @@ impl OutboundServiceContext {
 
             let now = Utc::now();
 
-            let Some(mut op) = Operation::<TimedTask>::dequeue(&self.pool, task_id, now).await?
+            let Some(mut op) = self
+                .with_transaction(async |txn| {
+                    Operation::<TimedTask>::dequeue(txn, task_id, now).await
+                })
+                .await?
             else {
                 return Ok(());
             };
             let task_kind = op.data.kind;
             debug!(?task_kind, "dequeued task");
 
-            let res = self.handle_task(run_token, task_kind).await;
+            let res = self
+                .handle_task(run_token, task_kind, &mut timed_task_context)
+                .await;
 
             let interval = match res {
                 Ok(interval) => interval,
@@ -151,6 +209,12 @@ impl OutboundServiceContext {
             .into_operation()
             .enqueue_if_not_exists(&self.pool)
             .await?;
+        for operation_type in OperationType::all() {
+            TimedTask::new(TimedTaskKind::TokenReplenishment { operation_type })
+                .into_operation()
+                .enqueue_if_not_exists(&self.pool)
+                .await?;
+        }
         Ok(())
     }
 
@@ -159,6 +223,7 @@ impl OutboundServiceContext {
         &self,
         run_token: &CancellationToken,
         task_kind: TimedTaskKind,
+        context: &mut TimedTaskContext,
     ) -> anyhow::Result<Duration> {
         debug!(?task_kind, "handling task");
 
@@ -166,6 +231,10 @@ impl OutboundServiceContext {
             TimedTaskKind::KeyPackageUpload => self.upload_key_packages().await,
             TimedTaskKind::HandleRefresh => self.refresh_handles().await,
             TimedTaskKind::SelfUpdate => self.self_update(run_token).await,
+            TimedTaskKind::TokenReplenishment { operation_type } => {
+                self.replenish_tokens(operation_type, &mut context.loaded_credentials)
+                    .await
+            }
         }
     }
 
@@ -174,6 +243,8 @@ impl OutboundServiceContext {
     /// This ensures handles are refreshed on the server well before they expire (server sets
     /// a `USER_HANDLE_VALIDITY_PERIOD` window from creation/refresh time).
     async fn refresh_handles(&self) -> anyhow::Result<Duration> {
+        use crate::privacy_pass;
+
         let now = Utc::now();
         let threshold = now - USER_HANDLE_REFRESH_THRESHOLD;
         let handles = UserHandleRecord::load_needing_refresh(&self.pool, threshold).await?;
@@ -181,15 +252,104 @@ impl OutboundServiceContext {
         if !handles.is_empty() {
             let api_client = self.api_clients.default_client()?;
             for handle in handles {
+                let token =
+                    match privacy_pass::consume_token(&self.pool, OperationType::AddUsername).await
+                    {
+                        Ok(Some(t)) => t,
+                        Ok(None) => {
+                            info!("skipping handle refresh: no tokens available");
+                            break;
+                        }
+                        Err(e) => {
+                            error!(%e, "failed to consume token for handle refresh");
+                            break;
+                        }
+                    };
                 info!("refreshing handle");
-                api_client
-                    .as_refresh_handle(handle.hash, &handle.signing_key)
-                    .await?;
+                let result = api_client
+                    .as_refresh_handle(handle.hash, &handle.signing_key, token)
+                    .await;
+
+                if let Err(e) = &result {
+                    if e.is_unknown_token_key_id() {
+                        warn!("unknown token key ID, purging stale tokens");
+                        privacy_pass::purge_and_replenish(
+                            &self.pool,
+                            &api_client,
+                            self.user_id().clone(),
+                            OperationType::AddUsername,
+                            self.signing_key(),
+                        )
+                        .await?;
+                        // Don't consume and retry immediately — that would
+                        // let the server correlate issuance with redemption
+                        // by timing. Break and let the next task iteration
+                        // retry with decorrelated tokens.
+                        break;
+                    }
+                    result?;
+                }
+
                 UserHandleRecord::update_refreshed_at(&self.pool, &handle.hash, now).await?;
             }
         }
 
         Ok(Duration::weeks(1))
+    }
+
+    /// Ensures the client has Privacy Pass tokens available for all
+    /// operations. Fetches VOPRF public keys from the server and requests
+    /// tokens if the local store is running low.
+    ///
+    /// Returns a short interval (5 min) when tokens are still below the
+    /// threshold, and a long interval (6 h) when fully stocked.
+    async fn replenish_tokens(
+        &self,
+        operation_type: OperationType,
+        loaded_credentials: &mut bool,
+    ) -> anyhow::Result<Duration> {
+        use crate::privacy_pass;
+
+        let api_client = self.api_clients.default_client()?;
+
+        let Some(replenish_count) =
+            privacy_pass::needs_replenishment(self.pool(), operation_type).await?
+        else {
+            return Ok(Duration::hours(6));
+        };
+
+        if !*loaded_credentials {
+            let credentials_response = api_client.as_as_credentials().await?;
+            self.with_transaction(async move |txn| {
+                privacy_pass::store_batched_token_keys(
+                    txn,
+                    &credentials_response.batched_token_keys,
+                )
+                .await
+            })
+            .await?;
+            *loaded_credentials = true;
+        }
+
+        match privacy_pass::request_and_store_tokens(
+            self.pool(),
+            &api_client,
+            self.user_id().clone(),
+            self.signing_key(),
+            operation_type,
+            replenish_count,
+        )
+        .await?
+        {
+            Ok(count) if count < usize::from(operation_type.low_tokens_threshold()) => {
+                Ok(Duration::minutes(5))
+            }
+            Ok(_) => Ok(Duration::hours(6)),
+            Err(RequestTokensError::QuotaExceeded) => {
+                warn!(%operation_type, "quota exceeded");
+                Ok(Duration::hours(6))
+            }
+        }
     }
 
     /// This function does the following:

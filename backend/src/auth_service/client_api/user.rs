@@ -85,6 +85,7 @@ impl AuthService {
                 error!(%error, "Storage provider error");
                 RegisterUserError::StorageError
             })?;
+
         ClientRecord::new_and_store(txn.as_mut(), client_credential.clone())
             .await
             .map_err(|error| {

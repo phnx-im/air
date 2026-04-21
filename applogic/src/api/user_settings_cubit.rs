@@ -57,7 +57,7 @@ impl UserSettingsCubitBase {
 
     // Cubit interface
 
-    pub fn close(&mut self) {
+    pub fn close(&self) {
         self.core.close();
     }
 
@@ -71,7 +71,7 @@ impl UserSettingsCubitBase {
         self.core.state()
     }
 
-    pub async fn stream(&mut self, sink: StreamSink<UserSettings>) {
+    pub async fn stream(&self, sink: StreamSink<UserSettings>) {
         self.core.stream(sink).await;
     }
 

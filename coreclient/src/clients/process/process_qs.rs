@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::time::Instant;
+
 use aircommon::{
     credentials::{ClientCredential, VerifiableClientCredential},
     crypto::{ear::EarDecryptable, indexed_aead::keys::UserProfileKey},
@@ -127,9 +129,11 @@ impl CoreUser {
         // if it doesn't mix requests, etc. I think the DS already does some of this
         // and we might be able to re-use code.
 
+        let started = Instant::now();
+
         // Keep track of freshly joined groups s.t. we can later update our user auth keys.
         let ds_timestamp = qs_queue_message.timestamp;
-        match qs_queue_message.payload {
+        let res = match qs_queue_message.payload {
             ExtractedQsQueueMessagePayload::WelcomeBundle(welcome_bundle) => {
                 Box::pin(self.handle_welcome_bundle(txn, notifier, welcome_bundle, ds_timestamp))
                     .await
@@ -162,7 +166,10 @@ impl CoreUser {
                 self.handle_commit_response(txn, notifier, ds_commit_response)
                     .await
             }
-        }
+        };
+
+        debug!(elapsed = ?started.elapsed(), "Processed QS message");
+        res
     }
 
     async fn handle_commit_response(
@@ -944,6 +951,8 @@ impl CoreUser {
         let num_messages = qs_messages.len();
         let read_receipts_enabled = self.read_receipts_enabled().await;
 
+        let started = Instant::now();
+
         // Process each qs message individually
         //
         // Each loop iteration MUST be a cancel-safe and process-safe future. The former is
@@ -989,6 +998,8 @@ impl CoreUser {
 
             notifier.notify();
         }
+
+        debug!(elapsed = ?started.elapsed(), num_messages, "Processed QS messages");
 
         result.processed = num_messages;
         result

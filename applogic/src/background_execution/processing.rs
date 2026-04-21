@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use anyhow::Context;
 use std::panic::{self, AssertUnwindSafe};
 use tokio::runtime::Builder;
 use tracing::{error, info};
@@ -22,15 +23,6 @@ use super::NotificationBatch;
 const SECOND_THREAD_STACK_SIZE: usize = 1024 * 1024; // 1 MB
 const TOKIO_THREAD_STACK_SIZE: usize = 1024 * 1024; // 1 MB
 const TOKIO_WORKER_THREADS: usize = 2; // Two threads for background tasks should be enough
-
-pub(crate) fn error_batch(title: String, body: String) -> NotificationBatch {
-    error!(%title, %body, "Error notification batch");
-    NotificationBatch {
-        badge_count: 0,
-        removals: Vec::new(),
-        additions: Vec::new(),
-    }
-}
 
 pub(crate) fn init_environment(content: &str) -> Option<NotificationBatch> {
     let incoming_content: IncomingNotificationContent = match serde_json::from_str(content) {
@@ -71,25 +63,29 @@ pub(crate) fn init_environment(content: &str) -> Option<NotificationBatch> {
         .join()
         .map_err(|error| {
             match error.downcast::<&str>() {
-                Ok(s) => {
-                    error!(error = s, "Thread panicked while initializing logger");
+                Ok(panic) => {
+                    anyhow::format_err!("Thread panicked while initializing logger: {panic}")
                 }
                 Err(error) => match error.downcast::<String>() {
-                    Ok(s) => {
-                        error!(error = s, "Thread panicked while initializing logger");
+                    Ok(panic) => {
+                        anyhow::format_err!("Thread panicked while initializing logger: {panic}")
                     }
                     Err(_) => {
-                        error!("Thread panicked while initializing logger occurred with unknown payload type");
+                        anyhow::format_err!("Thread panicked while initializing logger occurred with unknown payload type")
                     }
                 },
             }
+        })
+        .flatten()
+        .inspect_err(|error| {
+            error!(%error, "Failed to process new messages in the background");
         })
         .ok()
 }
 
 /// Wraps with a tokio runtime to block on the async functions
-pub(crate) fn init_tokio(path: String) -> NotificationBatch {
-    let result = Builder::new_multi_thread()
+pub(crate) fn init_tokio(path: String) -> anyhow::Result<NotificationBatch> {
+    Builder::new_multi_thread()
         .thread_name("nse-thread")
         .enable_all()
         .thread_stack_size(TOKIO_THREAD_STACK_SIZE)
@@ -104,51 +100,31 @@ pub(crate) fn init_tokio(path: String) -> NotificationBatch {
             );
         })
         .build()
-        .map_err(|error| {
-            error!(%error, "Failed to initialize tokio runtime");
-            ("Runtime error".to_string(), error.to_string())
-        })
+        .context("Failed to initialize tokio runtime")
         .and_then(|runtime| {
             panic::catch_unwind(AssertUnwindSafe(|| {
                 runtime.block_on(async { Box::pin(retrieve_messages(path)).await })
             }))
             .map_err(|payload| {
-                if let Some(s) = payload.downcast_ref::<&str>() {
-                    error!("Panic in tokio runtime: {}", s);
-                    ("Panic in tokio runtime".to_string(), s.to_string())
-                } else if let Some(s) = payload.downcast_ref::<String>() {
-                    error!("Panic in tokio runtime: {}", s);
-                    ("Panic in tokio runtime".to_string(), s.clone())
+                if let Some(message) = payload.downcast_ref::<&str>() {
+                    anyhow::format_err!("Panic in tokio runtime: {message}")
+                } else if let Some(message) = payload.downcast_ref::<String>() {
+                    anyhow::format_err!("Panic in tokio runtime: {message}")
                 } else {
-                    error!("Panic in tokio runtime occurred with unknown payload type");
-                    ("Panic in tokio runtime".to_string(), "Unknown".to_string())
+                    anyhow::format_err!("Panic in tokio runtime occurred with unknown payload type")
                 }
             })
-        });
-
-    match result {
-        Ok(batch) => batch,
-        Err((title, body)) => error_batch(title, body),
-    }
+            .flatten()
+        })
 }
 
 /// Load the user and retrieve messages
-pub(crate) async fn retrieve_messages(path: String) -> NotificationBatch {
+pub(crate) async fn retrieve_messages(path: String) -> anyhow::Result<NotificationBatch> {
     info!(path, "Retrieving messages with DB path");
-    let user = match User::load_default(path).await {
-        Ok(Some(user)) => user,
-        Ok(None) => {
-            error!("User not found");
-            return error_batch(
-                "User not found".to_string(),
-                "The database contained no user data".to_string(),
-            );
-        }
-        Err(error) => {
-            error!(%error, "Failed to load user");
-            return error_batch("Failed to load user".to_string(), error.to_string());
-        }
-    };
+    let user = User::load_default(path)
+        .await
+        .context("Failed to load user")?
+        .context("User not found: the database contained no user data")?;
 
     // capture store notification in below store calls
     let pending_store_notifications = user.user.subscribe_iter();
@@ -169,8 +145,7 @@ pub(crate) async fn retrieve_messages(path: String) -> NotificationBatch {
                 }]
             }
             FetchAndProcessAllMessagesError::Fatal(error) => {
-                error!(?error, "Fatal error while fetching messages");
-                Vec::new()
+                return Err(error.context("fatal error while fetching messages"));
             }
         },
     };
@@ -183,9 +158,9 @@ pub(crate) async fn retrieve_messages(path: String) -> NotificationBatch {
         }
     }
 
-    NotificationBatch {
+    Ok(NotificationBatch {
         badge_count,
         removals: Vec::new(),
         additions: notifications,
-    }
+    })
 }

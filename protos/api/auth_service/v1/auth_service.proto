@@ -10,6 +10,7 @@ import "common/v1/common.proto";
 
 service AuthService {
   rpc CheckInvitationCode(CheckInvitationCodeRequest) returns (CheckInvitationCodeResponse);
+  rpc GetInvitationCodes(GetInvitationCodesRequest) returns (GetInvitationCodesResponse);
 
   rpc RegisterUser(RegisterUserRequest) returns (RegisterUserResponse);
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
@@ -165,6 +166,16 @@ message CheckInvitationCodeResponse {
   bool is_valid = 1;
 }
 
+// generate invitation codes
+
+message GetInvitationCodesRequest {
+  repeated bytes tokens = 1;
+}
+
+message GetInvitationCodesResponse {
+  repeated InvitationCode invitation_codes = 1;
+}
+
 // register user
 
 message RegisterUserRequest {
@@ -258,6 +269,19 @@ message AsCredentialsResponse {
   repeated AsCredential as_credentials = 1;
   repeated AsIntermediateCredential as_intermediate_credentials = 2;
   repeated Hash revoked_credentials = 4;
+  repeated BatchedTokenKey batched_token_keys = 5;
+}
+
+enum OperationType {
+  UNKNOWN = 0;
+  ADD_USERNAME = 1;
+  GET_INVITE_CODE = 2;
+}
+
+message BatchedTokenKey {
+  bytes public_key = 1;
+  uint32 token_key_id = 2;
+  OperationType operation_type = 3;
 }
 
 message AsCredential {
@@ -313,6 +337,7 @@ message IssueTokensRequest {
 
 message IssueTokensPayload {
   common.v1.ClientMetadata client_metadata = 3;
+  OperationType operation_type = 4;
   UserId user_id = 1;
   bytes token_request = 2;
 }
@@ -359,6 +384,7 @@ message CreateHandlePayload {
   string plaintext = 2;
   // Hash of the plaintext
   UserHandleHash hash = 3;
+  optional bytes token = 5;
 }
 
 message HandleVerifyingKey {
@@ -377,9 +403,12 @@ message DeleteHandleRequest {
 message DeleteHandlePayload {
   common.v1.ClientMetadata client_metadata = 2;
   UserHandleHash hash = 1;
+  optional bytes token_request = 3;
 }
 
-message DeleteHandleResponse {}
+message DeleteHandleResponse {
+  optional bytes token_response = 1;
+}
 
 // refresh handle
 
@@ -391,6 +420,7 @@ message RefreshHandleRequest {
 message RefreshHandlePayload {
   common.v1.ClientMetadata client_metadata = 2;
   UserHandleHash hash = 1;
+  optional bytes token = 3;
 }
 
 message RefreshHandleResponse {}

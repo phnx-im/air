@@ -94,7 +94,7 @@ impl MemberDetailsCubitBase {
 
     // Cubit interface
 
-    pub fn close(&mut self) {
+    pub fn close(&self) {
         self.core.close();
     }
 
@@ -108,7 +108,7 @@ impl MemberDetailsCubitBase {
         self.core.state()
     }
 
-    pub async fn stream(&mut self, sink: StreamSink<MemberDetailsState>) {
+    pub async fn stream(&self, sink: StreamSink<MemberDetailsState>) {
         self.core.stream(sink).await;
     }
 }

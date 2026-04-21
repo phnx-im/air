@@ -31,7 +31,9 @@ use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpListener,
 };
-use tonic::{Request, Status, service::InterceptorLayer, transport::server::Connected};
+#[cfg(any(feature = "test_utils", test))]
+use tonic::{Request, Status};
+use tonic::{service::InterceptorLayer, transport::server::Connected};
 use tonic_health::pb::health_server::{Health, HealthServer};
 use tower_governor::{
     GovernorLayer, governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor,
@@ -117,6 +119,27 @@ pub async fn run<
     info!(%grpc_addr, "Starting server");
 
     serve_metrics(metrics_listener);
+
+    // Background task: VOPRF key rotation check.
+    // Waits a cooldown period after startup, then checks daily with random
+    // jitter to stagger rotation across server instances.
+    let rotation_pool = auth_service.db_pool().clone();
+    tokio::spawn(async move {
+        use airbackend::auth_service::privacy_pass::rotate_keys_if_needed;
+        use rand::Rng;
+
+        let cooldown = Duration::from_secs(15 * 60);
+        tokio::time::sleep(cooldown).await;
+
+        loop {
+            if let Err(e) = rotate_keys_if_needed(&rotation_pool).await {
+                tracing::error!(%e, "VOPRF key rotation check failed");
+            }
+            let jitter = rand::thread_rng().gen_range(0..3600);
+            let interval = Duration::from_secs(24 * 60 * 60 + jitter);
+            tokio::time::sleep(interval).await;
+        }
+    });
 
     // GRPC server
     let grpc_as = GrpcAs::new(auth_service);
