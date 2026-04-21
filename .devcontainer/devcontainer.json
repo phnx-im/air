@@ -1,0 +1,28 @@
+// SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+{
+  "name": "Air Dev",
+  "dockerComposeFile": [
+    "../compose.yaml",
+    "docker-compose.devcontainer.yml"
+  ],
+  "service": "dev",
+  "workspaceFolder": "/workspace",
+  "remoteUser": "dev",
+  "shutdownAction": "stopCompose",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "Dart-Code.dart-code",
+        "Dart-Code.flutter"
+      ],
+      "settings": {
+        "dart.flutterSdkPath": "/home/dev/.flutter-sdk",
+        "dart.allowAnalytics": false,
+        "dart.flutterHotReloadOnSave": "never"
+      }
+    }
+  }
+}
