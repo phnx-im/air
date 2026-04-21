@@ -36,16 +36,29 @@ impl UsernameRecord {
             .map(|opt| opt.is_some())
     }
 
-    /// Upserts a username record in the database.
-    pub(crate) async fn store(&self, executor: impl PgExecutor<'_>) -> sqlx::Result<()> {
-        query!(
+    pub(crate) async fn store(&self, executor: impl PgExecutor<'_>) -> sqlx::Result<bool> {
+        let res = query!(
             "INSERT INTO as_user_handle (
                 hash,
                 verifying_key,
                 expiration_data
             ) VALUES ($1, $2, $3)
-            ON CONFLICT (hash) DO UPDATE
-                SET verifying_key = $2, expiration_data = $3",
+            ON CONFLICT (hash) DO NOTHING",
+            self.username_hash.as_bytes(),
+            self.verifying_key as _,
+            self.expiration_data as _,
+        )
+        .execute(executor)
+        .await?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    pub(crate) async fn update(&self, executor: impl PgExecutor<'_>) -> sqlx::Result<()> {
+        query!(
+            "UPDATE as_user_handle SET
+                verifying_key = $2,
+                expiration_data = $3
+            WHERE hash = $1",
             self.username_hash.as_bytes(),
             self.verifying_key as _,
             self.expiration_data as _,
@@ -147,69 +160,50 @@ mod test {
             expiration_data: expiration_data.clone(),
         };
 
-        record.store(&pool).await?;
+        let inserted = record.store(&pool).await?;
+        assert!(inserted, "First store should insert the record");
 
-        // Test loading the verifying key
+        let loaded_verifying_key =
+            UsernameRecord::load_verifying_key(&pool, &username_hash).await?;
+        assert_eq!(loaded_verifying_key.as_ref(), Some(&verifying_key));
+
+        let loaded_expiration_data =
+            UsernameRecord::load_expiration_data(&pool, &username_hash).await?;
+        assert_eq!(loaded_expiration_data.as_ref(), Some(&expiration_data));
+
+        let loaded_expiration_data =
+            UsernameRecord::load_expiration_data_for_update(&pool, &username_hash).await?;
+        assert_eq!(loaded_expiration_data.as_ref(), Some(&expiration_data));
+
+        // Storing the same hash again does nothing (ON CONFLICT DO NOTHING)
+        let different_verifying_key = UsernameVerifyingKey::from_bytes(vec![2]);
+        assert_ne!(verifying_key, different_verifying_key);
+        let inserted_again = UsernameRecord {
+            username_hash,
+            verifying_key: different_verifying_key,
+            expiration_data: ExpirationData::new(Duration::days(1)),
+        }
+        .store(&pool)
+        .await?;
+        assert!(!inserted_again, "Store for existing hash should return false");
+
         let loaded_verifying_key =
             UsernameRecord::load_verifying_key(&pool, &username_hash).await?;
         assert_eq!(
             loaded_verifying_key.as_ref(),
             Some(&verifying_key),
-            "Loaded verifying key should match"
-        );
-        // Test loading the expiration data
-        let loaded_expiration_data =
-            UsernameRecord::load_expiration_data(&pool, &username_hash).await?;
-        assert_eq!(
-            loaded_expiration_data.as_ref(),
-            Some(&expiration_data),
-            "Loaded expiration data should match"
-        );
-        let loaded_expiration_data =
-            UsernameRecord::load_expiration_data_for_update(&pool, &username_hash).await?;
-        assert_eq!(
-            loaded_expiration_data.as_ref(),
-            Some(&expiration_data),
-            "Loaded expiration data should match"
+            "Verifying key should not change"
         );
 
-        // Test storing the same hash (previous record is expired now)
-        let different_verifying_key = UsernameVerifyingKey::from_bytes(vec![2]);
-        assert_ne!(verifying_key, different_verifying_key);
-        let record = UsernameRecord {
-            username_hash,
-            verifying_key: different_verifying_key,
-            expiration_data: ExpirationData::new(Duration::days(1)),
-        };
-        record.store(&pool).await?;
-        let loaded_verifying_key =
-            UsernameRecord::load_verifying_key(&pool, &username_hash).await?;
-        assert_eq!(
-            loaded_verifying_key.as_ref(),
-            Some(&record.verifying_key),
-            "Loaded verifying key should match"
-        );
-        let loaded_expiration_data =
-            UsernameRecord::load_expiration_data(&pool, &username_hash).await?;
-        assert_eq!(
-            loaded_expiration_data.as_ref(),
-            Some(&record.expiration_data),
-            "Loaded expiration data should match"
-        );
-
-        // Test loading a non-existent key
+        // Non-existent hash returns None
         let non_existent_hash = UsernameHash::new([2; 32]);
-        let loaded_non_existent =
-            UsernameRecord::load_verifying_key(&pool, &non_existent_hash).await?;
         assert_eq!(
-            loaded_non_existent, None,
-            "Loading non-existent key should return None"
+            UsernameRecord::load_verifying_key(&pool, &non_existent_hash).await?,
+            None
         );
-        let loaded_non_existent =
-            UsernameRecord::load_expiration_data(&pool, &non_existent_hash).await?;
         assert_eq!(
-            loaded_non_existent, None,
-            "Loading non-existent key should return None"
+            UsernameRecord::load_expiration_data(&pool, &non_existent_hash).await?,
+            None
         );
 
         Ok(())
@@ -227,29 +221,19 @@ mod test {
             expiration_data,
         };
 
-        // Store the record first
         let mut txn = pool.begin().await?;
         record.store(txn.as_mut()).await?;
         txn.commit().await?;
 
-        // Test deleting an existing record
         let deleted = UsernameRecord::delete(&pool, &username_hash).await?;
         assert!(deleted, "Record should be deleted successfully");
 
-        // Verify it's gone
         let loaded_after_delete = UsernameRecord::load_verifying_key(&pool, &username_hash).await?;
-        assert_eq!(
-            loaded_after_delete, None,
-            "Record should not exist after deletion"
-        );
+        assert_eq!(loaded_after_delete, None, "Record should not exist after deletion");
 
-        // Test deleting a non-existent record
         let non_existent_hash = UsernameHash::new([2; 32]);
         let deleted_non_existent = UsernameRecord::delete(&pool, &non_existent_hash).await?;
-        assert!(
-            !deleted_non_existent,
-            "Deleting non-existent record should return false"
-        );
+        assert!(!deleted_non_existent, "Deleting non-existent record should return false");
 
         Ok(())
     }
@@ -269,7 +253,6 @@ mod test {
 
         let mut txn = pool.begin().await?;
 
-        // Store the record first
         record.store(txn.as_mut()).await?;
 
         UsernameRecord::update_expiration_data(
@@ -279,15 +262,11 @@ mod test {
         )
         .await?;
 
-        // Verify the expiration data has been updated
         let loaded_expiration_data =
             UsernameRecord::load_expiration_data(txn.as_mut(), &username_hash)
                 .await?
                 .unwrap();
-        assert_eq!(
-            loaded_expiration_data, updated_expiration_data,
-            "Expiration data should be updated"
-        );
+        assert_eq!(loaded_expiration_data, updated_expiration_data);
 
         Ok(())
     }

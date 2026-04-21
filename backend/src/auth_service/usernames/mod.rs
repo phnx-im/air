@@ -64,12 +64,16 @@ impl AuthService {
             return Err(CreateUsernameError::HashMismatch);
         }
 
-        if let Some(expiration_data) =
+        let exists = if let Some(expiration_data) =
             UsernameRecord::load_expiration_data_for_update(txn.as_mut(), &hash).await?
-            && expiration_data.validate()
         {
-            return Err(CreateUsernameError::UsernameExists);
-        }
+            if expiration_data.validate() {
+                return Err(CreateUsernameError::UsernameExists);
+            }
+            true
+        } else {
+            false
+        };
 
         let expiration_data = ExpirationData::new(USERNAME_VALIDITY_PERIOD);
 
@@ -78,7 +82,12 @@ impl AuthService {
             verifying_key,
             expiration_data,
         };
-        record.store(txn.as_mut()).await?;
+        if exists {
+            record.update(txn.as_mut()).await?;
+        } else if !record.store(txn.as_mut()).await? {
+            // Race condition: another process created the username before we did.
+            return Err(CreateUsernameError::UsernameExists);
+        }
 
         txn.commit().await?;
         Ok(())
@@ -337,8 +346,6 @@ mod tests {
     async fn check_username_exists_true(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
 
-        dbg!(Username::new(USERNAME.into())?.calculate_hash()?);
-
         UsernameRecord {
             username_hash: HASH,
             verifying_key: make_verifying_key(),
@@ -449,6 +456,28 @@ mod tests {
             .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
             .await;
         assert!(matches!(result, Err(CreateUsernameError::UsernameExists)));
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn create_username_concurrent(pool: PgPool) -> anyhow::Result<()> {
+        let service = setup(&pool).await?;
+
+        let (r1, r2) = tokio::join!(
+            service.as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None),
+            service.as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None),
+        );
+
+        let ok_count = [r1.is_ok(), r2.is_ok()].iter().filter(|&&ok| ok).count();
+        assert_eq!(ok_count, 1, "Exactly one concurrent create should succeed");
+
+        let err = if r1.is_err() {
+            r1.unwrap_err()
+        } else {
+            r2.unwrap_err()
+        };
+        assert!(matches!(err, CreateUsernameError::UsernameExists));
+
         Ok(())
     }
 
