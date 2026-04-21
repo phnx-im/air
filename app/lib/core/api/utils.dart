@@ -22,22 +22,6 @@ Future<void> deleteClientDatabase({
   userId: userId,
 );
 
-Future<Uint8List> exportClientDatabase({
-  required String dbPath,
-  required UiUserId userId,
-}) => RustLib.instance.api.crateApiUtilsExportClientDatabase(
-  dbPath: dbPath,
-  userId: userId,
-);
-
-Future<void> importClientDatabase({
-  required String dbPath,
-  required List<int> tarGzBytes,
-}) => RustLib.instance.api.crateApiUtilsImportClientDatabase(
-  dbPath: dbPath,
-  tarGzBytes: tarGzBytes,
-);
-
 /// Returns whether the file at the given path is a recognized image format.
 /// Uses the same detection as `load_attachment_image()`.
 Future<bool> isImageFile({required String path}) =>
