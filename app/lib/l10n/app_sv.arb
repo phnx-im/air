@@ -92,6 +92,7 @@
   "usernameOnboarding_body": "Användarnamn är hur man ansluter på Air. De är inte synliga för andra när du väl är ansluten.\n\nLägg till, ändra eller ta bort användarnamn när som helst i din profil.",
   "usernameOnboarding_syntax": "Använd bokstäver, siffror eller bindestreck. Minst 5 tecken.",
   "usernameOnboarding_addButton": "Lägg till",
+  "usernameAccountScreen_error": "Något gick fel hos oss. Vänta en stund och försök igen.",
   "usernameOnboarding_next": "Nästa",
   "usernameOnboarding_usernameInputName": "Användarnamn (valfritt)",
   "usernameOnboarding_usernameInputHint": "Lägg till ett användarnamn...",

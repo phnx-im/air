@@ -17,10 +17,10 @@ import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:provider/provider.dart';
 
 import 'add_username_dialog.dart';
 import 'change_display_name_dialog.dart';
@@ -30,6 +30,19 @@ import 'remove_username_dialog.dart';
 
 class UserSettingsScreen extends StatelessWidget {
   const UserSettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) =>
+          InvitationCodesCubit(userCubit: context.read<UserCubit>()),
+      child: const UserSettingsView(),
+    );
+  }
+}
+
+class UserSettingsView extends StatelessWidget {
+  const UserSettingsView({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -276,6 +289,10 @@ class _CommonSettings extends HookWidget {
     final loc = AppLocalizations.of(context);
     return Column(
       children: [
+        const _InviteCodes(),
+
+        const SizedBox(height: Spacings.xs),
+
         const _LanguageSetting(),
 
         const SizedBox(height: Spacings.xs),
@@ -294,6 +311,84 @@ class _CommonSettings extends HookWidget {
 
         FieldLabel(loc.userSettingsScreen_readReceiptsDescription),
       ],
+    );
+  }
+}
+
+class _InviteCodes extends StatelessWidget {
+  const _InviteCodes();
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final colors = CustomColorScheme.of(context);
+
+    return _FieldContainer(
+      onTap: () {
+        // Note: We want to share the cubit between this widget and the screen,
+        // because we want to synchronize the data between the two.
+        final invitationCodesCubit = context.read<InvitationCodesCubit>();
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => InvitationCodesScreen(
+              invitationCodesCubit: invitationCodesCubit,
+            ),
+          ),
+        );
+      },
+      child: Row(
+        children: [
+          AppIcon.users(color: colors.text.secondary, size: 24),
+
+          const SizedBox(width: Spacings.xs),
+
+          Expanded(child: Text(loc.userSettingsScreen_inviteCodes)),
+
+          const _InvitationCodesBadge(),
+        ],
+      ),
+    );
+  }
+}
+
+class _InvitationCodesBadge extends StatelessWidget {
+  const _InvitationCodesBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final availableInvitationCodes = context.select(
+      (InvitationCodesCubit cubit) => cubit.state.codes
+          .where(
+            (code) => switch (code) {
+              UiInvitationCode_Token() => true,
+              UiInvitationCode_Code(field0: final code) => !code.copied,
+            },
+          )
+          .length,
+    );
+
+    if (availableInvitationCodes == 0) {
+      return const SizedBox.shrink();
+    }
+
+    final colors = CustomColorScheme.of(context);
+
+    return Container(
+      width: 40,
+      height: 24,
+      decoration: BoxDecoration(
+        color: colors.function.success,
+        borderRadius: BorderRadius.circular(1000),
+      ),
+      child: Center(
+        child: Text(
+          availableInvitationCodes.toString(),
+          style: TextStyle(
+            color: colors.function.white,
+            fontSize: LabelFontSize.small2.size,
+          ),
+        ),
+      ),
     );
   }
 }

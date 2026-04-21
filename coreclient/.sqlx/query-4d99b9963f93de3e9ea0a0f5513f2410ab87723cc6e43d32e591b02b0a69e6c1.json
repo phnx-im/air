@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT code, copied, created_at AS \"created_at: _\"\n                FROM invitation_code",
+  "describe": {
+    "columns": [
+      {
+        "name": "code",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "copied",
+        "ordinal": 1,
+        "type_info": "Bool"
+      },
+      {
+        "name": "created_at: _",
+        "ordinal": 2,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4d99b9963f93de3e9ea0a0f5513f2410ab87723cc6e43d32e591b02b0a69e6c1"
+}

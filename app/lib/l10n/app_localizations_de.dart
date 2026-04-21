@@ -73,6 +73,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get userSettingsScreen_usernamePlaceholder => 'Benutzername';
 
   @override
+  String get userSettingsScreen_inviteCodes => 'Invite codes';
+
+  @override
   String get settingsScreen_copiedToClipboard => 'In Zwischenablage kopiert';
 
   @override
@@ -272,6 +275,40 @@ class AppLocalizationsDe extends AppLocalizations {
       'Ungültiger Einladungscode. Prüfe den Code und versuche es erneut.';
 
   @override
+  String get invitationCodesScreen_title => 'Invite codes';
+
+  @override
+  String get invitationCodesScreen_copyAll => 'Copy all';
+
+  @override
+  String get invitationCodesScreen_tapToGetCode => 'Tap to get code';
+
+  @override
+  String get invitationCodesScreen_removeUnusedCodes => 'Remove used codes';
+
+  @override
+  String get invitationCodesScreen_empty => 'No invitation codes available';
+
+  @override
+  String get invitationCodesScreen_infoText1 =>
+      'Air is in a limited access phase. Everyone who wants to join needs an invite code.';
+
+  @override
+  String get invitationCodesScreen_infoText2 =>
+      'Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.';
+
+  @override
+  String get invitationCodesScreen_global_quota_exceeded =>
+      'Wir haben im Moment keine Einladungenscode mehr, versuch es bitte später nochmal.';
+
+  @override
+  String get invitationCodesScreen_errorRequestingCode =>
+      'Something went wrong. Try again.';
+
+  @override
+  String get invitationCodesScreen_copiedToClipboard => 'Copied to clipboard';
+
+  @override
   String get signUpScreen_header => 'Erstelle dein Profil';
 
   @override
@@ -319,6 +356,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get usernameOnboarding_addButton => 'Hinzufügen';
+
+  @override
+  String get usernameOnboarding_error =>
+      'Bei uns ist ein Fehler aufgetreten. Warte einen Moment und versuche es dann erneut.';
 
   @override
   String get usernameOnboarding_next => 'Weiter';

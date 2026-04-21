@@ -78,6 +78,9 @@
   "invitationCodeScreen_error_internal": "Einladungscode konnte nicht überprüft werden: {error}",
   "invitationCodeScreen_error_missing": "Einladungscode fehlt",
   "invitationCodeScreen_error_invalid": "Ungültiger Einladungscode. Prüfe den Code und versuche es erneut.",
+  
+  "invitationCodesScreen_global_quota_exceeded": "Wir haben im Moment keine Einladungenscode mehr, versuch es bitte später nochmal.",
+
   "signUpScreen_header": "Erstelle dein Profil",
   "signUpScreen_subheader": "Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen. Air benötigt einen Anzeigenamen, ein Bild ist optional.",
   "signUpScreen_actionButton": "Erstellen",
@@ -92,6 +95,7 @@
   "usernameOnboarding_body": "Über Benutzernamen kann man sich in Air mit anderen verbinden. Sie sind für andere nicht mehr sichtbar, sobald man verbunden ist.\n\nDu kannst Benutzernamen jederzeit in deinem Profil hinzufügen, ändern oder löschen.",
   "usernameOnboarding_syntax": "Verwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.",
   "usernameOnboarding_addButton": "Hinzufügen",
+  "usernameOnboarding_error": "Bei uns ist ein Fehler aufgetreten. Warte einen Moment und versuche es dann erneut.",
   "usernameOnboarding_next": "Weiter",
   "usernameOnboarding_usernameInputName": "Benutzername (optional)",
   "usernameOnboarding_usernameInputHint": "Benutzernamen hinzufügen...",

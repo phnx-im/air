@@ -169,6 +169,8 @@ impl CoreUser {
         // operation is in memory, we can retry many times. It will be cleaned up in case the app
         // closed. We just need to make sure that we don't run too many downloads at the same time,
         // otherwise we might run out of memory.
+        //
+        // TODO: Refactor and use a crate or an abstraction for this.
         const ATTACHMENT_COMMIT_RETRY_DELAY: Duration = Duration::from_secs(1);
         const ATTACHMENT_COMMIT_MAX_RETRIES: u32 = 30;
         let bytes = content.bytes.as_slice();

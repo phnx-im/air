@@ -73,6 +73,9 @@ class AppLocalizationsSv extends AppLocalizations {
   String get userSettingsScreen_usernamePlaceholder => 'Användarnamn';
 
   @override
+  String get userSettingsScreen_inviteCodes => 'Invite codes';
+
+  @override
   String get settingsScreen_copiedToClipboard => 'Kopierat till urklipp';
 
   @override
@@ -270,6 +273,40 @@ class AppLocalizationsSv extends AppLocalizations {
       'Ogiltig inbjudningskod. Kontrollera koden och försök igen.';
 
   @override
+  String get invitationCodesScreen_title => 'Invite codes';
+
+  @override
+  String get invitationCodesScreen_copyAll => 'Copy all';
+
+  @override
+  String get invitationCodesScreen_tapToGetCode => 'Tap to get code';
+
+  @override
+  String get invitationCodesScreen_removeUnusedCodes => 'Remove used codes';
+
+  @override
+  String get invitationCodesScreen_empty => 'No invitation codes available';
+
+  @override
+  String get invitationCodesScreen_infoText1 =>
+      'Air is in a limited access phase. Everyone who wants to join needs an invite code.';
+
+  @override
+  String get invitationCodesScreen_infoText2 =>
+      'Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.';
+
+  @override
+  String get invitationCodesScreen_global_quota_exceeded =>
+      'We\'re out of invites for now, please try again later.';
+
+  @override
+  String get invitationCodesScreen_errorRequestingCode =>
+      'Something went wrong. Try again.';
+
+  @override
+  String get invitationCodesScreen_copiedToClipboard => 'Copied to clipboard';
+
+  @override
   String get signUpScreen_header => 'Skapa din profil';
 
   @override
@@ -318,6 +355,10 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get usernameOnboarding_addButton => 'Lägg till';
+
+  @override
+  String get usernameOnboarding_error =>
+      'Something went wrong on our end. Wait a moment, then try again.';
 
   @override
   String get usernameOnboarding_next => 'Nästa';

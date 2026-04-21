@@ -2,15 +2,19 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::collections::HashSet;
+
 use aircommon::codec::{BlobDecoded, BlobEncoded};
+use airprotos::auth_service::v1::OperationType;
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use privacypass::{
     Nonce, NonceStore, TruncatedTokenKeyId,
     amortized_tokens::server::Server,
     common::{private::serialize_public_key, store::PrivateKeyStore},
     private_tokens::{Ristretto255, VoprfServer},
 };
-use sqlx::{PgConnection, PgExecutor, PgPool};
+use sqlx::{PgConnection, PgPool};
 use tokio::sync::Mutex;
 use tracing::{error, info};
 
@@ -19,11 +23,19 @@ pub(super) struct AuthServiceBatchedKeyStoreProvider<'a> {
     /// library accesses key store and nonce store sequentially, never
     /// holding borrows on both simultaneously.
     connection: &'a Mutex<&'a mut PgConnection>,
+
+    operation_type: OperationType,
 }
 
 impl<'a> AuthServiceBatchedKeyStoreProvider<'a> {
-    pub(super) fn new(connection: &'a Mutex<&'a mut PgConnection>) -> Self {
-        Self { connection }
+    pub(super) fn new(
+        connection: &'a Mutex<&'a mut PgConnection>,
+        operation_type: OperationType,
+    ) -> Self {
+        Self {
+            connection,
+            operation_type,
+        }
     }
 }
 
@@ -40,10 +52,11 @@ impl PrivateKeyStore for AuthServiceBatchedKeyStoreProvider<'_> {
     ) -> bool {
         let server = BlobEncoded(server);
         match sqlx::query!(
-            "INSERT INTO as_batched_key (token_key_id, voprf_server)
-            VALUES ($1, $2)",
+            "INSERT INTO as_batched_key (token_key_id, operation_type, voprf_server)
+            VALUES ($1, $2, $3)",
             truncated_token_key_id as i16,
-            server as _
+            self.operation_type as i16,
+            server as _,
         )
         .execute(&mut **self.connection.lock().await)
         .await
@@ -65,8 +78,9 @@ impl PrivateKeyStore for AuthServiceBatchedKeyStoreProvider<'_> {
         sqlx::query_scalar!(
             r#"SELECT voprf_server AS "voprf_server: BlobDecoded<VoprfServer<Ristretto255>>"
             FROM as_batched_key
-            WHERE token_key_id = $1"#,
-            token_key_id
+            WHERE token_key_id = $1 AND operation_type = $2"#,
+            token_key_id,
+            self.operation_type as i16,
         )
         .fetch_optional(&mut **self.connection.lock().await)
         .await
@@ -78,8 +92,9 @@ impl PrivateKeyStore for AuthServiceBatchedKeyStoreProvider<'_> {
     async fn remove(&self, truncated_token_key_id: &TruncatedTokenKeyId) -> bool {
         let token_key_id: i16 = (*truncated_token_key_id).into();
         match sqlx::query!(
-            "DELETE FROM as_batched_key WHERE token_key_id = $1",
-            token_key_id
+            "DELETE FROM as_batched_key WHERE token_key_id = $1 AND operation_type = $2",
+            token_key_id,
+            self.operation_type as i16,
         )
         .execute(&mut **self.connection.lock().await)
         .await
@@ -97,11 +112,18 @@ impl PrivateKeyStore for AuthServiceBatchedKeyStoreProvider<'_> {
 
 pub(super) struct AuthServiceNonceStore<'a> {
     connection: &'a Mutex<&'a mut PgConnection>,
+    operation_type: OperationType,
 }
 
 impl<'a> AuthServiceNonceStore<'a> {
-    pub(super) fn new(connection: &'a Mutex<&'a mut PgConnection>) -> Self {
-        Self { connection }
+    pub(super) fn new(
+        connection: &'a Mutex<&'a mut PgConnection>,
+        operation_type: OperationType,
+    ) -> Self {
+        Self {
+            connection,
+            operation_type,
+        }
     }
 }
 
@@ -110,9 +132,10 @@ impl NonceStore for AuthServiceNonceStore<'_> {
     async fn reserve(&self, nonce: &Nonce) -> bool {
         let nonce_bytes = nonce.as_slice();
         match sqlx::query!(
-            "INSERT INTO as_token_nonce (nonce, status) \
-             VALUES ($1, 'reserved') \
+            "INSERT INTO as_token_nonce (operation_type, nonce, status) \
+             VALUES ($1, $2, 'reserved') \
              ON CONFLICT DO NOTHING",
+            self.operation_type as i16,
             nonce_bytes
         )
         .execute(&mut **self.connection.lock().await)
@@ -131,7 +154,8 @@ impl NonceStore for AuthServiceNonceStore<'_> {
         if let Err(error) = sqlx::query!(
             "UPDATE as_token_nonce \
              SET status = 'committed' \
-             WHERE nonce = $1 AND status = 'reserved'",
+             WHERE operation_type = $1 AND nonce = $2 AND status = 'reserved'",
+            self.operation_type as i16,
             nonce_bytes
         )
         .execute(&mut **self.connection.lock().await)
@@ -145,7 +169,8 @@ impl NonceStore for AuthServiceNonceStore<'_> {
         let nonce_bytes = nonce.as_slice();
         if let Err(error) = sqlx::query!(
             "DELETE FROM as_token_nonce \
-             WHERE nonce = $1 AND status = 'reserved'",
+             WHERE operation_type = $1 AND nonce = $2 AND status = 'reserved'",
+            self.operation_type as i16,
             nonce_bytes
         )
         .execute(&mut **self.connection.lock().await)
@@ -166,16 +191,27 @@ const KEY_ROTATION_PERIOD_DAYS: i64 = 90;
 /// token redemption.
 const KEY_OVERLAP_DAYS: i64 = 7;
 
-/// Returns the `token_key_id` of the most recently created VOPRF key.
-pub(crate) async fn load_current_key_id(
-    executor: impl PgExecutor<'_>,
-) -> Result<Option<i16>, sqlx::Error> {
-    sqlx::query_scalar!(
-        "SELECT token_key_id FROM as_batched_key \
-         ORDER BY created_at DESC LIMIT 1"
-    )
-    .fetch_optional(executor)
-    .await
+/// Checks whether key rotation is needed and performs it if so.
+///
+/// Creates a new VOPRF keypair if no key exists or if the current key is older
+/// than [`KEY_ROTATION_PERIOD_DAYS`]. Removes keys older than the rotation
+/// period plus the overlap window.
+///
+/// Returns `true` if a new key was created.
+pub async fn rotate_keys_if_needed(
+    pool: &PgPool,
+) -> Result<HashSet<OperationType>, RotateKeysError> {
+    let mut results = HashSet::new();
+    for operation_type in OperationType::all() {
+        let rotated = rotate_keys_if_needed_for_operation_type(pool, operation_type).await?;
+        if rotated {
+            info!(%operation_type, "rotated token keys");
+            results.insert(operation_type);
+        } else {
+            info!(%operation_type, "no need to rotate token keys");
+        }
+    }
+    Ok(results)
 }
 
 /// Checks whether key rotation is needed and performs it if so.
@@ -185,35 +221,33 @@ pub(crate) async fn load_current_key_id(
 /// period plus the overlap window.
 ///
 /// Returns `true` if a new key was created.
-pub async fn rotate_keys_if_needed(pool: &PgPool) -> Result<bool, RotateKeysError> {
+async fn rotate_keys_if_needed_for_operation_type(
+    pool: &PgPool,
+    operation_type: OperationType,
+) -> Result<bool, RotateKeysError> {
+    // TODO: lock the row, in case multiple servers are running on the same DB
     let needs_rotation = sqlx::query_scalar!(
-        "SELECT NOT EXISTS(\
-             SELECT 1 FROM as_batched_key \
-             WHERE created_at > now() - make_interval(days => $1)\
-         )",
+        "SELECT NOT EXISTS(
+            SELECT 1 FROM as_batched_key
+            WHERE operation_type = $1 AND created_at > now() - make_interval(days => $2)
+        )",
+        operation_type as i16,
         KEY_ROTATION_PERIOD_DAYS as i32
     )
     .fetch_one(pool)
-    .await
-    .map_err(RotateKeysError::Storage)?
+    .await?
     .unwrap_or(true);
 
     let rotated = if needs_rotation {
-        let mut transaction = pool.begin().await.map_err(RotateKeysError::Storage)?;
+        let mut transaction = pool.begin().await?;
         {
             let conn_mutex = Mutex::new(&mut *transaction);
-            let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex);
+            let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, operation_type);
             let server = Server::<Ristretto255>::new();
-            server
-                .create_keypair(&key_store)
-                .await
-                .map_err(RotateKeysError::KeyGeneration)?;
+            server.create_keypair(&key_store).await?;
         }
-        transaction
-            .commit()
-            .await
-            .map_err(RotateKeysError::Storage)?;
-        info!("created new VOPRF keypair");
+        transaction.commit().await?;
+        info!(%operation_type, "created new VOPRF keypair");
         true
     } else {
         false
@@ -223,7 +257,8 @@ pub async fn rotate_keys_if_needed(pool: &PgPool) -> Result<bool, RotateKeysErro
     let max_age_days = (KEY_ROTATION_PERIOD_DAYS + KEY_OVERLAP_DAYS) as i32;
     let removed = sqlx::query!(
         "DELETE FROM as_batched_key \
-         WHERE created_at < now() - make_interval(days => $1)",
+         WHERE operation_type = $1 AND created_at < now() - make_interval(days => $2)",
+        operation_type as i16,
         max_age_days
     )
     .execute(pool)
@@ -242,12 +277,12 @@ pub async fn rotate_keys_if_needed(pool: &PgPool) -> Result<bool, RotateKeysErro
     // no longer needed for double-spend protection.
     let nonces_removed = sqlx::query!(
         "DELETE FROM as_token_nonce \
-         WHERE created_at < now() - make_interval(days => $1)",
+         WHERE operation_type = $1 AND created_at < now() - make_interval(days => $2)",
+        operation_type as i16,
         max_age_days
     )
     .execute(pool)
-    .await
-    .map_err(RotateKeysError::Storage)?;
+    .await?;
 
     if nonces_removed.rows_affected() > 0 {
         info!(
@@ -262,9 +297,9 @@ pub async fn rotate_keys_if_needed(pool: &PgPool) -> Result<bool, RotateKeysErro
 #[derive(Debug, thiserror::Error)]
 pub enum RotateKeysError {
     #[error("storage error: {0}")]
-    Storage(sqlx::Error),
+    Storage(#[from] sqlx::Error),
     #[error("key generation error: {0}")]
-    KeyGeneration(privacypass::common::errors::CreateKeypairError),
+    KeyGeneration(#[from] privacypass::common::errors::CreateKeypairError),
 }
 
 // --- Public Key Retrieval ---
@@ -272,6 +307,7 @@ pub enum RotateKeysError {
 /// Batched token key for distribution to clients.
 pub(super) struct BatchedTokenKeyRecord {
     pub(super) token_key_id: u8,
+    pub(super) operation_type: OperationType,
     pub(super) public_key: Vec<u8>,
 }
 
@@ -279,10 +315,10 @@ pub(super) struct BatchedTokenKeyRecord {
 pub(super) async fn load_batched_token_keys(
     pool: &PgPool,
 ) -> Result<Vec<BatchedTokenKeyRecord>, sqlx::Error> {
-    let rows = sqlx::query_as!(
-        BatchedKeyRow,
+    let rows = sqlx::query!(
         r#"SELECT
             token_key_id,
+            operation_type,
             voprf_server AS "voprf_server: BlobDecoded<VoprfServer<Ristretto255>>"
         FROM as_batched_key
         ORDER BY created_at DESC"#
@@ -297,15 +333,144 @@ pub(super) async fn load_batched_token_keys(
                 serialize_public_key::<Ristretto255>(row.voprf_server.0.get_public_key());
             BatchedTokenKeyRecord {
                 token_key_id: row.token_key_id as u8,
+                operation_type: OperationType::try_from(row.operation_type as i32)
+                    .unwrap_or_default(),
                 public_key,
             }
         })
         .collect())
 }
 
-struct BatchedKeyRow {
-    token_key_id: i16,
-    voprf_server: BlobDecoded<VoprfServer<Ristretto255>>,
+#[derive(Debug)]
+pub(in crate::auth_service) struct TokenAllowance {
+    pub(super) operation_type: OperationType,
+    pub(super) remaining: u16,
+    pub(super) valid_until: DateTime<Utc>,
+}
+
+impl TokenAllowance {
+    pub(super) fn is_valid_at(&self, at: DateTime<Utc>) -> bool {
+        self.valid_until > at
+    }
+}
+
+mod persistence {
+    use aircommon::identifiers::UserId;
+    use airprotos::auth_service::v1::OperationType;
+    use chrono::{DateTime, Utc};
+    use sqlx::{PgExecutor, PgTransaction, query};
+
+    use super::TokenAllowance;
+    use crate::errors::StorageError;
+
+    impl TokenAllowance {
+        pub(in crate::auth_service) async fn ensure_exists(
+            executor: impl PgExecutor<'_>,
+            user_id: &UserId,
+            operation_type: OperationType,
+            at: DateTime<Utc>,
+        ) -> sqlx::Result<bool> {
+            let remaining = operation_type.max_tokens_allowance();
+            let valid_until = operation_type.valid_until_starting_at(at);
+            let res = query!(
+                "INSERT INTO as_token_allowance (
+                    user_uuid,
+                    user_domain,
+                    operation_type,
+                    remaining,
+                    valid_until
+                ) VALUES($1, $2, $3, $4, $5)
+                ON CONFLICT DO NOTHING
+                ",
+                user_id.uuid(),
+                user_id.domain() as _,
+                operation_type as i16,
+                remaining as i16,
+                valid_until,
+            )
+            .execute(executor)
+            .await?;
+
+            Ok(res.rows_affected() > 0)
+        }
+
+        pub(in crate::auth_service) async fn update(
+            &self,
+            connection: impl PgExecutor<'_>,
+            user_id: &UserId,
+        ) -> Result<(), StorageError> {
+            query!(
+                "UPDATE as_token_allowance
+                    SET remaining = $4, valid_until = $5
+                    WHERE user_uuid = $1
+                        AND user_domain = $2
+                        AND operation_type = $3
+                ",
+                user_id.uuid(),
+                user_id.domain() as _,
+                self.operation_type as i16,
+                self.remaining as i16,
+                self.valid_until,
+            )
+            .execute(connection)
+            .await?;
+            Ok(())
+        }
+
+        #[cfg(test)]
+        pub(in crate::auth_service) async fn load(
+            connection: impl PgExecutor<'_>,
+            user_id: &UserId,
+            operation_type: OperationType,
+        ) -> Result<Option<Self>, StorageError> {
+            query!(
+                r#"SELECT
+                    remaining,
+                    valid_until
+                FROM as_token_allowance
+                WHERE user_uuid = $1 AND user_domain = $2 AND operation_type = $3"#,
+                user_id.uuid(),
+                user_id.domain() as _,
+                operation_type as i16,
+            )
+            .fetch_optional(connection)
+            .await?
+            .map(|record| {
+                Ok(Self {
+                    operation_type,
+                    remaining: record.remaining as u16,
+                    valid_until: record.valid_until,
+                })
+            })
+            .transpose()
+        }
+
+        pub(in crate::auth_service) async fn load_for_update(
+            txn: &mut PgTransaction<'_>,
+            user_id: &UserId,
+            operation_type: OperationType,
+        ) -> Result<Self, StorageError> {
+            let record = query!(
+                r#"SELECT
+                    remaining,
+                    valid_until
+                FROM as_token_allowance
+                WHERE user_uuid = $1 AND user_domain = $2 AND operation_type = $3
+                FOR UPDATE"#,
+                user_id.uuid(),
+                user_id.domain() as _,
+                operation_type as i16,
+            )
+            .fetch_one(txn.as_mut())
+            .await?;
+
+            Ok(Self {
+                operation_type,
+                remaining: record.remaining as u16,
+                valid_until: record.valid_until,
+            })
+        }
+    }
 }
 
 #[cfg(test)]
@@ -321,9 +486,10 @@ mod tests {
     /// Insert two VOPRF keys and retrieve each by ID.
     #[sqlx::test]
     async fn insert_get(pool: PgPool) -> anyhow::Result<()> {
-        let mut connection = pool.acquire().await?;
-        let conn_mutex = Mutex::new(&mut *connection);
-        let provider = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex);
+        let mut txn = pool.begin().await?;
+        let conn_mutex = Mutex::new(&mut *txn);
+        let provider =
+            AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, OperationType::AddUsername);
 
         let mut rng = rand::thread_rng();
 
@@ -347,7 +513,8 @@ mod tests {
     async fn no_insert_on_conflict(pool: PgPool) -> anyhow::Result<()> {
         let mut connection = pool.acquire().await?;
         let conn_mutex = Mutex::new(&mut *connection);
-        let provider = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex);
+        let provider =
+            AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, OperationType::AddUsername);
 
         let mut rng = rand::thread_rng();
 
@@ -371,7 +538,8 @@ mod tests {
     async fn remove_key(pool: PgPool) -> anyhow::Result<()> {
         let mut connection = pool.acquire().await?;
         let conn_mutex = Mutex::new(&mut *connection);
-        let provider = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex);
+        let provider =
+            AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, OperationType::AddUsername);
         let mut rng = rand::thread_rng();
 
         let value = VoprfServer::new(&mut rng).unwrap();
@@ -392,7 +560,7 @@ mod tests {
     async fn nonce_reserve_commit(pool: PgPool) -> anyhow::Result<()> {
         let mut connection = pool.acquire().await?;
         let conn_mutex = Mutex::new(&mut *connection);
-        let store = AuthServiceNonceStore::new(&conn_mutex);
+        let store = AuthServiceNonceStore::new(&conn_mutex, OperationType::GetInviteCode);
         let nonce: Nonce = [42u8; 32];
 
         // First reserve succeeds.
@@ -414,7 +582,7 @@ mod tests {
     async fn nonce_reserve_release(pool: PgPool) -> anyhow::Result<()> {
         let mut connection = pool.acquire().await?;
         let conn_mutex = Mutex::new(&mut *connection);
-        let store = AuthServiceNonceStore::new(&conn_mutex);
+        let store = AuthServiceNonceStore::new(&conn_mutex, OperationType::GetInviteCode);
         let nonce: Nonce = [7u8; 32];
 
         assert!(store.reserve(&nonce).await);
@@ -434,7 +602,8 @@ mod tests {
         {
             let mut connection = pool.acquire().await?;
             let conn_mutex = Mutex::new(&mut *connection);
-            let provider = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex);
+            let provider =
+                AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, OperationType::AddUsername);
             let mut rng = rand::thread_rng();
 
             let server_a = VoprfServer::new(&mut rng).unwrap();

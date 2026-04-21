@@ -36,6 +36,7 @@ pub use crate::{
             progress::{AttachmentProgress, AttachmentProgressEvent},
         },
         block_contact::BlockedContactError,
+        invitation_code::{InvitationCode, RequestInvitationCodeError},
         invite_users::InviteUsersError,
         safety_code::SafetyCode,
         user_settings::ReadReceiptsSetting,
@@ -46,6 +47,7 @@ pub use crate::{
         ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo,
         RequiredDebugCapabilities,
     },
+    privacy_pass::{RequestTokensError, TokenId},
     user_profiles::{Asset, DisplayName, DisplayNameError, UserProfile},
     usernames::UsernameRecord,
     utils::persistence::{

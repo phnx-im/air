@@ -114,10 +114,8 @@ impl TestUser {
             return Ok(record);
         }
 
-        // In production the background TokenReplenishment task keeps the
-        // cache warm. Tests don't run the outbound service, so we
-        // replenish explicitly before the first username operation.
-        self.user.replenish_privacy_pass_tokens().await?;
+        // In particular, it will replenish the tokens for the username
+        self.user.outbound_service().run_once().await;
 
         let user_id_str = format!("uuid-{:?}", self.user.user_id()).replace(['@', '.'], "-");
         let username = Username::new(user_id_str)?;

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
-use sqlx::{PgExecutor, PgPool, query, query_scalar};
+use sqlx::{PgExecutor, PgPool, PgTransaction, query, query_scalar};
 
 use super::*;
 
@@ -23,9 +23,7 @@ impl UsernameRecord {
     /// Upsert is only done when the record is expired.
     ///
     /// Returns `true` if the record was upserrted, otherwise `false`.
-    pub(crate) async fn store(&self, pool: &PgPool) -> sqlx::Result<bool> {
-        let mut txn = pool.begin().await?;
-
+    pub(crate) async fn store(&self, txn: &mut PgTransaction<'_>) -> sqlx::Result<bool> {
         if let Some(record) = Self::load_expiration_data(txn.as_mut(), &self.username_hash).await?
             && record.validate()
         {
@@ -48,8 +46,6 @@ impl UsernameRecord {
         )
         .execute(txn.as_mut())
         .await?;
-
-        txn.commit().await?;
 
         Ok(true)
     }
@@ -98,20 +94,18 @@ impl UsernameRecord {
     }
 
     pub(super) async fn update_expiration_data(
-        db_pool: &PgPool,
+        txn: &mut PgTransaction<'_>,
         hash: &UsernameHash,
         expiration_data: ExpirationData,
     ) -> sqlx::Result<UpdateExpirationDataResult> {
-        let mut txn = db_pool.begin().await?;
-
-        let Some(stored_expiration_data) = Self::load_expiration_data(&mut *txn, hash).await?
+        let Some(stored_expiration_data) = Self::load_expiration_data(txn.as_mut(), hash).await?
         else {
             return Ok(UpdateExpirationDataResult::NotFound);
         };
 
         let res = if !stored_expiration_data.validate() {
             // Delete the record if the expiration date has passed
-            Self::delete(&mut *txn, hash).await?;
+            Self::delete(txn.as_mut(), hash).await?;
             UpdateExpirationDataResult::Deleted
         } else {
             query!(
@@ -119,12 +113,10 @@ impl UsernameRecord {
                 expiration_data as _,
                 hash.as_bytes(),
             )
-            .execute(db_pool)
+            .execute(txn.as_mut())
             .await?;
             UpdateExpirationDataResult::Updated
         };
-
-        txn.commit().await?;
 
         Ok(res)
     }
@@ -156,7 +148,9 @@ mod test {
         };
 
         // Test storing a new record (which expires immediately)
-        let inserted = record.store(&pool).await?;
+        let mut txn = pool.begin().await?;
+        let inserted = record.store(&mut txn).await?;
+        txn.commit().await?;
         assert!(inserted, "Record should be inserted successfully");
 
         // Test loading the verifying key
@@ -184,7 +178,9 @@ mod test {
             verifying_key: different_verifying_key,
             expiration_data: ExpirationData::new(Duration::days(1)),
         };
-        let inserted_again = record.store(&pool).await?;
+        let mut txn = pool.begin().await?;
+        let inserted_again = record.store(&mut txn).await?;
+        txn.commit().await?;
         assert!(inserted_again, "Expired hash is reclaimed");
         let loaded_verifying_key =
             UsernameRecord::load_verifying_key(&pool, &username_hash).await?;
@@ -209,7 +205,9 @@ mod test {
             verifying_key: different_verifying_key,
             expiration_data: ExpirationData::new(Duration::days(1)),
         };
-        let inserted_again = different_record.store(&pool).await?;
+        let mut txn = pool.begin().await?;
+        let inserted_again = different_record.store(&mut txn).await?;
+        txn.commit().await?;
         assert!(!inserted_again, "Non-expired hash is not reclaimed");
         assert_eq!(
             loaded_verifying_key.as_ref(),
@@ -255,7 +253,9 @@ mod test {
         };
 
         // Store the record first
-        record.store(&pool).await?;
+        let mut txn = pool.begin().await?;
+        record.store(&mut txn).await?;
+        txn.commit().await?;
 
         // Test deleting an existing record
         let deleted = UsernameRecord::delete(&pool, &username_hash).await?;
@@ -292,30 +292,34 @@ mod test {
             expiration_data: initial_expiration_data.clone(),
         };
 
+        let mut txn = pool.begin().await?;
+
         // Store the record first
-        record.store(&pool).await?;
+        record.store(&mut txn).await?;
 
         let res = UsernameRecord::update_expiration_data(
-            &pool,
+            &mut txn,
             &username_hash,
             updated_expiration_data.clone(),
         )
         .await?;
+
         assert!(
             matches!(res, UpdateExpirationDataResult::Updated),
             "Expiration data should be updated successfully"
         );
 
         // Verify the expiration data has been updated
-        let loaded_expiration_data = UsernameRecord::load_expiration_data(&pool, &username_hash)
-            .await?
-            .unwrap();
+        let loaded_expiration_data =
+            UsernameRecord::load_expiration_data(txn.as_mut(), &username_hash)
+                .await?
+                .unwrap();
         assert_eq!(
             loaded_expiration_data, updated_expiration_data,
             "Expiration data should be updated"
         );
 
-        let loaded_verifying_key = UsernameRecord::load_verifying_key(&pool, &username_hash)
+        let loaded_verifying_key = UsernameRecord::load_verifying_key(txn.as_mut(), &username_hash)
             .await?
             .unwrap();
         assert_eq!(
@@ -325,7 +329,7 @@ mod test {
 
         // Test updating an expired record
         let res = UsernameRecord::update_expiration_data(
-            &pool,
+            &mut txn,
             &username_hash,
             ExpirationData::new(Duration::zero()),
         )
@@ -336,7 +340,7 @@ mod test {
         );
 
         let res = UsernameRecord::update_expiration_data(
-            &pool,
+            &mut txn,
             &username_hash,
             ExpirationData::new(Duration::days(1)),
         )
@@ -351,7 +355,7 @@ mod test {
         // Test updating a non-existent record
         let non_existent_hash = UsernameHash::new([2; 32]);
         let res = UsernameRecord::update_expiration_data(
-            &pool,
+            &mut txn,
             &non_existent_hash,
             ExpirationData::new(Duration::days(1)),
         )

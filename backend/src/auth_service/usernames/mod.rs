@@ -9,6 +9,7 @@ use aircommon::{
     },
     time::ExpirationData,
 };
+use airprotos::auth_service::v1::OperationType;
 use displaydoc::Display;
 use persistence::UpdateExpirationDataResult;
 use privacypass::{
@@ -50,8 +51,11 @@ impl AuthService {
         hash: UsernameHash,
         token: Option<AmortizedToken<Ristretto255>>,
     ) -> Result<(), CreateUsernameError> {
+        let mut txn = self.db_pool.begin().await?;
+
         if let Some(token) = token {
-            self.as_redeem_token(token).await?;
+            self.as_redeem_token(&mut txn, token, OperationType::AddUsername)
+                .await?;
         }
 
         let username = Username::new(username_plaintext)?;
@@ -69,11 +73,12 @@ impl AuthService {
             expiration_data,
         };
 
-        if record.store(&self.db_pool).await? {
-            Ok(())
-        } else {
-            Err(CreateUsernameError::UsernameExists)
+        if !record.store(&mut txn).await? {
+            return Err(CreateUsernameError::UsernameExists);
         }
+
+        txn.commit().await?;
+        Ok(())
     }
 
     /// Token refunds are disabled during gradual rollout to prevent token
@@ -97,18 +102,26 @@ impl AuthService {
         hash: UsernameHash,
         token: Option<AmortizedToken<Ristretto255>>,
     ) -> Result<(), RefreshUsernameError> {
+        let mut txn = self.db_pool.begin().await?;
+
         if let Some(token) = token {
-            self.as_redeem_token(token).await?;
+            self.as_redeem_token(&mut txn, token, OperationType::AddUsername)
+                .await?;
         }
 
         let expiration_data = ExpirationData::new(USERNAME_VALIDITY_PERIOD);
-        match UsernameRecord::update_expiration_data(&self.db_pool, &hash, expiration_data).await? {
-            UpdateExpirationDataResult::Updated => Ok(()),
+        match UsernameRecord::update_expiration_data(&mut txn, &hash, expiration_data).await? {
+            UpdateExpirationDataResult::Updated => (),
             UpdateExpirationDataResult::Deleted => {
-                Err(RefreshUsernameError::UsernameAlreadyExpired)
+                return Err(RefreshUsernameError::UsernameAlreadyExpired);
             }
-            UpdateExpirationDataResult::NotFound => Err(RefreshUsernameError::UsernameNotFound),
+            UpdateExpirationDataResult::NotFound => {
+                return Err(RefreshUsernameError::UsernameNotFound);
+            }
         }
+
+        txn.commit().await?;
+        Ok(())
     }
 }
 

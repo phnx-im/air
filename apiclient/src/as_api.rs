@@ -32,11 +32,11 @@ use airprotos::{
         AckListenUsernameRequest, AsCredentialsRequest, CheckInvitationCodeRequest,
         CheckUsernameExistsRequest, ConnectRequest, ConnectResponse, CreateUsernamePayload,
         DeleteUserPayload, DeleteUsernamePayload, EnqueueConnectionOfferStep,
-        FetchConnectionPackageStep, GetUserProfileRequest, InitListenUsernamePayload,
-        InvitationCode, IssueTokensPayload, ListenUsernameRequest, MergeUserProfilePayload,
-        PublishConnectionPackagesPayload, RefreshUsernamePayload, RegisterUserRequest,
-        ReportSpamPayload, StageUserProfilePayload, UsernameQueueMessage, connect_request,
-        connect_response, listen_username_request,
+        FetchConnectionPackageStep, GetInvitationCodesRequest, GetUserProfileRequest,
+        InitListenUsernamePayload, InvitationCode, IssueTokensPayload, ListenUsernameRequest,
+        MergeUserProfilePayload, OperationType, PublishConnectionPackagesPayload,
+        RefreshUsernamePayload, RegisterUserRequest, ReportSpamPayload, StageUserProfilePayload,
+        UsernameQueueMessage, connect_request, connect_response, listen_username_request,
     },
     common::v1::{StatusDetails, StatusDetailsCode},
 };
@@ -107,6 +107,15 @@ impl AsRequestError {
             false
         }
     }
+
+    /// Returns true if the error means the user exceeded some quota or limit.
+    pub fn is_resource_exhausted(&self) -> bool {
+        if let Self::Tonic(status) = self {
+            matches!(status.code(), Code::ResourceExhausted)
+        } else {
+            false
+        }
+    }
 }
 
 impl From<LibraryError> for AsRequestError {
@@ -127,6 +136,23 @@ impl ApiClient {
             .await?
             .into_inner();
         Ok(response.is_valid)
+    }
+
+    pub async fn as_get_invitation_codes(
+        &self,
+        tokens: impl IntoIterator<Item = SerializedToken>,
+    ) -> Result<Vec<InvitationCode>, AsRequestError> {
+        let request = GetInvitationCodesRequest {
+            tokens: tokens.into_iter().map(|t| t.into_bytes()).collect(),
+        };
+
+        let response = self
+            .as_grpc_client()
+            .get_invitation_codes(request)
+            .await?
+            .into_inner();
+
+        Ok(response.invitation_codes)
     }
 
     pub async fn as_register_user(
@@ -452,6 +478,7 @@ impl ApiClient {
                         AsRequestError::UnexpectedResponse
                     })?;
                     Ok::<_, AsRequestError>(BatchedTokenKeyResponse {
+                        operation_type: k.operation_type,
                         token_key_id,
                         public_key: k.public_key,
                     })
@@ -544,12 +571,14 @@ impl ApiClient {
 
     pub async fn as_issue_tokens(
         &self,
+        operation_type: OperationType,
         user_id: UserId,
         signing_key: &ClientSigningKey,
         token_request: SerializedTokenRequest,
     ) -> Result<SerializedTokenResponse, AsRequestError> {
         let payload = IssueTokensPayload {
             client_metadata: Some(self.metadata().clone()),
+            operation_type: operation_type.into(),
             user_id: Some(user_id.into()),
             token_request: token_request.into_bytes(),
         };

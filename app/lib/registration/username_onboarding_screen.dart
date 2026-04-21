@@ -11,6 +11,7 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/desktop/width_constraints.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/username_input_formatter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -51,15 +52,37 @@ class UsernameOnboardingScreen extends HookWidget {
       final registrationCubit = context.read<RegistrationCubit>();
       usernameExists.value = false;
       isSubmitting.value = true;
-      final success = await userCubit.addUsername(username);
-      if (!success) {
-        usernameExists.value = true;
-        isSubmitting.value = false;
-        formKey.currentState!.validate();
-        return;
+
+      Future<bool> tryToAddUsername(bool displayFailure) async {
+        try {
+          final success = await userCubit.addUsername(username);
+          if (success) {
+            registrationCubit.clearUsernameOnboarding();
+            navigationCubit.openHome();
+          } else {
+            usernameExists.value = true;
+            isSubmitting.value = false;
+            formKey.currentState!.validate();
+          }
+          return true;
+        } catch (e) {
+          if (displayFailure) {
+            usernameExists.value = false;
+            isSubmitting.value = false;
+            showSnackBarStandalone(
+              (loc) => SnackBar(content: Text(loc.usernameOnboarding_error)),
+            );
+          }
+          return false;
+        }
       }
-      registrationCubit.clearUsernameOnboarding();
-      navigationCubit.openHome();
+
+      if (!await tryToAddUsername(false)) {
+        // the privacy pass tokens for adding usernames might not yet be
+        // available during account creation.
+        await Future.delayed(const Duration(milliseconds: 250));
+        tryToAddUsername(true);
+      }
     }
 
     void skip() {
