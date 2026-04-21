@@ -239,6 +239,41 @@ mod test {
     }
 
     #[sqlx::test]
+    async fn test_update(pool: PgPool) -> anyhow::Result<()> {
+        let username_hash = UsernameHash::new([1; 32]);
+        let verifying_key = UsernameVerifyingKey::from_bytes(vec![1]);
+        let expiration_data = ExpirationData::new(Duration::days(1));
+
+        let record = UsernameRecord {
+            username_hash,
+            verifying_key,
+            expiration_data,
+        };
+        record.store(&pool).await?;
+
+        let new_verifying_key = UsernameVerifyingKey::from_bytes(vec![2]);
+        let new_expiration_data = ExpirationData::new(Duration::days(2));
+        UsernameRecord {
+            username_hash,
+            verifying_key: new_verifying_key.clone(),
+            expiration_data: new_expiration_data.clone(),
+        }
+        .update(&pool)
+        .await?;
+
+        assert_eq!(
+            UsernameRecord::load_verifying_key(&pool, &username_hash).await?,
+            Some(new_verifying_key),
+        );
+        assert_eq!(
+            UsernameRecord::load_expiration_data(&pool, &username_hash).await?,
+            Some(new_expiration_data),
+        );
+
+        Ok(())
+    }
+
+    #[sqlx::test]
     async fn test_update_expiration_data(pool: PgPool) -> anyhow::Result<()> {
         let username_hash = UsernameHash::new([1; 32]);
         let verifying_key = UsernameVerifyingKey::from_bytes(vec![1, 2, 3, 4, 5]);
