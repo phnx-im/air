@@ -134,9 +134,12 @@ class Notifications {
                 putExtra(EXTRAS_CHAT_ID_KEY, content.chatId?.uuid)
             }
 
+
             val pendingIntent = PendingIntent.getActivity(
                 context,
-                1,
+                // Unique identifier per intent to ensure that multiple
+                // notifications don't overwrite each other's pending intent
+                content.identifier.hashCode(),
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
