@@ -263,7 +263,7 @@ mod tests {
 
     #[test]
     fn test_username_new_unicode_character() {
-        let username_str = "user-hændle".to_string(); // 'æ' is a Unicode character, not in USERNAME_CHARSET
+        let username_str = "usernæme".to_string(); // 'æ' is a Unicode character, not in USERNAME_CHARSET
         let username = Username::new(username_str);
         assert!(matches!(
             username.unwrap_err(),
