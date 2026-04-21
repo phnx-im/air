@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    INSERT INTO invitation_code (code, redeemed)\n                    VALUES ($1, $2)\n                    RETURNING code\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "code",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e1e976cad9acee7ca7bda8b3d2b85c9ecd76b35c2325c853aa92500c4d44a3bf"
+}

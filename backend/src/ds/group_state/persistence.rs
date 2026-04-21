@@ -142,7 +142,7 @@ impl StorableDsGroupData<true> {
 
 #[cfg(test)]
 mod test {
-    use aircommon::{crypto::ear::Ciphertext, identifiers::QualifiedGroupId, time::TimeStamp};
+    use aircommon::{crypto::aead::Ciphertext, identifiers::QualifiedGroupId, time::TimeStamp};
     use sqlx::PgPool;
     use uuid::Uuid;
 

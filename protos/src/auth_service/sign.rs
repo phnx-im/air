@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::{self, ClientKeyType, ClientSignature, HandleKeyType},
+    credentials::keys::{self, ClientKeyType, ClientSignature, UsernameKeyType},
     crypto::signatures::signable::{Signable, SignedStruct, Verifiable, VerifiedStruct},
 };
 use prost::Message;
@@ -11,11 +11,12 @@ use prost::Message;
 use crate::auth_service::v1::{ReportSpamPayload, ReportSpamRequest};
 
 use super::v1::{
-    CreateHandlePayload, CreateHandleRequest, DeleteHandlePayload, DeleteHandleRequest,
-    DeleteUserPayload, DeleteUserRequest, HandleSignature, InitListenHandlePayload,
-    InitListenHandleRequest, IssueTokensPayload, IssueTokensRequest, MergeUserProfilePayload,
+    CreateUsernamePayload, CreateUsernameRequest, DeleteUserPayload, DeleteUserRequest,
+    DeleteUsernamePayload, DeleteUsernameRequest, InitListenUsernamePayload,
+    InitListenUsernameRequest, IssueTokensPayload, IssueTokensRequest, MergeUserProfilePayload,
     MergeUserProfileRequest, PublishConnectionPackagesPayload, PublishConnectionPackagesRequest,
-    RefreshHandlePayload, RefreshHandleRequest, StageUserProfilePayload, StageUserProfileRequest,
+    RefreshUsernamePayload, RefreshUsernameRequest, StageUserProfilePayload,
+    StageUserProfileRequest, UsernameSignature,
 };
 
 const DELETE_USER_PAYLOAD_LABEL: &str = "DeleteUserPayload";
@@ -72,14 +73,14 @@ impl Verifiable for DeleteUserRequest {
 
 const PUBLISH_CONNECTION_PACKAGES_PAYLOAD_LABEL: &str = "PublishConnectionPackagesPayload";
 
-impl SignedStruct<PublishConnectionPackagesPayload, HandleKeyType>
+impl SignedStruct<PublishConnectionPackagesPayload, UsernameKeyType>
     for PublishConnectionPackagesRequest
 {
     fn from_payload(
         payload: PublishConnectionPackagesPayload,
-        signature: keys::HandleSignature,
+        signature: keys::UsernameSignature,
     ) -> Self {
-        let signature_proto: HandleSignature = signature.into();
+        let signature_proto: UsernameSignature = signature.into();
         Self {
             payload: Some(payload),
             signature: signature_proto.signature,
@@ -349,17 +350,17 @@ impl Verifiable for ReportSpamRequest {
 
 const CREATE_HANDLE_PAYLOAD_LABEL: &str = "CreateHandlePayload";
 
-impl SignedStruct<CreateHandlePayload, keys::HandleKeyType> for CreateHandleRequest {
-    fn from_payload(payload: CreateHandlePayload, signature: keys::HandleSignature) -> Self {
-        CreateHandleRequest {
+impl SignedStruct<CreateUsernamePayload, keys::UsernameKeyType> for CreateUsernameRequest {
+    fn from_payload(payload: CreateUsernamePayload, signature: keys::UsernameSignature) -> Self {
+        CreateUsernameRequest {
             payload: Some(payload),
             signature: Some(signature.into()),
         }
     }
 }
 
-impl Signable for CreateHandlePayload {
-    type SignedOutput = CreateHandleRequest;
+impl Signable for CreateUsernamePayload {
+    type SignedOutput = CreateUsernameRequest;
 
     fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
         Ok(self.encode_to_vec())
@@ -370,15 +371,15 @@ impl Signable for CreateHandlePayload {
     }
 }
 
-impl VerifiedStruct<CreateHandleRequest> for CreateHandlePayload {
+impl VerifiedStruct<CreateUsernameRequest> for CreateUsernamePayload {
     type SealingType = private_mod::Seal;
 
-    fn from_verifiable(verifiable: CreateHandleRequest, _seal: Self::SealingType) -> Self {
+    fn from_verifiable(verifiable: CreateUsernameRequest, _seal: Self::SealingType) -> Self {
         verifiable.payload.unwrap()
     }
 }
 
-impl Verifiable for CreateHandleRequest {
+impl Verifiable for CreateUsernameRequest {
     fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
         Ok(self
             .payload
@@ -402,17 +403,17 @@ impl Verifiable for CreateHandleRequest {
 
 const DELETE_HANDLE_PAYLOAD_LABEL: &str = "DeleteHandlePayload";
 
-impl SignedStruct<DeleteHandlePayload, keys::HandleKeyType> for DeleteHandleRequest {
-    fn from_payload(payload: DeleteHandlePayload, signature: keys::HandleSignature) -> Self {
-        DeleteHandleRequest {
+impl SignedStruct<DeleteUsernamePayload, keys::UsernameKeyType> for DeleteUsernameRequest {
+    fn from_payload(payload: DeleteUsernamePayload, signature: keys::UsernameSignature) -> Self {
+        DeleteUsernameRequest {
             payload: Some(payload),
             signature: Some(signature.into()),
         }
     }
 }
 
-impl Signable for DeleteHandlePayload {
-    type SignedOutput = DeleteHandleRequest;
+impl Signable for DeleteUsernamePayload {
+    type SignedOutput = DeleteUsernameRequest;
 
     fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
         Ok(self.encode_to_vec())
@@ -423,15 +424,15 @@ impl Signable for DeleteHandlePayload {
     }
 }
 
-impl VerifiedStruct<DeleteHandleRequest> for DeleteHandlePayload {
+impl VerifiedStruct<DeleteUsernameRequest> for DeleteUsernamePayload {
     type SealingType = private_mod::Seal;
 
-    fn from_verifiable(verifiable: DeleteHandleRequest, _seal: Self::SealingType) -> Self {
+    fn from_verifiable(verifiable: DeleteUsernameRequest, _seal: Self::SealingType) -> Self {
         verifiable.payload.unwrap()
     }
 }
 
-impl Verifiable for DeleteHandleRequest {
+impl Verifiable for DeleteUsernameRequest {
     fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
         Ok(self
             .payload
@@ -455,17 +456,17 @@ impl Verifiable for DeleteHandleRequest {
 
 const REFRESH_HANDLE_PAYLOAD_LABEL: &str = "RefreshHandlePayload";
 
-impl SignedStruct<RefreshHandlePayload, keys::HandleKeyType> for RefreshHandleRequest {
-    fn from_payload(payload: RefreshHandlePayload, signature: keys::HandleSignature) -> Self {
-        RefreshHandleRequest {
+impl SignedStruct<RefreshUsernamePayload, keys::UsernameKeyType> for RefreshUsernameRequest {
+    fn from_payload(payload: RefreshUsernamePayload, signature: keys::UsernameSignature) -> Self {
+        RefreshUsernameRequest {
             payload: Some(payload),
             signature: Some(signature.into()),
         }
     }
 }
 
-impl Signable for RefreshHandlePayload {
-    type SignedOutput = RefreshHandleRequest;
+impl Signable for RefreshUsernamePayload {
+    type SignedOutput = RefreshUsernameRequest;
 
     fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
         Ok(self.encode_to_vec())
@@ -476,15 +477,15 @@ impl Signable for RefreshHandlePayload {
     }
 }
 
-impl VerifiedStruct<RefreshHandleRequest> for RefreshHandlePayload {
+impl VerifiedStruct<RefreshUsernameRequest> for RefreshUsernamePayload {
     type SealingType = private_mod::Seal;
 
-    fn from_verifiable(verifiable: RefreshHandleRequest, _seal: Self::SealingType) -> Self {
+    fn from_verifiable(verifiable: RefreshUsernameRequest, _seal: Self::SealingType) -> Self {
         verifiable.payload.unwrap()
     }
 }
 
-impl Verifiable for RefreshHandleRequest {
+impl Verifiable for RefreshUsernameRequest {
     fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
         Ok(self
             .payload
@@ -508,17 +509,20 @@ impl Verifiable for RefreshHandleRequest {
 
 const INIT_LISTEN_HANDLE_REQUEST_LABEL: &str = "InitListenHandleRequest";
 
-impl SignedStruct<InitListenHandlePayload, keys::HandleKeyType> for InitListenHandleRequest {
-    fn from_payload(payload: InitListenHandlePayload, signature: keys::HandleSignature) -> Self {
-        InitListenHandleRequest {
+impl SignedStruct<InitListenUsernamePayload, keys::UsernameKeyType> for InitListenUsernameRequest {
+    fn from_payload(
+        payload: InitListenUsernamePayload,
+        signature: keys::UsernameSignature,
+    ) -> Self {
+        InitListenUsernameRequest {
             payload: Some(payload),
             signature: Some(signature.into()),
         }
     }
 }
 
-impl Signable for InitListenHandlePayload {
-    type SignedOutput = InitListenHandleRequest;
+impl Signable for InitListenUsernamePayload {
+    type SignedOutput = InitListenUsernameRequest;
 
     fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
         Ok(self.encode_to_vec())
@@ -529,15 +533,15 @@ impl Signable for InitListenHandlePayload {
     }
 }
 
-impl VerifiedStruct<InitListenHandleRequest> for InitListenHandlePayload {
+impl VerifiedStruct<InitListenUsernameRequest> for InitListenUsernamePayload {
     type SealingType = private_mod::Seal;
 
-    fn from_verifiable(verifiable: InitListenHandleRequest, _seal: Self::SealingType) -> Self {
+    fn from_verifiable(verifiable: InitListenUsernameRequest, _seal: Self::SealingType) -> Self {
         verifiable.payload.unwrap()
     }
 }
 
-impl Verifiable for InitListenHandleRequest {
+impl Verifiable for InitListenUsernameRequest {
     fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
         Ok(self
             .payload

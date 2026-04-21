@@ -4,6 +4,6 @@
 
 pub mod anonymous;
 pub mod key_packages;
-pub mod privacypass;
+pub mod privacy_pass;
 pub mod user;
 pub mod user_profile;

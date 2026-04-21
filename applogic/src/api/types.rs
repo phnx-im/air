@@ -10,11 +10,11 @@
 use std::fmt;
 
 // Re-export for FRB-reasons
-pub(crate) use aircommon::identifiers::UserHandle;
-pub(crate) use aircoreclient::{AddHandleContactError, ChatId, MessageId};
+pub(crate) use aircommon::identifiers::Username;
+pub(crate) use aircoreclient::{AddUsernameContactError, ChatId, MessageId};
 
-pub(crate) use aircommon::identifiers::UserHandleValidationError;
 use aircommon::identifiers::UserId;
+pub(crate) use aircommon::identifiers::UsernameValidationError;
 use aircoreclient::{
     Asset, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact, ContentMessage, DisplayName,
     ErrorMessage, EventMessage, InactiveChat, Message, MessageDraft, SystemMessage,
@@ -59,9 +59,9 @@ pub struct UiUserId {
     pub domain: String,
 }
 
-/// UI representation of an [`UserHandleValidationError`]
-#[frb(mirror(UserHandleValidationError))]
-pub enum _UserHandleValidationError {
+/// UI representation of a [`UsernameValidationError`]
+#[frb(mirror(UsernameValidationError))]
+pub enum _UsernameValidationError {
     TooShort,
     TooLong,
     InvalidCharacter,
@@ -253,9 +253,9 @@ impl From<InactiveChat> for UiInactiveChat {
 /// Type of a chat
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum UiChatType {
-    /// A connection chat which was established via a handle and is not yet confirmed by
+    /// A connection chat which was established via a username and is not yet confirmed by
     /// the other party.
-    HandleConnection(UiUserHandle),
+    HandleConnection(UiUsername),
     /// A connection chat that is confirmed by the other party and for which we have
     /// received the necessary secrets.
     Connection(UiUserProfile),
@@ -277,9 +277,7 @@ impl UiChatType {
     #[frb(ignore)]
     pub(crate) async fn load_from_chat_type(store: &impl Store, chat_type: ChatType) -> Self {
         match chat_type {
-            ChatType::HandleConnection(handle) => {
-                Self::HandleConnection(UiUserHandle::from(handle))
-            }
+            ChatType::HandleConnection(handle) => Self::HandleConnection(UiUsername::from(handle)),
             ChatType::Connection(user_id) => {
                 let user_profile = store.user_profile(&user_id).await;
                 let profile = UiUserProfile::from_profile(user_profile);
@@ -473,7 +471,7 @@ pub enum UiSystemMessage {
     ChangePicture(UiUserId),
     ReceivedHandleConnectionRequest {
         sender: UiUserId,
-        user_handle: UiUserHandle,
+        username: UiUsername,
     },
     ReceivedDirectConnectionRequest {
         sender: UiUserId,
@@ -481,13 +479,13 @@ pub enum UiSystemMessage {
     },
     AcceptedConnectionRequest {
         sender: UiUserId,
-        user_handle: Option<UiUserHandle>,
+        username: Option<UiUsername>,
     },
     ReceivedConnectionConfirmation {
         sender: UiUserId,
-        user_handle: Option<UiUserHandle>,
+        username: Option<UiUsername>,
     },
-    NewHandleConnectionChat(UiUserHandle),
+    NewHandleConnectionChat(UiUsername),
     NewDirectConnectionChat(UiUserId),
     CreateGroup(UiUserId),
 }
@@ -515,21 +513,21 @@ impl From<SystemMessage> for UiSystemMessage {
                 user_handle,
             } => UiSystemMessage::AcceptedConnectionRequest {
                 sender: contact.into(),
-                user_handle: user_handle.map(Into::into),
+                username: user_handle.map(Into::into),
             },
             SystemMessage::ReceivedConnectionConfirmation {
                 sender,
                 user_handle,
             } => UiSystemMessage::ReceivedConnectionConfirmation {
                 sender: sender.into(),
-                user_handle: user_handle.map(Into::into),
+                username: user_handle.map(Into::into),
             },
             SystemMessage::ReceivedHandleConnectionRequest {
                 sender,
                 user_handle,
             } => UiSystemMessage::ReceivedHandleConnectionRequest {
                 sender: sender.into(),
-                user_handle: user_handle.into(),
+                username: user_handle.into(),
             },
             SystemMessage::ReceivedDirectConnectionRequest { sender, chat_name } => {
                 UiSystemMessage::ReceivedDirectConnectionRequest {
@@ -656,13 +654,13 @@ impl From<TargetedMessageContact> for UiContact {
     }
 }
 
-/// Mirror of the [`AddHandleContactError`] type
+/// Mirror of the [`AddUsernameContactError`] type
 #[doc(hidden)]
-#[frb(mirror(AddHandleContactError))]
-pub enum _AddHandleContactError {
-    HandleNotFound,
+#[frb(mirror(AddUsernameContactError))]
+pub enum _AddUsernameContactError {
+    UsernameNotFound,
     DuplicateRequest,
-    OwnHandle,
+    OwnUsername,
 }
 
 /// Profile of a user
@@ -769,16 +767,16 @@ pub struct UiClientRecord {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[frb(dart_metadata = ("freezed"))]
-pub struct UiUserHandle {
+pub struct UiUsername {
     pub(crate) plaintext: String,
 }
 
-impl UiUserHandle {
-    /// Returns `None` if the handle is valid, otherwise returns an error message why it is
+impl UiUsername {
+    /// Returns `None` if the username is valid, otherwise returns an error message why it is
     /// invalid.
     #[frb(sync)]
-    pub fn validation_error(&self) -> Option<UserHandleValidationError> {
-        if let Err(error) = UserHandle::new(self.plaintext.clone()) {
+    pub fn validation_error(&self) -> Option<UsernameValidationError> {
+        if let Err(error) = Username::new(self.plaintext.clone()) {
             Some(error)
         } else {
             None
@@ -786,10 +784,10 @@ impl UiUserHandle {
     }
 }
 
-impl From<UserHandle> for UiUserHandle {
-    fn from(user_handle: UserHandle) -> Self {
+impl From<Username> for UiUsername {
+    fn from(username: Username) -> Self {
         Self {
-            plaintext: user_handle.into_plaintext(),
+            plaintext: username.into_plaintext(),
         }
     }
 }

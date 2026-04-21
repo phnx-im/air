@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT NOT EXISTS(\n            SELECT 1 FROM as_batched_key\n            WHERE operation_type = $1 AND created_at > now() - make_interval(days => $2)\n        )",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int2",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "149b995eac28272feaf2938ad394d6c3eca0569a7b3c4e6b96556a67cc711dd1"
+}

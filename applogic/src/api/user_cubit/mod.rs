@@ -6,8 +6,8 @@
 
 use std::sync::Arc;
 
-pub(crate) use aircommon::identifiers::UserHandleHash;
-use aircommon::identifiers::{UserHandle, UserId};
+pub(crate) use aircommon::identifiers::UsernameHash;
+use aircommon::identifiers::{UserId, Username};
 pub(crate) use aircoreclient::InviteUsersError;
 use aircoreclient::{Asset, ChatId, ContactType, PartialContact, clients::CoreUser, store::Store};
 use anyhow::ensure;
@@ -16,7 +16,7 @@ use qs::QueueContext;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
-use user_handle::{HandleBackgroundTasks, HandleContext};
+use username::{UsernameBackgroundTasks, UsernameContext};
 
 use crate::api::types::UiContact;
 use crate::{
@@ -29,12 +29,12 @@ use crate::{
 use super::{
     navigation_cubit::{NavigationCubitBase, NavigationState},
     notifications::NotificationContent,
-    types::{UiUserHandle, UiUserId},
+    types::{UiUserId, UiUsername},
     user::User,
 };
 
 mod qs;
-mod user_handle;
+mod username;
 
 const DELETE_ACCOUNT_CONFIRMATION_TEXT: &str = "delete";
 
@@ -60,7 +60,7 @@ pub struct UiUser {
 #[derive(Debug, Clone)]
 struct UiUserInner {
     user_id: UserId,
-    user_handles: Vec<UserHandle>,
+    usernames: Vec<Username>,
     unsupported_version: bool,
 }
 
@@ -72,15 +72,15 @@ impl UiUser {
     /// Loads state in the background
     fn spawn_load(state_tx: watch::Sender<UiUser>, core_user: CoreUser) {
         spawn_from_sync(async move {
-            match core_user.user_handles().await {
-                Ok(handles) => {
+            match core_user.usernames().await {
+                Ok(usernames) => {
                     state_tx.send_modify(|state| {
                         let inner = Arc::make_mut(&mut state.inner);
-                        inner.user_handles = handles;
+                        inner.usernames = usernames;
                     });
                 }
                 Err(error) => {
-                    error!(%error, "failed to load user handles");
+                    error!(%error, "failed to load usernames");
                 }
             }
         });
@@ -92,9 +92,9 @@ impl UiUser {
     }
 
     #[frb(getter, sync)]
-    pub fn user_handles(&self) -> Vec<UiUserHandle> {
+    pub fn usernames(&self) -> Vec<UiUsername> {
         self.inner
-            .user_handles
+            .usernames
             .iter()
             .cloned()
             .map(From::from)
@@ -129,7 +129,7 @@ pub struct UserCubitBase {
     core: CubitCore<UiUser>,
     context: CubitContext,
     app_state_tx: watch::Sender<AppState>,
-    background_listen_handle_tasks: HandleBackgroundTasks,
+    background_listen_username_tasks: UsernameBackgroundTasks,
     cancel: CancellationToken,
 }
 
@@ -140,7 +140,7 @@ impl UserCubitBase {
 
         let core = CubitCore::with_initial_state(UiUser::new(Arc::new(UiUserInner {
             user_id: user.user.user_id().clone(),
-            user_handles: Vec::new(),
+            usernames: Vec::new(),
             unsupported_version: false,
         })));
 
@@ -169,15 +169,15 @@ impl UserCubitBase {
             .into_task(cancel.clone())
             .spawn();
 
-        // start background tasks listening for incoming handle messages
-        let background_listen_handle_tasks =
-            HandleContext::spawn_loading(context.clone(), cancel.clone());
+        // start background tasks listening for incoming username messages
+        let background_listen_username_tasks =
+            UsernameContext::spawn_loading(context.clone(), cancel.clone());
 
         Self {
             core,
             context,
             app_state_tx,
-            background_listen_handle_tasks,
+            background_listen_username_tasks,
             cancel: cancel.clone(),
         }
     }
@@ -305,7 +305,7 @@ impl UserCubitBase {
             ContactType::Partial(PartialContact::TargetedMessage(contact)) => {
                 Ok(Some(contact.into()))
             }
-            ContactType::Partial(PartialContact::Handle(_)) => Ok(None),
+            ContactType::Partial(PartialContact::Username(_)) => Ok(None),
         }
     }
 
@@ -329,58 +329,51 @@ impl UserCubitBase {
         let _no_receivers = self.app_state_tx.send(app_state);
     }
 
-    pub async fn add_user_handle(&self, user_handle: UiUserHandle) -> anyhow::Result<bool> {
-        let user_handle = UserHandle::new(user_handle.plaintext)?;
+    pub async fn add_username(&self, username: UiUsername) -> anyhow::Result<bool> {
+        let username = Username::new(username.plaintext)?;
         let Some(record) = self
             .context
             .core_user
-            .add_user_handle(user_handle.clone())
+            .add_username(username.clone())
             .await?
         else {
             return Ok(false);
         };
 
-        // add user handle to UI state
+        // add username to UI state
         self.core.state_tx().send_modify(|state| {
             let inner = Arc::make_mut(&mut state.inner);
-            inner.user_handles.push(user_handle);
+            inner.usernames.push(username);
         });
 
-        // start background listen stream for the handle
-        HandleContext::new(self.context.clone(), record)
+        // start background listen stream for the username
+        UsernameContext::new(self.context.clone(), record)
             .into_task(
                 self.cancel.child_token(),
-                &self.background_listen_handle_tasks,
+                &self.background_listen_username_tasks,
             )
             .spawn();
 
         Ok(true)
     }
 
-    pub async fn remove_user_handle(&self, user_handle: UiUserHandle) -> anyhow::Result<()> {
-        let user_handle = UserHandle::new(user_handle.plaintext)?;
-        self.context
-            .core_user
-            .remove_user_handle(&user_handle)
-            .await?;
+    pub async fn remove_username(&self, username: UiUsername) -> anyhow::Result<()> {
+        let username = Username::new(username.plaintext)?;
+        self.context.core_user.remove_username(&username).await?;
 
-        // remove user handle from UI state
+        // remove username from UI state
         self.core.state_tx().send_if_modified(|state| {
             let inner = Arc::make_mut(&mut state.inner);
-            let Some(idx) = inner
-                .user_handles
-                .iter()
-                .position(|handle| handle == &user_handle)
-            else {
-                error!("user handle is not found");
+            let Some(idx) = inner.usernames.iter().position(|u| u == &username) else {
+                error!("username is not found");
                 return false;
             };
-            inner.user_handles.remove(idx);
+            inner.usernames.remove(idx);
             true
         });
 
-        // stop background listen stream for the handle
-        self.background_listen_handle_tasks.remove(user_handle);
+        // stop background listen stream for the username
+        self.background_listen_username_tasks.remove(username);
 
         Ok(())
     }
@@ -420,12 +413,12 @@ impl UserCubitBase {
             .await
     }
 
-    pub async fn check_handle_exists(
+    pub async fn check_username_exists(
         &self,
-        handle: UiUserHandle,
-    ) -> anyhow::Result<Option<UserHandleHash>> {
-        let handle = UserHandle::new(handle.plaintext)?;
-        self.context.core_user.check_handle_exists(handle).await
+        username: UiUsername,
+    ) -> anyhow::Result<Option<UsernameHash>> {
+        let username = Username::new(username.plaintext)?;
+        self.context.core_user.check_username_exists(username).await
     }
 
     /// Returns the pair of safety codes of the logged-in user and the given user.

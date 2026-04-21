@@ -18,7 +18,7 @@ use aircommon::{
         AsIntermediateCredential, VerifiableClientCredential, keys::PreliminaryClientSigningKey,
     },
     crypto::{
-        ear::{EarEncryptable, keys::PushTokenEarKey},
+        aead::{AeadEncryptable, keys::PushTokenEarKey},
         indexed_aead::{ciphertexts::IndexEncryptable, keys::UserProfileKey},
         signatures::{DEFAULT_SIGNATURE_SCHEME, signable::Verifiable},
     },

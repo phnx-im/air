@@ -15,8 +15,8 @@ mod key_stores;
 pub mod outbound_service;
 pub(crate) mod privacy_pass;
 pub mod store;
-mod user_handles;
 mod user_profiles;
+mod usernames;
 mod utils;
 
 pub use crate::{
@@ -29,13 +29,14 @@ pub use crate::{
         pending::AcceptContactRequestError,
     },
     clients::{
-        add_contact::AddHandleContactError,
+        add_contact::AddUsernameContactError,
         attachment::{
             AttachmentContent, AttachmentStatus, AttachmentUrl, AttachmentUrlParseError,
             MimiContentExt, ProvisionAttachmentError, UploadTaskError,
             progress::{AttachmentProgress, AttachmentProgressEvent},
         },
         block_contact::BlockedContactError,
+        invitation_code::{InvitationCode, RequestInvitationCodeError},
         invite_users::InviteUsersError,
         safety_code::SafetyCode,
         user_settings::ReadReceiptsSetting,
@@ -46,10 +47,8 @@ pub use crate::{
         ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo,
         RequiredDebugCapabilities,
     },
-    user_handles::UserHandleRecord,
+    privacy_pass::{RequestTokensError, TokenId},
     user_profiles::{Asset, DisplayName, DisplayNameError, UserProfile},
-    utils::persistence::{
-        delete_client_database, delete_databases, export_client_database, import_client_database,
-        open_client_db,
-    },
+    usernames::UsernameRecord,
+    utils::persistence::{delete_client_database, delete_databases, open_client_db},
 };

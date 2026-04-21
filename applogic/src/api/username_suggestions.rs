@@ -130,12 +130,12 @@ fn first_tokens(display: &str, limit: usize) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use aircommon::identifiers::UserHandle;
+    use aircommon::identifiers::Username;
 
     use super::*;
 
     fn assert_valid(username: &str) {
-        UserHandle::new(username.to_string()).unwrap();
+        Username::new(username.to_string()).unwrap();
         let suffix = username.rsplit('-').next().unwrap();
         assert_eq!(suffix.len(), SUFFIX_LENGTH);
         assert!(suffix.chars().all(|c| c.is_ascii_digit()));

@@ -13,16 +13,16 @@ use url::Host;
 use uuid::Uuid;
 
 use crate::crypto::{
-    ear::keys::PushTokenEarKey,
+    aead::keys::PushTokenEarKey,
     hpke::{ClientIdKeyType, HpkeDecryptable, HpkeEncryptable},
 };
 
 pub use attachment::{AttachmentId, AttachmentIdParseError};
 pub use mimi_id::{MimiId, MimiIdCalculationError};
 pub use tls_codec_impls::{TlsStr, TlsString};
-pub use user_handle::{
-    USER_HANDLE_REFRESH_THRESHOLD, USER_HANDLE_VALIDITY_PERIOD, UserHandle, UserHandleHash,
-    UserHandleHashError, UserHandleValidationError,
+pub use username::{
+    USERNAME_REFRESH_THRESHOLD, USERNAME_VALIDITY_PERIOD, Username, UsernameHash,
+    UsernameHashError, UsernameValidationError,
 };
 
 use super::*;
@@ -30,7 +30,7 @@ use super::*;
 mod attachment;
 mod mimi_id;
 mod tls_codec_impls;
-mod user_handle;
+mod username;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Fqdn {

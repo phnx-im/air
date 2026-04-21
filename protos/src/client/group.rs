@@ -9,7 +9,7 @@ use std::borrow::Cow;
 use aircommon::{
     codec::{self, PersistenceCodec},
     crypto::{
-        ear::{AEAD_NONCE_SIZE, AeadCiphertext, EarKey, Payload, keys::IdentityLinkWrapperKey},
+        aead::{AEAD_NONCE_SIZE, AeadCiphertext, AeadKey, Payload, keys::IdentityLinkWrapperKey},
         errors::{DecryptionError, EncryptionError},
     },
     padme::padme_padding_len,

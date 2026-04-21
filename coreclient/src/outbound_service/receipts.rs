@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    crypto::ear::keys::GroupStateEarKey, identifiers::MimiId,
+    crypto::aead::keys::GroupStateEarKey, identifiers::MimiId,
     messages::client_ds_out::SendMessageParamsOut, time::TimeStamp,
 };
 use anyhow::Context;

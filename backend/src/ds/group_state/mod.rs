@@ -8,8 +8,8 @@ use aircommon::{
     codec::PersistenceCodec,
     credentials::VerifiableClientCredential,
     crypto::{
-        ear::{
-            Ciphertext, EarDecryptable, EarEncryptable,
+        aead::{
+            AeadDecryptable, AeadEncryptable, Ciphertext,
             keys::{EncryptedUserProfileKey, GroupStateEarKey},
         },
         errors::{DecryptionError, EncryptionError},
@@ -403,8 +403,8 @@ impl From<SerializableDsGroupStateV2> for EncryptableDsGroupState {
     }
 }
 
-impl EarEncryptable<GroupStateEarKey, EncryptedDsGroupStateCtype> for EncryptableDsGroupState {}
-impl EarDecryptable<GroupStateEarKey, EncryptedDsGroupStateCtype> for EncryptableDsGroupState {}
+impl AeadEncryptable<GroupStateEarKey, EncryptedDsGroupStateCtype> for EncryptableDsGroupState {}
+impl AeadDecryptable<GroupStateEarKey, EncryptedDsGroupStateCtype> for EncryptableDsGroupState {}
 
 #[cfg(test)]
 mod test {
