@@ -13,7 +13,7 @@ use crate::{
     },
     crypto::{
         Labeled, RatchetEncryptionKey,
-        ear::Ciphertext,
+        aead::Ciphertext,
         hash::{Hash, Hashable},
         kdf::keys::RatchetSecret,
     },

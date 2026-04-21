@@ -30,8 +30,8 @@ use super::v1::{
     AsIntermediateCredentialBody, AsIntermediateCredentialCsr, AsIntermediateCredentialPayload,
     AsIntermediateVerifyingKey, AsVerifyingKey, ClientCredential, ClientCredentialCsr,
     ClientCredentialPayload, ClientVerifyingKey, ConnectionEncryptionKey, ConnectionOfferMessage,
-    ConnectionPackage, ConnectionPackagePayload, EncryptedUserProfile, HandleSignature,
-    HandleVerifyingKey, Hash, SignatureScheme, UserHandleHash, UserId,
+    ConnectionPackage, ConnectionPackagePayload, EncryptedUserProfile, Hash, SignatureScheme,
+    UserId, UsernameHash, UsernameSignature, UsernameVerifyingKey,
 };
 
 impl From<identifiers::UserId> for UserId {
@@ -320,7 +320,7 @@ pub enum ConnectionPackageError {
     #[error("Invalid credential fingerprint: {0}")]
     CredentialFingerprint(#[from] HashError),
     #[error(transparent)]
-    UserHandleHash(#[from] UserHandleHashError),
+    UsernameHash(#[from] UsernameHashError),
     #[error(transparent)]
     Version(#[from] UnsupportedMlsVersion),
 }
@@ -338,7 +338,7 @@ impl From<messages::connection_package::ConnectionPackagePayload> for Connection
             encryption_key: Some(value.encryption_key.into()),
             lifetime: Some(value.lifetime.into()),
             verifying_key: Some(value.verifying_key.into()),
-            user_handle_hash: Some(value.user_handle_hash.into()),
+            username_hash: Some(value.user_handle_hash.into()),
             is_last_resort: Some(value.is_last_resort.0),
         }
     }
@@ -353,7 +353,7 @@ impl From<messages::connection_package_v1::ConnectionPackageV1Payload>
             encryption_key: Some(value.encryption_key.into()),
             lifetime: Some(value.lifetime.into()),
             verifying_key: Some(value.verifying_key.into()),
-            user_handle_hash: Some(value.user_handle_hash.into()),
+            username_hash: Some(value.user_handle_hash.into()),
             is_last_resort: None,
         }
     }
@@ -394,8 +394,8 @@ impl TryFrom<ConnectionPackage> for messages::connection_package::VersionedConne
             .ok_or_missing_field("verifying_key")?
             .into();
         let user_handle_hash = payload
-            .user_handle_hash
-            .ok_or_missing_field("user_handle_hash")?
+            .username_hash
+            .ok_or_missing_field("username_hash")?
             .try_into()?;
         let is_last_resort = payload.is_last_resort.map(|b| b.into());
         let signature = proto.signature.ok_or_missing_field("signature")?.into();
@@ -743,35 +743,35 @@ impl TryFrom<ConnectionOfferMessage> for client_as::ConnectionOfferMessage {
     }
 }
 
-impl From<HandleVerifyingKey> for keys::HandleVerifyingKey {
-    fn from(proto: HandleVerifyingKey) -> Self {
+impl From<UsernameVerifyingKey> for keys::UsernameVerifyingKey {
+    fn from(proto: UsernameVerifyingKey) -> Self {
         Self::from_bytes(proto.bytes)
     }
 }
 
-impl From<keys::HandleVerifyingKey> for HandleVerifyingKey {
-    fn from(value: keys::HandleVerifyingKey) -> Self {
+impl From<keys::UsernameVerifyingKey> for UsernameVerifyingKey {
+    fn from(value: keys::UsernameVerifyingKey) -> Self {
         Self {
             bytes: value.into_bytes(),
         }
     }
 }
 
-impl TryFrom<UserHandleHash> for identifiers::UserHandleHash {
-    type Error = UserHandleHashError;
+impl TryFrom<UsernameHash> for identifiers::UsernameHash {
+    type Error = UsernameHashError;
 
-    fn try_from(proto: UserHandleHash) -> Result<Self, Self::Error> {
+    fn try_from(proto: UsernameHash) -> Result<Self, Self::Error> {
         Ok(Self::new(
             proto
                 .bytes
                 .try_into()
-                .map_err(|_| UserHandleHashError::InvalidLength)?,
+                .map_err(|_| UsernameHashError::InvalidLength)?,
         ))
     }
 }
 
-impl From<identifiers::UserHandleHash> for UserHandleHash {
-    fn from(value: identifiers::UserHandleHash) -> Self {
+impl From<identifiers::UsernameHash> for UsernameHash {
+    fn from(value: identifiers::UsernameHash) -> Self {
         Self {
             bytes: value.into_bytes().to_vec(),
         }
@@ -779,22 +779,22 @@ impl From<identifiers::UserHandleHash> for UserHandleHash {
 }
 
 #[derive(Debug, Error, Display)]
-pub enum UserHandleHashError {
+pub enum UsernameHashError {
     /// Invalid hash length
     InvalidLength,
 }
 
-impl From<UserHandleHashError> for Status {
-    fn from(error: UserHandleHashError) -> Self {
+impl From<UsernameHashError> for Status {
+    fn from(error: UsernameHashError) -> Self {
         let msg = error.to_string();
         match error {
-            UserHandleHashError::InvalidLength => Status::invalid_argument(msg),
+            UsernameHashError::InvalidLength => Status::invalid_argument(msg),
         }
     }
 }
 
-impl From<keys::HandleSignature> for HandleSignature {
-    fn from(value: keys::HandleSignature) -> Self {
+impl From<keys::UsernameSignature> for UsernameSignature {
+    fn from(value: keys::UsernameSignature) -> Self {
         Self {
             signature: Some(Signature {
                 value: value.into_bytes(),
@@ -803,8 +803,8 @@ impl From<keys::HandleSignature> for HandleSignature {
     }
 }
 
-impl From<HandleSignature> for keys::HandleSignature {
-    fn from(proto: HandleSignature) -> Self {
-        keys::HandleSignature::from_bytes(proto.signature.unwrap_or_default().value)
+impl From<UsernameSignature> for keys::UsernameSignature {
+    fn from(proto: UsernameSignature) -> Self {
+        keys::UsernameSignature::from_bytes(proto.signature.unwrap_or_default().value)
     }
 }

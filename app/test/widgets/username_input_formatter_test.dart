@@ -2,12 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/widgets/user_handle_input_formatter.dart';
+import 'package:air/widgets/username_input_formatter.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  const formatter = UserHandleInputFormatter();
+  const formatter = UsernameInputFormatter();
 
   TextEditingValue value(String text) => TextEditingValue(
     text: text,
@@ -65,8 +65,8 @@ void main() {
   });
 
   test('normalize respects validation rules', () {
-    expect(UserHandleInputFormatter.normalize('1abc'), isEmpty);
-    expect(UserHandleInputFormatter.normalize('valid-name'), 'valid-name');
-    expect(UserHandleInputFormatter.normalize('foo_bar'), isEmpty);
+    expect(UsernameInputFormatter.normalize('1abc'), isEmpty);
+    expect(UsernameInputFormatter.normalize('valid-name'), 'valid-name');
+    expect(UsernameInputFormatter.normalize('foo_bar'), isEmpty);
   });
 }

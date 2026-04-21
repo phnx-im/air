@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                username AS \"handle: _\",\n                chat_id AS \"chat_id: _\",\n                friendship_package_ear_key AS \"friendship_package_ear_key: _\",\n                connection_offer_hash AS \"connection_offer_hash: _\"\n            FROM username_contact\n            WHERE username = ?",
+  "query": "SELECT\n                username AS \"username: _\",\n                chat_id AS \"chat_id: _\",\n                friendship_package_ear_key AS \"friendship_package_ear_key: _\",\n                connection_offer_hash AS \"connection_offer_hash: _\"\n            FROM username_contact\n            WHERE chat_id = ?",
   "describe": {
     "columns": [
       {
-        "name": "handle: _",
+        "name": "username: _",
         "ordinal": 0,
         "type_info": "Text"
       },
@@ -34,5 +34,5 @@
       false
     ]
   },
-  "hash": "de402e29af69e22945f830175e0e3085fe4710c3c76a305a2687b23a2f881852"
+  "hash": "923d4dbf3892c81fa97ccbc225fec9f2b0d43979f499847a47da61c0ea4eebe8"
 }

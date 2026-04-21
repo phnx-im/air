@@ -7,8 +7,8 @@
 //! Translates async methods into message passing.
 
 use airapiclient::qs_api::QsListenResponder;
-use aircommon::identifiers::UserHandle;
-use airprotos::{auth_service::v1::HandleQueueMessage, queue_service::v1::QueueEvent};
+use aircommon::identifiers::Username;
+use airprotos::{auth_service::v1::UsernameQueueMessage, queue_service::v1::QueueEvent};
 
 use crate::{
     ChatId,
@@ -20,16 +20,15 @@ use crate::{
 };
 
 impl CoreUser {
-    /// Process a queue message received from the AS handle queue.
+    /// Process a queue message received from the AS username queue.
     ///
     /// Returns the [`ChatId`] of any newly created chat.
-    pub async fn process_handle_queue_message(
+    pub async fn process_username_queue_message(
         &self,
-        user_handle: UserHandle,
-        handle_queue_message: HandleQueueMessage,
+        username: Username,
+        queue_message: UsernameQueueMessage,
     ) -> anyhow::Result<ChatId> {
-        let (message, response) =
-            RemoteQueueEvent::handle_queue_message(user_handle, handle_queue_message);
+        let (message, response) = RemoteQueueEvent::username_queue_message(username, queue_message);
         self.inner
             .event_loop_sender
             .send_remote_queue_event(message)

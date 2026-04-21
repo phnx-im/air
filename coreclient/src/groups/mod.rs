@@ -21,8 +21,8 @@ use aircommon::{
         ClientCredential, GroupStorageWitness, VerifiableClientCredential, keys::ClientSigningKey,
     },
     crypto::{
-        ear::{
-            EarDecryptable, EarEncryptable,
+        aead::{
+            AeadDecryptable, AeadEncryptable,
             keys::{
                 EncryptedUserProfileKey, GroupStateEarKey, IdentityLinkWrapperKey,
                 WelcomeAttributionInfoEarKey,

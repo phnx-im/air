@@ -8,8 +8,7 @@ use std::{
     sync::{Arc, Weak},
 };
 
-pub use airapiclient::as_api::AsListenHandleResponder;
-
+pub use airapiclient::as_api::AsListenUsernameResponder;
 use airapiclient::{
     ApiClient, ApiClientInitError,
     as_api::AsRequestError,
@@ -21,7 +20,7 @@ use aircommon::{
     },
     crypto::{
         RatchetDecryptionKey,
-        ear::keys::WelcomeAttributionInfoEarKey,
+        aead::keys::WelcomeAttributionInfoEarKey,
         hpke::HpkeEncryptable,
         kdf::keys::RatchetSecret,
         signatures::keys::{QsClientSigningKey, QsUserSigningKey},
@@ -29,7 +28,7 @@ use aircommon::{
     identifiers::{ClientConfig, QsClientId, QsReference, QsUserId, UserId},
     messages::{FriendshipToken, QueueMessage, push_token::PushToken},
 };
-pub use airprotos::auth_service::v1::{HandleQueueMessage, handle_queue_message};
+pub use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
 pub use airprotos::queue_service::v1::{QueueEvent, QueueEventPayload, queue_event};
 use anyhow::{Context, Result, anyhow, ensure};
 use chrono::{DateTime, Utc};
@@ -47,9 +46,9 @@ use tracing::{error, info, warn};
 use url::Url;
 
 use crate::{
-    Asset, UserHandleRecord,
+    Asset, UsernameRecord,
     clients::event_loop::{EventLoop, EventLoopSender},
-    contacts::{HandleContact, TargetedMessageContact},
+    contacts::{TargetedMessageContact, UsernameContact},
     groups::Group,
     job::{Job, JobContext, JobError},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
@@ -422,31 +421,31 @@ impl CoreUser {
             .unwrap_or_else(|| UserProfile::from_user_id(user_id))
     }
 
-    /// Fetch and process messages from all user handle queues.
+    /// Fetch and process messages from all username queues.
     ///
     /// Returns the list of [`ChatId`]s of any newly created chats.
-    pub async fn fetch_and_process_handle_messages(&self) -> Result<Vec<ChatId>> {
-        let records = self.user_handle_records().await?;
+    pub async fn fetch_and_process_username_messages(&self) -> Result<Vec<ChatId>> {
+        let records = self.username_records().await?;
         let api_client = self.api_client()?;
         let mut chat_ids = Vec::new();
         for record in records {
             let (mut stream, responder) = api_client
-                .as_listen_handle(record.hash, &record.signing_key)
+                .as_listen_username(record.hash, &record.signing_key)
                 .await?;
             while let Some(Some(message)) = stream.next().await {
                 let Some(message_id) = message.message_id else {
-                    error!("no message id in handle queue message");
+                    error!("no message id in username queue message");
                     continue;
                 };
                 match self
-                    .process_handle_queue_message(record.handle.clone(), message)
+                    .process_username_queue_message(record.username.clone(), message)
                     .await
                 {
                     Ok(chat_id) => {
                         chat_ids.push(chat_id);
                     }
                     Err(error) => {
-                        error!(%error, "failed to process handle queue message");
+                        error!(%error, "failed to process username queue message");
                     }
                 }
                 // ack the message independently of the result of processing the message
@@ -456,20 +455,20 @@ impl CoreUser {
         Ok(chat_ids)
     }
 
-    /// Fetches all messages from all user handle queues and returns them.
+    /// Fetches all messages from all username queues and returns them.
     ///
     /// Used in integration tests
-    pub async fn fetch_handle_messages(&self) -> Result<Vec<HandleQueueMessage>> {
-        let records = self.user_handle_records().await?;
+    pub async fn fetch_username_messages(&self) -> Result<Vec<UsernameQueueMessage>> {
+        let records = self.username_records().await?;
         let api_client = self.api_client()?;
         let mut messages = Vec::new();
         for record in records {
             let (mut stream, responder) = api_client
-                .as_listen_handle(record.hash, &record.signing_key)
+                .as_listen_username(record.hash, &record.signing_key)
                 .await?;
             while let Some(Some(message)) = stream.next().await {
                 let Some(message_id) = message.message_id else {
-                    error!("no message id in handle queue message");
+                    error!("no message id in username queue message");
                     continue;
                 };
                 // ack the message independently of the result of processing the message
@@ -523,8 +522,8 @@ impl CoreUser {
         TargetedMessageContact::load(self.pool(), user_id).await
     }
 
-    pub async fn handle_contacts(&self) -> sqlx::Result<Vec<HandleContact>> {
-        HandleContact::load_all(self.pool()).await
+    pub async fn username_contacts(&self) -> sqlx::Result<Vec<UsernameContact>> {
+        UsernameContact::load_all(self.pool()).await
     }
 
     pub async fn targeted_message_contacts(&self) -> sqlx::Result<Vec<TargetedMessageContact>> {
@@ -620,30 +619,32 @@ impl CoreUser {
         Ok((stream, responder))
     }
 
-    pub async fn listen_handle(
+    pub async fn listen_username(
         &self,
-        handle_record: &UserHandleRecord,
+        username_record: &UsernameRecord,
     ) -> std::result::Result<
         (
-            impl Stream<Item = Option<HandleQueueMessage>> + Send + 'static,
-            AsListenHandleResponder,
+            impl Stream<Item = Option<UsernameQueueMessage>> + Send + 'static,
+            AsListenUsernameResponder,
         ),
-        ListenHandleError,
+        ListenUsernameError,
     > {
         let api_client = self.inner.api_clients.default_client()?;
         match api_client
-            .as_listen_handle(handle_record.hash, &handle_record.signing_key)
+            .as_listen_username(username_record.hash, &username_record.signing_key)
             .await
         {
             Ok(ok) => Ok(ok),
             Err(error) => {
-                // We remove the user handle locally if it is not found
+                // We remove the username locally if it is not found
                 if error.is_not_found() {
                     warn!(
-                        "User handle {} not found on the server, removing locally",
-                        &handle_record.handle.plaintext()
+                        "Username {} not found on the server, removing locally",
+                        &username_record.username.plaintext()
                     );
-                    let _ = self.remove_user_handle_locally(&handle_record.handle).await;
+                    let _ = self
+                        .remove_username_locally(&username_record.username)
+                        .await;
                 }
                 Err(error.into())
             }
@@ -849,16 +850,16 @@ impl ListenQueueError {
     }
 }
 
-/// Error which can occur when listening to a handle.
+/// Error which can occur when listening to a username.
 #[derive(Debug, thiserror::Error)]
-pub enum ListenHandleError {
+pub enum ListenUsernameError {
     #[error(transparent)]
     ApiClient(#[from] ApiClientInitError),
     #[error(transparent)]
     As(#[from] AsRequestError),
 }
 
-impl ListenHandleError {
+impl ListenUsernameError {
     pub fn is_unsupported_version(&self) -> bool {
         match self {
             Self::As(error) => error.is_unsupported_version(),

@@ -209,11 +209,9 @@ class _UsernamesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    List<UiUserHandle> userHandles;
+    List<UiUsername> usernames;
     try {
-      userHandles = context.select(
-        (UserCubit cubit) => cubit.state.userHandles,
-      );
+      usernames = context.select((UserCubit cubit) => cubit.state.usernames);
     } on ProviderNotFoundException {
       return const SizedBox.shrink();
     }
@@ -227,20 +225,20 @@ class _UsernamesSection extends StatelessWidget {
       children: [
         _SectionHeader(text: loc.userSettingsScreen_usernamesSection),
 
-        ...userHandles.expand(
-          (handle) => [
+        ...usernames.expand(
+          (username) => [
             const SizedBox(height: Spacings.xs),
             _FieldContainer(
               child: Row(
                 children: [
-                  Text(handle.plaintext),
+                  Text(username.plaintext),
                   const Spacer(),
                   InkWell(
                     onTap: () {
                       showDialog(
                         context: context,
                         builder: (context) =>
-                            RemoveUsernameDialog(username: handle),
+                            RemoveUsernameDialog(username: username),
                       );
                     },
                     child: AppIcon.trash(
@@ -254,7 +252,7 @@ class _UsernamesSection extends StatelessWidget {
           ],
         ),
 
-        if (userHandles.isEmpty || userHandles.length < 5) ...[
+        if (usernames.isEmpty || usernames.length < 5) ...[
           const SizedBox(height: Spacings.xs),
           _FieldContainer(
             onTap: () => showDialog(
@@ -264,7 +262,7 @@ class _UsernamesSection extends StatelessWidget {
             child: Row(
               children: [
                 Text(
-                  loc.userSettingsScreen_userHandlePlaceholder,
+                  loc.userSettingsScreen_usernamePlaceholder,
                   style: TextStyle(color: colors.text.quaternary),
                 ),
               ],

@@ -11,7 +11,7 @@ use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 use aircommon::{
     crypto::{
         RatchetEncryptionKey, RatchetKeyUpdate,
-        ear::{EarDecryptable, keys::PushTokenEarKey},
+        aead::{AeadDecryptable, keys::PushTokenEarKey},
         signatures::keys::QsClientVerifyingKey,
     },
     identifiers::{QsClientId, QsUserId},

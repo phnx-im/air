@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::{Fqdn, MimiId, UserHandle, UserId};
+use aircommon::identifiers::{Fqdn, MimiId, UserId, Username};
 use chrono::{DateTime, Utc};
 use mimi_content::MessageStatus;
 use openmls::group::GroupId;
@@ -29,7 +29,7 @@ struct SqlChat {
     last_message_at: Option<DateTime<Utc>>,
     connection_user_uuid: Option<Uuid>,
     connection_user_domain: Option<Fqdn>,
-    connection_user_handle: Option<UserHandle>,
+    connection_user_handle: Option<Username>,
     is_confirmed_connection: bool,
     is_active: bool,
     is_blocked: bool,
@@ -69,7 +69,7 @@ impl SqlChat {
                     ChatType::TargetedMessageConnection(connection_user_id)
                 }
             }
-            (None, None, Some(handle)) => ChatType::HandleConnection(handle),
+            (None, None, Some(username)) => ChatType::HandleConnection(username),
             _ => ChatType::Group,
         };
 
@@ -151,7 +151,7 @@ impl Chat {
             connection_user_domain,
             connection_user_handle,
         ) = match self.chat_type() {
-            ChatType::HandleConnection(handle) => (false, false, None, None, Some(handle)),
+            ChatType::HandleConnection(username) => (false, false, None, None, Some(username)),
             ChatType::Connection(user_id) => (
                 true,
                 false,
@@ -686,7 +686,7 @@ impl Chat {
         chat_type: &ChatType,
     ) -> sqlx::Result<()> {
         match chat_type {
-            ChatType::HandleConnection(handle) => {
+            ChatType::HandleConnection(username) => {
                 query!(
                     "UPDATE chat SET
                         connection_user_uuid = NULL,
@@ -695,7 +695,7 @@ impl Chat {
                         is_confirmed_connection = false,
                         is_incoming = false
                     WHERE chat_id = ?",
-                    handle,
+                    username,
                     self.id,
                 )
                 .execute(executor)

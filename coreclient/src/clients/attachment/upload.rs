@@ -12,7 +12,7 @@ use std::{
 use airapiclient::{ApiClient, ds_api::ProvisionAttachmentResponse};
 use aircommon::{
     credentials::keys::ClientSigningKey,
-    crypto::ear::{AeadCiphertext, EarEncryptable, keys::AttachmentEarKey},
+    crypto::aead::{AeadCiphertext, AeadEncryptable, keys::AttachmentEarKey},
     identifiers::AttachmentId,
 };
 use airprotos::{
@@ -40,7 +40,7 @@ use crate::{
         CoreUser,
         attachment::{
             AttachmentBytes, AttachmentRecord,
-            ear::{AIR_ATTACHMENT_ENCRYPTION_ALG, AIR_ATTACHMENT_HASH_ALG},
+            aead::{AIR_ATTACHMENT_ENCRYPTION_ALG, AIR_ATTACHMENT_HASH_ALG},
             progress::{AttachmentProgress, AttachmentProgressSender},
         },
     },

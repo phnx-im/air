@@ -10,12 +10,12 @@ use super::{errors::RandomnessError, *};
 mod tests;
 
 pub trait RatchetPayload<CT>:
-    EarEncryptable<RatchetKey, CT> + EarDecryptable<RatchetKey, CT>
+    AeadEncryptable<RatchetKey, CT> + AeadDecryptable<RatchetKey, CT>
 {
 }
 
 impl<CT, T> RatchetPayload<CT> for T where
-    T: EarEncryptable<RatchetKey, CT> + EarDecryptable<RatchetKey, CT>
+    T: AeadEncryptable<RatchetKey, CT> + AeadDecryptable<RatchetKey, CT>
 {
 }
 

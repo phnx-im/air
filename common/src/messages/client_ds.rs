@@ -20,8 +20,8 @@ use tls_codec::{
 use crate::{
     credentials::keys::ClientVerifyingKey,
     crypto::{
-        ear::{
-            EarDecryptable, EarEncryptable,
+        aead::{
+            AeadDecryptable, AeadEncryptable,
             keys::{EncryptedUserProfileKey, GroupStateEarKey, RatchetKey},
         },
         hpke::{HpkeDecryptable, HpkeEncryptable, JoinerInfoKeyType},
@@ -200,8 +200,8 @@ impl From<SerializedMlsMessage> for QsQueueMessagePayload {
     }
 }
 
-impl EarEncryptable<RatchetKey, EncryptedQsQueueMessageCtype> for QsQueueMessagePayload {}
-impl EarDecryptable<RatchetKey, EncryptedQsQueueMessageCtype> for QsQueueMessagePayload {}
+impl AeadEncryptable<RatchetKey, EncryptedQsQueueMessageCtype> for QsQueueMessagePayload {}
+impl AeadDecryptable<RatchetKey, EncryptedQsQueueMessageCtype> for QsQueueMessagePayload {}
 
 #[derive(TlsSerialize, TlsDeserializeBytes, TlsSize)]
 pub struct AadMessage {

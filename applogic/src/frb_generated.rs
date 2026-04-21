@@ -53,7 +53,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 988973455;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1395823262;
 
 // Section: executor
 
@@ -1438,8 +1438,8 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_create_contact_chat_impl
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>,
             >>::sse_decode(&mut deserializer);
-            let api_handle = <crate::api::types::UiUserHandle>::sse_decode(&mut deserializer);
-            let api_hash = <UserHandleHash>::sse_decode(&mut deserializer);
+            let api_username = <crate::api::types::UiUsername>::sse_decode(&mut deserializer);
+            let api_hash = <UsernameHash>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -1464,7 +1464,7 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_create_contact_chat_impl
                         let output_ok =
                             crate::api::chat_list_cubit::ChatListCubitBase::create_contact_chat(
                                 &*api_that_guard,
-                                api_handle,
+                                api_username,
                                 api_hash,
                             )
                             .await?;
@@ -4398,54 +4398,6 @@ fn wire__crate__api__user_cubit__UiUser_unsupported_version_impl(
         },
     )
 }
-fn wire__crate__api__user_cubit__UiUser_user_handles_impl(
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "UiUser_user_handles",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UiUser>,
-            >>::sse_decode(&mut deserializer);
-            deserializer.end();
-            transform_result_sse::<_, ()>((move || {
-                let mut api_that_guard = None;
-                let decode_indices_ =
-                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                            &api_that, 0, false,
-                        ),
-                    ]);
-                for i in decode_indices_ {
-                    match i {
-                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
-                        _ => unreachable!(),
-                    }
-                }
-                let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(crate::api::user_cubit::UiUser::user_handles(
-                    &*api_that_guard,
-                ))?;
-                Ok(output_ok)
-            })())
-        },
-    )
-}
 fn wire__crate__api__user_cubit__UiUser_user_id_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -4488,6 +4440,54 @@ fn wire__crate__api__user_cubit__UiUser_user_id_impl(
                 let api_that_guard = api_that_guard.unwrap();
                 let output_ok =
                     Result::<_, ()>::Ok(crate::api::user_cubit::UiUser::user_id(&*api_that_guard))?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__user_cubit__UiUser_usernames_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "UiUser_usernames",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UiUser>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = Result::<_, ()>::Ok(crate::api::user_cubit::UiUser::usernames(
+                    &*api_that_guard,
+                ))?;
                 Ok(output_ok)
             })())
         },
@@ -4556,7 +4556,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_add_contact_from_group_impl(
         },
     )
 }
-fn wire__crate__api__user_cubit__UserCubitBase_add_user_handle_impl(
+fn wire__crate__api__user_cubit__UserCubitBase_add_username_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -4564,7 +4564,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_add_user_handle_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "UserCubitBase_add_user_handle",
+            debug_name: "UserCubitBase_add_username",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -4581,7 +4581,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_add_user_handle_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>,
             >>::sse_decode(&mut deserializer);
-            let api_user_handle = <crate::api::types::UiUserHandle>::sse_decode(&mut deserializer);
+            let api_username = <crate::api::types::UiUsername>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -4603,9 +4603,9 @@ fn wire__crate__api__user_cubit__UserCubitBase_add_user_handle_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::user_cubit::UserCubitBase::add_user_handle(
+                        let output_ok = crate::api::user_cubit::UserCubitBase::add_username(
                             &*api_that_guard,
-                            api_user_handle,
+                            api_username,
                         )
                         .await?;
                         Ok(output_ok)
@@ -4798,7 +4798,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_block_contact_impl(
         },
     )
 }
-fn wire__crate__api__user_cubit__UserCubitBase_check_handle_exists_impl(
+fn wire__crate__api__user_cubit__UserCubitBase_check_username_exists_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -4806,7 +4806,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_check_handle_exists_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "UserCubitBase_check_handle_exists",
+            debug_name: "UserCubitBase_check_username_exists",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -4823,7 +4823,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_check_handle_exists_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>,
             >>::sse_decode(&mut deserializer);
-            let api_handle = <crate::api::types::UiUserHandle>::sse_decode(&mut deserializer);
+            let api_username = <crate::api::types::UiUsername>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -4845,11 +4845,12 @@ fn wire__crate__api__user_cubit__UserCubitBase_check_handle_exists_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::user_cubit::UserCubitBase::check_handle_exists(
-                            &*api_that_guard,
-                            api_handle,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::api::user_cubit::UserCubitBase::check_username_exists(
+                                &*api_that_guard,
+                                api_username,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -5379,7 +5380,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_remove_user_from_chat_impl(
         },
     )
 }
-fn wire__crate__api__user_cubit__UserCubitBase_remove_user_handle_impl(
+fn wire__crate__api__user_cubit__UserCubitBase_remove_username_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5387,7 +5388,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_remove_user_handle_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "UserCubitBase_remove_user_handle",
+            debug_name: "UserCubitBase_remove_username",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -5404,7 +5405,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_remove_user_handle_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>,
             >>::sse_decode(&mut deserializer);
-            let api_user_handle = <crate::api::types::UiUserHandle>::sse_decode(&mut deserializer);
+            let api_username = <crate::api::types::UiUsername>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -5426,9 +5427,9 @@ fn wire__crate__api__user_cubit__UserCubitBase_remove_user_handle_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::user_cubit::UserCubitBase::remove_user_handle(
+                        let output_ok = crate::api::user_cubit::UserCubitBase::remove_username(
                             &*api_that_guard,
-                            api_user_handle,
+                            api_username,
                         )
                         .await?;
                         Ok(output_ok)
@@ -8095,14 +8096,14 @@ fn wire__crate__api__logging__tar_logs_impl(
         },
     )
 }
-fn wire__crate__api__types__ui_user_handle_validation_error_impl(
+fn wire__crate__api__types__ui_username_validation_error_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "ui_user_handle_validation_error",
+            debug_name: "ui_username_validation_error",
             port: None,
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
@@ -8116,11 +8117,11 @@ fn wire__crate__api__types__ui_user_handle_validation_error_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <crate::api::types::UiUserHandle>::sse_decode(&mut deserializer);
+            let api_that = <crate::api::types::UiUsername>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
                 let output_ok = Result::<_, ()>::Ok(
-                    crate::api::types::UiUserHandle::validation_error(&api_that),
+                    crate::api::types::UiUsername::validation_error(&api_that),
                 )?;
                 Ok(output_ok)
             })())
@@ -8458,10 +8459,10 @@ flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
-    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserHandleHash>
+    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserSettingsCubitBase>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
-    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserSettingsCubitBase>
+    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UsernameHash>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UsersCubitBase>
@@ -8630,21 +8631,21 @@ impl SseDecode for UserCubitBase {
     }
 }
 
-impl SseDecode for UserHandleHash {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <RustOpaqueMoi<
-            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserHandleHash>,
-        >>::sse_decode(deserializer);
-        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
-    }
-}
-
 impl SseDecode for UserSettingsCubitBase {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <RustOpaqueMoi<
             flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserSettingsCubitBase>,
+        >>::sse_decode(deserializer);
+        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
+    }
+}
+
+impl SseDecode for UsernameHash {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <RustOpaqueMoi<
+            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UsernameHash>,
         >>::sse_decode(deserializer);
         return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
     }
@@ -8881,7 +8882,9 @@ impl SseDecode
 }
 
 impl SseDecode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserHandleHash>>
+    for RustOpaqueMoi<
+        flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserSettingsCubitBase>,
+    >
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -8891,9 +8894,7 @@ impl SseDecode
 }
 
 impl SseDecode
-    for RustOpaqueMoi<
-        flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserSettingsCubitBase>,
-    >
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UsernameHash>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -9110,15 +9111,15 @@ impl SseDecode for crate::api::chat_details_cubit::AcceptContactRequestError {
     }
 }
 
-impl SseDecode for crate::api::types::AddHandleContactError {
+impl SseDecode for crate::api::types::AddUsernameContactError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
-            0 => crate::api::types::AddHandleContactError::HandleNotFound,
-            1 => crate::api::types::AddHandleContactError::DuplicateRequest,
-            2 => crate::api::types::AddHandleContactError::OwnHandle,
-            _ => unreachable!("Invalid variant for AddHandleContactError: {}", inner),
+            0 => crate::api::types::AddUsernameContactError::UsernameNotFound,
+            1 => crate::api::types::AddUsernameContactError::DuplicateRequest,
+            2 => crate::api::types::AddUsernameContactError::OwnUsername,
+            _ => unreachable!("Invalid variant for AddUsernameContactError: {}", inner),
         };
     }
 }
@@ -9869,18 +9870,6 @@ impl SseDecode for Vec<crate::api::invitation_codes_cubit::UiInvitationCode> {
     }
 }
 
-impl SseDecode for Vec<crate::api::types::UiUserHandle> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = Vec::with_capacity(len_ as usize);
-        for idx_ in 0..len_ {
-            ans_.push(<crate::api::types::UiUserHandle>::sse_decode(deserializer));
-        }
-        return ans_;
-    }
-}
-
 impl SseDecode for Vec<crate::api::types::UiUserId> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -9888,6 +9877,18 @@ impl SseDecode for Vec<crate::api::types::UiUserId> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::types::UiUserId>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::types::UiUsername> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::types::UiUsername>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -10183,11 +10184,11 @@ impl SseDecode for Option<User> {
     }
 }
 
-impl SseDecode for Option<UserHandleHash> {
+impl SseDecode for Option<UsernameHash> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(<UserHandleHash>::sse_decode(deserializer));
+            return Some(<UsernameHash>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -10209,11 +10210,11 @@ impl SseDecode for Option<crate::api::chat_details_cubit::AcceptContactRequestEr
     }
 }
 
-impl SseDecode for Option<crate::api::types::AddHandleContactError> {
+impl SseDecode for Option<crate::api::types::AddUsernameContactError> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(<crate::api::types::AddHandleContactError>::sse_decode(
+            return Some(<crate::api::types::AddUsernameContactError>::sse_decode(
                 deserializer,
             ));
         } else {
@@ -10534,22 +10535,22 @@ impl SseDecode for Option<crate::api::types::UiMessageDraft> {
     }
 }
 
-impl SseDecode for Option<crate::api::types::UiUserHandle> {
+impl SseDecode for Option<crate::api::types::UiUserId> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(<crate::api::types::UiUserHandle>::sse_decode(deserializer));
+            return Some(<crate::api::types::UiUserId>::sse_decode(deserializer));
         } else {
             return None;
         }
     }
 }
 
-impl SseDecode for Option<crate::api::types::UiUserId> {
+impl SseDecode for Option<crate::api::types::UiUsername> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(<crate::api::types::UiUserId>::sse_decode(deserializer));
+            return Some(<crate::api::types::UiUsername>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -10569,11 +10570,11 @@ impl SseDecode for Option<crate::api::chat_details_cubit::UploadAttachmentError>
     }
 }
 
-impl SseDecode for Option<crate::api::types::UserHandleValidationError> {
+impl SseDecode for Option<crate::api::types::UsernameValidationError> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(<crate::api::types::UserHandleValidationError>::sse_decode(
+            return Some(<crate::api::types::UsernameValidationError>::sse_decode(
                 deserializer,
             ));
         } else {
@@ -10897,7 +10898,7 @@ impl SseDecode for crate::api::types::UiChatType {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
-                let mut var_field0 = <crate::api::types::UiUserHandle>::sse_decode(deserializer);
+                let mut var_field0 = <crate::api::types::UiUsername>::sse_decode(deserializer);
                 return crate::api::types::UiChatType::HandleConnection(var_field0);
             }
             1 => {
@@ -11200,11 +11201,10 @@ impl SseDecode for crate::api::types::UiSystemMessage {
             }
             4 => {
                 let mut var_sender = <crate::api::types::UiUserId>::sse_decode(deserializer);
-                let mut var_userHandle =
-                    <crate::api::types::UiUserHandle>::sse_decode(deserializer);
+                let mut var_username = <crate::api::types::UiUsername>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::ReceivedHandleConnectionRequest {
                     sender: var_sender,
-                    user_handle: var_userHandle,
+                    username: var_username,
                 };
             }
             5 => {
@@ -11217,24 +11217,24 @@ impl SseDecode for crate::api::types::UiSystemMessage {
             }
             6 => {
                 let mut var_sender = <crate::api::types::UiUserId>::sse_decode(deserializer);
-                let mut var_userHandle =
-                    <Option<crate::api::types::UiUserHandle>>::sse_decode(deserializer);
+                let mut var_username =
+                    <Option<crate::api::types::UiUsername>>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::AcceptedConnectionRequest {
                     sender: var_sender,
-                    user_handle: var_userHandle,
+                    username: var_username,
                 };
             }
             7 => {
                 let mut var_sender = <crate::api::types::UiUserId>::sse_decode(deserializer);
-                let mut var_userHandle =
-                    <Option<crate::api::types::UiUserHandle>>::sse_decode(deserializer);
+                let mut var_username =
+                    <Option<crate::api::types::UiUsername>>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::ReceivedConnectionConfirmation {
                     sender: var_sender,
-                    user_handle: var_userHandle,
+                    username: var_username,
                 };
             }
             8 => {
-                let mut var_field0 = <crate::api::types::UiUserHandle>::sse_decode(deserializer);
+                let mut var_field0 = <crate::api::types::UiUsername>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::NewHandleConnectionChat(var_field0);
             }
             9 => {
@@ -11249,16 +11249,6 @@ impl SseDecode for crate::api::types::UiSystemMessage {
                 unimplemented!("");
             }
         }
-    }
-}
-
-impl SseDecode for crate::api::types::UiUserHandle {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_plaintext = <String>::sse_decode(deserializer);
-        return crate::api::types::UiUserHandle {
-            plaintext: var_plaintext,
-        };
     }
 }
 
@@ -11289,6 +11279,16 @@ impl SseDecode for crate::api::types::UiUserProfile {
     }
 }
 
+impl SseDecode for crate::api::types::UiUsername {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_plaintext = <String>::sse_decode(deserializer);
+        return crate::api::types::UiUsername {
+            plaintext: var_plaintext,
+        };
+    }
+}
+
 impl SseDecode for () {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {}
@@ -11314,21 +11314,6 @@ impl SseDecode for crate::api::chat_details_cubit::UploadAttachmentError {
     }
 }
 
-impl SseDecode for crate::api::types::UserHandleValidationError {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <i32>::sse_decode(deserializer);
-        return match inner {
-            0 => crate::api::types::UserHandleValidationError::TooShort,
-            1 => crate::api::types::UserHandleValidationError::TooLong,
-            2 => crate::api::types::UserHandleValidationError::InvalidCharacter,
-            3 => crate::api::types::UserHandleValidationError::ConsecutiveDashes,
-            4 => crate::api::types::UserHandleValidationError::LeadingDigit,
-            _ => unreachable!("Invalid variant for UserHandleValidationError: {}", inner),
-        };
-    }
-}
-
 impl SseDecode for crate::api::user_settings_cubit::UserSettings {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11343,6 +11328,21 @@ impl SseDecode for crate::api::user_settings_cubit::UserSettings {
             sidebar_width: var_sidebarWidth,
             send_on_enter: var_sendOnEnter,
             read_receipts: var_readReceipts,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::UsernameValidationError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::UsernameValidationError::TooShort,
+            1 => crate::api::types::UsernameValidationError::TooLong,
+            2 => crate::api::types::UsernameValidationError::InvalidCharacter,
+            3 => crate::api::types::UsernameValidationError::ConsecutiveDashes,
+            4 => crate::api::types::UsernameValidationError::LeadingDigit,
+            _ => unreachable!("Invalid variant for UsernameValidationError: {}", inner),
         };
     }
 }
@@ -11421,11 +11421,11 @@ fn pde_ffi_dispatcher_primary_impl(
 79 => wire__crate__api__navigation_cubit__NavigationCubitBase_open_user_profile_impl(port, ptr, rust_vec_len, data_len),
 82 => wire__crate__api__navigation_cubit__NavigationCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
 87 => wire__crate__api__user_cubit__UserCubitBase_add_contact_from_group_impl(port, ptr, rust_vec_len, data_len),
-88 => wire__crate__api__user_cubit__UserCubitBase_add_user_handle_impl(port, ptr, rust_vec_len, data_len),
+88 => wire__crate__api__user_cubit__UserCubitBase_add_username_impl(port, ptr, rust_vec_len, data_len),
 89 => wire__crate__api__user_cubit__UserCubitBase_add_users_to_chat_impl(port, ptr, rust_vec_len, data_len),
 90 => wire__crate__api__user_cubit__UserCubitBase_addable_contacts_impl(port, ptr, rust_vec_len, data_len),
 91 => wire__crate__api__user_cubit__UserCubitBase_block_contact_impl(port, ptr, rust_vec_len, data_len),
-92 => wire__crate__api__user_cubit__UserCubitBase_check_handle_exists_impl(port, ptr, rust_vec_len, data_len),
+92 => wire__crate__api__user_cubit__UserCubitBase_check_username_exists_impl(port, ptr, rust_vec_len, data_len),
 93 => wire__crate__api__user_cubit__UserCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
 94 => wire__crate__api__user_cubit__UserCubitBase_contact_impl(port, ptr, rust_vec_len, data_len),
 95 => wire__crate__api__user_cubit__UserCubitBase_contacts_impl(port, ptr, rust_vec_len, data_len),
@@ -11433,7 +11433,7 @@ fn pde_ffi_dispatcher_primary_impl(
 97 => wire__crate__api__user_cubit__UserCubitBase_delete_chat_impl(port, ptr, rust_vec_len, data_len),
 99 => wire__crate__api__user_cubit__UserCubitBase_leave_chat_impl(port, ptr, rust_vec_len, data_len),
 101 => wire__crate__api__user_cubit__UserCubitBase_remove_user_from_chat_impl(port, ptr, rust_vec_len, data_len),
-102 => wire__crate__api__user_cubit__UserCubitBase_remove_user_handle_impl(port, ptr, rust_vec_len, data_len),
+102 => wire__crate__api__user_cubit__UserCubitBase_remove_username_impl(port, ptr, rust_vec_len, data_len),
 103 => wire__crate__api__user_cubit__UserCubitBase_report_spam_impl(port, ptr, rust_vec_len, data_len),
 104 => wire__crate__api__user_cubit__UserCubitBase_safety_codes_impl(port, ptr, rust_vec_len, data_len),
 105 => wire__crate__api__user_cubit__UserCubitBase_set_app_state_impl(port, ptr, rust_vec_len, data_len),
@@ -11625,8 +11625,8 @@ fn pde_ffi_dispatcher_sync_impl(
             rust_vec_len,
             data_len,
         ),
-        85 => wire__crate__api__user_cubit__UiUser_user_handles_impl(ptr, rust_vec_len, data_len),
-        86 => wire__crate__api__user_cubit__UiUser_user_id_impl(ptr, rust_vec_len, data_len),
+        85 => wire__crate__api__user_cubit__UiUser_user_id_impl(ptr, rust_vec_len, data_len),
+        86 => wire__crate__api__user_cubit__UiUser_usernames_impl(ptr, rust_vec_len, data_len),
         98 => {
             wire__crate__api__user_cubit__UserCubitBase_is_closed_impl(ptr, rust_vec_len, data_len)
         }
@@ -11673,11 +11673,9 @@ fn pde_ffi_dispatcher_sync_impl(
             rust_vec_len,
             data_len,
         ),
-        163 => wire__crate__api__types__ui_user_handle_validation_error_impl(
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
+        163 => {
+            wire__crate__api__types__ui_username_validation_error_impl(ptr, rust_vec_len, data_len)
+        }
         164 => wire__crate__api__username_suggestions__username_from_display_impl(
             ptr,
             rust_vec_len,
@@ -11944,21 +11942,6 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<UserCubitBase>> for UserCubitB
 }
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<UserHandleHash> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
-            .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<UserHandleHash> {}
-
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<UserHandleHash>> for UserHandleHash {
-    fn into_into_dart(self) -> FrbWrapper<UserHandleHash> {
-        self.into()
-    }
-}
-
-// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<UserSettingsCubitBase> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
@@ -11974,6 +11957,21 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<UserSettingsCubitBase>>
     for UserSettingsCubitBase
 {
     fn into_into_dart(self) -> FrbWrapper<UserSettingsCubitBase> {
+        self.into()
+    }
+}
+
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<UsernameHash> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
+            .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<UsernameHash> {}
+
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<UsernameHash>> for UsernameHash {
+    fn into_into_dart(self) -> FrbWrapper<UsernameHash> {
         self.into()
     }
 }
@@ -12039,24 +12037,24 @@ impl
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AddHandleContactError> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AddUsernameContactError> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self.0 {
-            crate::api::types::AddHandleContactError::HandleNotFound => 0.into_dart(),
-            crate::api::types::AddHandleContactError::DuplicateRequest => 1.into_dart(),
-            crate::api::types::AddHandleContactError::OwnHandle => 2.into_dart(),
+            crate::api::types::AddUsernameContactError::UsernameNotFound => 0.into_dart(),
+            crate::api::types::AddUsernameContactError::DuplicateRequest => 1.into_dart(),
+            crate::api::types::AddUsernameContactError::OwnUsername => 2.into_dart(),
             _ => unreachable!(),
         }
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::types::AddHandleContactError>
+    for FrbWrapper<crate::api::types::AddUsernameContactError>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::AddHandleContactError>>
-    for crate::api::types::AddHandleContactError
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::AddUsernameContactError>>
+    for crate::api::types::AddUsernameContactError
 {
-    fn into_into_dart(self) -> FrbWrapper<crate::api::types::AddHandleContactError> {
+    fn into_into_dart(self) -> FrbWrapper<crate::api::types::AddUsernameContactError> {
         self.into()
     }
 }
@@ -13707,11 +13705,11 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
             }
             crate::api::types::UiSystemMessage::ReceivedHandleConnectionRequest {
                 sender,
-                user_handle,
+                username,
             } => [
                 4.into_dart(),
                 sender.into_into_dart().into_dart(),
-                user_handle.into_into_dart().into_dart(),
+                username.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::api::types::UiSystemMessage::ReceivedDirectConnectionRequest {
@@ -13723,22 +13721,19 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
                 chat_name.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::api::types::UiSystemMessage::AcceptedConnectionRequest {
-                sender,
-                user_handle,
-            } => [
+            crate::api::types::UiSystemMessage::AcceptedConnectionRequest { sender, username } => [
                 6.into_dart(),
                 sender.into_into_dart().into_dart(),
-                user_handle.into_into_dart().into_dart(),
+                username.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::api::types::UiSystemMessage::ReceivedConnectionConfirmation {
                 sender,
-                user_handle,
+                username,
             } => [
                 7.into_dart(),
                 sender.into_into_dart().into_dart(),
-                user_handle.into_into_dart().into_dart(),
+                username.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::api::types::UiSystemMessage::NewHandleConnectionChat(field0) => {
@@ -13764,23 +13759,6 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiSystemMessage>
     for crate::api::types::UiSystemMessage
 {
     fn into_into_dart(self) -> crate::api::types::UiSystemMessage {
-        self
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::types::UiUserHandle {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [self.plaintext.into_into_dart().into_dart()].into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::types::UiUserHandle
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiUserHandle>
-    for crate::api::types::UiUserHandle
-{
-    fn into_into_dart(self) -> crate::api::types::UiUserHandle {
         self
     }
 }
@@ -13825,6 +13803,20 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiUserProfile>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::UiUsername {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [self.plaintext.into_into_dart().into_dart()].into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::UiUsername {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiUsername>
+    for crate::api::types::UiUsername
+{
+    fn into_into_dart(self) -> crate::api::types::UiUsername {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::chat_details_cubit::UploadAttachmentError {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -13855,30 +13847,6 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::chat_details_cubit::UploadAtt
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::UserHandleValidationError> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        match self.0 {
-            crate::api::types::UserHandleValidationError::TooShort => 0.into_dart(),
-            crate::api::types::UserHandleValidationError::TooLong => 1.into_dart(),
-            crate::api::types::UserHandleValidationError::InvalidCharacter => 2.into_dart(),
-            crate::api::types::UserHandleValidationError::ConsecutiveDashes => 3.into_dart(),
-            crate::api::types::UserHandleValidationError::LeadingDigit => 4.into_dart(),
-            _ => unreachable!(),
-        }
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::types::UserHandleValidationError>
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::UserHandleValidationError>>
-    for crate::api::types::UserHandleValidationError
-{
-    fn into_into_dart(self) -> FrbWrapper<crate::api::types::UserHandleValidationError> {
-        self.into()
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::user_settings_cubit::UserSettings {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -13900,6 +13868,30 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::user_settings_cubit::UserSett
 {
     fn into_into_dart(self) -> crate::api::user_settings_cubit::UserSettings {
         self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::UsernameValidationError> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self.0 {
+            crate::api::types::UsernameValidationError::TooShort => 0.into_dart(),
+            crate::api::types::UsernameValidationError::TooLong => 1.into_dart(),
+            crate::api::types::UsernameValidationError::InvalidCharacter => 2.into_dart(),
+            crate::api::types::UsernameValidationError::ConsecutiveDashes => 3.into_dart(),
+            crate::api::types::UsernameValidationError::LeadingDigit => 4.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::types::UsernameValidationError>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::UsernameValidationError>>
+    for crate::api::types::UsernameValidationError
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::types::UsernameValidationError> {
+        self.into()
     }
 }
 
@@ -14048,13 +14040,6 @@ impl SseEncode for UserCubitBase {
     }
 }
 
-impl SseEncode for UserHandleHash {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserHandleHash>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
-    }
-}
-
 impl SseEncode for UserSettingsCubitBase {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -14064,6 +14049,13 @@ impl SseEncode for UserSettingsCubitBase {
             flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self),
             serializer,
         );
+    }
+}
+
+impl SseEncode for UsernameHash {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UsernameHash>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
     }
 }
 
@@ -14297,7 +14289,9 @@ impl SseEncode
 }
 
 impl SseEncode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserHandleHash>>
+    for RustOpaqueMoi<
+        flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserSettingsCubitBase>,
+    >
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -14308,9 +14302,7 @@ impl SseEncode
 }
 
 impl SseEncode
-    for RustOpaqueMoi<
-        flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserSettingsCubitBase>,
-    >
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UsernameHash>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -14516,14 +14508,14 @@ impl SseEncode for crate::api::chat_details_cubit::AcceptContactRequestError {
     }
 }
 
-impl SseEncode for crate::api::types::AddHandleContactError {
+impl SseEncode for crate::api::types::AddUsernameContactError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(
             match self {
-                crate::api::types::AddHandleContactError::HandleNotFound => 0,
-                crate::api::types::AddHandleContactError::DuplicateRequest => 1,
-                crate::api::types::AddHandleContactError::OwnHandle => 2,
+                crate::api::types::AddUsernameContactError::UsernameNotFound => 0,
+                crate::api::types::AddUsernameContactError::DuplicateRequest => 1,
+                crate::api::types::AddUsernameContactError::OwnUsername => 2,
                 _ => {
                     unimplemented!("");
                 }
@@ -15131,22 +15123,22 @@ impl SseEncode for Vec<crate::api::invitation_codes_cubit::UiInvitationCode> {
     }
 }
 
-impl SseEncode for Vec<crate::api::types::UiUserHandle> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(self.len() as _, serializer);
-        for item in self {
-            <crate::api::types::UiUserHandle>::sse_encode(item, serializer);
-        }
-    }
-}
-
 impl SseEncode for Vec<crate::api::types::UiUserId> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::types::UiUserId>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::types::UiUsername> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::types::UiUsername>::sse_encode(item, serializer);
         }
     }
 }
@@ -15387,12 +15379,12 @@ impl SseEncode for Option<User> {
     }
 }
 
-impl SseEncode for Option<UserHandleHash> {
+impl SseEncode for Option<UsernameHash> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <UserHandleHash>::sse_encode(value, serializer);
+            <UsernameHash>::sse_encode(value, serializer);
         }
     }
 }
@@ -15409,12 +15401,12 @@ impl SseEncode for Option<crate::api::chat_details_cubit::AcceptContactRequestEr
     }
 }
 
-impl SseEncode for Option<crate::api::types::AddHandleContactError> {
+impl SseEncode for Option<crate::api::types::AddUsernameContactError> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <crate::api::types::AddHandleContactError>::sse_encode(value, serializer);
+            <crate::api::types::AddUsernameContactError>::sse_encode(value, serializer);
         }
     }
 }
@@ -15677,22 +15669,22 @@ impl SseEncode for Option<crate::api::types::UiMessageDraft> {
     }
 }
 
-impl SseEncode for Option<crate::api::types::UiUserHandle> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <bool>::sse_encode(self.is_some(), serializer);
-        if let Some(value) = self {
-            <crate::api::types::UiUserHandle>::sse_encode(value, serializer);
-        }
-    }
-}
-
 impl SseEncode for Option<crate::api::types::UiUserId> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::types::UiUserId>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::types::UiUsername> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::types::UiUsername>::sse_encode(value, serializer);
         }
     }
 }
@@ -15707,12 +15699,12 @@ impl SseEncode for Option<crate::api::chat_details_cubit::UploadAttachmentError>
     }
 }
 
-impl SseEncode for Option<crate::api::types::UserHandleValidationError> {
+impl SseEncode for Option<crate::api::types::UsernameValidationError> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <crate::api::types::UserHandleValidationError>::sse_encode(value, serializer);
+            <crate::api::types::UsernameValidationError>::sse_encode(value, serializer);
         }
     }
 }
@@ -15968,7 +15960,7 @@ impl SseEncode for crate::api::types::UiChatType {
         match self {
             crate::api::types::UiChatType::HandleConnection(field0) => {
                 <i32>::sse_encode(0, serializer);
-                <crate::api::types::UiUserHandle>::sse_encode(field0, serializer);
+                <crate::api::types::UiUsername>::sse_encode(field0, serializer);
             }
             crate::api::types::UiChatType::Connection(field0) => {
                 <i32>::sse_encode(1, serializer);
@@ -16223,11 +16215,11 @@ impl SseEncode for crate::api::types::UiSystemMessage {
             }
             crate::api::types::UiSystemMessage::ReceivedHandleConnectionRequest {
                 sender,
-                user_handle,
+                username,
             } => {
                 <i32>::sse_encode(4, serializer);
                 <crate::api::types::UiUserId>::sse_encode(sender, serializer);
-                <crate::api::types::UiUserHandle>::sse_encode(user_handle, serializer);
+                <crate::api::types::UiUsername>::sse_encode(username, serializer);
             }
             crate::api::types::UiSystemMessage::ReceivedDirectConnectionRequest {
                 sender,
@@ -16237,25 +16229,22 @@ impl SseEncode for crate::api::types::UiSystemMessage {
                 <crate::api::types::UiUserId>::sse_encode(sender, serializer);
                 <String>::sse_encode(chat_name, serializer);
             }
-            crate::api::types::UiSystemMessage::AcceptedConnectionRequest {
-                sender,
-                user_handle,
-            } => {
+            crate::api::types::UiSystemMessage::AcceptedConnectionRequest { sender, username } => {
                 <i32>::sse_encode(6, serializer);
                 <crate::api::types::UiUserId>::sse_encode(sender, serializer);
-                <Option<crate::api::types::UiUserHandle>>::sse_encode(user_handle, serializer);
+                <Option<crate::api::types::UiUsername>>::sse_encode(username, serializer);
             }
             crate::api::types::UiSystemMessage::ReceivedConnectionConfirmation {
                 sender,
-                user_handle,
+                username,
             } => {
                 <i32>::sse_encode(7, serializer);
                 <crate::api::types::UiUserId>::sse_encode(sender, serializer);
-                <Option<crate::api::types::UiUserHandle>>::sse_encode(user_handle, serializer);
+                <Option<crate::api::types::UiUsername>>::sse_encode(username, serializer);
             }
             crate::api::types::UiSystemMessage::NewHandleConnectionChat(field0) => {
                 <i32>::sse_encode(8, serializer);
-                <crate::api::types::UiUserHandle>::sse_encode(field0, serializer);
+                <crate::api::types::UiUsername>::sse_encode(field0, serializer);
             }
             crate::api::types::UiSystemMessage::NewDirectConnectionChat(field0) => {
                 <i32>::sse_encode(9, serializer);
@@ -16269,13 +16258,6 @@ impl SseEncode for crate::api::types::UiSystemMessage {
                 unimplemented!("");
             }
         }
-    }
-}
-
-impl SseEncode for crate::api::types::UiUserHandle {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.plaintext, serializer);
     }
 }
 
@@ -16293,6 +16275,13 @@ impl SseEncode for crate::api::types::UiUserProfile {
         <crate::api::types::UiUserId>::sse_encode(self.user_id, serializer);
         <String>::sse_encode(self.display_name, serializer);
         <Option<crate::api::types::ImageData>>::sse_encode(self.profile_picture, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::UiUsername {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.plaintext, serializer);
     }
 }
 
@@ -16320,25 +16309,6 @@ impl SseEncode for crate::api::chat_details_cubit::UploadAttachmentError {
     }
 }
 
-impl SseEncode for crate::api::types::UserHandleValidationError {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(
-            match self {
-                crate::api::types::UserHandleValidationError::TooShort => 0,
-                crate::api::types::UserHandleValidationError::TooLong => 1,
-                crate::api::types::UserHandleValidationError::InvalidCharacter => 2,
-                crate::api::types::UserHandleValidationError::ConsecutiveDashes => 3,
-                crate::api::types::UserHandleValidationError::LeadingDigit => 4,
-                _ => {
-                    unimplemented!("");
-                }
-            },
-            serializer,
-        );
-    }
-}
-
 impl SseEncode for crate::api::user_settings_cubit::UserSettings {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -16347,6 +16317,25 @@ impl SseEncode for crate::api::user_settings_cubit::UserSettings {
         <f64>::sse_encode(self.sidebar_width, serializer);
         <bool>::sse_encode(self.send_on_enter, serializer);
         <bool>::sse_encode(self.read_receipts, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::UsernameValidationError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::UsernameValidationError::TooShort => 0,
+                crate::api::types::UsernameValidationError::TooLong => 1,
+                crate::api::types::UsernameValidationError::InvalidCharacter => 2,
+                crate::api::types::UsernameValidationError::ConsecutiveDashes => 3,
+                crate::api::types::UsernameValidationError::LeadingDigit => 4,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
     }
 }
 
@@ -16604,20 +16593,6 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserHandleHash>>::increment_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserHandleHash>>::decrement_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
         ptr: *const std::ffi::c_void,
     ) {
@@ -16629,6 +16604,20 @@ mod io {
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserSettingsCubitBase>>::decrement_strong_count(ptr as _);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UsernameHash>>::increment_strong_count(ptr as _);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UsernameHash>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
@@ -16909,20 +16898,6 @@ mod web {
     }
 
     #[wasm_bindgen]
-    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserHandleHash>>::increment_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserHandleHash>>::decrement_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
     pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
         ptr: *const std::ffi::c_void,
     ) {
@@ -16934,6 +16909,20 @@ mod web {
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserSettingsCubitBase>>::decrement_strong_count(ptr as _);
+    }
+
+    #[wasm_bindgen]
+    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UsernameHash>>::increment_strong_count(ptr as _);
+    }
+
+    #[wasm_bindgen]
+    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UsernameHash>>::decrement_strong_count(ptr as _);
     }
 
     #[wasm_bindgen]

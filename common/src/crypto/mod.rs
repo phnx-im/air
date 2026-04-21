@@ -19,17 +19,17 @@ use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 use crate::{
     LibraryError,
-    crypto::{ear::EarEncryptable, kdf::keys::ConnectionKeyType},
+    crypto::{aead::AeadEncryptable, kdf::keys::ConnectionKeyType},
     messages::QueueMessage,
 };
 
 use self::{
-    ear::{EarDecryptable, keys::RatchetKey},
+    aead::{AeadDecryptable, keys::RatchetKey},
     errors::RandomnessError,
     kdf::{KdfDerivable, keys::RatchetSecret},
 };
 
-pub mod ear;
+pub mod aead;
 pub mod errors;
 pub mod hash;
 pub mod hpke;

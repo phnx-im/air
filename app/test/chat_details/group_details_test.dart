@@ -32,7 +32,7 @@ void main() {
       ).thenReturn(MockUsersState(profiles: userProfiles));
       when(
         () => userCubit.state,
-      ).thenReturn(MockUiUser(id: 1, userHandles: const []));
+      ).thenReturn(MockUiUser(id: 1, usernames: const []));
     });
 
     Widget buildSubject({List<UiUserId> members = const []}) {

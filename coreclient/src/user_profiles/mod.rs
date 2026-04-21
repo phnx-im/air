@@ -11,7 +11,7 @@ use aircommon::{
     LibraryError,
     credentials::keys::{ClientKeyType, ClientSignature, PreliminaryClientKeyType},
     crypto::{
-        ear::{EarDecryptable, EarEncryptable},
+        aead::{AeadDecryptable, AeadEncryptable},
         indexed_aead::{
             ciphertexts::{IndexDecryptable, IndexEncryptable},
             keys::{UserProfileKey, UserProfileKeyIndex, UserProfileKeyType},
@@ -259,8 +259,8 @@ impl Asset {
 #[derive(Debug, TlsSize, TlsSerialize)]
 pub(crate) struct EncryptableUserProfile(SignedUserProfile);
 
-impl EarEncryptable<UserProfileKey, EncryptedUserProfileCtype> for EncryptableUserProfile {}
-impl EarDecryptable<UserProfileKey, EncryptedUserProfileCtype> for VerifiableUserProfile {}
+impl AeadEncryptable<UserProfileKey, EncryptedUserProfileCtype> for EncryptableUserProfile {}
+impl AeadDecryptable<UserProfileKey, EncryptedUserProfileCtype> for VerifiableUserProfile {}
 
 impl IndexEncryptable<UserProfileKeyType, EncryptedUserProfileCtype> for EncryptableUserProfile {}
 impl IndexDecryptable<UserProfileKeyType, EncryptedUserProfileCtype> for VerifiableUserProfile {}
