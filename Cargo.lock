@@ -76,7 +76,7 @@ dependencies = [
 
 [[package]]
 name = "airapiclient"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "aircommon",
  "airprotos",
@@ -99,7 +99,7 @@ dependencies = [
 
 [[package]]
 name = "airapplogic"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "aircommon",
  "aircoreclient",
@@ -145,7 +145,7 @@ dependencies = [
 
 [[package]]
 name = "airbackend"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "aircommon",
  "airprotos",
@@ -189,7 +189,7 @@ dependencies = [
 
 [[package]]
 name = "aircommon"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "aes-gcm",
  "airmacros",
@@ -223,7 +223,7 @@ dependencies = [
 
 [[package]]
 name = "aircoreclient"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "airapiclient",
  "airbackend",
@@ -238,7 +238,6 @@ dependencies = [
  "derive_more 0.99.20",
  "displaydoc",
  "enumset",
- "flate2",
  "hex",
  "image",
  "infer",
@@ -258,7 +257,6 @@ dependencies = [
  "serde_json",
  "sha2",
  "sqlx",
- "tar",
  "tempfile",
  "thiserror 2.0.18",
  "tls_codec",
@@ -275,7 +273,7 @@ dependencies = [
 
 [[package]]
 name = "airmacros"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "ciborium",
  "proc-macro2",
@@ -287,7 +285,7 @@ dependencies = [
 
 [[package]]
 name = "airprotos"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "aircommon",
  "airmacros",
@@ -306,6 +304,7 @@ dependencies = [
  "serde",
  "serde_bytes",
  "sha2",
+ "strum",
  "thiserror 2.0.18",
  "tls_codec",
  "tonic",
@@ -316,7 +315,7 @@ dependencies = [
 
 [[package]]
 name = "airserver"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "airapiclient",
  "airbackend",
@@ -368,7 +367,7 @@ dependencies = [
 
 [[package]]
 name = "airserver_test_harness"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "airbackend",
  "aircommon",
@@ -4470,7 +4469,7 @@ dependencies = [
 
 [[package]]
 name = "mls-assist"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "chrono",
  "openmls",
@@ -6821,6 +6820,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
+name = "strum"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9628de9b8791db39ceda2b119bbe13134770b56c138ec1d3af810d045c04f9bd"
+dependencies = [
+ "strum_macros",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab85eea0270ee17587ed4156089e10b9e6880ee688791d45a905f5b1ca36f664"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8643,7 +8663,7 @@ checksum = "32ac00cd3f8ec9c1d33fb3e7958a82df6989c42d747bd326c822b1d625283547"
 
 [[package]]
 name = "xtask"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "anyhow",
  "camino",

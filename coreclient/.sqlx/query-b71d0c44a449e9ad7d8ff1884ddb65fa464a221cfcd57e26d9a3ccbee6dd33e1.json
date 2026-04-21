@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO batched_token_key\n            (token_key_id, operation_type, public_key)\n            VALUES (?, ?, ?)\n            ON CONFLICT (operation_type, token_key_id)\n            DO UPDATE SET public_key = excluded.public_key",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "b71d0c44a449e9ad7d8ff1884ddb65fa464a221cfcd57e26d9a3ccbee6dd33e1"
+}

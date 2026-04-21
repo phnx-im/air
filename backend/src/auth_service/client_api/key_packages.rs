@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    identifiers::UserHandleHash,
+    identifiers::UsernameHash,
     messages::connection_package::{VersionedConnectionPackage, VersionedConnectionPackageIn},
 };
 
@@ -15,7 +15,7 @@ use crate::{
 impl AuthService {
     pub(crate) async fn as_publish_connection_packages_for_handle(
         &self,
-        hash: &UserHandleHash,
+        hash: &UsernameHash,
         connection_packages: Vec<VersionedConnectionPackageIn>,
     ) -> Result<(), PublishConnectionPackageError> {
         // TODO(#496): Last resort connection package
@@ -27,7 +27,7 @@ impl AuthService {
             })
             .collect::<Result<Vec<VersionedConnectionPackage>, PublishConnectionPackageError>>()?;
 
-        StorableConnectionPackage::store_multiple_for_handle(
+        StorableConnectionPackage::store_multiple_for_username(
             &self.db_pool,
             &connection_packages,
             hash,

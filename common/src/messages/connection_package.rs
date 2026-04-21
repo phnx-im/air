@@ -8,14 +8,14 @@ use tls_codec::{Serialize as _, TlsSerialize, TlsSize};
 
 use crate::{
     LibraryError,
-    credentials::keys::{HandleSignature, HandleSigningKey},
+    credentials::keys::{UsernameSignature, UsernameSigningKey},
     crypto::{
         ConnectionDecryptionKey, ConnectionEncryptionKey, Labeled,
         errors::RandomnessError,
         hash::{Hash, Hashable},
         signatures::{private_keys::SignatureVerificationError, signable::Signable},
     },
-    identifiers::UserHandleHash,
+    identifiers::UsernameHash,
     messages::{
         AirProtocolVersion,
         connection_package::payload::TlsBool,
@@ -83,7 +83,7 @@ impl VersionedConnectionPackageIn {
 mod payload {
     use super::*;
     use crate::{
-        credentials::keys::{HandleKeyType, HandleVerifyingKey},
+        credentials::keys::{UsernameKeyType, UsernameVerifyingKey},
         crypto::{
             ConnectionEncryptionKey,
             signatures::{
@@ -91,7 +91,7 @@ mod payload {
                 signable::{Signable, SignedStruct, Verifiable, VerifiedStruct},
             },
         },
-        identifiers::UserHandleHash,
+        identifiers::UsernameHash,
         messages::AirProtocolVersion,
         time::ExpirationData,
     };
@@ -126,10 +126,10 @@ mod payload {
     #[derive(Debug, Clone, PartialEq, Eq, TlsSerialize, TlsSize, Serialize, Deserialize)]
     pub struct ConnectionPackagePayload {
         pub protocol_version: AirProtocolVersion,
-        pub user_handle_hash: UserHandleHash,
+        pub user_handle_hash: UsernameHash,
         pub encryption_key: ConnectionEncryptionKey,
         pub lifetime: ExpirationData,
-        pub verifying_key: HandleVerifyingKey,
+        pub verifying_key: UsernameVerifyingKey,
         pub is_last_resort: TlsBool,
     }
 
@@ -150,8 +150,8 @@ mod payload {
         }
     }
 
-    impl SignedStruct<ConnectionPackagePayload, HandleKeyType> for ConnectionPackage {
-        fn from_payload(payload: ConnectionPackagePayload, signature: HandleSignature) -> Self {
+    impl SignedStruct<ConnectionPackagePayload, UsernameKeyType> for ConnectionPackage {
+        fn from_payload(payload: ConnectionPackagePayload, signature: UsernameSignature) -> Self {
             Self { payload, signature }
         }
     }
@@ -159,11 +159,11 @@ mod payload {
     #[derive(Debug)]
     pub struct ConnectionPackageIn {
         payload: ConnectionPackagePayload,
-        signature: HandleSignature,
+        signature: UsernameSignature,
     }
 
     impl ConnectionPackageIn {
-        pub fn new(payload: ConnectionPackagePayload, signature: HandleSignature) -> Self {
+        pub fn new(payload: ConnectionPackagePayload, signature: UsernameSignature) -> Self {
             Self { payload, signature }
         }
 
@@ -210,7 +210,7 @@ impl Hashable for ConnectionPackage {}
 #[derive(Debug, Clone, PartialEq, Eq, TlsSerialize, TlsSize, Serialize, Deserialize)]
 pub struct ConnectionPackage {
     payload: ConnectionPackagePayload,
-    signature: HandleSignature,
+    signature: UsernameSignature,
 }
 
 #[derive(Debug, Error)]
@@ -223,8 +223,8 @@ pub enum ConnectionPackageError {
 
 impl ConnectionPackage {
     pub fn new(
-        user_handle_hash: UserHandleHash,
-        signing_key: &HandleSigningKey,
+        user_handle_hash: UsernameHash,
+        signing_key: &UsernameSigningKey,
         is_last_resort: bool,
     ) -> Result<(ConnectionDecryptionKey, Self), ConnectionPackageError> {
         let decryption_key = ConnectionDecryptionKey::generate()?;
@@ -240,11 +240,11 @@ impl ConnectionPackage {
         Ok((decryption_key, connection_package))
     }
 
-    pub fn from_parts(payload: ConnectionPackagePayload, signature: HandleSignature) -> Self {
+    pub fn from_parts(payload: ConnectionPackagePayload, signature: UsernameSignature) -> Self {
         Self { payload, signature }
     }
 
-    pub fn into_parts(self) -> (ConnectionPackagePayload, HandleSignature) {
+    pub fn into_parts(self) -> (ConnectionPackagePayload, UsernameSignature) {
         (self.payload, self.signature)
     }
 
@@ -261,7 +261,7 @@ impl ConnectionPackage {
     }
 
     #[cfg(feature = "test_utils")]
-    pub fn new_for_test(payload: ConnectionPackagePayload, signature: HandleSignature) -> Self {
+    pub fn new_for_test(payload: ConnectionPackagePayload, signature: UsernameSignature) -> Self {
         Self { payload, signature }
     }
 }

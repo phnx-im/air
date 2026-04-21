@@ -116,8 +116,8 @@ impl EventLoop {
                     responder.send(Ok(result));
                 }
 
-                Incoming::Remote(RemoteQueueEvent::Handle {
-                    handle,
+                Incoming::Remote(RemoteQueueEvent::Username {
+                    username,
                     message,
                     responder,
                 }) => {
@@ -126,7 +126,7 @@ impl EventLoop {
                         return;
                     };
                     let chat_id = core_user
-                        .process_handle_queue_message_event_loop(handle, message)
+                        .process_username_queue_message_event_loop(username, message)
                         .await;
                     responder.send(chat_id.map_err(ResponderError::Fatal));
                 }

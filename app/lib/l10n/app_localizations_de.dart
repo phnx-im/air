@@ -70,7 +70,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get userSettingsScreen_accountSection => 'Konto';
 
   @override
-  String get userSettingsScreen_userHandlePlaceholder => 'Benutzername';
+  String get userSettingsScreen_usernamePlaceholder => 'Benutzername';
+
+  @override
+  String get userSettingsScreen_inviteCodes => 'Invite codes';
 
   @override
   String get settingsScreen_copiedToClipboard => 'In Zwischenablage kopiert';
@@ -272,6 +275,40 @@ class AppLocalizationsDe extends AppLocalizations {
       'Ungültiger Einladungscode. Prüfe den Code und versuche es erneut.';
 
   @override
+  String get invitationCodesScreen_title => 'Invite codes';
+
+  @override
+  String get invitationCodesScreen_copyAll => 'Copy all';
+
+  @override
+  String get invitationCodesScreen_tapToGetCode => 'Tap to get code';
+
+  @override
+  String get invitationCodesScreen_removeUnusedCodes => 'Remove used codes';
+
+  @override
+  String get invitationCodesScreen_empty => 'No invitation codes available';
+
+  @override
+  String get invitationCodesScreen_infoText1 =>
+      'Air is in a limited access phase. Everyone who wants to join needs an invite code.';
+
+  @override
+  String get invitationCodesScreen_infoText2 =>
+      'Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.';
+
+  @override
+  String get invitationCodesScreen_global_quota_exceeded =>
+      'Wir haben im Moment keine Einladungenscode mehr, versuch es bitte später nochmal.';
+
+  @override
+  String get invitationCodesScreen_errorRequestingCode =>
+      'Something went wrong. Try again.';
+
+  @override
+  String get invitationCodesScreen_copiedToClipboard => 'Copied to clipboard';
+
+  @override
   String get signUpScreen_header => 'Erstelle dein Profil';
 
   @override
@@ -321,6 +358,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get usernameOnboarding_addButton => 'Hinzufügen';
 
   @override
+  String get usernameOnboarding_error =>
+      'Bei uns ist ein Fehler aufgetreten. Warte einen Moment und versuche es dann erneut.';
+
+  @override
   String get usernameOnboarding_next => 'Weiter';
 
   @override
@@ -331,47 +372,47 @@ class AppLocalizationsDe extends AppLocalizations {
       'Benutzernamen hinzufügen...';
 
   @override
-  String get userHandleScreen_title => 'Benutzername hinzufügen';
+  String get usernameScreen_title => 'Benutzername hinzufügen';
 
   @override
-  String get userHandleScreen_inputHint => 'Gib einen Benutzernamen ein...';
+  String get usernameScreen_inputHint => 'Gib einen Benutzernamen ein...';
 
   @override
-  String get userHandleScreen_error_emptyHandle =>
+  String get usernameScreen_error_emptyUsername =>
       'Benutzername darf nicht leer sein';
 
   @override
-  String get userHandleScreen_error_alreadyExists =>
+  String get usernameScreen_error_alreadyExists =>
       'Benutzername wird bereits verwendet';
 
   @override
-  String get userHandleScreen_description =>
+  String get usernameScreen_description =>
       'Wähle einen Benutzernamen, den andere verwenden können, um sich mit dir zu verbinden.\n\nVerwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.';
 
   @override
-  String get userHandleScreen_cancel => 'Abbrechen';
+  String get usernameScreen_cancel => 'Abbrechen';
 
   @override
-  String get userHandleScreen_confirm => 'Hinzufügen';
+  String get usernameScreen_confirm => 'Hinzufügen';
 
   @override
-  String get userHandleScreen_error_tooShort =>
+  String get usernameScreen_error_tooShort =>
       'Benutzername muss mindestens 5 Zeichen lang sein';
 
   @override
-  String get userHandleScreen_error_tooLong =>
+  String get usernameScreen_error_tooLong =>
       'Benutzername darf höchstens 63 Zeichen lang sein';
 
   @override
-  String get userHandleScreen_error_invalidCharacter =>
+  String get usernameScreen_error_invalidCharacter =>
       'Benutzername darf nur Buchstaben, Zahlen oder Bindestriche enthalten';
 
   @override
-  String get userHandleScreen_error_consecutiveDashes =>
+  String get usernameScreen_error_consecutiveDashes =>
       'Benutzername darf keine aufeinanderfolgenden Bindestriche enthalten';
 
   @override
-  String get userHandleScreen_error_leadingDigit =>
+  String get usernameScreen_error_leadingDigit =>
       'Benutzername darf nicht mit einer Ziffer beginnen';
 
   @override
@@ -583,11 +624,11 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get newConnectionDialog_error_emptyHandle =>
+  String get newConnectionDialog_error_emptyUsername =>
       'Benutzername darf nicht leer sein';
 
   @override
-  String newConnectionDialog_error_handleNotFound(Object username) {
+  String newConnectionDialog_error_usernameNotFound(Object username) {
     return 'Benutzername $username existiert nicht';
   }
 
@@ -596,7 +637,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Du hast bereits eine ausstehende Kontaktanfrage an diesen Benutzernamen.';
 
   @override
-  String get newConnectionDialog_error_ownHandle =>
+  String get newConnectionDialog_error_ownUsername =>
       'Du kannst dir selbst keine Kontaktanfrage senden.';
 
   @override

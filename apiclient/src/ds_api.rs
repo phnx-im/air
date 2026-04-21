@@ -7,7 +7,7 @@
 use aircommon::{
     LibraryError,
     credentials::keys::ClientSigningKey,
-    crypto::{ear::keys::GroupStateEarKey, signatures::signable::Signable},
+    crypto::{aead::keys::GroupStateEarKey, signatures::signable::Signable},
     identifiers::{AttachmentId, QsReference, QualifiedGroupId},
     messages::{
         client_ds::UserProfileKeyUpdateParams,

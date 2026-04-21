@@ -1054,9 +1054,51 @@ class InReplyToBubble extends StatelessWidget {
             loc.composer_reply_deleted_message_placeholder,
       ),
     };
-    final showJumpIcon = !stretch && inReplyTo is UiInReplyToMessage_Resolved;
+    // Show the jump arrow only in message bubbles when the original message
+    // exists and hasn't been deleted. Don't show the arrow in the compose
+    // preview.
+    final showJumpIcon =
+        !stretch &&
+        inReplyTo is UiInReplyToMessage_Resolved &&
+        !(inReplyTo as UiInReplyToMessage_Resolved).mimiContent.isDeleted;
 
-    final bubble = Container(
+    final innerContent = Container(
+      decoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(color: color.separator.primary, width: 1),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
+        child: Column(
+          crossAxisAlignment: stretch ? .stretch : .start,
+          children: [
+            if (senderDisplayName != null)
+              Text(
+                senderDisplayName,
+                style: TextStyle(
+                  fontSize: LabelFontSize.small1.size,
+                  fontWeight: FontWeight.bold,
+                  color: color.text.primary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            Text(
+              contentPreview,
+              style: TextStyle(
+                fontSize: LabelFontSize.small1.size,
+                color: color.text.secondary,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: Spacings.xs,
         vertical: Spacings.xxs,
@@ -1065,60 +1107,18 @@ class InReplyToBubble extends StatelessWidget {
         borderRadius: const BorderRadius.all(Radius.circular(Spacings.xxs)),
         color: backgroundColor,
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border(
-            left: BorderSide(color: color.separator.primary, width: 1),
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
-          child: Column(
-            crossAxisAlignment: stretch ? .stretch : .start,
-            children: [
-              if (senderDisplayName != null)
-                Text(
-                  senderDisplayName,
-                  style: TextStyle(
-                    fontSize: LabelFontSize.small1.size,
-                    fontWeight: FontWeight.bold,
-                    color: color.text.primary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+      child: showJumpIcon
+          ? Stack(
+              children: [
+                innerContent,
+                PositionedDirectional(
+                  top: 0,
+                  end: 0,
+                  child: AppIcon.arrowUp(size: 12, color: color.text.tertiary),
                 ),
-              Text(
-                contentPreview,
-                style: TextStyle(
-                  fontSize: LabelFontSize.small1.size,
-                  color: color.text.secondary,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    if (stretch) {
-      return bubble;
-    }
-
-    if (!showJumpIcon) {
-      return bubble;
-    }
-
-    return Stack(
-      children: [
-        bubble,
-        PositionedDirectional(
-          top: Spacings.xxxs,
-          end: Spacings.xxxs,
-          child: AppIcon.arrowUp(size: 12, color: color.text.tertiary),
-        ),
-      ],
+              ],
+            )
+          : innerContent,
     );
   }
 }

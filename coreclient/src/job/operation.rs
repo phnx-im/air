@@ -118,12 +118,13 @@ impl FromStr for OperationKind {
 }
 
 mod persistence {
-    use aircommon::codec::{BlobDecoded, BlobEncoded};
+    use aircommon::codec::{BlobEncoded, PersistenceCodec};
     use serde::{Serialize, de::DeserializeOwned};
     use sqlx::{
         Database, Decode, Encode, Sqlite, SqliteExecutor, SqliteTransaction, Type, encode::IsNull,
         error::BoxDynError, query, query_as, query_scalar,
     };
+    use tracing::warn;
 
     use super::*;
 
@@ -235,14 +236,20 @@ mod persistence {
                 return Ok(None);
             };
 
-            query_as!(
-                SqlOperation,
+            struct SqlOperationData {
+                data: Vec<u8>,
+                created_at: DateTime<Utc>,
+                scheduled_at: DateTime<Utc>,
+                retries: u16,
+            }
+
+            let op_data = query_as!(
+                SqlOperationData,
                 r#"
                 UPDATE operation
                 SET locked_by = ?2
                 WHERE operation_id = ?1
                 RETURNING
-                    operation_id AS "operation_id: _",
                     data AS "data: _",
                     created_at AS "created_at: _",
                     scheduled_at AS "scheduled_at: _",
@@ -252,8 +259,40 @@ mod persistence {
                 task_id,
             )
             .fetch_optional(txn.as_mut())
-            .await
-            .map(|op| op.map(From::from))
+            .await?;
+            let Some(op_data) = op_data else {
+                return Ok(None);
+            };
+
+            let SqlOperationData {
+                data,
+                created_at,
+                scheduled_at,
+                retries,
+            } = op_data;
+
+            let data: T = match PersistenceCodec::from_slice(&data) {
+                Ok(data) => data,
+                Err(error) => {
+                    // Delete the operation from the database if it cannot be deserialized
+                    warn!(
+                        ?kind,
+                        ?operation_id, %error, "Failed to deserialize operation; deleting"
+                    );
+                    query!("DELETE FROM operation WHERE operation_id = ?", operation_id)
+                        .execute(txn.as_mut())
+                        .await?;
+                    return Ok(None);
+                }
+            };
+
+            Ok(Some(Operation {
+                operation_id: OperationId(operation_id),
+                data,
+                created_at,
+                scheduled_at,
+                retries: retries.into(),
+            }))
         }
 
         /// Delete an operation
@@ -288,26 +327,6 @@ mod persistence {
             .execute(executor)
             .await?;
             Ok(())
-        }
-    }
-
-    struct SqlOperation<T> {
-        operation_id: Vec<u8>,
-        data: BlobDecoded<T>,
-        created_at: DateTime<Utc>,
-        scheduled_at: DateTime<Utc>,
-        retries: i64,
-    }
-
-    impl<T> From<SqlOperation<T>> for Operation<T> {
-        fn from(op: SqlOperation<T>) -> Self {
-            Self {
-                operation_id: OperationId(op.operation_id),
-                data: op.data.into_inner(),
-                created_at: op.created_at,
-                scheduled_at: op.scheduled_at,
-                retries: op.retries as usize,
-            }
         }
     }
 
@@ -430,6 +449,45 @@ mod tests {
             .unwrap();
 
         assert_eq!(op.retries, 5);
+    }
+
+    #[sqlx::test]
+    async fn test_dequeue_deletes_undeserializable_operation(pool: SqlitePool) {
+        // Shares `OperationKind` with `MockData` but has an incompatible serialized shape, so
+        // decoding an enqueued `MockData` as this type fails at the codec layer.
+        #[derive(Serialize, Deserialize, Debug)]
+        struct IncompatibleData {
+            number: i64,
+        }
+
+        impl OperationData for IncompatibleData {
+            fn kind() -> OperationKind {
+                OperationKind::FetchUserProfile
+            }
+
+            fn generate_id(&self) -> OperationId {
+                OperationId(self.number.to_le_bytes().to_vec())
+            }
+        }
+
+        let mut txn = pool.begin().await.unwrap();
+        let data = MockData {
+            payload: "undeserializable".to_string(),
+        };
+        Operation::new(data).enqueue(txn.as_mut()).await.unwrap();
+
+        // Dequeueing with a type that can't deserialize the payload returns None and deletes the
+        // offending row instead of surfacing an error.
+        let op = Operation::<IncompatibleData>::dequeue(&mut txn, Uuid::new_v4(), Utc::now())
+            .await
+            .unwrap();
+        assert!(op.is_none());
+
+        // The row was deleted, so a subsequent dequeue with the correct type finds nothing.
+        let op = Operation::<MockData>::dequeue(&mut txn, Uuid::new_v4(), Utc::now())
+            .await
+            .unwrap();
+        assert!(op.is_none());
     }
 
     #[sqlx::test]
