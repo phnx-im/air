@@ -5,6 +5,8 @@
 package ms.air
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
@@ -51,6 +53,13 @@ class PushProcessingWorker(
                     applicationContext,
                     ArrayList(notificationBatch.removals)
                 )
+
+                // Let the main app know
+                MainActivity.activeChannel()?.let { channel ->
+                    Handler(Looper.getMainLooper()).post {
+                        channel.invokeMethod("processStoreNotifications", null)
+                    }
+                }
 
                 Result.success()
             } catch (t: Throwable) {

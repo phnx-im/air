@@ -103,6 +103,8 @@ class MockMessageListCubit implements MessageListCubit {
       StreamController<MessageListStateWrapper>.broadcast(sync: true);
   final StreamController<MessageListCommand> _commands =
       StreamController<MessageListCommand>.broadcast(sync: true);
+  final StreamController<Set<MessageId>> _incomingMessages =
+      StreamController<Set<MessageId>>.broadcast(sync: true);
   late MessageListStateWrapper _state;
   bool _isClosed = false;
   final Future<void> Function(MessageId messageId)? onJumpToMessage;
@@ -124,6 +126,9 @@ class MockMessageListCubit implements MessageListCubit {
 
   @override
   Stream<MessageListCommand> get commands => _commands.stream;
+
+  @override
+  Stream<Set<MessageId>> get incomingMessages => _incomingMessages.stream;
 
   @override
   Future<void> jumpToBottom() async {
@@ -207,6 +212,7 @@ class MockMessageListCubit implements MessageListCubit {
     messageData.dispose();
     await _commands.close();
     await _controller.close();
+    await _incomingMessages.close();
   }
 }
 

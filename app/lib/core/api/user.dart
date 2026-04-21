@@ -65,6 +65,10 @@ abstract class User implements RustOpaqueInterface {
   /// Stop background work gracefully and wait for completion.
   Future<void> prepareForBackground();
 
+  /// Signals the foreground drainer that background push handlers have
+  /// persisted new store notifications.
+  void signalPendingStoreNotifications();
+
   /// Update the push token.
   Future<void> updatePushToken(PlatformPushToken? pushToken);
 

@@ -8,8 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:air/core/core.dart';
 import 'package:air/core/api/utils.dart' as rust_utils;
+import 'package:air/util/notifications.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:uuid/uuid.dart';
 
 const platform = MethodChannel('ms.air/channel');
 
@@ -37,20 +37,17 @@ Future<void> _handleMethod(
       // Do something with the data
       break;
     case 'openedNotification':
-      // Handle notification opened
-      final String? identifier = call.arguments["identifier"];
-      final String? chatIdStr = call.arguments["chatId"];
-      _log.fine(
-        'Notification opened: identifier = $identifier, chatId = $chatIdStr',
+      dispatchOpenedNotification(
+        call.arguments as Map<Object?, Object?>,
+        openedNotificationSink,
       );
-      if (identifier != null && chatIdStr != null) {
-        final chatId = ChatId(uuid: UuidValue.withValidation(chatIdStr));
-        openedNotificationSink.add(chatId);
-      }
       break;
     case 'backgroundTaskExpired':
       final taskId = call.arguments['taskId'];
       _log.warning('Background task expired (taskId=$taskId)');
+      break;
+    case 'processStoreNotifications':
+      CoreClient().maybeUser?.signalPendingStoreNotifications();
       break;
     default:
       _log.severe('Unknown method called: ${call.method}');
