@@ -176,7 +176,7 @@ extension UiMimiContentExtension on UiMimiContent {
     }
 
     return plainBody?.isNotEmpty == true
-        ? plainBody?.replaceAll('\n', ' ')
+        ? plainBody!.replaceAll(RegExp(r'\n+'), ' ')
         : attachments.isNotEmpty
         ? attachments.first.imageMetadata != null
               ? loc.chatList_imageEmoji
