@@ -32,6 +32,7 @@
 - *(app)* Restore better iOS and macOS icons (#1147)
 - *(app)* Native scroll physics (#1160)
 - *(app)* Stable animation of new messages (#1161)
+- *(app)* Ignore and clean-up undeserializable operation (#1167)
 
 ### ⚡ Performance
 
