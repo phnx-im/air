@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO as_user_handle (\n                hash,\n                verifying_key,\n                expiration_data\n            ) VALUES ($1, $2, $3)\n            ON CONFLICT (hash) DO UPDATE\n                SET verifying_key = $2, expiration_data = $3",
+  "query": "INSERT INTO as_user_handle (\n                hash,\n                verifying_key,\n                expiration_data\n            ) VALUES ($1, $2, $3)\n            ON CONFLICT (hash) DO NOTHING",
   "describe": {
     "columns": [],
     "parameters": {
@@ -28,5 +28,5 @@
     },
     "nullable": []
   },
-  "hash": "940745059bfb0570c252cf554c2f442172e8bd900f67f315713ee869e5adec2d"
+  "hash": "15becff3da9dcdad57c9ed9d5e90cec38de3bb056c8469ffd67de07cdd8fc5c9"
 }
