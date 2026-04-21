@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 use aircommon::{
-    credentials::keys::UsernameVerifyingKey,
+    credentials::keys::HandleVerifyingKey,
     identifiers::{
-        USERNAME_VALIDITY_PERIOD, Username, UsernameHash, UsernameHashError,
-        UsernameValidationError,
+        USER_HANDLE_VALIDITY_PERIOD, UserHandle, UserHandleHash, UserHandleHashError,
+        UserHandleValidationError,
     },
     time::ExpirationData,
 };
@@ -24,32 +24,32 @@ use crate::errors::auth_service::{IssueTokensError, RedeemTokenError};
 
 use super::AuthService;
 
-pub(crate) use connect::ConnectUsernameProtocol;
-pub(crate) use persistence::UsernameRecord;
-pub(crate) use queue::UsernameQueues;
+pub(crate) use connect::ConnectHandleProtocol;
+pub(crate) use persistence::UserHandleRecord;
+pub(crate) use queue::UserHandleQueues;
 
 mod connect;
 mod persistence;
 mod queue;
 
 impl AuthService {
-    pub(crate) async fn as_check_username_exists(
+    pub(crate) async fn as_check_handle_exists(
         &self,
-        hash: &UsernameHash,
-    ) -> Result<bool, CheckUsernameExistsError> {
-        let exists = UsernameRecord::check_exists(&self.db_pool, hash).await?;
+        hash: &UserHandleHash,
+    ) -> Result<bool, CheckHandleExistsError> {
+        let exists = UserHandleRecord::check_exists(&self.db_pool, hash).await?;
         Ok(exists)
     }
 
     /// Token is optional during gradual rollout: old clients omit it, new
     /// clients provide one. Once all clients support tokens, make it required.
-    pub(crate) async fn as_create_username(
+    pub(crate) async fn as_create_handle(
         &self,
-        verifying_key: UsernameVerifyingKey,
-        username_plaintext: String,
-        hash: UsernameHash,
+        verifying_key: HandleVerifyingKey,
+        handle_plaintext: String,
+        hash: UserHandleHash,
         token: Option<AmortizedToken<Ristretto255>>,
-    ) -> Result<(), CreateUsernameError> {
+    ) -> Result<(), CreateHandleError> {
         let mut txn = self.db_pool.begin().await?;
 
         if let Some(token) = token {
@@ -57,24 +57,24 @@ impl AuthService {
                 .await?;
         }
 
-        let username = Username::new(username_plaintext)?;
+        let handle = UserHandle::new(handle_plaintext)?;
 
-        let local_hash = spawn_blocking(move || username.calculate_hash()).await??;
+        let local_hash = spawn_blocking(move || handle.calculate_hash()).await??;
         if local_hash != hash {
-            return Err(CreateUsernameError::HashMismatch);
+            return Err(CreateHandleError::HashMismatch);
         }
 
         if let Some(expiration_data) =
-            UsernameRecord::load_expiration_data_for_update(txn.as_mut(), &hash).await?
+            UserHandleRecord::load_expiration_data_for_update(txn.as_mut(), &hash).await?
             && expiration_data.validate()
         {
-            return Err(CreateUsernameError::UsernameExists);
+            return Err(CreateHandleError::UserHandleExists);
         }
 
-        let expiration_data = ExpirationData::new(USERNAME_VALIDITY_PERIOD);
+        let expiration_data = ExpirationData::new(USER_HANDLE_VALIDITY_PERIOD);
 
-        let record = UsernameRecord {
-            username_hash: hash,
+        let record = UserHandleRecord {
+            user_handle_hash: hash,
             verifying_key,
             expiration_data,
         };
@@ -86,25 +86,25 @@ impl AuthService {
 
     /// Token refunds are disabled during gradual rollout to prevent token
     /// farming (create-without-token + delete-with-refund = free tokens).
-    /// Re-enable when token redemption becomes mandatory for all username ops.
-    pub(crate) async fn as_delete_username(
+    /// Re-enable when token redemption becomes mandatory for all handle ops.
+    pub(crate) async fn as_delete_handle(
         &self,
-        hash: UsernameHash,
+        hash: UserHandleHash,
         _token_request: Option<AmortizedBatchTokenRequest<Ristretto255>>,
-    ) -> Result<Option<AmortizedBatchTokenResponse<Ristretto255>>, DeleteUsernameError> {
-        if !UsernameRecord::delete(&self.db_pool, &hash).await? {
-            return Err(DeleteUsernameError::UsernameNotFound);
+    ) -> Result<Option<AmortizedBatchTokenResponse<Ristretto255>>, DeleteHandleError> {
+        if !UserHandleRecord::delete(&self.db_pool, &hash).await? {
+            return Err(DeleteHandleError::UserHandleNotFound);
         }
 
         Ok(None)
     }
 
-    /// Token is optional during gradual rollout (see `as_create_username`).
-    pub(crate) async fn as_refresh_username(
+    /// Token is optional during gradual rollout (see `as_create_handle`).
+    pub(crate) async fn as_refresh_handle(
         &self,
-        hash: UsernameHash,
+        hash: UserHandleHash,
         token: Option<AmortizedToken<Ristretto255>>,
-    ) -> Result<(), RefreshUsernameError> {
+    ) -> Result<(), RefreshHandleError> {
         let mut txn = self.db_pool.begin().await?;
 
         if let Some(token) = token {
@@ -113,18 +113,18 @@ impl AuthService {
         }
 
         let Some(expiration_data) =
-            UsernameRecord::load_expiration_data_for_update(txn.as_mut(), &hash).await?
+            UserHandleRecord::load_expiration_data_for_update(txn.as_mut(), &hash).await?
         else {
-            return Err(RefreshUsernameError::UsernameNotFound);
+            return Err(RefreshHandleError::HandleNotFound);
         };
 
         if !expiration_data.validate() {
-            return Err(RefreshUsernameError::UsernameAlreadyExpired);
+            return Err(RefreshHandleError::HandleAlreadyExpired);
         }
 
-        let new_expiration_data = ExpirationData::new(USERNAME_VALIDITY_PERIOD);
+        let new_expiration_data = ExpirationData::new(USER_HANDLE_VALIDITY_PERIOD);
 
-        UsernameRecord::update_expiration_data(txn.as_mut(), &hash, new_expiration_data).await?;
+        UserHandleRecord::update_expiration_data(txn.as_mut(), &hash, new_expiration_data).await?;
 
         txn.commit().await?;
         Ok(())
@@ -132,17 +132,17 @@ impl AuthService {
 }
 
 #[derive(Debug, Error, Display)]
-pub(crate) enum CheckUsernameExistsError {
+pub(crate) enum CheckHandleExistsError {
     /// Storage provider error
     StorageError(#[from] sqlx::Error),
 }
 
-impl From<CheckUsernameExistsError> for Status {
-    fn from(error: CheckUsernameExistsError) -> Self {
+impl From<CheckHandleExistsError> for Status {
+    fn from(error: CheckHandleExistsError) -> Self {
         let msg = error.to_string();
         match error {
-            CheckUsernameExistsError::StorageError(error) => {
-                error!(%error, "Error checking username existence");
+            CheckHandleExistsError::StorageError(error) => {
+                error!(%error, "Error checking user handle existence");
                 Status::internal(msg)
             }
         }
@@ -150,98 +150,98 @@ impl From<CheckUsernameExistsError> for Status {
 }
 
 #[derive(Debug, Error, Display)]
-pub(crate) enum CreateUsernameError {
+pub(crate) enum CreateHandleError {
     /// Storage provider error
     StorageError(#[from] sqlx::Error),
-    /// Failed to hash the username
-    HashError(#[from] UsernameHashError),
-    /// Failed to hash the username
+    /// Failed to hash the user handle
+    HashError(#[from] UserHandleHashError),
+    /// Failed to hash the user handle
     HashTaskError(#[from] tokio::task::JoinError),
-    /// Invalid username
-    UsernameValidation(#[from] UsernameValidationError),
-    /// Hash does not match the hash of the username
+    /// Invalid user handle
+    UserHandleValidation(#[from] UserHandleValidationError),
+    /// Hash does not match the hash of the user handle
     HashMismatch,
-    /// Username already exists
-    UsernameExists,
+    /// User handle already exists
+    UserHandleExists,
     /// Token redemption failed
     TokenRedemption(#[from] RedeemTokenError),
 }
 
-impl From<CreateUsernameError> for Status {
-    fn from(error: CreateUsernameError) -> Self {
+impl From<CreateHandleError> for Status {
+    fn from(error: CreateHandleError) -> Self {
         let msg = error.to_string();
         match error {
-            CreateUsernameError::StorageError(error) => {
-                error!(%error, "Error creating username");
+            CreateHandleError::StorageError(error) => {
+                error!(%error, "Error creating user handle");
                 Status::internal(msg)
             }
-            CreateUsernameError::HashError(error) => {
-                error!(%error, "Error creating username");
+            CreateHandleError::HashError(error) => {
+                error!(%error, "Error creating user handle");
                 Status::internal(msg)
             }
-            CreateUsernameError::HashTaskError(error) => {
-                error!(%error, "Error creating username");
+            CreateHandleError::HashTaskError(error) => {
+                error!(%error, "Error creating user handle");
                 Status::internal(msg)
             }
-            CreateUsernameError::UsernameValidation(_) => {
+            CreateHandleError::UserHandleValidation(_) => {
                 // This is not an error, but shows that a client might be faulty.
-                warn!(%error, "Username validation failed");
+                warn!(%error, "User handle validation failed");
                 Status::invalid_argument(msg)
             }
-            CreateUsernameError::HashMismatch => Status::invalid_argument(msg),
-            CreateUsernameError::UsernameExists => Status::already_exists(msg),
-            CreateUsernameError::TokenRedemption(e) => e.into(),
+            CreateHandleError::HashMismatch => Status::invalid_argument(msg),
+            CreateHandleError::UserHandleExists => Status::already_exists(msg),
+            CreateHandleError::TokenRedemption(e) => e.into(),
         }
     }
 }
 
 #[derive(Debug, Error, Display)]
-pub(crate) enum DeleteUsernameError {
+pub(crate) enum DeleteHandleError {
     /// Storage provider error
     StorageError(#[from] sqlx::Error),
-    /// Username not found
-    UsernameNotFound,
+    /// User handle not found
+    UserHandleNotFound,
     /// Token issuance failed
     TokenIssuance(#[from] IssueTokensError),
 }
 
-impl From<DeleteUsernameError> for Status {
-    fn from(error: DeleteUsernameError) -> Self {
+impl From<DeleteHandleError> for Status {
+    fn from(error: DeleteHandleError) -> Self {
         let msg = error.to_string();
         match error {
-            DeleteUsernameError::StorageError(error) => {
-                error!(%error, "Error deleting username");
+            DeleteHandleError::StorageError(error) => {
+                error!(%error, "Error deleting user handle");
                 Status::internal(msg)
             }
-            DeleteUsernameError::UsernameNotFound => Status::not_found(msg),
-            DeleteUsernameError::TokenIssuance(e) => e.into(),
+            DeleteHandleError::UserHandleNotFound => Status::not_found(msg),
+            DeleteHandleError::TokenIssuance(e) => e.into(),
         }
     }
 }
 
 #[derive(Debug, Error, Display)]
-pub(crate) enum RefreshUsernameError {
+pub(crate) enum RefreshHandleError {
     /// Storage provider error
     StorageError(#[from] sqlx::Error),
-    /// Username not found
-    UsernameNotFound,
-    /// Username is already expired
-    UsernameAlreadyExpired,
+    /// User handle not found
+    HandleNotFound,
+    /// User handle is already expired
+    HandleAlreadyExpired,
     /// Token redemption failed
     TokenRedemption(#[from] RedeemTokenError),
 }
 
-impl From<RefreshUsernameError> for Status {
-    fn from(error: RefreshUsernameError) -> Self {
+impl From<RefreshHandleError> for Status {
+    fn from(error: RefreshHandleError) -> Self {
         let msg = error.to_string();
         match error {
-            RefreshUsernameError::StorageError(error) => {
-                error!(%error, "Error refreshing username");
+            RefreshHandleError::StorageError(error) => {
+                error!(%error, "Error refreshing user handle");
                 Status::internal(msg)
             }
-            RefreshUsernameError::UsernameNotFound => Status::not_found(msg),
-            RefreshUsernameError::UsernameAlreadyExpired => Status::failed_precondition(msg),
-            RefreshUsernameError::TokenRedemption(e) => e.into(),
+            RefreshHandleError::HandleNotFound => Status::not_found(msg),
+            RefreshHandleError::HandleAlreadyExpired => Status::failed_precondition(msg),
+            RefreshHandleError::TokenRedemption(e) => e.into(),
         }
     }
 }
@@ -251,7 +251,8 @@ mod tests {
     use std::collections::HashMap;
 
     use aircommon::{
-        identifiers::UsernameHash,
+        credentials::keys::HandleVerifyingKey,
+        identifiers::UserHandleHash,
         time::{Duration, ExpirationData},
     };
     use airprotos::auth_service::v1::OperationType;
@@ -277,16 +278,16 @@ mod tests {
         Ok(AuthService::initialize(pool.clone(), "example.com".parse()?, None).await?)
     }
 
-    fn make_verifying_key() -> UsernameVerifyingKey {
-        UsernameVerifyingKey::from_bytes(vec![1, 2, 3, 4, 5])
+    fn make_verifying_key() -> HandleVerifyingKey {
+        HandleVerifyingKey::from_bytes(vec![1, 2, 3, 4, 5])
     }
 
-    const USERNAME: &str = "test-username";
+    const HANDLE: &str = "test-handle";
 
-    // Pre-computed hash of "test-username"
-    const HASH: UsernameHash = UsernameHash::new([
-        222, 173, 3, 115, 219, 79, 226, 238, 144, 239, 100, 203, 87, 27, 122, 68, 108, 137, 203,
-        52, 45, 2, 134, 87, 81, 168, 75, 225, 173, 118, 108, 250,
+    // Pre-computed hash of "test-handle"
+    const HASH: UserHandleHash = UserHandleHash::new([
+        228, 197, 147, 201, 246, 168, 193, 83, 177, 136, 204, 15, 104, 245, 88, 251, 198, 237, 118,
+        196, 78, 25, 212, 45, 193, 60, 235, 36, 134, 37, 207, 17,
     ]);
 
     async fn issue_token(
@@ -331,59 +332,57 @@ mod tests {
         Ok(tokens.remove(0))
     }
 
-    // as_check_username_exists
+    // as_check_handle_exists
 
     #[sqlx::test]
-    async fn check_username_exists_true(pool: PgPool) -> anyhow::Result<()> {
+    async fn check_handle_exists_true(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
 
-        dbg!(Username::new(USERNAME.into())?.calculate_hash()?);
-
-        UsernameRecord {
-            username_hash: HASH,
+        UserHandleRecord {
+            user_handle_hash: HASH,
             verifying_key: make_verifying_key(),
             expiration_data: ExpirationData::new(Duration::days(1)),
         }
         .store(&pool)
         .await?;
 
-        assert!(service.as_check_username_exists(&HASH).await?);
+        assert!(service.as_check_handle_exists(&HASH).await?);
         Ok(())
     }
 
     #[sqlx::test]
-    async fn check_username_exists_false(pool: PgPool) -> anyhow::Result<()> {
+    async fn check_handle_exists_false(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
 
-        assert!(!service.as_check_username_exists(&HASH).await?);
+        assert!(!service.as_check_handle_exists(&HASH).await?);
         Ok(())
     }
 
-    // as_create_username
+    // as_create_handle
 
     #[sqlx::test]
-    async fn create_username_success(pool: PgPool) -> anyhow::Result<()> {
+    async fn create_handle_success(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
 
         service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
+            .as_create_handle(make_verifying_key(), HANDLE.to_owned(), HASH, None)
             .await?;
         Ok(())
     }
 
     #[sqlx::test]
-    async fn create_username_success_with_token(pool: PgPool) -> anyhow::Result<()> {
+    async fn create_handle_success_with_token(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
         let token = issue_token(&service, &pool).await?;
 
         service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, Some(token))
+            .as_create_handle(make_verifying_key(), HANDLE.to_owned(), HASH, Some(token))
             .await?;
         Ok(())
     }
 
     #[sqlx::test]
-    async fn create_username_token_redemption_fails(pool: PgPool) -> anyhow::Result<()> {
+    async fn create_handle_token_redemption_fails(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
         let token = issue_token(&service, &pool).await?;
 
@@ -397,21 +396,18 @@ mod tests {
             .await?;
 
         let result = service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, Some(token))
+            .as_create_handle(make_verifying_key(), HANDLE.to_owned(), HASH, Some(token))
             .await;
-        assert!(matches!(
-            result,
-            Err(CreateUsernameError::TokenRedemption(_))
-        ));
+        assert!(matches!(result, Err(CreateHandleError::TokenRedemption(_))));
         Ok(())
     }
 
     #[sqlx::test]
-    async fn create_username_invalid_username(pool: PgPool) -> anyhow::Result<()> {
+    async fn create_handle_invalid_handle(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
 
         let result = service
-            .as_create_username(
+            .as_create_handle(
                 make_verifying_key(),
                 "INVALID_UPPER".to_string(),
                 HASH,
@@ -420,45 +416,45 @@ mod tests {
             .await;
         assert!(matches!(
             result,
-            Err(CreateUsernameError::UsernameValidation(_))
+            Err(CreateHandleError::UserHandleValidation(_))
         ));
         Ok(())
     }
 
     #[sqlx::test]
-    async fn create_username_hash_mismatch(pool: PgPool) -> anyhow::Result<()> {
+    async fn create_handle_hash_mismatch(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
-        let wrong_hash = UsernameHash::new([0; 32]);
+        let wrong_hash = UserHandleHash::new([0; 32]);
 
         let result = service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), wrong_hash, None)
+            .as_create_handle(make_verifying_key(), HANDLE.to_owned(), wrong_hash, None)
             .await;
-        assert!(matches!(result, Err(CreateUsernameError::HashMismatch)));
+        assert!(matches!(result, Err(CreateHandleError::HashMismatch)));
         Ok(())
     }
 
     #[sqlx::test]
-    async fn create_username_already_exists(pool: PgPool) -> anyhow::Result<()> {
+    async fn create_handle_already_exists(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
 
         service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
+            .as_create_handle(make_verifying_key(), HANDLE.to_owned(), HASH, None)
             .await?;
 
         let result = service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
+            .as_create_handle(make_verifying_key(), HANDLE.to_owned(), HASH, None)
             .await;
-        assert!(matches!(result, Err(CreateUsernameError::UsernameExists)));
+        assert!(matches!(result, Err(CreateHandleError::UserHandleExists)));
         Ok(())
     }
 
     #[sqlx::test]
-    async fn create_username_replaces_expired(pool: PgPool) -> anyhow::Result<()> {
+    async fn create_handle_replaces_expired(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
 
         // Insert an expired record directly.
-        UsernameRecord {
-            username_hash: HASH,
+        UserHandleRecord {
+            user_handle_hash: HASH,
             verifying_key: make_verifying_key(),
             expiration_data: ExpirationData::new(Duration::zero()),
         }
@@ -466,69 +462,69 @@ mod tests {
         .await?;
 
         service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
+            .as_create_handle(make_verifying_key(), HANDLE.to_owned(), HASH, None)
             .await?;
         Ok(())
     }
 
-    // as_delete_username
+    // as_delete_handle
 
     #[sqlx::test]
-    async fn delete_username_success(pool: PgPool) -> anyhow::Result<()> {
+    async fn delete_handle_success(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
 
         service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
+            .as_create_handle(make_verifying_key(), HANDLE.to_owned(), HASH, None)
             .await?;
 
-        let result = service.as_delete_username(HASH, None).await?;
+        let result = service.as_delete_handle(HASH, None).await?;
         assert!(result.is_none());
-        assert!(!service.as_check_username_exists(&HASH).await?);
+        assert!(!service.as_check_handle_exists(&HASH).await?);
         Ok(())
     }
 
     #[sqlx::test]
-    async fn delete_username_not_found(pool: PgPool) -> anyhow::Result<()> {
+    async fn delete_handle_not_found(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
 
-        let result = service.as_delete_username(HASH, None).await;
-        assert!(matches!(result, Err(DeleteUsernameError::UsernameNotFound)));
+        let result = service.as_delete_handle(HASH, None).await;
+        assert!(matches!(result, Err(DeleteHandleError::UserHandleNotFound)));
         Ok(())
     }
 
-    // as_refresh_username
+    // as_refresh_handle
 
     #[sqlx::test]
-    async fn refresh_username_success(pool: PgPool) -> anyhow::Result<()> {
+    async fn refresh_handle_success(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
 
         service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
+            .as_create_handle(make_verifying_key(), HANDLE.to_owned(), HASH, None)
             .await?;
 
-        service.as_refresh_username(HASH, None).await?;
+        service.as_refresh_handle(HASH, None).await?;
         Ok(())
     }
 
     #[sqlx::test]
-    async fn refresh_username_success_with_token(pool: PgPool) -> anyhow::Result<()> {
+    async fn refresh_handle_success_with_token(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
 
         service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
+            .as_create_handle(make_verifying_key(), HANDLE.to_owned(), HASH, None)
             .await?;
 
         let token = issue_token(&service, &pool).await?;
-        service.as_refresh_username(HASH, Some(token)).await?;
+        service.as_refresh_handle(HASH, Some(token)).await?;
         Ok(())
     }
 
     #[sqlx::test]
-    async fn refresh_username_token_redemption_fails(pool: PgPool) -> anyhow::Result<()> {
+    async fn refresh_handle_token_redemption_fails(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
 
         service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
+            .as_create_handle(make_verifying_key(), HANDLE.to_owned(), HASH, None)
             .await?;
 
         // Spend the token first so it cannot be reused.
@@ -541,42 +537,39 @@ mod tests {
             )
             .await?;
 
-        let result = service.as_refresh_username(HASH, Some(token)).await;
+        let result = service.as_refresh_handle(HASH, Some(token)).await;
         assert!(matches!(
             result,
-            Err(RefreshUsernameError::TokenRedemption(_))
+            Err(RefreshHandleError::TokenRedemption(_))
         ));
         Ok(())
     }
 
     #[sqlx::test]
-    async fn refresh_username_not_found(pool: PgPool) -> anyhow::Result<()> {
+    async fn refresh_handle_not_found(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
 
-        let result = service.as_refresh_username(HASH, None).await;
-        assert!(matches!(
-            result,
-            Err(RefreshUsernameError::UsernameNotFound)
-        ));
+        let result = service.as_refresh_handle(HASH, None).await;
+        assert!(matches!(result, Err(RefreshHandleError::HandleNotFound)));
         Ok(())
     }
 
     #[sqlx::test]
-    async fn refresh_username_already_expired(pool: PgPool) -> anyhow::Result<()> {
+    async fn refresh_handle_already_expired(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
 
-        UsernameRecord {
-            username_hash: HASH,
+        UserHandleRecord {
+            user_handle_hash: HASH,
             verifying_key: make_verifying_key(),
             expiration_data: ExpirationData::new(Duration::zero()),
         }
         .store(&pool)
         .await?;
 
-        let result = service.as_refresh_username(HASH, None).await;
+        let result = service.as_refresh_handle(HASH, None).await;
         assert!(matches!(
             result,
-            Err(RefreshUsernameError::UsernameAlreadyExpired)
+            Err(RefreshHandleError::HandleAlreadyExpired)
         ));
         Ok(())
     }

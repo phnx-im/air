@@ -426,7 +426,7 @@ mod test {
             expiration_data: ExpirationData::new(Duration::seconds(1)),
         };
         let mut txn = pool.begin().await?;
-        hash_record.store(&mut txn).await?;
+        hash_record.store(txn.as_mut()).await?;
         txn.commit().await?;
         Ok(())
     }

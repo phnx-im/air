@@ -42,14 +42,17 @@ use tonic::{Code, Request, Response, Status, Streaming, async_trait};
 use tracing::{error, warn};
 
 use crate::{
-    auth_service::invitation_code_record::{CODES_PER_DAY, InvitationCodeRecord},
+    auth_service::{
+        invitation_code_record::{CODES_PER_DAY, InvitationCodeRecord},
+        usernames::ConnectUsernameProtocol,
+    },
     util::{find_cause, select_until_first_ends},
 };
 
 use super::{
     AuthService,
     client_record::ClientRecord,
-    usernames::{ConnectUsernameProtocol, UsernameQueues, UsernameRecord},
+    usernames::{UsernameQueues, UsernameRecord},
 };
 
 pub struct GrpcAs {

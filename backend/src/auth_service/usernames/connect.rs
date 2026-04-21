@@ -603,7 +603,7 @@ mod tests {
             expiration_data: expiration_data.clone(),
         };
         let mut txn = pool.begin().await?;
-        record.store(&mut txn).await?;
+        record.store(txn.as_mut()).await?;
         txn.commit().await?;
 
         let expiration_data = AuthService::load_username_expiration_data_impl(&pool, &hash).await?;
@@ -625,7 +625,7 @@ mod tests {
             expiration_data: expiration_data.clone(),
         };
         let mut txn = pool.begin().await?;
-        record.store(&mut txn).await?;
+        record.store(txn.as_mut()).await?;
         txn.commit().await?;
 
         UsernameRecord::load_verifying_key(&pool, &hash)
