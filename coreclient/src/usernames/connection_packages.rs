@@ -6,7 +6,7 @@ use std::borrow::Borrow;
 
 use aircommon::{
     crypto::{ConnectionDecryptionKey, hash::Hashable},
-    identifiers::UserHandle,
+    identifiers::Username,
     messages::connection_package::{ConnectionPackage, ConnectionPackageHash},
 };
 use sqlx::{Result, SqliteConnection, SqliteExecutor, query, query_scalar};
@@ -15,10 +15,10 @@ pub(crate) trait StorableConnectionPackage: Sized + Borrow<ConnectionPackage> {
     /// Store the connection package in the database.
     ///
     /// Returns an error if the storage fails.
-    async fn store_for_handle(
+    async fn store_for_username(
         &self,
         connection: &mut SqliteConnection,
-        handle: &UserHandle,
+        username: &Username,
         decryption_key: &ConnectionDecryptionKey,
     ) -> Result<()> {
         let cp = self.borrow();
@@ -30,7 +30,7 @@ pub(crate) trait StorableConnectionPackage: Sized + Borrow<ConnectionPackage> {
                  (connection_package_hash, handle, decryption_key, expires_at, is_last_resort)
                  VALUES ($1, $2, $3, $4, $5)",
             hash,
-            handle,
+            username,
             decryption_key,
             not_after,
             is_last_resort
@@ -85,27 +85,27 @@ impl StorableConnectionPackage for ConnectionPackage {}
 
 #[cfg(test)]
 mod tests {
-    use crate::UserHandleRecord;
+    use crate::UsernameRecord;
 
     use super::*;
 
-    use aircommon::credentials::keys::HandleSigningKey;
+    use aircommon::credentials::keys::UsernameSigningKey;
 
     use sqlx::SqlitePool;
 
     #[sqlx::test]
     async fn test_store_and_load_connection_package(pool: SqlitePool) {
-        let handle = UserHandle::new("test-handle".to_string()).unwrap();
-        let signing_key = HandleSigningKey::generate().unwrap();
-        let hash = handle.calculate_hash().unwrap();
-        let record = UserHandleRecord::new(handle, hash, signing_key);
+        let username = Username::new("test-handle".to_string()).unwrap();
+        let signing_key = UsernameSigningKey::generate().unwrap();
+        let hash = username.calculate_hash().unwrap();
+        let record = UsernameRecord::new(username, hash, signing_key);
         record.store(&pool).await.unwrap();
         let (decryption_key, connection_package) =
             ConnectionPackage::new(record.hash, &record.signing_key, false).unwrap();
 
         let mut connection = pool.acquire().await.unwrap();
         connection_package
-            .store_for_handle(&mut connection, &record.handle, &decryption_key)
+            .store_for_username(&mut connection, &record.username, &decryption_key)
             .await
             .unwrap();
 

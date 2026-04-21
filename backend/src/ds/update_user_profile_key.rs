@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{crypto::ear::keys::EncryptedUserProfileKey, time::TimeStamp};
+use aircommon::{crypto::aead::keys::EncryptedUserProfileKey, time::TimeStamp};
 use mls_assist::openmls::prelude::LeafNodeIndex;
 use tonic::Status;
 

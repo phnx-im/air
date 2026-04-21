@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! This module contains structs implementing the various keys for EAR
-//! throughout the backend. Keys can either provide their own constructors or
-//! implement the [`KdfDerivable`] trait to allow derivation from other key.
+//! This module contains structs implementing the various AEAD keys. Keys can
+//! either provide their own constructors or implement the [`KdfDerivable`]
+//! trait to allow derivation from other key.
 
 use crate::crypto::{
     RawKey,
@@ -12,7 +12,7 @@ use crate::crypto::{
     kdf::{KdfDerivable, keys::RatchetSecret},
 };
 
-use super::{AEAD_KEY_SIZE, Ciphertext, traits::EarKey};
+use super::{AEAD_KEY_SIZE, Ciphertext, traits::AeadKey};
 
 // Group state EAR key
 
@@ -24,7 +24,7 @@ pub struct GroupStateEarKeyType;
 
 impl RandomlyGeneratable for GroupStateEarKeyType {}
 
-impl EarKey for GroupStateEarKey {}
+impl AeadKey for GroupStateEarKey {}
 
 pub type GroupStateEarKey = Key<GroupStateEarKeyType>;
 
@@ -38,7 +38,7 @@ pub type PushTokenEarKey = Key<PushTokenEarKeyType>;
 
 impl RandomlyGeneratable for PushTokenEarKeyType {}
 
-impl EarKey for PushTokenEarKey {}
+impl AeadKey for PushTokenEarKey {}
 
 // Client credential EAR key
 
@@ -49,7 +49,7 @@ pub type ClientCredentialEarKey = Key<ClientCredentialEarKeyType>;
 
 impl RandomlyGeneratable for ClientCredentialEarKeyType {}
 
-impl EarKey for ClientCredentialEarKey {}
+impl AeadKey for ClientCredentialEarKey {}
 
 // Ratchet key
 
@@ -58,7 +58,7 @@ pub struct RatchetKeyType;
 
 pub type RatchetKey = Key<RatchetKeyType>;
 
-impl EarKey for RatchetKey {}
+impl AeadKey for RatchetKey {}
 
 impl KdfDerivable<RatchetSecret, Vec<u8>, AEAD_KEY_SIZE> for RatchetKey {
     const LABEL: &'static str = "RatchetKey";
@@ -73,7 +73,7 @@ pub type WelcomeAttributionInfoEarKey = Key<WelcomeAttributionInfoEarKeyType>;
 
 impl RandomlyGeneratable for WelcomeAttributionInfoEarKeyType {}
 
-impl EarKey for WelcomeAttributionInfoEarKey {}
+impl AeadKey for WelcomeAttributionInfoEarKey {}
 
 // FriendshipPackage EAR key
 
@@ -84,7 +84,7 @@ pub type FriendshipPackageEarKey = Key<FriendshipPackageEarKeyType>;
 
 impl RandomlyGeneratable for FriendshipPackageEarKeyType {}
 
-impl EarKey for FriendshipPackageEarKey {}
+impl AeadKey for FriendshipPackageEarKey {}
 
 // Identity link wrapper key
 
@@ -95,7 +95,7 @@ pub type IdentityLinkWrapperKey = Key<IdentityLinkWrapperKeyType>;
 
 impl RandomlyGeneratable for IdentityLinkWrapperKeyType {}
 
-impl EarKey for IdentityLinkWrapperKey {}
+impl AeadKey for IdentityLinkWrapperKey {}
 
 #[derive(Debug)]
 pub struct EncryptedUserProfileKeyCtype;
@@ -110,4 +110,4 @@ pub type AttachmentEarKey = Key<AttachmentEarKeyType>;
 
 impl RandomlyGeneratable for AttachmentEarKeyType {}
 
-impl EarKey for AttachmentEarKey {}
+impl AeadKey for AttachmentEarKey {}

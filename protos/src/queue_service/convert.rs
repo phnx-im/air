@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    crypto::{self, ear::AEAD_KEY_SIZE, signatures},
+    crypto::{self, aead::AEAD_KEY_SIZE, signatures},
     identifiers,
     messages::{self, push_token},
 };

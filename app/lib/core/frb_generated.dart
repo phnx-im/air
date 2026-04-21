@@ -90,7 +90,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 988973455;
+  int get rustContentHash => 1395823262;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -243,11 +243,11 @@ abstract class RustLibApi extends BaseApi {
     required ChatListCubitBase that,
   });
 
-  Future<AddHandleContactError?>
+  Future<AddUsernameContactError?>
   crateApiChatListCubitChatListCubitBaseCreateContactChat({
     required ChatListCubitBase that,
-    required UiUserHandle handle,
-    required UserHandleHash hash,
+    required UiUsername username,
+    required UsernameHash hash,
   });
 
   Future<ChatId> crateApiChatListCubitChatListCubitBaseCreateGroupChat({
@@ -496,9 +496,9 @@ abstract class RustLibApi extends BaseApi {
 
   bool crateApiUserCubitUiUserUnsupportedVersion({required UiUser that});
 
-  List<UiUserHandle> crateApiUserCubitUiUserUserHandles({required UiUser that});
-
   UiUserId crateApiUserCubitUiUserUserId({required UiUser that});
+
+  List<UiUsername> crateApiUserCubitUiUserUsernames({required UiUser that});
 
   Future<ChatId> crateApiUserCubitUserCubitBaseAddContactFromGroup({
     required UserCubitBase that,
@@ -506,9 +506,9 @@ abstract class RustLibApi extends BaseApi {
     required UiUserId userId,
   });
 
-  Future<bool> crateApiUserCubitUserCubitBaseAddUserHandle({
+  Future<bool> crateApiUserCubitUserCubitBaseAddUsername({
     required UserCubitBase that,
-    required UiUserHandle userHandle,
+    required UiUsername username,
   });
 
   Future<InviteUsersError?> crateApiUserCubitUserCubitBaseAddUsersToChat({
@@ -527,9 +527,9 @@ abstract class RustLibApi extends BaseApi {
     required UiUserId userId,
   });
 
-  Future<UserHandleHash?> crateApiUserCubitUserCubitBaseCheckHandleExists({
+  Future<UsernameHash?> crateApiUserCubitUserCubitBaseCheckUsernameExists({
     required UserCubitBase that,
-    required UiUserHandle handle,
+    required UiUsername username,
   });
 
   Future<void> crateApiUserCubitUserCubitBaseClose({
@@ -574,9 +574,9 @@ abstract class RustLibApi extends BaseApi {
     required UiUserId userId,
   });
 
-  Future<void> crateApiUserCubitUserCubitBaseRemoveUserHandle({
+  Future<void> crateApiUserCubitUserCubitBaseRemoveUsername({
     required UserCubitBase that,
-    required UiUserHandle userHandle,
+    required UiUsername username,
   });
 
   Future<void> crateApiUserCubitUserCubitBaseReportSpam({
@@ -803,8 +803,8 @@ abstract class RustLibApi extends BaseApi {
 
   Future<Uint8List> crateApiLoggingTarLogs({required String cacheDir});
 
-  UserHandleValidationError? crateApiTypesUiUserHandleValidationError({
-    required UiUserHandle that,
+  UsernameValidationError? crateApiTypesUiUsernameValidationError({
+    required UiUsername that,
   });
 
   String crateApiUsernameSuggestionsUsernameFromDisplay({
@@ -939,15 +939,6 @@ abstract class RustLibApi extends BaseApi {
   get rust_arc_decrement_strong_count_UserCubitBasePtr;
 
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_UserHandleHash;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_UserHandleHash;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_UserHandleHashPtr;
-
-  RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_UserSettingsCubitBase;
 
   RustArcDecrementStrongCountFnType
@@ -955,6 +946,14 @@ abstract class RustLibApi extends BaseApi {
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_UserSettingsCubitBasePtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_UsernameHash;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_UsernameHash;
+
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_UsernameHashPtr;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_UsersCubitBase;
@@ -2080,11 +2079,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<AddHandleContactError?>
+  Future<AddUsernameContactError?>
   crateApiChatListCubitChatListCubitBaseCreateContactChat({
     required ChatListCubitBase that,
-    required UiUserHandle handle,
-    required UserHandleHash hash,
+    required UiUsername username,
+    required UsernameHash hash,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -2094,8 +2093,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          sse_encode_box_autoadd_ui_user_handle(handle, serializer);
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+          sse_encode_box_autoadd_ui_username(username, serializer);
+          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
             hash,
             serializer,
           );
@@ -2108,12 +2107,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData:
-              sse_decode_opt_box_autoadd_add_handle_contact_error,
+              sse_decode_opt_box_autoadd_add_username_contact_error,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta:
             kCrateApiChatListCubitChatListCubitBaseCreateContactChatConstMeta,
-        argValues: [that, handle, hash],
+        argValues: [that, username, hash],
         apiImpl: this,
       ),
     );
@@ -2123,7 +2122,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiChatListCubitChatListCubitBaseCreateContactChatConstMeta =>
       const TaskConstMeta(
         debugName: "ChatListCubitBase_create_contact_chat",
-        argNames: ["that", "handle", "hash"],
+        argNames: ["that", "username", "hash"],
       );
 
   @override
@@ -4183,34 +4182,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  List<UiUserHandle> crateApiUserCubitUiUserUserHandles({
-    required UiUser that,
-  }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
-            that,
-            serializer,
-          );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 85)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_ui_user_handle,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiUserCubitUiUserUserHandlesConstMeta,
-        argValues: [that],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiUserCubitUiUserUserHandlesConstMeta =>
-      const TaskConstMeta(debugName: "UiUser_user_handles", argNames: ["that"]);
-
-  @override
   UiUserId crateApiUserCubitUiUserUserId({required UiUser that}) {
     return handler.executeSync(
       SyncTask(
@@ -4220,7 +4191,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 86)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 85)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_ui_user_id,
@@ -4235,6 +4206,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiUserCubitUiUserUserIdConstMeta =>
       const TaskConstMeta(debugName: "UiUser_user_id", argNames: ["that"]);
+
+  @override
+  List<UiUsername> crateApiUserCubitUiUserUsernames({required UiUser that}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 86)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_ui_username,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiUserCubitUiUserUsernamesConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiUserCubitUiUserUsernamesConstMeta =>
+      const TaskConstMeta(debugName: "UiUser_usernames", argNames: ["that"]);
 
   @override
   Future<ChatId> crateApiUserCubitUserCubitBaseAddContactFromGroup({
@@ -4278,9 +4275,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<bool> crateApiUserCubitUserCubitBaseAddUserHandle({
+  Future<bool> crateApiUserCubitUserCubitBaseAddUsername({
     required UserCubitBase that,
-    required UiUserHandle userHandle,
+    required UiUsername username,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -4290,7 +4287,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          sse_encode_box_autoadd_ui_user_handle(userHandle, serializer);
+          sse_encode_box_autoadd_ui_username(username, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -4302,17 +4299,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_bool,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiUserCubitUserCubitBaseAddUserHandleConstMeta,
-        argValues: [that, userHandle],
+        constMeta: kCrateApiUserCubitUserCubitBaseAddUsernameConstMeta,
+        argValues: [that, username],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiUserCubitUserCubitBaseAddUserHandleConstMeta =>
+  TaskConstMeta get kCrateApiUserCubitUserCubitBaseAddUsernameConstMeta =>
       const TaskConstMeta(
-        debugName: "UserCubitBase_add_user_handle",
-        argNames: ["that", "userHandle"],
+        debugName: "UserCubitBase_add_username",
+        argNames: ["that", "username"],
       );
 
   @override
@@ -4432,9 +4429,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<UserHandleHash?> crateApiUserCubitUserCubitBaseCheckHandleExists({
+  Future<UsernameHash?> crateApiUserCubitUserCubitBaseCheckUsernameExists({
     required UserCubitBase that,
-    required UiUserHandle handle,
+    required UiUsername username,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -4444,7 +4441,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          sse_encode_box_autoadd_ui_user_handle(handle, serializer);
+          sse_encode_box_autoadd_ui_username(username, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -4454,20 +4451,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData:
-              sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash,
+              sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiUserCubitUserCubitBaseCheckHandleExistsConstMeta,
-        argValues: [that, handle],
+        constMeta: kCrateApiUserCubitUserCubitBaseCheckUsernameExistsConstMeta,
+        argValues: [that, username],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiUserCubitUserCubitBaseCheckHandleExistsConstMeta =>
+  TaskConstMeta
+  get kCrateApiUserCubitUserCubitBaseCheckUsernameExistsConstMeta =>
       const TaskConstMeta(
-        debugName: "UserCubitBase_check_handle_exists",
-        argNames: ["that", "handle"],
+        debugName: "UserCubitBase_check_username_exists",
+        argNames: ["that", "username"],
       );
 
   @override
@@ -4805,9 +4803,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiUserCubitUserCubitBaseRemoveUserHandle({
+  Future<void> crateApiUserCubitUserCubitBaseRemoveUsername({
     required UserCubitBase that,
-    required UiUserHandle userHandle,
+    required UiUsername username,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -4817,7 +4815,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          sse_encode_box_autoadd_ui_user_handle(userHandle, serializer);
+          sse_encode_box_autoadd_ui_username(username, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -4829,17 +4827,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiUserCubitUserCubitBaseRemoveUserHandleConstMeta,
-        argValues: [that, userHandle],
+        constMeta: kCrateApiUserCubitUserCubitBaseRemoveUsernameConstMeta,
+        argValues: [that, username],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiUserCubitUserCubitBaseRemoveUserHandleConstMeta =>
+  TaskConstMeta get kCrateApiUserCubitUserCubitBaseRemoveUsernameConstMeta =>
       const TaskConstMeta(
-        debugName: "UserCubitBase_remove_user_handle",
-        argNames: ["that", "userHandle"],
+        debugName: "UserCubitBase_remove_username",
+        argNames: ["that", "username"],
       );
 
   @override
@@ -6957,14 +6955,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "tar_logs", argNames: ["cacheDir"]);
 
   @override
-  UserHandleValidationError? crateApiTypesUiUserHandleValidationError({
-    required UiUserHandle that,
+  UsernameValidationError? crateApiTypesUiUsernameValidationError({
+    required UiUsername that,
   }) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_box_autoadd_ui_user_handle(that, serializer);
+          sse_encode_box_autoadd_ui_username(that, serializer);
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -6973,19 +6971,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData:
-              sse_decode_opt_box_autoadd_user_handle_validation_error,
+              sse_decode_opt_box_autoadd_username_validation_error,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiTypesUiUserHandleValidationErrorConstMeta,
+        constMeta: kCrateApiTypesUiUsernameValidationErrorConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiTypesUiUserHandleValidationErrorConstMeta =>
+  TaskConstMeta get kCrateApiTypesUiUsernameValidationErrorConstMeta =>
       const TaskConstMeta(
-        debugName: "ui_user_handle_validation_error",
+        debugName: "ui_username_validation_error",
         argNames: ["that"],
       );
 
@@ -7280,20 +7278,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase;
 
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_UserHandleHash => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_UserHandleHash => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash;
-
-  RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_UserSettingsCubitBase => wire
       .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase;
 
   RustArcDecrementStrongCountFnType
   get rust_arc_decrement_strong_count_UserSettingsCubitBase => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_UsernameHash => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_UsernameHash => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_UsersCubitBase => wire
@@ -7459,21 +7457,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UserHandleHash
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return UserHandleHashImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
   UserSettingsCubitBase
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return UserSettingsCubitBaseImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  UsernameHash
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return UsernameHashImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -7892,21 +7890,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UserHandleHash
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return UserHandleHashImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
   UserSettingsCubitBase
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return UserSettingsCubitBaseImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  UsernameHash
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return UsernameHashImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -8055,9 +8053,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AddHandleContactError dco_decode_add_handle_contact_error(dynamic raw) {
+  AddUsernameContactError dco_decode_add_username_contact_error(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return AddHandleContactError.values[raw as int];
+    return AddUsernameContactError.values[raw as int];
   }
 
   @protected
@@ -8168,12 +8166,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UserHandleHash
-  dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+  UsernameHash
+  dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+    return dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
       raw,
     );
   }
@@ -8187,11 +8185,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AddHandleContactError dco_decode_box_autoadd_add_handle_contact_error(
+  AddUsernameContactError dco_decode_box_autoadd_add_username_contact_error(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_add_handle_contact_error(raw);
+    return dco_decode_add_username_contact_error(raw);
   }
 
   @protected
@@ -8418,12 +8416,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UiUserHandle dco_decode_box_autoadd_ui_user_handle(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_ui_user_handle(raw);
-  }
-
-  @protected
   UiUserId dco_decode_box_autoadd_ui_user_id(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_ui_user_id(raw);
@@ -8436,6 +8428,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiUsername dco_decode_box_autoadd_ui_username(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_ui_username(raw);
+  }
+
+  @protected
   UploadAttachmentError dco_decode_box_autoadd_upload_attachment_error(
     dynamic raw,
   ) {
@@ -8444,11 +8442,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UserHandleValidationError dco_decode_box_autoadd_user_handle_validation_error(
+  UsernameValidationError dco_decode_box_autoadd_username_validation_error(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_user_handle_validation_error(raw);
+    return dco_decode_username_validation_error(raw);
   }
 
   @protected
@@ -8874,15 +8872,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<UiUserHandle> dco_decode_list_ui_user_handle(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>).map(dco_decode_ui_user_handle).toList();
-  }
-
-  @protected
   List<UiUserId> dco_decode_list_ui_user_id(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_ui_user_id).toList();
+  }
+
+  @protected
+  List<UiUsername> dco_decode_list_ui_username(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_ui_username).toList();
   }
 
   @protected
@@ -9116,14 +9114,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UserHandleHash?
-  dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+  UsernameHash?
+  dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null
         ? null
-        : dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+        : dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
             raw,
           );
   }
@@ -9138,13 +9136,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AddHandleContactError? dco_decode_opt_box_autoadd_add_handle_contact_error(
-    dynamic raw,
-  ) {
+  AddUsernameContactError?
+  dco_decode_opt_box_autoadd_add_username_contact_error(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null
         ? null
-        : dco_decode_box_autoadd_add_handle_contact_error(raw);
+        : dco_decode_box_autoadd_add_username_contact_error(raw);
   }
 
   @protected
@@ -9332,15 +9329,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UiUserHandle? dco_decode_opt_box_autoadd_ui_user_handle(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw == null ? null : dco_decode_box_autoadd_ui_user_handle(raw);
-  }
-
-  @protected
   UiUserId? dco_decode_opt_box_autoadd_ui_user_id(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_ui_user_id(raw);
+  }
+
+  @protected
+  UiUsername? dco_decode_opt_box_autoadd_ui_username(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_ui_username(raw);
   }
 
   @protected
@@ -9354,12 +9351,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UserHandleValidationError?
-  dco_decode_opt_box_autoadd_user_handle_validation_error(dynamic raw) {
+  UsernameValidationError? dco_decode_opt_box_autoadd_username_validation_error(
+    dynamic raw,
+  ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null
         ? null
-        : dco_decode_box_autoadd_user_handle_validation_error(raw);
+        : dco_decode_box_autoadd_username_validation_error(raw);
   }
 
   @protected
@@ -9617,7 +9615,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     switch (raw[0]) {
       case 0:
         return UiChatType_HandleConnection(
-          dco_decode_box_autoadd_ui_user_handle(raw[1]),
+          dco_decode_box_autoadd_ui_username(raw[1]),
         );
       case 1:
         return UiChatType_Connection(
@@ -9855,7 +9853,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 4:
         return UiSystemMessage_ReceivedHandleConnectionRequest(
           sender: dco_decode_box_autoadd_ui_user_id(raw[1]),
-          userHandle: dco_decode_box_autoadd_ui_user_handle(raw[2]),
+          username: dco_decode_box_autoadd_ui_username(raw[2]),
         );
       case 5:
         return UiSystemMessage_ReceivedDirectConnectionRequest(
@@ -9865,16 +9863,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 6:
         return UiSystemMessage_AcceptedConnectionRequest(
           sender: dco_decode_box_autoadd_ui_user_id(raw[1]),
-          userHandle: dco_decode_opt_box_autoadd_ui_user_handle(raw[2]),
+          username: dco_decode_opt_box_autoadd_ui_username(raw[2]),
         );
       case 7:
         return UiSystemMessage_ReceivedConnectionConfirmation(
           sender: dco_decode_box_autoadd_ui_user_id(raw[1]),
-          userHandle: dco_decode_opt_box_autoadd_ui_user_handle(raw[2]),
+          username: dco_decode_opt_box_autoadd_ui_username(raw[2]),
         );
       case 8:
         return UiSystemMessage_NewHandleConnectionChat(
-          dco_decode_box_autoadd_ui_user_handle(raw[1]),
+          dco_decode_box_autoadd_ui_username(raw[1]),
         );
       case 9:
         return UiSystemMessage_NewDirectConnectionChat(
@@ -9887,15 +9885,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       default:
         throw Exception("unreachable");
     }
-  }
-
-  @protected
-  UiUserHandle dco_decode_ui_user_handle(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 1)
-      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
-    return UiUserHandle(plaintext: dco_decode_String(arr[0]));
   }
 
   @protected
@@ -9924,6 +9913,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiUsername dco_decode_ui_username(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 1)
+      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
+    return UiUsername(plaintext: dco_decode_String(arr[0]));
+  }
+
+  @protected
   void dco_decode_unit(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return;
@@ -9944,14 +9942,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UserHandleValidationError dco_decode_user_handle_validation_error(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return UserHandleValidationError.values[raw as int];
-  }
-
-  @protected
   UserSettings dco_decode_user_settings(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -9964,6 +9954,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       sendOnEnter: dco_decode_bool(arr[3]),
       readReceipts: dco_decode_bool(arr[4]),
     );
+  }
+
+  @protected
+  UsernameValidationError dco_decode_username_validation_error(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return UsernameValidationError.values[raw as int];
   }
 
   @protected
@@ -10160,24 +10156,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UserHandleHash
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return UserHandleHashImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
   UserSettingsCubitBase
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return UserSettingsCubitBaseImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  UsernameHash
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return UsernameHashImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -10657,24 +10653,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UserHandleHash
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return UserHandleHashImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
   UserSettingsCubitBase
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return UserSettingsCubitBaseImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  UsernameHash
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return UsernameHashImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -10841,12 +10837,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AddHandleContactError sse_decode_add_handle_contact_error(
+  AddUsernameContactError sse_decode_add_username_contact_error(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_i_32(deserializer);
-    return AddHandleContactError.values[inner];
+    return AddUsernameContactError.values[inner];
   }
 
   @protected
@@ -10963,12 +10959,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UserHandleHash
-  sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+  UsernameHash
+  sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+    return (sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
       deserializer,
     ));
   }
@@ -10982,11 +10978,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AddHandleContactError sse_decode_box_autoadd_add_handle_contact_error(
+  AddUsernameContactError sse_decode_box_autoadd_add_username_contact_error(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_add_handle_contact_error(deserializer));
+    return (sse_decode_add_username_contact_error(deserializer));
   }
 
   @protected
@@ -11261,14 +11257,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UiUserHandle sse_decode_box_autoadd_ui_user_handle(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_ui_user_handle(deserializer));
-  }
-
-  @protected
   UiUserId sse_decode_box_autoadd_ui_user_id(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_ui_user_id(deserializer));
@@ -11283,6 +11271,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiUsername sse_decode_box_autoadd_ui_username(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_ui_username(deserializer));
+  }
+
+  @protected
   UploadAttachmentError sse_decode_box_autoadd_upload_attachment_error(
     SseDeserializer deserializer,
   ) {
@@ -11291,11 +11285,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UserHandleValidationError sse_decode_box_autoadd_user_handle_validation_error(
+  UsernameValidationError sse_decode_box_autoadd_username_validation_error(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_user_handle_validation_error(deserializer));
+    return (sse_decode_username_validation_error(deserializer));
   }
 
   @protected
@@ -11877,20 +11871,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<UiUserHandle> sse_decode_list_ui_user_handle(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <UiUserHandle>[];
-    for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_ui_user_handle(deserializer));
-    }
-    return ans_;
-  }
-
-  @protected
   List<UiUserId> sse_decode_list_ui_user_id(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -11898,6 +11878,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <UiUserId>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_ui_user_id(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<UiUsername> sse_decode_list_ui_username(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <UiUsername>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_ui_username(deserializer));
     }
     return ans_;
   }
@@ -12161,14 +12153,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UserHandleHash?
-  sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+  UsernameHash?
+  sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+      return (sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
         deserializer,
       ));
     } else {
@@ -12193,13 +12185,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AddHandleContactError? sse_decode_opt_box_autoadd_add_handle_contact_error(
+  AddUsernameContactError?
+  sse_decode_opt_box_autoadd_add_username_contact_error(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_add_handle_contact_error(deserializer));
+      return (sse_decode_box_autoadd_add_username_contact_error(deserializer));
     } else {
       return null;
     }
@@ -12528,19 +12521,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UiUserHandle? sse_decode_opt_box_autoadd_ui_user_handle(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_ui_user_handle(deserializer));
-    } else {
-      return null;
-    }
-  }
-
-  @protected
   UiUserId? sse_decode_opt_box_autoadd_ui_user_id(
     SseDeserializer deserializer,
   ) {
@@ -12548,6 +12528,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_ui_user_id(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  UiUsername? sse_decode_opt_box_autoadd_ui_username(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_ui_username(deserializer));
     } else {
       return null;
     }
@@ -12567,16 +12560,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UserHandleValidationError?
-  sse_decode_opt_box_autoadd_user_handle_validation_error(
+  UsernameValidationError? sse_decode_opt_box_autoadd_username_validation_error(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_user_handle_validation_error(
-        deserializer,
-      ));
+      return (sse_decode_box_autoadd_username_validation_error(deserializer));
     } else {
       return null;
     }
@@ -12865,7 +12855,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var tag_ = sse_decode_i_32(deserializer);
     switch (tag_) {
       case 0:
-        var var_field0 = sse_decode_box_autoadd_ui_user_handle(deserializer);
+        var var_field0 = sse_decode_box_autoadd_ui_username(deserializer);
         return UiChatType_HandleConnection(var_field0);
       case 1:
         var var_field0 = sse_decode_box_autoadd_ui_user_profile(deserializer);
@@ -13109,12 +13099,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiSystemMessage_ChangePicture(var_field0);
       case 4:
         var var_sender = sse_decode_box_autoadd_ui_user_id(deserializer);
-        var var_userHandle = sse_decode_box_autoadd_ui_user_handle(
-          deserializer,
-        );
+        var var_username = sse_decode_box_autoadd_ui_username(deserializer);
         return UiSystemMessage_ReceivedHandleConnectionRequest(
           sender: var_sender,
-          userHandle: var_userHandle,
+          username: var_username,
         );
       case 5:
         var var_sender = sse_decode_box_autoadd_ui_user_id(deserializer);
@@ -13125,24 +13113,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
       case 6:
         var var_sender = sse_decode_box_autoadd_ui_user_id(deserializer);
-        var var_userHandle = sse_decode_opt_box_autoadd_ui_user_handle(
-          deserializer,
-        );
+        var var_username = sse_decode_opt_box_autoadd_ui_username(deserializer);
         return UiSystemMessage_AcceptedConnectionRequest(
           sender: var_sender,
-          userHandle: var_userHandle,
+          username: var_username,
         );
       case 7:
         var var_sender = sse_decode_box_autoadd_ui_user_id(deserializer);
-        var var_userHandle = sse_decode_opt_box_autoadd_ui_user_handle(
-          deserializer,
-        );
+        var var_username = sse_decode_opt_box_autoadd_ui_username(deserializer);
         return UiSystemMessage_ReceivedConnectionConfirmation(
           sender: var_sender,
-          userHandle: var_userHandle,
+          username: var_username,
         );
       case 8:
-        var var_field0 = sse_decode_box_autoadd_ui_user_handle(deserializer);
+        var var_field0 = sse_decode_box_autoadd_ui_username(deserializer);
         return UiSystemMessage_NewHandleConnectionChat(var_field0);
       case 9:
         var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
@@ -13153,13 +13137,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       default:
         throw UnimplementedError('');
     }
-  }
-
-  @protected
-  UiUserHandle sse_decode_ui_user_handle(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_plaintext = sse_decode_String(deserializer);
-    return UiUserHandle(plaintext: var_plaintext);
   }
 
   @protected
@@ -13183,6 +13160,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       displayName: var_displayName,
       profilePicture: var_profilePicture,
     );
+  }
+
+  @protected
+  UiUsername sse_decode_ui_username(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_plaintext = sse_decode_String(deserializer);
+    return UiUsername(plaintext: var_plaintext);
   }
 
   @protected
@@ -13211,15 +13195,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UserHandleValidationError sse_decode_user_handle_validation_error(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var inner = sse_decode_i_32(deserializer);
-    return UserHandleValidationError.values[inner];
-  }
-
-  @protected
   UserSettings sse_decode_user_settings(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_locale = sse_decode_opt_String(deserializer);
@@ -13234,6 +13209,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       sendOnEnter: var_sendOnEnter,
       readReceipts: var_readReceipts,
     );
+  }
+
+  @protected
+  UsernameValidationError sse_decode_username_validation_error(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return UsernameValidationError.values[inner];
   }
 
   @protected
@@ -13448,19 +13432,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-    UserHandleHash self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as UserHandleHashImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
     UserSettingsCubitBase self,
     SseSerializer serializer,
@@ -13468,6 +13439,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as UserSettingsCubitBaseImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+    UsernameHash self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as UsernameHashImpl).frbInternalSseEncode(move: true),
       serializer,
     );
   }
@@ -14052,19 +14036,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-    UserHandleHash self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as UserHandleHashImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
     UserSettingsCubitBase self,
     SseSerializer serializer,
@@ -14072,6 +14043,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as UserSettingsCubitBaseImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+    UsernameHash self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as UsernameHashImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -14353,8 +14337,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_add_handle_contact_error(
-    AddHandleContactError self,
+  void sse_encode_add_username_contact_error(
+    AddUsernameContactError self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -14464,12 +14448,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
-  sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-    UserHandleHash self,
+  sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+    UsernameHash self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+    sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
       self,
       serializer,
     );
@@ -14485,12 +14469,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_box_autoadd_add_handle_contact_error(
-    AddHandleContactError self,
+  void sse_encode_box_autoadd_add_username_contact_error(
+    AddUsernameContactError self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_add_handle_contact_error(self, serializer);
+    sse_encode_add_username_contact_error(self, serializer);
   }
 
   @protected
@@ -14797,15 +14781,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_box_autoadd_ui_user_handle(
-    UiUserHandle self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_ui_user_handle(self, serializer);
-  }
-
-  @protected
   void sse_encode_box_autoadd_ui_user_id(
     UiUserId self,
     SseSerializer serializer,
@@ -14824,6 +14799,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_ui_username(
+    UiUsername self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_ui_username(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_upload_attachment_error(
     UploadAttachmentError self,
     SseSerializer serializer,
@@ -14833,12 +14817,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_box_autoadd_user_handle_validation_error(
-    UserHandleValidationError self,
+  void sse_encode_box_autoadd_username_validation_error(
+    UsernameValidationError self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_user_handle_validation_error(self, serializer);
+    sse_encode_username_validation_error(self, serializer);
   }
 
   @protected
@@ -15345,18 +15329,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_list_ui_user_handle(
-    List<UiUserHandle> self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.length, serializer);
-    for (final item in self) {
-      sse_encode_ui_user_handle(item, serializer);
-    }
-  }
-
-  @protected
   void sse_encode_list_ui_user_id(
     List<UiUserId> self,
     SseSerializer serializer,
@@ -15365,6 +15337,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_ui_user_id(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_ui_username(
+    List<UiUsername> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_ui_username(item, serializer);
     }
   }
 
@@ -15601,15 +15585,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
-  sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-    UserHandleHash? self,
+  sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+    UsernameHash? self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     sse_encode_bool(self != null, serializer);
     if (self != null) {
-      sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+      sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
         self,
         serializer,
       );
@@ -15630,15 +15614,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_opt_box_autoadd_add_handle_contact_error(
-    AddHandleContactError? self,
+  void sse_encode_opt_box_autoadd_add_username_contact_error(
+    AddUsernameContactError? self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     sse_encode_bool(self != null, serializer);
     if (self != null) {
-      sse_encode_box_autoadd_add_handle_contact_error(self, serializer);
+      sse_encode_box_autoadd_add_username_contact_error(self, serializer);
     }
   }
 
@@ -15955,19 +15939,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_opt_box_autoadd_ui_user_handle(
-    UiUserHandle? self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    sse_encode_bool(self != null, serializer);
-    if (self != null) {
-      sse_encode_box_autoadd_ui_user_handle(self, serializer);
-    }
-  }
-
-  @protected
   void sse_encode_opt_box_autoadd_ui_user_id(
     UiUserId? self,
     SseSerializer serializer,
@@ -15977,6 +15948,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_ui_user_id(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_ui_username(
+    UiUsername? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_ui_username(self, serializer);
     }
   }
 
@@ -15994,15 +15978,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_opt_box_autoadd_user_handle_validation_error(
-    UserHandleValidationError? self,
+  void sse_encode_opt_box_autoadd_username_validation_error(
+    UsernameValidationError? self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     sse_encode_bool(self != null, serializer);
     if (self != null) {
-      sse_encode_box_autoadd_user_handle_validation_error(self, serializer);
+      sse_encode_box_autoadd_username_validation_error(self, serializer);
     }
   }
 
@@ -16250,7 +16234,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     switch (self) {
       case UiChatType_HandleConnection(field0: final field0):
         sse_encode_i_32(0, serializer);
-        sse_encode_box_autoadd_ui_user_handle(field0, serializer);
+        sse_encode_box_autoadd_ui_username(field0, serializer);
       case UiChatType_Connection(field0: final field0):
         sse_encode_i_32(1, serializer);
         sse_encode_box_autoadd_ui_user_profile(field0, serializer);
@@ -16474,11 +16458,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_box_autoadd_ui_user_id(field0, serializer);
       case UiSystemMessage_ReceivedHandleConnectionRequest(
         sender: final sender,
-        userHandle: final userHandle,
+        username: final username,
       ):
         sse_encode_i_32(4, serializer);
         sse_encode_box_autoadd_ui_user_id(sender, serializer);
-        sse_encode_box_autoadd_ui_user_handle(userHandle, serializer);
+        sse_encode_box_autoadd_ui_username(username, serializer);
       case UiSystemMessage_ReceivedDirectConnectionRequest(
         sender: final sender,
         chatName: final chatName,
@@ -16488,21 +16472,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(chatName, serializer);
       case UiSystemMessage_AcceptedConnectionRequest(
         sender: final sender,
-        userHandle: final userHandle,
+        username: final username,
       ):
         sse_encode_i_32(6, serializer);
         sse_encode_box_autoadd_ui_user_id(sender, serializer);
-        sse_encode_opt_box_autoadd_ui_user_handle(userHandle, serializer);
+        sse_encode_opt_box_autoadd_ui_username(username, serializer);
       case UiSystemMessage_ReceivedConnectionConfirmation(
         sender: final sender,
-        userHandle: final userHandle,
+        username: final username,
       ):
         sse_encode_i_32(7, serializer);
         sse_encode_box_autoadd_ui_user_id(sender, serializer);
-        sse_encode_opt_box_autoadd_ui_user_handle(userHandle, serializer);
+        sse_encode_opt_box_autoadd_ui_username(username, serializer);
       case UiSystemMessage_NewHandleConnectionChat(field0: final field0):
         sse_encode_i_32(8, serializer);
-        sse_encode_box_autoadd_ui_user_handle(field0, serializer);
+        sse_encode_box_autoadd_ui_username(field0, serializer);
       case UiSystemMessage_NewDirectConnectionChat(field0: final field0):
         sse_encode_i_32(9, serializer);
         sse_encode_box_autoadd_ui_user_id(field0, serializer);
@@ -16510,12 +16494,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_32(10, serializer);
         sse_encode_box_autoadd_ui_user_id(field0, serializer);
     }
-  }
-
-  @protected
-  void sse_encode_ui_user_handle(UiUserHandle self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.plaintext, serializer);
   }
 
   @protected
@@ -16534,6 +16512,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_ui_user_id(self.userId, serializer);
     sse_encode_String(self.displayName, serializer);
     sse_encode_opt_box_autoadd_image_data(self.profilePicture, serializer);
+  }
+
+  @protected
+  void sse_encode_ui_username(UiUsername self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.plaintext, serializer);
   }
 
   @protected
@@ -16559,15 +16543,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_user_handle_validation_error(
-    UserHandleValidationError self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.index, serializer);
-  }
-
-  @protected
   void sse_encode_user_settings(UserSettings self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_opt_String(self.locale, serializer);
@@ -16575,6 +16550,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_f_64(self.sidebarWidth, serializer);
     sse_encode_bool(self.sendOnEnter, serializer);
     sse_encode_bool(self.readReceipts, serializer);
+  }
+
+  @protected
+  void sse_encode_username_validation_error(
+    UsernameValidationError self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
   }
 
   @protected
@@ -16832,16 +16816,16 @@ class ChatListCubitBaseImpl extends RustOpaque implements ChatListCubitBase {
   Future<void> close() => RustLib.instance.api
       .crateApiChatListCubitChatListCubitBaseClose(that: this);
 
-  /// Creates a new 1:1 connection with the given user via a user handle.
+  /// Creates a new 1:1 connection with the given user via a username.
   ///
-  /// Returns `None` if the provided handle does not exist.
-  Future<AddHandleContactError?> createContactChat({
-    required UiUserHandle handle,
-    required UserHandleHash hash,
+  /// Returns `None` if the provided username does not exist.
+  Future<AddUsernameContactError?> createContactChat({
+    required UiUsername username,
+    required UsernameHash hash,
   }) => RustLib.instance.api
       .crateApiChatListCubitChatListCubitBaseCreateContactChat(
         that: this,
-        handle: handle,
+        username: username,
         hash: hash,
       );
 
@@ -17288,11 +17272,11 @@ class UiUserImpl extends RustOpaque implements UiUser {
   bool get unsupportedVersion => RustLib.instance.api
       .crateApiUserCubitUiUserUnsupportedVersion(that: this);
 
-  List<UiUserHandle> get userHandles =>
-      RustLib.instance.api.crateApiUserCubitUiUserUserHandles(that: this);
-
   UiUserId get userId =>
       RustLib.instance.api.crateApiUserCubitUiUserUserId(that: this);
+
+  List<UiUsername> get usernames =>
+      RustLib.instance.api.crateApiUserCubitUiUserUsernames(that: this);
 }
 
 @sealed
@@ -17323,10 +17307,10 @@ class UserCubitBaseImpl extends RustOpaque implements UserCubitBase {
     userId: userId,
   );
 
-  Future<bool> addUserHandle({required UiUserHandle userHandle}) =>
-      RustLib.instance.api.crateApiUserCubitUserCubitBaseAddUserHandle(
+  Future<bool> addUsername({required UiUsername username}) =>
+      RustLib.instance.api.crateApiUserCubitUserCubitBaseAddUsername(
         that: this,
-        userHandle: userHandle,
+        username: username,
       );
 
   /// Adds multiple users to the chat with the given [`ChatId`].
@@ -17351,10 +17335,10 @@ class UserCubitBaseImpl extends RustOpaque implements UserCubitBase {
   Future<void> blockContact({required UiUserId userId}) => RustLib.instance.api
       .crateApiUserCubitUserCubitBaseBlockContact(that: this, userId: userId);
 
-  Future<UserHandleHash?> checkHandleExists({required UiUserHandle handle}) =>
-      RustLib.instance.api.crateApiUserCubitUserCubitBaseCheckHandleExists(
+  Future<UsernameHash?> checkUsernameExists({required UiUsername username}) =>
+      RustLib.instance.api.crateApiUserCubitUserCubitBaseCheckUsernameExists(
         that: this,
-        handle: handle,
+        username: username,
       );
 
   Future<void> close() =>
@@ -17391,10 +17375,10 @@ class UserCubitBaseImpl extends RustOpaque implements UserCubitBase {
         userId: userId,
       );
 
-  Future<void> removeUserHandle({required UiUserHandle userHandle}) =>
-      RustLib.instance.api.crateApiUserCubitUserCubitBaseRemoveUserHandle(
+  Future<void> removeUsername({required UiUsername username}) =>
+      RustLib.instance.api.crateApiUserCubitUserCubitBaseRemoveUsername(
         that: this,
-        userHandle: userHandle,
+        username: username,
       );
 
   Future<void> reportSpam({required UiUserId spammerId}) =>
@@ -17436,26 +17420,6 @@ class UserCubitBaseImpl extends RustOpaque implements UserCubitBase {
       .instance
       .api
       .crateApiUserCubitUserCubitBaseUnblockContact(that: this, userId: userId);
-}
-
-@sealed
-class UserHandleHashImpl extends RustOpaque implements UserHandleHash {
-  // Not to be used by end users
-  UserHandleHashImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  UserHandleHashImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_UserHandleHash,
-    rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_UserHandleHash,
-    rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_UserHandleHashPtr,
-  );
 }
 
 @sealed
@@ -17593,6 +17557,26 @@ class UserSettingsCubitBaseImpl extends RustOpaque
 
   Stream<UserSettings> stream() => RustLib.instance.api
       .crateApiUserSettingsCubitUserSettingsCubitBaseStream(that: this);
+}
+
+@sealed
+class UsernameHashImpl extends RustOpaque implements UsernameHash {
+  // Not to be used by end users
+  UsernameHashImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  UsernameHashImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_UsernameHash,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_UsernameHash,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_UsernameHashPtr,
+  );
 }
 
 @sealed

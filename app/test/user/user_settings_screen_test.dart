@@ -73,9 +73,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      when(
-        () => userCubit.state,
-      ).thenReturn(MockUiUser(id: 1, userHandles: []));
+      when(() => userCubit.state).thenReturn(MockUiUser(id: 1, usernames: []));
 
       await tester.pumpWidget(buildSubject());
 
@@ -94,9 +92,9 @@ void main() {
       when(() => userCubit.state).thenReturn(
         MockUiUser(
           id: 1,
-          userHandles: [
-            const UiUserHandle(plaintext: "ellie"),
-            const UiUserHandle(plaintext: "firefly"),
+          usernames: [
+            const UiUsername(plaintext: "ellie"),
+            const UiUsername(plaintext: "firefly"),
           ],
         ),
       );
@@ -118,12 +116,12 @@ void main() {
       when(() => userCubit.state).thenReturn(
         MockUiUser(
           id: 1,
-          userHandles: [
-            const UiUserHandle(plaintext: "ellie"),
-            const UiUserHandle(plaintext: "firefly"),
-            const UiUserHandle(plaintext: "kiddo"),
-            const UiUserHandle(plaintext: "ells"),
-            const UiUserHandle(plaintext: "wolf"),
+          usernames: [
+            const UiUsername(plaintext: "ellie"),
+            const UiUsername(plaintext: "firefly"),
+            const UiUsername(plaintext: "kiddo"),
+            const UiUsername(plaintext: "ells"),
+            const UiUsername(plaintext: "wolf"),
           ],
         ),
       );

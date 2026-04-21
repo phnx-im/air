@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "\n                SELECT\n                    handle AS \"handle: _\",\n                    hash AS \"hash: _\",\n                    signing_key AS \"signing_key: _\"\n                FROM user_handle\n                WHERE handle = ?\n            ",
+  "query": "\n                SELECT\n                    handle AS \"username: _\",\n                    hash AS \"hash: _\",\n                    signing_key AS \"signing_key: _\"\n                FROM user_handle\n                WHERE refreshed_at < ?\n            ",
   "describe": {
     "columns": [
       {
-        "name": "handle: _",
+        "name": "username: _",
         "ordinal": 0,
         "type_info": "Text"
       },
@@ -28,5 +28,5 @@
       false
     ]
   },
-  "hash": "ca67e4c8ec7b239d1f08b21ea7ac22ee1112892f122fa7ad49cd36f2911755db"
+  "hash": "94235274c1ea9bc50dceb72a99f269f18cc4fe72bc7a9badde96f94eae970422"
 }

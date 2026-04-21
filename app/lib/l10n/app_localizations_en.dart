@@ -70,7 +70,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get userSettingsScreen_accountSection => 'Account';
 
   @override
-  String get userSettingsScreen_userHandlePlaceholder => 'Username';
+  String get userSettingsScreen_usernamePlaceholder => 'Username';
 
   @override
   String get userSettingsScreen_inviteCodes => 'Invite codes';
@@ -368,46 +368,45 @@ class AppLocalizationsEn extends AppLocalizations {
   String get usernameOnboarding_usernameInputHint => 'Add a username...';
 
   @override
-  String get userHandleScreen_title => 'Add username';
+  String get usernameScreen_title => 'Add username';
 
   @override
-  String get userHandleScreen_inputHint => 'Type a username...';
+  String get usernameScreen_inputHint => 'Type a username...';
 
   @override
-  String get userHandleScreen_error_emptyHandle => 'Username cannot be empty';
+  String get usernameScreen_error_emptyUsername => 'Username cannot be empty';
 
   @override
-  String get userHandleScreen_error_alreadyExists =>
-      'Username is already in use';
+  String get usernameScreen_error_alreadyExists => 'Username is already in use';
 
   @override
-  String get userHandleScreen_description =>
+  String get usernameScreen_description =>
       'Choose a username that others can use to connect with you. Use letters, numbers, or dashes. Minimum 5 characters.';
 
   @override
-  String get userHandleScreen_cancel => 'Cancel';
+  String get usernameScreen_cancel => 'Cancel';
 
   @override
-  String get userHandleScreen_confirm => 'Add';
+  String get usernameScreen_confirm => 'Add';
 
   @override
-  String get userHandleScreen_error_tooShort =>
+  String get usernameScreen_error_tooShort =>
       'Username must be at least 5 characters';
 
   @override
-  String get userHandleScreen_error_tooLong =>
+  String get usernameScreen_error_tooLong =>
       'Username must be at most 63 characters';
 
   @override
-  String get userHandleScreen_error_invalidCharacter =>
+  String get usernameScreen_error_invalidCharacter =>
       'Username must only contain letters, numbers, or dashes';
 
   @override
-  String get userHandleScreen_error_consecutiveDashes =>
+  String get usernameScreen_error_consecutiveDashes =>
       'Username must not contain consecutive dashes';
 
   @override
-  String get userHandleScreen_error_leadingDigit =>
+  String get usernameScreen_error_leadingDigit =>
       'Username must not start with a digit';
 
   @override
@@ -617,10 +616,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get newConnectionDialog_error_emptyHandle => 'Type the username';
+  String get newConnectionDialog_error_emptyUsername => 'Type the username';
 
   @override
-  String newConnectionDialog_error_handleNotFound(Object username) {
+  String newConnectionDialog_error_usernameNotFound(Object username) {
     return '$username wasn\'t found. Check it and try again.';
   }
 
@@ -629,7 +628,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'You already have a pending contact request to this username.';
 
   @override
-  String get newConnectionDialog_error_ownHandle =>
+  String get newConnectionDialog_error_ownUsername =>
       'You can\'t send a contact request to yourself.';
 
   @override

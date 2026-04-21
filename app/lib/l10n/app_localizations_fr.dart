@@ -70,7 +70,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get userSettingsScreen_accountSection => 'Compte';
 
   @override
-  String get userSettingsScreen_userHandlePlaceholder => 'Nom d\'utilisateur';
+  String get userSettingsScreen_usernamePlaceholder => 'Nom d\'utilisateur';
 
   @override
   String get userSettingsScreen_inviteCodes => 'Invite codes';
@@ -377,47 +377,47 @@ class AppLocalizationsFr extends AppLocalizations {
       'Ajoutez un nom d\'utilisateur...';
 
   @override
-  String get userHandleScreen_title => 'Ajouter un nom d\'utilisateur';
+  String get usernameScreen_title => 'Ajouter un nom d\'utilisateur';
 
   @override
-  String get userHandleScreen_inputHint => 'Saisissez un nom d\'utilisateur...';
+  String get usernameScreen_inputHint => 'Saisissez un nom d\'utilisateur...';
 
   @override
-  String get userHandleScreen_error_emptyHandle =>
+  String get usernameScreen_error_emptyUsername =>
       'Le nom d\'utilisateur ne peut pas être vide';
 
   @override
-  String get userHandleScreen_error_alreadyExists =>
+  String get usernameScreen_error_alreadyExists =>
       'Ce nom d\'utilisateur est déjà utilisé';
 
   @override
-  String get userHandleScreen_description =>
+  String get usernameScreen_description =>
       'Choisissez un nom d\'utilisateur que d\'autres peuvent utiliser pour se connecter avec vous.\n\nUtilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.';
 
   @override
-  String get userHandleScreen_cancel => 'Annuler';
+  String get usernameScreen_cancel => 'Annuler';
 
   @override
-  String get userHandleScreen_confirm => 'Ajouter';
+  String get usernameScreen_confirm => 'Ajouter';
 
   @override
-  String get userHandleScreen_error_tooShort =>
+  String get usernameScreen_error_tooShort =>
       'Le nom d\'utilisateur doit contenir au moins 5 caractères';
 
   @override
-  String get userHandleScreen_error_tooLong =>
+  String get usernameScreen_error_tooLong =>
       'Le nom d\'utilisateur doit contenir au maximum 63 caractères';
 
   @override
-  String get userHandleScreen_error_invalidCharacter =>
+  String get usernameScreen_error_invalidCharacter =>
       'Le nom d\'utilisateur ne peut contenir que des lettres, des chiffres ou des tirets';
 
   @override
-  String get userHandleScreen_error_consecutiveDashes =>
+  String get usernameScreen_error_consecutiveDashes =>
       'Le nom d\'utilisateur ne doit pas contenir de tirets consécutifs';
 
   @override
-  String get userHandleScreen_error_leadingDigit =>
+  String get usernameScreen_error_leadingDigit =>
       'Le nom d\'utilisateur ne doit pas commencer par un chiffre';
 
   @override
@@ -629,11 +629,11 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get newConnectionDialog_error_emptyHandle =>
+  String get newConnectionDialog_error_emptyUsername =>
       'Le nom d\'utilisateur ne peut pas être vide';
 
   @override
-  String newConnectionDialog_error_handleNotFound(Object username) {
+  String newConnectionDialog_error_usernameNotFound(Object username) {
     return 'Le nom d\'utilisateur $username n\'existe pas';
   }
 
@@ -642,7 +642,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Vous avez déjà une demande de contact en attente pour ce nom d\'utilisateur.';
 
   @override
-  String get newConnectionDialog_error_ownHandle =>
+  String get newConnectionDialog_error_ownUsername =>
       'Vous ne pouvez pas vous envoyer une demande de contact.';
 
   @override
