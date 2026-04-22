@@ -7,8 +7,8 @@
 use std::convert::Infallible;
 
 use airapiclient::qs_api::QsListenResponder;
-use aircommon::identifiers::UserHandle;
-use airprotos::{auth_service::v1::HandleQueueMessage, queue_service::v1::QueueEvent};
+use aircommon::identifiers::Username;
+use airprotos::{auth_service::v1::UsernameQueueMessage, queue_service::v1::QueueEvent};
 
 use crate::{
     ChatId,
@@ -23,15 +23,15 @@ use crate::{
 
 /// Incoming event from a remote queue.
 ///
-/// The remote queue is either the QS queue or the AS user handle queue.
+/// The remote queue is either the QS queue or the AS username queue.
 pub(super) enum RemoteQueueEvent {
     Qs {
         event: QueueEvent,
         responder: Responder<QsProcessEventResult, Infallible>,
     },
-    Handle {
-        handle: UserHandle,
-        message: HandleQueueMessage,
+    Username {
+        username: Username,
+        message: UsernameQueueMessage,
         responder: Responder<ChatId, Infallible>,
     },
 }
@@ -46,14 +46,14 @@ impl RemoteQueueEvent {
         (message, response)
     }
 
-    /// Helper function for creating a [`RemoteQueueEvent::Handle`] message.
-    pub(super) fn handle_queue_message(
-        handle: UserHandle,
-        message: HandleQueueMessage,
+    /// Helper function for creating a [`RemoteQueueEvent::Username`] message.
+    pub(super) fn username_queue_message(
+        username: Username,
+        message: UsernameQueueMessage,
     ) -> (Self, Response<ChatId, Infallible>) {
         let (responder, response) = responder();
-        let message = Self::Handle {
-            handle,
+        let message = Self::Username {
+            username,
             message,
             responder,
         };

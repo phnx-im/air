@@ -4,14 +4,13 @@
 
 use std::{
     fmt::Display,
-    fs::{self, File},
+    fs,
     future::ready,
     path::{Path, PathBuf},
 };
 
-use aircommon::{identifiers::UserId, time::TimeStamp};
-use anyhow::{Context, Result, bail};
-use flate2::{Compression, bufread::GzDecoder, write::GzEncoder};
+use aircommon::identifiers::UserId;
+use anyhow::bail;
 use openmls::group::GroupId;
 use sqlx::{
     Database, Encode, Sqlite, SqlitePool, TransactionManager, Type,
@@ -24,7 +23,7 @@ use sqlx::{
 };
 use tracing::{error, info};
 
-use crate::clients::store::{ClientRecord, ClientRecordState::Finished};
+use crate::clients::store::ClientRecord;
 use crate::utils::global_lock::GlobalLock;
 
 pub(crate) const AIR_DB_NAME: &str = "air.db";
@@ -88,7 +87,7 @@ pub(crate) async fn open_db_in_memory() -> sqlx::Result<SqlitePool> {
 /// If the air.db exists, but cannot be opened, only the air.db is deleted.
 ///
 /// WARNING: This will delete all APP-data from this device!
-pub async fn delete_databases(client_db_path: &str) -> Result<()> {
+pub async fn delete_databases(client_db_path: &str) -> anyhow::Result<()> {
     let full_air_db_path = format!("{client_db_path}/{AIR_DB_NAME}");
     if !Path::new(&full_air_db_path).exists() {
         bail!("{full_air_db_path} does not exist")
@@ -121,7 +120,7 @@ async fn delete_client_databases(client_db_path: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn delete_client_database(db_path: &str, user_id: &UserId) -> Result<()> {
+pub async fn delete_client_database(db_path: &str, user_id: &UserId) -> anyhow::Result<()> {
     // Delete the client DB
     let client_db_name = client_db_name(user_id);
     let client_db_path = format!("{db_path}/{client_db_name}");
@@ -142,103 +141,6 @@ pub async fn delete_client_database(db_path: &str, user_id: &UserId) -> Result<(
 
 fn client_db_name(user_id: &UserId) -> String {
     format!("{}@{}.db", user_id.uuid(), user_id.domain())
-}
-
-pub async fn export_client_database(db_path: &str, user_id: &UserId) -> Result<Vec<u8>> {
-    let client_db_name = client_db_name(user_id);
-
-    // Commit the WAL to the database file
-    let db_url = format!("sqlite://{db_path}/{client_db_name}");
-    let opts: SqliteConnectOptions = db_url.parse()?;
-    let opts = opts
-        .journal_mode(SqliteJournalMode::Wal)
-        .create_if_missing(true);
-    let pool = SqlitePoolOptions::default().connect_with(opts).await?;
-    sqlx::query("VACUUM").execute(&pool).await?;
-    pool.close().await;
-
-    // Create a tar archive of the database
-    let mut data = Vec::new();
-    let enc = GzEncoder::new(&mut data, Compression::default());
-    let mut tar = tar::Builder::new(enc);
-
-    let client_db_path = format!("{db_path}/{client_db_name}");
-    let content = fs::read(client_db_path)?;
-    let mut header = tar::Header::new_gnu();
-    header.set_size(content.len().try_into().context("usize overflow")?);
-    header.set_mode(0o644);
-    header.set_cksum();
-    tar.append_data(&mut header, client_db_name, content.as_slice())?;
-
-    tar.finish()?;
-    drop(tar);
-
-    info!(?user_id, bytes = data.len(), "exported client DB");
-
-    Ok(data)
-}
-
-pub async fn import_client_database(db_path: &str, tar_gz_bytes: &[u8]) -> Result<()> {
-    let dec = GzDecoder::new(tar_gz_bytes);
-    let mut tar = tar::Archive::new(dec);
-
-    let mut imported_user_id = None;
-    for entry in tar.entries()? {
-        // Find an entry corresponding to a client DB
-        let mut entry = entry?;
-        let path = entry.path()?;
-        let Some(user_id) = user_id_from_entry(&path) else {
-            continue;
-        };
-
-        let client_db_name = client_db_name(&user_id);
-        let client_db_path = format!("{db_path}/{client_db_name}");
-        info!(path =% client_db_path, "importing client DB");
-
-        if Path::new(&client_db_path).exists() {
-            bail!("client DB already exist: {client_db_path}");
-        }
-
-        std::io::copy(&mut entry, &mut File::create(client_db_path)?)?;
-
-        info!(?user_id, "imported client DB");
-        imported_user_id = Some(user_id);
-        break;
-    }
-
-    let Some(user_id) = imported_user_id else {
-        bail!("no client DB found in tar archive")
-    };
-
-    let air_db = open_air_db(db_path).await?;
-    if ClientRecord::load(&air_db, &user_id).await?.is_some() {
-        info!(?user_id, "client record already exists; skip adding it");
-    } else {
-        ClientRecord {
-            user_id: user_id.clone(),
-            client_record_state: Finished,
-            created_at: TimeStamp::now().into(),
-            is_default: false,
-        }
-        .store(&air_db)
-        .await?;
-        info!(?user_id, "added client record");
-    }
-
-    Ok(())
-}
-
-fn user_id_from_entry(path: &Path) -> Option<UserId> {
-    let file_name = path.file_name()?.to_str()?;
-    let (file_name, extension) = file_name.rsplit_once('.')?;
-    if extension != "db" {
-        return None;
-    }
-    let (user_id_str, domain) = file_name.split_once('@')?;
-    let user_id = user_id_str.parse().ok()?;
-    let domain = domain.parse().ok()?;
-    let user_id = UserId::new(user_id, domain);
-    Some(user_id)
 }
 
 pub async fn open_client_db(user_id: &UserId, client_db_path: &str) -> sqlx::Result<SqlitePool> {

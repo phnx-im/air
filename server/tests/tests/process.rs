@@ -22,7 +22,7 @@ async fn process_qs_messages_cancellation_safety() {
     // Note: It is important that the user is persisted, because we use *multiple* db connections
     // and this is not supported for in-memory sqlite.
     let alice = setup.add_persisted_user().await;
-    setup.get_user_mut(&alice).add_user_handle().await.unwrap();
+    setup.get_user_mut(&alice).add_username().await.unwrap();
     let bob = setup.add_persisted_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 

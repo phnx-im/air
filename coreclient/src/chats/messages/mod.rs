@@ -348,8 +348,8 @@ impl Message {
                             .display_name;
                         format!("{display_name}: {content}")
                     }
-                    ChatType::HandleConnection(handle) => {
-                        format!("{handle}: {content}", handle = handle.plaintext())
+                    ChatType::HandleConnection(username) => {
+                        format!("{username}: {content}", username = username.plaintext())
                     }
                     ChatType::Connection(_) | ChatType::PendingConnection(_) => content,
                 };
@@ -530,22 +530,22 @@ pub enum SystemMessage {
     },
     ReceivedHandleConnectionRequest {
         sender: UserId,
-        user_handle: UserHandle,
+        user_handle: Username,
     },
-    /// We accepted a connection request from another user. The UserHandle is
-    /// the handle through which the connection was made.
+    /// We accepted a connection request from another user. The Username is
+    /// the username through which the connection was made.
     AcceptedConnectionRequest {
         contact: UserId,
-        user_handle: Option<UserHandle>,
+        user_handle: Option<Username>,
     },
     /// We received a confirmation for a connection request we sent to another user. The optional
-    /// UserHandle is the handle through which the connection was made, if any.
+    /// Username is the username through which the connection was made, if any.
     ReceivedConnectionConfirmation {
         sender: UserId,
-        user_handle: Option<UserHandle>,
+        user_handle: Option<Username>,
     },
-    /// We requested a connection with another user through a user handle.
-    NewHandleConnectionChat(UserHandle),
+    /// We requested a connection with another user through a username.
+    NewHandleConnectionChat(Username),
     /// We requested a connection with another user through a group.
     NewDirectConnectionChat(UserId),
     CreateGroup(UserId),
@@ -579,8 +579,8 @@ impl SystemMessage {
                 format!("{user_display_name} changed the group picture")
             }
             SystemMessage::NewHandleConnectionChat(user_handle) => {
-                let handle_str = user_handle.plaintext();
-                format!("You requested a connection with {handle_str}")
+                let username_str = user_handle.plaintext();
+                format!("You requested a connection with {username_str}")
             }
             SystemMessage::ReceivedConnectionConfirmation {
                 sender: user_id,
@@ -592,9 +592,9 @@ impl SystemMessage {
             } => {
                 let user_display_name = store.user_profile(user_id).await.display_name;
                 let base_str = format!("You connected with {user_display_name}");
-                if let Some(handle) = user_handle {
-                    let handle_str = handle.plaintext();
-                    format!("{base_str} through handle {handle_str}")
+                if let Some(username) = user_handle {
+                    let username_str = username.plaintext();
+                    format!("{base_str} through username {username_str}")
                 } else {
                     base_str
                 }

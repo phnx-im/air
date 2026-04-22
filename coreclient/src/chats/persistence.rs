@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::{Fqdn, MimiId, UserHandle, UserId};
+use aircommon::identifiers::{Fqdn, MimiId, UserId, Username};
 use chrono::{DateTime, Utc};
 use mimi_content::MessageStatus;
 use openmls::group::GroupId;
@@ -29,7 +29,7 @@ struct SqlChat {
     last_message_at: Option<DateTime<Utc>>,
     connection_user_uuid: Option<Uuid>,
     connection_user_domain: Option<Fqdn>,
-    connection_user_handle: Option<UserHandle>,
+    connection_user_handle: Option<Username>,
     is_confirmed_connection: bool,
     is_active: bool,
     is_blocked: bool,
@@ -69,7 +69,7 @@ impl SqlChat {
                     ChatType::TargetedMessageConnection(connection_user_id)
                 }
             }
-            (None, None, Some(handle)) => ChatType::HandleConnection(handle),
+            (None, None, Some(username)) => ChatType::HandleConnection(username),
             _ => ChatType::Group,
         };
 
@@ -151,7 +151,7 @@ impl Chat {
             connection_user_domain,
             connection_user_handle,
         ) = match self.chat_type() {
-            ChatType::HandleConnection(handle) => (false, false, None, None, Some(handle)),
+            ChatType::HandleConnection(username) => (false, false, None, None, Some(username)),
             ChatType::Connection(user_id) => (
                 true,
                 false,
@@ -486,8 +486,9 @@ impl Chat {
                     message_id AS "message_id: _"
                 FROM message
                 INNER JOIN chat c ON c.chat_id = ?1
-                WHERE c.chat_id = ?1 AND timestamp > c.last_read"#,
+                WHERE message.chat_id = ?1 AND timestamp > c.last_read AND timestamp <= ?2"#,
                 chat_id,
+                timestamp,
             )
             .fetch_all(&mut *transaction)
             .await?;
@@ -564,10 +565,10 @@ impl Chat {
             FROM message m
             LEFT JOIN message_status s
                 ON s.message_id = m.message_id
-                AND s.sender_user_uuid = ?2
-                AND s.sender_user_domain = ?3
+                AND s.sender_user_uuid = ?3
+                AND s.sender_user_domain = ?4
             WHERE chat_id = ?1
-                AND m.timestamp > ?2
+                AND m.timestamp > ?2 AND m.timestamp <= ?7
                 AND (m.sender_user_uuid != ?3 OR m.sender_user_domain != ?4)
                 AND mimi_id IS NOT NULL
                 AND (s.status IS NULL OR s.status = ?5 OR s.status = ?6)"#,
@@ -577,6 +578,7 @@ impl Chat {
             our_user_domain,
             unread_status,
             delivered_status,
+            timestamp,
         )
         .fetch(txn.as_mut())
         .map(|record| record.map(|record| (record.message_id, record.mimi_id)))
@@ -674,7 +676,7 @@ impl Chat {
         )
         .fetch_one(executor)
         .await
-        .map(|n: u32| n.try_into().expect("usize overflow"))
+        .map(|n: Option<u32>| n.unwrap_or(0).try_into().expect("usize overflow"))
     }
 
     pub(super) async fn set_chat_type(
@@ -684,7 +686,7 @@ impl Chat {
         chat_type: &ChatType,
     ) -> sqlx::Result<()> {
         match chat_type {
-            ChatType::HandleConnection(handle) => {
+            ChatType::HandleConnection(username) => {
                 query!(
                     "UPDATE chat SET
                         connection_user_uuid = NULL,
@@ -693,7 +695,7 @@ impl Chat {
                         is_confirmed_connection = false,
                         is_incoming = false
                     WHERE chat_id = ?",
-                    handle,
+                    username,
                     self.id,
                 )
                 .execute(executor)

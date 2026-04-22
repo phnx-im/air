@@ -5,7 +5,7 @@
 use aircommon::{
     credentials::{ClientCredential, keys::ClientVerifyingKey},
     crypto::{
-        ear::keys::GroupStateEarKey,
+        aead::keys::GroupStateEarKey,
         signatures::{
             keys::LeafVerifyingKeyRef,
             private_keys::SignatureVerificationError,

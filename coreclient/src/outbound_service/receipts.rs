@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    crypto::ear::keys::GroupStateEarKey, identifiers::MimiId,
+    crypto::aead::keys::GroupStateEarKey, identifiers::MimiId,
     messages::client_ds_out::SendMessageParamsOut, time::TimeStamp,
 };
 use anyhow::Context;
@@ -18,9 +18,12 @@ use uuid::Uuid;
 use crate::{
     Chat, ChatId, ChatStatus, MessageId,
     chats::StatusRecord,
-    groups::{Group, openmls_provider::AirOpenMlsProvider},
+    groups::{Group, handle_group_not_found_on_ds, openmls_provider::AirOpenMlsProvider},
     job::pending_chat_operation::PendingChatOperation,
-    outbound_service::{error::OutboundServiceError, resync::Resync},
+    outbound_service::{
+        error::{OutboundServiceError, classify_ds_error},
+        resync::Resync,
+    },
     utils::connection_ext::StoreExt,
 };
 
@@ -105,9 +108,9 @@ impl OutboundServiceContext {
                         ReceiptQueue::remove(&self.pool, task_id).await?;
                     }
                     Err(OutboundServiceError::Fatal(error)) => {
-                        error!(%error, "Failed to send receipt; dropping");
+                        error!(%error, ?chat_id, "Failed to send receipt; dropping");
                         ReceiptQueue::remove(&self.pool, task_id).await?;
-                        return Err(error);
+                        continue;
                     }
                     Err(OutboundServiceError::Recoverable(error)) => {
                         error!(%error, "Failed to send receipt; will retry later");
@@ -161,12 +164,22 @@ impl OutboundServiceContext {
             .map_err(OutboundServiceError::fatal)?;
 
         // send MLS message to DS
-        self.api_clients
+        if let Err(ds_error) = self
+            .api_clients
             .get(&chat.owner_domain())
             .map_err(OutboundServiceError::fatal)?
             .ds_send_message(params, self.signing_key(), &group_state_ear_key)
             .await
-            .map_err(OutboundServiceError::recoverable)?;
+        {
+            if ds_error.is_not_found() {
+                self.with_transaction_and_notifier(async |txn, notifier| {
+                    handle_group_not_found_on_ds(txn, notifier, chat.group_id()).await
+                })
+                .await
+                .map_err(OutboundServiceError::fatal)?;
+            }
+            return Err(classify_ds_error(ds_error));
+        }
 
         // store delivery receipt report
         self.with_transaction_and_notifier(async |txn, notifier| {

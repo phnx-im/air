@@ -8,10 +8,10 @@ use aircommon::{
     component::AirFeatures,
     credentials::VerifiableClientCredential,
     crypto::{
-        ear::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
+        aead::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
         indexed_aead::keys::UserProfileKey,
     },
-    identifiers::{UserHandle, UserId},
+    identifiers::{UserId, Username},
     messages::{FriendshipToken, client_as::ConnectionOfferHash},
 };
 use openmls::{prelude::KeyPackage, versions::ProtocolVersion};
@@ -125,25 +125,25 @@ impl Contact {
     }
 }
 
-/// Partial contact established via a user handle
+/// Partial contact established via a username
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
-pub struct HandleContact {
-    pub handle: UserHandle,
+pub struct UsernameContact {
+    pub username: Username,
     pub chat_id: ChatId,
     pub friendship_package_ear_key: FriendshipPackageEarKey,
     pub connection_offer_hash: ConnectionOfferHash,
 }
 
-impl HandleContact {
+impl UsernameContact {
     pub(crate) fn new(
-        handle: UserHandle,
+        username: Username,
         chat_id: ChatId,
         friendship_package_ear_key: FriendshipPackageEarKey,
         connection_offer_hash: ConnectionOfferHash,
     ) -> Self {
         Self {
-            handle,
+            username,
             chat_id,
             friendship_package_ear_key,
             connection_offer_hash,
@@ -180,16 +180,17 @@ pub enum ContactType {
 }
 
 pub enum PartialContactType {
-    Handle(UserHandle),
+    Handle(Username),
     TargetedMessage(UserId),
 }
 
 impl std::fmt::Debug for PartialContactType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PartialContactType::Handle(handle) => {
-                f.debug_tuple("Handle").field(&handle.plaintext()).finish()
-            }
+            PartialContactType::Handle(username) => f
+                .debug_tuple("Handle")
+                .field(&username.plaintext())
+                .finish(),
             PartialContactType::TargetedMessage(user_id) => {
                 f.debug_tuple("TargetedMessage").field(user_id).finish()
             }
@@ -198,14 +199,14 @@ impl std::fmt::Debug for PartialContactType {
 }
 
 pub enum PartialContact {
-    Handle(HandleContact),
+    Username(UsernameContact),
     TargetedMessage(TargetedMessageContact),
 }
 
 impl PartialContact {
     pub(crate) fn friendship_package_ear_key(&self) -> &FriendshipPackageEarKey {
         match self {
-            PartialContact::Handle(contact) => &contact.friendship_package_ear_key,
+            PartialContact::Username(contact) => &contact.friendship_package_ear_key,
             PartialContact::TargetedMessage(contact) => &contact.friendship_package_ear_key,
         }
     }

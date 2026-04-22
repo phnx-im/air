@@ -19,8 +19,8 @@ part 'types.freezed.dart';
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `UiChat`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
 
-/// Mirror of the [`AddHandleContactError`] type
-enum AddHandleContactError { handleNotFound, duplicateRequest, ownHandle }
+/// Mirror of the [`AddUsernameContactError`] type
+enum AddUsernameContactError { usernameNotFound, duplicateRequest, ownUsername }
 
 @freezed
 sealed class AirComponent with _$AirComponent {
@@ -212,9 +212,9 @@ sealed class UiChatStatus with _$UiChatStatus {
 sealed class UiChatType with _$UiChatType {
   const UiChatType._();
 
-  /// A connection chat which was established via a handle and is not yet confirmed by
+  /// A connection chat which was established via a username and is not yet confirmed by
   /// the other party.
-  const factory UiChatType.handleConnection(UiUserHandle field0) =
+  const factory UiChatType.handleConnection(UiUsername field0) =
       UiChatType_HandleConnection;
 
   /// A connection chat that is confirmed by the other party and for which we have
@@ -427,7 +427,7 @@ sealed class UiSystemMessage with _$UiSystemMessage {
       UiSystemMessage_ChangePicture;
   const factory UiSystemMessage.receivedHandleConnectionRequest({
     required UiUserId sender,
-    required UiUserHandle userHandle,
+    required UiUsername username,
   }) = UiSystemMessage_ReceivedHandleConnectionRequest;
   const factory UiSystemMessage.receivedDirectConnectionRequest({
     required UiUserId sender,
@@ -435,29 +435,18 @@ sealed class UiSystemMessage with _$UiSystemMessage {
   }) = UiSystemMessage_ReceivedDirectConnectionRequest;
   const factory UiSystemMessage.acceptedConnectionRequest({
     required UiUserId sender,
-    UiUserHandle? userHandle,
+    UiUsername? username,
   }) = UiSystemMessage_AcceptedConnectionRequest;
   const factory UiSystemMessage.receivedConnectionConfirmation({
     required UiUserId sender,
-    UiUserHandle? userHandle,
+    UiUsername? username,
   }) = UiSystemMessage_ReceivedConnectionConfirmation;
-  const factory UiSystemMessage.newHandleConnectionChat(UiUserHandle field0) =
+  const factory UiSystemMessage.newHandleConnectionChat(UiUsername field0) =
       UiSystemMessage_NewHandleConnectionChat;
   const factory UiSystemMessage.newDirectConnectionChat(UiUserId field0) =
       UiSystemMessage_NewDirectConnectionChat;
   const factory UiSystemMessage.createGroup(UiUserId field0) =
       UiSystemMessage_CreateGroup;
-}
-
-@freezed
-sealed class UiUserHandle with _$UiUserHandle {
-  const UiUserHandle._();
-  const factory UiUserHandle({required String plaintext}) = _UiUserHandle;
-
-  /// Returns `None` if the handle is valid, otherwise returns an error message why it is
-  /// invalid.
-  UserHandleValidationError? validationError() =>
-      RustLib.instance.api.crateApiTypesUiUserHandleValidationError(that: this);
 }
 
 /// UI representation of an [`UserId`]
@@ -513,8 +502,19 @@ class UiUserProfile {
           profilePicture == other.profilePicture;
 }
 
-/// UI representation of an [`UserHandleValidationError`]
-enum UserHandleValidationError {
+@freezed
+sealed class UiUsername with _$UiUsername {
+  const UiUsername._();
+  const factory UiUsername({required String plaintext}) = _UiUsername;
+
+  /// Returns `None` if the username is valid, otherwise returns an error message why it is
+  /// invalid.
+  UsernameValidationError? validationError() =>
+      RustLib.instance.api.crateApiTypesUiUsernameValidationError(that: this);
+}
+
+/// UI representation of a [`UsernameValidationError`]
+enum UsernameValidationError {
   tooShort,
   tooLong,
   invalidCharacter,

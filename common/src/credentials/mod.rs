@@ -25,7 +25,7 @@ use crate::{
     codec::PersistenceCodec,
     crypto::{
         Labeled,
-        ear::Ciphertext,
+        aead::Ciphertext,
         errors::KeyGenerationError,
         hash::{Hash, Hashable},
         signatures::{

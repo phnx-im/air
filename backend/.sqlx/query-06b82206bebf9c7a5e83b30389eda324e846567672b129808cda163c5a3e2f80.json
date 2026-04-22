@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM as_token_nonce WHERE operation_type = $1 AND created_at < now() - make_interval(days => $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int2",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "06b82206bebf9c7a5e83b30389eda324e846567672b129808cda163c5a3e2f80"
+}

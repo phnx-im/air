@@ -4,7 +4,7 @@
 
 use aircommon::{
     credentials::keys,
-    crypto::{ear, secrets},
+    crypto::{aead, secrets},
     identifiers,
     messages::{client_ds, client_ds_out::AddUsersInfoOut, welcome_attribution_info},
 };
@@ -87,15 +87,15 @@ impl From<QsReferenceError> for Status {
     }
 }
 
-impl From<ear::keys::EncryptedUserProfileKey> for EncryptedUserProfileKey {
-    fn from(value: ear::keys::EncryptedUserProfileKey) -> Self {
+impl From<aead::keys::EncryptedUserProfileKey> for EncryptedUserProfileKey {
+    fn from(value: aead::keys::EncryptedUserProfileKey) -> Self {
         Self {
             ciphertext: Some(value.into()),
         }
     }
 }
 
-impl TryFrom<EncryptedUserProfileKey> for ear::keys::EncryptedUserProfileKey {
+impl TryFrom<EncryptedUserProfileKey> for aead::keys::EncryptedUserProfileKey {
     type Error = EncryptedUserProfileKeyError;
 
     fn try_from(proto: EncryptedUserProfileKey) -> Result<Self, Self::Error> {
@@ -185,15 +185,15 @@ impl TryFromRef<'_, RatchetTree> for openmls::treesync::RatchetTreeIn {
     }
 }
 
-impl FromRef<'_, ear::keys::GroupStateEarKey> for GroupStateEarKey {
-    fn from_ref(value: &ear::keys::GroupStateEarKey) -> Self {
+impl FromRef<'_, aead::keys::GroupStateEarKey> for GroupStateEarKey {
+    fn from_ref(value: &aead::keys::GroupStateEarKey) -> Self {
         Self {
             key: value.as_ref().secret().to_vec(),
         }
     }
 }
 
-impl TryFromRef<'_, GroupStateEarKey> for ear::keys::GroupStateEarKey {
+impl TryFromRef<'_, GroupStateEarKey> for aead::keys::GroupStateEarKey {
     type Error = InvalidGroupStateEarKeyLen;
 
     fn try_from_ref(proto: &GroupStateEarKey) -> Result<Self, Self::Error> {

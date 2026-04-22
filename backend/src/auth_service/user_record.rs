@@ -195,6 +195,7 @@ pub(crate) mod persistence {
                 staged_user_profile: None,
             };
             record.store(pool).await?;
+
             Ok(record)
         }
 

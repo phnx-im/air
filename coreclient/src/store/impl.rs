@@ -5,9 +5,11 @@
 use std::{collections::HashSet, path::Path, sync::Arc};
 
 use aircommon::{
-    identifiers::{AttachmentId, MimiId, UserHandle, UserHandleHash, UserId},
-    messages::client_as_out::UserHandleDeleteResponse,
+    identifiers::{AttachmentId, MimiId, UserId, Username, UsernameHash},
+    messages::client_as_out::UsernameDeleteResponse,
+    time::TimeStamp,
 };
+use anyhow::Context;
 use mimi_room_policy::VerifiedRoomState;
 use tokio::task::spawn_blocking;
 use tokio_stream::Stream;
@@ -15,7 +17,7 @@ use tracing::error;
 use uuid::Uuid;
 
 use crate::{
-    AcceptContactRequestError, AddHandleContactError, AttachmentContent, AttachmentStatus, Chat,
+    AcceptContactRequestError, AddUsernameContactError, AttachmentContent, AttachmentStatus, Chat,
     ChatId, ChatMessage, Contact, InviteUsersError, MessageDraft, MessageId,
     ProvisionAttachmentError, UploadTaskError,
     clients::{
@@ -24,10 +26,10 @@ use crate::{
         safety_code::SafetyCode,
         user_settings::UserSettingRecord,
     },
-    contacts::{ContactType, HandleContact, PartialContact, TargetedMessageContact},
+    contacts::{ContactType, PartialContact, TargetedMessageContact, UsernameContact},
     store::UserSetting,
-    user_handles::UserHandleRecord,
     user_profiles::UserProfile,
+    usernames::UsernameRecord,
     utils::connection_ext::StoreExt,
 };
 
@@ -76,35 +78,26 @@ impl Store for CoreUser {
         Ok(())
     }
 
-    async fn check_handle_exists(
-        &self,
-        user_handle: UserHandle,
-    ) -> StoreResult<Option<UserHandleHash>> {
-        let hash = spawn_blocking(move || user_handle.calculate_hash()).await??;
-        let handle_exists = self.api_client()?.as_check_handle_exists(hash).await?;
-        Ok(handle_exists.then_some(hash))
+    async fn check_username_exists(&self, username: Username) -> StoreResult<Option<UsernameHash>> {
+        let hash = spawn_blocking(move || username.calculate_hash()).await??;
+        let username_exists = self.api_client()?.as_check_username_exists(hash).await?;
+        Ok(username_exists.then_some(hash))
     }
 
-    async fn user_handles(&self) -> StoreResult<Vec<UserHandle>> {
-        Ok(UserHandleRecord::load_all_handles(self.pool()).await?)
+    async fn usernames(&self) -> StoreResult<Vec<Username>> {
+        Ok(UsernameRecord::load_all_usernames(self.pool()).await?)
     }
 
-    async fn user_handle_records(&self) -> StoreResult<Vec<UserHandleRecord>> {
-        Ok(UserHandleRecord::load_all(self.pool()).await?)
+    async fn username_records(&self) -> StoreResult<Vec<UsernameRecord>> {
+        Ok(UsernameRecord::load_all(self.pool()).await?)
     }
 
-    async fn add_user_handle(
-        &self,
-        user_handle: UserHandle,
-    ) -> StoreResult<Option<UserHandleRecord>> {
-        self.add_user_handle(user_handle).await
+    async fn add_username(&self, username: Username) -> StoreResult<Option<UsernameRecord>> {
+        self.add_username(username).await
     }
 
-    async fn remove_user_handle(
-        &self,
-        user_handle: &UserHandle,
-    ) -> StoreResult<UserHandleDeleteResponse> {
-        self.remove_user_handle(user_handle).await
+    async fn remove_username(&self, username: &Username) -> StoreResult<UsernameDeleteResponse> {
+        self.remove_username(username).await
     }
 
     async fn create_chat(&self, title: String, picture: Option<Vec<u8>>) -> StoreResult<ChatId> {
@@ -169,10 +162,10 @@ impl Store for CoreUser {
 
     async fn add_contact(
         &self,
-        handle: UserHandle,
-        hash: UserHandleHash,
-    ) -> StoreResult<Result<ChatId, AddHandleContactError>> {
-        self.add_contact_via_handle(handle, hash).await
+        username: Username,
+        hash: UsernameHash,
+    ) -> StoreResult<Result<ChatId, AddUsernameContactError>> {
+        self.add_contact_via_username(username, hash).await
     }
 
     async fn add_contact_from_group(
@@ -218,8 +211,8 @@ impl Store for CoreUser {
         }
     }
 
-    async fn handle_contacts(&self) -> StoreResult<Vec<HandleContact>> {
-        Ok(self.handle_contacts().await?)
+    async fn username_contacts(&self) -> StoreResult<Vec<UsernameContact>> {
+        Ok(self.username_contacts().await?)
     }
 
     async fn targeted_message_contacts(&self) -> StoreResult<Vec<TargetedMessageContact>> {
@@ -232,6 +225,87 @@ impl Store for CoreUser {
 
     async fn messages(&self, chat_id: ChatId, limit: usize) -> StoreResult<Vec<ChatMessage>> {
         self.get_messages(chat_id, limit).await
+    }
+
+    async fn messages_before(
+        &self,
+        chat_id: ChatId,
+        before: TimeStamp,
+        before_id: MessageId,
+        limit: usize,
+    ) -> StoreResult<(Vec<ChatMessage>, bool)> {
+        Ok(ChatMessage::load_before(
+            self.pool().acquire().await?.as_mut(),
+            chat_id,
+            before,
+            before_id,
+            limit as u32,
+        )
+        .await?)
+    }
+
+    async fn messages_after(
+        &self,
+        chat_id: ChatId,
+        after: TimeStamp,
+        after_id: MessageId,
+        limit: usize,
+    ) -> StoreResult<(Vec<ChatMessage>, bool)> {
+        Ok(ChatMessage::load_after(
+            self.pool().acquire().await?.as_mut(),
+            chat_id,
+            after,
+            after_id,
+            limit as u32,
+        )
+        .await?)
+    }
+
+    async fn messages_from(
+        &self,
+        chat_id: ChatId,
+        from: TimeStamp,
+        from_id: MessageId,
+        limit: usize,
+    ) -> StoreResult<(Vec<ChatMessage>, bool)> {
+        Ok(ChatMessage::load_starting_from(
+            self.pool().acquire().await?.as_mut(),
+            chat_id,
+            from,
+            from_id,
+            limit as u32,
+        )
+        .await?)
+    }
+
+    async fn messages_around(
+        &self,
+        chat_id: ChatId,
+        anchor: TimeStamp,
+        anchor_id: MessageId,
+        half_limit: usize,
+    ) -> StoreResult<(Vec<ChatMessage>, bool, bool)> {
+        Ok(ChatMessage::load_around(
+            self.pool().acquire().await?.as_mut(),
+            chat_id,
+            anchor,
+            anchor_id,
+            half_limit as u32,
+        )
+        .await?)
+    }
+
+    async fn first_unread_message(&self, chat_id: ChatId) -> StoreResult<Option<ChatMessage>> {
+        self.with_transaction(async |txn| {
+            let chat = Chat::load(txn.as_mut(), &chat_id)
+                .await?
+                .with_context(|| format!("chat not found: {chat_id}"))?;
+            Ok(
+                ChatMessage::first_unread_message(txn.as_mut(), chat_id, chat.last_read.into())
+                    .await?,
+            )
+        })
+        .await
     }
 
     async fn message(&self, message_id: MessageId) -> StoreResult<Option<ChatMessage>> {

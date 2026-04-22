@@ -11,6 +11,7 @@ import 'api/chat_details_cubit.dart';
 import 'api/chat_list_cubit.dart';
 import 'api/chats_repository.dart';
 import 'api/invitation_code.dart';
+import 'api/invitation_codes_cubit.dart';
 import 'api/logging.dart';
 import 'api/markdown.dart';
 import 'api/member_details_cubit.dart';
@@ -64,6 +65,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationServicePtr;
 
   CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_InvitationCodesCubitBasePtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBasePtr;
+
+  CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_LogWriterPtr => wire
       ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriterPtr;
 
@@ -78,10 +83,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_MessageListCubitBasePtr => wire
       ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBasePtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_MessageListStatePtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListStatePtr;
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_NavigationCubitBasePtr => wire
@@ -103,12 +104,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBasePtr;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_UserHandleHashPtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHashPtr;
-
-  CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_UserSettingsCubitBasePtr => wire
       ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBasePtr;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_UsernameHashPtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHashPtr;
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_UsersCubitBasePtr => wire
@@ -152,6 +153,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  InvitationCodesCubitBase
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+    dynamic raw,
+  );
+
+  @protected
   LogWriter
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
     dynamic raw,
@@ -172,12 +179,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   MessageListCubitBase
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  MessageListState
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
     dynamic raw,
   );
 
@@ -212,14 +213,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UserHandleHash
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+  UserSettingsCubitBase
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
     dynamic raw,
   );
 
   @protected
-  UserSettingsCubitBase
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
+  UsernameHash
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     dynamic raw,
   );
 
@@ -232,60 +233,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   UsersState
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
-    dynamic raw,
-  );
-
-  @protected
-  ChatDetailsCubitBase
-  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  ChatListCubitBase
-  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  MemberDetailsCubitBase
-  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  MessageCubitBase
-  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  MessageListCubitBase
-  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  NavigationCubitBase
-  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  UserCubitBase
-  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  UserSettingsCubitBase
-  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  UsersCubitBase
-  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
     dynamic raw,
   );
 
@@ -320,6 +267,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  InvitationCodesCubitBase
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+    dynamic raw,
+  );
+
+  @protected
   LogWriter
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
     dynamic raw,
@@ -340,12 +293,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   MessageListCubitBase
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  MessageListState
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
     dynamic raw,
   );
 
@@ -473,6 +420,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  InvitationCodesCubitBase
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+    dynamic raw,
+  );
+
+  @protected
   LogWriter
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
     dynamic raw,
@@ -493,12 +446,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   MessageListCubitBase
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  MessageListState
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
     dynamic raw,
   );
 
@@ -533,14 +480,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UserHandleHash
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+  UserSettingsCubitBase
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
     dynamic raw,
   );
 
   @protected
-  UserSettingsCubitBase
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
+  UsernameHash
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     dynamic raw,
   );
 
@@ -553,12 +500,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   UsersState
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
-    dynamic raw,
-  );
-
-  @protected
-  RustStreamSink<MessageListState>
-  dco_decode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState_Sse(
     dynamic raw,
   );
 
@@ -585,11 +526,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<InvitationCodesState>
+  dco_decode_StreamSink_invitation_codes_state_Sse(dynamic raw);
+
+  @protected
   RustStreamSink<LogEntry> dco_decode_StreamSink_log_entry_Sse(dynamic raw);
 
   @protected
   RustStreamSink<MemberDetailsState>
   dco_decode_StreamSink_member_details_state_Sse(dynamic raw);
+
+  @protected
+  RustStreamSink<MessageListState> dco_decode_StreamSink_message_list_state_Sse(
+    dynamic raw,
+  );
+
+  @protected
+  RustStreamSink<MessageListTransition>
+  dco_decode_StreamSink_message_list_transition_Sse(dynamic raw);
 
   @protected
   RustStreamSink<MessageState> dco_decode_StreamSink_message_state_Sse(
@@ -622,7 +576,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  AddHandleContactError dco_decode_add_handle_contact_error(dynamic raw);
+  AddUsernameContactError dco_decode_add_username_contact_error(dynamic raw);
 
   @protected
   AirComponent dco_decode_air_component(dynamic raw);
@@ -658,8 +612,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UserHandleHash
-  dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+  UsernameHash
+  dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     dynamic raw,
   );
 
@@ -669,7 +623,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  AddHandleContactError dco_decode_box_autoadd_add_handle_contact_error(
+  AddUsernameContactError dco_decode_box_autoadd_add_username_contact_error(
     dynamic raw,
   );
 
@@ -719,6 +673,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   IntroScreenType dco_decode_box_autoadd_intro_screen_type(dynamic raw);
 
   @protected
+  InvitationCode dco_decode_box_autoadd_invitation_code(dynamic raw);
+
+  @protected
   InviteUsersError dco_decode_box_autoadd_invite_users_error(dynamic raw);
 
   @protected
@@ -726,6 +683,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageId dco_decode_box_autoadd_message_id(dynamic raw);
+
+  @protected
+  MessageListCommand dco_decode_box_autoadd_message_list_command(dynamic raw);
 
   @protected
   MessageState dco_decode_box_autoadd_message_state(dynamic raw);
@@ -738,9 +698,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(dynamic raw);
 
   @protected
+  RequestInvitationCodeError
+  dco_decode_box_autoadd_request_invitation_code_error(dynamic raw);
+
+  @protected
   RequiredDebugCapabilities dco_decode_box_autoadd_required_debug_capabilities(
     dynamic raw,
   );
+
+  @protected
+  TokenId dco_decode_box_autoadd_token_id(dynamic raw);
 
   @protected
   UiChatDetails dco_decode_box_autoadd_ui_chat_details(dynamic raw);
@@ -776,13 +743,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiSystemMessage dco_decode_box_autoadd_ui_system_message(dynamic raw);
 
   @protected
-  UiUserHandle dco_decode_box_autoadd_ui_user_handle(dynamic raw);
-
-  @protected
   UiUserId dco_decode_box_autoadd_ui_user_id(dynamic raw);
 
   @protected
   UiUserProfile dco_decode_box_autoadd_ui_user_profile(dynamic raw);
+
+  @protected
+  UiUsername dco_decode_box_autoadd_ui_username(dynamic raw);
 
   @protected
   UploadAttachmentError dco_decode_box_autoadd_upload_attachment_error(
@@ -790,7 +757,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UserHandleValidationError dco_decode_box_autoadd_user_handle_validation_error(
+  UsernameValidationError dco_decode_box_autoadd_username_validation_error(
     dynamic raw,
   );
 
@@ -855,6 +822,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   IntroScreenType dco_decode_intro_screen_type(dynamic raw);
 
   @protected
+  InvitationCode dco_decode_invitation_code(dynamic raw);
+
+  @protected
+  InvitationCodesState dco_decode_invitation_codes_state(dynamic raw);
+
+  @protected
   InviteUsersError dco_decode_invite_users_error(dynamic raw);
 
   @protected
@@ -880,6 +853,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<List<RangedBlockElement>> dco_decode_list_list_ranged_block_element(
     dynamic raw,
   );
+
+  @protected
+  List<MessageListChange> dco_decode_list_message_list_change(dynamic raw);
 
   @protected
   List<NotificationHandle> dco_decode_list_notification_handle(dynamic raw);
@@ -911,16 +887,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<UiAttachment> dco_decode_list_ui_attachment(dynamic raw);
 
   @protected
+  List<UiChatMessage> dco_decode_list_ui_chat_message(dynamic raw);
+
+  @protected
   List<UiClientRecord> dco_decode_list_ui_client_record(dynamic raw);
 
   @protected
   List<UiContact> dco_decode_list_ui_contact(dynamic raw);
 
   @protected
-  List<UiUserHandle> dco_decode_list_ui_user_handle(dynamic raw);
+  List<UiInvitationCode> dco_decode_list_ui_invitation_code(dynamic raw);
 
   @protected
   List<UiUserId> dco_decode_list_ui_user_id(dynamic raw);
+
+  @protected
+  List<UiUsername> dco_decode_list_ui_username(dynamic raw);
 
   @protected
   LogEntry dco_decode_log_entry(dynamic raw);
@@ -936,6 +918,23 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageId dco_decode_message_id(dynamic raw);
+
+  @protected
+  MessageListChange dco_decode_message_list_change(dynamic raw);
+
+  @protected
+  MessageListCommand dco_decode_message_list_command(dynamic raw);
+
+  @protected
+  MessageListState dco_decode_message_list_state(dynamic raw);
+
+  @protected
+  MessageListTransition dco_decode_message_list_transition(dynamic raw);
+
+  @protected
+  MessageListTransitionKind dco_decode_message_list_transition_kind(
+    dynamic raw,
+  );
 
   @protected
   MessageState dco_decode_message_state(dynamic raw);
@@ -971,8 +970,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UserHandleHash?
-  dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+  UsernameHash?
+  dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     dynamic raw,
   );
 
@@ -981,9 +980,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_opt_box_autoadd_accept_contact_request_error(dynamic raw);
 
   @protected
-  AddHandleContactError? dco_decode_opt_box_autoadd_add_handle_contact_error(
-    dynamic raw,
-  );
+  AddUsernameContactError?
+  dco_decode_opt_box_autoadd_add_username_contact_error(dynamic raw);
 
   @protected
   AirComponent? dco_decode_opt_box_autoadd_air_component(dynamic raw);
@@ -1033,6 +1031,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MessageId? dco_decode_opt_box_autoadd_message_id(dynamic raw);
 
   @protected
+  MessageListCommand? dco_decode_opt_box_autoadd_message_list_command(
+    dynamic raw,
+  );
+
+  @protected
   PlatformPushToken? dco_decode_opt_box_autoadd_platform_push_token(
     dynamic raw,
   );
@@ -1042,6 +1045,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
     dynamic raw,
   );
+
+  @protected
+  RequestInvitationCodeError?
+  dco_decode_opt_box_autoadd_request_invitation_code_error(dynamic raw);
 
   @protected
   RequiredDebugCapabilities?
@@ -1068,10 +1075,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiMessageDraft? dco_decode_opt_box_autoadd_ui_message_draft(dynamic raw);
 
   @protected
-  UiUserHandle? dco_decode_opt_box_autoadd_ui_user_handle(dynamic raw);
+  UiUserId? dco_decode_opt_box_autoadd_ui_user_id(dynamic raw);
 
   @protected
-  UiUserId? dco_decode_opt_box_autoadd_ui_user_id(dynamic raw);
+  UiUsername? dco_decode_opt_box_autoadd_ui_username(dynamic raw);
 
   @protected
   UploadAttachmentError? dco_decode_opt_box_autoadd_upload_attachment_error(
@@ -1079,8 +1086,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UserHandleValidationError?
-  dco_decode_opt_box_autoadd_user_handle_validation_error(dynamic raw);
+  UsernameValidationError? dco_decode_opt_box_autoadd_username_validation_error(
+    dynamic raw,
+  );
 
   @protected
   List<String>? dco_decode_opt_list_String(dynamic raw);
@@ -1110,7 +1118,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_record_ui_mimi_id_ui_in_reply_to_message(dynamic raw);
 
   @protected
+  RequestInvitationCodeError dco_decode_request_invitation_code_error(
+    dynamic raw,
+  );
+
+  @protected
   RequiredDebugCapabilities dco_decode_required_debug_capabilities(dynamic raw);
+
+  @protected
+  TokenId dco_decode_token_id(dynamic raw);
 
   @protected
   int dco_decode_u_32(dynamic raw);
@@ -1173,6 +1189,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiInactiveChat dco_decode_ui_inactive_chat(dynamic raw);
 
   @protected
+  UiInvitationCode dco_decode_ui_invitation_code(dynamic raw);
+
+  @protected
   UiMessage dco_decode_ui_message(dynamic raw);
 
   @protected
@@ -1191,13 +1210,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiSystemMessage dco_decode_ui_system_message(dynamic raw);
 
   @protected
-  UiUserHandle dco_decode_ui_user_handle(dynamic raw);
-
-  @protected
   UiUserId dco_decode_ui_user_id(dynamic raw);
 
   @protected
   UiUserProfile dco_decode_ui_user_profile(dynamic raw);
+
+  @protected
+  UiUsername dco_decode_ui_username(dynamic raw);
 
   @protected
   void dco_decode_unit(dynamic raw);
@@ -1206,12 +1225,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UploadAttachmentError dco_decode_upload_attachment_error(dynamic raw);
 
   @protected
-  UserHandleValidationError dco_decode_user_handle_validation_error(
-    dynamic raw,
-  );
+  UserSettings dco_decode_user_settings(dynamic raw);
 
   @protected
-  UserSettings dco_decode_user_settings(dynamic raw);
+  UsernameValidationError dco_decode_username_validation_error(dynamic raw);
 
   @protected
   BigInt dco_decode_usize(dynamic raw);
@@ -1250,6 +1267,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  InvitationCodesCubitBase
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LogWriter
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
     SseDeserializer deserializer,
@@ -1270,12 +1293,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   MessageListCubitBase
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageListState
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
     SseDeserializer deserializer,
   );
 
@@ -1310,14 +1327,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UserHandleHash
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+  UserSettingsCubitBase
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
     SseDeserializer deserializer,
   );
 
   @protected
-  UserSettingsCubitBase
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
+  UsernameHash
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     SseDeserializer deserializer,
   );
 
@@ -1330,60 +1347,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   UsersState
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ChatDetailsCubitBase
-  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ChatListCubitBase
-  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MemberDetailsCubitBase
-  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageCubitBase
-  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageListCubitBase
-  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  NavigationCubitBase
-  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UserCubitBase
-  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UserSettingsCubitBase
-  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UsersCubitBase
-  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
     SseDeserializer deserializer,
   );
 
@@ -1418,6 +1381,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  InvitationCodesCubitBase
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LogWriter
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
     SseDeserializer deserializer,
@@ -1438,12 +1407,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   MessageListCubitBase
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageListState
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
     SseDeserializer deserializer,
   );
 
@@ -1551,6 +1514,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  InvitationCodesCubitBase
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LogWriter
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
     SseDeserializer deserializer,
@@ -1571,12 +1540,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   MessageListCubitBase
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageListState
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
     SseDeserializer deserializer,
   );
 
@@ -1611,14 +1574,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UserHandleHash
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+  UserSettingsCubitBase
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
     SseDeserializer deserializer,
   );
 
   @protected
-  UserSettingsCubitBase
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
+  UsernameHash
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     SseDeserializer deserializer,
   );
 
@@ -1631,12 +1594,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   UsersState
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RustStreamSink<MessageListState>
-  sse_decode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState_Sse(
     SseDeserializer deserializer,
   );
 
@@ -1663,6 +1620,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<InvitationCodesState>
+  sse_decode_StreamSink_invitation_codes_state_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RustStreamSink<LogEntry> sse_decode_StreamSink_log_entry_Sse(
     SseDeserializer deserializer,
   );
@@ -1670,6 +1633,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   RustStreamSink<MemberDetailsState>
   sse_decode_StreamSink_member_details_state_Sse(SseDeserializer deserializer);
+
+  @protected
+  RustStreamSink<MessageListState> sse_decode_StreamSink_message_list_state_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RustStreamSink<MessageListTransition>
+  sse_decode_StreamSink_message_list_transition_Sse(
+    SseDeserializer deserializer,
+  );
 
   @protected
   RustStreamSink<MessageState> sse_decode_StreamSink_message_state_Sse(
@@ -1702,7 +1676,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  AddHandleContactError sse_decode_add_handle_contact_error(
+  AddUsernameContactError sse_decode_add_username_contact_error(
     SseDeserializer deserializer,
   );
 
@@ -1740,8 +1714,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UserHandleHash
-  sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+  UsernameHash
+  sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     SseDeserializer deserializer,
   );
 
@@ -1751,7 +1725,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  AddHandleContactError sse_decode_box_autoadd_add_handle_contact_error(
+  AddUsernameContactError sse_decode_box_autoadd_add_username_contact_error(
     SseDeserializer deserializer,
   );
 
@@ -1819,6 +1793,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  InvitationCode sse_decode_box_autoadd_invitation_code(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   InviteUsersError sse_decode_box_autoadd_invite_users_error(
     SseDeserializer deserializer,
   );
@@ -1830,6 +1809,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageId sse_decode_box_autoadd_message_id(SseDeserializer deserializer);
+
+  @protected
+  MessageListCommand sse_decode_box_autoadd_message_list_command(
+    SseDeserializer deserializer,
+  );
 
   @protected
   MessageState sse_decode_box_autoadd_message_state(
@@ -1848,9 +1832,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RequestInvitationCodeError
+  sse_decode_box_autoadd_request_invitation_code_error(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RequiredDebugCapabilities sse_decode_box_autoadd_required_debug_capabilities(
     SseDeserializer deserializer,
   );
+
+  @protected
+  TokenId sse_decode_box_autoadd_token_id(SseDeserializer deserializer);
 
   @protected
   UiChatDetails sse_decode_box_autoadd_ui_chat_details(
@@ -1906,11 +1899,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UiUserHandle sse_decode_box_autoadd_ui_user_handle(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   UiUserId sse_decode_box_autoadd_ui_user_id(SseDeserializer deserializer);
 
   @protected
@@ -1919,12 +1907,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UiUsername sse_decode_box_autoadd_ui_username(SseDeserializer deserializer);
+
+  @protected
   UploadAttachmentError sse_decode_box_autoadd_upload_attachment_error(
     SseDeserializer deserializer,
   );
 
   @protected
-  UserHandleValidationError sse_decode_box_autoadd_user_handle_validation_error(
+  UsernameValidationError sse_decode_box_autoadd_username_validation_error(
     SseDeserializer deserializer,
   );
 
@@ -1995,6 +1986,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   IntroScreenType sse_decode_intro_screen_type(SseDeserializer deserializer);
 
   @protected
+  InvitationCode sse_decode_invitation_code(SseDeserializer deserializer);
+
+  @protected
+  InvitationCodesState sse_decode_invitation_codes_state(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   InviteUsersError sse_decode_invite_users_error(SseDeserializer deserializer);
 
   @protected
@@ -2020,6 +2019,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<List<RangedBlockElement>> sse_decode_list_list_ranged_block_element(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<MessageListChange> sse_decode_list_message_list_change(
     SseDeserializer deserializer,
   );
 
@@ -2065,6 +2069,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<UiChatMessage> sse_decode_list_ui_chat_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<UiClientRecord> sse_decode_list_ui_client_record(
     SseDeserializer deserializer,
   );
@@ -2073,12 +2082,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<UiContact> sse_decode_list_ui_contact(SseDeserializer deserializer);
 
   @protected
-  List<UiUserHandle> sse_decode_list_ui_user_handle(
+  List<UiInvitationCode> sse_decode_list_ui_invitation_code(
     SseDeserializer deserializer,
   );
 
   @protected
   List<UiUserId> sse_decode_list_ui_user_id(SseDeserializer deserializer);
+
+  @protected
+  List<UiUsername> sse_decode_list_ui_username(SseDeserializer deserializer);
 
   @protected
   LogEntry sse_decode_log_entry(SseDeserializer deserializer);
@@ -2096,6 +2108,29 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageId sse_decode_message_id(SseDeserializer deserializer);
+
+  @protected
+  MessageListChange sse_decode_message_list_change(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MessageListCommand sse_decode_message_list_command(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MessageListState sse_decode_message_list_state(SseDeserializer deserializer);
+
+  @protected
+  MessageListTransition sse_decode_message_list_transition(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MessageListTransitionKind sse_decode_message_list_transition_kind(
+    SseDeserializer deserializer,
+  );
 
   @protected
   MessageState sse_decode_message_state(SseDeserializer deserializer);
@@ -2135,8 +2170,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UserHandleHash?
-  sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
+  UsernameHash?
+  sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     SseDeserializer deserializer,
   );
 
@@ -2147,7 +2182,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  AddHandleContactError? sse_decode_opt_box_autoadd_add_handle_contact_error(
+  AddUsernameContactError?
+  sse_decode_opt_box_autoadd_add_username_contact_error(
     SseDeserializer deserializer,
   );
 
@@ -2219,6 +2255,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  MessageListCommand? sse_decode_opt_box_autoadd_message_list_command(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   PlatformPushToken? sse_decode_opt_box_autoadd_platform_push_token(
     SseDeserializer deserializer,
   );
@@ -2226,6 +2267,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   (UiMimiId, UiInReplyToMessage)?
   sse_decode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RequestInvitationCodeError?
+  sse_decode_opt_box_autoadd_request_invitation_code_error(
     SseDeserializer deserializer,
   );
 
@@ -2266,12 +2313,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UiUserHandle? sse_decode_opt_box_autoadd_ui_user_handle(
-    SseDeserializer deserializer,
-  );
+  UiUserId? sse_decode_opt_box_autoadd_ui_user_id(SseDeserializer deserializer);
 
   @protected
-  UiUserId? sse_decode_opt_box_autoadd_ui_user_id(SseDeserializer deserializer);
+  UiUsername? sse_decode_opt_box_autoadd_ui_username(
+    SseDeserializer deserializer,
+  );
 
   @protected
   UploadAttachmentError? sse_decode_opt_box_autoadd_upload_attachment_error(
@@ -2279,8 +2326,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UserHandleValidationError?
-  sse_decode_opt_box_autoadd_user_handle_validation_error(
+  UsernameValidationError? sse_decode_opt_box_autoadd_username_validation_error(
     SseDeserializer deserializer,
   );
 
@@ -2320,9 +2366,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RequestInvitationCodeError sse_decode_request_invitation_code_error(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RequiredDebugCapabilities sse_decode_required_debug_capabilities(
     SseDeserializer deserializer,
   );
+
+  @protected
+  TokenId sse_decode_token_id(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_32(SseDeserializer deserializer);
@@ -2389,6 +2443,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiInactiveChat sse_decode_ui_inactive_chat(SseDeserializer deserializer);
 
   @protected
+  UiInvitationCode sse_decode_ui_invitation_code(SseDeserializer deserializer);
+
+  @protected
   UiMessage sse_decode_ui_message(SseDeserializer deserializer);
 
   @protected
@@ -2407,13 +2464,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiSystemMessage sse_decode_ui_system_message(SseDeserializer deserializer);
 
   @protected
-  UiUserHandle sse_decode_ui_user_handle(SseDeserializer deserializer);
-
-  @protected
   UiUserId sse_decode_ui_user_id(SseDeserializer deserializer);
 
   @protected
   UiUserProfile sse_decode_ui_user_profile(SseDeserializer deserializer);
+
+  @protected
+  UiUsername sse_decode_ui_username(SseDeserializer deserializer);
 
   @protected
   void sse_decode_unit(SseDeserializer deserializer);
@@ -2424,12 +2481,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UserHandleValidationError sse_decode_user_handle_validation_error(
-    SseDeserializer deserializer,
-  );
+  UserSettings sse_decode_user_settings(SseDeserializer deserializer);
 
   @protected
-  UserSettings sse_decode_user_settings(SseDeserializer deserializer);
+  UsernameValidationError sse_decode_username_validation_error(
+    SseDeserializer deserializer,
+  );
 
   @protected
   BigInt sse_decode_usize(SseDeserializer deserializer);
@@ -2477,6 +2534,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+    InvitationCodesCubitBase self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
     LogWriter self,
     SseSerializer serializer,
@@ -2500,13 +2564,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
     MessageListCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-    MessageListState self,
     SseSerializer serializer,
   );
 
@@ -2547,15 +2604,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-    UserHandleHash self,
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
+    UserSettingsCubitBase self,
     SseSerializer serializer,
   );
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
-    UserSettingsCubitBase self,
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+    UsernameHash self,
     SseSerializer serializer,
   );
 
@@ -2570,69 +2627,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
     UsersState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
-    ChatDetailsCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
-    ChatListCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
-    MemberDetailsCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
-    MessageCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    MessageListCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-    NavigationCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    UserCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
-    UserSettingsCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
-    UsersCubitBase self,
     SseSerializer serializer,
   );
 
@@ -2673,6 +2667,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+    InvitationCodesCubitBase self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
     LogWriter self,
     SseSerializer serializer,
@@ -2696,13 +2697,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
     MessageListCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-    MessageListState self,
     SseSerializer serializer,
   );
 
@@ -2853,6 +2847,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+    InvitationCodesCubitBase self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
     LogWriter self,
     SseSerializer serializer,
@@ -2876,13 +2877,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
     MessageListCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-    MessageListState self,
     SseSerializer serializer,
   );
 
@@ -2923,15 +2917,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-    UserHandleHash self,
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
+    UserSettingsCubitBase self,
     SseSerializer serializer,
   );
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
-    UserSettingsCubitBase self,
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+    UsernameHash self,
     SseSerializer serializer,
   );
 
@@ -2946,13 +2940,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
     UsersState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState_Sse(
-    RustStreamSink<MessageListState> self,
     SseSerializer serializer,
   );
 
@@ -2983,6 +2970,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_invitation_codes_state_Sse(
+    RustStreamSink<InvitationCodesState> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_StreamSink_log_entry_Sse(
     RustStreamSink<LogEntry> self,
     SseSerializer serializer,
@@ -2991,6 +2984,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_StreamSink_member_details_state_Sse(
     RustStreamSink<MemberDetailsState> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_message_list_state_Sse(
+    RustStreamSink<MessageListState> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_message_list_transition_Sse(
+    RustStreamSink<MessageListTransition> self,
     SseSerializer serializer,
   );
 
@@ -3031,8 +3036,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_add_handle_contact_error(
-    AddHandleContactError self,
+  void sse_encode_add_username_contact_error(
+    AddUsernameContactError self,
     SseSerializer serializer,
   );
 
@@ -3076,8 +3081,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
-  sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-    UserHandleHash self,
+  sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+    UsernameHash self,
     SseSerializer serializer,
   );
 
@@ -3088,8 +3093,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_box_autoadd_add_handle_contact_error(
-    AddHandleContactError self,
+  void sse_encode_box_autoadd_add_username_contact_error(
+    AddUsernameContactError self,
     SseSerializer serializer,
   );
 
@@ -3169,6 +3174,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_invitation_code(
+    InvitationCode self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_invite_users_error(
     InviteUsersError self,
     SseSerializer serializer,
@@ -3183,6 +3194,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_message_id(
     MessageId self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_message_list_command(
+    MessageListCommand self,
     SseSerializer serializer,
   );
 
@@ -3205,10 +3222,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_request_invitation_code_error(
+    RequestInvitationCodeError self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_required_debug_capabilities(
     RequiredDebugCapabilities self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_box_autoadd_token_id(TokenId self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_ui_chat_details(
@@ -3277,12 +3303,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_box_autoadd_ui_user_handle(
-    UiUserHandle self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_box_autoadd_ui_user_id(
     UiUserId self,
     SseSerializer serializer,
@@ -3295,14 +3315,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_ui_username(
+    UiUsername self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_upload_attachment_error(
     UploadAttachmentError self,
     SseSerializer serializer,
   );
 
   @protected
-  void sse_encode_box_autoadd_user_handle_validation_error(
-    UserHandleValidationError self,
+  void sse_encode_box_autoadd_username_validation_error(
+    UsernameValidationError self,
     SseSerializer serializer,
   );
 
@@ -3391,6 +3417,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_invitation_code(
+    InvitationCode self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_invitation_codes_state(
+    InvitationCodesState self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_invite_users_error(
     InviteUsersError self,
     SseSerializer serializer,
@@ -3426,6 +3464,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_list_ranged_block_element(
     List<List<RangedBlockElement>> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_message_list_change(
+    List<MessageListChange> self,
     SseSerializer serializer,
   );
 
@@ -3481,6 +3525,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_ui_chat_message(
+    List<UiChatMessage> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_ui_client_record(
     List<UiClientRecord> self,
     SseSerializer serializer,
@@ -3493,14 +3543,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_list_ui_user_handle(
-    List<UiUserHandle> self,
+  void sse_encode_list_ui_invitation_code(
+    List<UiInvitationCode> self,
     SseSerializer serializer,
   );
 
   @protected
   void sse_encode_list_ui_user_id(
     List<UiUserId> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_ui_username(
+    List<UiUsername> self,
     SseSerializer serializer,
   );
 
@@ -3524,6 +3580,36 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_message_id(MessageId self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_message_list_change(
+    MessageListChange self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_message_list_command(
+    MessageListCommand self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_message_list_state(
+    MessageListState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_message_list_transition(
+    MessageListTransition self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_message_list_transition_kind(
+    MessageListTransitionKind self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_message_state(MessageState self, SseSerializer serializer);
@@ -3577,8 +3663,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
-  sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-    UserHandleHash? self,
+  sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+    UsernameHash? self,
     SseSerializer serializer,
   );
 
@@ -3589,8 +3675,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_opt_box_autoadd_add_handle_contact_error(
-    AddHandleContactError? self,
+  void sse_encode_opt_box_autoadd_add_username_contact_error(
+    AddUsernameContactError? self,
     SseSerializer serializer,
   );
 
@@ -3673,6 +3759,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_message_list_command(
+    MessageListCommand? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_platform_push_token(
     PlatformPushToken? self,
     SseSerializer serializer,
@@ -3681,6 +3773,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
     (UiMimiId, UiInReplyToMessage)? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_request_invitation_code_error(
+    RequestInvitationCodeError? self,
     SseSerializer serializer,
   );
 
@@ -3727,14 +3825,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_opt_box_autoadd_ui_user_handle(
-    UiUserHandle? self,
+  void sse_encode_opt_box_autoadd_ui_user_id(
+    UiUserId? self,
     SseSerializer serializer,
   );
 
   @protected
-  void sse_encode_opt_box_autoadd_ui_user_id(
-    UiUserId? self,
+  void sse_encode_opt_box_autoadd_ui_username(
+    UiUsername? self,
     SseSerializer serializer,
   );
 
@@ -3745,8 +3843,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_opt_box_autoadd_user_handle_validation_error(
-    UserHandleValidationError? self,
+  void sse_encode_opt_box_autoadd_username_validation_error(
+    UsernameValidationError? self,
     SseSerializer serializer,
   );
 
@@ -3796,10 +3894,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_request_invitation_code_error(
+    RequestInvitationCodeError self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_required_debug_capabilities(
     RequiredDebugCapabilities self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_token_id(TokenId self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_32(int self, SseSerializer serializer);
@@ -3892,6 +3999,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_ui_invitation_code(
+    UiInvitationCode self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_ui_message(UiMessage self, SseSerializer serializer);
 
   @protected
@@ -3919,13 +4032,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_ui_user_handle(UiUserHandle self, SseSerializer serializer);
-
-  @protected
   void sse_encode_ui_user_id(UiUserId self, SseSerializer serializer);
 
   @protected
   void sse_encode_ui_user_profile(UiUserProfile self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ui_username(UiUsername self, SseSerializer serializer);
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
@@ -3937,13 +4050,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_user_handle_validation_error(
-    UserHandleValidationError self,
-    SseSerializer serializer,
-  );
+  void sse_encode_user_settings(UserSettings self, SseSerializer serializer);
 
   @protected
-  void sse_encode_user_settings(UserSettings self, SseSerializer serializer);
+  void sse_encode_username_validation_error(
+    UsernameValidationError self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
@@ -4134,6 +4247,40 @@ class RustLibWire implements BaseWire {
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
   void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBasePtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase',
+      );
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase =
+      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBasePtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBasePtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase',
+      );
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase =
+      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBasePtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
     ffi.Pointer<ffi.Void> ptr,
   ) {
@@ -4267,40 +4414,6 @@ class RustLibWire implements BaseWire {
       );
   late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase =
       _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListStatePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListStatePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListStatePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListState =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListStatePtr
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
   void
@@ -4474,40 +4587,6 @@ class RustLibWire implements BaseWire {
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
   void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHashPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHashPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHashPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHash =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserHandleHashPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
     ffi.Pointer<ffi.Void> ptr,
   ) {
@@ -4539,6 +4618,40 @@ class RustLibWire implements BaseWire {
       );
   late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase =
       _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBasePtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHashPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash',
+      );
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash =
+      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHashPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHashPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash',
+      );
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash =
+      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHashPtr
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
   void

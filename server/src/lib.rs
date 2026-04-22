@@ -31,7 +31,9 @@ use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpListener,
 };
-use tonic::{Request, Status, service::InterceptorLayer, transport::server::Connected};
+#[cfg(any(feature = "test_utils", test))]
+use tonic::{Request, Status};
+use tonic::{service::InterceptorLayer, transport::server::Connected};
 use tonic_health::pb::health_server::{Health, HealthServer};
 use tower_governor::{
     GovernorLayer, governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor,
