@@ -53,7 +53,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1248812929;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1484737805;
 
 // Section: executor
 
@@ -6809,6 +6809,62 @@ fn wire__crate__api__user__User_update_push_token_impl(
         },
     )
 }
+fn wire__crate__api__user__User_user_debug_info_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "User_user_debug_info",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<User>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::user::User::user_debug_info(&*api_that_guard).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__user__User_user_id_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8238,9 +8294,21 @@ const _: fn() = || {
         let _: Vec<String> = RequiredDebugCapabilities.credential_types;
     }
     {
+        let TimedTaskDebugInfo = None::<crate::api::user::TimedTaskDebugInfo>.unwrap();
+        let _: String = TimedTaskDebugInfo.name;
+        let _: chrono::DateTime<chrono::Utc> = TimedTaskDebugInfo.scheduled_at;
+    }
+    {
         let TokenId = None::<crate::api::invitation_codes_cubit::TokenId>.unwrap();
         let _: i64 = TokenId.id;
         let _: chrono::DateTime<chrono::Utc> = TokenId.created_at;
+    }
+    {
+        let UserDebugInfo = None::<crate::api::user::UserDebugInfo>.unwrap();
+        let _: String = UserDebugInfo.user_id;
+        let _: Vec<crate::api::user::TimedTaskDebugInfo> = UserDebugInfo.timed_tasks;
+        let _: u32 = UserDebugInfo.add_username_token_count;
+        let _: u32 = UserDebugInfo.invitation_code_token_count;
     }
 };
 
@@ -9772,6 +9840,20 @@ impl SseDecode for Vec<(u32, crate::api::chat_details_cubit::DebugCapabilities)>
     }
 }
 
+impl SseDecode for Vec<crate::api::user::TimedTaskDebugInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::user::TimedTaskDebugInfo>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::message_content::UiAttachment> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -10686,6 +10768,18 @@ impl SseDecode for crate::api::chat_details_cubit::RequiredDebugCapabilities {
     }
 }
 
+impl SseDecode for crate::api::user::TimedTaskDebugInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_scheduledAt = <chrono::DateTime<chrono::Utc>>::sse_decode(deserializer);
+        return crate::api::user::TimedTaskDebugInfo {
+            name: var_name,
+            scheduled_at: var_scheduledAt,
+        };
+    }
+}
+
 impl SseDecode for crate::api::invitation_codes_cubit::TokenId {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11282,6 +11376,23 @@ impl SseDecode for crate::api::chat_details_cubit::UploadAttachmentError {
     }
 }
 
+impl SseDecode for crate::api::user::UserDebugInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_userId = <String>::sse_decode(deserializer);
+        let mut var_timedTasks =
+            <Vec<crate::api::user::TimedTaskDebugInfo>>::sse_decode(deserializer);
+        let mut var_addUsernameTokenCount = <u32>::sse_decode(deserializer);
+        let mut var_invitationCodeTokenCount = <u32>::sse_decode(deserializer);
+        return crate::api::user::UserDebugInfo {
+            user_id: var_userId,
+            timed_tasks: var_timedTasks,
+            add_username_token_count: var_addUsernameTokenCount,
+            invitation_code_token_count: var_invitationCodeTokenCount,
+        };
+    }
+}
+
 impl SseDecode for crate::api::user_settings_cubit::UserSettings {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11424,28 +11535,29 @@ fn pde_ffi_dispatcher_primary_impl(
 126 => wire__crate__api__user__User_new_impl(port, ptr, rust_vec_len, data_len),
 127 => wire__crate__api__user__User_prepare_for_background_impl(port, ptr, rust_vec_len, data_len),
 129 => wire__crate__api__user__User_update_push_token_impl(port, ptr, rust_vec_len, data_len),
-131 => wire__crate__api__users_cubit__UsersCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
-135 => wire__crate__api__users_cubit__UsersCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
-139 => wire__crate__api__chat_details_cubit__chat_details_state_default_impl(port, ptr, rust_vec_len, data_len),
-140 => wire__crate__api__chat_list_cubit__chat_list_state_default_impl(port, ptr, rust_vec_len, data_len),
-141 => wire__crate__api__invitation_code__check_invitation_code_impl(port, ptr, rust_vec_len, data_len),
-142 => wire__crate__api__logging__clear_app_logs_impl(port, ptr, rust_vec_len, data_len),
-143 => wire__crate__api__logging__clear_background_logs_impl(port, ptr, rust_vec_len, data_len),
-144 => wire__crate__api__logging__create_log_stream_impl(port, ptr, rust_vec_len, data_len),
-145 => wire__crate__api__utils__delete_client_database_impl(port, ptr, rust_vec_len, data_len),
-146 => wire__crate__api__utils__delete_databases_impl(port, ptr, rust_vec_len, data_len),
-147 => wire__crate__api__navigation_cubit__home_navigation_state_default_impl(port, ptr, rust_vec_len, data_len),
-150 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
-151 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
-152 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
-153 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
-154 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
-156 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
-157 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
-158 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
-159 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
-160 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
-161 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
+130 => wire__crate__api__user__User_user_debug_info_impl(port, ptr, rust_vec_len, data_len),
+132 => wire__crate__api__users_cubit__UsersCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
+136 => wire__crate__api__users_cubit__UsersCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
+140 => wire__crate__api__chat_details_cubit__chat_details_state_default_impl(port, ptr, rust_vec_len, data_len),
+141 => wire__crate__api__chat_list_cubit__chat_list_state_default_impl(port, ptr, rust_vec_len, data_len),
+142 => wire__crate__api__invitation_code__check_invitation_code_impl(port, ptr, rust_vec_len, data_len),
+143 => wire__crate__api__logging__clear_app_logs_impl(port, ptr, rust_vec_len, data_len),
+144 => wire__crate__api__logging__clear_background_logs_impl(port, ptr, rust_vec_len, data_len),
+145 => wire__crate__api__logging__create_log_stream_impl(port, ptr, rust_vec_len, data_len),
+146 => wire__crate__api__utils__delete_client_database_impl(port, ptr, rust_vec_len, data_len),
+147 => wire__crate__api__utils__delete_databases_impl(port, ptr, rust_vec_len, data_len),
+148 => wire__crate__api__navigation_cubit__home_navigation_state_default_impl(port, ptr, rust_vec_len, data_len),
+151 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
+152 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
+153 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
+154 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
+155 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
+157 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
+158 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
+159 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
+160 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
+161 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
+162 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
                         _ => unreachable!(),
                     }
 }
@@ -11618,36 +11730,36 @@ fn pde_ffi_dispatcher_sync_impl(
             rust_vec_len,
             data_len,
         ),
-        130 => wire__crate__api__user__User_user_id_impl(ptr, rust_vec_len, data_len),
-        132 => wire__crate__api__users_cubit__UsersCubitBase_is_closed_impl(
+        131 => wire__crate__api__user__User_user_id_impl(ptr, rust_vec_len, data_len),
+        133 => wire__crate__api__users_cubit__UsersCubitBase_is_closed_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        133 => wire__crate__api__users_cubit__UsersCubitBase_new_impl(ptr, rust_vec_len, data_len),
-        134 => {
+        134 => wire__crate__api__users_cubit__UsersCubitBase_new_impl(ptr, rust_vec_len, data_len),
+        135 => {
             wire__crate__api__users_cubit__UsersCubitBase_state_impl(ptr, rust_vec_len, data_len)
         }
-        136 => {
+        137 => {
             wire__crate__api__users_cubit__UsersState_display_name_impl(ptr, rust_vec_len, data_len)
         }
-        137 => wire__crate__api__users_cubit__UsersState_profile_impl(ptr, rust_vec_len, data_len),
-        138 => wire__crate__api__users_cubit__UsersState_profile_picture_impl(
+        138 => wire__crate__api__users_cubit__UsersState_profile_impl(ptr, rust_vec_len, data_len),
+        139 => wire__crate__api__users_cubit__UsersState_profile_picture_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        148 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
-        149 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
-        155 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
+        149 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
+        150 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
+        156 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        162 => {
+        163 => {
             wire__crate__api__types__ui_username_validation_error_impl(ptr, rust_vec_len, data_len)
         }
-        163 => wire__crate__api__username_suggestions__username_from_display_impl(
+        164 => wire__crate__api__username_suggestions__username_from_display_impl(
             ptr,
             rust_vec_len,
             data_len,
@@ -13093,6 +13205,27 @@ impl
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::user::TimedTaskDebugInfo> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.name.into_into_dart().into_dart(),
+            self.0.scheduled_at.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::user::TimedTaskDebugInfo>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::user::TimedTaskDebugInfo>>
+    for crate::api::user::TimedTaskDebugInfo
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::user::TimedTaskDebugInfo> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::invitation_codes_cubit::TokenId> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -13815,6 +13948,32 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::chat_details_cubit::UploadAtt
 {
     fn into_into_dart(self) -> crate::api::chat_details_cubit::UploadAttachmentError {
         self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::user::UserDebugInfo> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.user_id.into_into_dart().into_dart(),
+            self.0.timed_tasks.into_into_dart().into_dart(),
+            self.0.add_username_token_count.into_into_dart().into_dart(),
+            self.0
+                .invitation_code_token_count
+                .into_into_dart()
+                .into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::user::UserDebugInfo>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::user::UserDebugInfo>>
+    for crate::api::user::UserDebugInfo
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::user::UserDebugInfo> {
+        self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -15044,6 +15203,16 @@ impl SseEncode for Vec<(u32, crate::api::chat_details_cubit::DebugCapabilities)>
     }
 }
 
+impl SseEncode for Vec<crate::api::user::TimedTaskDebugInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::user::TimedTaskDebugInfo>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::message_content::UiAttachment> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -15784,6 +15953,14 @@ impl SseEncode for crate::api::chat_details_cubit::RequiredDebugCapabilities {
     }
 }
 
+impl SseEncode for crate::api::user::TimedTaskDebugInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.name, serializer);
+        <chrono::DateTime<chrono::Utc>>::sse_encode(self.scheduled_at, serializer);
+    }
+}
+
 impl SseEncode for crate::api::invitation_codes_cubit::TokenId {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -16277,6 +16454,16 @@ impl SseEncode for crate::api::chat_details_cubit::UploadAttachmentError {
                 unimplemented!("");
             }
         }
+    }
+}
+
+impl SseEncode for crate::api::user::UserDebugInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.user_id, serializer);
+        <Vec<crate::api::user::TimedTaskDebugInfo>>::sse_encode(self.timed_tasks, serializer);
+        <u32>::sse_encode(self.add_username_token_count, serializer);
+        <u32>::sse_encode(self.invitation_code_token_count, serializer);
     }
 }
 

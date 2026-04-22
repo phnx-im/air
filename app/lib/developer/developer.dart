@@ -8,3 +8,4 @@ library;
 export 'developer_settings_screen.dart';
 export 'change_user_screen.dart';
 export 'logs_screen.dart';
+export 'user_debug_info_panel.dart';

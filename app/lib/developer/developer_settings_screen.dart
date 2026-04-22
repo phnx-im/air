@@ -17,6 +17,9 @@ import 'package:air/util/platform.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:air/ui/icons/app_icons.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
+
+import 'user_debug_info_panel.dart';
 
 class DeveloperSettingsScreen extends StatefulWidget {
   const DeveloperSettingsScreen({super.key});
@@ -210,6 +213,16 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                       confirmLabel: "Erase",
                     ),
                   ),
+                  if (user != null) ...[
+                    const _SectionHeader("Debug Info"),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: Spacings.xs,
+                        vertical: Spacings.xxs,
+                      ),
+                      child: UserDebugInfoPanel(user: user),
+                    ),
+                  ],
                 ],
               ),
             ),
