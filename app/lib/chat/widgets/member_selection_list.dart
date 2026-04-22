@@ -66,14 +66,14 @@ class MemberSelectionList extends HookWidget {
         final contact = sortedContacts[index];
         final profile = profiles[contact.userId]!;
         final isSelected = selectedContacts.contains(contact.userId);
-        final hashSupportedClient =
+        final hasSupportedClient =
             contact.supportedFeatures?.encryptedGroupProfiles ?? false;
 
         return Opacity(
-          opacity: hashSupportedClient ? 1.0 : 0.5,
+          opacity: hasSupportedClient ? 1.0 : 0.5,
           child: MemberListItem(
             profile: profile,
-            onTap: hashSupportedClient
+            onTap: hasSupportedClient
                 ? () => onToggle(contact)
                 : () => showSnackBarStandalone(
                     (loc) => SnackBar(
@@ -82,7 +82,7 @@ class MemberSelectionList extends HookWidget {
                       ),
                     ),
                   ),
-            trailing: hashSupportedClient
+            trailing: hasSupportedClient
                 ? Checkbox(
                     value: isSelected,
                     checkColor: CustomColorScheme.of(context).text.secondary,
