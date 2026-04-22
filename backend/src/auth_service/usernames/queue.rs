@@ -425,9 +425,7 @@ mod test {
             verifying_key: UsernameVerifyingKey::from_bytes(vec![1]),
             expiration_data: ExpirationData::new(Duration::seconds(1)),
         };
-        let mut txn = pool.begin().await?;
-        hash_record.store(&mut txn).await?;
-        txn.commit().await?;
+        hash_record.store(pool).await?;
         Ok(())
     }
 
