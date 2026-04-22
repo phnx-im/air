@@ -3,10 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/chat/chat_details.dart';
+import 'package:air/theme/spacings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
+import 'package:air/widgets/widgets.dart';
 
 import 'chat_list_content.dart';
 import 'chat_list_cubit.dart';
@@ -33,7 +35,7 @@ class ChatListContainer extends StatelessWidget {
   }
 }
 
-class ChatListView extends StatelessWidget {
+class ChatListView extends StatefulWidget {
   const ChatListView({
     super.key,
     this.scaffold = false,
@@ -44,27 +46,80 @@ class ChatListView extends StatelessWidget {
   final ChatDetailsCubitCreate createChatDetailsCubit;
 
   @override
+  State<ChatListView> createState() => _ChatListViewState();
+}
+
+class _ChatListViewState extends State<ChatListView> {
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final widget = Container(
-      color: ChatListContainer.backgroundColor(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const ChatListHeader(),
-          Expanded(
-            child: ChatListContent(
-              createChatDetailsCubit: createChatDetailsCubit,
-            ),
+    final bgColor = ChatListContainer.backgroundColor(context);
+    // Inset the Scrollbar's track so it doesn't overlap the header or the
+    // opaque region of the bottom fade.
+    final scrollbarPadding = MediaQuery.paddingOf(
+      context,
+    ).copyWith(top: kToolbarHeight, bottom: kToolbarHeight);
+    const fadeBleeding = Spacings.s;
+    const fadeHeight = kToolbarHeight + fadeBleeding;
+    final container = Container(
+      color: bgColor,
+      child: MediaQuery(
+        data: MediaQuery.of(context).copyWith(padding: scrollbarPadding),
+        child: Scrollbar(
+          controller: _scrollController,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(
+                    context,
+                  ).copyWith(scrollbars: false),
+                  child: ChatListContent(
+                    createChatDetailsCubit: widget.createChatDetailsCubit,
+                    topPadding: fadeHeight,
+                    bottomPadding: fadeHeight,
+                    scrollController: _scrollController,
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                bottom: null,
+                child: EdgeFade(
+                  edge: FadeEdge.top,
+                  height: fadeHeight,
+                  color: bgColor,
+                  curve: Curves.easeInOutQuad,
+                  solidStop: 0.2,
+                ),
+              ),
+              const Positioned.fill(bottom: null, child: ChatListHeader()),
+              Positioned.fill(
+                top: null,
+                child: EdgeFade(
+                  edge: FadeEdge.bottom,
+                  height: fadeHeight,
+                  color: bgColor,
+                  curve: Curves.easeInOutQuad,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
-    return scaffold
+    return widget.scaffold
         ? Scaffold(
-            backgroundColor: ChatListContainer.backgroundColor(context),
+            backgroundColor: bgColor,
             body: Stack(
               children: [
-                SafeArea(bottom: false, child: widget),
+                SafeArea(bottom: false, child: container),
                 const Positioned(
                   bottom: 0,
                   left: 0,
@@ -74,7 +129,7 @@ class ChatListView extends StatelessWidget {
               ],
             ),
           )
-        : widget;
+        : container;
   }
 }
 
