@@ -99,7 +99,7 @@ pub struct UsernameHash {
 }
 
 impl UsernameHash {
-    pub fn new(hash: [u8; 32]) -> Self {
+    pub const fn new(hash: [u8; 32]) -> Self {
         Self { hash }
     }
 

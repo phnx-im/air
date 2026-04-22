@@ -1,0 +1,48 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    hash AS \"username_hash: UsernameHash\",\n                    verifying_key AS \"verifying_key: UsernameVerifyingKey\",\n                    expiration_data AS \"expiration_data: ExpirationData\"\n                FROM as_user_handle\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "username_hash: UsernameHash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "verifying_key: UsernameVerifyingKey",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "expiration_data: ExpirationData",
+        "type_info": {
+          "Custom": {
+            "name": "expiration",
+            "kind": {
+              "Composite": [
+                [
+                  "not_before",
+                  "Timestamptz"
+                ],
+                [
+                  "not_after",
+                  "Timestamptz"
+                ]
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "bd4d181536d45065cdb41f7247ca959d3c9878dedcdba1efaba2e2898e49ed80"
+}

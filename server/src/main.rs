@@ -14,6 +14,7 @@ use airserver::{
     enqueue_provider::SimpleEnqueueProvider, logging::init_logging,
     network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
+    username_command::run_username_command,
 };
 use anyhow::{Context, bail};
 use clap::Parser;
@@ -43,6 +44,10 @@ async fn main() -> anyhow::Result<()> {
         airserver::args::Command::Code(code_args) => {
             configuration.database.name = format!("{base_db_name}_as");
             return run_code_command(code_args, configuration, domain).await;
+        }
+        airserver::args::Command::Username(username_args) => {
+            configuration.database.name = format!("{base_db_name}_as");
+            return run_username_command(username_args, configuration, domain).await;
         }
     }
 
