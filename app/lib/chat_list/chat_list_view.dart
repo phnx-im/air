@@ -61,13 +61,13 @@ class _ChatListViewState extends State<ChatListView> {
   @override
   Widget build(BuildContext context) {
     final bgColor = ChatListContainer.backgroundColor(context);
-    // Inset the Scrollbar's track so it doesn't overlap the header or the
-    // opaque region of the bottom fade.
-    final scrollbarPadding = MediaQuery.paddingOf(
-      context,
-    ).copyWith(top: kToolbarHeight, bottom: kToolbarHeight);
     const fadeBleeding = Spacings.s;
     const fadeHeight = kToolbarHeight + fadeBleeding;
+    // Inset the Scrollbar's track so it aligns with the list's content padding
+    // and doesn't overlap the header or the fade regions.
+    final scrollbarPadding = MediaQuery.paddingOf(
+      context,
+    ).copyWith(top: fadeHeight, bottom: fadeHeight);
     final container = Container(
       color: bgColor,
       child: MediaQuery(
