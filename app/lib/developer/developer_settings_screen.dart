@@ -17,7 +17,6 @@ import 'package:air/util/platform.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:air/ui/icons/app_icons.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import 'user_debug_info_panel.dart';
 
