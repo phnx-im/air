@@ -158,14 +158,15 @@ mod persistence {
         }
 
         pub(crate) async fn commit_all(executor: impl WriteExecutor<'_>) -> sqlx::Result<()> {
+            let (executor, notifier) = executor.split();
             let mut chat_ids = query_scalar!(
                 r#"UPDATE message_draft SET is_committed = true
                 RETURNING chat_id AS "chat_id: ChatId""#
             )
             .fetch(executor);
-            // while let Some(Ok(chat_id)) = chat_ids.next().await {
-            // notifier.update(chat_id);
-            // }
+            while let Some(Ok(chat_id)) = chat_ids.next().await {
+                notifier.update(chat_id);
+            }
             Ok(())
         }
 
@@ -191,6 +192,7 @@ mod persistence {
             chats::{
                 messages::persistence::tests::test_chat_message, persistence::tests::test_chat,
             },
+            db_access::DbAccess,
             store::StoreNotifier,
         };
 
@@ -266,6 +268,7 @@ mod persistence {
         #[sqlx::test]
         async fn commit_all_drafts(pool: SqlitePool) -> anyhow::Result<()> {
             let mut notifier = StoreNotifier::noop();
+            let db = DbAccess::new(pool);
 
             let chat_a = test_chat();
             chat_a
@@ -297,7 +300,7 @@ mod persistence {
             .store(&pool, &mut notifier, chat_b.id())
             .await?;
 
-            MessageDraft::commit_all(&pool).await?;
+            MessageDraft::commit_all(&db).await?;
 
             assert!(
                 MessageDraft::load(pool.acquire().await?.as_mut(), chat_a.id())

@@ -1,6 +1,6 @@
 use futures_core::{future::BoxFuture, stream::BoxStream};
 use sqlx::{
-    Connection, Executor, Sqlite, SqliteConnection, SqlitePool, SqliteTransaction,
+    Connection, Executor, Sqlite, SqliteExecutor, SqlitePool, SqliteTransaction,
     pool::PoolConnection,
 };
 
@@ -12,12 +12,20 @@ pub(crate) struct DbAccess {
     pool: SqlitePool,
 }
 
+impl DbAccess {
+    #[cfg(test)]
+    pub(crate) fn new(pool: SqlitePool) -> Self {
+        Self {
+            notifier_tx: StoreNotificationsSender::new(),
+            pool,
+        }
+    }
+}
+
 pub trait ReadExecutor<'c>: Executor<'c, Database = Sqlite> {}
 
 pub trait WriteExecutor<'c>: Executor<'c, Database = Sqlite> {
-    // fn notifier(&mut self) -> &mut StoreNotifier;
-
-    // fn split(&mut self) -> (impl SqliteExecutor<'c>, &mut StoreNotifier);
+    fn split(self) -> (impl SqliteExecutor<'c>, &'c mut StoreNotifier);
 }
 
 impl DbAccess {
@@ -32,7 +40,10 @@ impl DbAccess {
 
     pub(crate) async fn write(&self) -> sqlx::Result<WriteConnection> {
         let conn = self.pool.acquire().await?;
-        Ok(WriteConnection { conn })
+        Ok(WriteConnection {
+            conn,
+            notifier: self.notifier(),
+        })
     }
 
     /// Executes a function with a transaction and a [`StoreNotifier`].
@@ -61,18 +72,23 @@ pub(crate) struct ReadConnection {
 #[derive(Debug)]
 pub(crate) struct WriteConnection {
     conn: PoolConnection<Sqlite>,
+    notifier: StoreNotifier,
 }
 
 impl<'c> WriteConnection {
     async fn begin(&'c mut self) -> sqlx::Result<WriteTransaction<'c>> {
         let txn = self.conn.begin_with("BEGIN IMMEDIATE").await?;
-        Ok(WriteTransaction { txn })
+        Ok(WriteTransaction {
+            txn,
+            notifier: &mut self.notifier,
+        })
     }
 }
 
 #[derive(Debug)]
 pub(crate) struct WriteTransaction<'c> {
     txn: SqliteTransaction<'c>,
+    notifier: &'c mut StoreNotifier,
 }
 
 impl WriteTransaction<'_> {
@@ -80,12 +96,6 @@ impl WriteTransaction<'_> {
         self.txn.commit().await
     }
 }
-
-// impl<'c> AsMut<SqliteConnection> for WriteTransaction<'c> {
-//     fn as_mut(&mut self) -> &mut SqliteConnection {
-//         self.txn.as_mut()
-//     }
-// }
 
 impl<'c> ReadExecutor<'c> for &'c mut ReadConnection {}
 impl<'c> Executor<'c> for &'c mut ReadConnection {
@@ -145,13 +155,9 @@ impl<'c> Executor<'c> for &'c mut ReadConnection {
 }
 
 impl<'c> WriteExecutor<'c> for &'c mut WriteConnection {
-    // fn notifier(&mut self) -> &mut StoreNotifier {
-    //     &mut self.notifier
-    // }
-
-    // fn split(&mut self) -> (impl SqliteExecutor<'c>, &mut StoreNotifier) {
-    // (self.conn.as_mut(), &mut self.notifier)
-    // }
+    fn split(self) -> (impl SqliteExecutor<'c>, &'c mut StoreNotifier) {
+        (self.conn.as_mut(), &mut self.notifier)
+    }
 }
 
 impl<'c> Executor<'c> for &'c mut WriteConnection {
@@ -211,13 +217,9 @@ impl<'c> Executor<'c> for &'c mut WriteConnection {
 }
 
 impl<'c> WriteExecutor<'c> for &'c mut WriteTransaction<'_> {
-    // fn notifier(&mut self) -> &mut StoreNotifier {
-    //     &mut self.notifier
-    // }
-
-    // fn split(self) -> (impl SqliteExecutor<'c>, &'a mut StoreNotifier) {
-    // (self.txn.as_mut(), &mut self.notifier)
-    // }
+    fn split(self) -> (impl SqliteExecutor<'c>, &'c mut StoreNotifier) {
+        (self.txn.as_mut(), &mut self.notifier)
+    }
 }
 
 impl<'c> Executor<'c> for &'c mut WriteTransaction<'_> {
