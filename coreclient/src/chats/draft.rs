@@ -44,7 +44,7 @@ impl MessageDraft {
 mod persistence {
     use sqlx::{SqliteConnection, SqliteExecutor, query, query_as, query_scalar};
 
-    use crate::{ChatId, store::StoreNotifier};
+    use crate::{ChatId, db_access::WriteExecutor, store::StoreNotifier};
 
     use super::*;
 
@@ -157,18 +157,15 @@ mod persistence {
             Ok(())
         }
 
-        pub(crate) async fn commit_all(
-            executor: impl SqliteExecutor<'_>,
-            notifier: &mut StoreNotifier,
-        ) -> sqlx::Result<()> {
+        pub(crate) async fn commit_all(executor: impl WriteExecutor<'_>) -> sqlx::Result<()> {
             let mut chat_ids = query_scalar!(
                 r#"UPDATE message_draft SET is_committed = true
                 RETURNING chat_id AS "chat_id: ChatId""#
             )
             .fetch(executor);
-            while let Some(Ok(chat_id)) = chat_ids.next().await {
-                notifier.update(chat_id);
-            }
+            // while let Some(Ok(chat_id)) = chat_ids.next().await {
+            // notifier.update(chat_id);
+            // }
             Ok(())
         }
 

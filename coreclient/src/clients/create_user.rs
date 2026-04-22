@@ -394,6 +394,7 @@ impl PersistedUserState {
 
         let inner = Arc::new(CoreUserInner {
             pool,
+            db_access: todo!(),
             key_store,
             qs_user_id,
             qs_client_id,

@@ -9,6 +9,7 @@
 mod chats;
 pub mod clients;
 mod contacts;
+mod db_access;
 mod groups;
 mod job;
 mod key_stores;

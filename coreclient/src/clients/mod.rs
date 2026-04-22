@@ -50,6 +50,7 @@ use crate::{
     Asset, UsernameRecord,
     clients::event_loop::{EventLoop, EventLoopSender},
     contacts::{TargetedMessageContact, UsernameContact},
+    db_access::DbAccess,
     groups::Group,
     job::{Job, JobContext, JobError},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
@@ -121,6 +122,7 @@ pub struct CoreUser {
 #[derive(Debug)]
 pub(crate) struct CoreUserInner {
     pool: SqlitePool,
+    db_access: DbAccess,
     api_clients: ApiClients,
     http_client: reqwest::Client,
     qs_user_id: QsUserId,
@@ -290,6 +292,10 @@ impl CoreUser {
 
     pub(crate) fn pool(&self) -> &SqlitePool {
         &self.inner.pool
+    }
+
+    pub(crate) fn db(&self) -> &DbAccess {
+        &self.inner.db
     }
 
     #[cfg(feature = "test_utils")]

@@ -19,6 +19,7 @@ const NOTIFICATION_CHANNEL_SIZE: usize = 1024;
 /// Bundles a notification sender and a notification.
 ///
 /// Used to collect all notifications and eventually send them all at once.
+#[derive(Debug)]
 pub(crate) struct StoreNotifier {
     tx: Option<StoreNotificationsSender>, // None if the notifier is a noop
     notification: StoreNotification,
