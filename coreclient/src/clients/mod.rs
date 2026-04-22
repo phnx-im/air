@@ -295,7 +295,7 @@ impl CoreUser {
     }
 
     pub(crate) fn db(&self) -> &DbAccess {
-        &self.inner.db
+        &self.inner.db_access
     }
 
     #[cfg(feature = "test_utils")]

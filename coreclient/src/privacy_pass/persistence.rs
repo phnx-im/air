@@ -5,7 +5,7 @@
 use aircommon::messages::client_as::SerializedToken;
 use airprotos::auth_service::v1::OperationType;
 use chrono::{DateTime, Utc};
-use sqlx::SqliteExecutor;
+use sqlx::{SqliteExecutor, SqlitePool};
 
 use crate::{db_access::ReadExecutor, privacy_pass::TokenId};
 
@@ -164,7 +164,7 @@ pub(crate) async fn delete_all_batched_token_keys(
 
 /// Loads all batched token public keys for a specific operation type.
 pub(crate) async fn load_batched_token_keys(
-    executor: impl ReadExecutor<'_>,
+    executor: impl SqliteExecutor<'_>,
     operation_type: OperationType,
 ) -> Result<Vec<(u8, Vec<u8>)>, sqlx::Error> {
     let operation_type = i32::from(operation_type);

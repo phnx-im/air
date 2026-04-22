@@ -368,7 +368,7 @@ impl Store for CoreUser {
 
     async fn commit_all_message_drafts(&self) -> StoreResult<()> {
         self.db()
-            .with_write_transaction(async |txn| Ok(MessageDraft::commit_all(txn.as_mut()).await?))
+            .with_write_transaction(async |txn| Ok(MessageDraft::commit_all(txn).await?))
             .await
     }
 

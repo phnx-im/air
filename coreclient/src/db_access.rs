@@ -1,6 +1,6 @@
 use futures_core::{future::BoxFuture, stream::BoxStream};
 use sqlx::{
-    Connection, Executor, Sqlite, SqliteConnection, SqliteExecutor, SqlitePool, SqliteTransaction,
+    Connection, Executor, Sqlite, SqliteConnection, SqlitePool, SqliteTransaction,
     pool::PoolConnection,
 };
 
@@ -42,7 +42,7 @@ impl DbAccess {
     /// after the transaction is committed successfully.
     pub(crate) async fn with_write_transaction<A, T: Send>(&self, f: A) -> anyhow::Result<T>
     where
-        A: AsyncFnOnce(&mut WriteTransaction<'_>) -> anyhow::Result<T>,
+        A: for<'a> AsyncFnOnce(&'a mut WriteTransaction<'_>) -> anyhow::Result<T>,
     {
         let mut conn = self.write().await?;
         let mut txn = conn.begin().await?;
@@ -81,13 +81,11 @@ impl WriteTransaction<'_> {
     }
 }
 
-struct WriteConnection2(SqliteConnection);
-
-impl<'c> AsMut<WriteConnection2> for WriteTransaction<'c> {
-    fn as_mut(&mut self) -> &mut WriteConnection2 {
-        self.txn.as_mut()
-    }
-}
+// impl<'c> AsMut<SqliteConnection> for WriteTransaction<'c> {
+//     fn as_mut(&mut self) -> &mut SqliteConnection {
+//         self.txn.as_mut()
+//     }
+// }
 
 impl<'c> ReadExecutor<'c> for &'c mut ReadConnection {}
 impl<'c> Executor<'c> for &'c mut ReadConnection {
@@ -212,7 +210,7 @@ impl<'c> Executor<'c> for &'c mut WriteConnection {
     }
 }
 
-impl<'c> WriteExecutor<'c> for &'c mut WriteTransaction<'c> {
+impl<'c> WriteExecutor<'c> for &'c mut WriteTransaction<'_> {
     // fn notifier(&mut self) -> &mut StoreNotifier {
     //     &mut self.notifier
     // }
@@ -222,7 +220,7 @@ impl<'c> WriteExecutor<'c> for &'c mut WriteTransaction<'c> {
     // }
 }
 
-impl<'c> Executor<'c> for &'c mut WriteTransaction<'c> {
+impl<'c> Executor<'c> for &'c mut WriteTransaction<'_> {
     type Database = Sqlite;
 
     fn fetch_many<'e, 'q: 'e, E>(

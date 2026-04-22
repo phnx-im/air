@@ -297,7 +297,7 @@ mod persistence {
             .store(&pool, &mut notifier, chat_b.id())
             .await?;
 
-            MessageDraft::commit_all(&pool, &mut notifier).await?;
+            MessageDraft::commit_all(&pool).await?;
 
             assert!(
                 MessageDraft::load(pool.acquire().await?.as_mut(), chat_a.id())

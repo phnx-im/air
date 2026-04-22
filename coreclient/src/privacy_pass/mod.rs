@@ -27,7 +27,7 @@ use tls_codec::{Deserialize, Serialize};
 use tokio::time;
 use tracing::{debug, info, warn};
 
-use crate::{db_access::DbAccess, utils::connection_ext::ConnectionExt};
+use crate::utils::connection_ext::ConnectionExt;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct TokenId {
@@ -45,7 +45,7 @@ pub enum RequestTokensError {
 
 /// Requests a batch of Privacy Pass tokens from the AS and stores them locally.
 pub(crate) async fn request_and_store_tokens(
-    pool: &DbAccess,
+    pool: &SqlitePool,
     api_client: &ApiClient,
     user_id: UserId,
     signing_key: &ClientSigningKey,
