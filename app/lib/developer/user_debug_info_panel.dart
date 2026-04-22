@@ -93,7 +93,8 @@ class _UserDebugInfoBody extends StatelessWidget {
             for (final task in info.timedTasks)
               _InfoRow(
                 label: task.name,
-                value: _formatDateTime(task.scheduledAt.toLocal()),
+                value:
+                    '${_formatDateTime(task.scheduledAt.toLocal())}  (${_formatRelative(task.scheduledAt)})',
               ),
           ],
         ),
@@ -103,6 +104,23 @@ class _UserDebugInfoBody extends StatelessWidget {
 
   String _formatDateTime(DateTime dt) {
     return DateFormat('yyyy-MM-dd HH:mm:ss').format(dt);
+  }
+
+  String _formatRelative(DateTime dt) {
+    final diff = dt.toUtc().difference(DateTime.now().toUtc());
+    final abs = diff.abs();
+    final future = diff.isNegative == false;
+    String magnitude;
+    if (abs.inSeconds < 60) {
+      magnitude = '${abs.inSeconds}s';
+    } else if (abs.inMinutes < 60) {
+      magnitude = '${abs.inMinutes}m';
+    } else if (abs.inHours < 24) {
+      magnitude = '${abs.inHours}h ${abs.inMinutes.remainder(60)}m';
+    } else {
+      magnitude = '${abs.inDays}d ${abs.inHours.remainder(24)}h';
+    }
+    return future ? 'in $magnitude' : '$magnitude ago';
   }
 }
 
@@ -230,6 +248,7 @@ class _InfoRow extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(width: Spacings.xs),
             Expanded(child: Text(value, style: valueStyle)),
           ],
         ),
