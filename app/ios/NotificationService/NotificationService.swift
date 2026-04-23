@@ -190,6 +190,12 @@ class NotificationService: UNNotificationServiceExtension {
                     return
                 }
 
+                CFNotificationCenterPostNotification(
+                    CFNotificationCenterGetDarwinNotifyCenter(),
+                    CFNotificationName(
+                        "ms.air.store-notifications-pending" as CFString),
+                    nil, nil, true)
+
                 self.handleNotificationBatch(
                     notificationBatch, contentHandler: contentHandler)
                 rustLog(

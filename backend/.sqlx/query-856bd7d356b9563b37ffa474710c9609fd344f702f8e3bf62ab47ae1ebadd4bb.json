@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE as_user_handle SET\n                verifying_key = $2,\n                expiration_data = $3\n            WHERE hash = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Bytea",
+        {
+          "Custom": {
+            "name": "expiration",
+            "kind": {
+              "Composite": [
+                [
+                  "not_before",
+                  "Timestamptz"
+                ],
+                [
+                  "not_after",
+                  "Timestamptz"
+                ]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "856bd7d356b9563b37ffa474710c9609fd344f702f8e3bf62ab47ae1ebadd4bb"
+}

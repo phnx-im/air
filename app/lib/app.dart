@@ -15,6 +15,7 @@ import 'package:air/theme/theme.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/interface_scale.dart';
 import 'package:air/ui/components/context_menu/context_menu.dart';
+import 'package:air/util/notifications.dart';
 import 'package:air/util/platform.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -61,6 +62,10 @@ class _AppState extends State<App> with WidgetsBindingObserver {
           _appRouter.dismissOverlays();
           _navigationCubit.openChat(chatId);
         });
+
+    // Fetch potential initial notification that launched the app on Android
+    // cold start.
+    unawaited(consumeInitialNotification(_openedNotificationController.sink));
 
     _backgroundService.start(runImmediately: true);
   }

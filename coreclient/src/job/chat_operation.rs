@@ -136,18 +136,10 @@ impl ChatOperation {
             ChatOperationType::AddMembers(user_ids) => {
                 let members: HashSet<_> = group.members().collect();
                 user_ids.retain(|user_id| !members.contains(user_id));
-
-                if user_ids.is_empty() {
-                    bail!("All users to add are already members of the group");
-                }
             }
             ChatOperationType::RemoveMembers(user_ids) => {
                 let members: HashSet<_> = group.members().collect();
                 user_ids.retain(|user_id| members.contains(user_id));
-
-                if user_ids.is_empty() {
-                    bail!("None of the users to remove are members of the group");
-                }
             }
             // The following operations are always valid as long as the
             // group is active.
@@ -169,9 +161,15 @@ impl ChatOperation {
 
         match self.operation.clone() {
             ChatOperationType::AddMembers(user_ids) => {
+                if user_ids.is_empty() {
+                    return Ok(Vec::new());
+                }
                 self.execute_add_members(context, user_ids).await
             }
             ChatOperationType::RemoveMembers(user_ids) => {
+                if user_ids.is_empty() {
+                    return Ok(Vec::new());
+                }
                 self.execute_remove_members(context, user_ids).await
             }
             ChatOperationType::Leave => self.execute_leave_chat(context).await,

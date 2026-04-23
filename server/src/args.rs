@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use chrono::{DateTime, Utc};
+
 #[derive(clap::Parser)]
 pub struct Args {
     #[command(subcommand)]
@@ -13,8 +15,10 @@ pub enum Command {
     /// Run the server
     #[default]
     Run,
-    /// Invitation codes subcommand
+    /// Invitation codes subcommands
     Code(CodeArgs),
+    /// Usernames subcommands
+    Username(UsernameArgs),
 }
 
 #[derive(clap::Args)]
@@ -43,4 +47,21 @@ pub enum CodeCommand {
         #[arg(default_value_t = 1)]
         n: usize,
     },
+}
+
+#[derive(clap::Args)]
+pub struct UsernameArgs {
+    #[command(subcommand)]
+    pub cmd: Option<UsernameCommand>,
+}
+
+#[derive(Default, clap::Subcommand)]
+pub enum UsernameCommand {
+    /// Lists all hashes of usernames
+    ///
+    /// Note: The server does not have access to plaintext usernames.
+    #[default]
+    List,
+    /// Refreshes usernames that are about to expire before the given date.
+    RefreshExpiring { before: DateTime<Utc> },
 }

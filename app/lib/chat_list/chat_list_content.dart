@@ -139,11 +139,10 @@ class _ListTile extends StatelessWidget {
     );
     final isSelected = currentChatId == chatId;
 
-    return ListTile(
-      horizontalTitleGap: 0,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
-      minVerticalPadding: 0,
-      title: Container(
+    return GestureDetector(
+      onTap: () => context.read<NavigationCubit>().openChat(chatId),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
         padding: const EdgeInsets.fromLTRB(
           Spacings.s,
           Spacings.s,
@@ -189,8 +188,6 @@ class _ListTile extends StatelessWidget {
           },
         ),
       ),
-      selected: isSelected,
-      onTap: () => context.read<NavigationCubit>().openChat(chatId),
     );
   }
 }

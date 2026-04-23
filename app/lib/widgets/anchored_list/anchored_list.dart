@@ -791,7 +791,7 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
 
     final currentTop = _itemTopInViewport(targetId);
     if (currentTop != null) {
-      _alignVisibleTarget(targetId, animate: true);
+      _alignVisibleTarget(targetId);
       return;
     }
 
@@ -801,7 +801,7 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
   /// Scrolls so that [targetId] sits at the top of the viewport.
   /// Used when the item is already laid out and visible — the offset
   /// needed is simply current pixels minus the item's current top.
-  void _alignVisibleTarget(Object targetId, {required bool animate}) {
+  void _alignVisibleTarget(Object targetId) {
     if (!_scrollController.hasClients || _jumpState.targetId != targetId) {
       return;
     }
@@ -825,19 +825,8 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
       return;
     }
 
-    if (!animate) {
-      _scrollController.jumpTo(clampedOffset);
-      _jumpState.onScrollComplete();
-      return;
-    }
-
-    _scrollController
-        .animateTo(
-          clampedOffset,
-          duration: _animateDuration,
-          curve: _animateCurve,
-        )
-        .then((_) => _jumpState.onScrollComplete());
+    _scrollController.jumpTo(clampedOffset);
+    _jumpState.onScrollComplete();
   }
 
   /// Iteratively jumps toward an off-screen item.
@@ -883,7 +872,7 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
       if (_jumpState.targetId != targetId) return;
 
       if (_itemTopInViewport(targetId) != null) {
-        _alignVisibleTarget(targetId, animate: false);
+        _alignVisibleTarget(targetId);
         return;
       }
 
